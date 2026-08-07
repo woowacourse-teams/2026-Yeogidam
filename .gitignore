@@ -1,0 +1,18 @@
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+### 환경 변수 ###
+.env
+
+### AI 도구 ###
+AGENTS.md
+CLAUDE.md
