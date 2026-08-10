@@ -13,3 +13,56 @@ lerna-debug.log*
 ### 환경 변수 (로컬 전용) ###
 .env.local
 .env.*.local
+
+### React Native / native builds ###
+.bundle/
+build/
+.gradle/
+local.properties
+.cxx/
+.kotlin/
+*.hprof
+*.keystore
+!debug.keystore
+**/Pods/
+/vendor/bundle/
+DerivedData/
+xcuserdata/
+**/.xcode.env.local
+*.jsbundle
+.metro-health-check*
+
+### macOS / IDE ###
+.DS_Store
+*.iml
+*.iws
+*.ipr
+
+### Xcode user files ###
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.xcuserstate
+
+### Fastlane ###
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
+
+### Yarn ###
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
