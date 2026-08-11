@@ -55,10 +55,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 18,
     bottom: 20,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#dbe0f9',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#DBE0F9',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#3b6fe8',
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   },
   fabText: {
     fontSize: 30,
-    color: '#ffffff',
+    color: '#000000',
     fontWeight: '300',
   },
 });
