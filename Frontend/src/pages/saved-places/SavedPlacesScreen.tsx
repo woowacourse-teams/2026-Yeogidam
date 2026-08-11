@@ -1,11 +1,12 @@
-import React from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import React, {useState} from 'react';
+import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {savedPlaceMocks} from '../../entities/place/mocks';
 import type {Place} from '../../entities/place/types';
 import {SavedPlacesEmptyState} from './components/SavedPlacesEmptyState';
 import {SavedPlaceGrid} from './components/SavedPlaceGrid';
+import {SavedPlacesLinkDialog} from './components/SavedPlacesLinkDialog';
 
 type SavedPlacesScreenProps = {
   onOpenDetail: () => void;
@@ -16,7 +17,18 @@ export function SavedPlacesScreen({
   onOpenDetail,
   places = savedPlaceMocks,
 }: SavedPlacesScreenProps) {
+  const [isDialogVisible, setIsDialogVisible] = useState(false);
+  const [linkValue, setLinkValue] = useState('');
   const hasSavedPlaces = places.length > 0;
+
+  const openDialog = () => {
+    setIsDialogVisible(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogVisible(false);
+    setLinkValue('');
+  };
 
   return (
     <View style={styles.container}>
@@ -30,13 +42,20 @@ export function SavedPlacesScreen({
               onPressPlace={() => onOpenDetail()}
             />
           </ScrollView>
-          <View style={styles.fab}>
+          <Pressable onPress={openDialog} style={styles.fab}>
             <Text style={styles.fabText}>＋</Text>
-          </View>
+          </Pressable>
         </>
       ) : (
         <SavedPlacesEmptyState />
       )}
+      <SavedPlacesLinkDialog
+        visible={isDialogVisible}
+        value={linkValue}
+        onChangeValue={setLinkValue}
+        onClose={closeDialog}
+        onSubmit={closeDialog}
+      />
     </View>
   );
 }
