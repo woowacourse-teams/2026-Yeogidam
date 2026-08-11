@@ -1,5 +1,6 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import type {Place} from '../../../entities/place/types';
 
@@ -12,24 +13,44 @@ export function SavedPlaceGrid({
   places,
   onPressPlace,
 }: SavedPlaceGridProps) {
+  const [likedPlaceIds, setLikedPlaceIds] = useState<string[]>([]);
+
+  const toggleLikedPlace = (placeId: string) => {
+    setLikedPlaceIds(currentIds =>
+      currentIds.includes(placeId)
+        ? currentIds.filter(id => id !== placeId)
+        : [...currentIds, placeId],
+    );
+  };
+
   return (
     <View style={styles.grid}>
-      {places.map((place, index) => (
-        <Pressable
-          key={`${place.id}-${index}`}
-          onPress={() => onPressPlace(place)}
-          style={styles.card}>
-          <Image source={place.image} style={styles.image} />
-          <View style={styles.dim} />
-          <View style={styles.heart}>
-            <Text>♡</Text>
+      {places.map((place, index) => {
+        const isLiked = likedPlaceIds.includes(place.id);
+
+        return (
+          <View key={`${place.id}-${index}`} style={styles.card}>
+            <Pressable onPress={() => onPressPlace(place)} style={styles.cardBody}>
+              <Image source={place.image} style={styles.image} />
+              <View style={styles.dim} />
+              <View style={styles.label}>
+                <Text style={styles.name}>{place.name}</Text>
+                <Text style={styles.address}>{place.address}</Text>
+              </View>
+            </Pressable>
+            <Pressable
+              hitSlop={8}
+              onPress={() => toggleLikedPlace(place.id)}
+              style={styles.heart}>
+              <MaterialIcons
+                color="#C1CBFE"
+                name={isLiked ? 'favorite' : 'favorite-border'}
+                size={18}
+              />
+            </Pressable>
           </View>
-          <View style={styles.label}>
-            <Text style={styles.name}>{place.name}</Text>
-            <Text style={styles.address}>{place.address}</Text>
-          </View>
-        </Pressable>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -48,6 +69,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#eeeeee',
+  },
+  cardBody: {
+    flex: 1,
   },
   image: {
     width: '100%',
