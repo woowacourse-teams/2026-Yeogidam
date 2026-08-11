@@ -73,11 +73,13 @@ export function PlaceTabs() {
 const styles = StyleSheet.create({
   container: {
     height: 62,
+    backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e5ea',
+    zIndex: 1,
   },
   tabItem: {
     height: '100%',

@@ -12,6 +12,7 @@ export function PlaceDetailScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
+      stickyHeaderIndices={[2]}
       showsVerticalScrollIndicator={false}>
       <PlaceDetailHeader />
       <PlaceInfo place={placeMocks[0]} />
