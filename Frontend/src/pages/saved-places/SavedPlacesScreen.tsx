@@ -3,26 +3,40 @@ import {ScrollView, StyleSheet, Text, View} from 'react-native';
 
 import {ScreenHeader} from '../../components/ScreenHeader';
 import {savedPlaceMocks} from '../../entities/place/mocks';
+import type {Place} from '../../entities/place/types';
+import {SavedPlacesEmptyState} from './components/SavedPlacesEmptyState';
 import {SavedPlaceGrid} from './components/SavedPlaceGrid';
 
 type SavedPlacesScreenProps = {
   onOpenDetail: () => void;
+  places?: Place[];
 };
 
-export function SavedPlacesScreen({onOpenDetail}: SavedPlacesScreenProps) {
+export function SavedPlacesScreen({
+  onOpenDetail,
+  places = savedPlaceMocks,
+}: SavedPlacesScreenProps) {
+  const hasSavedPlaces = places.length > 0;
+
   return (
     <View style={styles.container}>
       <ScreenHeader title="저장한 장소" />
       <View style={styles.divider} />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <SavedPlaceGrid
-          places={savedPlaceMocks}
-          onPressPlace={() => onOpenDetail()}
-        />
-      </ScrollView>
-      <View style={styles.fab}>
-        <Text style={styles.fabText}>＋</Text>
-      </View>
+      {hasSavedPlaces ? (
+        <>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <SavedPlaceGrid
+              places={places}
+              onPressPlace={() => onOpenDetail()}
+            />
+          </ScrollView>
+          <View style={styles.fab}>
+            <Text style={styles.fabText}>＋</Text>
+          </View>
+        </>
+      ) : (
+        <SavedPlacesEmptyState />
+      )}
     </View>
   );
 }
