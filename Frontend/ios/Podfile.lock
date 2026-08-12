@@ -3,6 +3,7 @@ PODS:
   - hermes-engine (250829098.0.16):
     - hermes-engine/Pre-built (= 250829098.0.16)
   - hermes-engine/Pre-built (250829098.0.16)
+  - KakaoMapsSDK (2.12.17)
   - RCTDeprecation (0.86.2)
   - RCTRequired (0.86.2)
   - RCTSwiftUI (0.86.2)
@@ -1897,6 +1898,7 @@ PODS:
 DEPENDENCIES:
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - KakaoMapsSDK
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
   - RCTSwiftUI (from `../node_modules/react-native/ReactApple/RCTSwiftUI`)
@@ -1972,6 +1974,10 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
+
+SPEC REPOS:
+  trunk:
+    - KakaoMapsSDK
 
 EXTERNAL SOURCES:
   FBLazyVector:
@@ -2131,6 +2137,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   FBLazyVector: 3c3be9a019176b5699455f7f66c5444b78a411c6
   hermes-engine: 14ff5446bce31ed5f249e7a17891a2974b57c8ed
+  KakaoMapsSDK: 9becfe30f42630df1a0437ad2fcf2478ff8b56db
   RCTDeprecation: bccb6545c26db881ecddfd83a3f9ea82aba1605f
   RCTRequired: b2f74764d596fc0051f00fee94b49bf41a6f7f5a
   RCTSwiftUI: c6d6a31b849b9dfa64c33b55dc91ac15dd55774c
@@ -2201,11 +2208,11 @@ SPEC CHECKSUMS:
   React-viewtransitionnativemodule: 93335dacae2dd7db207320f384111c2b4c58fca8
   React-webperformancenativemodule: 0bed183d6447493571431c031ad2401c027b5866
   ReactAppDependencyProvider: 0e13d430eadac8a2ef18515a860d5c59df05b475
-  ReactCodegen: 3bbb7de19774794a7428ef623a7b777106cf3737
+  ReactCodegen: 1ce25d5f90d3bc88c37e7c0cc8110e5ebbfef325
   ReactCommon: 9002f006f571256348994183f7d4387aa7cf84e8
   ReactNativeDependencies: 2bd6854ade79bf1b60586d1ab7813a389df1b6bf
   Yoga: 9891cfb1c680f64de9c41b09e7453dea33454d2b
 
-PODFILE CHECKSUM: da56c36a8cad9e55b06cf6d734180b431e61d702
+PODFILE CHECKSUM: 85bd9ebba2a740a4e7a19834f7df3200bb369749
 
 COCOAPODS: 1.17.0

@@ -72,18 +72,40 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Load the Kakao native app key without an additional React Native package.
+// Frontend/.env must contain: KAKAO_NATIVE_APP_KEY=your_native_app_key
+def envFile = rootProject.file("../.env")
+def envProperties = new Properties()
+
+if (envFile.exists()) {
+    envFile.withInputStream { envProperties.load(it) }
+}
+
+def kakaoNativeAppKey = envProperties.getProperty("KAKAO_NATIVE_APP_KEY", "").trim()
+if (kakaoNativeAppKey.isEmpty()) {
+    throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from Frontend/.env")
+}
+
+def escapedKakaoNativeAppKey = kakaoNativeAppKey
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.yeogidam.app"
+    buildFeatures {
+        buildConfig = true
+    }
     defaultConfig {
         applicationId "com.yeogidam.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "KAKAO_NATIVE_APP_KEY", "\"${escapedKakaoNativeAppKey}\""
     }
     signingConfigs {
         debug {
@@ -110,6 +132,8 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+    implementation("com.kakao.maps.open:android:2.14.1")
+
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
