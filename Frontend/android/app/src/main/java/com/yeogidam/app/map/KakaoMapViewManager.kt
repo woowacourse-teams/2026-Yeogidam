@@ -42,4 +42,18 @@ class KakaoMapViewManager :
     ) {
         view.setZoomLevel(value)
     }
+
+    override fun setShowsCurrentLocation(
+        view: KakaoMapView,
+        value: Boolean,
+    ) {
+        view.setShowsCurrentLocation(value)
+    }
+
+    override fun setCurrentLocationRequestId(
+        view: KakaoMapView,
+        value: Int,
+    ) {
+        view.setCurrentLocationRequestId(value)
+    }
 }

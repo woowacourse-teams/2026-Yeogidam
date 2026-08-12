@@ -11,11 +11,29 @@ import {
 type MapSearchBarProps = {
   value: string;
   onChangeText: (value: string) => void;
+  embedded?: boolean;
+  onPressBack?: () => void;
 };
 
-export function MapSearchBar({ value, onChangeText }: MapSearchBarProps) {
+export function MapSearchBar({
+  value,
+  onChangeText,
+  embedded = false,
+  onPressBack,
+}: MapSearchBarProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, embedded && styles.embedded]}>
+      {onPressBack ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="이전 화면"
+          hitSlop={10}
+          onPress={onPressBack}
+          style={styles.backButton}
+        >
+          <Text style={styles.backIcon}>‹</Text>
+        </Pressable>
+      ) : null}
       <TextInput
         accessibilityLabel="여기담 검색"
         autoCapitalize="none"
@@ -59,6 +77,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
     elevation: 5,
+    zIndex: 10,
+  },
+  embedded: {
+    position: 'relative',
+    top: undefined,
+    left: undefined,
+    right: undefined,
+    marginHorizontal: 24,
+    marginTop: 20,
+    marginBottom: 10,
   },
   input: {
     flex: 1,
@@ -69,6 +97,19 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlignVertical: 'center',
     fontWeight: '800',
+    color: '#202124',
+  },
+  backButton: {
+    width: 28,
+    height: 36,
+    marginRight: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backIcon: {
+    marginTop: -4,
+    fontSize: 31,
+    lineHeight: 35,
     color: '#202124',
   },
   clearButton: {

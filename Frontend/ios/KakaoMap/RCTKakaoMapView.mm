@@ -1,5 +1,6 @@
 #import "RCTKakaoMapView.h"
 
+#import <CoreLocation/CoreLocation.h>
 #import <KakaoMapsSDK/KakaoMapsSDK.h>
 #import <React_RCTAppDelegate/RCTAppDelegate.h>
 
@@ -60,7 +61,9 @@ using namespace facebook::react;
 
   [_mapView updateWithLatitude:newProps.latitude
                      longitude:newProps.longitude
-                     zoomLevel:newProps.zoomLevel];
+                     zoomLevel:newProps.zoomLevel
+          showsCurrentLocation:newProps.showsCurrentLocation
+      currentLocationRequestId:newProps.currentLocationRequestId];
 
   [super updateProps:props oldProps:oldProps];
 }
