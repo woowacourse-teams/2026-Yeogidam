@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { placePostMocks } from '../../entities/place-post/mocks';
 import { placeMocks } from '../../entities/place/mocks';
+import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailHeader } from './components/PlaceDetailHeader';
 import { PlaceInformation } from './components/PlaceInformation';
 import { PlaceInfo } from './components/PlaceInfo';
@@ -31,7 +32,7 @@ export function PlaceDetailScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <CopyToastProvider>
       <ScrollView
         ref={scrollViewRef}
         style={styles.container}
@@ -56,15 +57,11 @@ export function PlaceDetailScreen() {
         {activeTab === '정보' ? <PlaceInformation place={place} /> : null}
       </ScrollView>
       {place.placeUrl ? <PlaceMapButton url={place.placeUrl} /> : null}
-    </View>
+    </CopyToastProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
   container: {
     flex: 1,
     backgroundColor: '#ffffff',

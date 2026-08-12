@@ -1,21 +1,20 @@
 import Clipboard from '@react-native-clipboard/clipboard';
-import React, { useState } from 'react';
+import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Place } from '../../../entities/place/types';
-import { CopyToast } from './CopyToast';
+import { useCopyToast } from './CopyToast';
 
 type PlaceInfoProps = {
   place: Place;
 };
 
 export function PlaceInfo({ place }: PlaceInfoProps) {
-  const [showCopyToast, setShowCopyToast] = useState(false);
+  const { showCopyToast } = useCopyToast();
 
   const copyAddress = () => {
     Clipboard.setString(place.fullAddress);
-    setShowCopyToast(true);
-    setTimeout(() => setShowCopyToast(false), 1800);
+    showCopyToast('도로명 주소가 복사되었습니다.');
   };
 
   return (
@@ -42,11 +41,6 @@ export function PlaceInfo({ place }: PlaceInfoProps) {
         </Pressable>
       </View>
       <Image source={place.image} style={styles.image} />
-      <CopyToast
-        visible={showCopyToast}
-        message="도로명 주소가 복사되었습니다."
-        onClose={() => setShowCopyToast(false)}
-      />
     </View>
   );
 }

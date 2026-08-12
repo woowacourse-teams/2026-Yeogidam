@@ -1,5 +1,5 @@
 import Clipboard from '@react-native-clipboard/clipboard';
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import {
   Alert,
   Dimensions,
@@ -12,7 +12,7 @@ import {
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import type { Place } from '../../../entities/place/types';
-import { CopyToast } from './CopyToast';
+import { useCopyToast } from './CopyToast';
 
 const INFORMATION_MIN_HEIGHT = Dimensions.get('window').height - 162;
 
@@ -108,36 +108,22 @@ function CopyButton({
   toastMessage: string;
   accessibilityLabel: string;
 }) {
-  const [showToast, setShowToast] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { showCopyToast } = useCopyToast();
 
   const copy = () => {
     Clipboard.setString(value);
-
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-
-    setShowToast(true);
-    timerRef.current = setTimeout(() => setShowToast(false), 1800);
+    showCopyToast(toastMessage);
   };
 
   return (
-    <>
-      <Pressable
-        onPress={copy}
-        hitSlop={10}
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel}
-      >
-        <Text style={styles.actionText}>복사</Text>
-      </Pressable>
-      <CopyToast
-        visible={showToast}
-        message={toastMessage}
-        onClose={() => setShowToast(false)}
-      />
-    </>
+    <Pressable
+      onPress={copy}
+      hitSlop={10}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
+      <Text style={styles.actionText}>복사</Text>
+    </Pressable>
   );
 }
 

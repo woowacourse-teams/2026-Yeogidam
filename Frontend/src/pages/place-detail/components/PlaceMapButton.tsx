@@ -27,7 +27,7 @@ const styles = StyleSheet.create({
     bottom: 16,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#9EAEFF',
+    backgroundColor: '#C1CBFE',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -40,13 +40,13 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 17,
-    color: '#ffffff',
+    color: '#1a1a2e',
     transform: [{ rotate: '-25deg' }],
   },
   label: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#ffffff',
+    color: '#1a1a2e',
   },
   pressed: {
     opacity: 0.8,
