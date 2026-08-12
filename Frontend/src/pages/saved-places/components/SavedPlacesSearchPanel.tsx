@@ -1,0 +1,301 @@
+import React, {useMemo, useState} from 'react';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+
+import type {Place} from '../../../entities/place/types';
+
+const RECENT_SEARCHES = ['카페 온월', '고양이 카페', '파스타'];
+
+type SavedPlacesSearchPanelProps = {
+  places: Place[];
+  onCloseSearch: () => void;
+  onPressPlace: (place: Place) => void;
+};
+
+export function SavedPlacesSearchPanel({
+  places,
+  onCloseSearch,
+  onPressPlace,
+}: SavedPlacesSearchPanelProps) {
+  const [query, setQuery] = useState('');
+  const [submittedQuery, setSubmittedQuery] = useState('');
+  const [likedPlaceIds, setLikedPlaceIds] = useState<string[]>([]);
+
+  const normalizedQuery = submittedQuery.trim().toLowerCase();
+  const filteredPlaces = useMemo(() => {
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    return places.filter(place => {
+      const fields = [place.name, place.address, place.fullAddress].map(value =>
+        value.toLowerCase(),
+      );
+
+      return fields.some(value => value.includes(normalizedQuery));
+    });
+  }, [normalizedQuery, places]);
+
+  const submitSearch = () => {
+    const nextQuery = query.trim();
+    if (!nextQuery) {
+      onCloseSearch();
+      return;
+    }
+
+    setSubmittedQuery(nextQuery);
+  };
+
+  const selectRecentSearch = (value: string) => {
+    setQuery(value);
+    setSubmittedQuery(value);
+  };
+
+  const toggleLikedPlace = (placeId: string) => {
+    setLikedPlaceIds(currentIds =>
+      currentIds.includes(placeId)
+        ? currentIds.filter(id => id !== placeId)
+        : [...currentIds, placeId],
+    );
+  };
+
+  const showResults = submittedQuery.trim().length > 0;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus
+          onChangeText={value => {
+            setQuery(value);
+            setSubmittedQuery('');
+          }}
+          onSubmitEditing={submitSearch}
+          placeholder="입력하세요."
+          placeholderTextColor="#2a2a44"
+          returnKeyType="search"
+          selectionColor="#8FA2FF"
+          style={styles.searchInput}
+          value={query}
+        />
+        <Pressable onPress={submitSearch} style={styles.searchButton}>
+          <MaterialIcons color="#d8dffe" name="search" size={24} />
+        </Pressable>
+      </View>
+      {showResults ? (
+        <ScrollView
+          contentContainerStyle={styles.resultsContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          {filteredPlaces.length > 0 ? (
+            filteredPlaces.map(place => {
+              const isLiked = likedPlaceIds.includes(place.id);
+
+              return (
+                <View key={place.id} style={styles.resultCard}>
+                  <Pressable
+                    onPress={() => onPressPlace(place)}
+                    style={styles.resultCardBody}>
+                    <Image source={place.image} style={styles.resultImage} />
+                    <View style={styles.resultDim} />
+                  </Pressable>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => toggleLikedPlace(place.id)}
+                    style={styles.resultHeart}>
+                    <MaterialIcons
+                      color="#C1CBFE"
+                      name={isLiked ? 'favorite' : 'favorite-border'}
+                      size={20}
+                    />
+                  </Pressable>
+                  <View style={styles.resultImageOverlay}>
+                    <Text style={styles.resultName}>{place.name}</Text>
+                    <Text style={styles.resultAddress}>{place.address}</Text>
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.emptyResult}>
+              <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
+              <Text style={styles.emptyResultText}>
+                다른 키워드로 다시 검색해보세요.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      ) : (
+        <View style={styles.historySection}>
+          <Text style={styles.historyTitle}>검색 기록</Text>
+          {RECENT_SEARCHES.map(item => (
+            <Pressable
+              key={item}
+              onPress={() => selectRecentSearch(item)}
+              style={styles.historyItem}>
+              <View style={styles.historyLeft}>
+                <View style={styles.historyIconWrap}>
+                  <MaterialIcons color="#d8dffe" name="access-time" size={20} />
+                </View>
+                <Text style={styles.historyText}>{item}</Text>
+              </View>
+              <MaterialIcons color="#c8c9d2" name="chevron-right" size={24} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  header: {
+    paddingTop: 26,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1f2238',
+    paddingVertical: 0,
+    marginRight: 16,
+  },
+  searchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.1,
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  historySection: {
+    paddingTop: 28,
+  },
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#a4a5b0',
+    paddingHorizontal: 24,
+    marginBottom: 10,
+  },
+  historyItem: {
+    minHeight: 68,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ececf1',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+  },
+  historyLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  historyIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f4f6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  historyText: {
+    fontSize: 18,
+    color: '#2b2d43',
+  },
+  resultsContent: {
+    paddingTop: 18,
+    paddingHorizontal: 24,
+    paddingBottom: 120,
+  },
+  resultCard: {
+    width: '48.5%',
+    height: 248,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#d7d7dc',
+  },
+  resultCardBody: {
+    flex: 1,
+  },
+  resultImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  resultDim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 92,
+    backgroundColor: 'rgba(24, 24, 24, 0.28)',
+  },
+  resultHeart: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultImageOverlay: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 18,
+  },
+  resultName: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  resultAddress: {
+    fontSize: 12,
+    color: '#ffffff',
+    marginTop: 4,
+  },
+  emptyResult: {
+    paddingTop: 56,
+    alignItems: 'center',
+  },
+  emptyResultTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#2b2d43',
+  },
+  emptyResultText: {
+    fontSize: 14,
+    color: '#9c9daa',
+    marginTop: 8,
+  },
+});

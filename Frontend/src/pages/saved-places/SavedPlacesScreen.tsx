@@ -1,12 +1,14 @@
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
-import {ScreenHeader} from '../../components/ScreenHeader';
 import {savedPlaceMocks} from '../../entities/place/mocks';
 import type {Place} from '../../entities/place/types';
 import {SavedPlacesEmptyState} from './components/SavedPlacesEmptyState';
 import {SavedPlaceGrid} from './components/SavedPlaceGrid';
+import {SavedPlacesHeader} from './components/SavedPlacesHeader';
 import {SavedPlacesLinkDialog} from './components/SavedPlacesLinkDialog';
+import {SavedPlacesSearchPanel} from './components/SavedPlacesSearchPanel';
 
 type SavedPlacesScreenProps = {
   onOpenDetail: () => void;
@@ -18,7 +20,9 @@ export function SavedPlacesScreen({
   places = savedPlaceMocks,
 }: SavedPlacesScreenProps) {
   const [isDialogVisible, setIsDialogVisible] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
+  const scrollViewRef = useRef<ScrollView>(null);
   const hasSavedPlaces = places.length > 0;
 
   const openDialog = () => {
@@ -30,24 +34,54 @@ export function SavedPlacesScreen({
     setLinkValue('');
   };
 
+  const scrollToTop = () => {
+    scrollViewRef.current?.scrollTo({y: 0, animated: true});
+  };
+
   return (
     <View style={styles.container}>
-      <ScreenHeader title="저장한 장소" />
-      <View style={styles.divider} />
-      {hasSavedPlaces ? (
+      {isSearchOpen ? (
         <>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <SavedPlaceGrid
-              places={places}
-              onPressPlace={() => onOpenDetail()}
-            />
-          </ScrollView>
-          <Pressable onPress={openDialog} style={styles.fab}>
-            <Text style={styles.fabText}>＋</Text>
-          </Pressable>
+          <SavedPlacesSearchPanel
+            places={places}
+            onCloseSearch={() => setIsSearchOpen(false)}
+            onPressPlace={() => onOpenDetail()}
+          />
+          {hasSavedPlaces ? (
+            <Pressable onPress={openDialog} style={styles.fab}>
+              <Text style={styles.fabText}>＋</Text>
+            </Pressable>
+          ) : null}
         </>
       ) : (
-        <SavedPlacesEmptyState />
+        <>
+          <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
+          <View style={styles.divider} />
+          {hasSavedPlaces ? (
+            <>
+              <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false}>
+                <SavedPlaceGrid
+                  places={places}
+                  onPressPlace={() => onOpenDetail()}
+                />
+                <View style={styles.scrollFooter}>
+                  <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
+                    <MaterialIcons
+                      color="#8FA2FF"
+                      name="upload"
+                      size={24}
+                    />
+                  </Pressable>
+                </View>
+              </ScrollView>
+              <Pressable onPress={openDialog} style={styles.fab}>
+                <Text style={styles.fabText}>＋</Text>
+              </Pressable>
+            </>
+          ) : (
+            <SavedPlacesEmptyState />
+          )}
+        </>
       )}
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
@@ -89,5 +123,17 @@ const styles = StyleSheet.create({
     fontSize: 30,
     color: '#000000',
     fontWeight: '300',
+  },
+  scrollFooter: {
+    alignItems: 'center',
+    paddingBottom: 104,
+  },
+  scrollTopButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#DBE0F9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
