@@ -9,12 +9,18 @@ import {
 
 const tabs = ['홈', '게시물'];
 
-export function PlaceTabs() {
+type PlaceTabsProps = {
+  onTabPress?: () => void;
+};
+
+export function PlaceTabs({onTabPress}: PlaceTabsProps) {
   const [activeTab, setActiveTab] = useState('홈');
   const indicatorPosition = useRef(new Animated.Value(0)).current;
   const [tabWidth, setTabWidth] = useState(0);
 
   const handleTabPress = (tab: string) => {
+    onTabPress?.();
+
     if (tab === activeTab) {
       return;
     }
@@ -33,7 +39,11 @@ export function PlaceTabs() {
   return (
     <View
       style={styles.container}
-      onLayout={event => setTabWidth(event.nativeEvent.layout.width / tabs.length)}>
+      onLayout={event => {
+        const {width} = event.nativeEvent.layout;
+
+        setTabWidth(width / tabs.length);
+      }}>
       {tabs.map(tab => (
         <Pressable
           key={tab}
