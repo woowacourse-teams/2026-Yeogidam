@@ -13,6 +13,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -32,7 +33,9 @@ export function PlaceResultSheet({
   height,
   onOpenDetail,
 }: PlaceResultSheetProps) {
+  const { width: windowWidth } = useWindowDimensions();
   const sheetHeight = Math.max(COLLAPSED_HEIGHT, height);
+  const photoWidth = (windowWidth - 26) / 4;
   const collapsedOffset = sheetHeight - COLLAPSED_HEIGHT;
   const middleOffset = Math.min(
     collapsedOffset,
@@ -179,21 +182,45 @@ export function PlaceResultSheet({
         scrollEnabled={activeSnapIndex !== 2}
       >
         {places.map(place => (
-          <Pressable
-            key={place.id}
-            accessibilityRole="button"
-            onPress={() => onOpenDetail(place)}
-            style={styles.result}
-          >
-            <View style={styles.resultTop}>
+          <View key={place.id} style={styles.result}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${place.name} 상세 보기`}
+              onPress={() => onOpenDetail(place)}
+              style={styles.resultTop}
+            >
               <View style={styles.resultText}>
                 <Text style={styles.name}>{place.name}</Text>
                 <Text style={styles.address}>{place.fullAddress}</Text>
               </View>
-              <Text style={styles.heart}>♡</Text>
-            </View>
-            <Image source={place.image} style={styles.image} />
-          </Pressable>
+              <View style={styles.favoriteButton}>
+                <Text style={styles.heart}>♡</Text>
+              </View>
+            </Pressable>
+            <ScrollView
+              horizontal
+              directionalLockEnabled
+              nestedScrollEnabled
+              scrollEventThrottle={16}
+              contentContainerStyle={styles.photoStrip}
+              showsHorizontalScrollIndicator={false}
+            >
+              {(
+                place.images ?? [
+                  place.image,
+                  place.image,
+                  place.image,
+                  place.image,
+                ]
+              ).map((image, index) => (
+                <Image
+                  key={index}
+                  source={image}
+                  style={[styles.photo, { width: photoWidth }]}
+                />
+              ))}
+            </ScrollView>
+          </View>
         ))}
       </ScrollView>
     </Animated.View>
@@ -236,17 +263,18 @@ const styles = StyleSheet.create({
     color: '#1a1a2e',
   },
   results: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 13,
     paddingBottom: 24,
   },
   result: {
-    paddingVertical: 10,
+    paddingTop: 10,
+    paddingBottom: 18,
   },
   resultTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 7,
   },
   resultText: {
     flex: 1,
@@ -263,13 +291,29 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   heart: {
-    fontSize: 28,
+    fontSize: 25,
     color: '#dbe0f9',
+    lineHeight: 27,
   },
-  image: {
-    width: '100%',
-    height: 108,
-    borderRadius: 16,
+  favoriteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f5ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoStrip: {
+    flexDirection: 'row',
+    height: 118,
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
+  photo: {
+    width: 96,
+    height: '100%',
+    borderRightWidth: 1,
+    borderRightColor: '#ffffff',
     resizeMode: 'cover',
   },
 });

@@ -1,4 +1,4 @@
-import type {ImageSourcePropType} from 'react-native';
+import type { ImageSourcePropType } from 'react-native';
 
 export type Place = {
   id: string;
@@ -6,4 +6,5 @@ export type Place = {
   address: string;
   fullAddress: string;
   image: ImageSourcePropType;
+  images?: ImageSourcePropType[];
 };

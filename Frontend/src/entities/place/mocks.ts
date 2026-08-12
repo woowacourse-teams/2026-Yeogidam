@@ -7,6 +7,13 @@ export const placeMocks: Place[] = [
     address: '경기도 성남시',
     fullAddress: '서울 성동구 성수이로 88 2층 (성수동)',
     image: require('../../assets/places/place-cafe-onwol.png'),
+    images: [
+      require('../../assets/places/place-cafe-onwol.png'),
+      require('../../assets/places/place-monoroom.png'),
+      require('../../assets/places/place-cafe-onwol.png'),
+      require('../../assets/places/place-monoroom.png'),
+      require('../../assets/places/place-cafe-onwol.png'),
+    ],
   },
   {
     id: 'monoroom',
@@ -14,6 +21,12 @@ export const placeMocks: Place[] = [
     address: '서울시 마포구',
     fullAddress: '서울 마포구 동교로 24길 12 1층',
     image: require('../../assets/places/place-monoroom.png'),
+    images: [
+      require('../../assets/places/place-monoroom.png'),
+      require('../../assets/places/place-layer.png'),
+      require('../../assets/places/place-monoroom.png'),
+      require('../../assets/places/place-layer.png'),
+    ],
   },
   {
     id: 'dable',
@@ -21,6 +34,12 @@ export const placeMocks: Place[] = [
     address: '서울시 성동구',
     fullAddress: '서울 성동구 서울숲길 41 3층',
     image: require('../../assets/places/place-dable.png'),
+    images: [
+      require('../../assets/places/place-dable.png'),
+      require('../../assets/places/place-cafe-onwol.png'),
+      require('../../assets/places/place-dable.png'),
+      require('../../assets/places/place-cafe-onwol.png'),
+    ],
   },
   {
     id: 'layer',
@@ -28,6 +47,12 @@ export const placeMocks: Place[] = [
     address: '서울시 강남구',
     fullAddress: '서울 강남구 도산대로 45길 18',
     image: require('../../assets/places/place-layer.png'),
+    images: [
+      require('../../assets/places/place-layer.png'),
+      require('../../assets/places/place-monoroom.png'),
+      require('../../assets/places/place-layer.png'),
+      require('../../assets/places/place-monoroom.png'),
+    ],
   },
 ];
 
