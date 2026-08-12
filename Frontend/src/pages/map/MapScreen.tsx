@@ -1,10 +1,7 @@
-import React from 'react';
-import { ImageBackground, StyleSheet, View } from 'react-native';
-import type { DimensionValue } from 'react-native';
+import React, {useState} from 'react';
+import {StyleSheet, View} from 'react-native';
 
 import { placeMocks } from '../../entities/place/mocks';
-import { MapSearchBar } from './components/MapSearchBar';
-import { PlaceMarker } from './components/PlaceMarker';
 import { PlaceResultSheet } from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
@@ -12,17 +9,15 @@ type MapScreenProps = {
   onOpenDetail: () => void;
 };
 
-const markerPositions: Array<{ left: DimensionValue; top: DimensionValue }> = [
-  { left: '64%', top: '37%' },
-  { left: '20%', top: '58%' },
-  { left: '72%', top: '55%' },
-];
-
 export function MapScreen({ onOpenDetail }: MapScreenProps) {
+  const [mapHeight, setMapHeight] = useState(0);
+
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={event => setMapHeight(event.nativeEvent.layout.height)}>
       <KakaoMapNativeComponent
-        style={{ flex: 1 }}
+        style={styles.map}
         latitude={37.5665}
         longitude={126.978}
         zoomLevel={15}
@@ -33,10 +28,13 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
           console.error('지도 오류:', event.nativeEvent.message);
         }}
       />
-      <PlaceResultSheet
-        places={placeMocks.slice(0, 2)}
-        onOpenDetail={() => onOpenDetail()}
-      />
+      {mapHeight > 0 ? (
+        <PlaceResultSheet
+          height={mapHeight}
+          places={placeMocks.slice(0, 2)}
+          onOpenDetail={() => onOpenDetail()}
+        />
+      ) : null}
     </View>
   );
 }
