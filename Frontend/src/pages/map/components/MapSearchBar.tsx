@@ -1,16 +1,43 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 type MapSearchBarProps = {
-  keyword: string;
+  value: string;
+  onChangeText: (value: string) => void;
 };
 
-export function MapSearchBar({keyword}: MapSearchBarProps) {
+export function MapSearchBar({ value, onChangeText }: MapSearchBarProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.back}>‹</Text>
-      <Text style={styles.keyword}>{keyword}</Text>
-      <Text style={styles.close}>×</Text>
+      <TextInput
+        accessibilityLabel="여기담 검색"
+        autoCapitalize="none"
+        clearButtonMode="while-editing"
+        onChangeText={onChangeText}
+        placeholder="여기담 검색"
+        placeholderTextColor="#a9a9ae"
+        returnKeyType="search"
+        style={styles.input}
+        value={value}
+      />
+      {Platform.OS !== 'ios' && value ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="검색어 지우기"
+          hitSlop={10}
+          onPress={() => onChangeText('')}
+          style={styles.clearButton}
+        >
+          <Text style={styles.clearIcon}>×</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -18,33 +45,44 @@ export function MapSearchBar({keyword}: MapSearchBarProps) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 14,
-    left: 14,
-    right: 14,
+    top: 20,
+    left: 24,
+    right: 24,
     height: 44,
     backgroundColor: '#ffffff',
     borderRadius: 22,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    shadowColor: '#1a1a2e',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    paddingHorizontal: 22,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 12,
+    elevation: 5,
   },
-  back: {
-    fontSize: 30,
-    color: '#1a1a2e',
-    marginRight: 12,
-  },
-  keyword: {
+  input: {
     flex: 1,
-    fontSize: 15,
+    height: 44,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    fontSize: 17,
+    lineHeight: 20,
+    textAlignVertical: 'center',
     fontWeight: '800',
-    color: '#1a1a2e',
+    color: '#202124',
   },
-  close: {
-    fontSize: 26,
-    color: '#8e8e93',
+  clearButton: {
+    width: 24,
+    height: 24,
+    marginLeft: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#c6c6ca',
+  },
+  clearIcon: {
+    color: '#ffffff',
+    fontSize: 18,
+    lineHeight: 20,
   },
 });
