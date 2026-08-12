@@ -1,3 +1,10 @@
-export type Screen = 'home' | 'saved' | 'empty' | 'map' | 'detail' | 'my';
+export type Screen =
+  | 'home'
+  | 'login'
+  | 'saved'
+  | 'empty'
+  | 'map'
+  | 'detail'
+  | 'my';
 
-export type MainScreen = Exclude<Screen, 'home'>;
+export type MainScreen = Exclude<Screen, 'home' | 'login'>;

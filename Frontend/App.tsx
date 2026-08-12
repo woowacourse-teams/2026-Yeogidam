@@ -4,6 +4,7 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {BottomTabBar} from './src/components/BottomTabBar';
 import {HomeScreen} from './src/pages/home/HomeScreen';
+import {LoginScreen} from './src/pages/login/LoginScreen';
 import {EmptySavedPlacesScreen} from './src/pages/saved-places/EmptySavedPlacesScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
 import {MapScreen} from './src/pages/map/MapScreen';
@@ -17,6 +18,10 @@ function App() {
   const renderScreen = () => {
     if (screen === 'home') {
       return <HomeScreen onOpen={setScreen} />;
+    }
+
+    if (screen === 'login') {
+      return <LoginScreen onBack={() => setScreen('home')} />;
     }
 
     if (screen === 'saved') {
@@ -38,7 +43,7 @@ function App() {
     return <MyPageScreen />;
   };
 
-  const showTabBar = screen !== 'home';
+  const showTabBar = screen !== 'home' && screen !== 'login';
 
   return (
     <SafeAreaProvider>
