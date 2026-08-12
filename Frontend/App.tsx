@@ -4,7 +4,9 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {BottomTabBar} from './src/components/BottomTabBar';
 import {HomeScreen} from './src/pages/home/HomeScreen';
+import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
+import {SignUpScreen} from './src/pages/login/SignUpScreen';
 import {EmptySavedPlacesScreen} from './src/pages/saved-places/EmptySavedPlacesScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
 import {MapScreen} from './src/pages/map/MapScreen';
@@ -21,7 +23,31 @@ function App() {
     }
 
     if (screen === 'login') {
-      return <LoginScreen onBack={() => setScreen('home')} />;
+      return (
+        <LoginScreen
+          onBack={() => setScreen('home')}
+          onOpenEmailLogin={() => setScreen('emailLogin')}
+          onOpenSignup={() => setScreen('signup')}
+        />
+      );
+    }
+
+    if (screen === 'emailLogin') {
+      return (
+        <EmailLoginScreen
+          onBack={() => setScreen('login')}
+          onOpenSignup={() => setScreen('signup')}
+        />
+      );
+    }
+
+    if (screen === 'signup') {
+      return (
+        <SignUpScreen
+          onBack={() => setScreen('login')}
+          onOpenEmailLogin={() => setScreen('emailLogin')}
+        />
+      );
     }
 
     if (screen === 'saved') {
@@ -43,7 +69,11 @@ function App() {
     return <MyPageScreen />;
   };
 
-  const showTabBar = screen !== 'home' && screen !== 'login';
+  const showTabBar =
+    screen !== 'home' &&
+    screen !== 'login' &&
+    screen !== 'emailLogin' &&
+    screen !== 'signup';
 
   return (
     <SafeAreaProvider>

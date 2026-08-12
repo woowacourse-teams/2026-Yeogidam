@@ -1,9 +1,13 @@
 import React from 'react';
-import {Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+
+import {AuthScaffold} from './components/AuthScaffold';
 
 type LoginScreenProps = {
   onBack: () => void;
+  onOpenSignup: () => void;
+  onOpenEmailLogin: () => void;
 };
 
 const socialButtons = [
@@ -26,140 +30,64 @@ const socialButtons = [
 
 const footerLinks = ['회원가입', '로그인', '문의하기'];
 
-export function LoginScreen({onBack}: LoginScreenProps) {
+export function LoginScreen({
+  onBack,
+  onOpenSignup,
+  onOpenEmailLogin,
+}: LoginScreenProps) {
+  const footerLinkActions = {
+    회원가입: onOpenSignup,
+    로그인: onOpenEmailLogin,
+    문의하기: () => {},
+  };
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}>
-      <Pressable hitSlop={12} onPress={onBack} style={styles.closeButton}>
-        <MaterialIcons color="#121212" name="close" size={34} />
-      </Pressable>
+    <AuthScaffold onBack={onBack} contentStyle={styles.main}>
+      <View style={styles.buttonList}>
+        {socialButtons.map(button => (
+          <Pressable
+            key={button.label}
+            style={({pressed}) => [
+              styles.socialButton,
+              styles[`${button.variant}Button`],
+              pressed && styles.pressed,
+            ]}>
+            <View style={[styles.iconWrap, styles[`${button.variant}IconWrap`]]}>
+              {'imageSource' in button ? (
+                <Image source={button.imageSource} style={styles.socialIconImage} />
+              ) : (
+                <MaterialIcons color="#121212" name={button.icon} size={24} />
+              )}
+            </View>
+            <Text style={[styles.socialLabel, styles[`${button.variant}Label`]]}>
+              {button.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
 
-      <View style={styles.main}>
-        <View style={styles.brandSection}>
-          <View style={styles.logoTile}>
-            <Image
-              source={require('../../assets/illustrations/empty-illustration.png')}
-              style={styles.logoImage}
-            />
-          </View>
-        </View>
-
-        <View style={styles.buttonList}>
-          {socialButtons.map(button => (
-            <Pressable
-              key={button.label}
-              style={({pressed}) => [
-                styles.socialButton,
-                styles[`${button.variant}Button`],
-                pressed && styles.pressed,
-              ]}>
-              <View style={[styles.iconWrap, styles[`${button.variant}IconWrap`]]}>
-                {'imageSource' in button ? (
-                  <Image source={button.imageSource} style={styles.socialIconImage} />
-                ) : (
-                  <MaterialIcons color="#121212" name={button.icon} size={24} />
-                )}
-              </View>
-              <Text style={[styles.socialLabel, styles[`${button.variant}Label`]]}>
-                {button.label}
-              </Text>
-            </Pressable>
+      <View style={styles.footer}>
+        <View style={styles.linkRow}>
+          {footerLinks.map((label, index) => (
+            <React.Fragment key={label}>
+              {index > 0 ? <Text style={styles.linkDivider}>|</Text> : null}
+              <Pressable hitSlop={8} onPress={footerLinkActions[label]}>
+                <Text style={styles.linkText}>{label}</Text>
+              </Pressable>
+            </React.Fragment>
           ))}
         </View>
-
-        <View style={styles.footer}>
-          <View style={styles.linkRow}>
-            {footerLinks.map((label, index) => (
-              <React.Fragment key={label}>
-                {index > 0 ? <Text style={styles.linkDivider}>|</Text> : null}
-                <Pressable hitSlop={8}>
-                  <Text style={styles.linkText}>{label}</Text>
-                </Pressable>
-              </React.Fragment>
-            ))}
-          </View>
-        </View>
       </View>
-    </ScrollView>
+    </AuthScaffold>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: 28,
-    paddingTop: 18,
-    paddingBottom: 32,
-  },
-  closeButton: {
-    alignSelf: 'flex-start',
-    marginLeft: -6,
-  },
   main: {
-    flex: 1,
-    paddingTop: 28,
-  },
-  brandSection: {
-    alignItems: 'center',
-    marginTop: 56,
-  },
-  logoTile: {
-    width: 156,
-    height: 156,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
-  },
-  brandText: {
-    marginTop: 20,
-    fontSize: 34,
-    fontWeight: '900',
-    color: '#ff4fa3',
-    letterSpacing: -1,
-  },
-  promoBubble: {
-    alignSelf: 'center',
-    marginTop: 28,
-    backgroundColor: '#ffffff',
-    borderRadius: 22,
-    paddingHorizontal: 26,
-    paddingVertical: 18,
-    shadowColor: '#000000',
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 5,
-  },
-  promoText: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '800',
-    textAlign: 'center',
-    color: '#353535',
-  },
-  promoPointer: {
-    position: 'absolute',
-    bottom: -8,
-    left: '50%',
-    marginLeft: -8,
-    width: 16,
-    height: 16,
-    backgroundColor: '#ffffff',
-    transform: [{rotate: '45deg'}],
+    marginTop: 96,
   },
   buttonList: {
     gap: 14,
-    marginTop: 96,
   },
   socialButton: {
     height: 54,
