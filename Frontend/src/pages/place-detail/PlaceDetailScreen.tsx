@@ -1,15 +1,18 @@
-import React, {useRef} from 'react';
-import {ScrollView, StyleSheet, View} from 'react-native';
+import React, { useRef } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import {placeMocks} from '../../entities/place/mocks';
-import {PlaceDetailHeader} from './components/PlaceDetailHeader';
-import {PlaceInfo} from './components/PlaceInfo';
-import {PlaceTabs} from './components/PlaceTabs';
-import {PlacePostGrid} from './components/PlacePostGrid';
+import { placePostMocks } from '../../entities/place-post/mocks';
+import { placeMocks } from '../../entities/place/mocks';
+import { PlaceDetailHeader } from './components/PlaceDetailHeader';
+import { PlaceInfo } from './components/PlaceInfo';
+import { PlaceTabs } from './components/PlaceTabs';
+import { PlacePostGrid } from './components/PlacePostGrid';
 
 export function PlaceDetailScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const tabsOffsetY = useRef(0);
+  const place = placeMocks[0];
+  const posts = placePostMocks.filter(post => post.placeId === place.id);
 
   const scrollToTabs = () => {
     scrollViewRef.current?.scrollTo({
@@ -24,20 +27,22 @@ export function PlaceDetailScreen() {
       style={styles.container}
       contentContainerStyle={styles.content}
       stickyHeaderIndices={[2]}
-      showsVerticalScrollIndicator={false}>
+      showsVerticalScrollIndicator={false}
+    >
       <PlaceDetailHeader />
       <View
         onLayout={event => {
-          const {y, height} = event.nativeEvent.layout;
+          const { y, height } = event.nativeEvent.layout;
 
           tabsOffsetY.current = y + height;
-        }}>
-        <PlaceInfo place={placeMocks[0]} />
+        }}
+      >
+        <PlaceInfo place={place} />
       </View>
       <View>
         <PlaceTabs onTabPress={scrollToTabs} />
       </View>
-      <PlacePostGrid places={placeMocks} />
+      <PlacePostGrid posts={posts} />
     </ScrollView>
   );
 }

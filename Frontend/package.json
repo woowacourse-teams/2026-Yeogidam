@@ -10,10 +10,12 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native/new-app-screen": "0.86.2",
     "react": "19.2.3",
     "react-native": "0.86.2",
-    "@react-native/new-app-screen": "0.86.2",
-    "react-native-safe-area-context": "^5.5.2"
+    "react-native-safe-area-context": "^5.5.2",
+    "react-native-svg": "^15.15.5",
+    "react-native-svg-transformer": "^1.5.3"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
