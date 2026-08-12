@@ -7,11 +7,21 @@ export interface NativeProps extends ViewProps {
   zoomLevel?: CodegenTypes.Int32;
   showsCurrentLocation?: boolean;
   currentLocationRequestId?: CodegenTypes.Int32;
+  savedPlacesJson?: string;
   onMapReady?: CodegenTypes.DirectEventHandler<{
     ready: boolean;
   }> | null;
   onMapError?: CodegenTypes.DirectEventHandler<{
     message: string;
+  }> | null;
+  onCameraChanged?: CodegenTypes.DirectEventHandler<{
+    latitude: CodegenTypes.Double;
+    longitude: CodegenTypes.Double;
+    zoomLevel: CodegenTypes.Int32;
+    southLatitude: CodegenTypes.Double;
+    northLatitude: CodegenTypes.Double;
+    westLongitude: CodegenTypes.Double;
+    eastLongitude: CodegenTypes.Double;
   }> | null;
 }
 

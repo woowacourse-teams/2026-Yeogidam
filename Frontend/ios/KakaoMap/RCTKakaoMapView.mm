@@ -38,6 +38,9 @@ using namespace facebook::react;
     _mapView.onMapError = ^(NSDictionary *event) {
       [weakSelf emitMapError:event];
     };
+    _mapView.onCameraChanged = ^(NSDictionary *event) {
+      [weakSelf emitCameraChanged:event];
+    };
 
     [self addSubview:_mapView];
   }
@@ -63,7 +66,8 @@ using namespace facebook::react;
                      longitude:newProps.longitude
                      zoomLevel:newProps.zoomLevel
           showsCurrentLocation:newProps.showsCurrentLocation
-      currentLocationRequestId:newProps.currentLocationRequestId];
+      currentLocationRequestId:newProps.currentLocationRequestId
+            savedPlacesJson:[NSString stringWithUTF8String:newProps.savedPlacesJson.c_str()]];
 
   [super updateProps:props oldProps:oldProps];
 }
@@ -94,6 +98,25 @@ using namespace facebook::react;
 
   eventEmitter.onMapError({
     .message = std::string(message.UTF8String ?: "")
+  });
+}
+
+- (void)emitCameraChanged:(NSDictionary *)event
+{
+  if (!_eventEmitter) {
+    return;
+  }
+
+  const auto &eventEmitter =
+    static_cast<const YeogidamKakaoMapViewEventEmitter &>(*_eventEmitter);
+  eventEmitter.onCameraChanged({
+    .latitude = [event[@"latitude"] doubleValue],
+    .longitude = [event[@"longitude"] doubleValue],
+    .zoomLevel = [event[@"zoomLevel"] intValue],
+    .southLatitude = [event[@"southLatitude"] doubleValue],
+    .northLatitude = [event[@"northLatitude"] doubleValue],
+    .westLongitude = [event[@"westLongitude"] doubleValue],
+    .eastLongitude = [event[@"eastLongitude"] doubleValue]
   });
 }
 

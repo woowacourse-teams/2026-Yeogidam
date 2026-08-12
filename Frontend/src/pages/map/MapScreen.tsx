@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 
-import { placeMocks } from '../../entities/place/mocks';
+import { savedPlaceMocks } from '../../entities/place/mocks';
 import { MapSearchBar } from './components/MapSearchBar';
 import { PlaceResultSheet } from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
@@ -17,26 +17,89 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(112);
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
+  const [visibleBounds, setVisibleBounds] = useState<{
+    southLatitude: number;
+    northLatitude: number;
+    westLongitude: number;
+    eastLongitude: number;
+  } | null>(null);
+  const mapBottomInset = useRef(new Animated.Value(112)).current;
+  const savedPlaces = useMemo(
+    () =>
+      Array.from(
+        new Map(savedPlaceMocks.map(place => [place.id, place])).values(),
+      ),
+    [],
+  );
+  const visiblePlaces = useMemo(() => {
+    if (!visibleBounds) {
+      return [];
+    }
+
+    return savedPlaces.filter(
+      place =>
+        place.latitude >= visibleBounds.southLatitude &&
+        place.latitude <= visibleBounds.northLatitude &&
+        place.longitude >= visibleBounds.westLongitude &&
+        place.longitude <= visibleBounds.eastLongitude,
+    );
+  }, [savedPlaces, visibleBounds]);
+
+  useEffect(() => {
+    const nextInset = Math.min(sheetVisibleHeight, Math.max(0, mapHeight - 1));
+
+    Animated.spring(mapBottomInset, {
+      toValue: nextInset,
+      useNativeDriver: false,
+      damping: 22,
+      stiffness: 240,
+      mass: 0.7,
+    }).start();
+  }, [mapBottomInset, mapHeight, sheetVisibleHeight]);
 
   return (
     <View
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
-      <KakaoMapNativeComponent
-        style={styles.map}
-        latitude={37.5665}
-        longitude={126.978}
-        zoomLevel={15}
-        showsCurrentLocation
-        currentLocationRequestId={currentLocationRequestId}
-        onMapReady={event => {
-          console.log('지도 준비:', event.nativeEvent.ready);
-        }}
-        onMapError={event => {
-          console.error('지도 오류:', event.nativeEvent.message);
-        }}
-      />
+      <Animated.View style={[styles.mapViewport, { bottom: mapBottomInset }]}>
+        <KakaoMapNativeComponent
+          style={styles.map}
+          latitude={37.5448}
+          longitude={127.0557}
+          zoomLevel={14}
+          savedPlacesJson={JSON.stringify(
+            savedPlaces.map(({ id, name, latitude, longitude }) => ({
+              id,
+              name,
+              latitude,
+              longitude,
+            })),
+          )}
+          showsCurrentLocation
+          currentLocationRequestId={currentLocationRequestId}
+          onMapReady={event => {
+            console.log('지도 준비:', event.nativeEvent.ready);
+          }}
+          onMapError={event => {
+            console.error('지도 오류:', event.nativeEvent.message);
+          }}
+          onCameraChanged={event => {
+            const {
+              southLatitude,
+              northLatitude,
+              westLongitude,
+              eastLongitude,
+            } = event.nativeEvent;
+            setVisibleBounds({
+              southLatitude,
+              northLatitude,
+              westLongitude,
+              eastLongitude,
+            });
+          }}
+        />
+      </Animated.View>
       {!isSheetExpanded ? (
         <Pressable
           accessibilityRole="button"
@@ -63,7 +126,7 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
       {mapHeight > 0 ? (
         <PlaceResultSheet
           height={mapHeight}
-          places={placeMocks}
+          places={visiblePlaces}
           collapseSignal={collapseSignal}
           onExpandedChange={setIsSheetExpanded}
           onVisibleHeightChange={setSheetVisibleHeight}
@@ -74,7 +137,9 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
         value={searchKeyword}
         onChangeText={setSearchKeyword}
         onPressBack={
-          isSheetExpanded ? () => setCollapseSignal(signal => signal + 1) : undefined
+          isSheetExpanded
+            ? () => setCollapseSignal(signal => signal + 1)
+            : undefined
         }
       />
     </View>
@@ -88,6 +153,12 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  mapViewport: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   currentLocationButton: {
     position: 'absolute',

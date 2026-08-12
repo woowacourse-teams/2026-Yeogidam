@@ -6,6 +6,7 @@ import KakaoMapsSDK
 final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationManagerDelegate {
   @objc var onMapReady: ((NSDictionary) -> Void)?
   @objc var onMapError: ((NSDictionary) -> Void)?
+  @objc var onCameraChanged: ((NSDictionary) -> Void)?
 
   private let mapContainer = KMViewContainer()
   private var mapController: KMController?
@@ -17,6 +18,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     return manager
   }()
   private var currentLocationPoi: Poi?
+  private var cameraStoppedHandler: (any DisposableEventHandler)?
+  private var savedPlaceStyleAdded = false
+  private var savedPlacesJson = "[]"
   private var lastKnownLocation: CLLocation?
 
   private var latitude: Double = 37.5665
@@ -82,6 +86,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     }
 
     scheduleCameraMove()
+    if mapAdded {
+      DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
+    }
   }
 
   override func didMoveToWindow() {
@@ -101,7 +108,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     longitude: Double,
     zoomLevel: Int,
     showsCurrentLocation: Bool,
-    currentLocationRequestId: Int
+    currentLocationRequestId: Int,
+    savedPlacesJson: String
   ) {
     let defaultCameraChanged =
       self.latitude != latitude ||
@@ -132,6 +140,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       self.currentLocationRequestId = currentLocationRequestId
       centerMapOnCurrentLocation()
     }
+
+    if self.savedPlacesJson != savedPlacesJson {
+      self.savedPlacesJson = savedPlacesJson
+      renderSavedPlaceMarkers()
+    }
   }
 
   func addViews() {
@@ -160,10 +173,20 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     containerDidResized(mapContainer.bounds.size)
     moveCameraIfPossible()
     requestCurrentLocationIfNeeded()
+    renderSavedPlaceMarkers()
+    if let kakaoMap = mapController?.getView("mapview") as? KakaoMap {
+      cameraStoppedHandler = kakaoMap.addCameraStoppedEventHandler(
+        target: self,
+        handler: { owner in
+          { _ in owner.emitCameraChanged() }
+        }
+      )
+    }
 
     onMapReady?([
       "ready": true
     ])
+    DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
   }
 
   func addViewFailed(
@@ -350,9 +373,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       addCurrentLocationMarker(to: kakaoMap, at: position)
     }
 
-    if !hasCenteredOnCurrentLocation {
-      centerMapOnCurrentLocation()
-    }
+    // Preserve the saved-place camera on first load. The location button is
+    // the explicit action that moves the map to the user's position.
   }
 
   private func centerMapOnCurrentLocation() {
@@ -413,6 +435,91 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     currentLocationPoi?.show()
   }
 
+  private func renderSavedPlaceMarkers() {
+    guard
+      let kakaoMap = mapController?.getView("mapview") as? KakaoMap,
+      let data = savedPlacesJson.data(using: .utf8),
+      let places = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+    else {
+      return
+    }
+
+    let labelManager = kakaoMap.getLabelManager()
+    let layer =
+      labelManager.getLabelLayer(layerID: Self.savedPlaceLayerID) ??
+      labelManager.addLabelLayer(
+        option: LabelLayerOptions(
+          layerID: Self.savedPlaceLayerID,
+          competitionType: .none,
+          competitionUnit: .symbolFirst,
+          orderType: .rank,
+          zOrder: 900
+        )
+      )
+    layer?.clearAllItems()
+
+    if !savedPlaceStyleAdded {
+      let iconStyle = PoiIconStyle(
+        symbol: makeSavedPlaceMarker(),
+        anchorPoint: CGPoint(x: 0.5, y: 0.5)
+      )
+      labelManager.addPoiStyle(
+        PoiStyle(
+          styleID: Self.savedPlaceStyleID,
+          styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)]
+        )
+      )
+      savedPlaceStyleAdded = true
+    }
+
+    places.forEach { place in
+      guard
+        let id = place["id"] as? String,
+        let latitude = place["latitude"] as? Double,
+        let longitude = place["longitude"] as? Double
+      else { return }
+      let options = PoiOptions(styleID: Self.savedPlaceStyleID, poiID: id)
+      options.rank = 1
+      layer?.addPoi(
+        option: options,
+        at: MapPoint(longitude: longitude, latitude: latitude)
+      )?.show()
+    }
+  }
+
+  private func emitCameraChanged() {
+    guard
+      let kakaoMap = mapController?.getView("mapview") as? KakaoMap
+    else { return }
+
+    let coordinate = kakaoMap.getPosition(
+      CGPoint(x: kakaoMap.viewRect.midX, y: kakaoMap.viewRect.midY)
+    ).wgsCoord
+    let corners = [
+      CGPoint(x: kakaoMap.viewRect.minX, y: kakaoMap.viewRect.minY),
+      CGPoint(x: kakaoMap.viewRect.maxX, y: kakaoMap.viewRect.minY),
+      CGPoint(x: kakaoMap.viewRect.minX, y: kakaoMap.viewRect.maxY),
+      CGPoint(x: kakaoMap.viewRect.maxX, y: kakaoMap.viewRect.maxY)
+    ].map { kakaoMap.getPosition($0).wgsCoord }
+    let latitudes = corners.map(\.latitude)
+    let longitudes = corners.map(\.longitude)
+    guard
+      let southLatitude = latitudes.min(),
+      let northLatitude = latitudes.max(),
+      let westLongitude = longitudes.min(),
+      let eastLongitude = longitudes.max()
+    else { return }
+    onCameraChanged?([
+      "latitude": coordinate.latitude,
+      "longitude": coordinate.longitude,
+      "zoomLevel": kakaoMap.zoomLevel,
+      "southLatitude": southLatitude,
+      "northLatitude": northLatitude,
+      "westLongitude": westLongitude,
+      "eastLongitude": eastLongitude
+    ])
+  }
+
   private func removeCurrentLocationMarker() {
     guard
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap,
@@ -455,6 +562,30 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     }
   }
 
+  private func makeSavedPlaceMarker() -> UIImage {
+    let size = CGSize(width: 34, height: 44)
+    return UIGraphicsImageRenderer(size: size).image { _ in
+      let center = CGPoint(x: 17, y: 14)
+      let radius: CGFloat = 12
+      let tail = UIBezierPath()
+      tail.move(to: CGPoint(x: 10, y: 20))
+      tail.addLine(to: CGPoint(x: 17, y: 44))
+      tail.addLine(to: CGPoint(x: 24, y: 20))
+      tail.close()
+      UIColor.white.setFill()
+      tail.fill()
+      UIBezierPath(
+        ovalIn: CGRect(x: 3, y: 0, width: 28, height: 28)
+      ).fill()
+      UIColor(red: 122 / 255, green: 199 / 255, blue: 223 / 255, alpha: 1).setFill()
+      UIBezierPath(
+        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: 24, height: 24)
+      ).fill()
+      UIColor.white.setFill()
+      UIBezierPath(ovalIn: CGRect(x: 12.5, y: 9.5, width: 9, height: 9)).fill()
+    }
+  }
+
   @objc
   private func applicationDidBecomeActive() {
     guard window != nil else { return }
@@ -479,4 +610,6 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private static let currentLocationLayerID = "yeogidam-current-location-layer"
   private static let currentLocationStyleID = "yeogidam-current-location-style"
   private static let currentLocationPoiID = "yeogidam-current-location-poi"
+  private static let savedPlaceLayerID = "yeogidam-saved-place-layer"
+  private static let savedPlaceStyleID = "yeogidam-saved-place-style"
 }

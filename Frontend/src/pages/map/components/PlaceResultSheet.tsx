@@ -324,6 +324,11 @@ export function PlaceResultSheet({
             </ScrollView>
           </View>
         )}
+        ListEmptyComponent={
+          <View style={styles.emptyResult}>
+            <Text style={styles.emptyResultText}>현재 지도 영역에 저장한 장소가 없어요.</Text>
+          </View>
+        }
       />
     </Animated.View>
   );
@@ -382,6 +387,14 @@ const styles = StyleSheet.create({
   result: {
     paddingTop: 9,
     paddingBottom: 15,
+  },
+  emptyResult: {
+    paddingTop: 34,
+    alignItems: 'center',
+  },
+  emptyResultText: {
+    fontSize: 14,
+    color: '#8e8e93',
   },
   resultTop: {
     flexDirection: 'row',

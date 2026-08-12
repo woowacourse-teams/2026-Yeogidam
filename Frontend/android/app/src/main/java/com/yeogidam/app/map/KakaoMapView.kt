@@ -14,9 +14,11 @@ import android.os.Looper
 import android.util.Log
 import android.widget.FrameLayout
 import com.facebook.react.bridge.LifecycleEventListener
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.modules.core.PermissionAwareActivity
+import com.facebook.react.uimanager.events.RCTEventEmitter
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
@@ -25,6 +27,7 @@ import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.Label
 import com.kakao.vectormap.label.LabelOptions
+import org.json.JSONArray
 import kotlin.math.roundToInt
 
 class KakaoMapView(
@@ -37,6 +40,7 @@ class KakaoMapView(
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var kakaoMap: KakaoMap? = null
     private var currentLocationLabel: Label? = null
+    private var savedPlacesJson = "[]"
     private var lastKnownLocation: Location? = null
 
     private var latitude = 37.5445
@@ -106,9 +110,14 @@ class KakaoMapView(
             object : KakaoMapReadyCallback() {
                 override fun onMapReady(map: KakaoMap) {
                     kakaoMap = map
+                    map.setOnCameraMoveEndListener { _, position, _ ->
+                        emitVisibleBounds(position.position, position.zoomLevel)
+                    }
+                    renderSavedPlaceMarkers()
                     Log.d("YeogidamKakaoMap", "지도 준비 완료")
                     post(::resumeMapIfNeeded)
                     startCurrentLocationIfNeeded()
+                    post { emitVisibleBounds() }
                 }
 
                 override fun getPosition(): LatLng =
@@ -165,9 +174,82 @@ class KakaoMapView(
         centerMapOnCurrentLocation()
     }
 
+    fun setSavedPlacesJson(value: String) {
+        if (savedPlacesJson == value) return
+        savedPlacesJson = value
+        renderSavedPlaceMarkers()
+    }
+
     private fun moveCamera() {
         removeCallbacks(moveToDefaultPosition)
         post(moveToDefaultPosition)
+    }
+
+    private fun renderSavedPlaceMarkers() {
+        val layer = kakaoMap?.labelManager?.layer ?: return
+        layer.removeAll()
+
+        try {
+            val places = JSONArray(savedPlacesJson)
+            for (index in 0 until places.length()) {
+                val place = places.getJSONObject(index)
+                layer.addLabel(
+                    LabelOptions.from(
+                        place.getString("id"),
+                        LatLng.from(place.getDouble("latitude"), place.getDouble("longitude")),
+                    ).setStyles(createSavedPlaceMarker()),
+                )
+            }
+        } catch (error: Exception) {
+            Log.e("YeogidamKakaoMap", "저장 장소 핀을 표시하지 못했습니다.", error)
+        }
+    }
+
+    override fun onSizeChanged(
+        width: Int,
+        height: Int,
+        oldWidth: Int,
+        oldHeight: Int,
+    ) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight)
+        if (width > 0 && height > 0 && (width != oldWidth || height != oldHeight)) {
+            post { emitVisibleBounds() }
+        }
+    }
+
+    private fun emitVisibleBounds(
+        center: LatLng? = kakaoMap?.cameraPosition?.position,
+        currentZoomLevel: Int = kakaoMap?.zoomLevel ?: zoomLevel,
+    ) {
+        val map = kakaoMap ?: return
+        if (id == NO_ID || width <= 0 || height <= 0 || center == null) return
+
+        val corners = listOfNotNull(
+            map.fromScreenPoint(0, 0),
+            map.fromScreenPoint(width, 0),
+            map.fromScreenPoint(0, height),
+            map.fromScreenPoint(width, height),
+        )
+        if (corners.size != 4) return
+
+        val southLatitude = corners.minOf { it.latitude }
+        val northLatitude = corners.maxOf { it.latitude }
+        val westLongitude = corners.minOf { it.longitude }
+        val eastLongitude = corners.maxOf { it.longitude }
+
+        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+            id,
+            "onCameraChanged",
+            Arguments.createMap().apply {
+                putDouble("latitude", center.latitude)
+                putDouble("longitude", center.longitude)
+                putInt("zoomLevel", currentZoomLevel)
+                putDouble("southLatitude", southLatitude)
+                putDouble("northLatitude", northLatitude)
+                putDouble("westLongitude", westLongitude)
+                putDouble("eastLongitude", eastLongitude)
+            },
+        )
     }
 
     private fun startCurrentLocationIfNeeded() {
@@ -302,9 +384,8 @@ class KakaoMapView(
             label.moveTo(position)
         }
 
-        if (!hasCenteredOnCurrentLocation) {
-            centerMapOnCurrentLocation()
-        }
+        // Keep the initial camera on the saved-place area. The camera moves to
+        // the user's location only after the current-location button is tapped.
     }
 
     private fun centerMapOnCurrentLocation() {
@@ -365,6 +446,33 @@ class KakaoMapView(
         return bitmap
     }
 
+    private fun createSavedPlaceMarker(): Bitmap {
+        val density = resources.displayMetrics.density
+        val width = (SAVED_PLACE_MARKER_WIDTH_DP * density).roundToInt()
+        val height = (SAVED_PLACE_MARKER_HEIGHT_DP * density).roundToInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val centerX = width / 2f
+        val radius = width * 0.38f
+        val centerY = radius + density
+
+        val pinPath = android.graphics.Path().apply {
+            moveTo(centerX - radius * 0.62f, centerY + radius * 0.55f)
+            lineTo(centerX, height.toFloat())
+            lineTo(centerX + radius * 0.62f, centerY + radius * 0.55f)
+            close()
+        }
+        paint.color = Color.WHITE
+        canvas.drawPath(pinPath, paint)
+        canvas.drawCircle(centerX, centerY, radius + density * 2, paint)
+        paint.color = Color.rgb(122, 199, 223)
+        canvas.drawCircle(centerX, centerY, radius, paint)
+        paint.color = Color.WHITE
+        canvas.drawCircle(centerX, centerY, radius * 0.38f, paint)
+        return bitmap
+    }
+
     override fun onHostResume() {
         resumeMapIfNeeded()
         startCurrentLocationIfNeeded()
@@ -399,6 +507,8 @@ class KakaoMapView(
     private companion object {
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
+        const val SAVED_PLACE_MARKER_WIDTH_DP = 34
+        const val SAVED_PLACE_MARKER_HEIGHT_DP = 44
         const val LOCATION_PERMISSION_REQUEST_CODE = 9417
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f

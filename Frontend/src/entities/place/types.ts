@@ -5,6 +5,8 @@ export type Place = {
   name: string;
   address: string;
   fullAddress: string;
+  latitude: number;
+  longitude: number;
   image: ImageSourcePropType;
   images?: ImageSourcePropType[];
 };

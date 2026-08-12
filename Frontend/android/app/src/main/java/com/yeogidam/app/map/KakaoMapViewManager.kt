@@ -56,4 +56,11 @@ class KakaoMapViewManager :
     ) {
         view.setCurrentLocationRequestId(value)
     }
+
+    override fun setSavedPlacesJson(
+        view: KakaoMapView,
+        value: String?,
+    ) {
+        view.setSavedPlacesJson(value ?: "[]")
+    }
 }
