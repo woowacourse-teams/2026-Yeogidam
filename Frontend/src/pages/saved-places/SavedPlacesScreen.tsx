@@ -48,8 +48,10 @@ export function SavedPlacesScreen({
             onPressPlace={() => onOpenDetail()}
           />
           {hasSavedPlaces ? (
-            <Pressable onPress={openDialog} style={styles.fab}>
-              <Text style={styles.fabText}>＋</Text>
+            <Pressable onPress={openDialog} style={styles.fabShadow}>
+              <View style={styles.fab}>
+                <Text style={styles.fabText}>＋</Text>
+              </View>
             </Pressable>
           ) : null}
         </>
@@ -66,16 +68,14 @@ export function SavedPlacesScreen({
                 />
                 <View style={styles.scrollFooter}>
                   <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
-                    <MaterialIcons
-                      color="#8FA2FF"
-                      name="upload"
-                      size={24}
-                    />
+                    <MaterialIcons color="#8FA2FF" name="upload" size={24} />
                   </Pressable>
                 </View>
               </ScrollView>
-              <Pressable onPress={openDialog} style={styles.fab}>
-                <Text style={styles.fabText}>＋</Text>
+              <Pressable onPress={openDialog} style={styles.fabShadow}>
+                <View style={styles.fab}>
+                  <Text style={styles.fabText}>＋</Text>
+                </View>
               </Pressable>
             </>
           ) : (
@@ -104,20 +104,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e5ea',
     marginHorizontal: 24,
   },
-  fab: {
+  fabShadow: {
     position: 'absolute',
     right: 18,
     bottom: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#DBE0F9',
+    shadowColor: '#000000',
+    shadowOpacity: 0.16,
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  fab: {
+    flex: 1,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(219, 224, 249, 0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.52)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3b6fe8',
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
   },
   fabText: {
     fontSize: 30,

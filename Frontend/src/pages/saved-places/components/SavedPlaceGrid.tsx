@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+import LinearGradient from 'react-native-linear-gradient';
 
 import type {Place} from '../../../entities/place/types';
 
@@ -32,7 +33,17 @@ export function SavedPlaceGrid({
           <View key={`${place.id}-${index}`} style={styles.card}>
             <Pressable onPress={() => onPressPlace(place)} style={styles.cardBody}>
               <Image source={place.image} style={styles.image} />
-              <View style={styles.dim} />
+              <LinearGradient
+                colors={[
+                  'rgba(0, 0, 0, 0)',
+                  'rgba(0, 0, 0, 0.22)',
+                  'rgba(0, 0, 0, 0.58)',
+                  'rgba(0, 0, 0, 0.86)',
+                ]}
+                locations={[0, 0.38, 0.72, 1]}
+                pointerEvents="none"
+                style={styles.dim}
+              />
               <View style={styles.label}>
                 <Text style={styles.name}>{place.name}</Text>
                 <Text style={styles.address}>{place.address}</Text>
@@ -83,8 +94,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 72,
-    backgroundColor: 'rgba(24, 24, 24, 0.38)',
+    height: 100,
   },
   heart: {
     position: 'absolute',
@@ -105,8 +115,8 @@ const styles = StyleSheet.create({
   },
   name: {
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
   },
   address: {
     color: '#ffffff',
