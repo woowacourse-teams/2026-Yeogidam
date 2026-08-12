@@ -15,6 +15,7 @@ import android.util.Log
 import android.widget.FrameLayout
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.ReactContext
+import com.facebook.react.common.LifecycleState
 import com.facebook.react.modules.core.PermissionAwareActivity
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
@@ -53,6 +54,21 @@ class KakaoMapView(
             updateCurrentLocation(location)
         }
 
+    private val moveToDefaultPosition = Runnable {
+        val map = kakaoMap ?: return@Runnable
+
+        if (!isAttachedToWindow) {
+            return@Runnable
+        }
+
+        map.moveCamera(
+            CameraUpdateFactory.newCenterPosition(
+                LatLng.from(latitude, longitude),
+                zoomLevel,
+            ),
+        )
+    }
+
     init {
         addView(
             nativeMapView,
@@ -72,6 +88,7 @@ class KakaoMapView(
             startMap()
         }
 
+        post(::resumeMapIfNeeded)
         startCurrentLocationIfNeeded()
     }
 
@@ -90,7 +107,7 @@ class KakaoMapView(
                 override fun onMapReady(map: KakaoMap) {
                     kakaoMap = map
                     Log.d("YeogidamKakaoMap", "지도 준비 완료")
-                    moveCamera()
+                    post(::resumeMapIfNeeded)
                     startCurrentLocationIfNeeded()
                 }
 
@@ -149,14 +166,8 @@ class KakaoMapView(
     }
 
     private fun moveCamera() {
-        val map = kakaoMap ?: return
-
-        val update = CameraUpdateFactory.newCenterPosition(
-            LatLng.from(latitude, longitude),
-            zoomLevel,
-        )
-
-        map.moveCamera(update)
+        removeCallbacks(moveToDefaultPosition)
+        post(moveToDefaultPosition)
     }
 
     private fun startCurrentLocationIfNeeded() {
@@ -307,13 +318,31 @@ class KakaoMapView(
         }
 
         hasCenteredOnCurrentLocation = true
-        map.moveCamera(
-            CameraUpdateFactory.newCenterPosition(
-                LatLng.from(location.latitude, location.longitude),
-                zoomLevel,
-            ),
-        )
-        Log.d("YeogidamKakaoMap", "현재 위치로 지도 이동 완료")
+        removeCallbacks(moveToDefaultPosition)
+        post {
+            if (!isAttachedToWindow || kakaoMap !== map) {
+                hasCenteredOnCurrentLocation = false
+                return@post
+            }
+
+            map.moveCamera(
+                CameraUpdateFactory.newCenterPosition(
+                    LatLng.from(location.latitude, location.longitude),
+                    zoomLevel,
+                ),
+            )
+            Log.d("YeogidamKakaoMap", "현재 위치로 지도 이동 완료")
+        }
+    }
+
+    private fun resumeMapIfNeeded() {
+        if (
+            isAttachedToWindow &&
+            nativeMapView.isStarted &&
+            reactContext.lifecycleState == LifecycleState.RESUMED
+        ) {
+            nativeMapView.resume()
+        }
     }
 
     private fun createCurrentLocationMarker(): Bitmap {
@@ -337,10 +366,7 @@ class KakaoMapView(
     }
 
     override fun onHostResume() {
-        if (nativeMapView.isStarted) {
-            nativeMapView.resume()
-        }
-
+        resumeMapIfNeeded()
         startCurrentLocationIfNeeded()
     }
 
@@ -354,12 +380,19 @@ class KakaoMapView(
 
     override fun onHostDestroy() {
         stopLocationUpdates()
+        removeCallbacks(moveToDefaultPosition)
         nativeMapView.finish()
         reactContext.removeLifecycleEventListener(this)
     }
 
     override fun onDetachedFromWindow() {
         stopLocationUpdates()
+        removeCallbacks(moveToDefaultPosition)
+
+        if (nativeMapView.isStarted) {
+            nativeMapView.pause()
+        }
+
         super.onDetachedFromWindow()
     }
 

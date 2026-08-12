@@ -28,6 +28,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var mapAdded = false
   private var currentLocationStyleAdded = false
   private var hasCenteredOnCurrentLocation = false
+  private var needsDefaultCameraMove = false
+  private var needsCurrentLocationCameraMove = false
+  private var cameraMoveScheduled = false
 
   override init(frame: CGRect) {
     super.init(frame: frame)
@@ -77,6 +80,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     } else {
       containerDidResized(mapContainer.bounds.size)
     }
+
+    scheduleCameraMove()
   }
 
   override func didMoveToWindow() {
@@ -84,6 +89,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
 
     if window != nil, enginePrepared {
       mapController?.activateEngine()
+      scheduleCameraMove()
     } else {
       mapController?.pauseEngine()
     }
@@ -97,6 +103,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     showsCurrentLocation: Bool,
     currentLocationRequestId: Int
   ) {
+    let defaultCameraChanged =
+      self.latitude != latitude ||
+      self.longitude != longitude ||
+      self.zoomLevel != zoomLevel
+
     self.latitude = latitude
     self.longitude = longitude
     self.zoomLevel = zoomLevel
@@ -113,7 +124,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       }
     }
 
-    moveCameraIfPossible()
+    if defaultCameraChanged {
+      moveCameraIfPossible()
+    }
 
     if self.currentLocationRequestId != currentLocationRequestId {
       self.currentLocationRequestId = currentLocationRequestId
@@ -175,6 +188,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     if window != nil, mapController?.isEngineActive == false {
       mapController?.activateEngine()
     }
+
+    scheduleCameraMove()
   }
 
   func containerDidResized(_ size: CGSize) {
@@ -192,13 +207,58 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func moveCameraIfPossible() {
+    needsDefaultCameraMove = true
+    scheduleCameraMove()
+  }
+
+  private func scheduleCameraMove() {
+    guard !cameraMoveScheduled else { return }
+
+    cameraMoveScheduled = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+
+      self.cameraMoveScheduled = false
+      self.flushCameraMoveIfPossible()
+    }
+  }
+
+  private func flushCameraMoveIfPossible() {
     guard
       mapAdded,
+      window != nil,
+      mapController?.isEngineActive == true,
+      mapContainer.bounds.width > 0,
+      mapContainer.bounds.height > 0,
       let kakaoMap =
         mapController?.getView("mapview") as? KakaoMap
     else {
       return
     }
+
+    containerDidResized(mapContainer.bounds.size)
+
+    if needsCurrentLocationCameraMove, let location = lastKnownLocation {
+      needsCurrentLocationCameraMove = false
+      needsDefaultCameraMove = false
+
+      let position = MapPoint(
+        longitude: location.coordinate.longitude,
+        latitude: location.coordinate.latitude
+      )
+      let cameraUpdate = CameraUpdate.make(
+        target: position,
+        zoomLevel: zoomLevel,
+        mapView: kakaoMap
+      )
+
+      hasCenteredOnCurrentLocation = true
+      kakaoMap.moveCamera(cameraUpdate)
+      return
+    }
+
+    guard needsDefaultCameraMove else { return }
+    needsDefaultCameraMove = false
 
     let position = MapPoint(
       longitude: longitude,
@@ -298,26 +358,15 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private func centerMapOnCurrentLocation() {
     guard
       showsCurrentLocation,
-      let location = lastKnownLocation,
-      let kakaoMap = mapController?.getView("mapview") as? KakaoMap
+      lastKnownLocation != nil
     else {
       hasCenteredOnCurrentLocation = false
       requestCurrentLocationIfNeeded()
       return
     }
 
-    let position = MapPoint(
-      longitude: location.coordinate.longitude,
-      latitude: location.coordinate.latitude
-    )
-    let cameraUpdate = CameraUpdate.make(
-      target: position,
-      zoomLevel: zoomLevel,
-      mapView: kakaoMap
-    )
-
-    hasCenteredOnCurrentLocation = true
-    kakaoMap.moveCamera(cameraUpdate)
+    needsCurrentLocationCameraMove = true
+    scheduleCameraMove()
   }
 
   private func addCurrentLocationMarker(
@@ -410,6 +459,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private func applicationDidBecomeActive() {
     guard window != nil else { return }
     mapController?.activateEngine()
+    scheduleCameraMove()
     requestCurrentLocationIfNeeded()
   }
 
