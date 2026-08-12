@@ -1,32 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-const tabs = ['홈', '게시물'];
+const tabs = ['게시물', '정보'] as const;
+
+export type PlaceTab = (typeof tabs)[number];
 
 type PlaceTabsProps = {
-  onTabPress?: () => void;
+  activeTab: PlaceTab;
+  onTabPress: (tab: PlaceTab) => void;
 };
 
-export function PlaceTabs({onTabPress}: PlaceTabsProps) {
-  const [activeTab, setActiveTab] = useState('홈');
+export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
   const indicatorPosition = useRef(new Animated.Value(0)).current;
   const [tabWidth, setTabWidth] = useState(0);
-
-  const handleTabPress = (tab: string) => {
-    onTabPress?.();
-
-    if (tab === activeTab) {
-      return;
-    }
-
-    setActiveTab(tab);
-  };
 
   useEffect(() => {
     Animated.timing(indicatorPosition, {
@@ -40,15 +26,16 @@ export function PlaceTabs({onTabPress}: PlaceTabsProps) {
     <View
       style={styles.container}
       onLayout={event => {
-        const {width} = event.nativeEvent.layout;
+        const { width } = event.nativeEvent.layout;
 
         setTabWidth(width / tabs.length);
-      }}>
+      }}
+    >
       {tabs.map(tab => (
         <Pressable
           key={tab}
           style={styles.tabItem}
-          onPress={() => handleTabPress(tab)}
+          onPress={() => onTabPress(tab)}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === activeTab }}
         >
@@ -66,12 +53,14 @@ export function PlaceTabs({onTabPress}: PlaceTabsProps) {
             styles.activeIndicator,
             {
               width: tabWidth - 44,
-              transform: [{
-                translateX: indicatorPosition.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [22, tabWidth + 22],
-                }),
-              }],
+              transform: [
+                {
+                  translateX: indicatorPosition.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [22, tabWidth + 22],
+                  }),
+                },
+              ],
             },
           ]}
         />
