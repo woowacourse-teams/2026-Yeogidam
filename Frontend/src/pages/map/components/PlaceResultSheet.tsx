@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import {
   Animated,
+  FlatList,
   Image,
   PanResponder,
   Pressable,
@@ -22,15 +23,23 @@ import type { Place } from '../../../entities/place/types';
 type PlaceResultSheetProps = {
   places: Place[];
   height: number;
+  onExpandedChange?: (isExpanded: boolean) => void;
+  onVisibleHeightChange?: (height: number) => void;
+  collapseSignal?: number;
   onOpenDetail: (place: Place) => void;
 };
 
 const COLLAPSED_HEIGHT = 112;
 const MIDDLE_SHEET_HEIGHT_RATIO = 0.5;
+const PAGE_MODE_TRIGGER_OFFSET = 72;
+const BOTTOM_TAB_CLEARANCE = 92;
 
 export function PlaceResultSheet({
   places,
   height,
+  onExpandedChange,
+  onVisibleHeightChange,
+  collapseSignal = 0,
   onOpenDetail,
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
@@ -49,9 +58,28 @@ export function PlaceResultSheet({
   const translateY = useRef(new Animated.Value(collapsedOffset)).current;
   const currentOffset = useRef(collapsedOffset);
   const dragStartOffset = useRef(collapsedOffset);
+  const startedInPageMode = useRef(false);
+  const handledCollapseSignal = useRef(collapseSignal);
+  const isPageModeRef = useRef(false);
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
+  const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
   const isExpanded = activeSnapIndex === 0;
+  const hiddenSheetHeight = isPageMode ? 0 : snapOffsets[activeSnapIndex];
+  const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
+
+  const updatePageMode = useCallback(
+    (nextIsPageMode: boolean) => {
+      if (isPageModeRef.current === nextIsPageMode) {
+        return;
+      }
+
+      isPageModeRef.current = nextIsPageMode;
+      setIsPageMode(nextIsPageMode);
+      onExpandedChange?.(nextIsPageMode);
+    },
+    [onExpandedChange],
+  );
 
   const snapTo = useCallback(
     (nextOffset: number) => {
@@ -73,6 +101,8 @@ export function PlaceResultSheet({
         setTapDirection('down');
       }
       setActiveSnapIndex(nearestSnapIndex);
+      updatePageMode(nearestSnapIndex === 0);
+      onVisibleHeightChange?.(sheetHeight - nearestOffset);
       Animated.spring(translateY, {
         toValue: nearestOffset,
         useNativeDriver: true,
@@ -81,7 +111,15 @@ export function PlaceResultSheet({
         mass: 0.7,
       }).start();
     },
-    [activeSnapIndex, collapsedOffset, snapOffsets, translateY],
+    [
+      activeSnapIndex,
+      collapsedOffset,
+      onVisibleHeightChange,
+      sheetHeight,
+      snapOffsets,
+      translateY,
+      updatePageMode,
+    ],
   );
 
   useEffect(() => {
@@ -96,9 +134,28 @@ export function PlaceResultSheet({
       );
       currentOffset.current = snapOffsets[nearestSnapIndex];
       setActiveSnapIndex(nearestSnapIndex);
+      updatePageMode(nearestSnapIndex === 0);
+      onVisibleHeightChange?.(sheetHeight - snapOffsets[nearestSnapIndex]);
       translateY.setValue(currentOffset.current);
     });
-  }, [snapOffsets, translateY]);
+  }, [
+    onVisibleHeightChange,
+    sheetHeight,
+    snapOffsets,
+    translateY,
+    updatePageMode,
+  ]);
+
+  useEffect(() => {
+    if (collapseSignal === handledCollapseSignal.current) {
+      return;
+    }
+
+    handledCollapseSignal.current = collapseSignal;
+    if (isPageMode) {
+      snapTo(snapOffsets[1]);
+    }
+  }, [collapseSignal, isPageMode, snapOffsets, snapTo]);
 
   const panResponder = useMemo(
     () =>
@@ -113,16 +170,32 @@ export function PlaceResultSheet({
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
+          startedInPageMode.current = isPageModeRef.current;
           translateY.stopAnimation(value => {
             dragStartOffset.current = value;
             currentOffset.current = value;
           });
         },
         onPanResponderMove: (_, gesture) => {
-          const nextOffset = Math.max(
+          let nextOffset = Math.max(
             0,
             Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
           );
+
+          // Once the sheet reaches the search bar, it becomes a page and its
+          // actual animated position is reset as well. Keeping both positions
+          // aligned makes repeated open/close drags reliable.
+          if (isPageModeRef.current) {
+            if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
+              nextOffset = 0;
+            } else {
+              updatePageMode(false);
+            }
+          } else if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
+            nextOffset = 0;
+            updatePageMode(true);
+          }
+
           currentOffset.current = nextOffset;
           translateY.setValue(nextOffset);
         },
@@ -136,11 +209,26 @@ export function PlaceResultSheet({
             0,
             Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
           );
+          if (
+            startedInPageMode.current &&
+            releasedOffset > PAGE_MODE_TRIGGER_OFFSET
+          ) {
+            snapTo(snapOffsets[1]);
+            return;
+          }
+
           snapTo(releasedOffset);
         },
         onPanResponderTerminate: () => snapTo(currentOffset.current),
       }),
-    [collapsedOffset, isExpanded, snapTo, translateY],
+    [
+      collapsedOffset,
+      isExpanded,
+      snapOffsets,
+      snapTo,
+      translateY,
+      updatePageMode,
+    ],
   );
 
   const toggleSheet = () => {
@@ -161,28 +249,42 @@ export function PlaceResultSheet({
     <Animated.View
       style={[
         styles.sheet,
-        { height: sheetHeight, transform: [{ translateY }] },
+        isPageMode && styles.pageSheet,
+        {
+          height: sheetHeight,
+          transform: [{ translateY }],
+        },
       ]}
     >
       <View {...panResponder.panHandlers}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            isExpanded ? '검색 결과 접기' : '검색 결과 펼치기'
-          }
-          onPress={toggleSheet}
-          style={styles.handleArea}
-        >
-          <View style={styles.pill} />
-        </Pressable>
+        {isPageMode ? (
+          <View style={styles.expandedHeaderSpacer} />
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="검색 결과 펼치기"
+            onPress={toggleSheet}
+            style={styles.handleArea}
+          >
+            <View style={styles.pill} />
+          </Pressable>
+        )}
       </View>
-      <ScrollView
-        contentContainerStyle={styles.results}
+      <FlatList
+        key={`results-${activeSnapIndex}-${isPageMode ? 'page' : 'sheet'}`}
+        data={places}
+        style={styles.resultsScroll}
+        contentContainerStyle={[
+          styles.results,
+          {paddingBottom: listBottomClearance},
+        ]}
+        keyExtractor={place => place.id}
+        contentInsetAdjustmentBehavior="never"
+        scrollIndicatorInsets={{bottom: BOTTOM_TAB_CLEARANCE}}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={activeSnapIndex !== 2}
-      >
-        {places.map(place => (
-          <View key={place.id} style={styles.result}>
+        scrollEnabled={activeSnapIndex !== 2 || isPageMode}
+        renderItem={({ item: place }) => (
+          <View style={styles.result}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${place.name} 상세 보기`}
@@ -221,8 +323,8 @@ export function PlaceResultSheet({
               ))}
             </ScrollView>
           </View>
-        ))}
-      </ScrollView>
+        )}
+      />
     </Animated.View>
   );
 }
@@ -242,6 +344,10 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 8,
   },
+  pageSheet: {
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
   pill: {
     alignSelf: 'center',
     width: 97,
@@ -257,18 +363,25 @@ const styles = StyleSheet.create({
     paddingBottom: 17,
     minHeight: 48,
   },
+  expandedHeaderSpacer: {
+    height: 78,
+  },
   title: {
     fontSize: 15,
     fontWeight: '800',
     color: '#1a1a2e',
   },
   results: {
+    flexGrow: 1,
     paddingHorizontal: 13,
-    paddingBottom: 24,
+  },
+  resultsScroll: {
+    flex: 1,
+    minHeight: 0,
   },
   result: {
-    paddingTop: 10,
-    paddingBottom: 18,
+    paddingTop: 9,
+    paddingBottom: 15,
   },
   resultTop: {
     flexDirection: 'row',
@@ -306,7 +419,7 @@ const styles = StyleSheet.create({
   photoStrip: {
     flexDirection: 'row',
     height: 118,
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   photo: {
