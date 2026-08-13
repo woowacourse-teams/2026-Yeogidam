@@ -169,12 +169,12 @@ export function PlaceResultSheet({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        // Only the header claims vertical drags. The result list keeps its own
-        // ScrollView gesture so users can read all results.
         onMoveShouldSetPanResponder: (_, gesture) =>
+          !isPageModeRef.current &&
           Math.abs(gesture.dy) > 4 &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onMoveShouldSetPanResponderCapture: (_, gesture) =>
+          !isPageModeRef.current &&
           Math.abs(gesture.dy) > 4 &&
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderTerminationRequest: () => false,
@@ -256,6 +256,7 @@ export function PlaceResultSheet({
 
   return (
     <Animated.View
+      {...panResponder.panHandlers}
       style={[
         styles.sheet,
         isPageMode && styles.pageSheet,
@@ -265,7 +266,7 @@ export function PlaceResultSheet({
         },
       ]}
     >
-      <View {...panResponder.panHandlers}>
+      <View>
         {isPageMode ? (
           <View style={{ height: expandedHeaderHeight }} />
         ) : (
@@ -291,7 +292,7 @@ export function PlaceResultSheet({
         contentInsetAdjustmentBehavior="never"
         scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
-        scrollEnabled={activeSnapIndex !== 2 || isPageMode}
+        scrollEnabled={isPageMode}
         renderItem={({ item: place }) => (
           <View style={styles.result}>
             <Pressable
