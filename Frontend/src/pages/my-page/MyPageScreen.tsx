@@ -8,14 +8,21 @@ import {SettingList} from './components/SettingList';
 
 type MyPageScreenProps = {
   onOpenSavedPlaces?: () => void;
+  onLogout?: () => void;
+  isLogoutPending?: boolean;
 };
 
-export function MyPageScreen({onOpenSavedPlaces}: MyPageScreenProps) {
+export function MyPageScreen({
+  onOpenSavedPlaces,
+  onLogout,
+  isLogoutPending = false,
+}: MyPageScreenProps) {
   const settingItems = [
     {label: '내가 저장한 장소', onPress: onOpenSavedPlaces},
     {label: '최근 본 장소'},
     {label: '알림 설정'},
     {label: '앱 설정'},
+    {label: isLogoutPending ? '로그아웃 중...' : '로그아웃', onPress: onLogout},
   ];
 
   return (

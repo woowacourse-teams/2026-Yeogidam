@@ -16,15 +16,16 @@ type LoginScreenProps = {
   onOpenSignup: () => void;
   onOpenEmailLogin: () => void;
   onContinueWithKakao: () => void;
-  kakaoLoginError: NormalizedAuthError | null;
-  isKakaoLoginPending: boolean;
+  onContinueWithGoogle: () => void;
+  socialLoginError: NormalizedAuthError | null;
+  pendingSocialProvider: 'kakao' | 'google' | null;
 };
 
 type SocialButton =
   | {
       label: string;
       imageSource: ReturnType<typeof require>;
-      variant: 'kakao' | 'gmail';
+      variant: 'kakao' | 'google';
     }
   | {
       label: string;
@@ -44,9 +45,9 @@ const socialButtons: SocialButton[] = [
     variant: 'apple' as const,
   },
   {
-    label: 'Gmail로 계속하기',
+    label: 'Google로 계속하기',
     imageSource: require('../../assets/icons/google-logo.jpg'),
-    variant: 'gmail' as const,
+    variant: 'google' as const,
   },
 ];
 
@@ -57,14 +58,20 @@ export function LoginScreen({
   onOpenSignup,
   onOpenEmailLogin,
   onContinueWithKakao,
-  kakaoLoginError,
-  isKakaoLoginPending,
+  onContinueWithGoogle,
+  socialLoginError,
+  pendingSocialProvider,
 }: LoginScreenProps) {
+  const isSocialLoginPending = pendingSocialProvider !== null;
   const footerLinkActions: Record<FooterLink, () => void> = {
     회원가입: onOpenSignup,
     로그인: onOpenEmailLogin,
     문의하기: () => {},
   };
+  const socialButtonActions = {
+    kakao: onContinueWithKakao,
+    google: onContinueWithGoogle,
+  } as const;
 
   return (
     <AuthScaffold contentStyle={styles.main}>
@@ -72,12 +79,19 @@ export function LoginScreen({
         {socialButtons.map(button => (
           <Pressable
             key={button.label}
-            disabled={button.variant !== 'kakao' || isKakaoLoginPending}
-            onPress={button.variant === 'kakao' ? onContinueWithKakao : undefined}
+            disabled={
+              button.variant === 'apple' ? true : isSocialLoginPending
+            }
+            onPress={
+              button.variant === 'apple'
+                ? undefined
+                : socialButtonActions[button.variant]
+            }
             style={({pressed}) => [
               styles.socialButton,
               styles[`${button.variant}Button`],
-              button.variant !== 'kakao' && styles.disabledButton,
+              (button.variant === 'apple' || isSocialLoginPending) &&
+                styles.disabledButton,
               pressed && styles.pressed,
             ]}>
             <View style={[styles.iconWrap, styles[`${button.variant}IconWrap`]]}>
@@ -90,7 +104,7 @@ export function LoginScreen({
             <Text style={[styles.socialLabel, styles[`${button.variant}Label`]]}>
               {button.label}
             </Text>
-            {button.variant === 'kakao' && isKakaoLoginPending ? (
+            {button.variant === pendingSocialProvider ? (
               <View style={styles.loadingIndicator}>
                 <ActivityIndicator color="#191919" size="small" />
               </View>
@@ -99,11 +113,11 @@ export function LoginScreen({
         ))}
       </View>
 
-      {kakaoLoginError ? (
+      {socialLoginError ? (
         <View style={styles.errorBox}>
-          <Text style={styles.errorMessage}>{kakaoLoginError.message}</Text>
-          {kakaoLoginError.retryable ? (
-            <Text style={styles.retryMessage}>카카오 로그인 버튼을 다시 눌러 재시도해주세요.</Text>
+          <Text style={styles.errorMessage}>{socialLoginError.message}</Text>
+          {socialLoginError.retryable ? (
+            <Text style={styles.retryMessage}>로그인 버튼을 다시 눌러 재시도해주세요.</Text>
           ) : null}
         </View>
       ) : null}
@@ -147,7 +161,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e4e4e7',
   },
-  gmailButton: {
+  googleButton: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e4e4e7',
@@ -171,7 +185,7 @@ const styles = StyleSheet.create({
   appleIconWrap: {
     backgroundColor: 'transparent',
   },
-  gmailIconWrap: {
+  googleIconWrap: {
     backgroundColor: 'transparent',
   },
   socialLabel: {
@@ -184,7 +198,7 @@ const styles = StyleSheet.create({
   appleLabel: {
     color: '#121212',
   },
-  gmailLabel: {
+  googleLabel: {
     color: '#121212',
   },
   footer: {

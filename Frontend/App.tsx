@@ -11,6 +11,7 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {BottomTabBar} from './src/components/BottomTabBar';
 import type {NormalizedAuthError} from './src/lib/auth/errors';
+import {signInWithGoogle} from './src/lib/auth/signInWithGoogle';
 import {signInWithKakao} from './src/lib/auth/signInWithKakao';
 import {supabase} from './src/lib/auth/supabase';
 import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
@@ -31,13 +32,16 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
+type SocialProvider = 'kakao' | 'google';
 
 function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isKakaoLoginPending, setIsKakaoLoginPending] = useState(false);
-  const [kakaoLoginError, setKakaoLoginError] =
+  const [isLogoutPending, setIsLogoutPending] = useState(false);
+  const [pendingSocialProvider, setPendingSocialProvider] =
+    useState<SocialProvider | null>(null);
+  const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
 
   const currentScreen: Screen =
@@ -149,13 +153,15 @@ function App() {
       if (!session) {
         setFlowState(INITIAL_FLOW_STATE);
         setIsMapPlaceDetailVisible(false);
-        setIsKakaoLoginPending(false);
+        setIsLogoutPending(false);
+        setPendingSocialProvider(null);
         setIsAuthReady(true);
         return;
       }
 
-      setKakaoLoginError(null);
-      setIsKakaoLoginPending(false);
+      setSocialLoginError(null);
+      setIsLogoutPending(false);
+      setPendingSocialProvider(null);
       setFlowState({
         kind: 'main',
         activeTab: 'saved',
@@ -170,19 +176,24 @@ function App() {
     };
   }, []);
 
-  const handleContinueWithKakao = async () => {
-    if (isKakaoLoginPending) {
+  const handleContinueWithSocial = async (provider: SocialProvider) => {
+    if (pendingSocialProvider) {
       return;
     }
 
-    setKakaoLoginError(null);
-    setIsKakaoLoginPending(true);
+    setSocialLoginError(null);
+    setPendingSocialProvider(provider);
 
     try {
-      await signInWithKakao();
+      if (provider === 'kakao') {
+        await signInWithKakao();
+        return;
+      }
+
+      await signInWithGoogle();
     } catch (error) {
-      setKakaoLoginError(error as NormalizedAuthError);
-      setIsKakaoLoginPending(false);
+      setSocialLoginError(error as NormalizedAuthError);
+      setPendingSocialProvider(null);
     }
   };
 
@@ -190,13 +201,31 @@ function App() {
     Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
+  const handleLogout = async () => {
+    if (isLogoutPending) {
+      return;
+    }
+
+    setIsLogoutPending(true);
+
+    const {error} = await supabase.auth.signOut();
+
+    if (!error) {
+      return;
+    }
+
+    setIsLogoutPending(false);
+    Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
+  };
+
   const renderScreen = () => {
     if (currentScreen === 'login') {
       return (
         <LoginScreen
-          isKakaoLoginPending={isKakaoLoginPending}
-          kakaoLoginError={kakaoLoginError}
-          onContinueWithKakao={handleContinueWithKakao}
+          pendingSocialProvider={pendingSocialProvider}
+          socialLoginError={socialLoginError}
+          onContinueWithGoogle={() => handleContinueWithSocial('google')}
+          onContinueWithKakao={() => handleContinueWithSocial('kakao')}
           onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
           onOpenSignup={() => pushAuthScreen('signup')}
         />
@@ -237,7 +266,13 @@ function App() {
       return <PlaceDetailScreen onBack={closeDetail} />;
     }
 
-    return <MyPageScreen onOpenSavedPlaces={() => openMainScreen('saved')} />;
+    return (
+      <MyPageScreen
+        isLogoutPending={isLogoutPending}
+        onLogout={handleLogout}
+        onOpenSavedPlaces={() => openMainScreen('saved')}
+      />
+    );
   };
 
   const showTabBar =
