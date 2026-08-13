@@ -27,7 +27,6 @@ export function SavedPlacesSearchPanel({
 }: SavedPlacesSearchPanelProps) {
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
-  const [likedPlaceIds, setLikedPlaceIds] = useState<string[]>([]);
 
   const normalizedQuery = submittedQuery.trim().toLowerCase();
   const filteredPlaces = useMemo(() => {
@@ -57,14 +56,6 @@ export function SavedPlacesSearchPanel({
   const selectRecentSearch = (value: string) => {
     setQuery(value);
     setSubmittedQuery(value);
-  };
-
-  const toggleLikedPlace = (placeId: string) => {
-    setLikedPlaceIds(currentIds =>
-      currentIds.includes(placeId)
-        ? currentIds.filter(id => id !== placeId)
-        : [...currentIds, placeId],
-    );
   };
 
   const showResults = submittedQuery.trim().length > 0;
@@ -98,34 +89,20 @@ export function SavedPlacesSearchPanel({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           {filteredPlaces.length > 0 ? (
-            filteredPlaces.map(place => {
-              const isLiked = likedPlaceIds.includes(place.id);
-
-              return (
-                <View key={place.id} style={styles.resultCard}>
-                  <Pressable
-                    onPress={() => onPressPlace(place)}
-                    style={styles.resultCardBody}>
-                    <Image source={place.image} style={styles.resultImage} />
-                    <View style={styles.resultDim} />
-                  </Pressable>
-                  <Pressable
-                    hitSlop={8}
-                    onPress={() => toggleLikedPlace(place.id)}
-                    style={styles.resultHeart}>
-                    <MaterialIcons
-                      color="#C1CBFE"
-                      name={isLiked ? 'favorite' : 'favorite-border'}
-                      size={20}
-                    />
-                  </Pressable>
-                  <View style={styles.resultImageOverlay}>
-                    <Text style={styles.resultName}>{place.name}</Text>
-                    <Text style={styles.resultAddress}>{place.address}</Text>
-                  </View>
+            filteredPlaces.map(place => (
+              <View key={place.id} style={styles.resultCard}>
+                <Pressable
+                  onPress={() => onPressPlace(place)}
+                  style={styles.resultCardBody}>
+                  <Image source={place.image} style={styles.resultImage} />
+                  <View style={styles.resultDim} />
+                </Pressable>
+                <View style={styles.resultImageOverlay}>
+                  <Text style={styles.resultName}>{place.name}</Text>
+                  <Text style={styles.resultAddress}>{place.address}</Text>
                 </View>
-              );
-            })
+              </View>
+            ))
           ) : (
             <View style={styles.emptyResult}>
               <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
@@ -256,17 +233,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 92,
     backgroundColor: 'rgba(24, 24, 24, 0.28)',
-  },
-  resultHeart: {
-    position: 'absolute',
-    right: 12,
-    top: 12,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   resultImageOverlay: {
     position: 'absolute',

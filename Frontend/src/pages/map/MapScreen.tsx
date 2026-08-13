@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
 import { savedPlaceMocks } from '../../entities/place/mocks';
 import { MapSearchBar } from './components/MapSearchBar';
 import {
@@ -11,13 +12,14 @@ import {
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
 type MapScreenProps = {
-  onOpenDetail: () => void;
+  onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
-export function MapScreen({ onOpenDetail }: MapScreenProps) {
-  const { top: topInset } = useSafeAreaInsets();
+export function MapScreen({onDetailViewChange}: MapScreenProps) {
+  const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -25,6 +27,8 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
   );
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
+  const bottomNavigationOffset = BOTTOM_TAB_BAR_HEIGHT + bottomInset;
+  const mapBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
     northLatitude: number;
@@ -45,113 +49,151 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
 
     return savedPlaces.filter(
       place =>
+        place.latitude !== undefined &&
+        place.longitude !== undefined &&
         place.latitude >= visibleBounds.southLatitude &&
         place.latitude <= visibleBounds.northLatitude &&
         place.longitude >= visibleBounds.westLongitude &&
         place.longitude <= visibleBounds.eastLongitude,
     );
   }, [savedPlaces, visibleBounds]);
+  const filteredVisiblePlaces = useMemo(() => {
+    const normalizedKeyword = searchKeyword.trim().toLowerCase();
+
+    if (!normalizedKeyword) {
+      return visiblePlaces;
+    }
+
+    return visiblePlaces.filter(place => {
+      const searchableFields = [
+        place.name,
+        place.category,
+        place.address,
+        place.fullAddress,
+      ]
+        .filter(Boolean)
+        .map(value => value.toLowerCase());
+
+      return searchableFields.some(value => value.includes(normalizedKeyword));
+    });
+  }, [searchKeyword, visiblePlaces]);
+  const hasActiveSearch = searchKeyword.trim().length > 0;
+  const handleSearchBack = () => {
+    if (hasActiveSearch) {
+      setSearchKeyword('');
+      return;
+    }
+
+    if (isSheetExpanded) {
+      setCollapseSignal(signal => signal + 1);
+    }
+  };
 
   return (
     <View
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
-      <View style={styles.mapViewport}>
+      <View style={[styles.mapStage, {marginBottom: mapBottomOffset}]}>
+        <View style={styles.mapViewport}>
+          {mapHeight > 0 ? (
+            <KakaoMapNativeComponent
+              style={styles.map}
+              latitude={37.5448}
+              longitude={127.0557}
+              zoomLevel={14}
+              cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
+              savedPlacesJson={JSON.stringify(
+                savedPlaces.map(({ id, name, latitude, longitude }) => ({
+                  id,
+                  name,
+                  latitude,
+                  longitude,
+                })),
+              )}
+              showsCurrentLocation
+              currentLocationRequestId={currentLocationRequestId}
+              onMapReady={event => {
+                console.log('지도 준비:', event.nativeEvent.ready);
+              }}
+              onMapError={event => {
+                setMapMessage(event.nativeEvent.message);
+              }}
+              onCameraChanged={event => {
+                const {
+                  southLatitude,
+                  northLatitude,
+                  westLongitude,
+                  eastLongitude,
+                } = event.nativeEvent;
+                setVisibleBounds({
+                  southLatitude,
+                  northLatitude,
+                  westLongitude,
+                  eastLongitude,
+                });
+              }}
+            />
+          ) : null}
+        </View>
+        {!isSheetExpanded ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="내 위치로 이동"
+            hitSlop={8}
+            onPress={() =>
+              setCurrentLocationRequestId(requestId => requestId + 1)
+            }
+            style={({ pressed }) => [
+              styles.currentLocationButton,
+              { bottom: sheetVisibleHeight + 16 },
+              pressed && styles.currentLocationButtonPressed,
+            ]}
+          >
+            <View style={styles.currentLocationIcon}>
+              <View style={styles.currentLocationVerticalLine} />
+              <View style={styles.currentLocationHorizontalLine} />
+              <View style={styles.currentLocationRing}>
+                <View style={styles.currentLocationDot} />
+              </View>
+            </View>
+          </Pressable>
+        ) : null}
         {mapHeight > 0 ? (
-          <KakaoMapNativeComponent
-            style={styles.map}
-            latitude={37.5448}
-            longitude={127.0557}
-            zoomLevel={14}
-            cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
-            savedPlacesJson={JSON.stringify(
-              savedPlaces.map(({ id, name, latitude, longitude }) => ({
-                id,
-                name,
-                latitude,
-                longitude,
-              })),
-            )}
-            showsCurrentLocation
-            currentLocationRequestId={currentLocationRequestId}
-            onMapReady={event => {
-              console.log('지도 준비:', event.nativeEvent.ready);
+          <PlaceResultSheet
+            height={mapHeight - mapBottomOffset}
+            topInset={topInset}
+            places={filteredVisiblePlaces}
+            collapseSignal={collapseSignal}
+            onDetailViewChange={isDetailView => {
+              setIsPlaceDetailVisible(isDetailView);
+              onDetailViewChange?.(isDetailView);
             }}
-            onMapError={event => {
-              setMapMessage(event.nativeEvent.message);
-            }}
-            onCameraChanged={event => {
-              const {
-                southLatitude,
-                northLatitude,
-                westLongitude,
-                eastLongitude,
-              } = event.nativeEvent;
-              setVisibleBounds({
-                southLatitude,
-                northLatitude,
-                westLongitude,
-                eastLongitude,
-              });
-            }}
+            onExpandedChange={setIsSheetExpanded}
+            onVisibleHeightChange={setSheetVisibleHeight}
           />
         ) : null}
+        {!isPlaceDetailVisible ? (
+          <MapSearchBar
+            value={searchKeyword}
+            onChangeText={setSearchKeyword}
+            topInset={topInset}
+            onPressBack={
+              hasActiveSearch || isSheetExpanded ? handleSearchBack : undefined
+            }
+          />
+        ) : null}
+        {mapMessage ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="안내 닫기"
+            onPress={() => setMapMessage(null)}
+            style={[styles.mapMessage, { top: topInset + 72 }]}
+          >
+            <Text style={styles.mapMessageText}>{mapMessage}</Text>
+          </Pressable>
+        ) : null}
       </View>
-      {!isSheetExpanded ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="내 위치로 이동"
-          hitSlop={8}
-          onPress={() =>
-            setCurrentLocationRequestId(requestId => requestId + 1)
-          }
-          style={({ pressed }) => [
-            styles.currentLocationButton,
-            { bottom: sheetVisibleHeight + 16 },
-            pressed && styles.currentLocationButtonPressed,
-          ]}
-        >
-          <View style={styles.currentLocationIcon}>
-            <View style={styles.currentLocationVerticalLine} />
-            <View style={styles.currentLocationHorizontalLine} />
-            <View style={styles.currentLocationRing}>
-              <View style={styles.currentLocationDot} />
-            </View>
-          </View>
-        </Pressable>
-      ) : null}
-      {mapHeight > 0 ? (
-        <PlaceResultSheet
-          height={mapHeight}
-          topInset={topInset}
-          places={visiblePlaces}
-          collapseSignal={collapseSignal}
-          onExpandedChange={setIsSheetExpanded}
-          onVisibleHeightChange={setSheetVisibleHeight}
-          onOpenDetail={() => onOpenDetail()}
-        />
-      ) : null}
-      <MapSearchBar
-        value={searchKeyword}
-        onChangeText={setSearchKeyword}
-        topInset={topInset}
-        onPressBack={
-          isSheetExpanded
-            ? () => setCollapseSignal(signal => signal + 1)
-            : undefined
-        }
-      />
-      {mapMessage ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="안내 닫기"
-          onPress={() => setMapMessage(null)}
-          style={[styles.mapMessage, { top: topInset + 72 }]}
-        >
-          <Text style={styles.mapMessageText}>{mapMessage}</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -160,6 +202,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
+  },
+  mapStage: {
+    flex: 1,
   },
   map: {
     flex: 1,

@@ -1,14 +1,14 @@
 import React from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 
-import type {Screen} from '../../types/navigation';
-
 type HomeScreenProps = {
-  onOpen: (screen: Exclude<Screen, 'home'>) => void;
+  onOpen: (screen: PreviewScreen) => void;
 };
 
+type PreviewScreen = 'login' | 'saved' | 'empty' | 'map' | 'detail' | 'my';
+
 const screenOptions: {
-  id: Exclude<Screen, 'home'>;
+  id: PreviewScreen;
   label: string;
   description: string;
 }[] = [

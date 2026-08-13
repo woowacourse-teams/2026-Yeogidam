@@ -190,6 +190,7 @@ class KakaoMapView(
         val map = kakaoMap ?: return
         val bottomInset = cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0))
         map.setPadding(0, 0, 0, bottomInset)
+        post { emitVisibleBounds() }
     }
 
     fun setSavedPlacesJson(value: String) {

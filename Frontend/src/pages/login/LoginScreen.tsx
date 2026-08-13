@@ -5,12 +5,24 @@ import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 import {AuthScaffold} from './components/AuthScaffold';
 
 type LoginScreenProps = {
-  onBack: () => void;
   onOpenSignup: () => void;
   onOpenEmailLogin: () => void;
+  onContinue: () => void;
 };
 
-const socialButtons = [
+type SocialButton =
+  | {
+      label: string;
+      imageSource: ReturnType<typeof require>;
+      variant: 'kakao' | 'gmail';
+    }
+  | {
+      label: string;
+      icon: 'apple';
+      variant: 'apple';
+    };
+
+const socialButtons: SocialButton[] = [
   {
     label: '카카오로 계속하기',
     imageSource: require('../../assets/icons/kakao-logo.png'),
@@ -28,25 +40,27 @@ const socialButtons = [
   },
 ];
 
-const footerLinks = ['회원가입', '로그인', '문의하기'];
+const footerLinks = ['회원가입', '로그인', '문의하기'] as const;
+type FooterLink = (typeof footerLinks)[number];
 
 export function LoginScreen({
-  onBack,
   onOpenSignup,
   onOpenEmailLogin,
+  onContinue,
 }: LoginScreenProps) {
-  const footerLinkActions = {
+  const footerLinkActions: Record<FooterLink, () => void> = {
     회원가입: onOpenSignup,
     로그인: onOpenEmailLogin,
     문의하기: () => {},
   };
 
   return (
-    <AuthScaffold onBack={onBack} contentStyle={styles.main}>
+    <AuthScaffold contentStyle={styles.main}>
       <View style={styles.buttonList}>
         {socialButtons.map(button => (
           <Pressable
             key={button.label}
+            onPress={onContinue}
             style={({pressed}) => [
               styles.socialButton,
               styles[`${button.variant}Button`],

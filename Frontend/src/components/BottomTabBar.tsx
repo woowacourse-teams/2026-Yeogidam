@@ -1,12 +1,15 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import type {MainScreen, Screen} from '../types/navigation';
+import type {MainScreen} from '../types/navigation';
 
 type BottomTabBarProps = {
   active: MainScreen;
-  onNavigate: (screen: Screen) => void;
+  onNavigate: (screen: MainScreen) => void;
 };
+
+export const BOTTOM_TAB_BAR_HEIGHT = 76;
 
 const tabs: {id: MainScreen; icon: string; label: string}[] = [
   {id: 'saved', icon: '♧', label: '저장됨'},
@@ -15,8 +18,10 @@ const tabs: {id: MainScreen; icon: string; label: string}[] = [
 ];
 
 export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
+  const {bottom} = useSafeAreaInsets();
+
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, {paddingBottom: bottom}]}>
       {tabs.map(tab => (
         <Pressable
           key={tab.id}
@@ -30,22 +35,24 @@ export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
           </Text>
         </Pressable>
       ))}
-      <Pressable onPress={() => onNavigate('home')} style={styles.homeButton}>
-        <Text style={styles.homeButtonText}>⌂</Text>
-      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: 68,
+    minHeight: BOTTOM_TAB_BAR_HEIGHT,
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e5e5ea',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 8,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   tab: {
     flex: 1,
@@ -63,17 +70,5 @@ const styles = StyleSheet.create({
   activeText: {
     color: '#b6c2fb',
     fontWeight: '800',
-  },
-  homeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#f5f3ee',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  homeButtonText: {
-    fontSize: 16,
-    color: '#8e8e93',
   },
 });
