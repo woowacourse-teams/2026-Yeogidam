@@ -1,20 +1,33 @@
 import React from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import {AuthScaffold} from './components/AuthScaffold';
+import type {NormalizedAuthError} from '../../lib/auth/errors';
 
 type LoginScreenProps = {
+  isAppleLoginAvailable: boolean;
   onOpenSignup: () => void;
   onOpenEmailLogin: () => void;
-  onContinue: () => void;
+  onContinueWithApple: () => void;
+  onContinueWithKakao: () => void;
+  onContinueWithGoogle: () => void;
+  socialLoginError: NormalizedAuthError | null;
+  pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
 };
 
 type SocialButton =
   | {
       label: string;
       imageSource: ReturnType<typeof require>;
-      variant: 'kakao' | 'gmail';
+      variant: 'kakao' | 'google';
     }
   | {
       label: string;
@@ -34,9 +47,9 @@ const socialButtons: SocialButton[] = [
     variant: 'apple' as const,
   },
   {
-    label: 'Gmail로 계속하기',
+    label: 'Google로 계속하기',
     imageSource: require('../../assets/icons/google-logo.jpg'),
-    variant: 'gmail' as const,
+    variant: 'google' as const,
   },
 ];
 
@@ -44,26 +57,52 @@ const footerLinks = ['회원가입', '로그인', '문의하기'] as const;
 type FooterLink = (typeof footerLinks)[number];
 
 export function LoginScreen({
+  isAppleLoginAvailable,
   onOpenSignup,
   onOpenEmailLogin,
-  onContinue,
+  onContinueWithApple,
+  onContinueWithKakao,
+  onContinueWithGoogle,
+  socialLoginError,
+  pendingSocialProvider,
 }: LoginScreenProps) {
+  const isSocialLoginPending = pendingSocialProvider !== null;
+  const visibleSocialButtons = isAppleLoginAvailable
+    ? socialButtons
+    : socialButtons.filter(button => button.variant !== 'apple');
   const footerLinkActions: Record<FooterLink, () => void> = {
     회원가입: onOpenSignup,
     로그인: onOpenEmailLogin,
     문의하기: () => {},
   };
+  const socialButtonActions = {
+    apple: onContinueWithApple,
+    kakao: onContinueWithKakao,
+    google: onContinueWithGoogle,
+  } as const;
 
   return (
     <AuthScaffold contentStyle={styles.main}>
       <View style={styles.buttonList}>
-        {socialButtons.map(button => (
+        {visibleSocialButtons.map(button => (
           <Pressable
             key={button.label}
-            onPress={onContinue}
+            disabled={
+              button.variant === 'apple'
+                ? !isAppleLoginAvailable || isSocialLoginPending
+                : isSocialLoginPending
+            }
+            onPress={
+              button.variant === 'apple' && !isAppleLoginAvailable
+                ? undefined
+                : socialButtonActions[button.variant]
+            }
             style={({pressed}) => [
               styles.socialButton,
               styles[`${button.variant}Button`],
+              ((button.variant === 'apple' && !isAppleLoginAvailable) ||
+                isSocialLoginPending) &&
+                styles.disabledButton,
               pressed && styles.pressed,
             ]}>
             <View style={[styles.iconWrap, styles[`${button.variant}IconWrap`]]}>
@@ -76,9 +115,23 @@ export function LoginScreen({
             <Text style={[styles.socialLabel, styles[`${button.variant}Label`]]}>
               {button.label}
             </Text>
+            {button.variant === pendingSocialProvider ? (
+              <View style={styles.loadingIndicator}>
+                <ActivityIndicator color="#191919" size="small" />
+              </View>
+            ) : null}
           </Pressable>
         ))}
       </View>
+
+      {socialLoginError ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorMessage}>{socialLoginError.message}</Text>
+          {socialLoginError.retryable ? (
+            <Text style={styles.retryMessage}>로그인 버튼을 다시 눌러 재시도해주세요.</Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.footer}>
         <View style={styles.linkRow}>
@@ -119,7 +172,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e4e4e7',
   },
-  gmailButton: {
+  googleButton: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e4e4e7',
@@ -143,7 +196,7 @@ const styles = StyleSheet.create({
   appleIconWrap: {
     backgroundColor: 'transparent',
   },
-  gmailIconWrap: {
+  googleIconWrap: {
     backgroundColor: 'transparent',
   },
   socialLabel: {
@@ -156,7 +209,7 @@ const styles = StyleSheet.create({
   appleLabel: {
     color: '#121212',
   },
-  gmailLabel: {
+  googleLabel: {
     color: '#121212',
   },
   footer: {
@@ -180,5 +233,30 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.78,
+  },
+  disabledButton: {
+    opacity: 0.45,
+  },
+  loadingIndicator: {
+    position: 'absolute',
+    right: 20,
+  },
+  errorBox: {
+    marginTop: 18,
+    borderRadius: 16,
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  errorMessage: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9a3412',
+  },
+  retryMessage: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#c2410c',
   },
 });

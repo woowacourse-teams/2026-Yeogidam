@@ -25,6 +25,7 @@
     "test": "jest"
   },
   "dependencies": {
+    "@invertase/react-native-apple-authentication": "^2.5.1",
     "@react-native-clipboard/clipboard": "^1.16.3",
     "@react-native-vector-icons/material-icons": "^13.1.2",
     "@react-native/new-app-screen": "0.86.2",
@@ -32,13 +33,15 @@
     "react": "19.2.3",
     "react-native": "0.86.2",
     "react-native-config": "^1.6.1",
+    "react-native-get-random-values": "^2.0.0",
     "react-native-inappbrowser-reborn": "^3.7.1",
     "react-native-keychain": "^10.0.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-svg": "^15.15.5",
     "react-native-svg-transformer": "^1.5.3",
-    "react-native-url-polyfill": "^4.0.0"
+    "react-native-url-polyfill": "^4.0.0",
+    "uuid": "^14.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
