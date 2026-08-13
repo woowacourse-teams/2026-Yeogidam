@@ -34,8 +34,8 @@ export function SavedPlacesLinkDialog({
       transparent
       visible={visible}
       onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.dialog}>
+      <Pressable onPress={onClose} style={styles.backdrop}>
+        <Pressable onPress={event => event.stopPropagation()} style={styles.dialog}>
           <Text style={styles.title}>링크 입력</Text>
           <View style={styles.inputWrapper}>
             <TextInput
@@ -54,14 +54,14 @@ export function SavedPlacesLinkDialog({
           {errorMessage ? <Text style={styles.errorMessage}>{errorMessage}</Text> : null}
           <View style={styles.actions}>
             <Pressable disabled={isSubmitting} hitSlop={8} onPress={onClose} style={styles.cancelButton}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>취소</Text>
             </Pressable>
             <Pressable disabled={isSubmitting} onPress={onSubmit} style={styles.confirmButton}>
               {isSubmitting ? <ActivityIndicator color="#23232d" /> : <Text style={styles.confirmText}>저장</Text>}
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -127,19 +127,23 @@ const styles = StyleSheet.create({
     marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
   },
   cancelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flex: 1,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#d4dbff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#d4dbff',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#23232d',
   },
   confirmButton: {
-    minWidth: 72,
+    flex: 1.45,
     height: 40,
     borderRadius: 20,
     backgroundColor: '#d4dbff',
