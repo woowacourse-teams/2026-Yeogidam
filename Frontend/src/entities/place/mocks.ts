@@ -1,11 +1,17 @@
-import type {Place} from './types';
+import type { Place } from './types';
 
 export const placeMocks: Place[] = [
   {
     id: 'cafe-onwol',
-    name: '카페 온월',
-    address: '경기도 성남시',
-    fullAddress: '서울 성동구 성수이로 88 2층 (성수동)',
+    kakaoPlaceId: '26338954',
+    name: '카카오프렌즈 코엑스점',
+    category: '가정,생활 > 문구',
+    address: '서울 강남구 삼성동 159',
+    fullAddress: '서울 강남구 영동대로 513',
+    latitude: 37.51207412593136,
+    longitude: 127.05902969025047,
+    placeUrl: 'http://place.map.kakao.com/26338954',
+    telephone: '02-6002-1880',
     image: require('../../assets/places/place-cafe-onwol.png'),
   },
   {
