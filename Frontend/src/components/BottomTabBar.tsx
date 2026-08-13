@@ -9,6 +9,8 @@ type BottomTabBarProps = {
   onNavigate: (screen: MainScreen) => void;
 };
 
+export const BOTTOM_TAB_BAR_HEIGHT = 76;
+
 const tabs: {id: MainScreen; icon: string; label: string}[] = [
   {id: 'saved', icon: '♧', label: '저장됨'},
   {id: 'map', icon: '♧', label: '지도'},
@@ -39,7 +41,7 @@ export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   tabBar: {
-    minHeight: 68,
+    minHeight: BOTTOM_TAB_BAR_HEIGHT,
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e5e5ea',
