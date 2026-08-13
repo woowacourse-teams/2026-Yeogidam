@@ -52,6 +52,7 @@ class KakaoMapView(
     private var locationPermissionRequestInFlight = false
     private var locationPermissionDenied = false
     private var hasCenteredOnCurrentLocation = false
+    private var pendingCurrentLocationCameraMove = false
 
     private val locationListener =
         LocationListener { location ->
@@ -363,6 +364,14 @@ class KakaoMapView(
     private fun updateCurrentLocation(location: Location) {
         val map = kakaoMap ?: return
         lastKnownLocation = location
+
+        if (!isInsideKakaoMapCoverage(location.latitude, location.longitude)) {
+            if (pendingCurrentLocationCameraMove) {
+                centerMapOnCurrentLocation()
+            }
+            return
+        }
+
         val position = LatLng.from(location.latitude, location.longitude)
         val label = currentLocationLabel
 
@@ -384,11 +393,16 @@ class KakaoMapView(
             label.moveTo(position)
         }
 
+        if (pendingCurrentLocationCameraMove) {
+            centerMapOnCurrentLocation()
+        }
+
         // Keep the initial camera on the saved-place area. The camera moves to
         // the user's location only after the current-location button is tapped.
     }
 
     private fun centerMapOnCurrentLocation() {
+        pendingCurrentLocationCameraMove = true
         val map = kakaoMap
         val location = lastKnownLocation
 
@@ -398,6 +412,16 @@ class KakaoMapView(
             return
         }
 
+        if (!isInsideKakaoMapCoverage(location.latitude, location.longitude)) {
+            pendingCurrentLocationCameraMove = false
+            emitMapError(
+                "현재 위치가 카카오맵 지원 지역 밖에 있습니다. " +
+                    "에뮬레이터에서는 위치를 대한민국 좌표로 설정해 주세요.",
+            )
+            return
+        }
+
+        pendingCurrentLocationCameraMove = false
         hasCenteredOnCurrentLocation = true
         removeCallbacks(moveToDefaultPosition)
         post {
@@ -414,6 +438,23 @@ class KakaoMapView(
             )
             Log.d("YeogidamKakaoMap", "현재 위치로 지도 이동 완료")
         }
+    }
+
+    private fun isInsideKakaoMapCoverage(
+        latitude: Double,
+        longitude: Double,
+    ): Boolean =
+        latitude in KAKAO_MAP_MIN_LATITUDE..KAKAO_MAP_MAX_LATITUDE &&
+            longitude in KAKAO_MAP_MIN_LONGITUDE..KAKAO_MAP_MAX_LONGITUDE
+
+    private fun emitMapError(message: String) {
+        if (id == NO_ID) return
+
+        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+            id,
+            "onMapError",
+            Arguments.createMap().apply { putString("message", message) },
+        )
     }
 
     private fun resumeMapIfNeeded() {
@@ -512,5 +553,9 @@ class KakaoMapView(
         const val LOCATION_PERMISSION_REQUEST_CODE = 9417
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f
+        const val KAKAO_MAP_MIN_LATITUDE = 32.0
+        const val KAKAO_MAP_MAX_LATITUDE = 39.5
+        const val KAKAO_MAP_MIN_LONGITUDE = 123.0
+        const val KAKAO_MAP_MAX_LONGITUDE = 132.0
     }
 }

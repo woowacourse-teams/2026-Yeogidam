@@ -227,6 +227,25 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       origin: .zero,
       size: size
     )
+    updateCameraMargins()
+  }
+
+  private func updateCameraMargins() {
+    guard
+      let kakaoMap = mapController?.getView("mapview") as? KakaoMap,
+      mapContainer.bounds.height > 0
+    else { return }
+
+    // Keep the Metal-backed native view at a stable full-screen size. Kakao's
+    // camera margin moves the visual center above the bottom sheet without
+    // resizing or translating the renderer itself.
+    let bottomInset = min(
+      cameraBottomInset,
+      max(0, mapContainer.bounds.height - 1)
+    )
+    kakaoMap.setMargins(
+      UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
+    )
   }
 
   private func moveCameraIfPossible() {
@@ -264,6 +283,13 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     if needsCurrentLocationCameraMove, let location = lastKnownLocation {
       needsCurrentLocationCameraMove = false
       needsDefaultCameraMove = false
+
+      guard isInsideKakaoMapCoverage(location.coordinate) else {
+        onMapError?([
+          "message": "현재 위치가 카카오맵 지원 지역 밖에 있습니다. 시뮬레이터에서는 위치를 대한민국 좌표로 설정해 주세요."
+        ])
+        return
+      }
 
       let position = MapPoint(
         longitude: location.coordinate.longitude,
@@ -362,6 +388,13 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     }
 
     lastKnownLocation = location
+    guard isInsideKakaoMapCoverage(location.coordinate) else {
+      if needsCurrentLocationCameraMove {
+        scheduleCameraMove()
+      }
+      return
+    }
+
     let position = MapPoint(
       longitude: location.coordinate.longitude,
       latitude: location.coordinate.latitude
@@ -373,22 +406,31 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       addCurrentLocationMarker(to: kakaoMap, at: position)
     }
 
+    if needsCurrentLocationCameraMove {
+      scheduleCameraMove()
+    }
+
     // Preserve the saved-place camera on first load. The location button is
     // the explicit action that moves the map to the user's position.
   }
 
   private func centerMapOnCurrentLocation() {
-    guard
-      showsCurrentLocation,
-      lastKnownLocation != nil
-    else {
-      hasCenteredOnCurrentLocation = false
+    guard showsCurrentLocation else { return }
+
+    needsCurrentLocationCameraMove = true
+    guard lastKnownLocation != nil else {
       requestCurrentLocationIfNeeded()
       return
     }
 
-    needsCurrentLocationCameraMove = true
     scheduleCameraMove()
+  }
+
+  private func isInsideKakaoMapCoverage(
+    _ coordinate: CLLocationCoordinate2D
+  ) -> Bool {
+    (32.0...39.5).contains(coordinate.latitude) &&
+      (123.0...132.0).contains(coordinate.longitude)
   }
 
   private func addCurrentLocationMarker(
