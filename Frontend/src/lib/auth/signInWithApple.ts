@@ -1,7 +1,6 @@
 import type {Session} from '@supabase/supabase-js';
 import {Platform} from 'react-native';
 import {appleAuth} from '@invertase/react-native-apple-authentication';
-import {sha256} from 'js-sha256';
 
 import {
   createCancelledAuthError,
@@ -103,14 +102,12 @@ export async function signInWithApple(): Promise<Session> {
 
   try {
     const rawNonce = createNonce();
-    const hashedNonce = sha256(rawNonce);
 
     const credential = await withTimeout(
       appleAuth.performRequest({
         requestedOperation: appleAuth.Operation.LOGIN,
         requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
-        nonce: hashedNonce,
-        nonceEnabled: false,
+        nonce: rawNonce,
       }),
       APPLE_AUTH_TIMEOUT_MS,
     );

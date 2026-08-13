@@ -30,7 +30,6 @@
     "@react-native-vector-icons/material-icons": "^13.1.2",
     "@react-native/new-app-screen": "0.86.2",
     "@supabase/supabase-js": "^2.112.3",
-    "js-sha256": "^1.0.0",
     "react": "19.2.3",
     "react-native": "0.86.2",
     "react-native-get-random-values": "^2.0.0",
