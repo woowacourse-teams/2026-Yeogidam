@@ -304,9 +304,6 @@ export function PlaceResultSheet({
                 <Text style={styles.name}>{place.name}</Text>
                 <Text style={styles.address}>{place.fullAddress}</Text>
               </View>
-              <View style={styles.favoriteButton}>
-                <Text style={styles.heart}>♡</Text>
-              </View>
             </Pressable>
             <ScrollView
               horizontal
@@ -423,19 +420,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8e8e93',
     marginTop: 3,
-  },
-  heart: {
-    fontSize: 25,
-    color: '#dbe0f9',
-    lineHeight: 27,
-  },
-  favoriteButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f3f5ff',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   photoStrip: {
     flexDirection: 'row',
