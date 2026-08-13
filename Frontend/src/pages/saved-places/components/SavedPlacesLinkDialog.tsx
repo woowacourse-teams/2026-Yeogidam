@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -14,6 +15,7 @@ type SavedPlacesLinkDialogProps = {
   onChangeValue: (value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
+  isSubmitting?: boolean;
 };
 
 export function SavedPlacesLinkDialog({
@@ -22,6 +24,7 @@ export function SavedPlacesLinkDialog({
   onChangeValue,
   onClose,
   onSubmit,
+  isSubmitting = false,
 }: SavedPlacesLinkDialogProps) {
   return (
     <Modal
@@ -47,11 +50,11 @@ export function SavedPlacesLinkDialog({
             </Pressable>
           </View>
           <View style={styles.actions}>
-            <Pressable hitSlop={8} onPress={onClose} style={styles.cancelButton}>
+            <Pressable disabled={isSubmitting} hitSlop={8} onPress={onClose} style={styles.cancelButton}>
               <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
-            <Pressable onPress={onSubmit} style={styles.confirmButton}>
-              <Text style={styles.confirmText}>OK</Text>
+            <Pressable disabled={isSubmitting} onPress={onSubmit} style={styles.confirmButton}>
+              {isSubmitting ? <ActivityIndicator color="#23232d" /> : <Text style={styles.confirmText}>저장</Text>}
             </Pressable>
           </View>
         </View>

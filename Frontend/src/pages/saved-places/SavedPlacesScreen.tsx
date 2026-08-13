@@ -1,5 +1,5 @@
 import React, {useRef, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Alert, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
@@ -11,6 +11,7 @@ import {SavedPlaceGrid} from './components/SavedPlaceGrid';
 import {SavedPlacesHeader} from './components/SavedPlacesHeader';
 import {SavedPlacesLinkDialog} from './components/SavedPlacesLinkDialog';
 import {SavedPlacesSearchPanel} from './components/SavedPlacesSearchPanel';
+import {saveContent} from '../../entities/content/api';
 
 type SavedPlacesScreenProps = {
   onOpenDetail: () => void;
@@ -26,6 +27,7 @@ export function SavedPlacesScreen({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const hasSavedPlaces = places.length > 0;
 
   const openDialog = () => {
@@ -33,8 +35,31 @@ export function SavedPlacesScreen({
   };
 
   const closeDialog = () => {
+    if (isSubmitting) {
+      return;
+    }
     setIsDialogVisible(false);
     setLinkValue('');
+  };
+
+  const handleSaveLink = async () => {
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await saveContent(linkValue, 'url_input');
+      closeDialog();
+      Alert.alert('저장 요청 완료', '릴스를 처리하고 있어요.');
+    } catch (error) {
+      Alert.alert(
+        '저장할 수 없어요',
+        error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const scrollToTop = () => {
@@ -95,7 +120,8 @@ export function SavedPlacesScreen({
         value={linkValue}
         onChangeValue={setLinkValue}
         onClose={closeDialog}
-        onSubmit={closeDialog}
+        isSubmitting={isSubmitting}
+        onSubmit={handleSaveLink}
       />
     </View>
   );
