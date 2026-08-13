@@ -16,3 +16,21 @@ jest.mock('react-native-linear-gradient', () => {
     return React.createElement(View, props, children);
   };
 });
+
+jest.mock('react-native-keychain', () => ({
+  getGenericPassword: jest.fn(() => Promise.resolve(false)),
+  setGenericPassword: jest.fn(() => Promise.resolve({service: 'mock'})),
+  resetGenericPassword: jest.fn(() => Promise.resolve(true)),
+}));
+
+jest.mock('react-native-inappbrowser-reborn', () => ({
+  InAppBrowser: {
+    isAvailable: jest.fn(() => Promise.resolve(true)),
+    openAuth: jest.fn(() =>
+      Promise.resolve({
+        type: 'cancel',
+      }),
+    ),
+    closeAuth: jest.fn(),
+  },
+}));

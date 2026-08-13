@@ -1,13 +1,23 @@
 import React from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import {AuthScaffold} from './components/AuthScaffold';
+import type {NormalizedAuthError} from '../../lib/auth/errors';
 
 type LoginScreenProps = {
   onOpenSignup: () => void;
   onOpenEmailLogin: () => void;
-  onContinue: () => void;
+  onContinueWithKakao: () => void;
+  kakaoLoginError: NormalizedAuthError | null;
+  isKakaoLoginPending: boolean;
 };
 
 type SocialButton =
@@ -46,7 +56,9 @@ type FooterLink = (typeof footerLinks)[number];
 export function LoginScreen({
   onOpenSignup,
   onOpenEmailLogin,
-  onContinue,
+  onContinueWithKakao,
+  kakaoLoginError,
+  isKakaoLoginPending,
 }: LoginScreenProps) {
   const footerLinkActions: Record<FooterLink, () => void> = {
     회원가입: onOpenSignup,
@@ -60,10 +72,12 @@ export function LoginScreen({
         {socialButtons.map(button => (
           <Pressable
             key={button.label}
-            onPress={onContinue}
+            disabled={button.variant !== 'kakao' || isKakaoLoginPending}
+            onPress={button.variant === 'kakao' ? onContinueWithKakao : undefined}
             style={({pressed}) => [
               styles.socialButton,
               styles[`${button.variant}Button`],
+              button.variant !== 'kakao' && styles.disabledButton,
               pressed && styles.pressed,
             ]}>
             <View style={[styles.iconWrap, styles[`${button.variant}IconWrap`]]}>
@@ -76,9 +90,23 @@ export function LoginScreen({
             <Text style={[styles.socialLabel, styles[`${button.variant}Label`]]}>
               {button.label}
             </Text>
+            {button.variant === 'kakao' && isKakaoLoginPending ? (
+              <View style={styles.loadingIndicator}>
+                <ActivityIndicator color="#191919" size="small" />
+              </View>
+            ) : null}
           </Pressable>
         ))}
       </View>
+
+      {kakaoLoginError ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorMessage}>{kakaoLoginError.message}</Text>
+          {kakaoLoginError.retryable ? (
+            <Text style={styles.retryMessage}>카카오 로그인 버튼을 다시 눌러 재시도해주세요.</Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.footer}>
         <View style={styles.linkRow}>
@@ -180,5 +208,30 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.78,
+  },
+  disabledButton: {
+    opacity: 0.45,
+  },
+  loadingIndicator: {
+    position: 'absolute',
+    right: 20,
+  },
+  errorBox: {
+    marginTop: 18,
+    borderRadius: 16,
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  errorMessage: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9a3412',
+  },
+  retryMessage: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#c2410c',
   },
 });
