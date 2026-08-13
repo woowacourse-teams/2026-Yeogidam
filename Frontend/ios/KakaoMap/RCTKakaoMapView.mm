@@ -2,6 +2,7 @@
 
 #import <CoreLocation/CoreLocation.h>
 #import <KakaoMapsSDK/KakaoMapsSDK.h>
+#import <React/RCTEventEmitter.h>
 #import <React_RCTAppDelegate/RCTAppDelegate.h>
 
 #import "Frontend-Swift.h"

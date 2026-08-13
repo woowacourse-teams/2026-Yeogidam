@@ -1,7 +1,10 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  AppState,
+  type AppStateStatus,
   StatusBar,
   StyleSheet,
   Text,
@@ -20,7 +23,8 @@ import {signInWithKakao} from './src/lib/auth/signInWithKakao';
 import {supabase} from './src/lib/auth/supabase';
 import {
   addSharedContentListener,
-  consumePendingSharedContent,
+  getInitialSharedContent,
+  type SharedContent,
 } from './src/lib/share-intent';
 import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
@@ -51,15 +55,41 @@ function App() {
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
+  const [latestSharedContent, setLatestSharedContent] =
+    useState<SharedContent | null>(null);
+  const [sharedToastMessage, setSharedToastMessage] = useState('');
+  const [isSharedToastVisible, setIsSharedToastVisible] = useState(false);
+  const sharedToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sharedToastTranslateY = useRef(new Animated.Value(72)).current;
+  const sharedToastOpacity = useRef(new Animated.Value(0)).current;
 
-  const showSharedContentAlert = (content: {
-    kind: 'url' | 'text';
-    text: string;
-  }) => {
-    Alert.alert(
-      content.kind === 'url' ? '공유된 링크 수신' : '공유된 텍스트 수신',
-      content.text,
+  const showSharedContentToast = (content: SharedContent) => {
+    if (sharedToastTimerRef.current) {
+      clearTimeout(sharedToastTimerRef.current);
+    }
+
+    setSharedToastMessage(
+      content.type === 'url'
+        ? '공유된 링크가 저장되었습니다.'
+        : '공유된 텍스트가 저장되었습니다.',
     );
+    setIsSharedToastVisible(true);
+    sharedToastTimerRef.current = setTimeout(() => {
+      setIsSharedToastVisible(false);
+    }, 1800);
+  };
+
+  const syncInitialSharedContent = () => {
+    getInitialSharedContent()
+      .then(sharedContent => {
+        if (!sharedContent) {
+          return;
+        }
+
+        setLatestSharedContent(sharedContent);
+        showSharedContentToast(sharedContent);
+      })
+      .catch(() => {});
   };
 
   const currentScreen: Screen =
@@ -195,22 +225,50 @@ function App() {
   }, []);
 
   useEffect(() => {
-    consumePendingSharedContent()
-      .then(sharedContent => {
-        if (!sharedContent) {
+    syncInitialSharedContent();
+
+    const subscription = addSharedContentListener(sharedContent => {
+      setLatestSharedContent(sharedContent);
+      showSharedContentToast(sharedContent);
+    });
+
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      (nextAppState: AppStateStatus) => {
+        if (nextAppState !== 'active') {
           return;
         }
 
-        showSharedContentAlert(sharedContent);
-      })
-      .catch(() => {});
-
-    const subscription = addSharedContentListener(sharedContent => {
-      showSharedContentAlert(sharedContent);
-    });
+        syncInitialSharedContent();
+      },
+    );
 
     return () => {
       subscription.remove();
+      appStateSubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(sharedToastTranslateY, {
+        toValue: isSharedToastVisible ? 0 : 72,
+        duration: isSharedToastVisible ? 180 : 140,
+        useNativeDriver: true,
+      }),
+      Animated.timing(sharedToastOpacity, {
+        toValue: isSharedToastVisible ? 1 : 0,
+        duration: isSharedToastVisible ? 160 : 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isSharedToastVisible, sharedToastOpacity, sharedToastTranslateY]);
+
+  useEffect(() => {
+    return () => {
+      if (sharedToastTimerRef.current) {
+        clearTimeout(sharedToastTimerRef.current);
+      }
     };
   }, []);
 
@@ -355,12 +413,34 @@ function App() {
         />
         <View style={styles.container}>
           {renderScreen()}
+          {latestSharedContent ? (
+            <View style={styles.sharedDebugCard}>
+              <Text style={styles.sharedDebugLabel}>공유 데이터 테스트</Text>
+              <Text style={styles.sharedDebugType}>
+                타입: {latestSharedContent.type}
+              </Text>
+              <Text selectable style={styles.sharedDebugValue}>
+                {latestSharedContent.value}
+              </Text>
+            </View>
+          ) : null}
           {showTabBar && activeTab ? (
             <BottomTabBar
               active={activeTab}
               onNavigate={openMainScreen}
             />
           ) : null}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.sharedToast,
+              {
+                opacity: sharedToastOpacity,
+                transform: [{translateY: sharedToastTranslateY}],
+              },
+            ]}>
+            <Text style={styles.sharedToastText}>{sharedToastMessage}</Text>
+          </Animated.View>
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -375,6 +455,58 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  sharedDebugCard: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFF7E8',
+    borderWidth: 1,
+    borderColor: '#F0C987',
+    zIndex: 30,
+    elevation: 30,
+  },
+  sharedDebugLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8A5300',
+    marginBottom: 6,
+  },
+  sharedDebugType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2A2A2A',
+    marginBottom: 6,
+  },
+  sharedDebugValue: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#404040',
+  },
+  sharedToast: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 16,
+    minHeight: 52,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#1B1B1B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+    elevation: 20,
+  },
+  sharedToastText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,

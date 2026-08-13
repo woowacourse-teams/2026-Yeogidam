@@ -1,49 +1,55 @@
-import {
-  NativeEventEmitter,
-  NativeModules,
-  Platform,
-} from 'react-native';
+import {NativeEventEmitter, NativeModules} from 'react-native';
 
-export type ShareIntentPayload = {
+export type SharedContent = {
+  type: 'url' | 'text';
+  value: string;
+};
+
+type NativeShareIntentPayload = {
   id: string;
-  action: string;
-  mimeType: string;
   text: string;
-  subject: string | null;
   kind: 'url' | 'text';
-  receivedAt: number;
 };
 
 type NativeShareIntentModule = {
-  getPendingShare(): Promise<ShareIntentPayload | null>;
+  getPendingShare(): Promise<NativeShareIntentPayload | null>;
   clearPendingShare(shareId: string | null): Promise<void>;
 };
 
-export type ShareIntentSubscription = {
+export type SharedContentSubscription = {
   remove: () => void;
 };
 
 const SHARE_INTENT_EVENT_NAME = 'shareIntentReceived';
 
 const nativeShareIntentModule: NativeShareIntentModule | undefined =
-  Platform.OS === 'android'
-    ? (NativeModules.ShareIntentModule as NativeShareIntentModule | undefined)
-    : undefined;
+  NativeModules.ShareIntentModule as NativeShareIntentModule | undefined;
 
 const shareIntentEmitter =
   nativeShareIntentModule != null
     ? new NativeEventEmitter(NativeModules.ShareIntentModule)
     : null;
 
-export async function getPendingSharedContent(): Promise<ShareIntentPayload | null> {
-  if (!nativeShareIntentModule) {
+function normalizeSharedContent(
+  payload: NativeShareIntentPayload | null,
+): SharedContent | null {
+  if (!payload) {
     return null;
   }
 
-  return nativeShareIntentModule.getPendingShare();
+  const value = payload.text.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  return {
+    type: payload.kind === 'url' ? 'url' : 'text',
+    value,
+  };
 }
 
-export async function clearPendingSharedContent(shareId?: string): Promise<void> {
+async function clearPendingSharedContent(shareId?: string): Promise<void> {
   if (!nativeShareIntentModule) {
     return;
   }
@@ -51,20 +57,24 @@ export async function clearPendingSharedContent(shareId?: string): Promise<void>
   await nativeShareIntentModule.clearPendingShare(shareId ?? null);
 }
 
-export async function consumePendingSharedContent(): Promise<ShareIntentPayload | null> {
-  const sharedContent = await getPendingSharedContent();
-
-  if (!sharedContent) {
+export async function getInitialSharedContent(): Promise<SharedContent | null> {
+  if (!nativeShareIntentModule) {
     return null;
   }
 
-  await clearPendingSharedContent(sharedContent.id);
-  return sharedContent;
+  const payload = await nativeShareIntentModule.getPendingShare();
+
+  if (!payload) {
+    return null;
+  }
+
+  await clearPendingSharedContent(payload.id);
+  return normalizeSharedContent(payload);
 }
 
 export function addSharedContentListener(
-  listener: (sharedContent: ShareIntentPayload) => void,
-): ShareIntentSubscription {
+  listener: (sharedContent: SharedContent) => void,
+): SharedContentSubscription {
   if (!shareIntentEmitter) {
     return {
       remove: () => {},
@@ -73,7 +83,17 @@ export function addSharedContentListener(
 
   const subscription = shareIntentEmitter.addListener(
     SHARE_INTENT_EVENT_NAME,
-    listener,
+    (payload: NativeShareIntentPayload) => {
+      const sharedContent = normalizeSharedContent(payload);
+
+      void clearPendingSharedContent(payload?.id);
+
+      if (!sharedContent) {
+        return;
+      }
+
+      listener(sharedContent);
+    },
   );
 
   return {
