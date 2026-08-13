@@ -12,13 +12,14 @@ import {
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
 type MapScreenProps = {
-  onOpenDetail: () => void;
+  onOpenDetail?: () => void;
 };
 
-export function MapScreen({ onOpenDetail }: MapScreenProps) {
+export function MapScreen({}: MapScreenProps) {
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -75,6 +76,17 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
       return searchableFields.some(value => value.includes(normalizedKeyword));
     });
   }, [searchKeyword, visiblePlaces]);
+  const hasActiveSearch = searchKeyword.trim().length > 0;
+  const handleSearchBack = () => {
+    if (hasActiveSearch) {
+      setSearchKeyword('');
+      return;
+    }
+
+    if (isSheetExpanded) {
+      setCollapseSignal(signal => signal + 1);
+    }
+  };
 
   return (
     <View
@@ -152,21 +164,21 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
             topInset={topInset}
             places={filteredVisiblePlaces}
             collapseSignal={collapseSignal}
+            onDetailViewChange={setIsPlaceDetailVisible}
             onExpandedChange={setIsSheetExpanded}
             onVisibleHeightChange={setSheetVisibleHeight}
-            onOpenDetail={() => onOpenDetail()}
           />
         ) : null}
-        <MapSearchBar
-          value={searchKeyword}
-          onChangeText={setSearchKeyword}
-          topInset={topInset}
-          onPressBack={
-            isSheetExpanded
-              ? () => setCollapseSignal(signal => signal + 1)
-              : undefined
-          }
-        />
+        {!isPlaceDetailVisible ? (
+          <MapSearchBar
+            value={searchKeyword}
+            onChangeText={setSearchKeyword}
+            topInset={topInset}
+            onPressBack={
+              hasActiveSearch || isSheetExpanded ? handleSearchBack : undefined
+            }
+          />
+        ) : null}
         {mapMessage ? (
           <Pressable
             accessibilityRole="button"

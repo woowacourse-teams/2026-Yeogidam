@@ -18,8 +18,11 @@ import {
   View,
 } from 'react-native';
 
+import {placePostMocks} from '../../../entities/place-post/mocks';
 import type { Place } from '../../../entities/place/types';
 import { MAP_SEARCH_BAR_HEIGHT, MAP_SEARCH_BAR_TOP_GAP } from './MapSearchBar';
+import {CopyToastProvider} from '../../place-detail/components/CopyToast';
+import {PlaceDetailContent} from '../../place-detail/components/PlaceDetailContent';
 
 type PlaceResultSheetProps = {
   places: Place[];
@@ -28,7 +31,7 @@ type PlaceResultSheetProps = {
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
-  onOpenDetail: (place: Place) => void;
+  onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
 export const COLLAPSED_SHEET_HEIGHT = 48;
@@ -44,7 +47,7 @@ export function PlaceResultSheet({
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
-  onOpenDetail,
+  onDetailViewChange,
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
   const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
@@ -68,6 +71,7 @@ export function PlaceResultSheet({
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const isExpanded = activeSnapIndex === 0;
   const hiddenSheetHeight = isPageMode ? 0 : snapOffsets[activeSnapIndex];
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
@@ -76,6 +80,17 @@ export function PlaceResultSheet({
     MAP_SEARCH_BAR_TOP_GAP +
     MAP_SEARCH_BAR_HEIGHT +
     EXPANDED_RESULTS_TOP_GAP;
+  const selectedPlacePosts = useMemo(
+    () =>
+      selectedPlace
+        ? placePostMocks.filter(post => post.placeId === selectedPlace.id)
+        : [],
+    [selectedPlace],
+  );
+
+  useEffect(() => {
+    onDetailViewChange?.(selectedPlace !== null);
+  }, [onDetailViewChange, selectedPlace]);
 
   const updatePageMode = useCallback(
     (nextIsPageMode: boolean) => {
@@ -254,6 +269,18 @@ export function PlaceResultSheet({
     snapTo(tapDirection === 'up' ? snapOffsets[0] : snapOffsets[2]);
   };
 
+  const selectPlace = (place: Place) => {
+    setSelectedPlace(place);
+
+    if (activeSnapIndex === 2) {
+      snapTo(snapOffsets[1]);
+    }
+  };
+
+  const backToPlaceList = () => {
+    setSelectedPlace(null);
+  };
+
   return (
     <Animated.View
       {...panResponder.panHandlers}
@@ -280,65 +307,78 @@ export function PlaceResultSheet({
           </Pressable>
         )}
       </View>
-      <FlatList
-        key={`results-${activeSnapIndex}-${isPageMode ? 'page' : 'sheet'}`}
-        data={places}
-        style={styles.resultsScroll}
-        contentContainerStyle={[
-          styles.results,
-          { paddingBottom: listBottomClearance },
-        ]}
-        keyExtractor={place => place.id}
-        contentInsetAdjustmentBehavior="never"
-        scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={isPageMode}
-        renderItem={({ item: place }) => (
-          <View style={styles.result}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${place.name} 상세 보기`}
-              onPress={() => onOpenDetail(place)}
-              style={styles.resultTop}
-            >
-              <View style={styles.resultText}>
-                <Text style={styles.name}>{place.name}</Text>
-                <Text style={styles.address}>{place.fullAddress}</Text>
-              </View>
-            </Pressable>
-            <ScrollView
-              horizontal
-              directionalLockEnabled
-              nestedScrollEnabled
-              scrollEventThrottle={16}
-              contentContainerStyle={styles.photoStrip}
-              showsHorizontalScrollIndicator={false}
-            >
-              {(
-                place.images ?? [
-                  place.image,
-                  place.image,
-                  place.image,
-                  place.image,
-                ]
-              ).map((image, index) => (
-                <Image
-                  key={index}
-                  source={image}
-                  style={[styles.photo, { width: photoWidth }]}
-                />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyResult}>
-            <Text style={styles.emptyResultText}>
-              현재 지도 영역에 저장한 장소가 없어요.
-            </Text>
-          </View>
-        }
-      />
+      {selectedPlace ? (
+        <CopyToastProvider>
+          <PlaceDetailContent
+            key={selectedPlace.id}
+            onBack={backToPlaceList}
+            place={selectedPlace}
+            posts={selectedPlacePosts}
+            scrollEnabled={isPageMode}
+            contentBottomPadding={32}
+          />
+        </CopyToastProvider>
+      ) : (
+        <FlatList
+          key={`results-${activeSnapIndex}-${isPageMode ? 'page' : 'sheet'}`}
+          data={places}
+          style={styles.resultsScroll}
+          contentContainerStyle={[
+            styles.results,
+            { paddingBottom: listBottomClearance },
+          ]}
+          keyExtractor={place => place.id}
+          contentInsetAdjustmentBehavior="never"
+          scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={isPageMode}
+          renderItem={({ item: place }) => (
+            <View style={styles.result}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${place.name} 상세 보기`}
+                onPress={() => selectPlace(place)}
+                style={styles.resultTop}
+              >
+                <View style={styles.resultText}>
+                  <Text style={styles.name}>{place.name}</Text>
+                  <Text style={styles.address}>{place.fullAddress}</Text>
+                </View>
+              </Pressable>
+              <ScrollView
+                horizontal
+                directionalLockEnabled
+                nestedScrollEnabled
+                scrollEventThrottle={16}
+                contentContainerStyle={styles.photoStrip}
+                showsHorizontalScrollIndicator={false}
+              >
+                {(
+                  place.images ?? [
+                    place.image,
+                    place.image,
+                    place.image,
+                    place.image,
+                  ]
+                ).map((image, index) => (
+                  <Image
+                    key={index}
+                    source={image}
+                    style={[styles.photo, { width: photoWidth }]}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyResult}>
+              <Text style={styles.emptyResultText}>
+                현재 지도 영역에 저장한 장소가 없어요.
+              </Text>
+            </View>
+          }
+        />
+      )}
     </Animated.View>
   );
 }
