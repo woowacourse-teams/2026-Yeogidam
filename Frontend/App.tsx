@@ -39,11 +39,18 @@ function App() {
   };
 
   const showTabBar = screen !== 'home';
+  const isMapScreen = screen === 'map';
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <SafeAreaView
+        edges={isMapScreen ? ['left', 'right', 'bottom'] : undefined}
+        style={styles.safeArea}>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
+          translucent={isMapScreen}
+        />
         <View style={styles.container}>
           {renderScreen()}
           {showTabBar ? (

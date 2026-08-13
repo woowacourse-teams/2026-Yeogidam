@@ -28,6 +28,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var zoomLevel: Int = 15
   private var showsCurrentLocation = false
   private var currentLocationRequestId = 0
+  private var cameraBottomInset: CGFloat = 0
   private var enginePrepared = false
   private var mapAdded = false
   private var currentLocationStyleAdded = false
@@ -109,6 +110,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     zoomLevel: Int,
     showsCurrentLocation: Bool,
     currentLocationRequestId: Int,
+    cameraBottomInset: Double,
     savedPlacesJson: String
   ) {
     let defaultCameraChanged =
@@ -119,6 +121,12 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     self.latitude = latitude
     self.longitude = longitude
     self.zoomLevel = zoomLevel
+
+    let nextCameraBottomInset = max(0, CGFloat(cameraBottomInset))
+    if self.cameraBottomInset != nextCameraBottomInset {
+      self.cameraBottomInset = nextCameraBottomInset
+      updateCameraMargins()
+    }
 
     if self.showsCurrentLocation != showsCurrentLocation {
       self.showsCurrentLocation = showsCurrentLocation
@@ -534,14 +542,22 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
     else { return }
 
+    let visibleRect = kakaoMap.viewRect.inset(
+      by: UIEdgeInsets(
+        top: 0,
+        left: 0,
+        bottom: min(cameraBottomInset, kakaoMap.viewRect.height - 1),
+        right: 0
+      )
+    )
     let coordinate = kakaoMap.getPosition(
-      CGPoint(x: kakaoMap.viewRect.midX, y: kakaoMap.viewRect.midY)
+      CGPoint(x: visibleRect.midX, y: visibleRect.midY)
     ).wgsCoord
     let corners = [
-      CGPoint(x: kakaoMap.viewRect.minX, y: kakaoMap.viewRect.minY),
-      CGPoint(x: kakaoMap.viewRect.maxX, y: kakaoMap.viewRect.minY),
-      CGPoint(x: kakaoMap.viewRect.minX, y: kakaoMap.viewRect.maxY),
-      CGPoint(x: kakaoMap.viewRect.maxX, y: kakaoMap.viewRect.maxY)
+      CGPoint(x: visibleRect.minX, y: visibleRect.minY),
+      CGPoint(x: visibleRect.maxX, y: visibleRect.minY),
+      CGPoint(x: visibleRect.minX, y: visibleRect.maxY),
+      CGPoint(x: visibleRect.maxX, y: visibleRect.maxY)
     ].map { kakaoMap.getPosition($0).wgsCoord }
     let latitudes = corners.map(\.latitude)
     let longitudes = corners.map(\.longitude)

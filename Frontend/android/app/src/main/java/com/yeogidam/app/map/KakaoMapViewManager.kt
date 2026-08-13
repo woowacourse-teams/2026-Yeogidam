@@ -57,6 +57,13 @@ class KakaoMapViewManager :
         view.setCurrentLocationRequestId(value)
     }
 
+    override fun setCameraBottomInset(
+        view: KakaoMapView,
+        value: Double,
+    ) {
+        view.setCameraBottomInset(value)
+    }
+
     override fun setSavedPlacesJson(
         view: KakaoMapView,
         value: String?,

@@ -19,33 +19,37 @@ import {
 } from 'react-native';
 
 import type { Place } from '../../../entities/place/types';
+import { MAP_SEARCH_BAR_HEIGHT, MAP_SEARCH_BAR_TOP_GAP } from './MapSearchBar';
 
 type PlaceResultSheetProps = {
   places: Place[];
   height: number;
+  topInset?: number;
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
   onOpenDetail: (place: Place) => void;
 };
 
-const COLLAPSED_HEIGHT = 112;
+export const COLLAPSED_SHEET_HEIGHT = 48;
 const MIDDLE_SHEET_HEIGHT_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const BOTTOM_TAB_CLEARANCE = 92;
+const EXPANDED_RESULTS_TOP_GAP = 16;
 
 export function PlaceResultSheet({
   places,
   height,
+  topInset = 0,
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
   onOpenDetail,
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
-  const sheetHeight = Math.max(COLLAPSED_HEIGHT, height);
+  const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
   const photoWidth = (windowWidth - 26) / 4;
-  const collapsedOffset = sheetHeight - COLLAPSED_HEIGHT;
+  const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
   const middleOffset = Math.min(
     collapsedOffset,
     sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
@@ -67,6 +71,11 @@ export function PlaceResultSheet({
   const isExpanded = activeSnapIndex === 0;
   const hiddenSheetHeight = isPageMode ? 0 : snapOffsets[activeSnapIndex];
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
+  const expandedHeaderHeight =
+    topInset +
+    MAP_SEARCH_BAR_TOP_GAP +
+    MAP_SEARCH_BAR_HEIGHT +
+    EXPANDED_RESULTS_TOP_GAP;
 
   const updatePageMode = useCallback(
     (nextIsPageMode: boolean) => {
@@ -258,7 +267,7 @@ export function PlaceResultSheet({
     >
       <View {...panResponder.panHandlers}>
         {isPageMode ? (
-          <View style={styles.expandedHeaderSpacer} />
+          <View style={{ height: expandedHeaderHeight }} />
         ) : (
           <Pressable
             accessibilityRole="button"
@@ -276,11 +285,11 @@ export function PlaceResultSheet({
         style={styles.resultsScroll}
         contentContainerStyle={[
           styles.results,
-          {paddingBottom: listBottomClearance},
+          { paddingBottom: listBottomClearance },
         ]}
         keyExtractor={place => place.id}
         contentInsetAdjustmentBehavior="never"
-        scrollIndicatorInsets={{bottom: BOTTOM_TAB_CLEARANCE}}
+        scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
         showsVerticalScrollIndicator={false}
         scrollEnabled={activeSnapIndex !== 2 || isPageMode}
         renderItem={({ item: place }) => (
@@ -326,7 +335,9 @@ export function PlaceResultSheet({
         )}
         ListEmptyComponent={
           <View style={styles.emptyResult}>
-            <Text style={styles.emptyResultText}>현재 지도 영역에 저장한 장소가 없어요.</Text>
+            <Text style={styles.emptyResultText}>
+              현재 지도 영역에 저장한 장소가 없어요.
+            </Text>
           </View>
         }
       />
@@ -367,9 +378,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingBottom: 17,
     minHeight: 48,
-  },
-  expandedHeaderSpacer: {
-    height: 78,
   },
   title: {
     fontSize: 15,

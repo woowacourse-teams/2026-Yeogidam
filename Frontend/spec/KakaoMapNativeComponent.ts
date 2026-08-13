@@ -7,6 +7,7 @@ export interface NativeProps extends ViewProps {
   zoomLevel?: CodegenTypes.Int32;
   showsCurrentLocation?: boolean;
   currentLocationRequestId?: CodegenTypes.Int32;
+  cameraBottomInset?: CodegenTypes.Double;
   savedPlacesJson?: string;
   onMapReady?: CodegenTypes.DirectEventHandler<{
     ready: boolean;
@@ -28,7 +29,6 @@ export interface NativeProps extends ViewProps {
 export default codegenNativeComponent<NativeProps>(
   'YeogidamKakaoMapView',
 ) as HostComponent<NativeProps>;
-
 
 // ViewProps: style={{flex: 1}} 같은 기본 React Native View 속성을 사용할 수 있게 함
 // latitude, longitude: 지도 중심 좌표

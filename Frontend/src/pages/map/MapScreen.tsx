@@ -1,9 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { savedPlaceMocks } from '../../entities/place/mocks';
 import { MapSearchBar } from './components/MapSearchBar';
-import { PlaceResultSheet } from './components/PlaceResultSheet';
+import {
+  COLLAPSED_SHEET_HEIGHT,
+  PlaceResultSheet,
+} from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
 type MapScreenProps = {
@@ -11,19 +15,22 @@ type MapScreenProps = {
 };
 
 export function MapScreen({ onOpenDetail }: MapScreenProps) {
+  const { top: topInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
-  const [sheetVisibleHeight, setSheetVisibleHeight] = useState(112);
+  const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
+    COLLAPSED_SHEET_HEIGHT,
+  );
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
+  const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
     northLatitude: number;
     westLongitude: number;
     eastLongitude: number;
   } | null>(null);
-  const mapBottomInset = useRef(new Animated.Value(112)).current;
   const savedPlaces = useMemo(
     () =>
       Array.from(
@@ -45,61 +52,52 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
     );
   }, [savedPlaces, visibleBounds]);
 
-  useEffect(() => {
-    const nextInset = Math.min(sheetVisibleHeight, Math.max(0, mapHeight - 1));
-
-    Animated.spring(mapBottomInset, {
-      toValue: nextInset,
-      useNativeDriver: false,
-      damping: 22,
-      stiffness: 240,
-      mass: 0.7,
-    }).start();
-  }, [mapBottomInset, mapHeight, sheetVisibleHeight]);
-
   return (
     <View
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
-      <Animated.View style={[styles.mapViewport, { bottom: mapBottomInset }]}>
-        <KakaoMapNativeComponent
-          style={styles.map}
-          latitude={37.5448}
-          longitude={127.0557}
-          zoomLevel={14}
-          savedPlacesJson={JSON.stringify(
-            savedPlaces.map(({ id, name, latitude, longitude }) => ({
-              id,
-              name,
-              latitude,
-              longitude,
-            })),
-          )}
-          showsCurrentLocation
-          currentLocationRequestId={currentLocationRequestId}
-          onMapReady={event => {
-            console.log('지도 준비:', event.nativeEvent.ready);
-          }}
-          onMapError={event => {
-            console.error('지도 오류:', event.nativeEvent.message);
-          }}
-          onCameraChanged={event => {
-            const {
-              southLatitude,
-              northLatitude,
-              westLongitude,
-              eastLongitude,
-            } = event.nativeEvent;
-            setVisibleBounds({
-              southLatitude,
-              northLatitude,
-              westLongitude,
-              eastLongitude,
-            });
-          }}
-        />
-      </Animated.View>
+      <View style={styles.mapViewport}>
+        {mapHeight > 0 ? (
+          <KakaoMapNativeComponent
+            style={styles.map}
+            latitude={37.5448}
+            longitude={127.0557}
+            zoomLevel={14}
+            cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
+            savedPlacesJson={JSON.stringify(
+              savedPlaces.map(({ id, name, latitude, longitude }) => ({
+                id,
+                name,
+                latitude,
+                longitude,
+              })),
+            )}
+            showsCurrentLocation
+            currentLocationRequestId={currentLocationRequestId}
+            onMapReady={event => {
+              console.log('지도 준비:', event.nativeEvent.ready);
+            }}
+            onMapError={event => {
+              setMapMessage(event.nativeEvent.message);
+            }}
+            onCameraChanged={event => {
+              const {
+                southLatitude,
+                northLatitude,
+                westLongitude,
+                eastLongitude,
+              } = event.nativeEvent;
+              setVisibleBounds({
+                southLatitude,
+                northLatitude,
+                westLongitude,
+                eastLongitude,
+              });
+            }}
+          />
+        ) : null}
+      </View>
       {!isSheetExpanded ? (
         <Pressable
           accessibilityRole="button"
@@ -126,6 +124,7 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
       {mapHeight > 0 ? (
         <PlaceResultSheet
           height={mapHeight}
+          topInset={topInset}
           places={visiblePlaces}
           collapseSignal={collapseSignal}
           onExpandedChange={setIsSheetExpanded}
@@ -136,12 +135,23 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
       <MapSearchBar
         value={searchKeyword}
         onChangeText={setSearchKeyword}
+        topInset={topInset}
         onPressBack={
           isSheetExpanded
             ? () => setCollapseSignal(signal => signal + 1)
             : undefined
         }
       />
+      {mapMessage ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="안내 닫기"
+          onPress={() => setMapMessage(null)}
+          style={[styles.mapMessage, { top: topInset + 72 }]}
+        >
+          <Text style={styles.mapMessageText}>{mapMessage}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -159,6 +169,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    bottom: 0,
   },
   currentLocationButton: {
     position: 'absolute',
@@ -214,5 +225,20 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: '#202124',
+  },
+  mapMessage: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 12,
+    backgroundColor: 'rgba(32, 33, 36, 0.9)',
+  },
+  mapMessageText: {
+    color: '#ffffff',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
   },
 });

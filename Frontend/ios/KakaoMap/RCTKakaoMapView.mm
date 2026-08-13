@@ -67,6 +67,7 @@ using namespace facebook::react;
                      zoomLevel:newProps.zoomLevel
           showsCurrentLocation:newProps.showsCurrentLocation
       currentLocationRequestId:newProps.currentLocationRequestId
+          cameraBottomInset:newProps.cameraBottomInset
             savedPlacesJson:[NSString stringWithUTF8String:newProps.savedPlacesJson.c_str()]];
 
   [super updateProps:props oldProps:oldProps];

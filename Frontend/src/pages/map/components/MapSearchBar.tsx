@@ -12,17 +12,28 @@ type MapSearchBarProps = {
   value: string;
   onChangeText: (value: string) => void;
   embedded?: boolean;
+  topInset?: number;
   onPressBack?: () => void;
 };
+
+export const MAP_SEARCH_BAR_HEIGHT = 44;
+export const MAP_SEARCH_BAR_TOP_GAP = 12;
 
 export function MapSearchBar({
   value,
   onChangeText,
   embedded = false,
+  topInset = 0,
   onPressBack,
 }: MapSearchBarProps) {
   return (
-    <View style={[styles.container, embedded && styles.embedded]}>
+    <View
+      style={[
+        styles.container,
+        !embedded && { top: topInset + MAP_SEARCH_BAR_TOP_GAP },
+        embedded && styles.embedded,
+      ]}
+    >
       {onPressBack ? (
         <Pressable
           accessibilityRole="button"
@@ -63,10 +74,9 @@ export function MapSearchBar({
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 20,
     left: 24,
     right: 24,
-    height: 44,
+    height: MAP_SEARCH_BAR_HEIGHT,
     backgroundColor: '#ffffff',
     borderRadius: 22,
     flexDirection: 'row',
@@ -90,7 +100,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 44,
+    height: MAP_SEARCH_BAR_HEIGHT,
     paddingHorizontal: 0,
     paddingVertical: 0,
     fontSize: 17,

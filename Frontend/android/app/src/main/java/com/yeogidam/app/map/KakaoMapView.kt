@@ -48,6 +48,7 @@ class KakaoMapView(
     private var zoomLevel = 15
     private var showsCurrentLocation = false
     private var currentLocationRequestId = 0
+    private var cameraBottomInset = 0
     private var locationUpdatesStarted = false
     private var locationPermissionRequestInFlight = false
     private var locationPermissionDenied = false
@@ -111,6 +112,7 @@ class KakaoMapView(
             object : KakaoMapReadyCallback() {
                 override fun onMapReady(map: KakaoMap) {
                     kakaoMap = map
+                    applyCameraPadding()
                     map.setOnCameraMoveEndListener { _, position, _ ->
                         emitVisibleBounds(position.position, position.zoomLevel)
                     }
@@ -175,6 +177,21 @@ class KakaoMapView(
         centerMapOnCurrentLocation()
     }
 
+    fun setCameraBottomInset(value: Double) {
+        val nextInset =
+            (value.coerceAtLeast(0.0) * resources.displayMetrics.density).roundToInt()
+        if (cameraBottomInset == nextInset) return
+
+        cameraBottomInset = nextInset
+        applyCameraPadding()
+    }
+
+    private fun applyCameraPadding() {
+        val map = kakaoMap ?: return
+        val bottomInset = cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0))
+        map.setPadding(0, 0, 0, bottomInset)
+    }
+
     fun setSavedPlacesJson(value: String) {
         if (savedPlacesJson == value) return
         savedPlacesJson = value
@@ -214,7 +231,10 @@ class KakaoMapView(
     ) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
         if (width > 0 && height > 0 && (width != oldWidth || height != oldHeight)) {
-            post { emitVisibleBounds() }
+            post {
+                applyCameraPadding()
+                emitVisibleBounds()
+            }
         }
     }
 
@@ -225,11 +245,13 @@ class KakaoMapView(
         val map = kakaoMap ?: return
         if (id == NO_ID || width <= 0 || height <= 0 || center == null) return
 
+        val visibleBottom = (height - map.padding.bottom).coerceAtLeast(1)
+
         val corners = listOfNotNull(
             map.fromScreenPoint(0, 0),
             map.fromScreenPoint(width, 0),
-            map.fromScreenPoint(0, height),
-            map.fromScreenPoint(width, height),
+            map.fromScreenPoint(0, visibleBottom),
+            map.fromScreenPoint(width, visibleBottom),
         )
         if (corners.size != 4) return
 
