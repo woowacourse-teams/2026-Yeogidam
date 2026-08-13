@@ -8,6 +8,7 @@ import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.kakao.vectormap.KakaoMapSdk
 import com.yeogidamm.app.map.KakaoMapPackage
+import com.yeogidamm.app.share.ShareIntentPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -17,6 +18,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
             add(KakaoMapPackage())
+            add(ShareIntentPackage())
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
         },
