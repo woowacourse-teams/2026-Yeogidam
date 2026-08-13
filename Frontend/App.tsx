@@ -18,6 +18,10 @@ import {
 import {signInWithGoogle} from './src/lib/auth/signInWithGoogle';
 import {signInWithKakao} from './src/lib/auth/signInWithKakao';
 import {supabase} from './src/lib/auth/supabase';
+import {
+  addSharedContentListener,
+  consumePendingSharedContent,
+} from './src/lib/share-intent';
 import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
 import {SignUpScreen} from './src/pages/login/SignUpScreen';
@@ -47,6 +51,16 @@ function App() {
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
+
+  const showSharedContentAlert = (content: {
+    kind: 'url' | 'text';
+    text: string;
+  }) => {
+    Alert.alert(
+      content.kind === 'url' ? '공유된 링크 수신' : '공유된 텍스트 수신',
+      content.text,
+    );
+  };
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -177,6 +191,26 @@ function App() {
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    consumePendingSharedContent()
+      .then(sharedContent => {
+        if (!sharedContent) {
+          return;
+        }
+
+        showSharedContentAlert(sharedContent);
+      })
+      .catch(() => {});
+
+    const subscription = addSharedContentListener(sharedContent => {
+      showSharedContentAlert(sharedContent);
+    });
+
+    return () => {
+      subscription.remove();
     };
   }, []);
 
