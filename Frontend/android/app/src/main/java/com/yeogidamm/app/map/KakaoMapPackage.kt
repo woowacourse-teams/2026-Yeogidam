@@ -1,4 +1,4 @@
-package com.yeogidam.app.map
+package com.yeogidamm.app.map
 
 import com.facebook.react.BaseReactPackage
 import com.facebook.react.bridge.NativeModule

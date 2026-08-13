@@ -1,4 +1,4 @@
-package com.yeogidam.app
+package com.yeogidamm.app
 
 import android.app.Application
 import com.facebook.react.PackageList
@@ -7,7 +7,7 @@ import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.kakao.vectormap.KakaoMapSdk
-import com.yeogidam.app.map.KakaoMapPackage
+import com.yeogidamm.app.map.KakaoMapPackage
 
 class MainApplication : Application(), ReactApplication {
 

@@ -1,4 +1,4 @@
-package com.yeogidam.app.map
+package com.yeogidamm.app.map
 
 import android.Manifest
 import android.content.Context

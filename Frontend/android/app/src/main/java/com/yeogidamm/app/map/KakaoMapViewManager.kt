@@ -1,4 +1,4 @@
-package com.yeogidam.app.map
+package com.yeogidamm.app.map
 
 import com.facebook.react.uimanager.SimpleViewManager
 import com.facebook.react.uimanager.ThemedReactContext

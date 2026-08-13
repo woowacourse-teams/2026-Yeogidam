@@ -7,7 +7,7 @@
     "type": "components",
     "jsSrcsDir": "spec",
     "android": {
-      "javaPackageName": "com.yeogidam.app.map"
+      "javaPackageName": "com.yeogidamm.app.map"
     },
     "ios": {
       "components": {

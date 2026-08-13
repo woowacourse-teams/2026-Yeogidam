@@ -95,12 +95,12 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.yeogidam.app"
+    namespace "com.yeogidamm.app"
     buildFeatures {
         buildConfig = true
     }
     defaultConfig {
-        applicationId "com.yeogidam.app"
+        applicationId "com.yeogidamm.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
