@@ -24,6 +24,7 @@ import {
   saveContent,
 } from '../../entities/content/api';
 import type { ReelProcessingStatus } from '../../entities/content/types';
+import {normalizeReelError} from '../../entities/content/errors';
 
 // 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
 const SHOW_CARD_PREVIEW = false;
@@ -177,8 +178,11 @@ export function SavedPlacesScreen({
       setIsDialogVisible(false);
       setLinkValue('');
     } catch (error) {
+      const normalizedError = normalizeReelError(error);
       setLinkError(
-        error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.',
+        normalizedError.retryable
+          ? `${normalizedError.message} 저장 버튼을 눌러 다시 시도해주세요.`
+          : normalizedError.message,
       );
     } finally {
       setIsSubmitting(false);

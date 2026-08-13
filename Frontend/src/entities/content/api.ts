@@ -5,6 +5,7 @@ import type {
   SaveSource,
   ReelProcessingStatus,
 } from './types';
+import {reelErrorFromEnvelope, ReelApiError} from './errors';
 
 const REEL_STATUS_SELECT =
   'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
@@ -39,11 +40,27 @@ export async function saveInstagramReel(
   );
 
   if (error) {
-    throw error;
+    const context = (error as {context?: Response}).context;
+    let envelope: unknown = null;
+    if (context) {
+      try {
+        envelope = await context.clone().json();
+      } catch {
+        // Network or non-JSON gateway error.
+      }
+    }
+    throw reelErrorFromEnvelope(envelope) ?? new ReelApiError({
+      errorCode: 'CLIENT000_001',
+      message: '인터넷 연결을 확인해주세요.',
+      retryable: true,
+    });
   }
 
   if (!data) {
-    throw new Error('릴스 저장 응답이 비어 있습니다.');
+    throw new ReelApiError({
+      errorCode: 'CLIENT000_003',
+      message: '응답을 처리하지 못했어요.',
+    });
   }
 
   return data;
