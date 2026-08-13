@@ -16,6 +16,8 @@ type PlaceDetailContentProps = {
   onBack: () => void;
   scrollEnabled?: boolean;
   contentBottomPadding?: number;
+  headerTopInset?: number;
+  stickyHeaderTopInset?: number;
 };
 
 export function PlaceDetailContent({
@@ -24,10 +26,13 @@ export function PlaceDetailContent({
   onBack,
   scrollEnabled = true,
   contentBottomPadding = 100,
+  headerTopInset = 0,
+  stickyHeaderTopInset = 0,
 }: PlaceDetailContentProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const tabsOffsetY = useRef(0);
   const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
+  const [isTabsSticky, setIsTabsSticky] = useState(false);
 
   const scrollToTabs = () => {
     scrollViewRef.current?.scrollTo({
@@ -49,10 +54,24 @@ export function PlaceDetailContent({
         styles.content,
         {paddingBottom: contentBottomPadding},
       ]}
+      onScroll={event => {
+        if (stickyHeaderTopInset <= 0) {
+          return;
+        }
+
+        const nextIsTabsSticky =
+          event.nativeEvent.contentOffset.y >=
+          tabsOffsetY.current - stickyHeaderTopInset;
+
+        setIsTabsSticky(current =>
+          current === nextIsTabsSticky ? current : nextIsTabsSticky,
+        );
+      }}
       scrollEnabled={scrollEnabled}
+      scrollEventThrottle={16}
       stickyHeaderIndices={[2]}
       showsVerticalScrollIndicator={false}>
-      <PlaceDetailHeader onBack={onBack} />
+      <PlaceDetailHeader onBack={onBack} topInset={headerTopInset} />
       <View
         onLayout={event => {
           const {y, height} = event.nativeEvent.layout;
@@ -61,7 +80,13 @@ export function PlaceDetailContent({
         }}>
         <PlaceInfo place={place} />
       </View>
-      <View>
+      <View
+        style={[
+          styles.stickyTabsContainer,
+          isTabsSticky && stickyHeaderTopInset > 0
+            ? {paddingTop: stickyHeaderTopInset}
+            : null,
+        ]}>
         <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />
       </View>
       {activeTab === '게시물' ? <PlacePostGrid posts={posts} /> : null}
@@ -77,5 +102,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
+  },
+  stickyTabsContainer: {
+    backgroundColor: '#ffffff',
   },
 });

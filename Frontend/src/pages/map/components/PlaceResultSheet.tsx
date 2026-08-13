@@ -23,6 +23,7 @@ import type { Place } from '../../../entities/place/types';
 import { MAP_SEARCH_BAR_HEIGHT, MAP_SEARCH_BAR_TOP_GAP } from './MapSearchBar';
 import {CopyToastProvider} from '../../place-detail/components/CopyToast';
 import {PlaceDetailContent} from '../../place-detail/components/PlaceDetailContent';
+import {PlaceMapButton} from '../../place-detail/components/PlaceMapButton';
 
 type PlaceResultSheetProps = {
   places: Place[];
@@ -39,6 +40,8 @@ const MIDDLE_SHEET_HEIGHT_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
+const DETAIL_INLINE_BOTTOM_PADDING = 24;
+const DETAIL_PAGE_BOTTOM_PADDING = 100;
 
 export function PlaceResultSheet({
   places,
@@ -294,9 +297,9 @@ export function PlaceResultSheet({
       ]}
     >
       <View>
-        {isPageMode ? (
+        {isPageMode && !selectedPlace ? (
           <View style={{ height: expandedHeaderHeight }} />
-        ) : (
+        ) : !isPageMode ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="검색 결과 펼치기"
@@ -305,7 +308,7 @@ export function PlaceResultSheet({
           >
             <View style={styles.pill} />
           </Pressable>
-        )}
+        ) : null}
       </View>
       {selectedPlace ? (
         <CopyToastProvider>
@@ -314,9 +317,18 @@ export function PlaceResultSheet({
             onBack={backToPlaceList}
             place={selectedPlace}
             posts={selectedPlacePosts}
+            headerTopInset={topInset}
+            stickyHeaderTopInset={topInset}
             scrollEnabled={isPageMode}
-            contentBottomPadding={32}
+            contentBottomPadding={
+              isPageMode
+                ? DETAIL_PAGE_BOTTOM_PADDING
+                : DETAIL_INLINE_BOTTOM_PADDING
+            }
           />
+          {isPageMode && selectedPlace.placeUrl ? (
+            <PlaceMapButton url={selectedPlace.placeUrl} />
+          ) : null}
         </CopyToastProvider>
       ) : (
         <FlatList

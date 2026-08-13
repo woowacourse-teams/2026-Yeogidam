@@ -3,11 +3,15 @@ import {Pressable, StyleSheet, Text, View} from 'react-native';
 
 type PlaceDetailHeaderProps = {
   onBack: () => void;
+  topInset?: number;
 };
 
-export function PlaceDetailHeader({onBack}: PlaceDetailHeaderProps) {
+export function PlaceDetailHeader({
+  onBack,
+  topInset = 0,
+}: PlaceDetailHeaderProps) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {paddingTop: topInset}]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="뒤로 가기"
@@ -22,7 +26,7 @@ export function PlaceDetailHeader({onBack}: PlaceDetailHeaderProps) {
 
 const styles = StyleSheet.create({
   container: {
-    height: 60,
+    minHeight: 60,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',

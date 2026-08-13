@@ -24,6 +24,7 @@ const INITIAL_FLOW_STATE: AppFlowState = {
 
 function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
+  const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -57,6 +58,10 @@ function App() {
   };
 
   const openMainScreen = (nextScreen: MainScreen) => {
+    if (nextScreen !== 'map') {
+      setIsMapPlaceDetailVisible(false);
+    }
+
     setFlowState({
       kind: 'main',
       activeTab: nextScreen,
@@ -123,7 +128,9 @@ function App() {
     }
 
     if (currentScreen === 'map') {
-      return <MapScreen onOpenDetail={() => openDetailFrom('map')} />;
+      return (
+        <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />
+      );
     }
 
     if (currentScreen === 'detail') {
@@ -134,7 +141,9 @@ function App() {
   };
 
   const showTabBar =
-    flowState.kind === 'main' && flowState.detailSource === null;
+    flowState.kind === 'main' &&
+    flowState.detailSource === null &&
+    !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';
   const activeTab =

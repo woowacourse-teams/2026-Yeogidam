@@ -12,10 +12,10 @@ import {
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
 type MapScreenProps = {
-  onOpenDetail?: () => void;
+  onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
-export function MapScreen({}: MapScreenProps) {
+export function MapScreen({onDetailViewChange}: MapScreenProps) {
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -28,6 +28,7 @@ export function MapScreen({}: MapScreenProps) {
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const bottomNavigationOffset = BOTTOM_TAB_BAR_HEIGHT + bottomInset;
+  const mapBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
     northLatitude: number;
@@ -93,7 +94,7 @@ export function MapScreen({}: MapScreenProps) {
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
-      <View style={[styles.mapStage, { marginBottom: bottomNavigationOffset }]}>
+      <View style={[styles.mapStage, {marginBottom: mapBottomOffset}]}>
         <View style={styles.mapViewport}>
           {mapHeight > 0 ? (
             <KakaoMapNativeComponent
@@ -160,11 +161,14 @@ export function MapScreen({}: MapScreenProps) {
         ) : null}
         {mapHeight > 0 ? (
           <PlaceResultSheet
-            height={mapHeight - bottomNavigationOffset}
+            height={mapHeight - mapBottomOffset}
             topInset={topInset}
             places={filteredVisiblePlaces}
             collapseSignal={collapseSignal}
-            onDetailViewChange={setIsPlaceDetailVisible}
+            onDetailViewChange={isDetailView => {
+              setIsPlaceDetailVisible(isDetailView);
+              onDetailViewChange?.(isDetailView);
+            }}
             onExpandedChange={setIsSheetExpanded}
             onVisibleHeightChange={setSheetVisibleHeight}
           />
