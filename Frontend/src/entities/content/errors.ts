@@ -15,6 +15,7 @@ export class ReelApiError extends Error {
   readonly retryable: boolean;
   readonly requestId?: string;
   readonly field?: string;
+  readonly status?: number | null;
 
   constructor(params: {
     errorCode?: ReelErrorCode | null;
@@ -22,6 +23,7 @@ export class ReelApiError extends Error {
     retryable?: boolean;
     requestId?: string;
     field?: string;
+    status?: number | null;
   }) {
     super(params.message);
     this.name = 'ReelApiError';
@@ -29,12 +31,35 @@ export class ReelApiError extends Error {
     this.retryable = params.retryable ?? false;
     this.requestId = params.requestId;
     this.field = params.field;
+    this.status = params.status;
   }
 }
 
 export function normalizeReelError(error: unknown): ReelApiError {
   if (error instanceof ReelApiError) {
     return error;
+  }
+
+  const candidate = error as {
+    status?: number;
+    message?: string;
+  } | null;
+
+  if (candidate?.status === 405) {
+    return new ReelApiError({
+      errorCode: 'COMMON405_001',
+      message: '지원하지 않는 요청 방식이에요.',
+      status: 405,
+    });
+  }
+
+  if (candidate?.status === 408 || candidate?.status === 504) {
+    return new ReelApiError({
+      errorCode: 'CLIENT000_002',
+      message: '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+      retryable: true,
+      status: candidate.status,
+    });
   }
 
   if (error instanceof Error) {
@@ -45,14 +70,14 @@ export function normalizeReelError(error: unknown): ReelApiError {
     });
   }
 
-  const candidate = error as {
+  const networkCandidate = error as {
     context?: {json?: () => Promise<unknown>};
     message?: string;
   } | null;
 
   return new ReelApiError({
     errorCode: 'CLIENT000_001',
-    message: candidate?.message ?? '인터넷 연결을 확인해주세요.',
+    message: networkCandidate?.message ?? '인터넷 연결을 확인해주세요.',
     retryable: true,
   });
 }
@@ -80,5 +105,6 @@ export function reelErrorFromEnvelope(envelope: unknown): ReelApiError | null {
       typeof (value.details as Record<string, unknown>).field === 'string'
         ? ((value.details as Record<string, unknown>).field as string)
         : undefined,
+    status: typeof value.status === 'number' ? value.status : null,
   });
 }

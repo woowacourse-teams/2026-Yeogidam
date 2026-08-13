@@ -264,7 +264,12 @@ function App() {
     }
 
     if (currentScreen === 'saved') {
-      return <SavedPlacesScreen onOpenDetail={() => openDetailFrom('saved')} />;
+      return (
+        <SavedPlacesScreen
+          onOpenDetail={() => openDetailFrom('saved')}
+          onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
+        />
+      );
     }
 
     if (currentScreen === 'map') {

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { supabase } from '../../lib/auth/supabase';
 
 import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
 import { savedPlaceMocks } from '../../entities/place/mocks';
@@ -113,13 +114,13 @@ function getFailureMessage(reason: string | null): string {
 function getFailureDescription(reason: string | null): string {
   switch (reason) {
     case 'KAKAO_PLACE_NOT_FOUND':
-      return '릴스의 장소 정보를 확인한 뒤 다시 시도해주세요.';
+      return '릴스의 장소 정보와 주소를 확인해주세요.';
     case 'IG_CAPTION_NOT_FOUND':
       return '릴스에 장소 정보가 포함되어 있는지 확인해주세요.';
     case 'GEMINI_PLACE_NOT_FOUND':
       return '릴스 캡션에 장소명이 포함되어 있는지 확인해주세요.';
     case 'PLACE_NOT_FOUND':
-      return '다른 릴스 링크로 다시 시도해주세요.';
+      return '릴스에 장소 정보가 포함되어 있는지 확인해주세요.';
     default:
       return '잠시 후 다시 시도하거나 다른 릴스 링크를 사용해주세요.';
   }
@@ -137,11 +138,13 @@ function getStatusQueryMessage(error: ReelApiError): string {
 
 type SavedPlacesScreenProps = {
   onOpenDetail: () => void;
+  onRequireLogin?: () => void;
   places?: Place[];
 };
 
 export function SavedPlacesScreen({
   onOpenDetail,
+  onRequireLogin,
   places = savedPlaceMocks,
 }: SavedPlacesScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
@@ -156,6 +159,8 @@ export function SavedPlacesScreen({
   const [processingUrl, setProcessingUrl] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(null);
+  const [isReusedFailure, setIsReusedFailure] = useState(false);
+  const [lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasSavedPlaces = places.length > 0;
 
@@ -173,7 +178,7 @@ export function SavedPlacesScreen({
     setLinkError(null);
   };
 
-  const handleSaveLink = async () => {
+  const handleSaveLink = async (isSessionRetry = false) => {
     if (isSubmitting) {
       return;
     }
@@ -187,6 +192,25 @@ export function SavedPlacesScreen({
       setLinkValue('');
     } catch (error) {
       const normalizedError = normalizeReelError(error);
+      setLastRequestId(normalizedError.requestId ?? null);
+      if (normalizedError.errorCode === 'AUTH401_001') {
+        setIsDialogVisible(false);
+        onRequireLogin?.();
+        return;
+      }
+
+      if (normalizedError.errorCode === 'AUTH401_002' && !isSessionRetry) {
+        const {error: refreshError} = await supabase.auth.refreshSession();
+        if (!refreshError) {
+          setIsSubmitting(false);
+          await handleSaveLink(true);
+          return;
+        }
+        setIsDialogVisible(false);
+        onRequireLogin?.();
+        return;
+      }
+
       setLinkError(normalizedError.message);
     } finally {
       setIsSubmitting(false);
@@ -205,6 +229,7 @@ export function SavedPlacesScreen({
       return;
     }
 
+    setIsReusedFailure(response.status === 'FAILED' && response.reused);
     setProcessingReelId(response.reelId);
     setProcessingUrl(url);
     setProcessingReel({
@@ -375,6 +400,7 @@ export function SavedPlacesScreen({
               message={getFailureMessage(processingReel.failure_reason)}
               description={getFailureDescription(processingReel.failure_reason)}
               onCancel={dismissProcessingCard}
+              onRetry={isReusedFailure ? retryProcessing : undefined}
             />
           ) : processingReel &&
             processingReel.processing_status !== 'COMPLETED' ? (

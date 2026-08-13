@@ -53,6 +53,7 @@ export async function saveInstagramReel(
       errorCode: 'CLIENT000_001',
       message: '인터넷 연결을 확인해주세요.',
       retryable: true,
+      status: context?.status ?? null,
     });
   }
 
