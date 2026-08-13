@@ -143,7 +143,7 @@ function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView
-        edges={isMapScreen ? ['left', 'right', 'bottom'] : undefined}
+        edges={isMapScreen ? ['left', 'right'] : ['top', 'left', 'right']}
         style={styles.safeArea}>
         <StatusBar
           barStyle="dark-content"

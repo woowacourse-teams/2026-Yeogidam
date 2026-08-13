@@ -1,5 +1,6 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import type {MainScreen} from '../types/navigation';
 
@@ -15,8 +16,10 @@ const tabs: {id: MainScreen; icon: string; label: string}[] = [
 ];
 
 export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
+  const {bottom} = useSafeAreaInsets();
+
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, {paddingBottom: bottom}]}>
       {tabs.map(tab => (
         <Pressable
           key={tab.id}
@@ -36,13 +39,18 @@ export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   tabBar: {
-    height: 68,
+    minHeight: 68,
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e5e5ea',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
+    paddingTop: 8,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   tab: {
     flex: 1,
