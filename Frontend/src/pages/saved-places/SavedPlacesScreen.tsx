@@ -1,7 +1,9 @@
 import React, {useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {BOTTOM_TAB_BAR_HEIGHT} from '../../components/BottomTabBar';
 import {savedPlaceMocks} from '../../entities/place/mocks';
 import type {Place} from '../../entities/place/types';
 import {SavedPlacesEmptyState} from './components/SavedPlacesEmptyState';
@@ -19,6 +21,7 @@ export function SavedPlacesScreen({
   onOpenDetail,
   places = savedPlaceMocks,
 }: SavedPlacesScreenProps) {
+  const {bottom: bottomInset} = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
@@ -48,7 +51,9 @@ export function SavedPlacesScreen({
             onPressPlace={() => onOpenDetail()}
           />
           {hasSavedPlaces ? (
-            <Pressable onPress={openDialog} style={styles.fabShadow}>
+            <Pressable
+              onPress={openDialog}
+              style={[styles.fabShadow, {bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12}]}>
               <View style={styles.fab}>
                 <Text style={styles.fabText}>＋</Text>
               </View>
@@ -72,7 +77,9 @@ export function SavedPlacesScreen({
                   </Pressable>
                 </View>
               </ScrollView>
-              <Pressable onPress={openDialog} style={styles.fabShadow}>
+              <Pressable
+                onPress={openDialog}
+                style={[styles.fabShadow, {bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12}]}>
                 <View style={styles.fab}>
                   <Text style={styles.fabText}>＋</Text>
                 </View>
@@ -107,6 +114,8 @@ const styles = StyleSheet.create({
   fabShadow: {
     position: 'absolute',
     right: 18,
+    // The screen is rendered underneath the absolute bottom tab bar.
+    // Keep the FAB above it, including the device's bottom safe-area inset.
     bottom: 20,
     width: 56,
     height: 56,
