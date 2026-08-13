@@ -71,7 +71,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
         place.address,
         place.fullAddress,
       ]
-        .filter(Boolean)
+        .filter((value): value is string => Boolean(value))
         .map(value => value.toLowerCase());
 
       return searchableFields.some(value => value.includes(normalizedKeyword));
