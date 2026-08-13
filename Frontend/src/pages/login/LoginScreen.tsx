@@ -67,6 +67,9 @@ export function LoginScreen({
   pendingSocialProvider,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
+  const visibleSocialButtons = isAppleLoginAvailable
+    ? socialButtons
+    : socialButtons.filter(button => button.variant !== 'apple');
   const footerLinkActions: Record<FooterLink, () => void> = {
     회원가입: onOpenSignup,
     로그인: onOpenEmailLogin,
@@ -81,7 +84,7 @@ export function LoginScreen({
   return (
     <AuthScaffold contentStyle={styles.main}>
       <View style={styles.buttonList}>
-        {socialButtons.map(button => (
+        {visibleSocialButtons.map(button => (
           <Pressable
             key={button.label}
             disabled={
