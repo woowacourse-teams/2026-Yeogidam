@@ -2,8 +2,10 @@ import { frontendInfoDomainMock } from './mocks';
 import type {
   FrontendInfoDomain,
   InfoPlace,
+  PlaceReel,
+  PlaceReelsApiError,
+  PlaceReelsRepository,
   ProfileInfo,
-  ReelInfo,
   SavedPlaceInfo,
   SavedPlaceListItem,
   SavedPlacesApiError,
@@ -30,12 +32,6 @@ export async function getPlaceInfo(
   );
 }
 
-export async function getPlaceReels(placeId: string): Promise<ReelInfo[]> {
-  return Promise.resolve(
-    frontendInfoDomainMock.reels.filter(reel => reel.placeId === placeId),
-  );
-}
-
 export async function getUserSavedPlaces(
   userId: string,
 ): Promise<SavedPlaceInfo[]> {
@@ -53,6 +49,15 @@ const SAVED_PLACES_SELECT = [
   'place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)',
 ].join(',');
 
+const PLACE_REELS_SELECT = [
+  'id',
+  'instagram_url',
+  'instagram_author_username',
+  'instagram_thumbnail_url',
+  'created_at',
+  'reel_places!inner(place_id)',
+].join(',');
+
 type SavedPlacesApiOptions = {
   baseUrl: string;
   /** Supabase 프로젝트의 공개 publishable key입니다. service_role key는 앱에 넣지 않습니다. */
@@ -60,6 +65,8 @@ type SavedPlacesApiOptions = {
   getAccessToken?: () => Promise<string | null>;
   refreshSession?: () => Promise<boolean>;
 };
+
+type PlaceReelsApiOptions = SavedPlacesApiOptions;
 
 const savedPlacesError = (
   errorCode: string,
@@ -261,4 +268,185 @@ export function configureSavedPlacesApi(options: SavedPlacesApiOptions) {
 /** 화면은 이 함수만 사용하며 Supabase/자체 서버를 알 필요가 없습니다. */
 export function getSavedPlaces(): Promise<SavedPlaceListItem[]> {
   return savedPlacesRepository.getSavedPlaces();
+}
+
+type SupabasePlaceReelResponse = {
+  id: string;
+  instagram_url: string;
+  instagram_author_username: string | null;
+  instagram_thumbnail_url: string | null;
+  created_at: string;
+};
+
+const placeReelsError = (
+  errorCode: string,
+  status: number | null,
+  message: string,
+  retryable: boolean,
+): PlaceReelsApiError => ({ status, errorCode, message, retryable });
+
+function fallbackPlaceReelsError(status: number | null): PlaceReelsApiError {
+  if (status === 400)
+    return placeReelsError(
+      'COMMON400_001',
+      400,
+      '요청 내용을 확인해주세요.',
+      false,
+    );
+  if (status === 401)
+    return placeReelsError('AUTH401_001', 401, '로그인이 필요해요.', true);
+  if (status === 403)
+    return placeReelsError(
+      'AUTH403_001',
+      403,
+      '이 작업을 수행할 권한이 없어요.',
+      false,
+    );
+  if (status !== null && status >= 500)
+    return placeReelsError(
+      'DATA500_001',
+      500,
+      '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+      true,
+    );
+  return placeReelsError(
+    'CLIENT000_003',
+    null,
+    '응답을 처리하지 못했어요.',
+    false,
+  );
+}
+
+function toPlaceReel(reel: SupabasePlaceReelResponse): PlaceReel {
+  return {
+    id: reel.id,
+    instagramUrl: reel.instagram_url,
+    instagramAuthorUsername: reel.instagram_author_username,
+    instagramThumbnailUrl: reel.instagram_thumbnail_url,
+    createdAt: reel.created_at,
+  };
+}
+
+export function createSupabasePlaceReelsRepository(
+  options: PlaceReelsApiOptions,
+): PlaceReelsRepository {
+  const getPlaceReelsOnce = async (placeId: string): Promise<PlaceReel[]> => {
+    if (!options.baseUrl) throw fallbackPlaceReelsError(null);
+    const token = await options.getAccessToken?.();
+    const query = [
+      `select=${encodeURIComponent(PLACE_REELS_SELECT)}`,
+      'processing_status=eq.COMPLETED',
+      `reel_places.place_id=eq.${encodeURIComponent(placeId)}`,
+      'order=created_at.desc',
+    ].join('&');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    let response: Response;
+    try {
+      response = await fetch(
+        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/reels?${query}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            ...(options.publishableKey
+              ? { apikey: options.publishableKey }
+              : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        },
+      );
+    } catch {
+      throw controller.signal.aborted
+        ? placeReelsError(
+            'CLIENT000_002',
+            null,
+            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+            true,
+          )
+        : placeReelsError(
+            'CLIENT000_001',
+            null,
+            '인터넷 연결을 확인해주세요.',
+            true,
+          );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw fallbackPlaceReelsError(null);
+    }
+    if (!response.ok) {
+      const normalized = body as Partial<PlaceReelsApiError>;
+      const fallback = fallbackPlaceReelsError(response.status);
+      throw {
+        ...fallback,
+        ...normalized,
+        status: normalized.status ?? fallback.status,
+      };
+    }
+    return (body as SupabasePlaceReelResponse[]).map(toPlaceReel);
+  };
+
+  return {
+    async getPlaceReels(placeId) {
+      try {
+        return await getPlaceReelsOnce(placeId);
+      } catch (error) {
+        if (
+          (error as PlaceReelsApiError).errorCode === 'AUTH401_002' &&
+          (await options.refreshSession?.())
+        ) {
+          return getPlaceReelsOnce(placeId);
+        }
+        throw error;
+      }
+    },
+  };
+}
+
+export function createMockPlaceReelsRepository(): PlaceReelsRepository {
+  return {
+    async getPlaceReels(placeId) {
+      return frontendInfoDomainMock.reels
+        .filter(
+          reel =>
+            reel.placeId === placeId && reel.processingStatus === 'COMPLETED',
+        )
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        .map(reel => ({
+          id: reel.id,
+          instagramUrl: reel.instagramUrl,
+          instagramAuthorUsername: reel.instagramAuthorUsername ?? null,
+          instagramThumbnailUrl: reel.instagramThumbnailUrl,
+          createdAt: reel.createdAt,
+        }));
+    },
+  };
+}
+
+let placeReelsRepository: PlaceReelsRepository =
+  createMockPlaceReelsRepository();
+
+/**
+ * 화면은 이 repository 계약만 사용합니다. 자체 서버로 전환할 때는
+ * `configurePlaceReelsRepository({getPlaceReels: ...})`만 교체하면 됩니다.
+ */
+export function configurePlaceReelsRepository(
+  repository: PlaceReelsRepository,
+) {
+  placeReelsRepository = repository;
+}
+
+/** 앱 시작 시 Supabase 구현체를 등록합니다. */
+export function configurePlaceReelsApi(options: PlaceReelsApiOptions) {
+  configurePlaceReelsRepository(createSupabasePlaceReelsRepository(options));
+}
+
+export function getPlaceReels(placeId: string): Promise<PlaceReel[]> {
+  return placeReelsRepository.getPlaceReels(placeId);
 }

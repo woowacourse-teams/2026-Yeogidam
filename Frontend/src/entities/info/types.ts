@@ -21,10 +21,7 @@ export type ReelFailureReason =
   | 'PLACE_NOT_FOUND'
   | 'UNKNOWN';
 
-export type MatchFailureStage =
-  | 'KAKAO_SEARCH'
-  | 'AI_REVIEW'
-  | 'FINAL_GUARD';
+export type MatchFailureStage = 'KAKAO_SEARCH' | 'AI_REVIEW' | 'FINAL_GUARD';
 
 export type MatchFailureReason =
   | 'NO_KAKAO_CANDIDATE'
@@ -80,6 +77,7 @@ export type ReelInfo = {
   userId: string;
   placeId?: string | null;
   instagramUrl: string;
+  instagramAuthorUsername: string | null;
   instagramTitle?: string | null;
   instagramDescription?: string | null;
   instagramThumbnailUrl?: string | null;
@@ -90,6 +88,28 @@ export type ReelInfo = {
   processingVersion: number;
   createdAt: string;
   updatedAt: string;
+};
+
+/** 장소 상세의 완료된 Instagram 릴스 조회 모델입니다. */
+export type PlaceReel = Pick<
+  ReelInfo,
+  | 'id'
+  | 'instagramUrl'
+  | 'instagramAuthorUsername'
+  | 'instagramThumbnailUrl'
+  | 'createdAt'
+>;
+
+export type PlaceReelsApiError = {
+  status: number | null;
+  errorCode: string;
+  message: string;
+  retryable: boolean;
+  requestId?: string;
+};
+
+export type PlaceReelsRepository = {
+  getPlaceReels: (placeId: string) => Promise<PlaceReel[]>;
 };
 
 export type SavedPlaceInfo = {

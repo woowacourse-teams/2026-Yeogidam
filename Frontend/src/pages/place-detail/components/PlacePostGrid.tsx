@@ -1,41 +1,59 @@
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import type { SvgProps } from 'react-native-svg';
-
+import {
+  Image,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import InstagramIcon from '../../../assets/icons/social/instagram.svg';
-import NaverBlogIcon from '../../../assets/icons/social/naver-blog.svg';
-import YoutubeIcon from '../../../assets/icons/social/youtube.svg';
 import type {
-  PlacePost,
-  SocialPlatform,
-} from '../../../entities/place-post/types';
+  PlaceReel,
+  PlaceReelsApiError,
+} from '../../../entities/info/types';
 
 type PlacePostGridProps = {
-  posts: PlacePost[];
-};
-
-const socialIcons: Record<SocialPlatform, React.ComponentType<SvgProps>> = {
-  instagram: InstagramIcon,
-  'naver-blog': NaverBlogIcon,
-  youtube: YoutubeIcon,
+  reels: PlaceReel[];
+  error?: PlaceReelsApiError | null;
+  isLoading?: boolean;
+  onRetry?: () => void;
 };
 
 const GRID_HORIZONTAL_PADDING = 12;
 const COLUMN_GAP = 10;
 
-export function PlacePostGrid({ posts }: PlacePostGridProps) {
+export function PlacePostGrid({
+  reels,
+  error,
+  isLoading = false,
+  onRetry,
+}: PlacePostGridProps) {
   const [gridWidth, setGridWidth] = useState(0);
 
-  if (posts.length === 0) {
-    return null;
+  if (isLoading) {
+    return <PostState message="릴스를 불러오는 중이에요." />;
+  }
+
+  if (error) {
+    return (
+      <PostState
+        message={error.message}
+        onRetry={error.retryable ? onRetry : undefined}
+      />
+    );
+  }
+
+  if (reels.length === 0) {
+    return <PostState message="아직 관련 릴스가 없어요." />;
   }
 
   const columnWidth =
     (gridWidth - GRID_HORIZONTAL_PADDING * 2 - COLUMN_GAP) / 2;
 
   const columns = [
-    posts.filter((_, index) => index % 2 === 0),
-    posts.filter((_, index) => index % 2 === 1),
+    reels.filter((_, index) => index % 2 === 0),
+    reels.filter((_, index) => index % 2 === 1),
   ];
 
   return (
@@ -49,8 +67,8 @@ export function PlacePostGrid({ posts }: PlacePostGridProps) {
               key={columnIndex}
               style={[styles.column, { width: columnWidth }]}
             >
-              {column.map(post => (
-                <PostCard key={post.id} post={post} imageWidth={columnWidth} />
+              {column.map(reel => (
+                <PostCard key={reel.id} reel={reel} imageWidth={columnWidth} />
               ))}
             </View>
           ))
@@ -60,30 +78,69 @@ export function PlacePostGrid({ posts }: PlacePostGridProps) {
 }
 
 function PostCard({
-  post,
+  reel,
   imageWidth,
 }: {
-  post: PlacePost;
+  reel: PlaceReel;
   imageWidth: number;
 }) {
-  const SocialIcon = socialIcons[post.platform];
-  const { width, height } = Image.resolveAssetSource(post.image);
-  const imageHeight = imageWidth * (height / width);
+  const image = reel.instagramThumbnailUrl
+    ? { uri: reel.instagramThumbnailUrl }
+    : require('../../../assets/illustrations/empty-illustration.png');
+  const asset = Image.resolveAssetSource(image);
+  const imageHeight =
+    imageWidth *
+    (asset.width && asset.height ? asset.height / asset.width : 1.25);
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      onPress={() => {
+        if (reel.instagramUrl) {
+          Linking.openURL(reel.instagramUrl);
+        }
+      }}
+      disabled={!reel.instagramUrl}
+      accessibilityRole={reel.instagramUrl ? 'link' : undefined}
+      accessibilityLabel={reel.instagramUrl ? 'Instagram 릴스 열기' : undefined}
+    >
       <View
         style={[styles.imageClip, { width: imageWidth, height: imageHeight }]}
       >
-        <Image source={post.image} style={styles.image} resizeMode="cover" />
+        <Image source={image} style={styles.image} resizeMode="cover" />
       </View>
-      <View style={styles.accountRow}>
-        <SocialIcon width={18} height={18} opacity={0.45} />
-        <Text style={styles.account} numberOfLines={1}>
-          {post.authorHandle}
-        </Text>
-      </View>
-      <Text style={styles.title}>{post.title}</Text>
+      {reel.instagramAuthorUsername ? (
+        <View style={styles.accountRow}>
+          <InstagramIcon width={18} height={18} opacity={0.45} />
+          <Text style={styles.account} numberOfLines={1}>
+            @{reel.instagramAuthorUsername.replace(/^@/, '')}
+          </Text>
+        </View>
+      ) : null}
+      <Text style={styles.title}>Instagram 릴스</Text>
+    </Pressable>
+  );
+}
+
+function PostState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <View style={styles.state}>
+      <Text style={styles.stateMessage}>{message}</Text>
+      {onRetry ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onRetry}
+          style={styles.retryButton}
+        >
+          <Text style={styles.retryText}>다시 시도</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -103,6 +160,7 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 18,
   },
+  pressed: { opacity: 0.78 },
   imageClip: {
     borderRadius: 14,
     overflow: 'hidden',
@@ -129,4 +187,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1a1a2e',
   },
+  state: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 52,
+  },
+  stateMessage: { color: '#5f5f70', fontSize: 15, textAlign: 'center' },
+  retryButton: {
+    marginTop: 16,
+    borderRadius: 20,
+    backgroundColor: '#DBE0F9',
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+  },
+  retryText: { color: '#2a2a44', fontSize: 14, fontWeight: '700' },
 });

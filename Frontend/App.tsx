@@ -146,7 +146,13 @@ function App() {
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
-      return <PlaceDetailScreen onBack={closeDetail} place={selectedPlace} />;
+      return (
+        <PlaceDetailScreen
+          onBack={closeDetail}
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          place={selectedPlace}
+        />
+      );
     }
 
     return <MyPageScreen onOpenSavedPlaces={() => openMainScreen('saved')} />;
