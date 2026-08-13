@@ -34,3 +34,25 @@ jest.mock('react-native-inappbrowser-reborn', () => ({
     closeAuth: jest.fn(),
   },
 }));
+
+jest.mock('@invertase/react-native-apple-authentication', () => ({
+  appleAuth: {
+    isSupported: true,
+    performRequest: jest.fn(() =>
+      Promise.resolve({
+        identityToken: 'apple-token',
+        fullName: null,
+      }),
+    ),
+    Error: {
+      CANCELED: '1001',
+    },
+    Operation: {
+      LOGIN: 1,
+    },
+    Scope: {
+      EMAIL: 0,
+      FULL_NAME: 1,
+    },
+  },
+}));

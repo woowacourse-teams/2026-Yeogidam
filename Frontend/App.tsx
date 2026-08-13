@@ -11,6 +11,10 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {BottomTabBar} from './src/components/BottomTabBar';
 import type {NormalizedAuthError} from './src/lib/auth/errors';
+import {
+  isAppleSignInSupported,
+  signInWithApple,
+} from './src/lib/auth/signInWithApple';
 import {signInWithGoogle} from './src/lib/auth/signInWithGoogle';
 import {signInWithKakao} from './src/lib/auth/signInWithKakao';
 import {supabase} from './src/lib/auth/supabase';
@@ -32,7 +36,7 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
-type SocialProvider = 'kakao' | 'google';
+type SocialProvider = 'apple' | 'kakao' | 'google';
 
 function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
@@ -185,6 +189,11 @@ function App() {
     setPendingSocialProvider(provider);
 
     try {
+      if (provider === 'apple') {
+        await signInWithApple();
+        return;
+      }
+
       if (provider === 'kakao') {
         await signInWithKakao();
         return;
@@ -222,8 +231,10 @@ function App() {
     if (currentScreen === 'login') {
       return (
         <LoginScreen
+          isAppleLoginAvailable={isAppleSignInSupported}
           pendingSocialProvider={pendingSocialProvider}
           socialLoginError={socialLoginError}
+          onContinueWithApple={() => handleContinueWithSocial('apple')}
           onContinueWithGoogle={() => handleContinueWithSocial('google')}
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
           onOpenEmailLogin={() => pushAuthScreen('emailLogin')}

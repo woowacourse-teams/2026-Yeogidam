@@ -13,12 +13,14 @@ import {AuthScaffold} from './components/AuthScaffold';
 import type {NormalizedAuthError} from '../../lib/auth/errors';
 
 type LoginScreenProps = {
+  isAppleLoginAvailable: boolean;
   onOpenSignup: () => void;
   onOpenEmailLogin: () => void;
+  onContinueWithApple: () => void;
   onContinueWithKakao: () => void;
   onContinueWithGoogle: () => void;
   socialLoginError: NormalizedAuthError | null;
-  pendingSocialProvider: 'kakao' | 'google' | null;
+  pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
 };
 
 type SocialButton =
@@ -55,8 +57,10 @@ const footerLinks = ['회원가입', '로그인', '문의하기'] as const;
 type FooterLink = (typeof footerLinks)[number];
 
 export function LoginScreen({
+  isAppleLoginAvailable,
   onOpenSignup,
   onOpenEmailLogin,
+  onContinueWithApple,
   onContinueWithKakao,
   onContinueWithGoogle,
   socialLoginError,
@@ -69,6 +73,7 @@ export function LoginScreen({
     문의하기: () => {},
   };
   const socialButtonActions = {
+    apple: onContinueWithApple,
     kakao: onContinueWithKakao,
     google: onContinueWithGoogle,
   } as const;
@@ -80,17 +85,20 @@ export function LoginScreen({
           <Pressable
             key={button.label}
             disabled={
-              button.variant === 'apple' ? true : isSocialLoginPending
+              button.variant === 'apple'
+                ? !isAppleLoginAvailable || isSocialLoginPending
+                : isSocialLoginPending
             }
             onPress={
-              button.variant === 'apple'
+              button.variant === 'apple' && !isAppleLoginAvailable
                 ? undefined
                 : socialButtonActions[button.variant]
             }
             style={({pressed}) => [
               styles.socialButton,
               styles[`${button.variant}Button`],
-              (button.variant === 'apple' || isSocialLoginPending) &&
+              ((button.variant === 'apple' && !isAppleLoginAvailable) ||
+                isSocialLoginPending) &&
                 styles.disabledButton,
               pressed && styles.pressed,
             ]}>
