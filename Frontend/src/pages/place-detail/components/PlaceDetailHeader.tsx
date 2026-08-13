@@ -1,12 +1,22 @@
 import React, {useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-export function PlaceDetailHeader() {
+type PlaceDetailHeaderProps = {
+  onBack: () => void;
+};
+
+export function PlaceDetailHeader({onBack}: PlaceDetailHeaderProps) {
   const [isLiked, setIsLiked] = useState(false);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.back}>‹</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="뒤로 가기"
+        hitSlop={12}
+        onPress={onBack}>
+        <Text style={styles.back}>‹</Text>
+      </Pressable>
       <Pressable
         onPress={() => setIsLiked(previous => !previous)}
         style={({pressed}) => [styles.heartButton, pressed && styles.pressed]}

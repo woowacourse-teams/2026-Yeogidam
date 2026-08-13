@@ -1,20 +1,31 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text} from 'react-native';
 
 type SettingListProps = {
-  items: string[];
+  items: {
+    label: string;
+    onPress?: () => void;
+  }[];
 };
 
 export function SettingList({items}: SettingListProps) {
   return (
-    <View>
+    <>
       {items.map(item => (
-        <View key={item} style={styles.row}>
-          <Text style={styles.text}>{item}</Text>
+        <Pressable
+          key={item.label}
+          accessibilityRole={item.onPress ? 'button' : undefined}
+          disabled={!item.onPress}
+          onPress={item.onPress}
+          style={({pressed}) => [
+            styles.row,
+            item.onPress && pressed && styles.rowPressed,
+          ]}>
+          <Text style={styles.text}>{item.label}</Text>
           <Text style={styles.arrow}>›</Text>
-        </View>
+        </Pressable>
       ))}
-    </View>
+    </>
   );
 }
 
@@ -27,6 +38,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  rowPressed: {
+    backgroundColor: '#f7f8ff',
   },
   text: {
     fontSize: 15,

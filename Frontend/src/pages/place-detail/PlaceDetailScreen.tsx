@@ -1,18 +1,22 @@
-import React, { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import React, {useRef, useState} from 'react';
+import {ScrollView, StyleSheet, View} from 'react-native';
 
-import { placePostMocks } from '../../entities/place-post/mocks';
-import { placeMocks } from '../../entities/place/mocks';
-import { CopyToastProvider } from './components/CopyToast';
-import { PlaceDetailHeader } from './components/PlaceDetailHeader';
-import { PlaceInformation } from './components/PlaceInformation';
-import { PlaceInfo } from './components/PlaceInfo';
-import { PlaceMapButton } from './components/PlaceMapButton';
-import { PlaceTabs } from './components/PlaceTabs';
-import type { PlaceTab } from './components/PlaceTabs';
-import { PlacePostGrid } from './components/PlacePostGrid';
+import {placePostMocks} from '../../entities/place-post/mocks';
+import {placeMocks} from '../../entities/place/mocks';
+import {CopyToastProvider} from './components/CopyToast';
+import {PlaceDetailHeader} from './components/PlaceDetailHeader';
+import {PlaceInformation} from './components/PlaceInformation';
+import {PlaceInfo} from './components/PlaceInfo';
+import {PlaceMapButton} from './components/PlaceMapButton';
+import {PlacePostGrid} from './components/PlacePostGrid';
+import {PlaceTabs} from './components/PlaceTabs';
+import type {PlaceTab} from './components/PlaceTabs';
 
-export function PlaceDetailScreen() {
+type PlaceDetailScreenProps = {
+  onBack: () => void;
+};
+
+export function PlaceDetailScreen({onBack}: PlaceDetailScreenProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const tabsOffsetY = useRef(0);
   const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
@@ -40,10 +44,10 @@ export function PlaceDetailScreen() {
         stickyHeaderIndices={[2]}
         showsVerticalScrollIndicator={false}
       >
-        <PlaceDetailHeader />
+        <PlaceDetailHeader onBack={onBack} />
         <View
           onLayout={event => {
-            const { y, height } = event.nativeEvent.layout;
+            const {y, height} = event.nativeEvent.layout;
 
             tabsOffsetY.current = y + height;
           }}

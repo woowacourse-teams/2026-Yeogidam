@@ -1,11 +1,11 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-import type {MainScreen, Screen} from '../types/navigation';
+import type {MainScreen} from '../types/navigation';
 
 type BottomTabBarProps = {
   active: MainScreen;
-  onNavigate: (screen: Screen) => void;
+  onNavigate: (screen: MainScreen) => void;
 };
 
 const tabs: {id: MainScreen; icon: string; label: string}[] = [
@@ -30,9 +30,6 @@ export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
           </Text>
         </Pressable>
       ))}
-      <Pressable onPress={() => onNavigate('home')} style={styles.homeButton}>
-        <Text style={styles.homeButtonText}>⌂</Text>
-      </Pressable>
     </View>
   );
 }
@@ -63,17 +60,5 @@ const styles = StyleSheet.create({
   activeText: {
     color: '#b6c2fb',
     fontWeight: '800',
-  },
-  homeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#f5f3ee',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  homeButtonText: {
-    fontSize: 16,
-    color: '#8e8e93',
   },
 });

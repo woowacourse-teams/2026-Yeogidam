@@ -6,14 +6,18 @@ import {currentUserMock} from '../../entities/user/mocks';
 import {ProfileSection} from './components/ProfileSection';
 import {SettingList} from './components/SettingList';
 
-const settingItems = [
-  '내가 저장한 장소',
-  '최근 본 장소',
-  '알림 설정',
-  '앱 설정',
-];
+type MyPageScreenProps = {
+  onOpenSavedPlaces?: () => void;
+};
 
-export function MyPageScreen() {
+export function MyPageScreen({onOpenSavedPlaces}: MyPageScreenProps) {
+  const settingItems = [
+    {label: '내가 저장한 장소', onPress: onOpenSavedPlaces},
+    {label: '최근 본 장소'},
+    {label: '알림 설정'},
+    {label: '앱 설정'},
+  ];
+
   return (
     <View style={styles.container}>
       <ScreenHeader title="마이" />

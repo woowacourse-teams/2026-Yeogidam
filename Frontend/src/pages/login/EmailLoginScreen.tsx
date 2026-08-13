@@ -7,11 +7,13 @@ import {AuthTextField} from './components/AuthTextField';
 type EmailLoginScreenProps = {
   onBack: () => void;
   onOpenSignup: () => void;
+  onLogin: () => void;
 };
 
 export function EmailLoginScreen({
   onBack,
   onOpenSignup,
+  onLogin,
 }: EmailLoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +42,9 @@ export function EmailLoginScreen({
         />
       </View>
 
-      <Pressable style={({pressed}) => [styles.primaryButton, pressed && styles.pressed]}>
+      <Pressable
+        onPress={onLogin}
+        style={({pressed}) => [styles.primaryButton, pressed && styles.pressed]}>
         <Text style={styles.primaryButtonText}>로그인</Text>
       </Pressable>
 

@@ -45,6 +45,8 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
 
     return savedPlaces.filter(
       place =>
+        place.latitude !== undefined &&
+        place.longitude !== undefined &&
         place.latitude >= visibleBounds.southLatitude &&
         place.latitude <= visibleBounds.northLatitude &&
         place.longitude >= visibleBounds.westLongitude &&

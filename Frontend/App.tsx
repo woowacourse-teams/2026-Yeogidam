@@ -3,80 +3,142 @@ import {StatusBar, StyleSheet, View} from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {BottomTabBar} from './src/components/BottomTabBar';
-import {HomeScreen} from './src/pages/home/HomeScreen';
 import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
 import {SignUpScreen} from './src/pages/login/SignUpScreen';
-import {EmptySavedPlacesScreen} from './src/pages/saved-places/EmptySavedPlacesScreen';
-import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
 import {MapScreen} from './src/pages/map/MapScreen';
-import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
-import type {MainScreen, Screen} from './src/types/navigation';
+import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
+import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
+import type {
+  AppFlowState,
+  AuthScreen,
+  MainScreen,
+  Screen,
+} from './src/types/navigation';
+
+const INITIAL_FLOW_STATE: AppFlowState = {
+  kind: 'auth',
+  stack: ['login'],
+};
 
 function App() {
-  const [screen, setScreen] = useState<Screen>('home');
+  const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
+
+  const currentScreen: Screen =
+    flowState.kind === 'auth'
+      ? flowState.stack[flowState.stack.length - 1]
+      : flowState.detailSource
+        ? 'detail'
+        : flowState.activeTab;
+
+  const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
+    setFlowState(current =>
+      current.kind === 'auth'
+        ? {
+            ...current,
+            stack: [...current.stack, nextScreen],
+          }
+        : current,
+    );
+  };
+
+  const popAuthScreen = () => {
+    setFlowState(current => {
+      if (current.kind !== 'auth' || current.stack.length === 1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        stack: current.stack.slice(0, -1),
+      };
+    });
+  };
+
+  const openMainScreen = (nextScreen: MainScreen) => {
+    setFlowState({
+      kind: 'main',
+      activeTab: nextScreen,
+      detailSource: null,
+    });
+  };
+
+  const openDetailFrom = (sourceScreen: 'saved' | 'map') => {
+    setFlowState(current =>
+      current.kind === 'main'
+        ? {
+            ...current,
+            activeTab: sourceScreen,
+            detailSource: sourceScreen,
+          }
+        : current,
+    );
+  };
+
+  const closeDetail = () => {
+    setFlowState(current =>
+      current.kind === 'main'
+        ? {
+            ...current,
+            detailSource: null,
+          }
+        : current,
+    );
+  };
 
   const renderScreen = () => {
-    if (screen === 'home') {
-      return <HomeScreen onOpen={setScreen} />;
-    }
-
-    if (screen === 'login') {
+    if (currentScreen === 'login') {
       return (
         <LoginScreen
-          onBack={() => setScreen('home')}
-          onOpenEmailLogin={() => setScreen('emailLogin')}
-          onOpenSignup={() => setScreen('signup')}
+          onContinue={() => openMainScreen('saved')}
+          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
+          onOpenSignup={() => pushAuthScreen('signup')}
         />
       );
     }
 
-    if (screen === 'emailLogin') {
+    if (currentScreen === 'emailLogin') {
       return (
         <EmailLoginScreen
-          onBack={() => setScreen('login')}
-          onOpenSignup={() => setScreen('signup')}
+          onBack={popAuthScreen}
+          onLogin={() => openMainScreen('saved')}
+          onOpenSignup={() => pushAuthScreen('signup')}
         />
       );
     }
 
-    if (screen === 'signup') {
+    if (currentScreen === 'signup') {
       return (
         <SignUpScreen
-          onBack={() => setScreen('login')}
-          onOpenEmailLogin={() => setScreen('emailLogin')}
+          onBack={popAuthScreen}
+          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
+          onSignUp={() => openMainScreen('saved')}
         />
       );
     }
 
-    if (screen === 'saved') {
-      return <SavedPlacesScreen onOpenDetail={() => setScreen('detail')} />;
+    if (currentScreen === 'saved') {
+      return <SavedPlacesScreen onOpenDetail={() => openDetailFrom('saved')} />;
     }
 
-    if (screen === 'empty') {
-      return <EmptySavedPlacesScreen />;
+    if (currentScreen === 'map') {
+      return <MapScreen onOpenDetail={() => openDetailFrom('map')} />;
     }
 
-    if (screen === 'map') {
-      return <MapScreen onOpenDetail={() => setScreen('detail')} />;
+    if (currentScreen === 'detail') {
+      return <PlaceDetailScreen onBack={closeDetail} />;
     }
 
-    if (screen === 'detail') {
-      return <PlaceDetailScreen />;
-    }
-
-    return <MyPageScreen />;
+    return <MyPageScreen onOpenSavedPlaces={() => openMainScreen('saved')} />;
   };
 
   const showTabBar =
-    screen !== 'home' &&
-    screen !== 'login' &&
-    screen !== 'emailLogin' &&
-    screen !== 'signup';
-        
-  const isMapScreen = screen === 'map';
+    flowState.kind === 'main' && flowState.detailSource === null;
 
+  const isMapScreen = currentScreen === 'map';
+  const activeTab =
+    flowState.kind === 'main' ? flowState.activeTab : undefined;
 
   return (
     <SafeAreaProvider>
@@ -90,10 +152,10 @@ function App() {
         />
         <View style={styles.container}>
           {renderScreen()}
-          {showTabBar ? (
+          {showTabBar && activeTab ? (
             <BottomTabBar
-              active={screen as MainScreen}
-              onNavigate={setScreen}
+              active={activeTab}
+              onNavigate={openMainScreen}
             />
           ) : null}
         </View>

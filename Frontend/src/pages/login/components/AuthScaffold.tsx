@@ -13,7 +13,7 @@ import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 type AuthScaffoldProps = {
   children: React.ReactNode;
-  onBack: () => void;
+  onBack?: () => void;
   title?: string;
   description?: string;
   contentStyle?: StyleProp<ViewStyle>;
@@ -31,9 +31,13 @@ export function AuthScaffold({
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}>
-      <Pressable hitSlop={12} onPress={onBack} style={styles.closeButton}>
-        <MaterialIcons color="#121212" name="close" size={34} />
-      </Pressable>
+      {onBack ? (
+        <Pressable hitSlop={12} onPress={onBack} style={styles.closeButton}>
+          <MaterialIcons color="#121212" name="close" size={34} />
+        </Pressable>
+      ) : (
+        <View style={styles.closeButtonSpacer} />
+      )}
 
       <View style={styles.logoSection}>
         <Image
@@ -67,6 +71,9 @@ const styles = StyleSheet.create({
   closeButton: {
     alignSelf: 'flex-start',
     marginLeft: -6,
+  },
+  closeButtonSpacer: {
+    height: 34,
   },
   logoSection: {
     alignItems: 'center',

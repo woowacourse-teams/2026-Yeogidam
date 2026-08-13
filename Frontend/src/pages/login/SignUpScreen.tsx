@@ -7,11 +7,13 @@ import {AuthTextField} from './components/AuthTextField';
 type SignUpScreenProps = {
   onBack: () => void;
   onOpenEmailLogin: () => void;
+  onSignUp: () => void;
 };
 
 export function SignUpScreen({
   onBack,
   onOpenEmailLogin,
+  onSignUp,
 }: SignUpScreenProps) {
   const [nickname, setNickname] = useState('');
   const [email, setEmail] = useState('');
@@ -56,7 +58,9 @@ export function SignUpScreen({
         />
       </View>
 
-      <Pressable style={({pressed}) => [styles.primaryButton, pressed && styles.pressed]}>
+      <Pressable
+        onPress={onSignUp}
+        style={({pressed}) => [styles.primaryButton, pressed && styles.pressed]}>
         <Text style={styles.primaryButtonText}>회원가입</Text>
       </Pressable>
 
