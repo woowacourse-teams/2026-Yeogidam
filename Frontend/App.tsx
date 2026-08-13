@@ -11,6 +11,7 @@ import {MapScreen} from './src/pages/map/MapScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
+import type {Place} from './src/entities/place/types';
 import type {
   AppFlowState,
   AuthScreen,
@@ -28,6 +29,7 @@ configureDataSources();
 function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -72,7 +74,8 @@ function App() {
     });
   };
 
-  const openDetailFrom = (sourceScreen: 'saved' | 'map') => {
+  const openDetailFrom = (sourceScreen: 'saved' | 'map', place: Place) => {
+    setSelectedPlace(place);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -85,6 +88,7 @@ function App() {
   };
 
   const closeDetail = () => {
+    setSelectedPlace(null);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -130,7 +134,7 @@ function App() {
       return (
         <SavedPlacesScreen
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
-          onOpenDetail={() => openDetailFrom('saved')}
+          onOpenDetail={place => openDetailFrom('saved', place)}
         />
       );
     }
@@ -141,8 +145,8 @@ function App() {
       );
     }
 
-    if (currentScreen === 'detail') {
-      return <PlaceDetailScreen onBack={closeDetail} />;
+    if (currentScreen === 'detail' && selectedPlace) {
+      return <PlaceDetailScreen onBack={closeDetail} place={selectedPlace} />;
     }
 
     return <MyPageScreen onOpenSavedPlaces={() => openMainScreen('saved')} />;

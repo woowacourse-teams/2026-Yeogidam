@@ -22,7 +22,9 @@ export async function getInfoPlaces(): Promise<InfoPlace[]> {
   return Promise.resolve(frontendInfoDomainMock.places);
 }
 
-export async function getPlaceInfo(placeId: string): Promise<InfoPlace | undefined> {
+export async function getPlaceInfo(
+  placeId: string,
+): Promise<InfoPlace | undefined> {
   return Promise.resolve(
     frontendInfoDomainMock.places.find(place => place.id === placeId),
   );
@@ -38,7 +40,9 @@ export async function getUserSavedPlaces(
   userId: string,
 ): Promise<SavedPlaceInfo[]> {
   return Promise.resolve(
-    frontendInfoDomainMock.savedPlaces.filter(savedPlace => savedPlace.userId === userId),
+    frontendInfoDomainMock.savedPlaces.filter(
+      savedPlace => savedPlace.userId === userId,
+    ),
   );
 }
 
@@ -62,14 +66,38 @@ const savedPlacesError = (
   status: number | null,
   message: string,
   retryable: boolean,
-): SavedPlacesApiError => ({status, errorCode, message, retryable});
+): SavedPlacesApiError => ({ status, errorCode, message, retryable });
 
 function fallbackSavedPlacesError(status: number | null) {
-  if (status === 400) return savedPlacesError('COMMON400_001', 400, '요청 내용을 확인해주세요.', false);
-  if (status === 401) return savedPlacesError('AUTH401_001', 401, '로그인이 필요해요.', true);
-  if (status === 403) return savedPlacesError('AUTH403_001', 403, '이 작업을 수행할 권한이 없어요.', false);
-  if (status !== null && status >= 500) return savedPlacesError('DATA500_001', 500, '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.', true);
-  return savedPlacesError('CLIENT000_003', null, '응답을 처리하지 못했어요.', false);
+  if (status === 400)
+    return savedPlacesError(
+      'COMMON400_001',
+      400,
+      '요청 내용을 확인해주세요.',
+      false,
+    );
+  if (status === 401)
+    return savedPlacesError('AUTH401_001', 401, '로그인이 필요해요.', true);
+  if (status === 403)
+    return savedPlacesError(
+      'AUTH403_001',
+      403,
+      '이 작업을 수행할 권한이 없어요.',
+      false,
+    );
+  if (status !== null && status >= 500)
+    return savedPlacesError(
+      'DATA500_001',
+      500,
+      '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+      true,
+    );
+  return savedPlacesError(
+    'CLIENT000_003',
+    null,
+    '응답을 처리하지 못했어요.',
+    false,
+  );
 }
 
 type SupabaseSavedPlaceResponse = {
@@ -92,7 +120,9 @@ type SupabaseSavedPlaceResponse = {
 };
 
 /** Supabase 전용 JSON을 앱의 `SavedPlaceListItem` 계약으로 바꿉니다. */
-function toSavedPlaceListItem(item: SupabaseSavedPlaceResponse): SavedPlaceListItem {
+function toSavedPlaceListItem(
+  item: SupabaseSavedPlaceResponse,
+): SavedPlaceListItem {
   return {
     id: item.id,
     thumbnailUrl: item.thumbnail_url,
@@ -124,18 +154,30 @@ export function createSupabaseSavedPlacesRepository(
     if (!options.baseUrl) throw fallbackSavedPlacesError(null);
 
     const token = await options.getAccessToken?.();
-    const query = `?select=${encodeURIComponent(SAVED_PLACES_SELECT)}&order=created_at.desc`;
+    const query = `?select=${encodeURIComponent(
+      SAVED_PLACES_SELECT,
+    )}&order=created_at.desc`;
     let response: Response;
     try {
-      response = await fetch(`${options.baseUrl.replace(/\/$/, '')}/rest/v1/saved_places${query}`, {
-        headers: {
-          Accept: 'application/json',
-          ...(options.publishableKey ? {apikey: options.publishableKey} : {}),
-          ...(token ? {Authorization: `Bearer ${token}`} : {}),
+      response = await fetch(
+        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/saved_places${query}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            ...(options.publishableKey
+              ? { apikey: options.publishableKey }
+              : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         },
-      });
+      );
     } catch {
-      throw savedPlacesError('CLIENT000_001', null, '인터넷 연결을 확인해주세요.', true);
+      throw savedPlacesError(
+        'CLIENT000_001',
+        null,
+        '인터넷 연결을 확인해주세요.',
+        true,
+      );
     }
 
     let body: unknown;
@@ -147,7 +189,11 @@ export function createSupabaseSavedPlacesRepository(
     if (!response.ok) {
       const normalized = body as Partial<SavedPlacesApiError>;
       const fallback = fallbackSavedPlacesError(response.status);
-      throw {...fallback, ...normalized, status: normalized.status ?? fallback.status};
+      throw {
+        ...fallback,
+        ...normalized,
+        status: normalized.status ?? fallback.status,
+      };
     }
 
     return (body as SupabaseSavedPlaceResponse[]).map(toSavedPlaceListItem);
@@ -159,8 +205,8 @@ export function createSupabaseSavedPlacesRepository(
         return await getSavedPlacesOnce();
       } catch (error) {
         if (
-          (error as {errorCode?: string}).errorCode === 'AUTH401_002' &&
-          await options.refreshSession?.()
+          (error as { errorCode?: string }).errorCode === 'AUTH401_002' &&
+          (await options.refreshSession?.())
         ) {
           return getSavedPlacesOnce();
         }
@@ -183,12 +229,14 @@ export function createMockSavedPlacesRepository(): SavedPlacesRepository {
           );
 
           return place
-            ? [{
-                id: savedPlace.id,
-                thumbnailUrl: savedPlace.thumbnailUrl,
-                createdAt: savedPlace.createdAt,
-                place,
-              }]
+            ? [
+                {
+                  id: savedPlace.id,
+                  thumbnailUrl: savedPlace.thumbnailUrl,
+                  createdAt: savedPlace.createdAt,
+                  place,
+                },
+              ]
             : [];
         });
     },
@@ -196,9 +244,12 @@ export function createMockSavedPlacesRepository(): SavedPlacesRepository {
 }
 
 // Supabase 설정 전에도 저장됨 화면은 기존 info 목 데이터로 표시합니다.
-let savedPlacesRepository: SavedPlacesRepository = createMockSavedPlacesRepository();
+let savedPlacesRepository: SavedPlacesRepository =
+  createMockSavedPlacesRepository();
 
-export function configureSavedPlacesRepository(repository: SavedPlacesRepository) {
+export function configureSavedPlacesRepository(
+  repository: SavedPlacesRepository,
+) {
   savedPlacesRepository = repository;
 }
 

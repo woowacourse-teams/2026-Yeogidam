@@ -14,7 +14,7 @@ import {SavedPlacesLinkDialog} from './components/SavedPlacesLinkDialog';
 import {SavedPlacesSearchPanel} from './components/SavedPlacesSearchPanel';
 
 type SavedPlacesScreenProps = {
-  onOpenDetail: () => void;
+  onOpenDetail: (place: Place) => void;
   onAuthenticationRequired?: () => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   places?: Place[];
@@ -80,7 +80,7 @@ export function SavedPlacesScreen({
           <SavedPlacesSearchPanel
             places={places}
             onCloseSearch={() => setIsSearchOpen(false)}
-            onPressPlace={() => onOpenDetail()}
+            onPressPlace={onOpenDetail}
           />
           {hasSavedPlaces ? (
             <Pressable onPress={openDialog} style={styles.fabShadow}>
@@ -111,7 +111,7 @@ export function SavedPlacesScreen({
               <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false}>
                 <SavedPlaceGrid
                   places={places}
-                  onPressPlace={() => onOpenDetail()}
+                  onPressPlace={onOpenDetail}
                 />
                 <View style={styles.scrollFooter}>
                   <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
