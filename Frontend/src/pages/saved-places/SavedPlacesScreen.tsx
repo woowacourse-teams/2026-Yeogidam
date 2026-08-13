@@ -159,8 +159,8 @@ export function SavedPlacesScreen({
   const [processingUrl, setProcessingUrl] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(null);
-  const [isReusedFailure, setIsReusedFailure] = useState(false);
-  const [lastRequestId, setLastRequestId] = useState<string | null>(null);
+  const [isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
+  const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasSavedPlaces = places.length > 0;
 
@@ -222,6 +222,7 @@ export function SavedPlacesScreen({
     url: string,
   ) => {
     if (response.status === 'COMPLETED') {
+      setIsSaveResponseFailure(false);
       setProcessingReelId(null);
       setProcessingReel(null);
       setProcessingUrl(null);
@@ -229,7 +230,8 @@ export function SavedPlacesScreen({
       return;
     }
 
-    setIsReusedFailure(response.status === 'FAILED' && response.reused);
+    // REEL-01의 200 FAILED 결과는 reused 값과 관계없이 재시도 UI를 표시합니다.
+    setIsSaveResponseFailure(response.status === 'FAILED');
     setProcessingReelId(response.reelId);
     setProcessingUrl(url);
     setProcessingReel({
@@ -242,6 +244,7 @@ export function SavedPlacesScreen({
   };
 
   const dismissProcessingCard = () => {
+    setIsSaveResponseFailure(false);
     setProcessingReelId(null);
     setProcessingReel(null);
     setProcessingUrl(null);
@@ -265,10 +268,6 @@ export function SavedPlacesScreen({
       setIsSubmitting(false);
     }
   };
-
-  // REEL-02의 비동기 처리 실패 코드는 명세상 모두 자동 재시도하지 않습니다.
-  // POST 자체의 retryable 오류는 reelId가 없으므로 이 카드에 표시하지 않습니다.
-  const isRetryableFailure = false;
 
   useEffect(() => {
     if (!processingReelId || processingReel?.processing_status === 'FAILED') {
@@ -421,7 +420,9 @@ export function SavedPlacesScreen({
               message={getFailureMessage(processingReel.failure_reason)}
               description={getFailureDescription(processingReel.failure_reason)}
               onCancel={dismissProcessingCard}
-              onRetry={isReusedFailure ? retryProcessing : undefined}
+              // REEL-01이 200 FAILED를 반환한 경우
+              // reused 값과 관계없이 동일 URL로 저장 요청을 다시 보냅니다.
+              onRetry={isSaveResponseFailure ? retryProcessing : undefined}
             />
           ) : processingReel &&
             processingReel.processing_status !== 'COMPLETED' ? (
