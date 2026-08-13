@@ -278,7 +278,23 @@ export function SavedPlacesScreen({
     let isActive = true;
     const poll = async () => {
       try {
-        const nextStatus = await getReelProcessingStatus(processingReelId);
+        let nextStatus: ReelProcessingStatus | null;
+        try {
+          nextStatus = await getReelProcessingStatus(processingReelId);
+        } catch (error) {
+          const firstError = normalizeReelError(error);
+          if (firstError.errorCode !== 'AUTH401_002') {
+            throw firstError;
+          }
+
+          const {error: refreshError} = await supabase.auth.refreshSession();
+          if (refreshError) {
+            throw firstError;
+          }
+
+          nextStatus = await getReelProcessingStatus(processingReelId);
+        }
+
         if (isActive && nextStatus) {
           setStatusQueryError(null);
           setProcessingReel(nextStatus);
@@ -291,7 +307,12 @@ export function SavedPlacesScreen({
         if (isActive) {
           const normalizedError = normalizeReelError(error);
           setStatusQueryError(normalizedError);
-          if (!normalizedError.retryable) {
+          if (normalizedError.errorCode === 'AUTH401_001') {
+            setProcessingReelId(null);
+            onRequireLogin?.();
+          } else if (normalizedError.errorCode === 'AUTH403_001') {
+            setProcessingReelId(null);
+          } else if (!normalizedError.retryable) {
             setProcessingReelId(null);
           }
         }
@@ -303,7 +324,7 @@ export function SavedPlacesScreen({
       isActive = false;
       clearInterval(intervalId);
     };
-  }, [processingReelId, processingReel?.processing_status, statusQueryError]);
+  }, [processingReelId, processingReel?.processing_status, onRequireLogin]);
 
   useEffect(() => {
     if (!showSaveSuccess) {

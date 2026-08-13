@@ -5,7 +5,7 @@ import type {
   SaveSource,
   ReelProcessingStatus,
 } from './types';
-import {reelErrorFromEnvelope, ReelApiError} from './errors';
+import {normalizeReelStatusError, reelErrorFromEnvelope, ReelApiError} from './errors';
 
 const REEL_STATUS_SELECT =
   'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
@@ -95,11 +95,7 @@ export async function getReelProcessingStatus(
     .maybeSingle<ReelProcessingStatus>();
 
   if (error) {
-    throw new ReelApiError({
-      errorCode: 'DATA500_001',
-      message: '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
-      retryable: true,
-    });
+    throw normalizeReelStatusError(error);
   }
 
   return data;

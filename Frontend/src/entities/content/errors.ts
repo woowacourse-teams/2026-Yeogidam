@@ -3,6 +3,7 @@ export type ReelErrorCode =
   | 'REEL400_001'
   | 'AUTH401_001'
   | 'AUTH401_002'
+  | 'AUTH403_001'
   | 'COMMON405_001'
   | 'DATA500_001'
   | 'COMMON500_001'
@@ -106,5 +107,56 @@ export function reelErrorFromEnvelope(envelope: unknown): ReelApiError | null {
         ? ((value.details as Record<string, unknown>).field as string)
         : undefined,
     status: typeof value.status === 'number' ? value.status : null,
+  });
+}
+
+export function normalizeReelStatusError(error: unknown): ReelApiError {
+  if (error instanceof ReelApiError) {
+    return error;
+  }
+
+  const value = error as {status?: number; code?: string; message?: string} | null;
+  const status = value?.status;
+
+  if (status === 401) {
+    return new ReelApiError({
+      errorCode: 'AUTH401_002',
+      message: '로그인이 만료됐어요. 다시 로그인해주세요.',
+      retryable: true,
+      status,
+    });
+  }
+
+  if (status === 403) {
+    return new ReelApiError({
+      errorCode: 'AUTH403_001',
+      message: '이 작업을 수행할 권한이 없어요.',
+      retryable: false,
+      status,
+    });
+  }
+
+  if (status === 408 || status === 504) {
+    return new ReelApiError({
+      errorCode: 'CLIENT000_002',
+      message: '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+      retryable: true,
+      status,
+    });
+  }
+
+  if (value?.code === 'PGRST116') {
+    return new ReelApiError({
+      errorCode: 'CLIENT000_003',
+      message: '응답을 처리하지 못했어요.',
+      retryable: false,
+    });
+  }
+
+  return new ReelApiError({
+    errorCode: 'DATA500_001',
+    message: '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+    retryable: true,
+    status: status ?? null,
   });
 }
