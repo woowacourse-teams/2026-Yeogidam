@@ -55,6 +55,26 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
         place.longitude <= visibleBounds.eastLongitude,
     );
   }, [savedPlaces, visibleBounds]);
+  const filteredVisiblePlaces = useMemo(() => {
+    const normalizedKeyword = searchKeyword.trim().toLowerCase();
+
+    if (!normalizedKeyword) {
+      return visiblePlaces;
+    }
+
+    return visiblePlaces.filter(place => {
+      const searchableFields = [
+        place.name,
+        place.category,
+        place.address,
+        place.fullAddress,
+      ]
+        .filter(Boolean)
+        .map(value => value.toLowerCase());
+
+      return searchableFields.some(value => value.includes(normalizedKeyword));
+    });
+  }, [searchKeyword, visiblePlaces]);
 
   return (
     <View
@@ -130,7 +150,7 @@ export function MapScreen({ onOpenDetail }: MapScreenProps) {
           <PlaceResultSheet
             height={mapHeight - bottomNavigationOffset}
             topInset={topInset}
-            places={visiblePlaces}
+            places={filteredVisiblePlaces}
             collapseSignal={collapseSignal}
             onExpandedChange={setIsSheetExpanded}
             onVisibleHeightChange={setSheetVisibleHeight}

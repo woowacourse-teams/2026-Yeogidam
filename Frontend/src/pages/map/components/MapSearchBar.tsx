@@ -7,6 +7,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 type MapSearchBarProps = {
   value: string;
@@ -56,6 +57,9 @@ export function MapSearchBar({
         style={styles.input}
         value={value}
       />
+      <View style={styles.searchAction}>
+        <MaterialIcons color="#d8dffe" name="search" size={18} />
+      </View>
       {Platform.OS !== 'ios' && value ? (
         <Pressable
           accessibilityRole="button"
@@ -108,6 +112,20 @@ const styles = StyleSheet.create({
     textAlignVertical: 'center',
     fontWeight: '800',
     color: '#202124',
+  },
+  searchAction: {
+    width: 30,
+    height: 30,
+    marginLeft: 10,
+    borderRadius: 15,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: {width: 0, height: 4},
+    shadowRadius: 10,
+    elevation: 4,
   },
   backButton: {
     width: 28,
