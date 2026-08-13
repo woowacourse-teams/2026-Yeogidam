@@ -37,6 +37,14 @@ export function normalizeReelError(error: unknown): ReelApiError {
     return error;
   }
 
+  if (error instanceof Error) {
+    return new ReelApiError({
+      errorCode: 'COMMON400_001',
+      message: error.message,
+      retryable: false,
+    });
+  }
+
   const candidate = error as {
     context?: {json?: () => Promise<unknown>};
     message?: string;

@@ -73,7 +73,12 @@ export async function saveContent(
   const normalizedUrl = url.trim();
 
   if (detectContentType(normalizedUrl) !== 'instagram_reel') {
-    throw new Error('지원하지 않는 링크입니다. Instagram 릴스 링크를 입력해주세요.');
+    throw new ReelApiError({
+      errorCode: 'REEL400_001',
+      message: '지원하지 않는 링크입니다. Instagram 릴스 링크를 입력해주세요.',
+      retryable: false,
+      field: 'instagramUrl',
+    });
   }
 
   return saveInstagramReel(normalizedUrl, source);
@@ -89,7 +94,11 @@ export async function getReelProcessingStatus(
     .maybeSingle<ReelProcessingStatus>();
 
   if (error) {
-    throw error;
+    throw new ReelApiError({
+      errorCode: 'DATA500_001',
+      message: '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+      retryable: true,
+    });
   }
 
   return data;

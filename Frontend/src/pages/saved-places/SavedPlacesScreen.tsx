@@ -24,7 +24,7 @@ import {
   saveContent,
 } from '../../entities/content/api';
 import type { ReelProcessingStatus } from '../../entities/content/types';
-import {normalizeReelError} from '../../entities/content/errors';
+import {normalizeReelError, ReelApiError} from '../../entities/content/errors';
 
 // 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
 const SHOW_CARD_PREVIEW = false;
@@ -77,17 +77,14 @@ function ReelStatusCard({
           />
         </View>
       ) : null}
-      {!completed ? (
+      {failed ? (
         <View style={styles.processingActions}>
           {failed && onRetry ? (
             <Pressable onPress={onRetry} style={styles.retryButton}>
               <Text style={styles.retryButtonText}>다시 시도</Text>
             </Pressable>
           ) : null}
-          <Pressable
-            onPress={failed ? onCancel : onCancel}
-            style={styles.dismissButton}
-          >
+          <Pressable onPress={onCancel} style={styles.dismissButton}>
             <Text style={styles.dismissButtonText}>
               {failed ? '닫기' : '취소'}
             </Text>
@@ -128,6 +125,16 @@ function getFailureDescription(reason: string | null): string {
   }
 }
 
+function getStatusQueryMessage(error: ReelApiError): string {
+  if (error.errorCode === 'CLIENT000_001') {
+    return '인터넷 연결을 확인해주세요.';
+  }
+  if (error.errorCode === 'CLIENT000_002') {
+    return '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.';
+  }
+  return error.message;
+}
+
 type SavedPlacesScreenProps = {
   onOpenDetail: () => void;
   places?: Place[];
@@ -148,6 +155,7 @@ export function SavedPlacesScreen({
     useState<ReelProcessingStatus | null>(null);
   const [processingUrl, setProcessingUrl] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasSavedPlaces = places.length > 0;
 
@@ -179,11 +187,7 @@ export function SavedPlacesScreen({
       setLinkValue('');
     } catch (error) {
       const normalizedError = normalizeReelError(error);
-      setLinkError(
-        normalizedError.retryable
-          ? `${normalizedError.message} 저장 버튼을 눌러 다시 시도해주세요.`
-          : normalizedError.message,
-      );
+      setLinkError(normalizedError.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -251,14 +255,21 @@ export function SavedPlacesScreen({
       try {
         const nextStatus = await getReelProcessingStatus(processingReelId);
         if (isActive && nextStatus) {
+          setStatusQueryError(null);
           setProcessingReel(nextStatus);
           if (nextStatus.processing_status === 'COMPLETED') {
             setProcessingReelId(null);
             setShowSaveSuccess(true);
           }
         }
-      } catch {
-        // Keep the current processing card; the next interval can retry the read.
+      } catch (error) {
+        if (isActive) {
+          const normalizedError = normalizeReelError(error);
+          setStatusQueryError(normalizedError);
+          if (!normalizedError.retryable) {
+            setProcessingReelId(null);
+          }
+        }
       }
     };
 
@@ -267,7 +278,7 @@ export function SavedPlacesScreen({
       isActive = false;
       clearInterval(intervalId);
     };
-  }, [processingReelId, processingReel?.processing_status]);
+  }, [processingReelId, processingReel?.processing_status, statusQueryError]);
 
   useEffect(() => {
     if (!showSaveSuccess) {
@@ -310,7 +321,10 @@ export function SavedPlacesScreen({
           <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
           <View style={styles.divider} />
           {SHOW_CARD_PREVIEW ? (
-            <View>
+            <ScrollView
+              contentContainerStyle={styles.previewContent}
+              showsVerticalScrollIndicator={false}
+            >
               <ReelStatusCard
                 status="PROCESSING"
                 message="릴스에서 장소를 찾고 있어요."
@@ -318,17 +332,36 @@ export function SavedPlacesScreen({
               />
               <ReelStatusCard
                 status="FAILED"
+                message="인터넷 연결을 확인해주세요."
+                description="연결을 확인한 뒤 다시 시도해주세요."
+                onCancel={() => {}}
+                onRetry={() => {}}
+              />
+              <ReelStatusCard
+                status="FAILED"
+                message="데이터를 처리하지 못했어요."
+                description="잠시 후 다시 시도해주세요."
+                onCancel={() => {}}
+                onRetry={() => {}}
+              />
+              <ReelStatusCard
+                status="FAILED"
                 message="지도에서 일치하는 장소를 찾지 못했어요."
                 description="릴스의 장소 정보를 확인한 뒤 다시 시도해주세요."
                 onCancel={() => {}}
-                onRetry={() => {}}
+              />
+              <ReelStatusCard
+                status="FAILED"
+                message="릴스 캡션을 읽지 못했어요."
+                description="릴스에 장소 정보가 포함되어 있는지 확인해주세요."
+                onCancel={() => {}}
               />
               <ReelStatusCard
                 status="COMPLETED"
                 message="장소를 저장했어요."
                 description="저장 장소에 반영되었습니다."
               />
-            </View>
+            </ScrollView>
           ) : showSaveSuccess ? (
             <ReelStatusCard
               status="COMPLETED"
@@ -346,10 +379,19 @@ export function SavedPlacesScreen({
           ) : processingReel &&
             processingReel.processing_status !== 'COMPLETED' ? (
             <ReelStatusCard
-              status="PROCESSING"
-              message="릴스에서 장소를 찾고 있어요."
-              description="처리가 완료되면 저장 장소에 반영됩니다."
+              status={statusQueryError ? 'FAILED' : 'PROCESSING'}
+              message={statusQueryError ? getStatusQueryMessage(statusQueryError) : '릴스에서 장소를 찾고 있어요.'}
+              description={
+                statusQueryError
+                  ? '잠시 후 다시 시도하거나 카드를 닫아주세요.'
+                  : '처리가 완료되면 저장 장소에 반영됩니다.'
+              }
               onCancel={dismissProcessingCard}
+              onRetry={
+                statusQueryError?.retryable
+                  ? () => setStatusQueryError(null)
+                  : undefined
+              }
             />
           ) : null}
           {hasSavedPlaces ? (
@@ -412,6 +454,7 @@ const styles = StyleSheet.create({
   processingCard: {
     marginHorizontal: 24,
     marginTop: 10,
+    marginBottom: 16,
     borderRadius: 20,
     backgroundColor: '#e9edff',
     paddingHorizontal: 18,
@@ -422,6 +465,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 5 },
     shadowRadius: 10,
     elevation: 6,
+  },
+  previewContent: {
+    paddingBottom: 32,
   },
   floatingStatus: {
     marginHorizontal: 24,

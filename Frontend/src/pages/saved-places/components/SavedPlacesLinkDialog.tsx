@@ -17,6 +17,7 @@ type SavedPlacesLinkDialogProps = {
   onSubmit: () => void;
   isSubmitting?: boolean;
   errorMessage?: string | null;
+  submitLabel?: string;
 };
 
 export function SavedPlacesLinkDialog({
@@ -27,6 +28,7 @@ export function SavedPlacesLinkDialog({
   onSubmit,
   isSubmitting = false,
   errorMessage = null,
+  submitLabel = '저장',
 }: SavedPlacesLinkDialogProps) {
   return (
     <Modal
@@ -57,7 +59,7 @@ export function SavedPlacesLinkDialog({
               <Text style={styles.cancelText}>취소</Text>
             </Pressable>
             <Pressable disabled={isSubmitting} onPress={onSubmit} style={styles.confirmButton}>
-              {isSubmitting ? <ActivityIndicator color="#23232d" /> : <Text style={styles.confirmText}>저장</Text>}
+              {isSubmitting ? <ActivityIndicator color="#23232d" /> : <Text style={styles.confirmText}>{submitLabel}</Text>}
             </Pressable>
           </View>
         </Pressable>
