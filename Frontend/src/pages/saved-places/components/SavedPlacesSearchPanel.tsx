@@ -94,7 +94,11 @@ export function SavedPlacesSearchPanel({
                 <Pressable
                   onPress={() => onPressPlace(place)}
                   style={styles.resultCardBody}>
-                  <Image source={place.image} style={styles.resultImage} />
+                  {place.image ? (
+                    <Image source={place.image} style={styles.resultImage} />
+                  ) : (
+                    <View style={[styles.resultImage, styles.resultImagePlaceholder]} />
+                  )}
                   <View style={styles.resultDim} />
                 </Pressable>
                 <View style={styles.resultImageOverlay}>
@@ -225,6 +229,9 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  resultImagePlaceholder: {
+    backgroundColor: '#d8dffe',
   },
   resultDim: {
     position: 'absolute',

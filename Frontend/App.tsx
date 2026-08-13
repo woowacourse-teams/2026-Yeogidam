@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
+import {configureDataSources} from './src/app/configureDataSources';
 import {BottomTabBar} from './src/components/BottomTabBar';
 import type {NormalizedAuthError} from './src/lib/auth/errors';
 import {
@@ -25,6 +26,7 @@ import {MapScreen} from './src/pages/map/MapScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
+import type {Place} from './src/entities/place/types';
 import type {
   AppFlowState,
   AuthScreen,
@@ -38,9 +40,12 @@ const INITIAL_FLOW_STATE: AppFlowState = {
 };
 type SocialProvider = 'apple' | 'kakao' | 'google';
 
+configureDataSources();
+
 function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
@@ -91,7 +96,8 @@ function App() {
     });
   };
 
-  const openDetailFrom = (sourceScreen: 'saved' | 'map') => {
+  const openDetailFrom = (sourceScreen: 'saved' | 'map', place: Place) => {
+    setSelectedPlace(place);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -104,6 +110,7 @@ function App() {
   };
 
   const closeDetail = () => {
+    setSelectedPlace(null);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -264,7 +271,12 @@ function App() {
     }
 
     if (currentScreen === 'saved') {
-      return <SavedPlacesScreen onOpenDetail={() => openDetailFrom('saved')} />;
+      return (
+        <SavedPlacesScreen
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onOpenDetail={place => openDetailFrom('saved', place)}
+        />
+      );
     }
 
     if (currentScreen === 'map') {
@@ -273,8 +285,14 @@ function App() {
       );
     }
 
-    if (currentScreen === 'detail') {
-      return <PlaceDetailScreen onBack={closeDetail} />;
+    if (currentScreen === 'detail' && selectedPlace) {
+      return (
+        <PlaceDetailScreen
+          onBack={closeDetail}
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          place={selectedPlace}
+        />
+      );
     }
 
     return (
