@@ -16,6 +16,7 @@ type SavedPlacesLinkDialogProps = {
   onClose: () => void;
   onSubmit: () => void;
   isSubmitting?: boolean;
+  errorMessage?: string | null;
 };
 
 export function SavedPlacesLinkDialog({
@@ -25,6 +26,7 @@ export function SavedPlacesLinkDialog({
   onClose,
   onSubmit,
   isSubmitting = false,
+  errorMessage = null,
 }: SavedPlacesLinkDialogProps) {
   return (
     <Modal
@@ -39,7 +41,7 @@ export function SavedPlacesLinkDialog({
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
-              onChangeText={onChangeValue}
+              onChangeText={value => onChangeValue(value)}
               placeholder="URL을 붙여넣으세요"
               placeholderTextColor="#b7b7bd"
               style={styles.input}
@@ -49,6 +51,7 @@ export function SavedPlacesLinkDialog({
               <Text style={styles.clearButtonText}>×</Text>
             </Pressable>
           </View>
+          {errorMessage ? <Text style={styles.errorMessage}>{errorMessage}</Text> : null}
           <View style={styles.actions}>
             <Pressable disabled={isSubmitting} hitSlop={8} onPress={onClose} style={styles.cancelButton}>
               <Text style={styles.cancelText}>Cancel</Text>
@@ -99,6 +102,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1f1f24',
     paddingVertical: 0,
+  },
+  errorMessage: {
+    marginTop: 8,
+    color: '#d65b73',
+    fontSize: 12,
+    lineHeight: 17,
   },
   clearButton: {
     width: 24,

@@ -3,7 +3,11 @@ import type {
   ContentType,
   SaveInstagramReelResponse,
   SaveSource,
+  ReelProcessingStatus,
 } from './types';
+
+const REEL_STATUS_SELECT =
+  'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
 
 export function detectContentType(url: string): ContentType {
   try {
@@ -56,4 +60,20 @@ export async function saveContent(
   }
 
   return saveInstagramReel(normalizedUrl, source);
+}
+
+export async function getReelProcessingStatus(
+  reelId: string,
+): Promise<ReelProcessingStatus | null> {
+  const {data, error} = await supabase
+    .from('reels')
+    .select(REEL_STATUS_SELECT)
+    .eq('id', reelId)
+    .maybeSingle<ReelProcessingStatus>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }
