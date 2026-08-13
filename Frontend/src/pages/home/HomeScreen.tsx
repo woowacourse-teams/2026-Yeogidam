@@ -1,13 +1,22 @@
 import React from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 
-import type {MainScreen} from '../../types/navigation';
+import type {Screen} from '../../types/navigation';
 
 type HomeScreenProps = {
-  onOpen: (screen: MainScreen) => void;
+  onOpen: (screen: Exclude<Screen, 'home'>) => void;
 };
 
-const screenOptions: {id: MainScreen; label: string; description: string}[] = [
+const screenOptions: {
+  id: Exclude<Screen, 'home'>;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: 'login',
+    label: '로그인',
+    description: '이메일 로그인과 소셜 로그인 화면',
+  },
   {id: 'saved', label: '저장한 장소', description: '2열 카드 형태의 저장 목록'},
   {
     id: 'empty',
