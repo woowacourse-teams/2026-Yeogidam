@@ -1918,6 +1918,30 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNInAppBrowser (3.7.1):
+    - React-Core
+  - RNKeychain (10.0.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - RNSVG (15.15.5):
     - hermes-engine
     - RCTRequired
@@ -2046,6 +2070,8 @@ DEPENDENCIES:
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - "RNCClipboard (from `../node_modules/@react-native-clipboard/clipboard`)"
+  - RNInAppBrowser (from `../node_modules/react-native-inappbrowser-reborn`)
+  - RNKeychain (from `../node_modules/react-native-keychain`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -2211,6 +2237,10 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec"
   RNCClipboard:
     :path: "../node_modules/@react-native-clipboard/clipboard"
+  RNInAppBrowser:
+    :path: "../node_modules/react-native-inappbrowser-reborn"
+  RNKeychain:
+    :path: "../node_modules/react-native-keychain"
   RNSVG:
     :path: "../node_modules/react-native-svg"
   Yoga:
@@ -2296,9 +2326,11 @@ SPEC CHECKSUMS:
   ReactCommon: 9002f006f571256348994183f7d4387aa7cf84e8
   ReactNativeDependencies: 2bd6854ade79bf1b60586d1ab7813a389df1b6bf
   RNCClipboard: 715fa7c6c8366f17d00f05a439ee7488f390fa5f
+  RNInAppBrowser: 904d24dc75e8e6c6c98a3160329192608946f9df
+  RNKeychain: 6778b35b5bd067c322f8479526ac09b1d61f31d0
   RNSVG: 6cae8d4082913be2eb43eaec2a456222c42195ed
   Yoga: 9891cfb1c680f64de9c41b09e7453dea33454d2b
 
 PODFILE CHECKSUM: 85bd9ebba2a740a4e7a19834f7df3200bb369749
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.17.0
