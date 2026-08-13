@@ -12,4 +12,5 @@ export type Place = {
   placeUrl?: string;
   telephone?: string;
   image: ImageSourcePropType;
+  images?: ImageSourcePropType[];
 };
