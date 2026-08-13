@@ -1,9 +1,12 @@
-import React, {useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
-import {savedPlaceMocks} from '../../entities/place/mocks';
+import {toSavedPlaceDisplayPlace} from '../../entities/place/api';
 import type {Place} from '../../entities/place/types';
+import {getSavedPlaces} from '../../entities/info/api';
+import type {SavedPlacesApiError} from '../../entities/info/types';
+import {SavedPlacesErrorState} from './components/SavedPlacesErrorState';
 import {SavedPlacesEmptyState} from './components/SavedPlacesEmptyState';
 import {SavedPlaceGrid} from './components/SavedPlaceGrid';
 import {SavedPlacesHeader} from './components/SavedPlacesHeader';
@@ -12,18 +15,50 @@ import {SavedPlacesSearchPanel} from './components/SavedPlacesSearchPanel';
 
 type SavedPlacesScreenProps = {
   onOpenDetail: () => void;
+  onAuthenticationRequired?: () => void;
+  /** Allows previews/tests to provide a fixed list instead of calling the API. */
   places?: Place[];
 };
 
 export function SavedPlacesScreen({
   onOpenDetail,
-  places = savedPlaceMocks,
+  onAuthenticationRequired,
+  places: providedPlaces,
 }: SavedPlacesScreenProps) {
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
+  const [places, setPlaces] = useState<Place[]>(providedPlaces ?? []);
+  const [error, setError] = useState<SavedPlacesApiError | null>(null);
+  const [isLoading, setIsLoading] = useState(providedPlaces === undefined);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasSavedPlaces = places.length > 0;
+
+  const loadSavedPlaces = useCallback(async () => {
+    if (providedPlaces !== undefined) {
+      setPlaces(providedPlaces);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const savedPlaces = await getSavedPlaces();
+      setPlaces(savedPlaces.map(toSavedPlaceDisplayPlace));
+    } catch (nextError) {
+      const apiError = nextError as SavedPlacesApiError;
+      setError(apiError);
+      if (apiError.errorCode === 'AUTH401_001') {
+        onAuthenticationRequired?.();
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [onAuthenticationRequired, providedPlaces]);
+
+  useEffect(() => {
+    loadSavedPlaces();
+  }, [loadSavedPlaces]);
 
   const openDialog = () => {
     setIsDialogVisible(true);
@@ -59,7 +94,19 @@ export function SavedPlacesScreen({
         <>
           <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
           <View style={styles.divider} />
-          {hasSavedPlaces ? (
+          {error && hasSavedPlaces ? (
+            <View style={styles.errorBanner}>
+              <Text numberOfLines={1} style={styles.errorText}>{error.message}</Text>
+              {error.retryable ? (
+                <Pressable onPress={loadSavedPlaces}>
+                  <Text style={styles.errorRetryText}>재시도</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {isLoading && !hasSavedPlaces ? (
+            <View style={styles.loading}><Text>저장한 장소를 불러오는 중이에요.</Text></View>
+          ) : hasSavedPlaces ? (
             <>
               <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false}>
                 <SavedPlaceGrid
@@ -78,6 +125,8 @@ export function SavedPlacesScreen({
                 </View>
               </Pressable>
             </>
+          ) : error ? (
+            <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
           ) : (
             <SavedPlacesEmptyState />
           )}
@@ -88,7 +137,11 @@ export function SavedPlacesScreen({
         value={linkValue}
         onChangeValue={setLinkValue}
         onClose={closeDialog}
-        onSubmit={closeDialog}
+        onSubmit={() => {
+          closeDialog();
+          // Re-fetch after the reel/link processing flow has completed.
+          loadSavedPlaces();
+        }}
       />
     </View>
   );
@@ -104,6 +157,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e5ea',
     marginHorizontal: 24,
   },
+  loading: {flex: 1, alignItems: 'center', justifyContent: 'center'},
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#fff5f5',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  errorText: {flex: 1, color: '#7c2d2d', fontSize: 13},
+  errorRetryText: {color: '#5c6fc8', fontSize: 13, fontWeight: '700'},
   fabShadow: {
     position: 'absolute',
     right: 18,

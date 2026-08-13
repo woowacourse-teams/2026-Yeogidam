@@ -31,6 +31,7 @@
     "@supabase/supabase-js": "^2.112.3",
     "react": "19.2.3",
     "react-native": "0.86.2",
+    "react-native-config": "^1.6.1",
     "react-native-inappbrowser-reborn": "^3.7.1",
     "react-native-keychain": "^10.0.0",
     "react-native-linear-gradient": "^2.8.3",

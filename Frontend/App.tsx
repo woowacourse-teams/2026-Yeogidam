@@ -2,6 +2,7 @@ import React, {useState} from 'react';
 import {StatusBar, StyleSheet, View} from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
+import {configureDataSources} from './src/app/configureDataSources';
 import {BottomTabBar} from './src/components/BottomTabBar';
 import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
@@ -21,6 +22,8 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
+
+configureDataSources();
 
 function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
@@ -124,7 +127,12 @@ function App() {
     }
 
     if (currentScreen === 'saved') {
-      return <SavedPlacesScreen onOpenDetail={() => openDetailFrom('saved')} />;
+      return (
+        <SavedPlacesScreen
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onOpenDetail={() => openDetailFrom('saved')}
+        />
+      );
     }
 
     if (currentScreen === 'map') {

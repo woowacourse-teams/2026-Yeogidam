@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
-import { savedPlaceMocks } from '../../entities/place/mocks';
+import {toSavedPlaceDisplayPlace} from '../../entities/place/api';
+import type {Place} from '../../entities/place/types';
+import {getSavedPlaces} from '../../entities/info/api';
 import { MapSearchBar } from './components/MapSearchBar';
 import {
   COLLAPSED_SHEET_HEIGHT,
@@ -27,6 +29,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
   );
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
+  const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const bottomNavigationOffset = BOTTOM_TAB_BAR_HEIGHT + bottomInset;
   const mapBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
   const [visibleBounds, setVisibleBounds] = useState<{
@@ -35,19 +38,45 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
     westLongitude: number;
     eastLongitude: number;
   } | null>(null);
-  const savedPlaces = useMemo(
-    () =>
-      Array.from(
-        new Map(savedPlaceMocks.map(place => [place.id, place])).values(),
-      ),
-    [],
+  useEffect(() => {
+    let isActive = true;
+
+    getSavedPlaces()
+      .then(savedPlaceItems => {
+        if (!isActive) return;
+
+        setSavedPlaces(
+          Array.from(
+            new Map(
+              savedPlaceItems
+                .map(toSavedPlaceDisplayPlace)
+                .map(place => [place.id, place]),
+            ).values(),
+          ),
+        );
+      })
+      .catch(error => {
+        if (isActive) {
+          setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+  const placesWithCoordinates = useMemo(
+    () => savedPlaces.filter(
+      place => place.latitude !== undefined && place.longitude !== undefined,
+    ),
+    [savedPlaces],
   );
   const visiblePlaces = useMemo(() => {
     if (!visibleBounds) {
       return [];
     }
 
-    return savedPlaces.filter(
+    return placesWithCoordinates.filter(
       place =>
         place.latitude !== undefined &&
         place.longitude !== undefined &&
@@ -56,7 +85,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
         place.longitude >= visibleBounds.westLongitude &&
         place.longitude <= visibleBounds.eastLongitude,
     );
-  }, [savedPlaces, visibleBounds]);
+  }, [placesWithCoordinates, visibleBounds]);
   const filteredVisiblePlaces = useMemo(() => {
     const normalizedKeyword = searchKeyword.trim().toLowerCase();
 
@@ -71,7 +100,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
         place.address,
         place.fullAddress,
       ]
-        .filter(Boolean)
+        .filter((value): value is string => Boolean(value))
         .map(value => value.toLowerCase());
 
       return searchableFields.some(value => value.includes(normalizedKeyword));
@@ -104,7 +133,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
               zoomLevel={14}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
               savedPlacesJson={JSON.stringify(
-                savedPlaces.map(({ id, name, latitude, longitude }) => ({
+                placesWithCoordinates.map(({id, name, latitude, longitude}) => ({
                   id,
                   name,
                   latitude,

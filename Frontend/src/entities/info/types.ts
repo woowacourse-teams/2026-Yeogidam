@@ -100,6 +100,40 @@ export type SavedPlaceInfo = {
   createdAt: string;
 };
 
+/** `saved_places`와 `places` 조인 조회에 사용하는 목록 항목입니다. */
+export type SavedPlaceListItem = Pick<
+  SavedPlaceInfo,
+  'id' | 'thumbnailUrl' | 'createdAt'
+> & {
+  place: Pick<
+    InfoPlace,
+    | 'id'
+    | 'name'
+    | 'category'
+    | 'sourceAddress'
+    | 'roadAddress'
+    | 'address'
+    | 'latitude'
+    | 'longitude'
+    | 'kakaoPlaceUrl'
+    | 'thumbnailUrl'
+    | 'photoAttribution'
+  >;
+};
+
+export type SavedPlacesApiError = {
+  status: number | null;
+  errorCode: string;
+  message: string;
+  retryable: boolean;
+  requestId?: string;
+};
+
+/** 화면이 의존하는 저장 장소 조회 계약입니다. 데이터 제공자가 바뀌어도 이 형태는 유지합니다. */
+export type SavedPlacesRepository = {
+  getSavedPlaces: () => Promise<SavedPlaceListItem[]>;
+};
+
 export type ProviderUsageMonthly = {
   provider: string;
   monthStart: string;
