@@ -8,6 +8,11 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+# Build RN iOS dependencies from source for archive uploads so dSYMs are generated.
+ENV['RCT_USE_RN_DEP'] = '0'
+ENV['RCT_USE_PREBUILT_RNCORE'] = '0'
+ENV['RCT_BUILD_HERMES_FROM_SOURCE'] = 'true'
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
@@ -32,5 +37,16 @@ target 'Frontend' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_configuration|
+        next unless build_configuration.name == 'Release'
+
+        build_configuration.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+        build_configuration.build_settings['GCC_GENERATE_DEBUGGING_SYMBOLS'] = 'YES'
+        build_configuration.build_settings['COPY_PHASE_STRIP'] = 'NO'
+        build_configuration.build_settings['STRIP_INSTALLED_PRODUCT'] = 'NO'
+      end
+    end
   end
 end
