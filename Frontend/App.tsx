@@ -40,6 +40,7 @@ import {MapScreen} from './src/pages/map/MapScreen';
 import {AccountDeletionScreen} from './src/pages/my-page/AccountDeletionScreen';
 import {ProfileEditScreen} from './src/pages/my-page/ProfileEditScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
+import {TermsAgreementScreen} from './src/pages/my-page/TermsAgreementScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
 import {SplashScreen} from './src/pages/splash/SplashScreen';
@@ -79,6 +80,7 @@ function App() {
   >([]);
   const [isAccountDeletionVisible, setIsAccountDeletionVisible] = useState(false);
   const [isProfileEditVisible, setIsProfileEditVisible] = useState(false);
+  const [isTermsVisible, setIsTermsVisible] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
   const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
@@ -147,6 +149,7 @@ function App() {
     setLinkedDeletionProviders([]);
     setIsAccountDeletionVisible(false);
     setIsProfileEditVisible(false);
+    setIsTermsVisible(false);
     setFlowState(INITIAL_FLOW_STATE);
     setIsMapPlaceDetailVisible(false);
     setIsLogoutPending(false);
@@ -207,6 +210,7 @@ function App() {
 
     setIsProfileEditVisible(false);
     setIsAccountDeletionVisible(false);
+    setIsTermsVisible(false);
 
     setFlowState({
       kind: 'main',
@@ -385,7 +389,7 @@ function App() {
   };
 
   const handleOpenTerms = () => {
-    showPreparingAlert('약관 동의');
+    setIsTermsVisible(true);
   };
 
   const handleWithdraw = () => {
@@ -447,8 +451,7 @@ function App() {
           onContinueWithApple={() => handleContinueWithSocial('apple')}
           onContinueWithGoogle={() => handleContinueWithSocial('google')}
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
-          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
-          onOpenSignup={() => pushAuthScreen('signup')}
+          onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
     }
@@ -459,6 +462,7 @@ function App() {
           onBack={popAuthScreen}
           onLogin={() => showPreparingAlert('이메일 로그인')}
           onOpenSignup={() => pushAuthScreen('signup')}
+          onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
     }
@@ -468,9 +472,14 @@ function App() {
         <SignUpScreen
           onBack={popAuthScreen}
           onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
+          onOpenTerms={() => pushAuthScreen('terms')}
           onSignUp={() => showPreparingAlert('이메일 회원가입')}
         />
       );
+    }
+
+    if (currentScreen === 'terms') {
+      return <TermsAgreementScreen onBack={popAuthScreen} />;
     }
 
     if (currentScreen === 'saved') {
@@ -518,6 +527,10 @@ function App() {
       );
     }
 
+    if (currentScreen === 'my' && isTermsVisible) {
+      return <TermsAgreementScreen onBack={() => setIsTermsVisible(false)} />;
+    }
+
     return (
       <MyPageScreen
         currentProfile={currentProfile}
@@ -539,6 +552,7 @@ function App() {
     flowState.detailSource === null &&
     !isAccountDeletionVisible &&
     !isProfileEditVisible &&
+    !isTermsVisible &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';
