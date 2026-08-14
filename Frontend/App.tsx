@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   StatusBar,
   StyleSheet,
   Text,
@@ -33,6 +34,11 @@ import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
+import {
+  addSharedContentListener,
+  getInitialSharedContent,
+  type SharedContent,
+} from './src/lib/share-intent';
 import type {
   AppFlowState,
   AuthScreen,
@@ -58,6 +64,8 @@ function App() {
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
+  const handledSharedValues = useRef(new Set<string>());
+  const [pendingSharedUrl, setPendingSharedUrl] = useState<string | null>(null);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
   const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
@@ -195,6 +203,67 @@ function App() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthReady) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const handleSharedContent = async (sharedContent: SharedContent) => {
+      const url = sharedContent.value.trim();
+      if (!url || handledSharedValues.current.has(url)) {
+        return;
+      }
+      handledSharedValues.current.add(url);
+
+      const {data} = await supabase.auth.getSession();
+      if (!isMounted) {
+        return;
+      }
+
+      if (!data.session) {
+        setFlowState(INITIAL_FLOW_STATE);
+        Alert.alert('로그인이 필요해요', '공유한 릴스를 저장하려면 로그인해주세요.');
+        return;
+      }
+
+      setPendingSharedUrl(url);
+      openMainScreen('saved');
+    };
+
+    const subscription = addSharedContentListener(content => {
+      void handleSharedContent(content);
+    });
+
+    const consumePendingSharedContent = () => {
+      getInitialSharedContent()
+        .then(content => {
+          if (content) {
+            void handleSharedContent(content);
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    consumePendingSharedContent();
+
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      nextState => {
+        if (nextState === 'active') {
+          consumePendingSharedContent();
+        }
+      },
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+      appStateSubscription.remove();
+    };
+  }, [isAuthReady]);
 
   useEffect(() => {
     if (flowState.kind !== 'main') {
@@ -351,6 +420,13 @@ function App() {
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
+          sharedUrl={pendingSharedUrl}
+          onSharedUrlHandled={() => {
+            if (pendingSharedUrl) {
+              handledSharedValues.current.delete(pendingSharedUrl);
+            }
+            setPendingSharedUrl(null);
+          }}
         />
       );
     }

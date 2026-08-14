@@ -49,7 +49,7 @@ final class ShareViewController: UIViewController {
     statusContainerView.layer.cornerCurve = .continuous
 
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
-    statusLabel.text = "저장되었습니다."
+    statusLabel.text = "릴스 링크가 전달됐어요."
     statusLabel.textColor = .label
     statusLabel.font = .systemFont(ofSize: 17, weight: .semibold)
     statusLabel.textAlignment = .center

@@ -100,3 +100,20 @@ export async function getReelProcessingStatus(
 
   return data;
 }
+
+/** 현재 로그인한 사용자의 최신 처리중 릴스를 복원합니다. */
+export async function getLatestProcessingReel(): Promise<ReelProcessingStatus | null> {
+  const {data, error} = await supabase
+    .from('reels')
+    .select(REEL_STATUS_SELECT)
+    .in('processing_status', ['PENDING', 'PROCESSING'])
+    .order('created_at', {ascending: false})
+    .limit(1)
+    .maybeSingle<ReelProcessingStatus>();
+
+  if (error) {
+    throw normalizeReelStatusError(error);
+  }
+
+  return data;
+}
