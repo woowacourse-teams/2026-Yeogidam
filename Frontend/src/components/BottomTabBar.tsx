@@ -13,9 +13,9 @@ type BottomTabBarProps = {
 export const BOTTOM_TAB_BAR_HEIGHT = 76;
 
 const tabs: {id: MainScreen; icon: 'bookmark' | 'map' | 'person'; label: string}[] = [
-  {id: 'saved', icon: 'bookmark', label: '저장됨'},
+  {id: 'saved', icon: 'bookmark', label: '보관함'},
   {id: 'map', icon: 'map', label: '지도'},
-  {id: 'my', icon: 'person', label: '마이'},
+  {id: 'my', icon: 'person', label: '내 정보'},
 ];
 
 export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
