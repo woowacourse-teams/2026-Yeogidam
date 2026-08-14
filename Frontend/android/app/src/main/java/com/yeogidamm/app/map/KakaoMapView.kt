@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -512,23 +513,21 @@ class KakaoMapView(
 
     private fun createSavedPlaceMarker(): Bitmap {
         val density = resources.displayMetrics.density
-        val width = (SAVED_PLACE_MARKER_WIDTH_DP * density).roundToInt()
-        val height = (SAVED_PLACE_MARKER_HEIGHT_DP * density).roundToInt()
+        val size = (SAVED_PLACE_MARKER_SIZE_DP * density).roundToInt()
+        BitmapFactory.decodeResource(resources, R.drawable.map_marker)?.let { markerBitmap ->
+            return Bitmap.createScaledBitmap(markerBitmap, size, size, true)
+        }
+
+        val width = size
+        val height = size
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         val centerX = width / 2f
-        val radius = width * 0.38f
-        val centerY = radius + density
+        val radius = width * 0.36f
+        val centerY = height / 2f
 
-        val pinPath = android.graphics.Path().apply {
-            moveTo(centerX - radius * 0.62f, centerY + radius * 0.55f)
-            lineTo(centerX, height.toFloat())
-            lineTo(centerX + radius * 0.62f, centerY + radius * 0.55f)
-            close()
-        }
         paint.color = Color.WHITE
-        canvas.drawPath(pinPath, paint)
         canvas.drawCircle(centerX, centerY, radius + density * 2, paint)
         paint.color = Color.rgb(122, 199, 223)
         canvas.drawCircle(centerX, centerY, radius, paint)
@@ -571,8 +570,7 @@ class KakaoMapView(
     private companion object {
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
-        const val SAVED_PLACE_MARKER_WIDTH_DP = 34
-        const val SAVED_PLACE_MARKER_HEIGHT_DP = 44
+        const val SAVED_PLACE_MARKER_SIZE_DP = 36
         const val LOCATION_PERMISSION_REQUEST_CODE = 9417
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f
