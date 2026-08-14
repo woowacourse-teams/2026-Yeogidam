@@ -28,6 +28,7 @@ import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.Label
 import com.kakao.vectormap.label.LabelOptions
+import com.yeogidamm.app.R
 import org.json.JSONArray
 import kotlin.math.roundToInt
 
