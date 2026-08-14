@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Image,
   Platform,
   Pressable,
   StyleSheet,
@@ -35,42 +36,50 @@ export function MapSearchBar({
         embedded && styles.embedded,
       ]}
     >
-      {onPressBack ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="이전 화면"
-          hitSlop={10}
-          onPress={onPressBack}
-          style={styles.backButton}
-        >
-          <Text style={styles.backIcon}>‹</Text>
-        </Pressable>
-      ) : null}
-      <TextInput
-        accessibilityLabel="여기담 검색"
-        autoCapitalize="none"
-        clearButtonMode="while-editing"
-        onChangeText={onChangeText}
-        placeholder="여기담 검색"
-        placeholderTextColor="#a9a9ae"
-        returnKeyType="search"
-        style={styles.input}
-        value={value}
-      />
-      <View style={styles.searchAction}>
-        <MaterialIcons color="#d8dffe" name="search" size={18} />
+      <View style={styles.savedIconButton}>
+        <Image
+          source={require('../../../assets/illustrations/empty-illustration.png')}
+          style={styles.savedIconImage}
+        />
       </View>
-      {Platform.OS !== 'ios' && value ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="검색어 지우기"
-          hitSlop={10}
-          onPress={() => onChangeText('')}
-          style={styles.clearButton}
-        >
-          <Text style={styles.clearIcon}>×</Text>
-        </Pressable>
-      ) : null}
+      <View style={styles.searchBar}>
+        {onPressBack ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="이전 화면"
+            hitSlop={10}
+            onPress={onPressBack}
+            style={styles.backButton}
+          >
+            <Text style={styles.backIcon}>‹</Text>
+          </Pressable>
+        ) : null}
+        <TextInput
+          accessibilityLabel="여기담 검색"
+          autoCapitalize="none"
+          clearButtonMode="while-editing"
+          onChangeText={onChangeText}
+          placeholder="여기담 검색"
+          placeholderTextColor="#a9a9ae"
+          returnKeyType="search"
+          style={styles.input}
+          value={value}
+        />
+        <View style={styles.searchAction}>
+          <MaterialIcons color="#d8dffe" name="search" size={18} />
+        </View>
+        {Platform.OS !== 'ios' && value ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="검색어 지우기"
+            hitSlop={10}
+            onPress={() => onChangeText('')}
+            style={styles.clearButton}
+          >
+            <Text style={styles.clearIcon}>×</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -80,6 +89,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 10,
+  },
+  searchBar: {
+    flex: 1,
     height: MAP_SEARCH_BAR_HEIGHT,
     backgroundColor: '#ffffff',
     borderRadius: 22,
@@ -91,7 +107,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
     elevation: 5,
-    zIndex: 10,
   },
   embedded: {
     position: 'relative',
@@ -101,6 +116,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginTop: 20,
     marginBottom: 10,
+  },
+  savedIconButton: {
+    width: MAP_SEARCH_BAR_HEIGHT,
+    height: MAP_SEARCH_BAR_HEIGHT,
+    borderRadius: MAP_SEARCH_BAR_HEIGHT / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  savedIconImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   input: {
     flex: 1,
