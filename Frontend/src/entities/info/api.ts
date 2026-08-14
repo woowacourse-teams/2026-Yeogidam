@@ -1,23 +1,22 @@
 import { frontendInfoDomainMock } from './mocks';
 import type {
+  CurrentProfileRepository,
   FrontendInfoDomain,
   InfoPlace,
   PlaceReel,
   PlaceReelsApiError,
   PlaceReelsRepository,
+  ProfileApiError,
   ProfileInfo,
   SavedPlaceInfo,
   SavedPlaceListItem,
   SavedPlacesApiError,
   SavedPlacesRepository,
+  UpdateCurrentProfileInput,
 } from './types';
 
 export async function getFrontendInfoDomain(): Promise<FrontendInfoDomain> {
   return Promise.resolve(frontendInfoDomainMock);
-}
-
-export async function getProfiles(): Promise<ProfileInfo[]> {
-  return Promise.resolve(frontendInfoDomainMock.profiles);
 }
 
 export async function getInfoPlaces(): Promise<InfoPlace[]> {
@@ -49,6 +48,15 @@ const SAVED_PLACES_SELECT = [
   'place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)',
 ].join(',');
 
+const PROFILE_SELECT = [
+  'id',
+  'nickname',
+  'description',
+  'avatar_url',
+  'created_at',
+  'updated_at',
+].join(',');
+
 const PLACE_REELS_SELECT = [
   'id',
   'instagram_url',
@@ -58,15 +66,394 @@ const PLACE_REELS_SELECT = [
   'reel_places!inner(place_id)',
 ].join(',');
 
-type SavedPlacesApiOptions = {
+type SupabaseApiOptions = {
   baseUrl: string;
   /** Supabase 프로젝트의 공개 publishable key입니다. service_role key는 앱에 넣지 않습니다. */
   publishableKey?: string;
   getAccessToken?: () => Promise<string | null>;
+  getUserId?: () => Promise<string | null>;
   refreshSession?: () => Promise<boolean>;
 };
 
+type ProfileApiOptions = SupabaseApiOptions;
+type SavedPlacesApiOptions = SupabaseApiOptions;
 type PlaceReelsApiOptions = SavedPlacesApiOptions;
+
+const profileError = (
+  errorCode: string,
+  status: number | null,
+  message: string,
+  retryable: boolean,
+): ProfileApiError => ({ status, errorCode, message, retryable });
+
+function fallbackProfileError(status: number | null): ProfileApiError {
+  if (status === 400)
+    return profileError(
+      'COMMON400_001',
+      400,
+      '요청 내용을 확인해주세요.',
+      false,
+    );
+  if (status === 401)
+    return profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
+  if (status === 403)
+    return profileError(
+      'AUTH403_001',
+      403,
+      '이 작업을 수행할 권한이 없어요.',
+      false,
+    );
+  if (status !== null && status >= 500)
+    return profileError(
+      'DATA500_001',
+      500,
+      '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+      true,
+    );
+  return profileError(
+    'CLIENT000_003',
+    null,
+    '응답을 처리하지 못했어요.',
+    false,
+  );
+}
+
+type SupabaseProfileResponse = {
+  id: string;
+  nickname: string | null;
+  description: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function toProfileInfo(profile: SupabaseProfileResponse): ProfileInfo {
+  return {
+    id: profile.id,
+    nickname: profile.nickname,
+    description: profile.description,
+    avatarUrl: profile.avatar_url,
+    createdAt: profile.created_at,
+    updatedAt: profile.updated_at,
+  };
+}
+
+function createProfileNotFoundError(): ProfileApiError {
+  return profileError(
+    'PROFILE404_001',
+    null,
+    '프로필 정보를 찾을 수 없어요. 다시 로그인해주세요.',
+    false,
+  );
+}
+
+type SupabaseProfilePatchRequest = {
+  nickname?: string;
+  description?: string;
+  avatar_url?: string | null;
+};
+
+function toSupabaseProfilePatch(
+  input: UpdateCurrentProfileInput,
+): SupabaseProfilePatchRequest {
+  return {
+    ...(input.nickname !== undefined ? {nickname: input.nickname} : {}),
+    ...(input.description !== undefined
+      ? {description: input.description}
+      : {}),
+    ...(input.avatarUrl !== undefined
+      ? {avatar_url: input.avatarUrl}
+      : {}),
+  };
+}
+
+function doesProfileMatchPatch(
+  profile: ProfileInfo,
+  patch: UpdateCurrentProfileInput,
+) {
+  return (
+    (patch.nickname === undefined || (profile.nickname ?? '') === patch.nickname) &&
+    (patch.description === undefined ||
+      (profile.description ?? '') === patch.description) &&
+    (patch.avatarUrl === undefined || (profile.avatarUrl ?? null) === patch.avatarUrl)
+  );
+}
+
+export function createSupabaseCurrentProfileRepository(
+  options: ProfileApiOptions,
+): CurrentProfileRepository {
+  const getCurrentProfileOnce = async (): Promise<ProfileInfo> => {
+    if (!options.baseUrl) throw fallbackProfileError(null);
+
+    const userId = await options.getUserId?.();
+
+    if (!userId) {
+      throw profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
+    }
+
+    const token = await options.getAccessToken?.();
+    const query = [
+      `id=eq.${encodeURIComponent(userId)}`,
+      `select=${encodeURIComponent(PROFILE_SELECT)}`,
+    ].join('&');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/profiles?${query}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            ...(options.publishableKey
+              ? { apikey: options.publishableKey }
+              : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        },
+      );
+    } catch {
+      throw controller.signal.aborted
+        ? profileError(
+            'CLIENT000_002',
+            null,
+            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+            true,
+          )
+        : profileError(
+            'CLIENT000_001',
+            null,
+            '인터넷 연결을 확인해주세요.',
+            true,
+          );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw fallbackProfileError(null);
+    }
+
+    if (!response.ok) {
+      const normalized = body as Partial<ProfileApiError>;
+      const fallback = fallbackProfileError(response.status);
+      throw {
+        ...fallback,
+        ...normalized,
+        status: normalized.status ?? fallback.status,
+      };
+    }
+
+    const currentProfile = (body as SupabaseProfileResponse[]).map(toProfileInfo)[0];
+
+    if (!currentProfile) {
+      throw createProfileNotFoundError();
+    }
+
+    return currentProfile;
+  };
+
+  return {
+    async getCurrentProfile() {
+      try {
+        return await getCurrentProfileOnce();
+      } catch (error) {
+        if (
+          (error as ProfileApiError).errorCode === 'AUTH401_002' &&
+          (await options.refreshSession?.())
+        ) {
+          return getCurrentProfileOnce();
+        }
+
+        throw error;
+      }
+    },
+    async updateCurrentProfile(input) {
+      const updateCurrentProfileOnce = async (): Promise<ProfileInfo> => {
+        if (!options.baseUrl) throw fallbackProfileError(null);
+
+        const userId = await options.getUserId?.();
+
+        if (!userId) {
+          throw profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
+        }
+
+        if (Object.keys(input).length === 0) {
+          return getCurrentProfileOnce();
+        }
+
+        const token = await options.getAccessToken?.();
+        const query = `id=eq.${encodeURIComponent(userId)}`;
+        const patch = toSupabaseProfilePatch(input);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        let response: Response;
+        try {
+          response = await fetch(
+            `${options.baseUrl.replace(/\/$/, '')}/rest/v1/profiles?${query}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                Prefer: 'return=representation',
+                ...(options.publishableKey
+                  ? {apikey: options.publishableKey}
+                  : {}),
+                ...(token ? {Authorization: `Bearer ${token}`} : {}),
+              },
+              body: JSON.stringify(patch),
+              signal: controller.signal,
+            },
+          );
+        } catch {
+          if (controller.signal.aborted) {
+            try {
+              const refreshedProfile = await getCurrentProfileOnce();
+
+              if (doesProfileMatchPatch(refreshedProfile, input)) {
+                return refreshedProfile;
+              }
+            } catch {
+              // Keep the original timeout error when verification also fails.
+            }
+
+            throw profileError(
+              'CLIENT000_002',
+              null,
+              '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+              true,
+            );
+          }
+
+          throw profileError(
+            'CLIENT000_001',
+            null,
+            '인터넷 연결을 확인해주세요.',
+            true,
+          );
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        let body: unknown;
+
+        if (response.status !== 204) {
+          try {
+            body = await response.json();
+          } catch {
+            throw fallbackProfileError(null);
+          }
+        }
+
+        if (!response.ok) {
+          const normalized = (body ?? {}) as Partial<ProfileApiError>;
+          const fallback = fallbackProfileError(response.status);
+          throw {
+            ...fallback,
+            ...normalized,
+            status: normalized.status ?? fallback.status,
+          };
+        }
+
+        if (response.status === 204) {
+          return getCurrentProfileOnce();
+        }
+
+        const updatedProfile = (body as SupabaseProfileResponse[]).map(toProfileInfo)[0];
+
+        if (updatedProfile) {
+          return updatedProfile;
+        }
+
+        return getCurrentProfileOnce();
+      };
+
+      try {
+        return await updateCurrentProfileOnce();
+      } catch (error) {
+        if (
+          (error as ProfileApiError).errorCode === 'AUTH401_002' &&
+          (await options.refreshSession?.())
+        ) {
+          return updateCurrentProfileOnce();
+        }
+
+        throw error;
+      }
+    },
+  };
+}
+
+export function createMockCurrentProfileRepository(): CurrentProfileRepository {
+  return {
+    async getCurrentProfile() {
+      const currentProfile = frontendInfoDomainMock.profiles[0];
+
+      if (!currentProfile) {
+        throw createProfileNotFoundError();
+      }
+
+      return currentProfile;
+    },
+    async updateCurrentProfile(input) {
+      const currentProfile = frontendInfoDomainMock.profiles[0];
+
+      if (!currentProfile) {
+        throw createProfileNotFoundError();
+      }
+
+      const nextProfile: ProfileInfo = {
+        ...currentProfile,
+        ...(input.nickname !== undefined ? {nickname: input.nickname} : {}),
+        ...(input.description !== undefined
+          ? {description: input.description}
+          : {}),
+        ...(input.avatarUrl !== undefined ? {avatarUrl: input.avatarUrl} : {}),
+        updatedAt: new Date().toISOString(),
+      };
+
+      frontendInfoDomainMock.profiles[0] = nextProfile;
+
+      return nextProfile;
+    },
+  };
+}
+
+let currentProfileRepository: CurrentProfileRepository =
+  createMockCurrentProfileRepository();
+
+export function configureCurrentProfileRepository(
+  repository: CurrentProfileRepository,
+) {
+  currentProfileRepository = repository;
+}
+
+export function configureProfilesApi(options: ProfileApiOptions) {
+  configureCurrentProfileRepository(
+    createSupabaseCurrentProfileRepository(options),
+  );
+}
+
+export function getCurrentProfile(): Promise<ProfileInfo> {
+  return currentProfileRepository.getCurrentProfile();
+}
+
+export function updateCurrentProfile(
+  input: UpdateCurrentProfileInput,
+): Promise<ProfileInfo> {
+  return currentProfileRepository.updateCurrentProfile(input);
+}
+
+export async function getProfiles(): Promise<ProfileInfo[]> {
+  return [await getCurrentProfile()];
+}
 
 const savedPlacesError = (
   errorCode: string,

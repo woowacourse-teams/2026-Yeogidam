@@ -95,7 +95,10 @@ async function saveAppleFullName(
 export const isAppleSignInSupported =
   Platform.OS === 'ios' && appleAuth.isSupported;
 
-export async function signInWithApple(): Promise<Session> {
+async function authenticateWithApple(): Promise<{
+  authorizationCode: string | null;
+  session: Session;
+}> {
   if (!isAppleSignInSupported) {
     throw createProcessingAuthError();
   }
@@ -131,7 +134,10 @@ export async function signInWithApple(): Promise<Session> {
 
     await saveAppleFullName(credential.fullName);
 
-    return data.session;
+    return {
+      authorizationCode: credential.authorizationCode,
+      session: data.session,
+    };
   } catch (error) {
     const appleError = error as {code?: string} | null;
 
@@ -141,4 +147,17 @@ export async function signInWithApple(): Promise<Session> {
 
     throw normalizeAuthError(error);
   }
+}
+
+export async function signInWithApple(): Promise<Session> {
+  const {session} = await authenticateWithApple();
+
+  return session;
+}
+
+export async function reauthenticateWithApple(): Promise<{
+  authorizationCode: string | null;
+  session: Session;
+}> {
+  return authenticateWithApple();
 }

@@ -86,7 +86,7 @@ export function addSharedContentListener(
     (payload: NativeShareIntentPayload) => {
       const sharedContent = normalizeSharedContent(payload);
 
-      void clearPendingSharedContent(payload?.id);
+      clearPendingSharedContent(payload?.id).catch(() => undefined);
 
       if (!sharedContent) {
         return;

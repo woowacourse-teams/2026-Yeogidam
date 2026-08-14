@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Alert,
   Animated,
@@ -13,6 +13,13 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {configureDataSources} from './src/app/configureDataSources';
 import {BottomTabBar} from './src/components/BottomTabBar';
+import {
+  deleteAccount,
+  getLinkedDeletionProviders,
+  type AccountDeletionProvider,
+  type DeleteAccountRequest,
+} from './src/lib/auth/deleteAccount';
+import {clearSecureAuthStorage} from './src/lib/auth/authStorage';
 import type {NormalizedAuthError} from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -30,10 +37,18 @@ import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
 import {SignUpScreen} from './src/pages/login/SignUpScreen';
 import {MapScreen} from './src/pages/map/MapScreen';
+import {AccountDeletionScreen} from './src/pages/my-page/AccountDeletionScreen';
+import {ProfileEditScreen} from './src/pages/my-page/ProfileEditScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
 import {SplashScreen} from './src/pages/splash/SplashScreen';
+import {getCurrentProfile, updateCurrentProfile} from './src/entities/info/api';
+import type {
+  ProfileApiError,
+  ProfileInfo,
+  UpdateCurrentProfileInput,
+} from './src/entities/info/types';
 import type {Place} from './src/entities/place/types';
 import type {
   AppFlowState,
@@ -59,6 +74,14 @@ function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [hasSplashDelayElapsed, setHasSplashDelayElapsed] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
+  const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
+    AccountDeletionProvider[]
+  >([]);
+  const [isAccountDeletionVisible, setIsAccountDeletionVisible] = useState(false);
+  const [isProfileEditVisible, setIsProfileEditVisible] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
+  const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
@@ -71,7 +94,7 @@ function App() {
   const sharedToastTranslateY = useRef(new Animated.Value(72)).current;
   const sharedToastOpacity = useRef(new Animated.Value(0)).current;
 
-  const showSharedContentToast = (content: SharedContent) => {
+  const showSharedContentToast = useCallback((content: SharedContent) => {
     if (sharedToastTimerRef.current) {
       clearTimeout(sharedToastTimerRef.current);
     }
@@ -85,9 +108,9 @@ function App() {
     sharedToastTimerRef.current = setTimeout(() => {
       setIsSharedToastVisible(false);
     }, 1800);
-  };
+  }, []);
 
-  const syncInitialSharedContent = () => {
+  const syncInitialSharedContent = useCallback(() => {
     getInitialSharedContent()
       .then(sharedContent => {
         if (!sharedContent) {
@@ -98,7 +121,7 @@ function App() {
         showSharedContentToast(sharedContent);
       })
       .catch(() => {});
-  };
+  }, [showSharedContentToast]);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -116,6 +139,42 @@ function App() {
       clearTimeout(timeoutId);
     };
   }, []);
+
+  const resetToAuthFlow = useCallback(() => {
+    setCurrentProfile(null);
+    setProfileError(null);
+    setIsProfileLoading(false);
+    setLinkedDeletionProviders([]);
+    setIsAccountDeletionVisible(false);
+    setIsProfileEditVisible(false);
+    setFlowState(INITIAL_FLOW_STATE);
+    setIsMapPlaceDetailVisible(false);
+    setIsLogoutPending(false);
+    setPendingSocialProvider(null);
+    setIsAuthReady(true);
+  }, []);
+
+  const loadCurrentProfile = useCallback(async () => {
+    setIsProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const profile = await getCurrentProfile();
+
+      setCurrentProfile(profile);
+    } catch (nextError) {
+      const apiError = nextError as ProfileApiError;
+
+      setCurrentProfile(null);
+      setProfileError(apiError);
+
+      if (apiError.errorCode === 'AUTH401_001') {
+        resetToAuthFlow();
+      }
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [resetToAuthFlow]);
 
   const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
     setFlowState(current =>
@@ -145,6 +204,9 @@ function App() {
     if (nextScreen !== 'map') {
       setIsMapPlaceDetailVisible(false);
     }
+
+    setIsProfileEditVisible(false);
+    setIsAccountDeletionVisible(false);
 
     setFlowState({
       kind: 'main',
@@ -189,8 +251,7 @@ function App() {
       }
 
       if (error || !data.session) {
-        setFlowState(INITIAL_FLOW_STATE);
-        setIsAuthReady(true);
+        resetToAuthFlow();
         return;
       }
 
@@ -199,16 +260,15 @@ function App() {
         activeTab: 'saved',
         detailSource: null,
       });
+      setLinkedDeletionProviders(getLinkedDeletionProviders(data.session.user));
       setIsAuthReady(true);
+      loadCurrentProfile().catch(() => undefined);
     };
 
     syncFlowState().catch(() => {
-      if (!isMounted) {
-        return;
+      if (isMounted) {
+        resetToAuthFlow();
       }
-
-      setFlowState(INITIAL_FLOW_STATE);
-      setIsAuthReady(true);
     });
 
     const {
@@ -219,22 +279,24 @@ function App() {
       }
 
       if (!session) {
-        setFlowState(INITIAL_FLOW_STATE);
-        setIsMapPlaceDetailVisible(false);
-        setIsLogoutPending(false);
-        setPendingSocialProvider(null);
-        setIsAuthReady(true);
+        resetToAuthFlow();
         return;
       }
 
       setSocialLoginError(null);
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
-      setFlowState({
-        kind: 'main',
-        activeTab: 'saved',
-        detailSource: null,
-      });
+      setFlowState(current =>
+        current.kind === 'main'
+          ? current
+          : {
+              kind: 'main',
+              activeTab: 'saved',
+              detailSource: null,
+            },
+      );
+      setLinkedDeletionProviders(getLinkedDeletionProviders(session.user));
+      loadCurrentProfile().catch(() => undefined);
       setIsAuthReady(true);
     });
 
@@ -242,7 +304,7 @@ function App() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadCurrentProfile, resetToAuthFlow]);
 
   useEffect(() => {
     syncInitialSharedContent();
@@ -267,7 +329,7 @@ function App() {
       subscription.remove();
       appStateSubscription.remove();
     };
-  }, []);
+  }, [showSharedContentToast, syncInitialSharedContent]);
 
   useEffect(() => {
     Animated.parallel([
@@ -322,6 +384,14 @@ function App() {
     Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
+  const handleOpenTerms = () => {
+    showPreparingAlert('약관 동의');
+  };
+
+  const handleWithdraw = () => {
+    setIsAccountDeletionVisible(true);
+  };
+
   const handleLogout = async () => {
     if (isLogoutPending) {
       return;
@@ -337,6 +407,34 @@ function App() {
 
     setIsLogoutPending(false);
     Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
+  };
+
+  const handleReauthenticate = async () => {
+    await handleLogout();
+  };
+
+  const handleSaveProfile = async (input: UpdateCurrentProfileInput) => {
+    try {
+      const nextProfile = await updateCurrentProfile(input);
+
+      setCurrentProfile(nextProfile);
+      setProfileError(null);
+    } catch (error) {
+      const apiError = error as ProfileApiError;
+
+      if (apiError.errorCode === 'AUTH401_001') {
+        resetToAuthFlow();
+      }
+
+      throw apiError;
+    }
+  };
+
+  const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
+    await deleteAccount(payload);
+    await supabase.auth.signOut({scope: 'local'}).catch(() => undefined);
+    await clearSecureAuthStorage();
+    resetToAuthFlow();
   };
 
   const renderScreen = () => {
@@ -400,11 +498,38 @@ function App() {
       );
     }
 
+    if (currentScreen === 'my' && isProfileEditVisible && currentProfile) {
+      return (
+        <ProfileEditScreen
+          onBack={() => setIsProfileEditVisible(false)}
+          onSave={handleSaveProfile}
+          profile={currentProfile}
+        />
+      );
+    }
+
+    if (currentScreen === 'my' && isAccountDeletionVisible) {
+      return (
+        <AccountDeletionScreen
+          linkedProviders={linkedDeletionProviders}
+          onBack={() => setIsAccountDeletionVisible(false)}
+          onDeleteAccount={handleDeleteAccount}
+        />
+      );
+    }
+
     return (
       <MyPageScreen
+        currentProfile={currentProfile}
         isLogoutPending={isLogoutPending}
+        isProfileLoading={isProfileLoading}
+        onOpenEditProfile={() => setIsProfileEditVisible(true)}
+        onOpenTerms={handleOpenTerms}
         onLogout={handleLogout}
-        onOpenSavedPlaces={() => openMainScreen('saved')}
+        onReauthenticate={handleReauthenticate}
+        onRetryProfile={loadCurrentProfile}
+        onWithdraw={handleWithdraw}
+        profileError={profileError}
       />
     );
   };
@@ -412,6 +537,8 @@ function App() {
   const showTabBar =
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
+    !isAccountDeletionVisible &&
+    !isProfileEditVisible &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';

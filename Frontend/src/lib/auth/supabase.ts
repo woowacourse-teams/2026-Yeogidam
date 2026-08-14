@@ -3,8 +3,8 @@ import {createClient, processLock} from '@supabase/supabase-js';
 
 import {secureAuthStorage} from './authStorage';
 
-const SUPABASE_URL = 'https://hbbrgudsbvnwuylxqlta.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY =
+export const SUPABASE_URL = 'https://hbbrgudsbvnwuylxqlta.supabase.co';
+export const SUPABASE_PUBLISHABLE_KEY =
   'sb_publishable_2bScMGo7Zpgmb9Q7lSA1Ag_sXmiGvCX';
 
 export const AUTH_CALLBACK_URL = 'com.yeogidamm.app://auth-callback';
