@@ -1,14 +1,15 @@
 import React from 'react';
 import {
+  type FocusEvent,
   Image,
+  type NativeSyntheticEvent,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
-  type TextInputFocusEventData,
   type TextInputSubmitEditingEventData,
-  type NativeSyntheticEvent,
+  type BlurEvent,
   View,
 } from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
@@ -26,8 +27,8 @@ type MapSearchBarProps = {
   onSubmitEditing?: (
     event: NativeSyntheticEvent<TextInputSubmitEditingEventData>,
   ) => void;
-  onFocus?: (event: NativeSyntheticEvent<TextInputFocusEventData>) => void;
-  onBlur?: (event: NativeSyntheticEvent<TextInputFocusEventData>) => void;
+  onFocus?: (event: FocusEvent) => void;
+  onBlur?: (event: BlurEvent) => void;
   onPressSearchAction?: () => void;
 };
 

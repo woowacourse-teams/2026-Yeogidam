@@ -11,6 +11,12 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomTabBar } from './src/components/BottomTabBar';
+import { getCurrentProfile } from './src/entities/info/api';
+import type {
+  ProfileApiError,
+  ProfileInfo,
+} from './src/entities/info/types';
+import type { Place } from './src/entities/place/types';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -24,9 +30,9 @@ import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
+import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
-import type { Place } from './src/entities/place/types';
 import type {
   AppFlowState,
   AuthScreen,
@@ -52,6 +58,9 @@ function App() {
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
+  const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -187,6 +196,48 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (flowState.kind !== 'main') {
+      setCurrentProfile(null);
+      setProfileError(null);
+      setIsProfileLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    setIsProfileLoading(true);
+    setProfileError(null);
+
+    getCurrentProfile()
+      .then(profile => {
+        if (!isMounted) {
+          return;
+        }
+
+        setCurrentProfile(profile);
+      })
+      .catch(error => {
+        if (!isMounted) {
+          return;
+        }
+
+        setCurrentProfile(null);
+        setProfileError(error as ProfileApiError);
+      })
+      .finally(() => {
+        if (!isMounted) {
+          return;
+        }
+
+        setIsProfileLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [flowState.kind]);
+
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider) {
       return;
@@ -237,6 +288,22 @@ function App() {
     );
   };
 
+  const handleRetryProfile = async () => {
+    setIsProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const profile = await getCurrentProfile();
+
+      setCurrentProfile(profile);
+    } catch (error) {
+      setCurrentProfile(null);
+      setProfileError(error as ProfileApiError);
+    } finally {
+      setIsProfileLoading(false);
+    }
+  };
+
   const renderScreen = () => {
     if (currentScreen === 'login') {
       return (
@@ -247,8 +314,7 @@ function App() {
           onContinueWithApple={() => handleContinueWithSocial('apple')}
           onContinueWithGoogle={() => handleContinueWithSocial('google')}
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
-          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
-          onOpenSignup={() => pushAuthScreen('signup')}
+          onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
     }
@@ -259,6 +325,7 @@ function App() {
           onBack={popAuthScreen}
           onLogin={() => showPreparingAlert('이메일 로그인')}
           onOpenSignup={() => pushAuthScreen('signup')}
+          onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
     }
@@ -268,9 +335,14 @@ function App() {
         <SignUpScreen
           onBack={popAuthScreen}
           onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
+          onOpenTerms={() => pushAuthScreen('terms')}
           onSignUp={() => showPreparingAlert('이메일 회원가입')}
         />
       );
+    }
+
+    if (currentScreen === 'terms') {
+      return <TermsAgreementScreen onBack={popAuthScreen} />;
     }
 
     if (currentScreen === 'saved') {
@@ -299,9 +371,12 @@ function App() {
 
     return (
       <MyPageScreen
+        currentProfile={currentProfile}
+        isProfileLoading={isProfileLoading}
         isLogoutPending={isLogoutPending}
         onLogout={handleLogout}
-        onOpenSavedPlaces={() => openMainScreen('saved')}
+        onRetryProfile={handleRetryProfile}
+        profileError={profileError}
       />
     );
   };

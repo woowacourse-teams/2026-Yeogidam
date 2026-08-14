@@ -402,19 +402,6 @@ export function SavedPlacesScreen({
             onCloseSearch={() => setIsSearchOpen(false)}
             onPressPlace={onOpenDetail}
           />
-          {hasSavedPlaces ? (
-            <Pressable
-              onPress={openDialog}
-              style={[
-                styles.fabShadow,
-                { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
-              ]}
-            >
-              <View style={styles.fab}>
-                <Text style={styles.fabText}>＋</Text>
-              </View>
-            </Pressable>
-          ) : null}
         </>
       ) : (
         <>
@@ -530,17 +517,6 @@ export function SavedPlacesScreen({
                   </Pressable>
                 </View>
               </ScrollView>
-              <Pressable
-                onPress={openDialog}
-                style={[
-                  styles.fabShadow,
-                  { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
-                ]}
-              >
-                <View style={styles.fab}>
-                  <Text style={styles.fabText}>＋</Text>
-                </View>
-              </Pressable>
             </>
           ) : error ? (
             <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
@@ -549,6 +525,18 @@ export function SavedPlacesScreen({
           )}
         </>
       )}
+      <Pressable
+        accessibilityLabel="장소 추가"
+        onPress={openDialog}
+        style={[
+          styles.fabShadow,
+          { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
+        ]}
+      >
+        <View style={styles.fab}>
+          <Text style={styles.fabText}>＋</Text>
+        </View>
+      </Pressable>
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
         value={linkValue}
