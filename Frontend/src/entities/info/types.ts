@@ -69,9 +69,6 @@ export type UpdateCurrentProfileInput = {
 
 export type CurrentProfileRepository = {
   getCurrentProfile: () => Promise<ProfileInfo>;
-  updateCurrentProfile: (
-    input: UpdateCurrentProfileInput,
-  ) => Promise<ProfileInfo>;
 };
 
 export type InfoPlace = {
