@@ -1,11 +1,27 @@
 package com.yeogidamm.app
 
+import android.content.Intent
+import android.os.Bundle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import com.yeogidamm.app.share.ShareIntentCoordinator
 
 class MainActivity : ReactActivity() {
+
+  override fun onCreate(savedInstanceState: Bundle?) {
+    installSplashScreen()
+    super.onCreate(savedInstanceState)
+    ShareIntentCoordinator.handleIntent(intent)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    ShareIntentCoordinator.handleIntent(intent)
+  }
 
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule

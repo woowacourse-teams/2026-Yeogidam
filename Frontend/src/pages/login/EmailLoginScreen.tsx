@@ -7,12 +7,14 @@ import {AuthTextField} from './components/AuthTextField';
 type EmailLoginScreenProps = {
   onBack: () => void;
   onOpenSignup: () => void;
+  onOpenTerms: () => void;
   onLogin: () => void;
 };
 
 export function EmailLoginScreen({
   onBack,
   onOpenSignup,
+  onOpenTerms,
   onLogin,
 }: EmailLoginScreenProps) {
   const [email, setEmail] = useState('');
@@ -52,6 +54,10 @@ export function EmailLoginScreen({
         <Text style={styles.footerText}>계정이 없으신가요?</Text>
         <Pressable hitSlop={8} onPress={onOpenSignup}>
           <Text style={styles.footerLink}>회원가입</Text>
+        </Pressable>
+        <Text style={styles.footerDivider}>|</Text>
+        <Pressable hitSlop={8} onPress={onOpenTerms}>
+          <Text style={styles.footerLink}>약관 동의</Text>
         </Pressable>
       </View>
     </AuthScaffold>
@@ -93,6 +99,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#121212',
+  },
+  footerDivider: {
+    fontSize: 14,
+    color: '#d1d1d6',
   },
   pressed: {
     opacity: 0.8,

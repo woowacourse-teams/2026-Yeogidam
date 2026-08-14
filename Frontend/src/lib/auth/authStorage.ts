@@ -3,6 +3,14 @@ import type {SupportedStorage} from '@supabase/supabase-js';
 
 const STORAGE_USERNAME = 'supabase';
 const STORAGE_SERVICE_PREFIX = 'com.yeogidamm.app.supabase';
+const SUPABASE_AUTH_STORAGE_KEY = 'supabase.auth.token';
+
+const authStorageKeys = [
+  SUPABASE_AUTH_STORAGE_KEY,
+  `${SUPABASE_AUTH_STORAGE_KEY}-user`,
+  `${SUPABASE_AUTH_STORAGE_KEY}-code-verifier`,
+  `${SUPABASE_AUTH_STORAGE_KEY}-flows-code-verifier`,
+];
 
 function getServiceName(key: string) {
   return `${STORAGE_SERVICE_PREFIX}.${key}`;
@@ -31,3 +39,7 @@ export const secureAuthStorage: SupportedStorage = {
     });
   },
 };
+
+export async function clearSecureAuthStorage() {
+  await Promise.all(authStorageKeys.map(key => secureAuthStorage.removeItem(key)));
+}

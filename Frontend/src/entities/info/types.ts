@@ -53,6 +53,27 @@ export type ProfileInfo = {
   updatedAt: string;
 };
 
+export type ProfileApiError = {
+  status: number | null;
+  errorCode: string;
+  message: string;
+  retryable: boolean;
+  requestId?: string;
+};
+
+export type UpdateCurrentProfileInput = {
+  nickname?: string;
+  description?: string;
+  avatarUrl?: string | null;
+};
+
+export type CurrentProfileRepository = {
+  getCurrentProfile: () => Promise<ProfileInfo>;
+  updateCurrentProfile: (
+    input: UpdateCurrentProfileInput,
+  ) => Promise<ProfileInfo>;
+};
+
 export type InfoPlace = {
   id: string;
   kakaoPlaceId?: string | null;

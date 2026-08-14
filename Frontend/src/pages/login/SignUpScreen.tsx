@@ -7,12 +7,14 @@ import {AuthTextField} from './components/AuthTextField';
 type SignUpScreenProps = {
   onBack: () => void;
   onOpenEmailLogin: () => void;
+  onOpenTerms: () => void;
   onSignUp: () => void;
 };
 
 export function SignUpScreen({
   onBack,
   onOpenEmailLogin,
+  onOpenTerms,
   onSignUp,
 }: SignUpScreenProps) {
   const [nickname, setNickname] = useState('');
@@ -69,6 +71,10 @@ export function SignUpScreen({
         <Pressable hitSlop={8} onPress={onOpenEmailLogin}>
           <Text style={styles.footerLink}>로그인</Text>
         </Pressable>
+        <Text style={styles.footerDivider}>|</Text>
+        <Pressable hitSlop={8} onPress={onOpenTerms}>
+          <Text style={styles.footerLink}>약관 동의</Text>
+        </Pressable>
       </View>
     </AuthScaffold>
   );
@@ -109,6 +115,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#121212',
+  },
+  footerDivider: {
+    fontSize: 14,
+    color: '#d1d1d6',
   },
   pressed: {
     opacity: 0.8,
