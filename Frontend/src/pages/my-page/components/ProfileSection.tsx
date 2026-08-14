@@ -1,5 +1,5 @@
-import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import React, {useEffect, useState} from 'react';
+import {Image, StyleSheet, Text, View} from 'react-native';
 
 import type {User} from '../../../entities/user/types';
 
@@ -8,10 +8,27 @@ type ProfileSectionProps = {
 };
 
 export function ProfileSection({user}: ProfileSectionProps) {
+  const [hasAvatarLoadError, setHasAvatarLoadError] = useState(false);
+
+  useEffect(() => {
+    setHasAvatarLoadError(false);
+  }, [user.avatarUrl]);
+
+  const avatarInitial = user.nickname.trim().charAt(0) || '여';
+  const shouldShowAvatarImage = Boolean(user.avatarUrl) && !hasAvatarLoadError;
+
   return (
     <View style={styles.container}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>여</Text>
+        {shouldShowAvatarImage ? (
+          <Image
+            source={{uri: user.avatarUrl!}}
+            style={styles.avatarImage}
+            onError={() => setHasAvatarLoadError(true)}
+          />
+        ) : (
+          <Text style={styles.avatarText}>{avatarInitial}</Text>
+        )}
       </View>
       <Text style={styles.name}>{user.nickname}</Text>
       <Text style={styles.description}>{user.description}</Text>
@@ -33,6 +50,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#dbe0f9',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
   },
   avatarText: {
     fontSize: 28,

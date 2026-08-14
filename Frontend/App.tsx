@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   Alert,
   StatusBar,
@@ -25,6 +25,8 @@ import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
 import {SplashScreen} from './src/pages/splash/SplashScreen';
+import {getCurrentProfile} from './src/entities/info/api';
+import type {ProfileApiError, ProfileInfo} from './src/entities/info/types';
 import type {Place} from './src/entities/place/types';
 import type {
   AppFlowState,
@@ -50,6 +52,9 @@ function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [hasSplashDelayElapsed, setHasSplashDelayElapsed] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
+  const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
+  const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
@@ -71,6 +76,39 @@ function App() {
       clearTimeout(timeoutId);
     };
   }, []);
+
+  const resetToAuthFlow = useCallback(() => {
+    setCurrentProfile(null);
+    setProfileError(null);
+    setIsProfileLoading(false);
+    setFlowState(INITIAL_FLOW_STATE);
+    setIsMapPlaceDetailVisible(false);
+    setIsLogoutPending(false);
+    setPendingSocialProvider(null);
+    setIsAuthReady(true);
+  }, []);
+
+  const loadCurrentProfile = useCallback(async () => {
+    setIsProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const profile = await getCurrentProfile();
+
+      setCurrentProfile(profile);
+    } catch (nextError) {
+      const apiError = nextError as ProfileApiError;
+
+      setCurrentProfile(null);
+      setProfileError(apiError);
+
+      if (apiError.errorCode === 'AUTH401_001') {
+        resetToAuthFlow();
+      }
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [resetToAuthFlow]);
 
   const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
     setFlowState(current =>
@@ -144,8 +182,7 @@ function App() {
       }
 
       if (error || !data.session) {
-        setFlowState(INITIAL_FLOW_STATE);
-        setIsAuthReady(true);
+        resetToAuthFlow();
         return;
       }
 
@@ -155,15 +192,13 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
+      loadCurrentProfile().catch(() => undefined);
     };
 
     syncFlowState().catch(() => {
-      if (!isMounted) {
-        return;
+      if (isMounted) {
+        resetToAuthFlow();
       }
-
-      setFlowState(INITIAL_FLOW_STATE);
-      setIsAuthReady(true);
     });
 
     const {
@@ -174,11 +209,7 @@ function App() {
       }
 
       if (!session) {
-        setFlowState(INITIAL_FLOW_STATE);
-        setIsMapPlaceDetailVisible(false);
-        setIsLogoutPending(false);
-        setPendingSocialProvider(null);
-        setIsAuthReady(true);
+        resetToAuthFlow();
         return;
       }
 
@@ -190,6 +221,7 @@ function App() {
         activeTab: 'saved',
         detailSource: null,
       });
+      loadCurrentProfile().catch(() => undefined);
       setIsAuthReady(true);
     });
 
@@ -197,7 +229,7 @@ function App() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadCurrentProfile, resetToAuthFlow]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider) {
@@ -252,6 +284,10 @@ function App() {
 
     setIsLogoutPending(false);
     Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
+  };
+
+  const handleReauthenticate = async () => {
+    await handleLogout();
   };
 
   const renderScreen = () => {
@@ -317,10 +353,15 @@ function App() {
 
     return (
       <MyPageScreen
+        currentProfile={currentProfile}
         isLogoutPending={isLogoutPending}
+        isProfileLoading={isProfileLoading}
         onOpenTerms={handleOpenTerms}
         onLogout={handleLogout}
+        onReauthenticate={handleReauthenticate}
+        onRetryProfile={loadCurrentProfile}
         onWithdraw={handleWithdraw}
+        profileError={profileError}
       />
     );
   };
