@@ -30,6 +30,8 @@ type MapSearchBarProps = {
   onFocus?: (event: FocusEvent) => void;
   onBlur?: (event: BlurEvent) => void;
   onPressSearchAction?: () => void;
+  /** 기존 호출부 호환용 검색 실행 콜백 */
+  onSubmit?: () => void;
 };
 
 export const MAP_SEARCH_BAR_HEIGHT = 44;
@@ -49,8 +51,11 @@ export function MapSearchBar({
   onFocus,
   onBlur,
   onPressSearchAction,
+  onSubmit,
 }: MapSearchBarProps) {
-  const SearchAction = onPressSearchAction ? Pressable : View;
+  const handleSearchAction = onPressSearchAction ?? onSubmit;
+  const handleSubmitEditing = onSubmitEditing ?? onSubmit;
+  const SearchAction = handleSearchAction ? Pressable : View;
   const showLeadingBackButton =
     onPressBack !== undefined && backButtonPosition === 'leading';
   const showInlineBackButton =
@@ -103,7 +108,7 @@ export function MapSearchBar({
           clearButtonMode="while-editing"
           onChangeText={onChangeText}
           onFocus={onFocus}
-          onSubmitEditing={onSubmitEditing}
+          onSubmitEditing={handleSubmitEditing}
           placeholder={placeholder}
           placeholderTextColor="#a9a9ae"
           returnKeyType="search"
@@ -111,12 +116,12 @@ export function MapSearchBar({
           value={value}
         />
         <SearchAction
-          {...(onPressSearchAction
+          {...(handleSearchAction
             ? {
                 accessibilityRole: 'button' as const,
                 accessibilityLabel: '검색 실행',
                 hitSlop: 10,
-                onPress: onPressSearchAction,
+                onPress: handleSearchAction,
               }
             : {})}
           style={styles.searchAction}

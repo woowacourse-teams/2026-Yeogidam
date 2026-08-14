@@ -722,7 +722,8 @@ export function SavedPlacesScreen({
         </>
       )}
       <Pressable
-        accessibilityLabel="장소 추가"
+        accessibilityLabel="장소 링크 추가"
+        accessibilityRole="button"
         onPress={openDialog}
         style={[
           styles.fabShadow,
