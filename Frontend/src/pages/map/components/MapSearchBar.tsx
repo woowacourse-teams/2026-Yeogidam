@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputFocusEventData,
   type TextInputSubmitEditingEventData,
   type NativeSyntheticEvent,
   View,
@@ -25,6 +26,8 @@ type MapSearchBarProps = {
   onSubmitEditing?: (
     event: NativeSyntheticEvent<TextInputSubmitEditingEventData>,
   ) => void;
+  onFocus?: (event: NativeSyntheticEvent<TextInputFocusEventData>) => void;
+  onBlur?: (event: NativeSyntheticEvent<TextInputFocusEventData>) => void;
   onPressSearchAction?: () => void;
 };
 
@@ -42,6 +45,8 @@ export function MapSearchBar({
   autoFocus = false,
   autoCorrect = true,
   onSubmitEditing,
+  onFocus,
+  onBlur,
   onPressSearchAction,
 }: MapSearchBarProps) {
   const SearchAction = onPressSearchAction ? Pressable : View;
@@ -93,8 +98,10 @@ export function MapSearchBar({
           autoCapitalize="none"
           autoCorrect={autoCorrect}
           autoFocus={autoFocus}
+          onBlur={onBlur}
           clearButtonMode="while-editing"
           onChangeText={onChangeText}
+          onFocus={onFocus}
           onSubmitEditing={onSubmitEditing}
           placeholder={placeholder}
           placeholderTextColor="#a9a9ae"
