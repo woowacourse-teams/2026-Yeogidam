@@ -1,13 +1,14 @@
 import React, {useEffect, useState} from 'react';
-import {Image, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 
 import type {User} from '../../../entities/user/types';
 
 type ProfileSectionProps = {
   user: User;
+  onPressEditProfile?: () => void;
 };
 
-export function ProfileSection({user}: ProfileSectionProps) {
+export function ProfileSection({user, onPressEditProfile}: ProfileSectionProps) {
   const [hasAvatarLoadError, setHasAvatarLoadError] = useState(false);
 
   useEffect(() => {
@@ -32,6 +33,16 @@ export function ProfileSection({user}: ProfileSectionProps) {
       </View>
       <Text style={styles.name}>{user.nickname}</Text>
       <Text style={styles.description}>{user.description}</Text>
+      {onPressEditProfile ? (
+        <Pressable
+          onPress={onPressEditProfile}
+          style={({pressed}) => [
+            styles.editButton,
+            pressed && styles.editButtonPressed,
+          ]}>
+          <Text style={styles.editButtonText}>프로필 수정하기</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -71,5 +82,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#8e8e93',
     marginTop: 6,
+  },
+  editButton: {
+    marginTop: 18,
+    minHeight: 38,
+    paddingHorizontal: 16,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: '#d8dbe7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+  },
+  editButtonPressed: {
+    backgroundColor: '#f6f7fb',
+  },
+  editButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2a2a44',
   },
 });

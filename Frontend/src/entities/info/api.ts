@@ -12,6 +12,7 @@ import type {
   SavedPlaceListItem,
   SavedPlacesApiError,
   SavedPlacesRepository,
+  UpdateCurrentProfileInput,
 } from './types';
 
 export async function getFrontendInfoDomain(): Promise<FrontendInfoDomain> {
@@ -137,6 +138,47 @@ function toProfileInfo(profile: SupabaseProfileResponse): ProfileInfo {
   };
 }
 
+function createProfileNotFoundError(): ProfileApiError {
+  return profileError(
+    'PROFILE404_001',
+    null,
+    '프로필 정보를 찾을 수 없어요. 다시 로그인해주세요.',
+    false,
+  );
+}
+
+type SupabaseProfilePatchRequest = {
+  nickname?: string;
+  description?: string;
+  avatar_url?: string | null;
+};
+
+function toSupabaseProfilePatch(
+  input: UpdateCurrentProfileInput,
+): SupabaseProfilePatchRequest {
+  return {
+    ...(input.nickname !== undefined ? {nickname: input.nickname} : {}),
+    ...(input.description !== undefined
+      ? {description: input.description}
+      : {}),
+    ...(input.avatarUrl !== undefined
+      ? {avatar_url: input.avatarUrl}
+      : {}),
+  };
+}
+
+function doesProfileMatchPatch(
+  profile: ProfileInfo,
+  patch: UpdateCurrentProfileInput,
+) {
+  return (
+    (patch.nickname === undefined || (profile.nickname ?? '') === patch.nickname) &&
+    (patch.description === undefined ||
+      (profile.description ?? '') === patch.description) &&
+    (patch.avatarUrl === undefined || (profile.avatarUrl ?? null) === patch.avatarUrl)
+  );
+}
+
 export function createSupabaseCurrentProfileRepository(
   options: ProfileApiOptions,
 ): CurrentProfileRepository {
@@ -210,12 +252,7 @@ export function createSupabaseCurrentProfileRepository(
     const currentProfile = (body as SupabaseProfileResponse[]).map(toProfileInfo)[0];
 
     if (!currentProfile) {
-      throw profileError(
-        'PROFILE404_001',
-        null,
-        '프로필 정보를 찾을 수 없어요. 다시 로그인해주세요.',
-        false,
-      );
+      throw createProfileNotFoundError();
     }
 
     return currentProfile;
@@ -236,6 +273,121 @@ export function createSupabaseCurrentProfileRepository(
         throw error;
       }
     },
+    async updateCurrentProfile(input) {
+      const updateCurrentProfileOnce = async (): Promise<ProfileInfo> => {
+        if (!options.baseUrl) throw fallbackProfileError(null);
+
+        const userId = await options.getUserId?.();
+
+        if (!userId) {
+          throw profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
+        }
+
+        if (Object.keys(input).length === 0) {
+          return getCurrentProfileOnce();
+        }
+
+        const token = await options.getAccessToken?.();
+        const query = `id=eq.${encodeURIComponent(userId)}`;
+        const patch = toSupabaseProfilePatch(input);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        let response: Response;
+        try {
+          response = await fetch(
+            `${options.baseUrl.replace(/\/$/, '')}/rest/v1/profiles?${query}`,
+            {
+              method: 'PATCH',
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                Prefer: 'return=representation',
+                ...(options.publishableKey
+                  ? {apikey: options.publishableKey}
+                  : {}),
+                ...(token ? {Authorization: `Bearer ${token}`} : {}),
+              },
+              body: JSON.stringify(patch),
+              signal: controller.signal,
+            },
+          );
+        } catch {
+          if (controller.signal.aborted) {
+            try {
+              const refreshedProfile = await getCurrentProfileOnce();
+
+              if (doesProfileMatchPatch(refreshedProfile, input)) {
+                return refreshedProfile;
+              }
+            } catch {
+              // Keep the original timeout error when verification also fails.
+            }
+
+            throw profileError(
+              'CLIENT000_002',
+              null,
+              '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+              true,
+            );
+          }
+
+          throw profileError(
+            'CLIENT000_001',
+            null,
+            '인터넷 연결을 확인해주세요.',
+            true,
+          );
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        let body: unknown;
+
+        if (response.status !== 204) {
+          try {
+            body = await response.json();
+          } catch {
+            throw fallbackProfileError(null);
+          }
+        }
+
+        if (!response.ok) {
+          const normalized = (body ?? {}) as Partial<ProfileApiError>;
+          const fallback = fallbackProfileError(response.status);
+          throw {
+            ...fallback,
+            ...normalized,
+            status: normalized.status ?? fallback.status,
+          };
+        }
+
+        if (response.status === 204) {
+          return getCurrentProfileOnce();
+        }
+
+        const updatedProfile = (body as SupabaseProfileResponse[]).map(toProfileInfo)[0];
+
+        if (updatedProfile) {
+          return updatedProfile;
+        }
+
+        return getCurrentProfileOnce();
+      };
+
+      try {
+        return await updateCurrentProfileOnce();
+      } catch (error) {
+        if (
+          (error as ProfileApiError).errorCode === 'AUTH401_002' &&
+          (await options.refreshSession?.())
+        ) {
+          return updateCurrentProfileOnce();
+        }
+
+        throw error;
+      }
+    },
   };
 }
 
@@ -245,15 +397,31 @@ export function createMockCurrentProfileRepository(): CurrentProfileRepository {
       const currentProfile = frontendInfoDomainMock.profiles[0];
 
       if (!currentProfile) {
-        throw profileError(
-          'PROFILE404_001',
-          null,
-          '프로필 정보를 찾을 수 없어요. 다시 로그인해주세요.',
-          false,
-        );
+        throw createProfileNotFoundError();
       }
 
       return currentProfile;
+    },
+    async updateCurrentProfile(input) {
+      const currentProfile = frontendInfoDomainMock.profiles[0];
+
+      if (!currentProfile) {
+        throw createProfileNotFoundError();
+      }
+
+      const nextProfile: ProfileInfo = {
+        ...currentProfile,
+        ...(input.nickname !== undefined ? {nickname: input.nickname} : {}),
+        ...(input.description !== undefined
+          ? {description: input.description}
+          : {}),
+        ...(input.avatarUrl !== undefined ? {avatarUrl: input.avatarUrl} : {}),
+        updatedAt: new Date().toISOString(),
+      };
+
+      frontendInfoDomainMock.profiles[0] = nextProfile;
+
+      return nextProfile;
     },
   };
 }
@@ -275,6 +443,12 @@ export function configureProfilesApi(options: ProfileApiOptions) {
 
 export function getCurrentProfile(): Promise<ProfileInfo> {
   return currentProfileRepository.getCurrentProfile();
+}
+
+export function updateCurrentProfile(
+  input: UpdateCurrentProfileInput,
+): Promise<ProfileInfo> {
+  return currentProfileRepository.updateCurrentProfile(input);
 }
 
 export async function getProfiles(): Promise<ProfileInfo[]> {

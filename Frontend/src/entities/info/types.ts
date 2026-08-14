@@ -61,8 +61,17 @@ export type ProfileApiError = {
   requestId?: string;
 };
 
+export type UpdateCurrentProfileInput = {
+  nickname?: string;
+  description?: string;
+  avatarUrl?: string | null;
+};
+
 export type CurrentProfileRepository = {
   getCurrentProfile: () => Promise<ProfileInfo>;
+  updateCurrentProfile: (
+    input: UpdateCurrentProfileInput,
+  ) => Promise<ProfileInfo>;
 };
 
 export type InfoPlace = {

@@ -21,12 +21,17 @@ import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
 import {SignUpScreen} from './src/pages/login/SignUpScreen';
 import {MapScreen} from './src/pages/map/MapScreen';
+import {ProfileEditScreen} from './src/pages/my-page/ProfileEditScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
 import {SplashScreen} from './src/pages/splash/SplashScreen';
-import {getCurrentProfile} from './src/entities/info/api';
-import type {ProfileApiError, ProfileInfo} from './src/entities/info/types';
+import {getCurrentProfile, updateCurrentProfile} from './src/entities/info/api';
+import type {
+  ProfileApiError,
+  ProfileInfo,
+  UpdateCurrentProfileInput,
+} from './src/entities/info/types';
 import type {Place} from './src/entities/place/types';
 import type {
   AppFlowState,
@@ -52,6 +57,7 @@ function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [hasSplashDelayElapsed, setHasSplashDelayElapsed] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
+  const [isProfileEditVisible, setIsProfileEditVisible] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
   const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
@@ -81,6 +87,7 @@ function App() {
     setCurrentProfile(null);
     setProfileError(null);
     setIsProfileLoading(false);
+    setIsProfileEditVisible(false);
     setFlowState(INITIAL_FLOW_STATE);
     setIsMapPlaceDetailVisible(false);
     setIsLogoutPending(false);
@@ -138,6 +145,8 @@ function App() {
     if (nextScreen !== 'map') {
       setIsMapPlaceDetailVisible(false);
     }
+
+    setIsProfileEditVisible(false);
 
     setFlowState({
       kind: 'main',
@@ -290,6 +299,23 @@ function App() {
     await handleLogout();
   };
 
+  const handleSaveProfile = async (input: UpdateCurrentProfileInput) => {
+    try {
+      const nextProfile = await updateCurrentProfile(input);
+
+      setCurrentProfile(nextProfile);
+      setProfileError(null);
+    } catch (error) {
+      const apiError = error as ProfileApiError;
+
+      if (apiError.errorCode === 'AUTH401_001') {
+        resetToAuthFlow();
+      }
+
+      throw apiError;
+    }
+  };
+
   const renderScreen = () => {
     if (currentScreen === 'login') {
       return (
@@ -351,11 +377,22 @@ function App() {
       );
     }
 
+    if (currentScreen === 'my' && isProfileEditVisible && currentProfile) {
+      return (
+        <ProfileEditScreen
+          onBack={() => setIsProfileEditVisible(false)}
+          onSave={handleSaveProfile}
+          profile={currentProfile}
+        />
+      );
+    }
+
     return (
       <MyPageScreen
         currentProfile={currentProfile}
         isLogoutPending={isLogoutPending}
         isProfileLoading={isProfileLoading}
+        onOpenEditProfile={() => setIsProfileEditVisible(true)}
         onOpenTerms={handleOpenTerms}
         onLogout={handleLogout}
         onReauthenticate={handleReauthenticate}
@@ -369,6 +406,7 @@ function App() {
   const showTabBar =
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
+    !isProfileEditVisible &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';

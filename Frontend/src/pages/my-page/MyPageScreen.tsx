@@ -13,6 +13,7 @@ type MyPageScreenProps = {
   currentProfile: ProfileInfo | null;
   profileError?: ProfileApiError | null;
   isProfileLoading?: boolean;
+  onOpenEditProfile?: () => void;
   onOpenTerms?: () => void;
   onWithdraw?: () => void;
   onLogout?: () => void;
@@ -25,6 +26,7 @@ export function MyPageScreen({
   currentProfile,
   profileError,
   isProfileLoading = false,
+  onOpenEditProfile,
   onOpenTerms,
   onWithdraw,
   onLogout,
@@ -53,7 +55,10 @@ export function MyPageScreen({
     <View style={styles.container}>
       {user ? (
         <>
-          <ProfileSection user={user} />
+          <ProfileSection
+            onPressEditProfile={onOpenEditProfile}
+            user={user}
+          />
           {profileError ? (
             <View style={styles.errorBanner}>
               <Text numberOfLines={1} style={styles.errorBannerText}>
