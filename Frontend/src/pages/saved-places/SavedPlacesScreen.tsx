@@ -1,17 +1,18 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
-import {toSavedPlaceDisplayPlace} from '../../entities/place/api';
-import type {Place} from '../../entities/place/types';
-import {getSavedPlaces} from '../../entities/info/api';
-import type {SavedPlacesApiError} from '../../entities/info/types';
-import {SavedPlacesErrorState} from './components/SavedPlacesErrorState';
-import {SavedPlacesEmptyState} from './components/SavedPlacesEmptyState';
-import {SavedPlaceGrid} from './components/SavedPlaceGrid';
-import {SavedPlacesHeader} from './components/SavedPlacesHeader';
-import {SavedPlacesLinkDialog} from './components/SavedPlacesLinkDialog';
-import {SavedPlacesSearchPanel} from './components/SavedPlacesSearchPanel';
+import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
+import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
+import type { Place } from '../../entities/place/types';
+import { getSavedPlaces } from '../../entities/info/api';
+import type { SavedPlacesApiError } from '../../entities/info/types';
+import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
+import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
+import { SavedPlaceGrid } from './components/SavedPlaceGrid';
+import { SavedPlacesHeader } from './components/SavedPlacesHeader';
+import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
+import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place) => void;
@@ -70,7 +71,7 @@ export function SavedPlacesScreen({
   };
 
   const scrollToTop = () => {
-    scrollViewRef.current?.scrollTo({y: 0, animated: true});
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   return (
@@ -82,13 +83,6 @@ export function SavedPlacesScreen({
             onCloseSearch={() => setIsSearchOpen(false)}
             onPressPlace={onOpenDetail}
           />
-          {hasSavedPlaces ? (
-            <Pressable onPress={openDialog} style={styles.fabShadow}>
-              <View style={styles.fab}>
-                <Text style={styles.fabText}>＋</Text>
-              </View>
-            </Pressable>
-          ) : null}
         </>
       ) : (
         <>
@@ -96,7 +90,9 @@ export function SavedPlacesScreen({
           <View style={styles.divider} />
           {error && hasSavedPlaces ? (
             <View style={styles.errorBanner}>
-              <Text numberOfLines={1} style={styles.errorText}>{error.message}</Text>
+              <Text numberOfLines={1} style={styles.errorText}>
+                {error.message}
+              </Text>
               {error.retryable ? (
                 <Pressable onPress={loadSavedPlaces}>
                   <Text style={styles.errorRetryText}>재시도</Text>
@@ -105,25 +101,25 @@ export function SavedPlacesScreen({
             </View>
           ) : null}
           {isLoading && !hasSavedPlaces ? (
-            <View style={styles.loading}><Text>저장한 장소를 불러오는 중이에요.</Text></View>
+            <View style={styles.loading}>
+              <Text>저장한 장소를 불러오는 중이에요.</Text>
+            </View>
           ) : hasSavedPlaces ? (
             <>
-              <ScrollView ref={scrollViewRef} showsVerticalScrollIndicator={false}>
-                <SavedPlaceGrid
-                  places={places}
-                  onPressPlace={onOpenDetail}
-                />
+              <ScrollView
+                ref={scrollViewRef}
+                showsVerticalScrollIndicator={false}
+              >
+                <SavedPlaceGrid places={places} onPressPlace={onOpenDetail} />
                 <View style={styles.scrollFooter}>
-                  <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
+                  <Pressable
+                    onPress={scrollToTop}
+                    style={styles.scrollTopButton}
+                  >
                     <MaterialIcons color="#8FA2FF" name="upload" size={24} />
                   </Pressable>
                 </View>
               </ScrollView>
-              <Pressable onPress={openDialog} style={styles.fabShadow}>
-                <View style={styles.fab}>
-                  <Text style={styles.fabText}>＋</Text>
-                </View>
-              </Pressable>
             </>
           ) : error ? (
             <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
@@ -132,6 +128,15 @@ export function SavedPlacesScreen({
           )}
         </>
       )}
+      <Pressable
+        accessibilityLabel="장소 추가"
+        onPress={openDialog}
+        style={styles.fabShadow}
+      >
+        <View style={styles.fab}>
+          <Text style={styles.fabText}>＋</Text>
+        </View>
+      </Pressable>
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
         value={linkValue}
@@ -157,7 +162,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e5ea',
     marginHorizontal: 24,
   },
-  loading: {flex: 1, alignItems: 'center', justifyContent: 'center'},
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -167,12 +172,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 10,
   },
-  errorText: {flex: 1, color: '#7c2d2d', fontSize: 13},
-  errorRetryText: {color: '#5c6fc8', fontSize: 13, fontWeight: '700'},
+  errorText: { flex: 1, color: '#7c2d2d', fontSize: 13 },
+  errorRetryText: { color: '#5c6fc8', fontSize: 13, fontWeight: '700' },
   fabShadow: {
     position: 'absolute',
     right: 18,
-    bottom: 20,
+    bottom: BOTTOM_TAB_BAR_HEIGHT + 70,
     width: 56,
     height: 56,
     borderRadius: 28,
