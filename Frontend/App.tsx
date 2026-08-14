@@ -9,6 +9,13 @@ import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 
 import {configureDataSources} from './src/app/configureDataSources';
 import {BottomTabBar} from './src/components/BottomTabBar';
+import {
+  deleteAccount,
+  getLinkedDeletionProviders,
+  type AccountDeletionProvider,
+  type DeleteAccountRequest,
+} from './src/lib/auth/deleteAccount';
+import {clearSecureAuthStorage} from './src/lib/auth/authStorage';
 import type {NormalizedAuthError} from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -21,6 +28,7 @@ import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
 import {LoginScreen} from './src/pages/login/LoginScreen';
 import {SignUpScreen} from './src/pages/login/SignUpScreen';
 import {MapScreen} from './src/pages/map/MapScreen';
+import {AccountDeletionScreen} from './src/pages/my-page/AccountDeletionScreen';
 import {ProfileEditScreen} from './src/pages/my-page/ProfileEditScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
@@ -57,6 +65,10 @@ function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [hasSplashDelayElapsed, setHasSplashDelayElapsed] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
+  const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
+    AccountDeletionProvider[]
+  >([]);
+  const [isAccountDeletionVisible, setIsAccountDeletionVisible] = useState(false);
   const [isProfileEditVisible, setIsProfileEditVisible] = useState(false);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
   const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
@@ -87,6 +99,8 @@ function App() {
     setCurrentProfile(null);
     setProfileError(null);
     setIsProfileLoading(false);
+    setLinkedDeletionProviders([]);
+    setIsAccountDeletionVisible(false);
     setIsProfileEditVisible(false);
     setFlowState(INITIAL_FLOW_STATE);
     setIsMapPlaceDetailVisible(false);
@@ -147,6 +161,7 @@ function App() {
     }
 
     setIsProfileEditVisible(false);
+    setIsAccountDeletionVisible(false);
 
     setFlowState({
       kind: 'main',
@@ -200,6 +215,7 @@ function App() {
         activeTab: 'saved',
         detailSource: null,
       });
+      setLinkedDeletionProviders(getLinkedDeletionProviders(data.session.user));
       setIsAuthReady(true);
       loadCurrentProfile().catch(() => undefined);
     };
@@ -225,11 +241,16 @@ function App() {
       setSocialLoginError(null);
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
-      setFlowState({
-        kind: 'main',
-        activeTab: 'saved',
-        detailSource: null,
-      });
+      setFlowState(current =>
+        current.kind === 'main'
+          ? current
+          : {
+              kind: 'main',
+              activeTab: 'saved',
+              detailSource: null,
+            },
+      );
+      setLinkedDeletionProviders(getLinkedDeletionProviders(session.user));
       loadCurrentProfile().catch(() => undefined);
       setIsAuthReady(true);
     });
@@ -275,7 +296,7 @@ function App() {
   };
 
   const handleWithdraw = () => {
-    Alert.alert('준비 중', '회원탈퇴 기능은 아직 준비 중이에요.');
+    setIsAccountDeletionVisible(true);
   };
 
   const handleLogout = async () => {
@@ -314,6 +335,13 @@ function App() {
 
       throw apiError;
     }
+  };
+
+  const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
+    await deleteAccount(payload);
+    await supabase.auth.signOut({scope: 'local'}).catch(() => undefined);
+    await clearSecureAuthStorage();
+    resetToAuthFlow();
   };
 
   const renderScreen = () => {
@@ -387,6 +415,16 @@ function App() {
       );
     }
 
+    if (currentScreen === 'my' && isAccountDeletionVisible) {
+      return (
+        <AccountDeletionScreen
+          linkedProviders={linkedDeletionProviders}
+          onBack={() => setIsAccountDeletionVisible(false)}
+          onDeleteAccount={handleDeleteAccount}
+        />
+      );
+    }
+
     return (
       <MyPageScreen
         currentProfile={currentProfile}
@@ -406,6 +444,7 @@ function App() {
   const showTabBar =
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
+    !isAccountDeletionVisible &&
     !isProfileEditVisible &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
