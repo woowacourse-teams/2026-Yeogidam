@@ -229,6 +229,14 @@ function App() {
     Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
+  const handleOpenTerms = () => {
+    showPreparingAlert('약관 동의');
+  };
+
+  const handleWithdraw = () => {
+    Alert.alert('준비 중', '회원탈퇴 기능은 아직 준비 중이에요.');
+  };
+
   const handleLogout = async () => {
     if (isLogoutPending) {
       return;
@@ -310,8 +318,9 @@ function App() {
     return (
       <MyPageScreen
         isLogoutPending={isLogoutPending}
+        onOpenTerms={handleOpenTerms}
         onLogout={handleLogout}
-        onOpenSavedPlaces={() => openMainScreen('saved')}
+        onWithdraw={handleWithdraw}
       />
     );
   };
