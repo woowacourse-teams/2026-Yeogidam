@@ -11,6 +11,8 @@ type BottomTabBarProps = {
 };
 
 export const BOTTOM_TAB_BAR_HEIGHT = 76;
+const TAB_BAR_SIDE_INSET = 16;
+const TAB_BAR_BOTTOM_GAP = 6;
 
 const tabs: {id: MainScreen; icon: 'bookmark' | 'map' | 'person'; label: string}[] = [
   {id: 'saved', icon: 'bookmark', label: '보관함'},
@@ -22,20 +24,32 @@ export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
   const {bottom} = useSafeAreaInsets();
 
   return (
-    <View style={[styles.tabBar, {paddingBottom: bottom}]}>
+    <View
+      style={[
+        styles.tabBar,
+        {
+          bottom: bottom + TAB_BAR_BOTTOM_GAP,
+        },
+      ]}>
       {tabs.map(tab => (
         <Pressable
           key={tab.id}
           onPress={() => onNavigate(tab.id)}
-          style={styles.tab}>
-          <MaterialIcons
-            color={active === tab.id ? '#b6c2fb' : '#aeaeb2'}
-            name={tab.icon}
-            size={22}
-          />
-          <Text style={[styles.tabText, active === tab.id && styles.activeText]}>
-            {tab.label}
-          </Text>
+          style={({pressed}) => [
+            styles.tab,
+            active === tab.id && styles.activeTab,
+            pressed && styles.pressedTab,
+          ]}>
+          <View style={styles.tabInner}>
+            <MaterialIcons
+              color={active === tab.id ? '#1f2238' : '#666b79'}
+              name={tab.icon}
+              size={active === tab.id ? 24 : 23}
+            />
+            <Text style={[styles.tabText, active === tab.id && styles.activeText]}>
+              {tab.label}
+            </Text>
+          </View>
         </Pressable>
       ))}
     </View>
@@ -44,30 +58,51 @@ export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   tabBar: {
+    position: 'absolute',
+    left: TAB_BAR_SIDE_INSET,
+    right: TAB_BAR_SIDE_INSET,
     minHeight: BOTTOM_TAB_BAR_HEIGHT,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e5ea',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#ffffff',
+    shadowColor: '#000000',
+    shadowOpacity: 0.09,
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowRadius: 20,
+    elevation: 10,
   },
   tab: {
     flex: 1,
+    minHeight: 52,
+    borderRadius: 999,
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  tabInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 2,
+  },
+  activeTab: {
+    backgroundColor: 'rgba(0, 0, 0, 0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.62)',
+  },
+  pressedTab: {
+    opacity: 0.82,
   },
   tabText: {
     fontSize: 10,
-    color: '#aeaeb2',
+    color: '#666b79',
   },
   activeText: {
-    color: '#b6c2fb',
+    color: '#1f2238',
     fontWeight: '800',
   },
 });
