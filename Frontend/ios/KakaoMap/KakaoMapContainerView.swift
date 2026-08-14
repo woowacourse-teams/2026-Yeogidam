@@ -622,26 +622,25 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func makeSavedPlaceMarker() -> UIImage {
-    let size = CGSize(width: 34, height: 44)
+    let size = CGSize(width: 36, height: 36)
+
+    if let markerImage = UIImage(named: Self.savedPlaceMarkerAssetName) {
+      return UIGraphicsImageRenderer(size: size).image { _ in
+        markerImage.draw(in: CGRect(origin: .zero, size: size))
+      }
+    }
+
     return UIGraphicsImageRenderer(size: size).image { _ in
-      let center = CGPoint(x: 17, y: 14)
-      let radius: CGFloat = 12
-      let tail = UIBezierPath()
-      tail.move(to: CGPoint(x: 10, y: 20))
-      tail.addLine(to: CGPoint(x: 17, y: 44))
-      tail.addLine(to: CGPoint(x: 24, y: 20))
-      tail.close()
+      let center = CGPoint(x: 18, y: 18)
+      let radius: CGFloat = 13
       UIColor.white.setFill()
-      tail.fill()
-      UIBezierPath(
-        ovalIn: CGRect(x: 3, y: 0, width: 28, height: 28)
-      ).fill()
+      UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: 32, height: 32)).fill()
       UIColor(red: 122 / 255, green: 199 / 255, blue: 223 / 255, alpha: 1).setFill()
       UIBezierPath(
-        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: 24, height: 24)
+        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: 26, height: 26)
       ).fill()
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: 12.5, y: 9.5, width: 9, height: 9)).fill()
+      UIBezierPath(ovalIn: CGRect(x: 13, y: 13, width: 10, height: 10)).fill()
     }
   }
 
@@ -671,4 +670,5 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private static let currentLocationPoiID = "yeogidam-current-location-poi"
   private static let savedPlaceLayerID = "yeogidam-saved-place-layer"
   private static let savedPlaceStyleID = "yeogidam-saved-place-style"
+  private static let savedPlaceMarkerAssetName = "MapMarker"
 }

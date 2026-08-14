@@ -72,6 +72,11 @@ type SupabaseApiOptions = {
   publishableKey?: string;
   getAccessToken?: () => Promise<string | null>;
   getUserId?: () => Promise<string | null>;
+  getProfileSeed?: () => Promise<{
+    nickname?: string | null;
+    description?: string | null;
+    avatarUrl?: string | null;
+  } | null>;
   refreshSession?: () => Promise<boolean>;
 };
 
@@ -153,6 +158,13 @@ type SupabaseProfilePatchRequest = {
   avatar_url?: string | null;
 };
 
+type SupabaseProfileInsertRequest = {
+  id: string;
+  nickname?: string | null;
+  description?: string | null;
+  avatar_url?: string | null;
+};
+
 function toSupabaseProfilePatch(
   input: UpdateCurrentProfileInput,
 ): SupabaseProfilePatchRequest {
@@ -164,6 +176,24 @@ function toSupabaseProfilePatch(
     ...(input.avatarUrl !== undefined
       ? {avatar_url: input.avatarUrl}
       : {}),
+  };
+}
+
+function toSupabaseProfileInsert(
+  userId: string,
+  seed: {
+    nickname?: string | null;
+    description?: string | null;
+    avatarUrl?: string | null;
+  } | null,
+): SupabaseProfileInsertRequest {
+  return {
+    id: userId,
+    ...(seed?.nickname !== undefined ? {nickname: seed.nickname} : {}),
+    ...(seed?.description !== undefined
+      ? {description: seed.description}
+      : {}),
+    ...(seed?.avatarUrl !== undefined ? {avatar_url: seed.avatarUrl} : {}),
   };
 }
 
@@ -182,6 +212,74 @@ function doesProfileMatchPatch(
 export function createSupabaseCurrentProfileRepository(
   options: ProfileApiOptions,
 ): CurrentProfileRepository {
+  const createCurrentProfileOnce = async () => {
+    if (!options.baseUrl) throw fallbackProfileError(null);
+
+    const userId = await options.getUserId?.();
+
+    if (!userId) {
+      throw profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
+    }
+
+    const token = await options.getAccessToken?.();
+    const seed = (await options.getProfileSeed?.()) ?? null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    let response: Response;
+    try {
+      response = await fetch(`${options.baseUrl.replace(/\/$/, '')}/rest/v1/profiles`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates,return=representation',
+          ...(options.publishableKey
+            ? {apikey: options.publishableKey}
+            : {}),
+          ...(token ? {Authorization: `Bearer ${token}`} : {}),
+        },
+        body: JSON.stringify(toSupabaseProfileInsert(userId, seed)),
+        signal: controller.signal,
+      });
+    } catch {
+      throw controller.signal.aborted
+        ? profileError(
+            'CLIENT000_002',
+            null,
+            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+            true,
+          )
+        : profileError(
+            'CLIENT000_001',
+            null,
+            '인터넷 연결을 확인해주세요.',
+            true,
+          );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (response.ok) {
+      return;
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw fallbackProfileError(null);
+    }
+
+    const normalized = body as Partial<ProfileApiError>;
+    const fallback = fallbackProfileError(response.status);
+    throw {
+      ...fallback,
+      ...normalized,
+      status: normalized.status ?? fallback.status,
+    };
+  };
+
   const getCurrentProfileOnce = async (): Promise<ProfileInfo> => {
     if (!options.baseUrl) throw fallbackProfileError(null);
 
@@ -263,6 +361,12 @@ export function createSupabaseCurrentProfileRepository(
       try {
         return await getCurrentProfileOnce();
       } catch (error) {
+        if ((error as ProfileApiError).errorCode === 'PROFILE404_001') {
+          await createCurrentProfileOnce();
+
+          return getCurrentProfileOnce();
+        }
+
         if (
           (error as ProfileApiError).errorCode === 'AUTH401_002' &&
           (await options.refreshSession?.())
