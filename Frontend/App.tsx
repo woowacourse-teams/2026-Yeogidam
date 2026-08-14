@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   StatusBar,
   StyleSheet,
   Text,
@@ -227,17 +228,31 @@ function App() {
       void handleSharedContent(content);
     });
 
-    getInitialSharedContent()
-      .then(content => {
-        if (content) {
-          void handleSharedContent(content);
+    const consumePendingSharedContent = () => {
+      getInitialSharedContent()
+        .then(content => {
+          if (content) {
+            void handleSharedContent(content);
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    consumePendingSharedContent();
+
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      nextState => {
+        if (nextState === 'active') {
+          consumePendingSharedContent();
         }
-      })
-      .catch(() => undefined);
+      },
+    );
 
     return () => {
       isMounted = false;
       subscription.remove();
+      appStateSubscription.remove();
     };
   }, [isAuthReady]);
 
@@ -334,7 +349,12 @@ function App() {
           onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
           sharedUrl={pendingSharedUrl}
-          onSharedUrlHandled={() => setPendingSharedUrl(null)}
+          onSharedUrlHandled={() => {
+            if (pendingSharedUrl) {
+              handledSharedValues.current.delete(pendingSharedUrl);
+            }
+            setPendingSharedUrl(null);
+          }}
         />
       );
     }
