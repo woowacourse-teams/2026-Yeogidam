@@ -1,5 +1,6 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import type {MainScreen} from '../types/navigation';
@@ -11,10 +12,10 @@ type BottomTabBarProps = {
 
 export const BOTTOM_TAB_BAR_HEIGHT = 76;
 
-const tabs: {id: MainScreen; icon: string; label: string}[] = [
-  {id: 'saved', icon: '♧', label: '저장됨'},
-  {id: 'map', icon: '♧', label: '지도'},
-  {id: 'my', icon: '♙', label: '마이'},
+const tabs: {id: MainScreen; icon: 'bookmark' | 'map' | 'person'; label: string}[] = [
+  {id: 'saved', icon: 'bookmark', label: '저장됨'},
+  {id: 'map', icon: 'map', label: '지도'},
+  {id: 'my', icon: 'person', label: '마이'},
 ];
 
 export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
@@ -27,9 +28,11 @@ export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
           key={tab.id}
           onPress={() => onNavigate(tab.id)}
           style={styles.tab}>
-          <Text style={[styles.tabIcon, active === tab.id && styles.activeText]}>
-            {tab.icon}
-          </Text>
+          <MaterialIcons
+            color={active === tab.id ? '#b6c2fb' : '#aeaeb2'}
+            name={tab.icon}
+            size={22}
+          />
           <Text style={[styles.tabText, active === tab.id && styles.activeText]}>
             {tab.label}
           </Text>
@@ -58,10 +61,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: 2,
-  },
-  tabIcon: {
-    fontSize: 20,
-    color: '#aeaeb2',
   },
   tabText: {
     fontSize: 10,
