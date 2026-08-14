@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,11 @@ import { MapScreen } from './src/pages/map/MapScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
+import {
+  addSharedContentListener,
+  getInitialSharedContent,
+  type SharedContent,
+} from './src/lib/share-intent';
 import type { Place } from './src/entities/place/types';
 import type {
   AppFlowState,
@@ -52,6 +57,8 @@ function App() {
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
+  const handledSharedValues = useRef(new Set<string>());
+  const [pendingSharedUrl, setPendingSharedUrl] = useState<string | null>(null);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -187,6 +194,53 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isAuthReady) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const handleSharedContent = async (sharedContent: SharedContent) => {
+      const url = sharedContent.value.trim();
+      if (!url || handledSharedValues.current.has(url)) {
+        return;
+      }
+      handledSharedValues.current.add(url);
+
+      const {data} = await supabase.auth.getSession();
+      if (!isMounted) {
+        return;
+      }
+
+      if (!data.session) {
+        setFlowState(INITIAL_FLOW_STATE);
+        Alert.alert('로그인이 필요해요', '공유한 릴스를 저장하려면 로그인해주세요.');
+        return;
+      }
+
+      setPendingSharedUrl(url);
+      openMainScreen('saved');
+    };
+
+    const subscription = addSharedContentListener(content => {
+      void handleSharedContent(content);
+    });
+
+    getInitialSharedContent()
+      .then(content => {
+        if (content) {
+          void handleSharedContent(content);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [isAuthReady]);
+
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider) {
       return;
@@ -279,6 +333,8 @@ function App() {
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
+          sharedUrl={pendingSharedUrl}
+          onSharedUrlHandled={() => setPendingSharedUrl(null)}
         />
       );
     }

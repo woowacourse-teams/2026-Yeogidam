@@ -30,6 +30,7 @@ import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
 import {
+  getLatestProcessingReel,
   getReelProcessingStatus,
   saveContent,
 } from '../../entities/content/api';
@@ -119,6 +120,12 @@ function ReelStatusCard({
 
 function getFailureMessage(reason: string | null): string {
   switch (reason) {
+    case 'CLIENT000_001':
+      return '인터넷 연결이 불안정해요.';
+    case 'CLIENT000_002':
+      return '응답이 늦어져 저장하지 못했어요.';
+    case 'REEL400_001':
+      return '지원하지 않는 링크예요.';
     case 'IG_CAPTION_NOT_FOUND':
       return '릴스 캡션을 읽지 못했어요.';
     case 'GEMINI_PLACE_NOT_FOUND':
@@ -134,6 +141,12 @@ function getFailureMessage(reason: string | null): string {
 
 function getFailureDescription(reason: string | null): string {
   switch (reason) {
+    case 'CLIENT000_001':
+      return '인터넷 연결을 확인한 뒤 다시 시도해주세요.';
+    case 'CLIENT000_002':
+      return '잠시 후 다시 시도해주세요.';
+    case 'REEL400_001':
+      return 'Instagram 릴스 링크를 공유해주세요.';
     case 'KAKAO_PLACE_NOT_FOUND':
       return '릴스의 장소 정보와 주소를 확인해주세요.';
     case 'IG_CAPTION_NOT_FOUND':
@@ -145,6 +158,15 @@ function getFailureDescription(reason: string | null): string {
     default:
       return '잠시 후 다시 시도하거나 다른 릴스 링크를 사용해주세요.';
   }
+}
+
+function canRetryFailure(reason: string | null): boolean {
+  return [
+    'CLIENT000_001',
+    'CLIENT000_002',
+    'CLIENT000_003',
+    'DATA500_001',
+  ].includes(reason ?? '');
 }
 
 function getStatusQueryMessage(error: ReelApiError): string {
@@ -163,6 +185,8 @@ type SavedPlacesScreenProps = {
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
   places?: Place[];
+  sharedUrl?: string | null;
+  onSharedUrlHandled?: () => void;
 };
 
 export function SavedPlacesScreen({
@@ -170,6 +194,8 @@ export function SavedPlacesScreen({
   onAuthenticationRequired,
   onRequireLogin,
   places: providedPlaces,
+  sharedUrl = null,
+  onSharedUrlHandled,
 }: SavedPlacesScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
@@ -219,6 +245,72 @@ export function SavedPlacesScreen({
     loadSavedPlaces();
   }, [loadSavedPlaces]);
 
+  useEffect(() => {
+    if (providedPlaces !== undefined) {
+      return;
+    }
+
+    getLatestProcessingReel()
+      .then(reel => {
+        if (reel) {
+          setProcessingReelId(reel.id);
+          setProcessingReel(reel);
+        }
+      })
+      .catch(() => undefined);
+  }, [providedPlaces]);
+
+  useEffect(() => {
+    if (!sharedUrl || isSubmitting) {
+      return;
+    }
+
+    let active = true;
+    // 요청 응답을 기다리는 동안에도 즉시 처리중 카드를 보여줍니다.
+    setProcessingReelId(null);
+    setProcessingUrl(sharedUrl);
+    setProcessingReel({
+      id: `share-${Date.now()}`,
+      processing_status: 'PROCESSING',
+      failure_reason: null,
+      instagram_thumbnail_url: null,
+      created_at: new Date().toISOString(),
+    });
+    setIsSaveResponseFailure(false);
+    setIsSubmitting(true);
+    setStatusQueryError(null);
+    saveContent(sharedUrl, 'instagram_share')
+      .then(response => {
+        if (active) {
+          handleSaveResponse(response, sharedUrl);
+        }
+      })
+      .catch(error => {
+        if (active) {
+          const normalizedError = normalizeReelError(error);
+          setProcessingReelId(null);
+          setProcessingReel({
+            id: `share-failed-${Date.now()}`,
+            processing_status: 'FAILED',
+            failure_reason: normalizedError.errorCode,
+            instagram_thumbnail_url: null,
+            created_at: new Date().toISOString(),
+          });
+          setIsSaveResponseFailure(true);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsSubmitting(false);
+          onSharedUrlHandled?.();
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [onSharedUrlHandled, sharedUrl]);
+
   const openDialog = () => {
     setLinkError(null);
     setIsDialogVisible(true);
@@ -238,6 +330,12 @@ export function SavedPlacesScreen({
       return;
     }
 
+    // 새 링크 요청은 이전 릴스의 카드/폴링 상태를 이어받지 않습니다.
+    setProcessingReelId(null);
+    setProcessingReel(null);
+    setProcessingUrl(linkValue.trim());
+    setStatusQueryError(null);
+    setIsSaveResponseFailure(false);
     setIsSubmitting(true);
     setLinkError(null);
     try {
@@ -248,6 +346,14 @@ export function SavedPlacesScreen({
     } catch (error) {
       const normalizedError = normalizeReelError(error);
       setLastRequestId(normalizedError.requestId ?? null);
+      setProcessingReel({
+        id: `manual-failed-${Date.now()}`,
+        processing_status: 'FAILED',
+        failure_reason: normalizedError.errorCode,
+        instagram_thumbnail_url: null,
+        created_at: new Date().toISOString(),
+      });
+      setIsSaveResponseFailure(true);
       if (normalizedError.errorCode === 'AUTH401_001') {
         setIsDialogVisible(false);
         onRequireLogin?.();
@@ -476,7 +582,11 @@ export function SavedPlacesScreen({
               onCancel={dismissProcessingCard}
               // REEL-01이 200 FAILED를 반환한 경우
               // reused 값과 관계없이 동일 URL로 저장 요청을 다시 보냅니다.
-              onRetry={isSaveResponseFailure ? retryProcessing : undefined}
+              onRetry={
+                isSaveResponseFailure && canRetryFailure(processingReel.failure_reason)
+                  ? retryProcessing
+                  : undefined
+              }
             />
           ) : processingReel &&
             processingReel.processing_status !== 'COMPLETED' ? (
