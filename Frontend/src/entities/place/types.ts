@@ -2,6 +2,7 @@ import type { ImageSourcePropType } from 'react-native';
 
 export type Place = {
   id: string;
+  savedPlaceId?: string;
   kakaoPlaceId?: string;
   name: string;
   category?: string;
@@ -11,6 +12,6 @@ export type Place = {
   longitude?: number;
   placeUrl?: string;
   telephone?: string;
-  image: ImageSourcePropType;
+  image?: ImageSourcePropType;
   images?: ImageSourcePropType[];
 };
