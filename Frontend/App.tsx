@@ -451,8 +451,7 @@ function App() {
           onContinueWithApple={() => handleContinueWithSocial('apple')}
           onContinueWithGoogle={() => handleContinueWithSocial('google')}
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
-          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
-          onOpenSignup={() => pushAuthScreen('signup')}
+          onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
     }
@@ -463,6 +462,7 @@ function App() {
           onBack={popAuthScreen}
           onLogin={() => showPreparingAlert('이메일 로그인')}
           onOpenSignup={() => pushAuthScreen('signup')}
+          onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
     }
@@ -472,9 +472,14 @@ function App() {
         <SignUpScreen
           onBack={popAuthScreen}
           onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
+          onOpenTerms={() => pushAuthScreen('terms')}
           onSignUp={() => showPreparingAlert('이메일 회원가입')}
         />
       );
+    }
+
+    if (currentScreen === 'terms') {
+      return <TermsAgreementScreen onBack={popAuthScreen} />;
     }
 
     if (currentScreen === 'saved') {

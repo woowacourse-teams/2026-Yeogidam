@@ -1,4 +1,4 @@
-export type AuthScreen = 'login' | 'emailLogin' | 'signup';
+export type AuthScreen = 'login' | 'emailLogin' | 'signup' | 'terms';
 
 export type MainScreen = 'saved' | 'map' | 'my';
 

@@ -14,8 +14,7 @@ import type {NormalizedAuthError} from '../../lib/auth/errors';
 
 type LoginScreenProps = {
   isAppleLoginAvailable: boolean;
-  onOpenSignup: () => void;
-  onOpenEmailLogin: () => void;
+  onOpenTerms: () => void;
   onContinueWithApple: () => void;
   onContinueWithKakao: () => void;
   onContinueWithGoogle: () => void;
@@ -53,13 +52,12 @@ const socialButtons: SocialButton[] = [
   },
 ];
 
-const footerLinks = ['회원가입', '로그인', '문의하기'] as const;
+const footerLinks = ['약관 동의', '문의하기'] as const;
 type FooterLink = (typeof footerLinks)[number];
 
 export function LoginScreen({
   isAppleLoginAvailable,
-  onOpenSignup,
-  onOpenEmailLogin,
+  onOpenTerms,
   onContinueWithApple,
   onContinueWithKakao,
   onContinueWithGoogle,
@@ -71,9 +69,8 @@ export function LoginScreen({
     ? socialButtons
     : socialButtons.filter(button => button.variant !== 'apple');
   const footerLinkActions: Record<FooterLink, () => void> = {
-    회원가입: onOpenSignup,
-    로그인: onOpenEmailLogin,
-    문의하기: () => {},
+    '약관 동의': onOpenTerms,
+    문의하기: onOpenTerms,
   };
   const socialButtonActions = {
     apple: onContinueWithApple,
