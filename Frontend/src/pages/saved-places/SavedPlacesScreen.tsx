@@ -419,7 +419,6 @@ export function SavedPlacesScreen({
       ) : (
         <>
           <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
-          <View style={styles.divider} />
           {SHOW_CARD_PREVIEW ? (
             <ScrollView
               contentContainerStyle={styles.previewContent}
@@ -686,11 +685,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     textAlign: 'center',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e5e5ea',
-    marginHorizontal: 24,
   },
   errorBanner: {
     flexDirection: 'row',
