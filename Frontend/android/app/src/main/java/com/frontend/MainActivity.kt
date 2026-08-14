@@ -1,4 +1,4 @@
-package com.yeogidamm.app
+package com.frontend
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
