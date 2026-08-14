@@ -1,5 +1,5 @@
 import React from 'react';
-import {Image, Pressable, StyleSheet, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 type SavedPlacesHeaderProps = {
@@ -17,9 +17,11 @@ export function SavedPlacesHeader({
           style={styles.leadingImage}
         />
       </View>
-      <View style={styles.placeholder} />
-      <Pressable onPress={onPressSearch} style={styles.action}>
-        <MaterialIcons color="#d8dffe" name="search" size={24} />
+      <Pressable onPress={onPressSearch} style={styles.searchBar}>
+        <Text style={styles.searchPlaceholder}>여기담 검색</Text>
+        <View style={styles.searchAction}>
+          <MaterialIcons color="#d8dffe" name="search" size={18} />
+        </View>
       </Pressable>
     </View>
   );
@@ -27,16 +29,16 @@ export function SavedPlacesHeader({
 
 const styles = StyleSheet.create({
   header: {
-    height: 76,
+    height: 84,
     paddingHorizontal: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 10,
   },
   leading: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -46,23 +48,46 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
-  placeholder: {
+  searchBar: {
     flex: 1,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 22,
+    paddingRight: 8,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowRadius: 12,
+    elevation: 5,
   },
-  action: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  searchPlaceholder: {
+    flex: 1,
+    fontSize: 17,
+    lineHeight: 20,
+    fontWeight: '800',
+    color: '#a9a9ae',
+  },
+  searchAction: {
+    width: 30,
+    height: 30,
+    marginLeft: 10,
+    borderRadius: 15,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000000',
-    shadowOpacity: 0.16,
+    shadowOpacity: 0.12,
     shadowOffset: {
       width: 0,
-      height: 6,
+      height: 4,
     },
-    shadowRadius: 14,
-    elevation: 6,
+    shadowRadius: 10,
+    elevation: 4,
   },
 });
