@@ -1,56 +1,32 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  Animated,
-  AppState,
-  type AppStateStatus,
   StatusBar,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import {configureDataSources} from './src/app/configureDataSources';
-import {BottomTabBar} from './src/components/BottomTabBar';
-import {
-  deleteAccount,
-  getLinkedDeletionProviders,
-  type AccountDeletionProvider,
-  type DeleteAccountRequest,
-} from './src/lib/auth/deleteAccount';
-import {clearSecureAuthStorage} from './src/lib/auth/authStorage';
-import type {NormalizedAuthError} from './src/lib/auth/errors';
+import { configureDataSources } from './src/app/configureDataSources';
+import { BottomTabBar } from './src/components/BottomTabBar';
+import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
   signInWithApple,
 } from './src/lib/auth/signInWithApple';
-import {signInWithGoogle} from './src/lib/auth/signInWithGoogle';
-import {signInWithKakao} from './src/lib/auth/signInWithKakao';
-import {supabase} from './src/lib/auth/supabase';
-import {
-  addSharedContentListener,
-  getInitialSharedContent,
-  type SharedContent,
-} from './src/lib/share-intent';
-import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
-import {LoginScreen} from './src/pages/login/LoginScreen';
-import {SignUpScreen} from './src/pages/login/SignUpScreen';
-import {MapScreen} from './src/pages/map/MapScreen';
-import {AccountDeletionScreen} from './src/pages/my-page/AccountDeletionScreen';
-import {ProfileEditScreen} from './src/pages/my-page/ProfileEditScreen';
-import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
-import {TermsAgreementScreen} from './src/pages/my-page/TermsAgreementScreen';
-import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
-import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
-import {SplashScreen} from './src/pages/splash/SplashScreen';
-import {getCurrentProfile, updateCurrentProfile} from './src/entities/info/api';
-import type {
-  ProfileApiError,
-  ProfileInfo,
-  UpdateCurrentProfileInput,
-} from './src/entities/info/types';
-import type {Place} from './src/entities/place/types';
+import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
+import { signInWithKakao } from './src/lib/auth/signInWithKakao';
+import { supabase } from './src/lib/auth/supabase';
+import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
+import { LoginScreen } from './src/pages/login/LoginScreen';
+import { SignUpScreen } from './src/pages/login/SignUpScreen';
+import { MapScreen } from './src/pages/map/MapScreen';
+import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
+import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
+import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
+import type { Place } from './src/entities/place/types';
 import type {
   AppFlowState,
   AuthScreen,
@@ -62,8 +38,6 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
-const SPLASH_MINIMUM_DURATION_MS = 2000;
-
 type SocialProvider = 'apple' | 'kakao' | 'google';
 
 configureDataSources();
@@ -73,111 +47,18 @@ function App() {
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [hasSplashDelayElapsed, setHasSplashDelayElapsed] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
-  const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
-    AccountDeletionProvider[]
-  >([]);
-  const [isAccountDeletionVisible, setIsAccountDeletionVisible] = useState(false);
-  const [isProfileEditVisible, setIsProfileEditVisible] = useState(false);
-  const [isTermsVisible, setIsTermsVisible] = useState(false);
-  const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
-  const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
-  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
-  const [latestSharedContent, setLatestSharedContent] =
-    useState<SharedContent | null>(null);
-  const [sharedToastMessage, setSharedToastMessage] = useState('');
-  const [isSharedToastVisible, setIsSharedToastVisible] = useState(false);
-  const sharedToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sharedToastTranslateY = useRef(new Animated.Value(72)).current;
-  const sharedToastOpacity = useRef(new Animated.Value(0)).current;
-
-  const showSharedContentToast = useCallback((content: SharedContent) => {
-    if (sharedToastTimerRef.current) {
-      clearTimeout(sharedToastTimerRef.current);
-    }
-
-    setSharedToastMessage(
-      content.type === 'url'
-        ? '공유된 링크가 저장되었습니다.'
-        : '공유된 텍스트가 저장되었습니다.',
-    );
-    setIsSharedToastVisible(true);
-    sharedToastTimerRef.current = setTimeout(() => {
-      setIsSharedToastVisible(false);
-    }, 1800);
-  }, []);
-
-  const syncInitialSharedContent = useCallback(() => {
-    getInitialSharedContent()
-      .then(sharedContent => {
-        if (!sharedContent) {
-          return;
-        }
-
-        setLatestSharedContent(sharedContent);
-        showSharedContentToast(sharedContent);
-      })
-      .catch(() => {});
-  }, [showSharedContentToast]);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
       ? flowState.stack[flowState.stack.length - 1]
       : flowState.detailSource
-        ? 'detail'
-        : flowState.activeTab;
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setHasSplashDelayElapsed(true);
-    }, SPLASH_MINIMUM_DURATION_MS);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  const resetToAuthFlow = useCallback(() => {
-    setCurrentProfile(null);
-    setProfileError(null);
-    setIsProfileLoading(false);
-    setLinkedDeletionProviders([]);
-    setIsAccountDeletionVisible(false);
-    setIsProfileEditVisible(false);
-    setIsTermsVisible(false);
-    setFlowState(INITIAL_FLOW_STATE);
-    setIsMapPlaceDetailVisible(false);
-    setIsLogoutPending(false);
-    setPendingSocialProvider(null);
-    setIsAuthReady(true);
-  }, []);
-
-  const loadCurrentProfile = useCallback(async () => {
-    setIsProfileLoading(true);
-    setProfileError(null);
-
-    try {
-      const profile = await getCurrentProfile();
-
-      setCurrentProfile(profile);
-    } catch (nextError) {
-      const apiError = nextError as ProfileApiError;
-
-      setCurrentProfile(null);
-      setProfileError(apiError);
-
-      if (apiError.errorCode === 'AUTH401_001') {
-        resetToAuthFlow();
-      }
-    } finally {
-      setIsProfileLoading(false);
-    }
-  }, [resetToAuthFlow]);
+      ? 'detail'
+      : flowState.activeTab;
 
   const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
     setFlowState(current =>
@@ -207,10 +88,6 @@ function App() {
     if (nextScreen !== 'map') {
       setIsMapPlaceDetailVisible(false);
     }
-
-    setIsProfileEditVisible(false);
-    setIsAccountDeletionVisible(false);
-    setIsTermsVisible(false);
 
     setFlowState({
       kind: 'main',
@@ -248,14 +125,15 @@ function App() {
     let isMounted = true;
 
     const syncFlowState = async () => {
-      const {data, error} = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
 
       if (!isMounted) {
         return;
       }
 
       if (error || !data.session) {
-        resetToAuthFlow();
+        setFlowState(INITIAL_FLOW_STATE);
+        setIsAuthReady(true);
         return;
       }
 
@@ -264,97 +142,48 @@ function App() {
         activeTab: 'saved',
         detailSource: null,
       });
-      setLinkedDeletionProviders(getLinkedDeletionProviders(data.session.user));
       setIsAuthReady(true);
-      loadCurrentProfile().catch(() => undefined);
     };
 
     syncFlowState().catch(() => {
-      if (isMounted) {
-        resetToAuthFlow();
+      if (!isMounted) {
+        return;
       }
+
+      setFlowState(INITIAL_FLOW_STATE);
+      setIsAuthReady(true);
     });
 
     const {
-      data: {subscription},
+      data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) {
         return;
       }
 
       if (!session) {
-        resetToAuthFlow();
+        setFlowState(INITIAL_FLOW_STATE);
+        setIsMapPlaceDetailVisible(false);
+        setIsLogoutPending(false);
+        setPendingSocialProvider(null);
+        setIsAuthReady(true);
         return;
       }
 
       setSocialLoginError(null);
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
-      setFlowState(current =>
-        current.kind === 'main'
-          ? current
-          : {
-              kind: 'main',
-              activeTab: 'saved',
-              detailSource: null,
-            },
-      );
-      setLinkedDeletionProviders(getLinkedDeletionProviders(session.user));
-      loadCurrentProfile().catch(() => undefined);
+      setFlowState({
+        kind: 'main',
+        activeTab: 'saved',
+        detailSource: null,
+      });
       setIsAuthReady(true);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-    };
-  }, [loadCurrentProfile, resetToAuthFlow]);
-
-  useEffect(() => {
-    syncInitialSharedContent();
-
-    const subscription = addSharedContentListener(sharedContent => {
-      setLatestSharedContent(sharedContent);
-      showSharedContentToast(sharedContent);
-    });
-
-    const appStateSubscription = AppState.addEventListener(
-      'change',
-      (nextAppState: AppStateStatus) => {
-        if (nextAppState !== 'active') {
-          return;
-        }
-
-        syncInitialSharedContent();
-      },
-    );
-
-    return () => {
-      subscription.remove();
-      appStateSubscription.remove();
-    };
-  }, [showSharedContentToast, syncInitialSharedContent]);
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(sharedToastTranslateY, {
-        toValue: isSharedToastVisible ? 0 : 72,
-        duration: isSharedToastVisible ? 180 : 140,
-        useNativeDriver: true,
-      }),
-      Animated.timing(sharedToastOpacity, {
-        toValue: isSharedToastVisible ? 1 : 0,
-        duration: isSharedToastVisible ? 160 : 120,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [isSharedToastVisible, sharedToastOpacity, sharedToastTranslateY]);
-
-  useEffect(() => {
-    return () => {
-      if (sharedToastTimerRef.current) {
-        clearTimeout(sharedToastTimerRef.current);
-      }
     };
   }, []);
 
@@ -388,14 +217,6 @@ function App() {
     Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
-  const handleOpenTerms = () => {
-    setIsTermsVisible(true);
-  };
-
-  const handleWithdraw = () => {
-    setIsAccountDeletionVisible(true);
-  };
-
   const handleLogout = async () => {
     if (isLogoutPending) {
       return;
@@ -403,42 +224,17 @@ function App() {
 
     setIsLogoutPending(true);
 
-    const {error} = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
 
     if (!error) {
       return;
     }
 
     setIsLogoutPending(false);
-    Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
-  };
-
-  const handleReauthenticate = async () => {
-    await handleLogout();
-  };
-
-  const handleSaveProfile = async (input: UpdateCurrentProfileInput) => {
-    try {
-      const nextProfile = await updateCurrentProfile(input);
-
-      setCurrentProfile(nextProfile);
-      setProfileError(null);
-    } catch (error) {
-      const apiError = error as ProfileApiError;
-
-      if (apiError.errorCode === 'AUTH401_001') {
-        resetToAuthFlow();
-      }
-
-      throw apiError;
-    }
-  };
-
-  const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
-    await deleteAccount(payload);
-    await supabase.auth.signOut({scope: 'local'}).catch(() => undefined);
-    await clearSecureAuthStorage();
-    resetToAuthFlow();
+    Alert.alert(
+      '로그아웃 실패',
+      '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
+    );
   };
 
   const renderScreen = () => {
@@ -451,7 +247,8 @@ function App() {
           onContinueWithApple={() => handleContinueWithSocial('apple')}
           onContinueWithGoogle={() => handleContinueWithSocial('google')}
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
-          onOpenTerms={() => pushAuthScreen('terms')}
+          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
+          onOpenSignup={() => pushAuthScreen('signup')}
         />
       );
     }
@@ -462,7 +259,6 @@ function App() {
           onBack={popAuthScreen}
           onLogin={() => showPreparingAlert('이메일 로그인')}
           onOpenSignup={() => pushAuthScreen('signup')}
-          onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
     }
@@ -472,14 +268,9 @@ function App() {
         <SignUpScreen
           onBack={popAuthScreen}
           onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
-          onOpenTerms={() => pushAuthScreen('terms')}
           onSignUp={() => showPreparingAlert('이메일 회원가입')}
         />
       );
-    }
-
-    if (currentScreen === 'terms') {
-      return <TermsAgreementScreen onBack={popAuthScreen} />;
     }
 
     if (currentScreen === 'saved') {
@@ -487,14 +278,13 @@ function App() {
         <SavedPlacesScreen
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           onOpenDetail={place => openDetailFrom('saved', place)}
+          onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
         />
       );
     }
 
     if (currentScreen === 'map') {
-      return (
-        <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />
-      );
+      return <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />;
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
@@ -507,42 +297,11 @@ function App() {
       );
     }
 
-    if (currentScreen === 'my' && isProfileEditVisible && currentProfile) {
-      return (
-        <ProfileEditScreen
-          onBack={() => setIsProfileEditVisible(false)}
-          onSave={handleSaveProfile}
-          profile={currentProfile}
-        />
-      );
-    }
-
-    if (currentScreen === 'my' && isAccountDeletionVisible) {
-      return (
-        <AccountDeletionScreen
-          linkedProviders={linkedDeletionProviders}
-          onBack={() => setIsAccountDeletionVisible(false)}
-          onDeleteAccount={handleDeleteAccount}
-        />
-      );
-    }
-
-    if (currentScreen === 'my' && isTermsVisible) {
-      return <TermsAgreementScreen onBack={() => setIsTermsVisible(false)} />;
-    }
-
     return (
       <MyPageScreen
-        currentProfile={currentProfile}
         isLogoutPending={isLogoutPending}
-        isProfileLoading={isProfileLoading}
-        onOpenEditProfile={() => setIsProfileEditVisible(true)}
-        onOpenTerms={handleOpenTerms}
         onLogout={handleLogout}
-        onReauthenticate={handleReauthenticate}
-        onRetryProfile={loadCurrentProfile}
-        onWithdraw={handleWithdraw}
-        profileError={profileError}
+        onOpenSavedPlaces={() => openMainScreen('saved')}
       />
     );
   };
@@ -550,20 +309,23 @@ function App() {
   const showTabBar =
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
-    !isAccountDeletionVisible &&
-    !isProfileEditVisible &&
-    !isTermsVisible &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';
-  const activeTab =
-    flowState.kind === 'main' ? flowState.activeTab : undefined;
+  const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
-  if (!isAuthReady || !hasSplashDelayElapsed) {
+  if (!isAuthReady) {
     return (
       <SafeAreaProvider>
-        <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
-        <SplashScreen />
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color="#121212" size="large" />
+            <Text style={styles.loadingText}>
+              로그인 상태를 확인하고 있어요.
+            </Text>
+          </View>
+        </SafeAreaView>
       </SafeAreaProvider>
     );
   }
@@ -572,7 +334,8 @@ function App() {
     <SafeAreaProvider>
       <SafeAreaView
         edges={isMapScreen ? ['left', 'right'] : ['top', 'left', 'right']}
-        style={styles.safeArea}>
+        style={styles.safeArea}
+      >
         <StatusBar
           barStyle="dark-content"
           backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
@@ -580,34 +343,9 @@ function App() {
         />
         <View style={styles.container}>
           {renderScreen()}
-          {latestSharedContent ? (
-            <View style={styles.sharedDebugCard}>
-              <Text style={styles.sharedDebugLabel}>공유 데이터 테스트</Text>
-              <Text style={styles.sharedDebugType}>
-                타입: {latestSharedContent.type}
-              </Text>
-              <Text selectable style={styles.sharedDebugValue}>
-                {latestSharedContent.value}
-              </Text>
-            </View>
-          ) : null}
           {showTabBar && activeTab ? (
-            <BottomTabBar
-              active={activeTab}
-              onNavigate={openMainScreen}
-            />
+            <BottomTabBar active={activeTab} onNavigate={openMainScreen} />
           ) : null}
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.sharedToast,
-              {
-                opacity: sharedToastOpacity,
-                transform: [{translateY: sharedToastTranslateY}],
-              },
-            ]}>
-            <Text style={styles.sharedToastText}>{sharedToastMessage}</Text>
-          </Animated.View>
         </View>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -622,58 +360,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-  },
-  sharedDebugCard: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    right: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: '#FFF7E8',
-    borderWidth: 1,
-    borderColor: '#F0C987',
-    zIndex: 30,
-    elevation: 30,
-  },
-  sharedDebugLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8A5300',
-    marginBottom: 6,
-  },
-  sharedDebugType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2A2A2A',
-    marginBottom: 6,
-  },
-  sharedDebugValue: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#404040',
-  },
-  sharedToast: {
-    position: 'absolute',
-    left: 24,
-    right: 24,
-    bottom: 16,
-    minHeight: 52,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: '#1B1B1B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
-    elevation: 20,
-  },
-  sharedToastText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,

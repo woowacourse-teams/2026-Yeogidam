@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -14,6 +15,9 @@ type SavedPlacesLinkDialogProps = {
   onChangeValue: (value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
+  isSubmitting?: boolean;
+  errorMessage?: string | null;
+  submitLabel?: string;
 };
 
 export function SavedPlacesLinkDialog({
@@ -22,6 +26,9 @@ export function SavedPlacesLinkDialog({
   onChangeValue,
   onClose,
   onSubmit,
+  isSubmitting = false,
+  errorMessage = null,
+  submitLabel = '저장',
 }: SavedPlacesLinkDialogProps) {
   return (
     <Modal
@@ -29,14 +36,14 @@ export function SavedPlacesLinkDialog({
       transparent
       visible={visible}
       onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.dialog}>
+      <Pressable onPress={onClose} style={styles.backdrop}>
+        <Pressable onPress={event => event.stopPropagation()} style={styles.dialog}>
           <Text style={styles.title}>링크 입력</Text>
           <View style={styles.inputWrapper}>
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
-              onChangeText={onChangeValue}
+              onChangeText={value => onChangeValue(value)}
               placeholder="URL을 붙여넣으세요"
               placeholderTextColor="#b7b7bd"
               style={styles.input}
@@ -46,16 +53,17 @@ export function SavedPlacesLinkDialog({
               <Text style={styles.clearButtonText}>×</Text>
             </Pressable>
           </View>
+          {errorMessage ? <Text style={styles.errorMessage}>{errorMessage}</Text> : null}
           <View style={styles.actions}>
-            <Pressable hitSlop={8} onPress={onClose} style={styles.cancelButton}>
-              <Text style={styles.cancelText}>Cancel</Text>
+            <Pressable disabled={isSubmitting} hitSlop={8} onPress={onClose} style={styles.cancelButton}>
+              <Text style={styles.cancelText}>취소</Text>
             </Pressable>
-            <Pressable onPress={onSubmit} style={styles.confirmButton}>
-              <Text style={styles.confirmText}>OK</Text>
+            <Pressable disabled={isSubmitting} onPress={onSubmit} style={styles.confirmButton}>
+              {isSubmitting ? <ActivityIndicator color="#23232d" /> : <Text style={styles.confirmText}>{submitLabel}</Text>}
             </Pressable>
           </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -97,6 +105,12 @@ const styles = StyleSheet.create({
     color: '#1f1f24',
     paddingVertical: 0,
   },
+  errorMessage: {
+    marginTop: 8,
+    color: '#d65b73',
+    fontSize: 12,
+    lineHeight: 17,
+  },
   clearButton: {
     width: 24,
     height: 24,
@@ -115,19 +129,23 @@ const styles = StyleSheet.create({
     marginTop: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
   },
   cancelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flex: 1,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#d4dbff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#d4dbff',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#23232d',
   },
   confirmButton: {
-    minWidth: 72,
+    flex: 1.45,
     height: 40,
     borderRadius: 20,
     backgroundColor: '#d4dbff',
