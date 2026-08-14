@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
@@ -21,6 +21,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
@@ -110,6 +111,14 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
   const handleSearchBack = () => {
     if (hasActiveSearch) {
       setSearchKeyword('');
+      setIsSearchFocused(false);
+      Keyboard.dismiss();
+      return;
+    }
+
+    if (isSearchFocused) {
+      setIsSearchFocused(false);
+      Keyboard.dismiss();
       return;
     }
 
@@ -204,11 +213,18 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
         ) : null}
         {!isPlaceDetailVisible ? (
           <MapSearchBar
+            backButtonPosition={
+              hasActiveSearch || isSearchFocused ? 'leading' : 'inside'
+            }
             value={searchKeyword}
             onChangeText={setSearchKeyword}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
             topInset={topInset}
             onPressBack={
-              hasActiveSearch || isSheetExpanded ? handleSearchBack : undefined
+              hasActiveSearch || isSearchFocused || isSheetExpanded
+                ? handleSearchBack
+                : undefined
             }
           />
         ) : null}

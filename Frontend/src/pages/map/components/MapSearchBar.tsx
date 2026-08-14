@@ -1,10 +1,14 @@
 import React from 'react';
 import {
+  Image,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  type TextInputFocusEventData,
+  type TextInputSubmitEditingEventData,
+  type NativeSyntheticEvent,
   View,
 } from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
@@ -15,6 +19,16 @@ type MapSearchBarProps = {
   embedded?: boolean;
   topInset?: number;
   onPressBack?: () => void;
+  backButtonPosition?: 'inside' | 'leading';
+  placeholder?: string;
+  autoFocus?: boolean;
+  autoCorrect?: boolean;
+  onSubmitEditing?: (
+    event: NativeSyntheticEvent<TextInputSubmitEditingEventData>,
+  ) => void;
+  onFocus?: (event: NativeSyntheticEvent<TextInputFocusEventData>) => void;
+  onBlur?: (event: NativeSyntheticEvent<TextInputFocusEventData>) => void;
+  onPressSearchAction?: () => void;
 };
 
 export const MAP_SEARCH_BAR_HEIGHT = 44;
@@ -26,7 +40,21 @@ export function MapSearchBar({
   embedded = false,
   topInset = 0,
   onPressBack,
+  backButtonPosition = 'inside',
+  placeholder = '여기담 검색',
+  autoFocus = false,
+  autoCorrect = true,
+  onSubmitEditing,
+  onFocus,
+  onBlur,
+  onPressSearchAction,
 }: MapSearchBarProps) {
+  const SearchAction = onPressSearchAction ? Pressable : View;
+  const showLeadingBackButton =
+    onPressBack !== undefined && backButtonPosition === 'leading';
+  const showInlineBackButton =
+    onPressBack !== undefined && backButtonPosition === 'inside';
+
   return (
     <View
       style={[
@@ -35,42 +63,77 @@ export function MapSearchBar({
         embedded && styles.embedded,
       ]}
     >
-      {onPressBack ? (
+      {showLeadingBackButton ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="이전 화면"
           hitSlop={10}
           onPress={onPressBack}
-          style={styles.backButton}
+          style={styles.leadingBackButton}
         >
           <Text style={styles.backIcon}>‹</Text>
         </Pressable>
-      ) : null}
-      <TextInput
-        accessibilityLabel="여기담 검색"
-        autoCapitalize="none"
-        clearButtonMode="while-editing"
-        onChangeText={onChangeText}
-        placeholder="여기담 검색"
-        placeholderTextColor="#a9a9ae"
-        returnKeyType="search"
-        style={styles.input}
-        value={value}
-      />
-      <View style={styles.searchAction}>
-        <MaterialIcons color="#d8dffe" name="search" size={18} />
-      </View>
-      {Platform.OS !== 'ios' && value ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="검색어 지우기"
-          hitSlop={10}
-          onPress={() => onChangeText('')}
-          style={styles.clearButton}
+      ) : (
+        <View style={styles.savedIconButton}>
+          <Image
+            source={require('../../../assets/illustrations/empty-illustration.png')}
+            style={styles.savedIconImage}
+          />
+        </View>
+      )}
+      <View style={styles.searchBar}>
+        {showInlineBackButton ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="이전 화면"
+            hitSlop={10}
+            onPress={onPressBack}
+            style={styles.backButton}
+          >
+            <Text style={styles.backIcon}>‹</Text>
+          </Pressable>
+        ) : null}
+        <TextInput
+          accessibilityLabel="여기담 검색"
+          autoCapitalize="none"
+          autoCorrect={autoCorrect}
+          autoFocus={autoFocus}
+          onBlur={onBlur}
+          clearButtonMode="while-editing"
+          onChangeText={onChangeText}
+          onFocus={onFocus}
+          onSubmitEditing={onSubmitEditing}
+          placeholder={placeholder}
+          placeholderTextColor="#a9a9ae"
+          returnKeyType="search"
+          style={styles.input}
+          value={value}
+        />
+        <SearchAction
+          {...(onPressSearchAction
+            ? {
+                accessibilityRole: 'button' as const,
+                accessibilityLabel: '검색 실행',
+                hitSlop: 10,
+                onPress: onPressSearchAction,
+              }
+            : {})}
+          style={styles.searchAction}
         >
-          <Text style={styles.clearIcon}>×</Text>
-        </Pressable>
-      ) : null}
+          <MaterialIcons color="#d8dffe" name="search" size={18} />
+        </SearchAction>
+        {Platform.OS !== 'ios' && value ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="검색어 지우기"
+            hitSlop={10}
+            onPress={() => onChangeText('')}
+            style={styles.clearButton}
+          >
+            <Text style={styles.clearIcon}>×</Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -80,6 +143,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    zIndex: 10,
+  },
+  searchBar: {
+    flex: 1,
     height: MAP_SEARCH_BAR_HEIGHT,
     backgroundColor: '#ffffff',
     borderRadius: 22,
@@ -91,7 +161,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
     elevation: 5,
-    zIndex: 10,
   },
   embedded: {
     position: 'relative',
@@ -101,6 +170,32 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginTop: 20,
     marginBottom: 10,
+  },
+  savedIconButton: {
+    width: MAP_SEARCH_BAR_HEIGHT,
+    height: MAP_SEARCH_BAR_HEIGHT,
+    borderRadius: MAP_SEARCH_BAR_HEIGHT / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  leadingBackButton: {
+    width: MAP_SEARCH_BAR_HEIGHT,
+    height: MAP_SEARCH_BAR_HEIGHT,
+    borderRadius: MAP_SEARCH_BAR_HEIGHT / 2,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowOffset: {width: 0, height: 4},
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  savedIconImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   input: {
     flex: 1,

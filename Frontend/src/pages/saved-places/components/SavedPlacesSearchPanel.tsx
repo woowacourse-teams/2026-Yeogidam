@@ -5,12 +5,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import type {Place} from '../../../entities/place/types';
+import {MapSearchBar} from '../../map/components/MapSearchBar';
 
 const RECENT_SEARCHES = ['카페 온월', '고양이 카페', '파스타'];
 
@@ -62,27 +62,21 @@ export function SavedPlacesSearchPanel({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus
-          onChangeText={value => {
-            setQuery(value);
-            setSubmittedQuery('');
-          }}
-          onSubmitEditing={submitSearch}
-          placeholder="입력하세요."
-          placeholderTextColor="#2a2a44"
-          returnKeyType="search"
-          selectionColor="#8FA2FF"
-          style={styles.searchInput}
-          value={query}
-        />
-        <Pressable onPress={submitSearch} style={styles.searchButton}>
-          <MaterialIcons color="#d8dffe" name="search" size={24} />
-        </Pressable>
-      </View>
+      <MapSearchBar
+        autoCorrect={false}
+        autoFocus
+        backButtonPosition="leading"
+        embedded
+        onChangeText={value => {
+          setQuery(value);
+          setSubmittedQuery('');
+        }}
+        onPressBack={onCloseSearch}
+        onPressSearchAction={submitSearch}
+        onSubmitEditing={submitSearch}
+        placeholder="입력하세요."
+        value={query}
+      />
       {showResults ? (
         <ScrollView
           contentContainerStyle={styles.resultsContent}
@@ -144,38 +138,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  header: {
-    paddingTop: 26,
-    paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1f2238',
-    paddingVertical: 0,
-    marginRight: 16,
-  },
-  searchButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowRadius: 14,
-    elevation: 6,
-  },
   historySection: {
-    paddingTop: 28,
+    paddingTop: 24,
   },
   historyTitle: {
     fontSize: 14,
@@ -211,7 +175,7 @@ const styles = StyleSheet.create({
     color: '#2b2d43',
   },
   resultsContent: {
-    paddingTop: 18,
+    paddingTop: 24,
     paddingHorizontal: 24,
     paddingBottom: 120,
   },
