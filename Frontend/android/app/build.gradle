@@ -1,7 +1,6 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -73,40 +72,18 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-// Load the Kakao native app key without an additional React Native package.
-// Frontend/.env must contain: KAKAO_NATIVE_APP_KEY=your_native_app_key
-def envFile = rootProject.file("../.env")
-def envProperties = new Properties()
-
-if (envFile.exists()) {
-    envFile.withInputStream { envProperties.load(it) }
-}
-
-def kakaoNativeAppKey = envProperties.getProperty("KAKAO_NATIVE_APP_KEY", "").trim()
-if (kakaoNativeAppKey.isEmpty()) {
-    throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from Frontend/.env")
-}
-
-def escapedKakaoNativeAppKey = kakaoNativeAppKey
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
-
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.yeogidamm.app"
-    buildFeatures {
-        buildConfig = true
-    }
+    namespace "com.frontend"
     defaultConfig {
-        applicationId "com.yeogidamm.app"
+        applicationId "com.frontend"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-        buildConfigField "String", "KAKAO_NATIVE_APP_KEY", "\"${escapedKakaoNativeAppKey}\""
     }
     signingConfigs {
         debug {
@@ -133,8 +110,6 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
-    implementation("com.kakao.maps.open:android:2.14.1")
-
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

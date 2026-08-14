@@ -12,19 +12,6 @@
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>com.yeogidamm.app</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.yeogidamm.app</string>
-			</array>
-		</dict>
-	</array>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -37,8 +24,6 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>KAKAO_NATIVE_APP_KEY</key>
-	<string>$(KAKAO_NATIVE_APP_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -49,11 +34,7 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>현재 위치 주변의 장소를 지도에 표시하기 위해 위치 권한이 필요합니다.</string>
-	<key>UIAppFonts</key>
-	<array>
-		<string>MaterialIcons.ttf</string>
-	</array>
+	<string></string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

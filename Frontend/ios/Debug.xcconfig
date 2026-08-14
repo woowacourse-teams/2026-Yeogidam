@@ -1,2 +1,0 @@
-#include? "Pods/Target Support Files/Pods-Frontend/Pods-Frontend.debug.xcconfig"
-#include "../.env"
