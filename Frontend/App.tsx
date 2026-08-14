@@ -1,10 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import {
-  ActivityIndicator,
   Alert,
   StatusBar,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
@@ -26,6 +24,7 @@ import {MapScreen} from './src/pages/map/MapScreen';
 import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
 import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
 import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
+import {SplashScreen} from './src/pages/splash/SplashScreen';
 import type {Place} from './src/entities/place/types';
 import type {
   AppFlowState,
@@ -38,6 +37,8 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
+const SPLASH_MINIMUM_DURATION_MS = 2000;
+
 type SocialProvider = 'apple' | 'kakao' | 'google';
 
 configureDataSources();
@@ -47,6 +48,7 @@ function App() {
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [hasSplashDelayElapsed, setHasSplashDelayElapsed] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -59,6 +61,16 @@ function App() {
       : flowState.detailSource
         ? 'detail'
         : flowState.activeTab;
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setHasSplashDelayElapsed(true);
+    }, SPLASH_MINIMUM_DURATION_MS);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, []);
 
   const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
     setFlowState(current =>
@@ -313,16 +325,11 @@ function App() {
   const activeTab =
     flowState.kind === 'main' ? flowState.activeTab : undefined;
 
-  if (!isAuthReady) {
+  if (!isAuthReady || !hasSplashDelayElapsed) {
     return (
       <SafeAreaProvider>
-        <SafeAreaView style={styles.safeArea}>
-          <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color="#121212" size="large" />
-            <Text style={styles.loadingText}>로그인 상태를 확인하고 있어요.</Text>
-          </View>
-        </SafeAreaView>
+        <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
+        <SplashScreen />
       </SafeAreaProvider>
     );
   }
@@ -359,16 +366,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#666666',
   },
 });
 
