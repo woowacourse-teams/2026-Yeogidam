@@ -1,7 +1,6 @@
 import React, {
   useCallback,
   useEffect,
-  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -29,6 +28,7 @@ import { SavedPlaceGrid } from './components/SavedPlaceGrid';
 import { SavedPlacesHeader } from './components/SavedPlacesHeader';
 import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
+import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
 import {
   getReelProcessingStatus,
   saveContent,
@@ -514,9 +514,7 @@ export function SavedPlacesScreen({
             </View>
           ) : null}
           {isLoading && !hasSavedPlaces ? (
-            <View style={styles.loading}>
-              <Text>저장한 장소를 불러오는 중이에요.</Text>
-            </View>
+            <SavedPlacesSkeleton />
           ) : hasSavedPlaces ? (
             <>
               <ScrollView
@@ -694,7 +692,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e5ea',
     marginHorizontal: 24,
   },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
