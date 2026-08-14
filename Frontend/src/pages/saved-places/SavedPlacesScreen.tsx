@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   Animated,
@@ -13,8 +19,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/auth/supabase';
 
 import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
-import { savedPlaceMocks } from '../../entities/place/mocks';
+import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
+import { getSavedPlaces } from '../../entities/info/api';
+import type { SavedPlacesApiError } from '../../entities/info/types';
+import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
 import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
 import { SavedPlaceGrid } from './components/SavedPlaceGrid';
 import { SavedPlacesHeader } from './components/SavedPlacesHeader';
@@ -25,7 +34,10 @@ import {
   saveContent,
 } from '../../entities/content/api';
 import type { ReelProcessingStatus } from '../../entities/content/types';
-import {normalizeReelError, ReelApiError} from '../../entities/content/errors';
+import {
+  normalizeReelError,
+  ReelApiError,
+} from '../../entities/content/errors';
 
 // 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
 const SHOW_CARD_PREVIEW = false;
@@ -73,7 +85,16 @@ function ReelStatusCard({
           <Animated.View
             style={[
               styles.progressIndicator,
-              {transform: [{translateX: progress.interpolate({inputRange: [-1, 1], outputRange: [-80, 180]})}]},
+              {
+                transform: [
+                  {
+                    translateX: progress.interpolate({
+                      inputRange: [-1, 1],
+                      outputRange: [-80, 180],
+                    }),
+                  },
+                ],
+              },
             ]}
           />
         </View>
@@ -137,20 +158,26 @@ function getStatusQueryMessage(error: ReelApiError): string {
 }
 
 type SavedPlacesScreenProps = {
-  onOpenDetail: () => void;
+  onOpenDetail: (place: Place) => void;
+  onAuthenticationRequired?: () => void;
+  /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
   places?: Place[];
 };
 
 export function SavedPlacesScreen({
   onOpenDetail,
+  onAuthenticationRequired,
   onRequireLogin,
-  places = savedPlaceMocks,
+  places: providedPlaces,
 }: SavedPlacesScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
+  const [places, setPlaces] = useState<Place[]>(providedPlaces ?? []);
+  const [error, setError] = useState<SavedPlacesApiError | null>(null);
+  const [isLoading, setIsLoading] = useState(providedPlaces === undefined);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [processingReelId, setProcessingReelId] = useState<string | null>(null);
@@ -158,11 +185,39 @@ export function SavedPlacesScreen({
     useState<ReelProcessingStatus | null>(null);
   const [processingUrl, setProcessingUrl] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(null);
+  const [statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(
+    null,
+  );
   const [isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasSavedPlaces = places.length > 0;
+
+  const loadSavedPlaces = useCallback(async () => {
+    if (providedPlaces !== undefined) {
+      setPlaces(providedPlaces);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const savedPlaces = await getSavedPlaces();
+      setPlaces(savedPlaces.map(toSavedPlaceDisplayPlace));
+    } catch (nextError) {
+      const apiError = nextError as SavedPlacesApiError;
+      setError(apiError);
+      if (apiError.errorCode === 'AUTH401_001') {
+        onAuthenticationRequired?.();
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [onAuthenticationRequired, providedPlaces]);
+
+  useEffect(() => {
+    loadSavedPlaces();
+  }, [loadSavedPlaces]);
 
   const openDialog = () => {
     setLinkError(null);
@@ -200,7 +255,7 @@ export function SavedPlacesScreen({
       }
 
       if (normalizedError.errorCode === 'AUTH401_002' && !isSessionRetry) {
-        const {error: refreshError} = await supabase.auth.refreshSession();
+        const { error: refreshError } = await supabase.auth.refreshSession();
         if (!refreshError) {
           setIsSubmitting(false);
           await handleSaveLink(true);
@@ -286,7 +341,7 @@ export function SavedPlacesScreen({
             throw firstError;
           }
 
-          const {error: refreshError} = await supabase.auth.refreshSession();
+          const { error: refreshError } = await supabase.auth.refreshSession();
           if (refreshError) {
             throw firstError;
           }
@@ -345,7 +400,7 @@ export function SavedPlacesScreen({
           <SavedPlacesSearchPanel
             places={places}
             onCloseSearch={() => setIsSearchOpen(false)}
-            onPressPlace={() => onOpenDetail()}
+            onPressPlace={onOpenDetail}
           />
           {hasSavedPlaces ? (
             <Pressable
@@ -428,7 +483,11 @@ export function SavedPlacesScreen({
             processingReel.processing_status !== 'COMPLETED' ? (
             <ReelStatusCard
               status={statusQueryError ? 'FAILED' : 'PROCESSING'}
-              message={statusQueryError ? getStatusQueryMessage(statusQueryError) : '릴스에서 장소를 찾고 있어요.'}
+              message={
+                statusQueryError
+                  ? getStatusQueryMessage(statusQueryError)
+                  : '릴스에서 장소를 찾고 있어요.'
+              }
               description={
                 statusQueryError
                   ? '잠시 후 다시 시도하거나 카드를 닫아주세요.'
@@ -442,16 +501,29 @@ export function SavedPlacesScreen({
               }
             />
           ) : null}
-          {hasSavedPlaces ? (
+          {error && hasSavedPlaces ? (
+            <View style={styles.errorBanner}>
+              <Text numberOfLines={1} style={styles.errorText}>
+                {error.message}
+              </Text>
+              {error.retryable ? (
+                <Pressable onPress={loadSavedPlaces}>
+                  <Text style={styles.errorRetryText}>재시도</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {isLoading && !hasSavedPlaces ? (
+            <View style={styles.loading}>
+              <Text>저장한 장소를 불러오는 중이에요.</Text>
+            </View>
+          ) : hasSavedPlaces ? (
             <>
               <ScrollView
                 ref={scrollViewRef}
                 showsVerticalScrollIndicator={false}
               >
-                <SavedPlaceGrid
-                  places={places}
-                  onPressPlace={() => onOpenDetail()}
-                />
+                <SavedPlaceGrid places={places} onPressPlace={onOpenDetail} />
                 <View style={styles.scrollFooter}>
                   <Pressable
                     onPress={scrollToTop}
@@ -473,6 +545,8 @@ export function SavedPlacesScreen({
                 </View>
               </Pressable>
             </>
+          ) : error ? (
+            <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
           ) : (
             <SavedPlacesEmptyState />
           )}
@@ -620,6 +694,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#e5e5ea',
     marginHorizontal: 24,
   },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#fff5f5',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  errorText: { flex: 1, color: '#7c2d2d', fontSize: 13 },
+  errorRetryText: { color: '#5c6fc8', fontSize: 13, fontWeight: '700' },
   fabShadow: {
     position: 'absolute',
     right: 18,

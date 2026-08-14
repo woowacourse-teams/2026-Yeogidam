@@ -18,12 +18,16 @@ import {
   View,
 } from 'react-native';
 
-import {placePostMocks} from '../../../entities/place-post/mocks';
+import { getPlaceReels } from '../../../entities/info/api';
+import type {
+  PlaceReel,
+  PlaceReelsApiError,
+} from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
 import { MAP_SEARCH_BAR_HEIGHT, MAP_SEARCH_BAR_TOP_GAP } from './MapSearchBar';
-import {CopyToastProvider} from '../../place-detail/components/CopyToast';
-import {PlaceDetailContent} from '../../place-detail/components/PlaceDetailContent';
-import {PlaceMapButton} from '../../place-detail/components/PlaceMapButton';
+import { CopyToastProvider } from '../../place-detail/components/CopyToast';
+import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
+import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 
 type PlaceResultSheetProps = {
   places: Place[];
@@ -75,6 +79,9 @@ export function PlaceResultSheet({
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
+  const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
+  const [isReelsLoading, setIsReelsLoading] = useState(false);
   const isExpanded = activeSnapIndex === 0;
   const hiddenSheetHeight = isPageMode ? 0 : snapOffsets[activeSnapIndex];
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
@@ -83,17 +90,29 @@ export function PlaceResultSheet({
     MAP_SEARCH_BAR_TOP_GAP +
     MAP_SEARCH_BAR_HEIGHT +
     EXPANDED_RESULTS_TOP_GAP;
-  const selectedPlacePosts = useMemo(
-    () =>
-      selectedPlace
-        ? placePostMocks.filter(post => post.placeId === selectedPlace.id)
-        : [],
-    [selectedPlace],
-  );
-
   useEffect(() => {
     onDetailViewChange?.(selectedPlace !== null);
   }, [onDetailViewChange, selectedPlace]);
+
+  const loadSelectedPlaceReels = useCallback(async () => {
+    if (!selectedPlace) {
+      return;
+    }
+
+    setIsReelsLoading(true);
+    setReelsError(null);
+    try {
+      setSelectedPlaceReels(await getPlaceReels(selectedPlace.id));
+    } catch (error) {
+      setReelsError(error as PlaceReelsApiError);
+    } finally {
+      setIsReelsLoading(false);
+    }
+  }, [selectedPlace]);
+
+  useEffect(() => {
+    loadSelectedPlaceReels();
+  }, [loadSelectedPlaceReels]);
 
   const updatePageMode = useCallback(
     (nextIsPageMode: boolean) => {
@@ -316,7 +335,10 @@ export function PlaceResultSheet({
             key={selectedPlace.id}
             onBack={backToPlaceList}
             place={selectedPlace}
-            posts={selectedPlacePosts}
+            reels={selectedPlaceReels}
+            reelsError={reelsError}
+            isReelsLoading={isReelsLoading}
+            onRetryReels={loadSelectedPlaceReels}
             headerTopInset={topInset}
             stickyHeaderTopInset={topInset}
             scrollEnabled={isPageMode}

@@ -21,10 +21,7 @@ export type ReelFailureReason =
   | 'PLACE_NOT_FOUND'
   | 'UNKNOWN';
 
-export type MatchFailureStage =
-  | 'KAKAO_SEARCH'
-  | 'AI_REVIEW'
-  | 'FINAL_GUARD';
+export type MatchFailureStage = 'KAKAO_SEARCH' | 'AI_REVIEW' | 'FINAL_GUARD';
 
 export type MatchFailureReason =
   | 'NO_KAKAO_CANDIDATE'
@@ -80,6 +77,7 @@ export type ReelInfo = {
   userId: string;
   placeId?: string | null;
   instagramUrl: string;
+  instagramAuthorUsername: string | null;
   instagramTitle?: string | null;
   instagramDescription?: string | null;
   instagramThumbnailUrl?: string | null;
@@ -92,12 +90,68 @@ export type ReelInfo = {
   updatedAt: string;
 };
 
+/** 장소 상세의 완료된 Instagram 릴스 조회 모델입니다. */
+export type PlaceReel = Pick<
+  ReelInfo,
+  | 'id'
+  | 'instagramUrl'
+  | 'instagramAuthorUsername'
+  | 'instagramThumbnailUrl'
+  | 'createdAt'
+>;
+
+export type PlaceReelsApiError = {
+  status: number | null;
+  errorCode: string;
+  message: string;
+  retryable: boolean;
+  requestId?: string;
+};
+
+export type PlaceReelsRepository = {
+  getPlaceReels: (placeId: string) => Promise<PlaceReel[]>;
+};
+
 export type SavedPlaceInfo = {
   id: string;
   userId: string;
   placeId: string;
   thumbnailUrl?: string | null;
   createdAt: string;
+};
+
+/** `saved_places`와 `places` 조인 조회에 사용하는 목록 항목입니다. */
+export type SavedPlaceListItem = Pick<
+  SavedPlaceInfo,
+  'id' | 'thumbnailUrl' | 'createdAt'
+> & {
+  place: Pick<
+    InfoPlace,
+    | 'id'
+    | 'name'
+    | 'category'
+    | 'sourceAddress'
+    | 'roadAddress'
+    | 'address'
+    | 'latitude'
+    | 'longitude'
+    | 'kakaoPlaceUrl'
+    | 'thumbnailUrl'
+    | 'photoAttribution'
+  >;
+};
+
+export type SavedPlacesApiError = {
+  status: number | null;
+  errorCode: string;
+  message: string;
+  retryable: boolean;
+  requestId?: string;
+};
+
+/** 화면이 의존하는 저장 장소 조회 계약입니다. 데이터 제공자가 바뀌어도 이 형태는 유지합니다. */
+export type SavedPlacesRepository = {
+  getSavedPlaces: () => Promise<SavedPlaceListItem[]>;
 };
 
 export type ProviderUsageMonthly = {

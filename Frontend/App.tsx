@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -7,24 +7,26 @@ import {
   Text,
   View,
 } from 'react-native';
-import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import {BottomTabBar} from './src/components/BottomTabBar';
-import type {NormalizedAuthError} from './src/lib/auth/errors';
+import { configureDataSources } from './src/app/configureDataSources';
+import { BottomTabBar } from './src/components/BottomTabBar';
+import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
   signInWithApple,
 } from './src/lib/auth/signInWithApple';
-import {signInWithGoogle} from './src/lib/auth/signInWithGoogle';
-import {signInWithKakao} from './src/lib/auth/signInWithKakao';
-import {supabase} from './src/lib/auth/supabase';
-import {EmailLoginScreen} from './src/pages/login/EmailLoginScreen';
-import {LoginScreen} from './src/pages/login/LoginScreen';
-import {SignUpScreen} from './src/pages/login/SignUpScreen';
-import {MapScreen} from './src/pages/map/MapScreen';
-import {MyPageScreen} from './src/pages/my-page/MyPageScreen';
-import {PlaceDetailScreen} from './src/pages/place-detail/PlaceDetailScreen';
-import {SavedPlacesScreen} from './src/pages/saved-places/SavedPlacesScreen';
+import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
+import { signInWithKakao } from './src/lib/auth/signInWithKakao';
+import { supabase } from './src/lib/auth/supabase';
+import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
+import { LoginScreen } from './src/pages/login/LoginScreen';
+import { SignUpScreen } from './src/pages/login/SignUpScreen';
+import { MapScreen } from './src/pages/map/MapScreen';
+import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
+import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
+import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
+import type { Place } from './src/entities/place/types';
 import type {
   AppFlowState,
   AuthScreen,
@@ -38,9 +40,12 @@ const INITIAL_FLOW_STATE: AppFlowState = {
 };
 type SocialProvider = 'apple' | 'kakao' | 'google';
 
+configureDataSources();
+
 function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
@@ -52,8 +57,8 @@ function App() {
     flowState.kind === 'auth'
       ? flowState.stack[flowState.stack.length - 1]
       : flowState.detailSource
-        ? 'detail'
-        : flowState.activeTab;
+      ? 'detail'
+      : flowState.activeTab;
 
   const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
     setFlowState(current =>
@@ -91,7 +96,8 @@ function App() {
     });
   };
 
-  const openDetailFrom = (sourceScreen: 'saved' | 'map') => {
+  const openDetailFrom = (sourceScreen: 'saved' | 'map', place: Place) => {
+    setSelectedPlace(place);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -104,6 +110,7 @@ function App() {
   };
 
   const closeDetail = () => {
+    setSelectedPlace(null);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -118,7 +125,7 @@ function App() {
     let isMounted = true;
 
     const syncFlowState = async () => {
-      const {data, error} = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
 
       if (!isMounted) {
         return;
@@ -148,7 +155,7 @@ function App() {
     });
 
     const {
-      data: {subscription},
+      data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!isMounted) {
         return;
@@ -217,14 +224,17 @@ function App() {
 
     setIsLogoutPending(true);
 
-    const {error} = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
 
     if (!error) {
       return;
     }
 
     setIsLogoutPending(false);
-    Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
+    Alert.alert(
+      '로그아웃 실패',
+      '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
+    );
   };
 
   const renderScreen = () => {
@@ -266,20 +276,25 @@ function App() {
     if (currentScreen === 'saved') {
       return (
         <SavedPlacesScreen
-          onOpenDetail={() => openDetailFrom('saved')}
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
         />
       );
     }
 
     if (currentScreen === 'map') {
-      return (
-        <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />
-      );
+      return <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />;
     }
 
-    if (currentScreen === 'detail') {
-      return <PlaceDetailScreen onBack={closeDetail} />;
+    if (currentScreen === 'detail' && selectedPlace) {
+      return (
+        <PlaceDetailScreen
+          onBack={closeDetail}
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          place={selectedPlace}
+        />
+      );
     }
 
     return (
@@ -297,8 +312,7 @@ function App() {
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';
-  const activeTab =
-    flowState.kind === 'main' ? flowState.activeTab : undefined;
+  const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
   if (!isAuthReady) {
     return (
@@ -307,7 +321,9 @@ function App() {
           <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
           <View style={styles.loadingContainer}>
             <ActivityIndicator color="#121212" size="large" />
-            <Text style={styles.loadingText}>로그인 상태를 확인하고 있어요.</Text>
+            <Text style={styles.loadingText}>
+              로그인 상태를 확인하고 있어요.
+            </Text>
           </View>
         </SafeAreaView>
       </SafeAreaProvider>
@@ -318,7 +334,8 @@ function App() {
     <SafeAreaProvider>
       <SafeAreaView
         edges={isMapScreen ? ['left', 'right'] : ['top', 'left', 'right']}
-        style={styles.safeArea}>
+        style={styles.safeArea}
+      >
         <StatusBar
           barStyle="dark-content"
           backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
@@ -327,10 +344,7 @@ function App() {
         <View style={styles.container}>
           {renderScreen()}
           {showTabBar && activeTab ? (
-            <BottomTabBar
-              active={activeTab}
-              onNavigate={openMainScreen}
-            />
+            <BottomTabBar active={activeTab} onNavigate={openMainScreen} />
           ) : null}
         </View>
       </SafeAreaView>

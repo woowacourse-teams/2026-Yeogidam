@@ -18,7 +18,11 @@ export function SavedPlaceGrid({
       {places.map((place, index) => (
         <View key={`${place.id}-${index}`} style={styles.card}>
           <Pressable onPress={() => onPressPlace(place)} style={styles.cardBody}>
-            <Image source={place.image} style={styles.image} />
+            {place.image ? (
+              <Image source={place.image} style={styles.image} />
+            ) : (
+              <View style={styles.imagePlaceholder} />
+            )}
             <LinearGradient
               colors={[
                 'rgba(0, 0, 0, 0)',
@@ -63,6 +67,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#d8dffe',
   },
   dim: {
     position: 'absolute',
