@@ -3,10 +3,11 @@ import CoreLocation
 import KakaoMapsSDK
 
 @objc(KakaoMapContainerView)
-final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationManagerDelegate {
+final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationManagerDelegate, KakaoMapEventDelegate {
   @objc var onMapReady: ((NSDictionary) -> Void)?
   @objc var onMapError: ((NSDictionary) -> Void)?
   @objc var onCameraChanged: ((NSDictionary) -> Void)?
+  @objc var onMarkerPressed: ((NSDictionary) -> Void)?
 
   private let mapContainer = KMViewContainer()
   private var mapController: KMController?
@@ -178,6 +179,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     viewInfoName: String
   ) {
     mapAdded = true
+    (mapController?.getView("mapview") as? KakaoMap)?.eventDelegate = self
     containerDidResized(mapContainer.bounds.size)
     moveCameraIfPossible()
     requestCurrentLocationIfNeeded()
@@ -195,6 +197,16 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       "ready": true
     ])
     DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
+  }
+
+  func poiDidTapped(
+    kakaoMap: KakaoMap,
+    layerID: String,
+    poiID: String,
+    position: MapPoint
+  ) {
+    guard layerID == Self.savedPlaceLayerID else { return }
+    onMarkerPressed?(["id": poiID])
   }
 
   func addViewFailed(
@@ -507,6 +519,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           zOrder: 900
         )
       )
+    // Kakao Maps disables POI interaction by default. Both the layer and its
+    // POIs must be made clickable for `poiDidTapped` to fire.
+    layer?.setClickable(true)
     layer?.clearAllItems()
 
     if !savedPlaceStyleAdded {
@@ -531,6 +546,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       else { return }
       let options = PoiOptions(styleID: Self.savedPlaceStyleID, poiID: id)
       options.rank = 1
+      options.clickable = true
       layer?.addPoi(
         option: options,
         at: MapPoint(longitude: longitude, latitude: latitude)

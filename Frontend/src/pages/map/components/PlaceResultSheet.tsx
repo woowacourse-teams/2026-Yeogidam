@@ -31,11 +31,15 @@ import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 
 type PlaceResultSheetProps = {
   places: Place[];
+  isSearchActive?: boolean;
   height: number;
   topInset?: number;
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
+  expandSignal?: number;
+  openPlaceId?: string;
+  openPlaceSignal?: number;
   onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
@@ -49,11 +53,15 @@ const DETAIL_PAGE_BOTTOM_PADDING = 100;
 
 export function PlaceResultSheet({
   places,
+  isSearchActive = false,
   height,
   topInset = 0,
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
+  expandSignal = 0,
+  openPlaceId,
+  openPlaceSignal = 0,
   onDetailViewChange,
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
@@ -74,6 +82,8 @@ export function PlaceResultSheet({
   const dragStartOffset = useRef(collapsedOffset);
   const startedInPageMode = useRef(false);
   const handledCollapseSignal = useRef(collapseSignal);
+  const handledExpandSignal = useRef(expandSignal);
+  const handledOpenPlaceSignal = useRef(openPlaceSignal);
   const isPageModeRef = useRef(false);
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
   const [isPageMode, setIsPageMode] = useState(false);
@@ -203,6 +213,33 @@ export function PlaceResultSheet({
     }
   }, [collapseSignal, isPageMode, snapOffsets, snapTo]);
 
+  useEffect(() => {
+    if (expandSignal === handledExpandSignal.current) {
+      return;
+    }
+
+    handledExpandSignal.current = expandSignal;
+    setSelectedPlace(null);
+    // 검색 결과는 바로 확인할 수 있도록 목록 높이까지 시트를 엽니다.
+    snapTo(snapOffsets[1]);
+  }, [expandSignal, snapOffsets, snapTo]);
+
+  useEffect(() => {
+    if (
+      openPlaceSignal === handledOpenPlaceSignal.current ||
+      !openPlaceId
+    ) {
+      return;
+    }
+
+    handledOpenPlaceSignal.current = openPlaceSignal;
+    const place = places.find(candidate => candidate.id === openPlaceId);
+    if (!place) return;
+
+    setSelectedPlace(place);
+    snapTo(snapOffsets[1]);
+  }, [openPlaceId, openPlaceSignal, places, snapOffsets, snapTo]);
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -305,7 +342,6 @@ export function PlaceResultSheet({
 
   return (
     <Animated.View
-      {...panResponder.panHandlers}
       style={[
         styles.sheet,
         isPageMode && styles.pageSheet,
@@ -319,14 +355,16 @@ export function PlaceResultSheet({
         {isPageMode && !selectedPlace ? (
           <View style={{ height: expandedHeaderHeight }} />
         ) : !isPageMode ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="검색 결과 펼치기"
-            onPress={toggleSheet}
-            style={styles.handleArea}
-          >
-            <View style={styles.pill} />
-          </Pressable>
+          <View {...panResponder.panHandlers}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="검색 결과 펼치기"
+              onPress={toggleSheet}
+              style={styles.handleArea}
+            >
+              <View style={styles.pill} />
+            </Pressable>
+          </View>
         ) : null}
       </View>
       {selectedPlace ? (
@@ -341,7 +379,7 @@ export function PlaceResultSheet({
             onRetryReels={loadSelectedPlaceReels}
             headerTopInset={topInset}
             stickyHeaderTopInset={topInset}
-            scrollEnabled={isPageMode}
+            scrollEnabled={activeSnapIndex !== 2}
             contentBottomPadding={
               isPageMode
                 ? DETAIL_PAGE_BOTTOM_PADDING
@@ -365,7 +403,7 @@ export function PlaceResultSheet({
           contentInsetAdjustmentBehavior="never"
           scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
           showsVerticalScrollIndicator={false}
-          scrollEnabled={isPageMode}
+          scrollEnabled={activeSnapIndex !== 2}
           renderItem={({ item: place }) => (
             <View style={styles.result}>
               <Pressable
@@ -407,7 +445,9 @@ export function PlaceResultSheet({
           ListEmptyComponent={
             <View style={styles.emptyResult}>
               <Text style={styles.emptyResultText}>
-                현재 지도 영역에 저장한 장소가 없어요.
+                {isSearchActive
+                  ? '검색 결과 없습니다.'
+                  : '현재 지도 영역에 저장한 장소가 없어요.'}
               </Text>
             </View>
           }

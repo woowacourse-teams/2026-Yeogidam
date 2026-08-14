@@ -2,7 +2,9 @@
 
 #import <CoreLocation/CoreLocation.h>
 #import <KakaoMapsSDK/KakaoMapsSDK.h>
+#import <KakaoMapsSDK/KakaoMapsSDK-Swift.h>
 #import <React/RCTEventEmitter.h>
+
 #import <React_RCTAppDelegate/RCTAppDelegate.h>
 
 #import "Frontend-Swift.h"
@@ -41,6 +43,9 @@ using namespace facebook::react;
     };
     _mapView.onCameraChanged = ^(NSDictionary *event) {
       [weakSelf emitCameraChanged:event];
+    };
+    _mapView.onMarkerPressed = ^(NSDictionary *event) {
+      [weakSelf emitMarkerPressed:event];
     };
 
     [self addSubview:_mapView];
@@ -100,6 +105,20 @@ using namespace facebook::react;
 
   eventEmitter.onMapError({
     .message = std::string(message.UTF8String ?: "")
+  });
+}
+
+- (void)emitMarkerPressed:(NSDictionary *)event
+{
+  if (!_eventEmitter) {
+    return;
+  }
+
+  NSString *markerID = event[@"id"] ?: @"";
+  const auto &eventEmitter =
+    static_cast<const YeogidamKakaoMapViewEventEmitter &>(*_eventEmitter);
+  eventEmitter.onMarkerPressed({
+    .id = std::string(markerID.UTF8String ?: "")
   });
 }
 

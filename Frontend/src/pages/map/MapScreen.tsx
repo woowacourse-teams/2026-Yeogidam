@@ -22,7 +22,15 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [searchedPlaces, setSearchedPlaces] = useState<Place[] | null>(null);
+  const [searchResultSignal, setSearchResultSignal] = useState(0);
+  const [mapCenter, setMapCenter] = useState({
+    latitude: 37.5448,
+    longitude: 127.0557,
+  });
+  const [mapZoomLevel, setMapZoomLevel] = useState(14);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
+  const [openedMarker, setOpenedMarker] = useState({id: '', signal: 0});
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -87,30 +95,49 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
         place.longitude <= visibleBounds.eastLongitude,
     );
   }, [placesWithCoordinates, visibleBounds]);
-  const filteredVisiblePlaces = useMemo(() => {
-    const normalizedKeyword = searchKeyword.trim().toLowerCase();
-
-    if (!normalizedKeyword) {
-      return visiblePlaces;
-    }
-
-    return visiblePlaces.filter(place => {
-      const searchableFields = [
-        place.name,
-        place.category,
-        place.address,
-        place.fullAddress,
-      ]
-        .filter((value): value is string => Boolean(value))
-        .map(value => value.toLowerCase());
-
-      return searchableFields.some(value => value.includes(normalizedKeyword));
-    });
-  }, [searchKeyword, visiblePlaces]);
+  const resultPlaces = searchedPlaces ?? visiblePlaces;
   const hasActiveSearch = searchKeyword.trim().length > 0;
+  const markerPlaces = searchedPlaces ?? placesWithCoordinates;
+
+  const handleSearch = () => {
+    const keyword = searchKeyword.trim();
+    if (!keyword) return;
+
+    const normalizedKeyword = keyword
+      .toLocaleLowerCase('ko-KR')
+      .replace(/\s+/g, '');
+    const places = placesWithCoordinates.filter(place =>
+      [place.name, place.category, place.address, place.fullAddress]
+        .filter((value): value is string => Boolean(value))
+        .some(value =>
+          value
+            .toLocaleLowerCase('ko-KR')
+            .replace(/\s+/g, '')
+            .includes(normalizedKeyword),
+        ),
+    );
+
+    setSearchedPlaces(places);
+    setSearchResultSignal(signal => signal + 1);
+    if (places[0]?.latitude !== undefined && places[0]?.longitude !== undefined) {
+      setMapCenter({
+        latitude: places[0].latitude,
+        longitude: places[0].longitude,
+      });
+      setMapZoomLevel(16);
+    }
+  };
+
+  const handleSearchKeywordChange = (value: string) => {
+    setSearchKeyword(value);
+    if (!value.trim()) {
+      setSearchedPlaces(null);
+    }
+  };
   const handleSearchBack = () => {
     if (hasActiveSearch) {
       setSearchKeyword('');
+      setSearchedPlaces(null);
       setIsSearchFocused(false);
       Keyboard.dismiss();
       return;
@@ -137,12 +164,12 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
           {mapHeight > 0 ? (
             <KakaoMapNativeComponent
               style={styles.map}
-              latitude={37.5448}
-              longitude={127.0557}
-              zoomLevel={14}
+              latitude={mapCenter.latitude}
+              longitude={mapCenter.longitude}
+              zoomLevel={mapZoomLevel}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
               savedPlacesJson={JSON.stringify(
-                placesWithCoordinates.map(({id, name, latitude, longitude}) => ({
+                markerPlaces.map(({id, name, latitude, longitude}) => ({
                   id,
                   name,
                   latitude,
@@ -156,6 +183,28 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
               }}
               onMapError={event => {
                 setMapMessage(event.nativeEvent.message);
+              }}
+              onMarkerPressed={event => {
+                const place = markerPlaces.find(
+                  candidate => candidate.id === event.nativeEvent.id,
+                );
+                if (!place) return;
+
+                if (
+                  place.latitude !== undefined &&
+                  place.longitude !== undefined
+                ) {
+                  setMapCenter({
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                  });
+                  setMapZoomLevel(17);
+                }
+
+                setOpenedMarker(current => ({
+                  id: place.id,
+                  signal: current.signal + 1,
+                }));
               }}
               onCameraChanged={event => {
                 const {
@@ -201,7 +250,11 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
           <PlaceResultSheet
             height={mapHeight - mapBottomOffset}
             topInset={topInset}
-            places={filteredVisiblePlaces}
+            places={resultPlaces}
+            isSearchActive={hasActiveSearch}
+            expandSignal={searchResultSignal}
+            openPlaceId={openedMarker.id}
+            openPlaceSignal={openedMarker.signal}
             collapseSignal={collapseSignal}
             onDetailViewChange={isDetailView => {
               setIsPlaceDetailVisible(isDetailView);
@@ -217,9 +270,11 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
               hasActiveSearch || isSearchFocused ? 'leading' : 'inside'
             }
             value={searchKeyword}
-            onChangeText={setSearchKeyword}
+            onChangeText={handleSearchKeywordChange}
             onFocus={() => setIsSearchFocused(true)}
             onBlur={() => setIsSearchFocused(false)}
+            onSubmitEditing={handleSearch}
+            onPressSearchAction={handleSearch}
             topInset={topInset}
             onPressBack={
               hasActiveSearch || isSearchFocused || isSheetExpanded

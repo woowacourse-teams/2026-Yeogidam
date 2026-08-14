@@ -114,6 +114,15 @@ class KakaoMapView(
                 override fun onMapReady(map: KakaoMap) {
                     kakaoMap = map
                     applyCameraPadding()
+                    map.setOnLabelClickListener { _, _, label ->
+                        val placeId = label.tag as? String ?: return@setOnLabelClickListener false
+                        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                            id,
+                            "onMarkerPressed",
+                            Arguments.createMap().apply { putString("id", placeId) },
+                        )
+                        true
+                    }
                     map.setOnCameraMoveEndListener { _, position, _ ->
                         emitVisibleBounds(position.position, position.zoomLevel)
                     }
@@ -218,7 +227,10 @@ class KakaoMapView(
                         place.getString("id"),
                         LatLng.from(place.getDouble("latitude"), place.getDouble("longitude")),
                     ).setStyles(createSavedPlaceMarker()),
-                )
+                ).apply {
+                    tag = place.getString("id")
+                    isClickable = true
+                }
             }
         } catch (error: Exception) {
             Log.e("YeogidamKakaoMap", "저장 장소 핀을 표시하지 못했습니다.", error)
