@@ -8,8 +8,8 @@ import KakaoMapsSDK
 class AppDelegate: UIResponder, UIApplicationDelegate {
   var window: UIWindow?
 
-  var reactNativeDelegate: ReactNativeDelegate?
-  var reactNativeFactory: RCTReactNativeFactory?
+  private var reactNativeDelegate: ReactNativeDelegate?
+  private var reactNativeFactory: RCTReactNativeFactory?
 
   func application(
   _ application: UIApplication,
@@ -80,7 +80,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 }
 
-class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
+private final class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     self.bundleURL()
   }

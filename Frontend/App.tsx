@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   AppState,
+  Platform,
   StatusBar,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -34,6 +33,7 @@ import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
+import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   addSharedContentListener,
   getInitialSharedContent,
@@ -50,6 +50,8 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
+const IOS_SPLASH_MIN_DURATION_MS = 1200;
+
 type SocialProvider = 'apple' | 'kakao' | 'google';
 
 configureDataSources();
@@ -59,6 +61,7 @@ function App() {
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -140,6 +143,7 @@ function App() {
 
   useEffect(() => {
     let isMounted = true;
+    let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
     const syncFlowState = async () => {
       const { data, error } = await supabase.auth.getSession();
@@ -162,13 +166,19 @@ function App() {
       setIsAuthReady(true);
     };
 
-    syncFlowState().catch(() => {
+    const splashDelay = new Promise<void>(resolve => {
+      splashTimer = setTimeout(
+        () => resolve(),
+        Platform.OS === 'ios' ? IOS_SPLASH_MIN_DURATION_MS : 0,
+      );
+    });
+
+    Promise.allSettled([syncFlowState(), splashDelay]).finally(() => {
       if (!isMounted) {
         return;
       }
 
-      setFlowState(INITIAL_FLOW_STATE);
-      setIsAuthReady(true);
+      setIsSplashVisible(false);
     });
 
     const {
@@ -200,6 +210,9 @@ function App() {
 
     return () => {
       isMounted = false;
+      if (splashTimer) {
+        clearTimeout(splashTimer);
+      }
       subscription.unsubscribe();
     };
   }, []);
@@ -234,14 +247,14 @@ function App() {
     };
 
     const subscription = addSharedContentListener(content => {
-      void handleSharedContent(content);
+      handleSharedContent(content).catch(() => undefined);
     });
 
     const consumePendingSharedContent = () => {
       getInitialSharedContent()
         .then(content => {
           if (content) {
-            void handleSharedContent(content);
+            handleSharedContent(content).catch(() => undefined);
           }
         })
         .catch(() => undefined);
@@ -465,18 +478,11 @@ function App() {
   const isMapScreen = currentScreen === 'map';
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
-  if (!isAuthReady) {
+  if (!isAuthReady || isSplashVisible) {
     return (
       <SafeAreaProvider>
-        <SafeAreaView style={styles.safeArea}>
-          <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator color="#121212" size="large" />
-            <Text style={styles.loadingText}>
-              로그인 상태를 확인하고 있어요.
-            </Text>
-          </View>
-        </SafeAreaView>
+        <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
+        <SplashScreen />
       </SafeAreaProvider>
     );
   }
@@ -511,16 +517,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#666666',
   },
 });
 
