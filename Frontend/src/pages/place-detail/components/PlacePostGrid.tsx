@@ -22,6 +22,7 @@ type PlacePostGridProps = {
 
 const GRID_HORIZONTAL_PADDING = 12;
 const COLUMN_GAP = 10;
+const CAPTION_QUOTE_PATTERN = /["“”＂]/;
 
 export function PlacePostGrid({
   reels,
@@ -77,6 +78,22 @@ export function PlacePostGrid({
   );
 }
 
+function getCaptionPreview(
+  description?: string | null,
+  fallback?: string,
+): string {
+  if (!description) return fallback ?? '';
+
+  const normalized = description.replace(/\r\n/g, '\n').trim();
+  const quoteMatch = normalized.match(CAPTION_QUOTE_PATTERN);
+  const content = quoteMatch
+    ? normalized.slice((quoteMatch.index ?? -1) + 1)
+    : normalized;
+  const firstLine = content.split('\n')[0]?.trim();
+
+  return firstLine || fallback || '';
+}
+
 function PostCard({
   reel,
   imageWidth,
@@ -91,6 +108,10 @@ function PostCard({
   const imageHeight =
     imageWidth *
     (asset.width && asset.height ? asset.height / asset.width : 1.25);
+  const captionPreview = getCaptionPreview(
+    reel.instagramDescription,
+    reel.id,
+  );
 
   return (
     <Pressable
@@ -117,7 +138,13 @@ function PostCard({
           </Text>
         </View>
       ) : null}
-      <Text style={styles.title}>Instagram 릴스</Text>
+      <Text
+        style={styles.title}
+        numberOfLines={1}
+        ellipsizeMode="tail"
+      >
+        {captionPreview}
+      </Text>
     </Pressable>
   );
 }

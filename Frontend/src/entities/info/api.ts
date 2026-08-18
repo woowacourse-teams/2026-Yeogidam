@@ -31,6 +31,7 @@ const PLACE_REELS_SELECT = [
   'id',
   'instagram_url',
   'instagram_author_username',
+  'instagram_description',
   'instagram_thumbnail_url',
   'created_at',
   'reel_places!inner(place_id)',
@@ -557,6 +558,7 @@ type SupabasePlaceReelResponse = {
   id: string;
   instagram_url: string;
   instagram_author_username: string | null;
+  instagram_description: string | null;
   instagram_thumbnail_url: string | null;
   created_at: string;
 };
@@ -605,6 +607,7 @@ function toPlaceReel(reel: SupabasePlaceReelResponse): PlaceReel {
     id: reel.id,
     instagramUrl: reel.instagram_url,
     instagramAuthorUsername: reel.instagram_author_username,
+    instagramDescription: reel.instagram_description,
     instagramThumbnailUrl: reel.instagram_thumbnail_url,
     createdAt: reel.created_at,
   };
@@ -705,6 +708,7 @@ export function createMockPlaceReelsRepository(): PlaceReelsRepository {
           id: reel.id,
           instagramUrl: reel.instagramUrl,
           instagramAuthorUsername: reel.instagramAuthorUsername ?? null,
+          instagramDescription: reel.instagramDescription ?? null,
           instagramThumbnailUrl: reel.instagramThumbnailUrl,
           createdAt: reel.createdAt,
         }));
