@@ -32,6 +32,7 @@ import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 type PlaceResultSheetProps = {
   places: Place[];
   isSearchActive?: boolean;
+  isVisibleAreaUpdating?: boolean;
   height: number;
   topInset?: number;
   bottomTabOffset?: number;
@@ -57,6 +58,7 @@ const DETAIL_PAGE_BOTTOM_PADDING = 100;
 export function PlaceResultSheet({
   places,
   isSearchActive = false,
+  isVisibleAreaUpdating = false,
   height,
   topInset = 0,
   bottomTabOffset = 0,
@@ -116,6 +118,13 @@ export function PlaceResultSheet({
     MAP_SEARCH_BAR_TOP_GAP +
     MAP_SEARCH_BAR_HEIGHT +
     EXPANDED_RESULTS_TOP_GAP;
+
+  const reportVisibleHeight = useCallback(
+    (offset: number) => {
+      onVisibleHeightChange?.(sheetHeight - offset);
+    },
+    [onVisibleHeightChange, sheetHeight],
+  );
   useEffect(() => {
     onDetailViewChange?.(selectedPlace !== null);
   }, [onDetailViewChange, selectedPlace]);
@@ -174,7 +183,7 @@ export function PlaceResultSheet({
       }
       setActiveSnapIndex(nearestSnapIndex);
       updatePageMode(nearestSnapIndex === 0);
-      onVisibleHeightChange?.(sheetHeight - nearestOffset);
+      reportVisibleHeight(nearestOffset);
       Animated.spring(translateY, {
         toValue: nearestOffset,
         useNativeDriver: true,
@@ -186,8 +195,7 @@ export function PlaceResultSheet({
     [
       activeSnapIndex,
       collapsedOffset,
-      onVisibleHeightChange,
-      sheetHeight,
+      reportVisibleHeight,
       snapOffsets,
       translateY,
       updatePageMode,
@@ -207,11 +215,11 @@ export function PlaceResultSheet({
       currentOffset.current = snapOffsets[nearestSnapIndex];
       setActiveSnapIndex(nearestSnapIndex);
       updatePageMode(nearestSnapIndex === 0);
-      onVisibleHeightChange?.(sheetHeight - snapOffsets[nearestSnapIndex]);
+      reportVisibleHeight(snapOffsets[nearestSnapIndex]);
       translateY.setValue(currentOffset.current);
     });
   }, [
-    onVisibleHeightChange,
+    reportVisibleHeight,
     sheetHeight,
     snapOffsets,
     translateY,
@@ -467,7 +475,9 @@ export function PlaceResultSheet({
           ListEmptyComponent={
             <View style={styles.emptyResult}>
               <Text style={styles.emptyResultText}>
-                {isSearchActive
+                {isVisibleAreaUpdating
+                  ? '현재 지도 영역을 확인하고 있어요.'
+                  : isSearchActive
                   ? '검색 결과 없습니다.'
                   : '현재 지도 영역에 저장한 장소가 없어요.'}
               </Text>

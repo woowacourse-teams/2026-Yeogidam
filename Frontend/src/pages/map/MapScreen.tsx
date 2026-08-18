@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -112,6 +112,19 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
   const resultPlaces = searchedPlaces ?? visiblePlaces;
   const hasActiveSearch = searchKeyword.trim().length > 0;
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
+
+  const handleSheetVisibleHeightChange = useCallback((height: number) => {
+    setSheetVisibleHeight(currentHeight =>
+      currentHeight === height ? currentHeight : height,
+    );
+
+    // The sheet can cover a different part of the map before the native map
+    // reports its new camera bounds. Do not keep rendering the previous area's
+    // results during that short interval.
+    if (!searchedPlaces) {
+      setVisibleBounds(null);
+    }
+  }, [searchedPlaces]);
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
@@ -235,6 +248,17 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
                   westLongitude,
                   eastLongitude,
                 } = event.nativeEvent;
+
+                // Native sends an inverted range while a camera gesture is
+                // active. Clear the old area immediately; the final, valid
+                // range arrives once the gesture stops.
+                if (
+                  southLatitude > northLatitude ||
+                  westLongitude > eastLongitude
+                ) {
+                  setVisibleBounds(null);
+                  return;
+                }
                 lastMapCameraRef.current = { latitude, longitude, zoomLevel };
                 setVisibleBounds({
                   southLatitude,
@@ -312,7 +336,8 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
               onDetailViewChange?.(isDetailView);
             }}
             onExpandedChange={setIsSheetExpanded}
-            onVisibleHeightChange={setSheetVisibleHeight}
+            onVisibleHeightChange={handleSheetVisibleHeightChange}
+            isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
           />
         ) : null}
         {!isPlaceDetailVisible ? (
