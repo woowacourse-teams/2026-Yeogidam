@@ -24,6 +24,7 @@ type PlaceDetailContentProps = {
   contentBottomPadding?: number;
   headerTopInset?: number;
   stickyHeaderTopInset?: number;
+  compactHeader?: boolean;
 };
 
 export function PlaceDetailContent({
@@ -37,6 +38,7 @@ export function PlaceDetailContent({
   contentBottomPadding = 100,
   headerTopInset = 0,
   stickyHeaderTopInset = 0,
+  compactHeader = false,
 }: PlaceDetailContentProps) {
   const scrollViewRef = useRef<ScrollView>(null);
   const tabsOffsetY = useRef(0);
@@ -82,7 +84,11 @@ export function PlaceDetailContent({
       stickyHeaderIndices={[2]}
       showsVerticalScrollIndicator={false}
     >
-      <PlaceDetailHeader onBack={onBack} topInset={headerTopInset} />
+      <PlaceDetailHeader
+        onBack={onBack}
+        topInset={headerTopInset}
+        compact={compactHeader}
+      />
       <View
         onLayout={event => {
           const { y, height } = event.nativeEvent.layout;

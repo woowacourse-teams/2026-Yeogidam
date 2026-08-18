@@ -34,6 +34,7 @@ type PlaceResultSheetProps = {
   isSearchActive?: boolean;
   height: number;
   topInset?: number;
+  bottomTabOffset?: number;
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
@@ -56,6 +57,7 @@ export function PlaceResultSheet({
   isSearchActive = false,
   height,
   topInset = 0,
+  bottomTabOffset = 0,
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
@@ -67,14 +69,24 @@ export function PlaceResultSheet({
   const { width: windowWidth } = useWindowDimensions();
   const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
   const photoWidth = (windowWidth - 26) / 4;
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
+  const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
+  const [isReelsLoading, setIsReelsLoading] = useState(false);
   const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
   const middleOffset = Math.min(
     collapsedOffset,
     sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
   );
+  // When the tab bar disappears for a selected place, the sheet grows down to
+  // the bottom of the screen. Offset its middle snap by half that growth so
+  // the top edge (and its drag handle) remains in the same screen position.
+  const detailMiddleOffset = selectedPlace
+    ? Math.max(0, middleOffset - bottomTabOffset / 2)
+    : middleOffset;
   const snapOffsets = useMemo(
-    () => [0, middleOffset, collapsedOffset],
-    [collapsedOffset, middleOffset],
+    () => [0, detailMiddleOffset, collapsedOffset],
+    [collapsedOffset, detailMiddleOffset],
   );
   // Start compact so the sheet can be dragged both upward and downward.
   const translateY = useRef(new Animated.Value(collapsedOffset)).current;
@@ -88,10 +100,6 @@ export function PlaceResultSheet({
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
-  const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
-  const [isReelsLoading, setIsReelsLoading] = useState(false);
   const isExpanded = activeSnapIndex === 0;
   const hiddenSheetHeight = isPageMode ? 0 : snapOffsets[activeSnapIndex];
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
@@ -379,8 +387,13 @@ export function PlaceResultSheet({
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
               onRetryReels={loadSelectedPlaceReels}
-              headerTopInset={topInset}
-              stickyHeaderTopInset={topInset}
+              // A partially-open sheet is already below the status area, so
+              // reserving the map's safe-area inset here creates a large,
+              // unnecessary gap above the detail header. Keep that inset only
+              // when the sheet becomes a full-screen page.
+              headerTopInset={isPageMode ? topInset : 0}
+              stickyHeaderTopInset={isPageMode ? topInset : 0}
+              compactHeader={!isPageMode}
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
                 isPageMode
@@ -495,8 +508,8 @@ const styles = StyleSheet.create({
   handleArea: {
     paddingTop: 14,
     paddingHorizontal: 14,
-    paddingBottom: 17,
-    minHeight: 48,
+    paddingBottom: 2,
+    minHeight: 28,
   },
   title: {
     fontSize: 15,

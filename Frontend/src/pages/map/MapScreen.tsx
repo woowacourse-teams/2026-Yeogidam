@@ -1,11 +1,11 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
-import {toSavedPlaceDisplayPlace} from '../../entities/place/api';
-import type {Place} from '../../entities/place/types';
-import {getSavedPlaces} from '../../entities/info/api';
+import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
+import type { Place } from '../../entities/place/types';
+import { getSavedPlaces } from '../../entities/info/api';
 import { MapSearchBar } from './components/MapSearchBar';
 import {
   COLLAPSED_SHEET_HEIGHT,
@@ -17,7 +17,7 @@ type MapScreenProps = {
   onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
-export function MapScreen({onDetailViewChange}: MapScreenProps) {
+export function MapScreen({ onDetailViewChange }: MapScreenProps) {
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -30,7 +30,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
   });
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
-  const [openedMarker, setOpenedMarker] = useState({id: '', signal: 0});
+  const [openedMarker, setOpenedMarker] = useState({ id: '', signal: 0 });
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -75,9 +75,10 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
     };
   }, []);
   const placesWithCoordinates = useMemo(
-    () => savedPlaces.filter(
-      place => place.latitude !== undefined && place.longitude !== undefined,
-    ),
+    () =>
+      savedPlaces.filter(
+        place => place.latitude !== undefined && place.longitude !== undefined,
+      ),
     [savedPlaces],
   );
   const visiblePlaces = useMemo(() => {
@@ -119,7 +120,10 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
 
     setSearchedPlaces(places);
     setSearchResultSignal(signal => signal + 1);
-    if (places[0]?.latitude !== undefined && places[0]?.longitude !== undefined) {
+    if (
+      places[0]?.latitude !== undefined &&
+      places[0]?.longitude !== undefined
+    ) {
       setMapCenter({
         latitude: places[0].latitude,
         longitude: places[0].longitude,
@@ -159,7 +163,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
-      <View style={[styles.mapStage, {marginBottom: mapBottomOffset}]}>
+      <View style={[styles.mapStage, { marginBottom: mapBottomOffset }]}>
         <View style={styles.mapViewport}>
           {mapHeight > 0 ? (
             <KakaoMapNativeComponent
@@ -169,7 +173,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
               zoomLevel={mapZoomLevel}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
               savedPlacesJson={JSON.stringify(
-                markerPlaces.map(({id, name, latitude, longitude}) => ({
+                markerPlaces.map(({ id, name, latitude, longitude }) => ({
                   id,
                   name,
                   latitude,
@@ -250,6 +254,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
           <PlaceResultSheet
             height={mapHeight - mapBottomOffset}
             topInset={topInset}
+            bottomTabOffset={bottomNavigationOffset}
             places={resultPlaces}
             isSearchActive={hasActiveSearch}
             expandSignal={searchResultSignal}
