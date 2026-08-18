@@ -27,6 +27,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var latitude: Double = 37.5665
   private var longitude: Double = 126.9780
   private var zoomLevel: Int = 15
+  private var cameraMoveRequestId = 0
   private var showsCurrentLocation = false
   private var currentLocationRequestId = 0
   private var cameraBottomInset: CGFloat = 0
@@ -109,6 +110,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     latitude: Double,
     longitude: Double,
     zoomLevel: Int,
+    cameraMoveRequestId: Int,
     showsCurrentLocation: Bool,
     currentLocationRequestId: Int,
     cameraBottomInset: Double,
@@ -141,7 +143,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       }
     }
 
-    if defaultCameraChanged {
+    if defaultCameraChanged || self.cameraMoveRequestId != cameraMoveRequestId {
+      self.cameraMoveRequestId = cameraMoveRequestId
       moveCameraIfPossible()
     }
 

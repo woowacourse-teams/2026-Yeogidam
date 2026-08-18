@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -17,6 +17,12 @@ type MapScreenProps = {
   onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
+type MapCamera = {
+  latitude: number;
+  longitude: number;
+  zoomLevel: number;
+};
+
 export function MapScreen({ onDetailViewChange }: MapScreenProps) {
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
@@ -29,6 +35,13 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
     longitude: 127.0557,
   });
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
+  const lastMapCameraRef = useRef<MapCamera>({
+    latitude: 37.5448,
+    longitude: 127.0557,
+    zoomLevel: 14,
+  });
+  const detailEntryCameraRef = useRef<MapCamera | null>(null);
+  const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [openedMarker, setOpenedMarker] = useState({ id: '', signal: 0 });
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
@@ -171,6 +184,7 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
               latitude={mapCenter.latitude}
               longitude={mapCenter.longitude}
               zoomLevel={mapZoomLevel}
+              cameraMoveRequestId={cameraMoveRequestId}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
               savedPlacesJson={JSON.stringify(
                 markerPlaces.map(({ id, name, latitude, longitude }) => ({
@@ -198,6 +212,7 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
                   place.latitude !== undefined &&
                   place.longitude !== undefined
                 ) {
+                  detailEntryCameraRef.current = lastMapCameraRef.current;
                   setMapCenter({
                     latitude: place.latitude,
                     longitude: place.longitude,
@@ -212,11 +227,15 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
               }}
               onCameraChanged={event => {
                 const {
+                  latitude,
+                  longitude,
+                  zoomLevel,
                   southLatitude,
                   northLatitude,
                   westLongitude,
                   eastLongitude,
                 } = event.nativeEvent;
+                lastMapCameraRef.current = { latitude, longitude, zoomLevel };
                 setVisibleBounds({
                   southLatitude,
                   northLatitude,
@@ -260,6 +279,33 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
             expandSignal={searchResultSignal}
             openPlaceId={openedMarker.id}
             openPlaceSignal={openedMarker.signal}
+            onPlaceSelected={place => {
+              if (place.latitude === undefined || place.longitude === undefined) {
+                return;
+              }
+
+              detailEntryCameraRef.current = lastMapCameraRef.current;
+              setMapCenter({
+                latitude: place.latitude,
+                longitude: place.longitude,
+              });
+              setMapZoomLevel(17);
+              // A map can have been panned after the same coordinates were set.
+              // Incrementing this signal makes selecting that place recentre it.
+              setCameraMoveRequestId(requestId => requestId + 1);
+            }}
+            onPlaceDetailBack={() => {
+              const entryCamera = detailEntryCameraRef.current;
+              detailEntryCameraRef.current = null;
+              if (!entryCamera) return;
+
+              setMapCenter({
+                latitude: entryCamera.latitude,
+                longitude: entryCamera.longitude,
+              });
+              setMapZoomLevel(entryCamera.zoomLevel);
+              setCameraMoveRequestId(requestId => requestId + 1);
+            }}
             collapseSignal={collapseSignal}
             onDetailViewChange={isDetailView => {
               setIsPlaceDetailVisible(isDetailView);

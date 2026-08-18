@@ -41,6 +41,8 @@ type PlaceResultSheetProps = {
   expandSignal?: number;
   openPlaceId?: string;
   openPlaceSignal?: number;
+  onPlaceSelected?: (place: Place) => void;
+  onPlaceDetailBack?: () => void;
   onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
@@ -64,6 +66,8 @@ export function PlaceResultSheet({
   expandSignal = 0,
   openPlaceId,
   openPlaceSignal = 0,
+  onPlaceSelected,
+  onPlaceDetailBack,
   onDetailViewChange,
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
@@ -338,6 +342,7 @@ export function PlaceResultSheet({
   };
 
   const selectPlace = (place: Place) => {
+    onPlaceSelected?.(place);
     setSelectedPlace(place);
 
     if (activeSnapIndex === 2) {
@@ -346,6 +351,7 @@ export function PlaceResultSheet({
   };
 
   const backToPlaceList = () => {
+    onPlaceDetailBack?.();
     setSelectedPlace(null);
   };
 
