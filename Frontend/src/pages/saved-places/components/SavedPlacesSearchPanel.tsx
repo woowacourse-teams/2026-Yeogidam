@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   historyText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#2b2d43',
   },
   resultsContent: {
