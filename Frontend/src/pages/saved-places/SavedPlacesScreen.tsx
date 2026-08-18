@@ -44,6 +44,10 @@ import {
   setSharedSaveState,
   subscribeSharedSaveState,
 } from '../../lib/reel-save-state';
+import {
+  getRecentSearches,
+  setRecentSearches as persistRecentSearches,
+} from '../../lib/searchHistoryStorage';
 
 // 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
 const SHOW_CARD_PREVIEW = false;
@@ -207,6 +211,7 @@ export function SavedPlacesScreen({
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [places, setPlaces] = useState<Place[]>(providedPlaces ?? []);
   const [error, setError] = useState<SavedPlacesApiError | null>(null);
@@ -251,6 +256,39 @@ export function SavedPlacesScreen({
   useEffect(() => {
     loadSavedPlaces();
   }, [loadSavedPlaces]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getRecentSearches()
+      .then(savedSearches => {
+        if (!isMounted) {
+          return;
+        }
+
+        setRecentSearches(savedSearches.slice(0, MAX_RECENT_SEARCHES));
+        setIsRecentSearchesHydrated(true);
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+
+        setIsRecentSearchesHydrated(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isRecentSearchesHydrated) {
+      return;
+    }
+
+    persistRecentSearches(recentSearches).catch(() => undefined);
+  }, [isRecentSearchesHydrated, recentSearches]);
 
   useEffect(() => {
     const applySharedState = (state: ReturnType<typeof getSharedSaveState>) => {
