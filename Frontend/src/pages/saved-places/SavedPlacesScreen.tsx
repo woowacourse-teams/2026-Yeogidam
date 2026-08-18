@@ -606,7 +606,7 @@ export function SavedPlacesScreen({
               <ReelStatusCard
                 status="PROCESSING"
                 message="릴스에서 장소를 찾고 있어요."
-                description="처리가 완료되면 저장 장소에 반영됩니다."
+                description="처리가 완료되면 보관함에 반영됩니다."
               />
               <ReelStatusCard
                 status="FAILED"
@@ -637,14 +637,14 @@ export function SavedPlacesScreen({
               <ReelStatusCard
                 status="COMPLETED"
                 message="장소를 저장했어요."
-                description="저장 장소에 반영되었습니다."
+                description="보관함에 반영되었습니다."
               />
             </ScrollView>
           ) : showSaveSuccess ? (
             <ReelStatusCard
               status="COMPLETED"
               message="장소를 저장했어요."
-              description="저장 장소에 반영되었습니다."
+              description="보관함에 반영되었습니다."
             />
           ) : processingReel &&
             processingReel.processing_status === 'FAILED' ? (
@@ -673,7 +673,7 @@ export function SavedPlacesScreen({
               description={
                 statusQueryError
                   ? '잠시 후 다시 시도하거나 카드를 닫아주세요.'
-                  : '처리가 완료되면 저장 장소에 반영됩니다.'
+                  : '처리가 완료되면 보관함에 반영됩니다.'
               }
               onCancel={dismissProcessingCard}
               onRetry={
