@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   historyItem: {
-    minHeight: 68,
+    minHeight: 50,
     borderBottomWidth: 1,
     borderBottomColor: '#ececf1',
     flexDirection: 'row',
@@ -160,12 +160,12 @@ const styles = StyleSheet.create({
   historyLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   historyIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#f4f6ff',
     alignItems: 'center',
     justifyContent: 'center',
