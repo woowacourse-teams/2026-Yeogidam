@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import type {Place} from '../../../entities/place/types';
@@ -87,24 +88,38 @@ export function SavedPlacesSearchPanel({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           {filteredPlaces.length > 0 ? (
-            filteredPlaces.map(place => (
-              <View key={place.id} style={styles.resultCard}>
-                <Pressable
-                  onPress={() => onPressPlace(place)}
-                  style={styles.resultCardBody}>
-                  {place.image ? (
-                    <Image source={place.image} style={styles.resultImage} />
-                  ) : (
-                    <View style={[styles.resultImage, styles.resultImagePlaceholder]} />
-                  )}
-                  <View style={styles.resultDim} />
-                </Pressable>
-                <View style={styles.resultImageOverlay}>
-                  <Text style={styles.resultName}>{place.name}</Text>
-                  <Text style={styles.resultAddress}>{place.address}</Text>
+            <View style={styles.resultsGrid}>
+              {filteredPlaces.map(place => (
+                <View key={place.id} style={styles.resultCard}>
+                  <Pressable
+                    onPress={() => onPressPlace(place)}
+                    style={styles.resultCardBody}>
+                    {place.image ? (
+                      <Image source={place.image} style={styles.resultImage} />
+                    ) : (
+                      <View
+                        style={[styles.resultImage, styles.resultImagePlaceholder]}
+                      />
+                    )}
+                    <LinearGradient
+                      colors={[
+                        'rgba(0, 0, 0, 0)',
+                        'rgba(0, 0, 0, 0.22)',
+                        'rgba(0, 0, 0, 0.58)',
+                        'rgba(0, 0, 0, 0.86)',
+                      ]}
+                      locations={[0, 0.38, 0.72, 1]}
+                      pointerEvents="none"
+                      style={styles.resultDim}
+                    />
+                    <View style={styles.resultImageOverlay}>
+                      <Text style={styles.resultName}>{place.name}</Text>
+                      <Text style={styles.resultAddress}>{place.address}</Text>
+                    </View>
+                  </Pressable>
                 </View>
-              </View>
-            ))
+              ))}
+            </View>
           ) : (
             <View style={styles.emptyResult}>
               <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
@@ -189,16 +204,21 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   resultsContent: {
-    paddingTop: 24,
-    paddingHorizontal: 24,
-    paddingBottom: 120,
+    padding: 12,
+    paddingTop: 18,
+    paddingBottom: 130,
+  },
+  resultsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
   },
   resultCard: {
     width: '48.5%',
     height: 248,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#d7d7dc',
+    backgroundColor: '#eeeeee',
   },
   resultCardBody: {
     flex: 1,
@@ -216,24 +236,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 92,
-    backgroundColor: 'rgba(24, 24, 24, 0.28)',
+    height: 100,
   },
   resultImageOverlay: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 18,
+    left: 10,
+    right: 10,
+    bottom: 10,
   },
   resultName: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
     color: '#ffffff',
   },
   resultAddress: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#ffffff',
-    marginTop: 4,
+    marginTop: 2,
   },
   emptyResult: {
     paddingTop: 56,
