@@ -23,6 +23,7 @@ type PlacePostGridProps = {
 const GRID_HORIZONTAL_PADDING = 12;
 const COLUMN_GAP = 10;
 const CAPTION_QUOTE_PATTERN = /["“”＂]/;
+const FALLBACK_CAPTION = 'Instagram 릴스';
 
 export function PlacePostGrid({
   reels,
@@ -110,7 +111,7 @@ function PostCard({
     (asset.width && asset.height ? asset.height / asset.width : 1.25);
   const captionPreview = getCaptionPreview(
     reel.instagramDescription,
-    reel.id,
+    FALLBACK_CAPTION,
   );
 
   return (
