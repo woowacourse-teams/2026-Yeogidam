@@ -95,6 +95,10 @@ export function PlaceResultSheet({
   const isExpanded = activeSnapIndex === 0;
   const hiddenSheetHeight = isPageMode ? 0 : snapOffsets[activeSnapIndex];
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
+  const detailVisibleHeight = Math.max(
+    0,
+    sheetHeight - hiddenSheetHeight - (isPageMode ? 0 : COLLAPSED_SHEET_HEIGHT),
+  );
   const expandedHeaderHeight =
     topInset +
     MAP_SEARCH_BAR_TOP_GAP +
@@ -225,10 +229,7 @@ export function PlaceResultSheet({
   }, [expandSignal, snapOffsets, snapTo]);
 
   useEffect(() => {
-    if (
-      openPlaceSignal === handledOpenPlaceSignal.current ||
-      !openPlaceId
-    ) {
+    if (openPlaceSignal === handledOpenPlaceSignal.current || !openPlaceId) {
       return;
     }
 
@@ -368,28 +369,30 @@ export function PlaceResultSheet({
         ) : null}
       </View>
       {selectedPlace ? (
-        <CopyToastProvider>
-          <PlaceDetailContent
-            key={selectedPlace.id}
-            onBack={backToPlaceList}
-            place={selectedPlace}
-            reels={selectedPlaceReels}
-            reelsError={reelsError}
-            isReelsLoading={isReelsLoading}
-            onRetryReels={loadSelectedPlaceReels}
-            headerTopInset={topInset}
-            stickyHeaderTopInset={topInset}
-            scrollEnabled={activeSnapIndex !== 2}
-            contentBottomPadding={
-              isPageMode
-                ? DETAIL_PAGE_BOTTOM_PADDING
-                : DETAIL_INLINE_BOTTOM_PADDING
-            }
-          />
-          {isPageMode && selectedPlace.placeUrl ? (
-            <PlaceMapButton url={selectedPlace.placeUrl} />
-          ) : null}
-        </CopyToastProvider>
+        <View style={[styles.detailArea, { height: detailVisibleHeight }]}>
+          <CopyToastProvider>
+            <PlaceDetailContent
+              key={selectedPlace.id}
+              onBack={backToPlaceList}
+              place={selectedPlace}
+              reels={selectedPlaceReels}
+              reelsError={reelsError}
+              isReelsLoading={isReelsLoading}
+              onRetryReels={loadSelectedPlaceReels}
+              headerTopInset={topInset}
+              stickyHeaderTopInset={topInset}
+              scrollEnabled={activeSnapIndex !== 2}
+              contentBottomPadding={
+                isPageMode
+                  ? DETAIL_PAGE_BOTTOM_PADDING
+                  : DETAIL_INLINE_BOTTOM_PADDING
+              }
+            />
+            {isPageMode && selectedPlace.placeUrl ? (
+              <PlaceMapButton url={selectedPlace.placeUrl} />
+            ) : null}
+          </CopyToastProvider>
+        </View>
       ) : (
         <FlatList
           key={`results-${activeSnapIndex}-${isPageMode ? 'page' : 'sheet'}`}
@@ -475,6 +478,10 @@ const styles = StyleSheet.create({
   pageSheet: {
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
+  },
+  detailArea: {
+    minHeight: 0,
+    overflow: 'hidden',
   },
   pill: {
     alignSelf: 'center',

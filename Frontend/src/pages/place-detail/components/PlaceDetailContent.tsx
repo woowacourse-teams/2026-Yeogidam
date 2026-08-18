@@ -77,6 +77,7 @@ export function PlaceDetailContent({
         );
       }}
       scrollEnabled={scrollEnabled}
+      nestedScrollEnabled
       scrollEventThrottle={16}
       stickyHeaderIndices={[2]}
       showsVerticalScrollIndicator={false}
@@ -117,6 +118,7 @@ export function PlaceDetailContent({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    minHeight: 0,
     backgroundColor: '#ffffff',
   },
   content: {
