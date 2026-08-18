@@ -47,6 +47,7 @@ import {
 
 // 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
 const SHOW_CARD_PREVIEW = false;
+const MAX_RECENT_SEARCHES = 10;
 
 function ReelStatusCard({
   status,
@@ -205,6 +206,7 @@ export function SavedPlacesScreen({
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [linkValue, setLinkValue] = useState('');
   const [places, setPlaces] = useState<Place[]>(providedPlaces ?? []);
   const [error, setError] = useState<SavedPlacesApiError | null>(null);
@@ -585,14 +587,28 @@ export function SavedPlacesScreen({
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
+  const saveRecentSearch = useCallback((value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    setRecentSearches(current => {
+      const nextSearches = current.filter(item => item !== normalizedValue);
+      return [normalizedValue, ...nextSearches].slice(0, MAX_RECENT_SEARCHES);
+    });
+  }, []);
+
   return (
     <View style={styles.container}>
       {isSearchOpen ? (
         <>
           <SavedPlacesSearchPanel
             places={places}
+            recentSearches={recentSearches}
             onCloseSearch={() => setIsSearchOpen(false)}
             onPressPlace={onOpenDetail}
+            onSaveSearchTerm={saveRecentSearch}
           />
         </>
       ) : (
