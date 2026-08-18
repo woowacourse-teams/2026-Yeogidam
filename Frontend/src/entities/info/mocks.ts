@@ -1,6 +1,16 @@
-import type { FrontendInfoDomain } from './types';
+import type {
+  InfoPlace,
+  ProfileInfo,
+  ReelInfo,
+  SavedPlaceInfo,
+} from './types';
 
-export const frontendInfoDomainMock: FrontendInfoDomain = {
+export const frontendInfoDomainMock: {
+  profiles: ProfileInfo[];
+  places: InfoPlace[];
+  reels: ReelInfo[];
+  savedPlaces: SavedPlaceInfo[];
+} = {
   profiles: [
     {
       id: 'profile-yeogidam-user',
@@ -9,14 +19,6 @@ export const frontendInfoDomainMock: FrontendInfoDomain = {
       avatarUrl: 'https://images.example.com/profiles/yeogidam-user.png',
       createdAt: '2026-08-01T09:00:00+09:00',
       updatedAt: '2026-08-13T09:30:00+09:00',
-    },
-    {
-      id: 'profile-seoul-sources',
-      nickname: '서울 소스',
-      description: '서울의 감도 높은 공간을 소개합니다.',
-      avatarUrl: 'https://images.example.com/profiles/seoul-sources.png',
-      createdAt: '2026-07-18T14:20:00+09:00',
-      updatedAt: '2026-08-10T08:15:00+09:00',
     },
   ],
   places: [
@@ -56,28 +58,11 @@ export const frontendInfoDomainMock: FrontendInfoDomain = {
       sourceAddress: '서울 마포구 동교로24길 12',
       createdAt: '2026-08-05T13:30:00+09:00',
     },
-    {
-      id: 'layer',
-      kakaoPlaceId: '32099877',
-      name: '레이어 커피바',
-      category: '음식점 > 카페',
-      roadAddress: '서울 강남구 도산대로45길 18',
-      address: '서울 강남구 신사동 654-21',
-      latitude: 37.5239,
-      longitude: 127.0388,
-      kakaoPlaceUrl: 'http://place.map.kakao.com/32099877',
-      telephone: null,
-      thumbnailUrl: 'https://images.example.com/places/layer.jpg',
-      thumbnailSource: 'manual',
-      photoAttribution: null,
-      sourceAddress: '서울 강남구 도산대로45길 18',
-      createdAt: '2026-08-07T16:40:00+09:00',
-    },
   ],
   reels: [
     {
       id: 'reel-cafe-onwol-1',
-      userId: 'profile-seoul-sources',
+      userId: 'profile-yeogidam-user',
       placeId: 'cafe-onwol',
       instagramUrl: 'https://www.instagram.com/reel/CafeOnwol123/',
       instagramAuthorUsername: 'seoul_sources',
@@ -109,23 +94,6 @@ export const frontendInfoDomainMock: FrontendInfoDomain = {
       createdAt: '2026-08-11T10:05:00+09:00',
       updatedAt: '2026-08-11T10:06:10+09:00',
     },
-    {
-      id: 'reel-layer-1',
-      userId: 'profile-yeogidam-user',
-      placeId: null,
-      instagramUrl: 'https://www.instagram.com/reel/Layer789/',
-      instagramAuthorUsername: null,
-      instagramTitle: '압구정 감성 공간 스냅',
-      instagramDescription: null,
-      instagramThumbnailUrl: 'https://images.example.com/reels/layer.jpg',
-      source: 'instagram_share',
-      processingStatus: 'FAILED',
-      failureReason: 'PLACE_NOT_FOUND',
-      instagramShortcode: 'Layer789',
-      processingVersion: 1,
-      createdAt: '2026-08-12T20:12:00+09:00',
-      updatedAt: '2026-08-12T20:14:48+09:00',
-    },
   ],
   savedPlaces: [
     {
@@ -141,50 +109,6 @@ export const frontendInfoDomainMock: FrontendInfoDomain = {
       placeId: 'monoroom',
       thumbnailUrl: 'https://images.example.com/places/monoroom.jpg',
       createdAt: '2026-08-11T10:07:00+09:00',
-    },
-  ],
-  providerUsageMonthly: [
-    {
-      provider: 'instagram',
-      monthStart: '2026-08-01',
-      requestCount: 14,
-      updatedAt: '2026-08-13T08:00:00+09:00',
-    },
-    {
-      provider: 'kakao-map',
-      monthStart: '2026-08-01',
-      requestCount: 8,
-      updatedAt: '2026-08-13T08:10:00+09:00',
-    },
-  ],
-  reelPlaces: [
-    {
-      reelId: 'reel-cafe-onwol-1',
-      placeId: 'cafe-onwol',
-      position: 0,
-      createdAt: '2026-08-09T18:21:00+09:00',
-    },
-    {
-      reelId: 'reel-monoroom-1',
-      placeId: 'monoroom',
-      position: 0,
-      createdAt: '2026-08-11T10:06:00+09:00',
-    },
-  ],
-  reelPlaceMatchFailures: [
-    {
-      reelId: 'reel-layer-1',
-      guessIndex: 0,
-      placeName: '레이어 커피바',
-      sourceAddress: '서울 압구정 인근',
-      sourceRegion: '서울 강남구',
-      failureStage: 'FINAL_GUARD',
-      failureReason: 'INSUFFICIENT_ADDRESS_EVIDENCE',
-      searchOrigin: 'INITIAL',
-      classifierReason: 'NO_VERIFIED_CANDIDATE',
-      candidateCount: 2,
-      candidateIds: ['32099877', '45312819'],
-      createdAt: '2026-08-12T20:14:40+09:00',
     },
   ],
 };

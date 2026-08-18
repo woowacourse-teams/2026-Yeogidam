@@ -1,10 +1,5 @@
-import {placeMocks} from './mocks';
 import type {Place} from './types';
 import type {SavedPlaceListItem} from '../info/types';
-
-export async function getPlaces(): Promise<Place[]> {
-  return Promise.resolve(placeMocks);
-}
 
 /** 저장 장소 조인 응답을 저장 목록과 지도에서 공통으로 쓰는 표시 모델로 변환합니다. */
 export function toSavedPlaceDisplayPlace(savedPlace: SavedPlaceListItem): Place {

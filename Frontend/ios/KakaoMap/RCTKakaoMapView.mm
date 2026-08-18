@@ -5,8 +5,6 @@
 #import <KakaoMapsSDK/KakaoMapsSDK-Swift.h>
 #import <React/RCTEventEmitter.h>
 
-#import <React_RCTAppDelegate/RCTAppDelegate.h>
-
 #import "Frontend-Swift.h"
 
 #import <react/renderer/components/YeogidamMapSpec/ComponentDescriptors.h>
