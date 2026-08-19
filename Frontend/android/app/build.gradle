@@ -25,8 +25,9 @@ react {
     // debuggableVariants = ["liteDebug", "liteDebugOptimized", "prodDebug", "prodDebugOptimized"]
 
     /* Bundling */
-    //   A list containing the node command and its flags. Default is just 'node'.
-    // nodeExecutableAndArgs = ["node"]
+    // Android Studio's Gradle daemon may start without the nvm PATH.
+    // Use the absolute Node binary so IDE and CLI builds behave the same.
+    nodeExecutableAndArgs = ["/Users/leejinsun/.nvm/versions/node/v22.18.0/bin/node"]
     //
     //   The command to run when bundling. By default is 'bundle'
     // bundleCommand = "ram-bundle"

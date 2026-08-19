@@ -30,6 +30,7 @@ import {
 } from './src/lib/auth/deleteAccount';
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
+import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
@@ -454,6 +455,7 @@ function App() {
           onContinueWithApple={() => handleContinueWithSocial('apple')}
           onContinueWithGoogle={() => handleContinueWithSocial('google')}
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
+          onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
@@ -521,8 +523,9 @@ function App() {
         currentProfile={currentProfile}
         isProfileLoading={isProfileLoading}
         isLogoutPending={isLogoutPending}
+        onOpenContact={openKakaoChannelChat}
         onLogout={handleLogout}
-        onOpenTerms={() => setMyPageOverlay('terms')}
+        onOpenTerms={() => pushAuthScreen('terms')}
         onRetryProfile={handleRetryProfile}
         onWithdraw={handleOpenAccountDeletion}
         profileError={profileError}
