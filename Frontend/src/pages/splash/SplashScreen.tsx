@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -301,16 +302,19 @@ const styles = StyleSheet.create({
   },
   gifWrap: {
     marginTop: 42,
-    borderRadius: 48,
-    overflow: 'hidden',
     shadowColor: '#9aa9eb',
-    shadowOpacity: 0.24,
     shadowRadius: 24,
     shadowOffset: {
       width: 0,
       height: 14,
     },
-    elevation: 10,
+    ...(Platform.OS === 'ios'
+      ? {
+          borderRadius: 48,
+          overflow: 'hidden',
+          shadowOpacity: 0.24,
+        }
+      : null),
   },
   heroGif: {
     width: 560,
