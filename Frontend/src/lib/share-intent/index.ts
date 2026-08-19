@@ -14,7 +14,13 @@ type NativeShareIntentPayload = {
 type NativeShareIntentModule = {
   getPendingShare(): Promise<NativeShareIntentPayload | null>;
   clearPendingShare(shareId: string | null): Promise<void>;
+  setAccessToken?(token: string | null): Promise<void>;
+  getShareResult?(): Promise<NativeShareResult | null>;
+  getShareResults?(): Promise<NativeShareResult[]>;
+  clearShareResult?(requestId: string | null): Promise<void>;
 };
+
+export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; reelId?: string; failureReason?: string; retryable?: boolean; updatedAt: number; reused?: boolean};
 
 export type SharedContentSubscription = {
   remove: () => void;
@@ -70,6 +76,22 @@ export async function getInitialSharedContent(): Promise<SharedContent | null> {
 
   await clearPendingSharedContent(payload.id);
   return normalizeSharedContent(payload);
+}
+
+export async function syncShareAccessToken(token: string | null) { await nativeShareIntentModule?.setAccessToken?.(token); }
+export async function getShareResult() { return nativeShareIntentModule?.getShareResult?.() ?? null; }
+export async function getShareResults(): Promise<NativeShareResult[]> {
+  const results = await nativeShareIntentModule?.getShareResults?.();
+  if (results) {
+    return results;
+  }
+
+  // Compatibility with an app binary built before the multi-result bridge.
+  const result = await getShareResult();
+  return result ? [result] : [];
+}
+export async function clearShareResult(requestId?: string) {
+  await nativeShareIntentModule?.clearShareResult?.(requestId ?? null);
 }
 
 export function addSharedContentListener(

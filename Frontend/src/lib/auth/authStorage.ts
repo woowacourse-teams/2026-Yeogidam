@@ -1,5 +1,8 @@
 import * as Keychain from 'react-native-keychain';
 import type {SupportedStorage} from '@supabase/supabase-js';
+import {NativeModules, Platform} from 'react-native';
+
+const shareModule = NativeModules.ShareIntentModule as {setAccessToken?: (token: string | null) => Promise<void>} | undefined;
 
 const STORAGE_USERNAME = 'supabase';
 const STORAGE_SERVICE_PREFIX = 'com.yeogidamm.app.supabase';
@@ -26,17 +29,30 @@ export const secureAuthStorage: SupportedStorage = {
       return null;
     }
 
-    return credentials.password;
+    const value = credentials.password;
+    if (Platform.OS === 'ios' && key === SUPABASE_AUTH_STORAGE_KEY) {
+      try {
+        const parsed = JSON.parse(value);
+        await shareModule?.setAccessToken?.(parsed?.access_token ?? null);
+      } catch {
+        await shareModule?.setAccessToken?.(null);
+      }
+    }
+    return value;
   },
   async setItem(key: string, value: string) {
     await Keychain.setGenericPassword(STORAGE_USERNAME, value, {
       service: getServiceName(key),
     });
+    if (Platform.OS === 'ios' && key === SUPABASE_AUTH_STORAGE_KEY) {
+      try { const parsed = JSON.parse(value); await shareModule?.setAccessToken?.(parsed?.access_token ?? null); } catch {}
+    }
   },
   async removeItem(key: string) {
     await Keychain.resetGenericPassword({
       service: getServiceName(key),
     });
+    if (Platform.OS === 'ios' && key === SUPABASE_AUTH_STORAGE_KEY) await shareModule?.setAccessToken?.(null);
   },
 };
 

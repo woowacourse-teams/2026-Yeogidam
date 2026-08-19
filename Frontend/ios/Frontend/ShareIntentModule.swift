@@ -45,6 +45,41 @@ final class ShareIntentModule: RCTEventEmitter {
     resolve(nil)
   }
 
+  @objc(setAccessToken:resolver:rejecter:)
+  func setAccessToken(_ token: String?, resolver resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    ShareIntentStorage.saveAccessToken(token)
+    resolve(nil)
+  }
+
+  @objc(getShareResult:rejecter:)
+  func getShareResult(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    guard let result = ShareIntentStorage.loadResult(), let data = try? JSONEncoder().encode(result), let object = try? JSONSerialization.jsonObject(with: data) else { resolve(nil); return }
+    resolve(object)
+  }
+
+  @objc(getShareResults:rejecter:)
+  func getShareResults(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    let results = ShareIntentStorage.loadResults()
+    guard
+      let data = try? JSONEncoder().encode(results),
+      let object = try? JSONSerialization.jsonObject(with: data)
+    else {
+      resolve([])
+      return
+    }
+    resolve(object)
+  }
+
+  @objc(clearShareResult:resolver:rejecter:)
+  func clearShareResult(
+    _ requestId: String?,
+    resolver resolve: RCTPromiseResolveBlock,
+    rejecter reject: RCTPromiseRejectBlock
+  ) {
+    ShareIntentStorage.clearResult(expectedRequestId: requestId)
+    resolve(nil)
+  }
+
   @objc
   static func notifyPendingShareAvailable() {
     DispatchQueue.main.async {

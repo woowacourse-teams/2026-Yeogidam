@@ -30,11 +30,11 @@ import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
 import {
-  getLatestProcessingReel,
   getReelProcessingStatus,
+  normalizeInstagramContentUrl,
   saveContent,
 } from '../../entities/content/api';
-import type { ReelProcessingStatus } from '../../entities/content/types';
+import type {ReelProcessingStatus, SaveSource} from '../../entities/content/types';
 import {
   normalizeReelError,
   ReelApiError,
@@ -47,6 +47,21 @@ import {
 
 // 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
 const SHOW_CARD_PREVIEW = false;
+const REEL_POLL_TIMEOUT_MS = 90_000;
+const REEL_POLL_FAILURE_LIMIT = 3;
+
+type ShareApiDiagnostics = {
+  source: SaveSource;
+  requestUrl: string;
+  saveStatus: ReelProcessingStatus['processing_status'];
+  reelId: string;
+  reused: boolean | null;
+  saveFailureReason: string | null;
+  statusQueryCount: number;
+  lastQueriedAt: Date | null;
+  queriedStatus: ReelProcessingStatus['processing_status'] | null;
+  queryFailureReason: string | null;
+};
 
 function ReelStatusCard({
   status,
@@ -124,6 +139,9 @@ function ReelStatusCard({
 }
 
 function getFailureMessage(reason: string | null): string {
+  if (reason?.includes('HTTP_') || reason?.includes(' | ')) {
+    return `공유 요청 실패: ${reason}`;
+  }
   switch (reason) {
     case 'CLIENT000_001':
       return '인터넷 연결이 불안정해요.';
@@ -140,11 +158,16 @@ function getFailureMessage(reason: string | null): string {
     case 'PLACE_NOT_FOUND':
       return '장소를 찾지 못했어요.';
     default:
-      return '릴스를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
+      return reason
+        ? `릴스를 저장하지 못했어요. (${reason})`
+        : '릴스를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
   }
 }
 
 function getFailureDescription(reason: string | null): string {
+  if (reason?.includes('HTTP_') || reason?.includes(' | ')) {
+    return '서버 응답을 확인한 뒤 다시 시도해주세요.';
+  }
   switch (reason) {
     case 'CLIENT000_001':
       return '인터넷 연결을 확인한 뒤 다시 시도해주세요.';
@@ -190,8 +213,8 @@ type SavedPlacesScreenProps = {
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
   places?: Place[];
-  sharedUrl?: string | null;
-  onSharedUrlHandled?: () => void;
+  onSharedResultConsumed?: (requestId?: string) => Promise<void>;
+  onSharedResultDismissed?: (requestId?: string) => Promise<void>;
 };
 
 export function SavedPlacesScreen({
@@ -199,8 +222,8 @@ export function SavedPlacesScreen({
   onAuthenticationRequired,
   onRequireLogin,
   places: providedPlaces,
-  sharedUrl = null,
-  onSharedUrlHandled,
+  onSharedResultConsumed,
+  onSharedResultDismissed,
 }: SavedPlacesScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
@@ -220,14 +243,18 @@ export function SavedPlacesScreen({
     null,
   );
   const [isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
+  const [shareApiDiagnostics, setShareApiDiagnostics] =
+    useState<ShareApiDiagnostics | null>(null);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const reelPollStartedAtRef = useRef<number | null>(null);
+  const reelPollFailureCountRef = useRef(0);
   const hasSavedPlaces = places.length > 0;
 
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
       setPlaces(providedPlaces);
-      return;
+      return true;
     }
 
     setIsLoading(true);
@@ -235,12 +262,14 @@ export function SavedPlacesScreen({
     try {
       const savedPlaces = await getSavedPlaces();
       setPlaces(savedPlaces.map(toSavedPlaceDisplayPlace));
+      return true;
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
       setError(apiError);
       if (apiError.errorCode === 'AUTH401_001') {
         onAuthenticationRequired?.();
       }
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -251,108 +280,198 @@ export function SavedPlacesScreen({
   }, [loadSavedPlaces]);
 
   useEffect(() => {
+    let isActive = true;
+    const verifiedKeys = new Set<string>();
+    const verificationInFlight = new Set<string>();
+
+    const verifySharedReelBeforeShowing = async (
+      state: NonNullable<ReturnType<typeof getSharedSaveState>>,
+      verificationKey: string,
+    ) => {
+      verificationInFlight.add(verificationKey);
+      setShareApiDiagnostics(current => current ? {
+        ...current,
+        statusQueryCount: current.statusQueryCount + 1,
+        lastQueriedAt: new Date(),
+        queryFailureReason: null,
+      } : current);
+      try {
+        let currentStatus: ReelProcessingStatus | null;
+        try {
+          currentStatus = await getReelProcessingStatus(state.reel.id);
+        } catch (error) {
+          const normalized = normalizeReelError(error);
+          if (normalized.errorCode !== 'AUTH401_002') throw normalized;
+
+          const {error: refreshError} = await supabase.auth.refreshSession();
+          if (refreshError) throw normalized;
+          currentStatus = await getReelProcessingStatus(state.reel.id);
+        }
+
+        if (!isActive) {
+          return;
+        }
+        if (!currentStatus) {
+          if (__DEV__) {
+            console.warn('[InstagramShare][status-response]', {
+              requestId: state.shareResultId ?? null,
+              reelId: state.reel.id,
+              result: null,
+            });
+          }
+          setShareApiDiagnostics(current => current ? {
+            ...current,
+            queriedStatus: null,
+            queryFailureReason: '조회 결과 없음',
+          } : current);
+          setSharedSaveState(null);
+          await onSharedResultConsumed?.(state.shareResultId);
+          return;
+        }
+
+        verifiedKeys.add(verificationKey);
+        verifiedKeys.add(`${currentStatus.id}:${currentStatus.created_at}`);
+        if (__DEV__) {
+          console.info('[InstagramShare][status-response]', {
+            requestId: state.shareResultId ?? null,
+            reelId: currentStatus.id,
+            status: currentStatus.processing_status,
+            failureReason: currentStatus.failure_reason,
+          });
+        }
+        setShareApiDiagnostics(current => current ? {
+          ...current,
+          queriedStatus: currentStatus.processing_status,
+          queryFailureReason: currentStatus.failure_reason,
+        } : current);
+        setSharedSaveState({
+          ...state,
+          status: currentStatus.processing_status,
+          reel: currentStatus,
+        });
+      } catch (error) {
+        const normalized = normalizeReelError(error);
+        if (__DEV__) {
+          console.warn('[InstagramShare][status-error]', {
+            requestId: state.shareResultId ?? null,
+            reelId: state.reel.id,
+            errorCode: normalized.errorCode ?? null,
+            message: normalized.message,
+          });
+        }
+        setShareApiDiagnostics(current => current ? {
+          ...current,
+          queryFailureReason: normalized.errorCode ?? normalized.message,
+        } : current);
+        // 앱 진입 시 상태를 확인하지 못한 경우 추측으로 카드를 표시하지 않습니다.
+      } finally {
+        verificationInFlight.delete(verificationKey);
+      }
+    };
+
+    const refreshAfterExternalShare = async (requestId?: string) => {
+      const firstRefreshSucceeded = await loadSavedPlaces();
+      if (!firstRefreshSucceeded) {
+        return;
+      }
+
+      // COMPLETED 직후 읽기에서 새 장소가 아직 보이지 않는 짧은 지연을
+      // 흡수하기 위해 한 번 더 조회한 뒤 공유 결과를 소비합니다.
+      await new Promise<void>(resolve => setTimeout(resolve, 700));
+      const confirmed = await loadSavedPlaces();
+      if (confirmed) {
+        await onSharedResultConsumed?.(requestId);
+      }
+    };
+
     const applySharedState = (state: ReturnType<typeof getSharedSaveState>) => {
       if (!state) {
+        // 완료되어 소비했거나 새 공유 URL을 아직 찾지 못한 경우
+        // 이전 요청의 진단 정보를 현재 요청처럼 남겨두지 않습니다.
+        setShareApiDiagnostics(null);
+        setProcessingReelId(null);
+        setProcessingReel(null);
+        setProcessingUrl(null);
+        setStatusQueryError(null);
+        return;
+      }
+
+      const hasRealReelId = !state.reel.id.startsWith('share-');
+      setShareApiDiagnostics(current =>
+        current?.reelId === state.reel.id &&
+        current.requestUrl === state.url
+          ? current
+          : {
+              source:
+                state.source === 'instagram_share' ? 'url_input' : state.source,
+              requestUrl: state.url,
+              saveStatus: state.status,
+              reelId: state.reel.id,
+              reused: state.reused ?? null,
+              saveFailureReason: state.reel.failure_reason,
+              statusQueryCount: 0,
+              lastQueriedAt: null,
+              queriedStatus: null,
+              queryFailureReason: null,
+            },
+      );
+      if (
+        (state.status === 'PENDING' || state.status === 'PROCESSING') &&
+        !hasRealReelId
+      ) {
+        // Share Extension이 현재 requestId/URL로 API 응답을 기다리는 실제 상태입니다.
+        // reelId가 오기 전에는 상태 API를 호출하지 않고 응답 대기 카드만 표시합니다.
+        setProcessingReelId(null);
+        setProcessingReel(state.reel);
+        setProcessingUrl(state.url);
+        setStatusQueryError(null);
+        setIsSaveResponseFailure(false);
+        return;
+      }
+
+      const verificationKey = `${state.reel.id}:${state.reel.created_at}`;
+      if (
+        state.source === 'instagram_share' &&
+        (state.status === 'PENDING' || state.status === 'PROCESSING') &&
+        !verifiedKeys.has(verificationKey)
+      ) {
+        setProcessingReelId(null);
+        setProcessingReel(null);
+        setProcessingUrl(null);
+        setStatusQueryError(null);
+        if (!verificationInFlight.has(verificationKey)) {
+          void verifySharedReelBeforeShowing(state, verificationKey);
+        }
         return;
       }
 
       setProcessingUrl(state.url);
       setProcessingReelId(
-        state.status === 'PROCESSING' || state.status === 'PENDING'
+        (state.status === 'PROCESSING' || state.status === 'PENDING') &&
+        hasRealReelId
           ? state.reel.id
           : null,
       );
       setProcessingReel(state.reel);
       setIsSaveResponseFailure(state.status === 'FAILED');
-      setShowSaveSuccess(state.status === 'COMPLETED');
+      setShowSaveSuccess(
+        state.status === 'COMPLETED' && state.source === 'url_input',
+      );
       if (state.status === 'COMPLETED') {
-        // 완료 안내는 한 번만 보여주고 전역 복원 대상에서는 제거합니다.
+        if (state.source === 'instagram_share') {
+          void refreshAfterExternalShare(state.shareResultId);
+        }
         setSharedSaveState(null);
       }
     };
 
     applySharedState(getSharedSaveState());
-    return subscribeSharedSaveState(applySharedState);
-  }, []);
-
-  useEffect(() => {
-    if (providedPlaces !== undefined) {
-      return;
-    }
-
-    getLatestProcessingReel()
-      .then(reel => {
-        if (reel) {
-          setProcessingReelId(reel.id);
-          setProcessingReel(reel);
-        }
-      })
-      .catch(() => undefined);
-  }, [providedPlaces]);
-
-  useEffect(() => {
-    if (!sharedUrl) {
-      return;
-    }
-
-    let active = true;
-    // 요청 응답을 기다리는 동안에도 즉시 처리중 카드를 보여줍니다.
-    setProcessingReelId(null);
-    setProcessingUrl(sharedUrl);
-    const initialReel: ReelProcessingStatus = {
-      id: `share-${Date.now()}`,
-      processing_status: 'PROCESSING',
-      failure_reason: null,
-      instagram_thumbnail_url: null,
-      created_at: new Date().toISOString(),
-    };
-    setProcessingReel(initialReel);
-    setSharedSaveState({url: sharedUrl, status: 'PROCESSING', reel: initialReel});
-    setShowSaveSuccess(false);
-    setIsSaveResponseFailure(false);
-    setIsSubmitting(true);
-    setStatusQueryError(null);
-    saveContent(sharedUrl, 'instagram_share')
-      .then(response => {
-        const nextReel: ReelProcessingStatus = {
-          id: response.reelId,
-          processing_status: response.status,
-          failure_reason: response.failureReason ?? null,
-          instagram_thumbnail_url: null,
-          created_at: new Date().toISOString(),
-        };
-        setSharedSaveState({url: sharedUrl, status: response.status, reel: nextReel});
-        if (active) {
-          handleSaveResponse(response, sharedUrl);
-        }
-      })
-      .catch(error => {
-        const normalizedError = normalizeReelError(error);
-        const failedReel: ReelProcessingStatus = {
-          id: `share-failed-${Date.now()}`,
-          processing_status: 'FAILED',
-          failure_reason: normalizedError.errorCode,
-          instagram_thumbnail_url: null,
-          created_at: new Date().toISOString(),
-        };
-        setSharedSaveState({url: sharedUrl, status: 'FAILED', reel: failedReel});
-        if (active) {
-          setProcessingReelId(null);
-          setProcessingReel(failedReel);
-          setIsSaveResponseFailure(true);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setIsSubmitting(false);
-          onSharedUrlHandled?.();
-        }
-      });
-
+    const unsubscribe = subscribeSharedSaveState(applySharedState);
     return () => {
-      active = false;
+      isActive = false;
+      unsubscribe();
     };
-  }, [onSharedUrlHandled, sharedUrl]);
+  }, [loadSavedPlaces, onSharedResultConsumed]);
 
   const openDialog = () => {
     setLinkError(null);
@@ -373,7 +492,8 @@ export function SavedPlacesScreen({
       return;
     }
 
-    const normalizedUrl = linkValue.trim();
+    const normalizedUrl =
+      normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
     const initialReel: ReelProcessingStatus = {
       id: `manual-${Date.now()}`,
       processing_status: 'PROCESSING',
@@ -392,6 +512,7 @@ export function SavedPlacesScreen({
     setSharedSaveState({
       url: normalizedUrl,
       status: 'PROCESSING',
+      source: 'url_input',
       reel: initialReel,
     });
     setIsSubmitting(true);
@@ -408,9 +529,11 @@ export function SavedPlacesScreen({
       setSharedSaveState({
         url: normalizedUrl,
         status: response.status,
+        source: 'url_input',
+        reused: response.reused,
         reel: nextReel,
       });
-      handleSaveResponse(response, normalizedUrl);
+      handleSaveResponse(response, normalizedUrl, 'url_input');
       setIsDialogVisible(false);
       setLinkValue('');
     } catch (error) {
@@ -427,6 +550,7 @@ export function SavedPlacesScreen({
       setSharedSaveState({
         url: normalizedUrl,
         status: 'FAILED',
+        source: 'url_input',
         reel: failedReel,
       });
       setIsSaveResponseFailure(true);
@@ -457,13 +581,14 @@ export function SavedPlacesScreen({
   const handleSaveResponse = (
     response: Awaited<ReturnType<typeof saveContent>>,
     url: string,
+    source: SaveSource,
   ) => {
     if (response.status === 'COMPLETED') {
       setIsSaveResponseFailure(false);
       setProcessingReelId(null);
       setProcessingReel(null);
       setProcessingUrl(null);
-      setShowSaveSuccess(true);
+      setShowSaveSuccess(source === 'url_input');
       return;
     }
 
@@ -480,13 +605,23 @@ export function SavedPlacesScreen({
     });
   };
 
-  const dismissProcessingCard = () => {
+  const dismissProcessingCard = async () => {
+    const currentState = getSharedSaveState();
+    const isExternalShare = currentState?.source === 'instagram_share';
+    const requestId = currentState?.shareResultId;
     setSharedSaveState(null);
     setIsSaveResponseFailure(false);
     setProcessingReelId(null);
     setProcessingReel(null);
     setProcessingUrl(null);
     setStatusQueryError(null);
+    if (isExternalShare) {
+      try {
+        await onSharedResultDismissed?.(requestId);
+      } catch {
+        // 카드는 즉시 닫되 다음 실행에서 삭제를 다시 시도할 수 있습니다.
+      }
+    }
   };
 
   const retryProcessing = async () => {
@@ -495,27 +630,95 @@ export function SavedPlacesScreen({
     }
 
     setIsSubmitting(true);
+    const source = getSharedSaveState()?.source ?? 'url_input';
+    const requestSource: SaveSource =
+      source === 'instagram_share' ? 'url_input' : source;
     try {
-      const response = await saveContent(processingUrl, 'url_input');
-      handleSaveResponse(response, processingUrl);
+      const response = await saveContent(processingUrl, requestSource);
+      handleSaveResponse(response, processingUrl, source);
     } catch (error) {
-      Alert.alert(
-        '다시 시도할 수 없어요',
-        error instanceof Error ? error.message : '잠시 후 다시 시도해주세요.',
-      );
+      const normalized = normalizeReelError(error);
+      if (normalized.errorCode === 'AUTH401_002') {
+        const {error: refreshError} = await supabase.auth.refreshSession();
+        if (!refreshError) {
+          try {
+            const response = await saveContent(processingUrl, requestSource);
+            handleSaveResponse(response, processingUrl, source);
+            return;
+          } catch (retryError) {
+            error = retryError;
+          }
+        } else {
+          onRequireLogin?.();
+          return;
+        }
+      }
+      const finalError = normalizeReelError(error);
+      setStatusQueryError(finalError);
+      setIsSaveResponseFailure(true);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   useEffect(() => {
-    if (!processingReelId || processingReel?.processing_status === 'FAILED') {
+    if (!processingReelId) {
+      reelPollStartedAtRef.current = null;
+      reelPollFailureCountRef.current = 0;
+
+      if (
+        processingReel?.processing_status === 'PENDING' &&
+        processingReel.id.startsWith('share-')
+      ) {
+        const createdAt = Date.parse(processingReel.created_at);
+        const elapsed = Number.isFinite(createdAt) ? Date.now() - createdAt : 0;
+        const timeoutId = setTimeout(() => {
+          setStatusQueryError(
+            new ReelApiError({
+              errorCode: 'CLIENT000_002',
+              message: '공유 저장 요청의 응답이 늦어지고 있어요.',
+              retryable: true,
+            }),
+          );
+          setIsSaveResponseFailure(true);
+        }, Math.max(0, 30_000 - elapsed));
+        return () => clearTimeout(timeoutId);
+      }
+      return;
+    }
+
+    if (processingReel?.processing_status === 'FAILED') {
+      reelPollStartedAtRef.current = null;
+      reelPollFailureCountRef.current = 0;
       return;
     }
 
     let isActive = true;
+    const persistedStartedAt = Date.parse(processingReel?.created_at ?? '');
+    reelPollStartedAtRef.current ??= Number.isFinite(persistedStartedAt)
+      ? Math.min(persistedStartedAt, Date.now())
+      : Date.now();
     const poll = async () => {
+      if (Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >= REEL_POLL_TIMEOUT_MS) {
+        if (isActive) {
+          const timeoutError = new ReelApiError({
+            errorCode: 'CLIENT000_002',
+            message: '처리 시간이 너무 오래 걸리고 있어요. 다시 시도해주세요.',
+            retryable: true,
+          });
+          setStatusQueryError(timeoutError);
+          setIsSaveResponseFailure(true);
+          setProcessingReelId(null);
+        }
+        return;
+      }
       try {
+        setShareApiDiagnostics(current => current ? {
+          ...current,
+          statusQueryCount: current.statusQueryCount + 1,
+          lastQueriedAt: new Date(),
+          queryFailureReason: null,
+        } : current);
         let nextStatus: ReelProcessingStatus | null;
         try {
           nextStatus = await getReelProcessingStatus(processingReelId);
@@ -533,9 +736,49 @@ export function SavedPlacesScreen({
           nextStatus = await getReelProcessingStatus(processingReelId);
         }
 
+        if (isActive && !nextStatus) {
+          if (__DEV__) {
+            console.warn('[InstagramShare][status-response]', {
+              reelId: processingReelId,
+              result: null,
+            });
+          }
+          setShareApiDiagnostics(current => current ? {
+            ...current,
+            queriedStatus: null,
+            queryFailureReason: '조회 결과 없음',
+          } : current);
+          reelPollFailureCountRef.current += 1;
+          if (reelPollFailureCountRef.current >= REEL_POLL_FAILURE_LIMIT) {
+            setStatusQueryError(
+              new ReelApiError({
+                errorCode: 'CLIENT000_003',
+                message: '처리 중인 릴스 상태를 확인하지 못했어요.',
+                retryable: true,
+              }),
+            );
+            setIsSaveResponseFailure(true);
+            setProcessingReelId(null);
+          }
+          return;
+        }
+
         if (isActive && nextStatus) {
+          reelPollFailureCountRef.current = 0;
           setStatusQueryError(null);
           setProcessingReel(nextStatus);
+          if (__DEV__) {
+            console.info('[InstagramShare][status-response]', {
+              reelId: nextStatus.id,
+              status: nextStatus.processing_status,
+              failureReason: nextStatus.failure_reason,
+            });
+          }
+          setShareApiDiagnostics(current => current ? {
+            ...current,
+            queriedStatus: nextStatus.processing_status,
+            queryFailureReason: nextStatus.failure_reason,
+          } : current);
           const sharedState = getSharedSaveState();
           if (sharedState?.reel.id === nextStatus.id) {
             setSharedSaveState({
@@ -546,20 +789,38 @@ export function SavedPlacesScreen({
           }
           if (nextStatus.processing_status === 'COMPLETED') {
             setProcessingReelId(null);
-            setShowSaveSuccess(true);
+            setShowSaveSuccess(sharedState?.source === 'url_input');
           }
         }
       } catch (error) {
         if (isActive) {
+          reelPollFailureCountRef.current += 1;
           const normalizedError = normalizeReelError(error);
+          if (__DEV__) {
+            console.warn('[InstagramShare][status-error]', {
+              reelId: processingReelId,
+              errorCode: normalizedError.errorCode ?? null,
+              message: normalizedError.message,
+              attempt: reelPollFailureCountRef.current,
+            });
+          }
+          setShareApiDiagnostics(current => current ? {
+            ...current,
+            queryFailureReason:
+              normalizedError.errorCode ?? normalizedError.message,
+          } : current);
           setStatusQueryError(normalizedError);
           if (normalizedError.errorCode === 'AUTH401_001') {
             setProcessingReelId(null);
             onRequireLogin?.();
           } else if (normalizedError.errorCode === 'AUTH403_001') {
             setProcessingReelId(null);
-          } else if (!normalizedError.retryable) {
+          } else if (
+            !normalizedError.retryable ||
+            reelPollFailureCountRef.current >= REEL_POLL_FAILURE_LIMIT
+          ) {
             setProcessingReelId(null);
+            setIsSaveResponseFailure(true);
           }
         }
       }
@@ -666,7 +927,10 @@ export function SavedPlacesScreen({
               }
             />
           ) : processingReel &&
-            processingReel.processing_status !== 'COMPLETED' ? (
+            processingReel.processing_status !== 'COMPLETED' &&
+            (processingReelId !== null ||
+              processingReel.processing_status === 'PENDING' ||
+              statusQueryError !== null) ? (
             <ReelStatusCard
               status={statusQueryError ? 'FAILED' : 'PROCESSING'}
               message={
@@ -682,7 +946,7 @@ export function SavedPlacesScreen({
               onCancel={dismissProcessingCard}
               onRetry={
                 statusQueryError?.retryable
-                  ? () => setStatusQueryError(null)
+                  ? retryProcessing
                   : undefined
               }
             />
