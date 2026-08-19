@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
   },
   addressRow: {
     minHeight: 30,
-    marginTop: 5,
+    marginTop: 4,
     flexDirection: 'row',
     alignItems: 'center',
   },

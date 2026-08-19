@@ -48,6 +48,7 @@ class KakaoMapView(
     private var latitude = 37.5445
     private var longitude = 127.0557
     private var zoomLevel = 15
+    private var cameraMoveRequestId = 0
     private var showsCurrentLocation = false
     private var currentLocationRequestId = 0
     private var cameraBottomInset = 0
@@ -158,6 +159,15 @@ class KakaoMapView(
 
     fun setZoomLevel(value: Int) {
         zoomLevel = value
+        moveCamera()
+    }
+
+    fun setCameraMoveRequestId(value: Int) {
+        if (cameraMoveRequestId == value) {
+            return
+        }
+
+        cameraMoveRequestId = value
         moveCamera()
     }
 

@@ -69,6 +69,7 @@ using namespace facebook::react;
   [_mapView updateWithLatitude:newProps.latitude
                      longitude:newProps.longitude
                      zoomLevel:newProps.zoomLevel
+       cameraMoveRequestId:newProps.cameraMoveRequestId
           showsCurrentLocation:newProps.showsCurrentLocation
       currentLocationRequestId:newProps.currentLocationRequestId
           cameraBottomInset:newProps.cameraBottomInset
