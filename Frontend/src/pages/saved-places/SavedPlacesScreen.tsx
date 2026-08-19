@@ -139,9 +139,6 @@ function ReelStatusCard({
 }
 
 function getFailureMessage(reason: string | null): string {
-  if (reason?.includes('HTTP_') || reason?.includes(' | ')) {
-    return `공유 요청 실패: ${reason}`;
-  }
   switch (reason) {
     case 'CLIENT000_001':
       return '인터넷 연결이 불안정해요.';
@@ -158,16 +155,11 @@ function getFailureMessage(reason: string | null): string {
     case 'PLACE_NOT_FOUND':
       return '장소를 찾지 못했어요.';
     default:
-      return reason
-        ? `릴스를 저장하지 못했어요. (${reason})`
-        : '릴스를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
+      return '릴스를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
   }
 }
 
 function getFailureDescription(reason: string | null): string {
-  if (reason?.includes('HTTP_') || reason?.includes(' | ')) {
-    return '서버 응답을 확인한 뒤 다시 시도해주세요.';
-  }
   switch (reason) {
     case 'CLIENT000_001':
       return '인터넷 연결을 확인한 뒤 다시 시도해주세요.';
