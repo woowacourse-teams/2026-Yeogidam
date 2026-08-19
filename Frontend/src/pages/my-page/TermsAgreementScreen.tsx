@@ -159,7 +159,6 @@ function AgreementCard({badge, label, summary}: AgreementItem) {
   return (
     <View style={styles.agreementCard}>
       <View style={styles.agreementHeader}>
-        <View style={styles.checkbox} />
         <View
           style={[
             styles.badge,
@@ -264,10 +263,10 @@ export function TermsAgreementScreen({onBack}: TermsAgreementScreenProps) {
 
         <View style={styles.section}>
           <Text style={styles.sectionEyebrow}>1. 회원가입 화면 동의 항목 구성</Text>
-          <Text style={styles.sectionTitle}>체크박스 문구 예시</Text>
+          <Text style={styles.sectionTitle}>약관 안내 문구 예시</Text>
           <Text style={styles.sectionDescription}>
-            회원가입 화면에서 아래 3개 항목을 명확히 구분해 보여주는 구성을
-            기준으로 정리했습니다.
+            회원가입 화면에서 아래 약관을 명확히 안내하는 구성을 기준으로
+            정리했습니다.
           </Text>
           <View style={styles.agreementList}>
             {AGREEMENT_ITEMS.map(item => (
@@ -474,14 +473,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: '#c1c7dd',
-    backgroundColor: '#ffffff',
   },
   badge: {
     paddingHorizontal: 10,
