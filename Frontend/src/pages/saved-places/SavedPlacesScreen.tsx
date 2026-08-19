@@ -44,9 +44,14 @@ import {
   setSharedSaveState,
   subscribeSharedSaveState,
 } from '../../lib/reel-save-state';
+import {
+  getRecentSearches,
+  setRecentSearches as persistRecentSearches,
+} from '../../lib/searchHistoryStorage';
 
 // 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
 const SHOW_CARD_PREVIEW = false;
+const MAX_RECENT_SEARCHES = 10;
 
 function ReelStatusCard({
   status,
@@ -205,6 +210,8 @@ export function SavedPlacesScreen({
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [places, setPlaces] = useState<Place[]>(providedPlaces ?? []);
   const [error, setError] = useState<SavedPlacesApiError | null>(null);
@@ -249,6 +256,39 @@ export function SavedPlacesScreen({
   useEffect(() => {
     loadSavedPlaces();
   }, [loadSavedPlaces]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getRecentSearches()
+      .then(savedSearches => {
+        if (!isMounted) {
+          return;
+        }
+
+        setRecentSearches(savedSearches.slice(0, MAX_RECENT_SEARCHES));
+        setIsRecentSearchesHydrated(true);
+      })
+      .catch(() => {
+        if (!isMounted) {
+          return;
+        }
+
+        setIsRecentSearchesHydrated(true);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isRecentSearchesHydrated) {
+      return;
+    }
+
+    persistRecentSearches(recentSearches).catch(() => undefined);
+  }, [isRecentSearchesHydrated, recentSearches]);
 
   useEffect(() => {
     const applySharedState = (state: ReturnType<typeof getSharedSaveState>) => {
@@ -585,14 +625,28 @@ export function SavedPlacesScreen({
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
+  const saveRecentSearch = useCallback((value: string) => {
+    const normalizedValue = value.trim();
+    if (!normalizedValue) {
+      return;
+    }
+
+    setRecentSearches(current => {
+      const nextSearches = current.filter(item => item !== normalizedValue);
+      return [normalizedValue, ...nextSearches].slice(0, MAX_RECENT_SEARCHES);
+    });
+  }, []);
+
   return (
     <View style={styles.container}>
       {isSearchOpen ? (
         <>
           <SavedPlacesSearchPanel
             places={places}
+            recentSearches={recentSearches}
             onCloseSearch={() => setIsSearchOpen(false)}
             onPressPlace={onOpenDetail}
+            onSaveSearchTerm={saveRecentSearch}
           />
         </>
       ) : (
@@ -606,7 +660,7 @@ export function SavedPlacesScreen({
               <ReelStatusCard
                 status="PROCESSING"
                 message="릴스에서 장소를 찾고 있어요."
-                description="처리가 완료되면 저장 장소에 반영됩니다."
+                description="처리가 완료되면 보관함에 반영됩니다."
               />
               <ReelStatusCard
                 status="FAILED"
@@ -637,14 +691,14 @@ export function SavedPlacesScreen({
               <ReelStatusCard
                 status="COMPLETED"
                 message="장소를 저장했어요."
-                description="저장 장소에 반영되었습니다."
+                description="보관함에 반영되었습니다."
               />
             </ScrollView>
           ) : showSaveSuccess ? (
             <ReelStatusCard
               status="COMPLETED"
               message="장소를 저장했어요."
-              description="저장 장소에 반영되었습니다."
+              description="보관함에 반영되었습니다."
             />
           ) : processingReel &&
             processingReel.processing_status === 'FAILED' ? (
@@ -673,7 +727,7 @@ export function SavedPlacesScreen({
               description={
                 statusQueryError
                   ? '잠시 후 다시 시도하거나 카드를 닫아주세요.'
-                  : '처리가 완료되면 저장 장소에 반영됩니다.'
+                  : '처리가 완료되면 보관함에 반영됩니다.'
               }
               onCancel={dismissProcessingCard}
               onRetry={

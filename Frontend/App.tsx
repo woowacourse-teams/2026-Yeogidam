@@ -22,6 +22,12 @@ import {
   isAppleSignInSupported,
   signInWithApple,
 } from './src/lib/auth/signInWithApple';
+import {
+  deleteAccount,
+  getLinkedDeletionProviders,
+  type AccountDeletionProvider,
+  type DeleteAccountRequest,
+} from './src/lib/auth/deleteAccount';
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
@@ -30,6 +36,7 @@ import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
+import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
@@ -54,6 +61,7 @@ const INITIAL_FLOW_STATE: AppFlowState = {
 const IOS_SPLASH_MIN_DURATION_MS = 1200;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
+type MyPageOverlay = 'terms' | 'accountDeletion' | null;
 
 configureDataSources();
 
@@ -73,6 +81,10 @@ function App() {
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
   const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
+  const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
+    AccountDeletionProvider[]
+  >([]);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -155,6 +167,7 @@ function App() {
 
       if (error || !data.session) {
         setFlowState(INITIAL_FLOW_STATE);
+        setMyPageOverlay(null);
         setIsAuthReady(true);
         return;
       }
@@ -191,6 +204,7 @@ function App() {
 
       if (!session) {
         setFlowState(INITIAL_FLOW_STATE);
+        setMyPageOverlay(null);
         setIsMapPlaceDetailVisible(false);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
@@ -371,6 +385,36 @@ function App() {
     );
   };
 
+  const handleOpenAccountDeletion = async () => {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (error || !user) {
+      Alert.alert(
+        '로그인이 필요해요',
+        '회원탈퇴를 진행하려면 다시 로그인해주세요.',
+      );
+      return;
+    }
+
+    setLinkedDeletionProviders(getLinkedDeletionProviders(user));
+    setMyPageOverlay('accountDeletion');
+  };
+
+  const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
+    await deleteAccount(payload);
+
+    setCurrentProfile(null);
+    setProfileError(null);
+    setMyPageOverlay(null);
+
+    await supabase.auth.signOut({ scope: 'local' });
+    setFlowState(INITIAL_FLOW_STATE);
+    Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+  };
+
   const handleRetryProfile = async () => {
     setIsProfileLoading(true);
     setProfileError(null);
@@ -388,6 +432,20 @@ function App() {
   };
 
   const renderScreen = () => {
+    if (myPageOverlay === 'terms') {
+      return <TermsAgreementScreen onBack={() => setMyPageOverlay(null)} />;
+    }
+
+    if (myPageOverlay === 'accountDeletion') {
+      return (
+        <AccountDeletionScreen
+          linkedProviders={linkedDeletionProviders}
+          onBack={() => setMyPageOverlay(null)}
+          onDeleteAccount={handleDeleteAccount}
+        />
+      );
+    }
+
     if (currentScreen === 'login') {
       return (
         <LoginScreen
@@ -469,6 +527,7 @@ function App() {
         onLogout={handleLogout}
         onOpenTerms={() => pushAuthScreen('terms')}
         onRetryProfile={handleRetryProfile}
+        onWithdraw={handleOpenAccountDeletion}
         profileError={profileError}
       />
     );
@@ -477,6 +536,7 @@ function App() {
   const showTabBar =
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
+    myPageOverlay === null &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';

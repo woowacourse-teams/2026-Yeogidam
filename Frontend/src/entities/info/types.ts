@@ -114,6 +114,7 @@ export type PlaceReel = Pick<
   | 'id'
   | 'instagramUrl'
   | 'instagramAuthorUsername'
+  | 'instagramDescription'
   | 'instagramThumbnailUrl'
   | 'createdAt'
 >;

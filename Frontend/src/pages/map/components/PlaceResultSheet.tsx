@@ -32,14 +32,18 @@ import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 type PlaceResultSheetProps = {
   places: Place[];
   isSearchActive?: boolean;
+  isVisibleAreaUpdating?: boolean;
   height: number;
   topInset?: number;
+  bottomTabOffset?: number;
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
   expandSignal?: number;
   openPlaceId?: string;
   openPlaceSignal?: number;
+  onPlaceSelected?: (place: Place) => void;
+  onPlaceDetailBack?: () => void;
   onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
@@ -54,27 +58,41 @@ const DETAIL_PAGE_BOTTOM_PADDING = 100;
 export function PlaceResultSheet({
   places,
   isSearchActive = false,
+  isVisibleAreaUpdating = false,
   height,
   topInset = 0,
+  bottomTabOffset = 0,
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
   expandSignal = 0,
   openPlaceId,
   openPlaceSignal = 0,
+  onPlaceSelected,
+  onPlaceDetailBack,
   onDetailViewChange,
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
   const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
   const photoWidth = (windowWidth - 26) / 4;
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
+  const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
+  const [isReelsLoading, setIsReelsLoading] = useState(false);
   const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
   const middleOffset = Math.min(
     collapsedOffset,
     sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
   );
+  // When the tab bar disappears for a selected place, the sheet grows down to
+  // the bottom of the screen. Offset its middle snap by half that growth so
+  // the top edge (and its drag handle) remains in the same screen position.
+  const detailMiddleOffset = selectedPlace
+    ? Math.max(0, middleOffset - bottomTabOffset / 2)
+    : middleOffset;
   const snapOffsets = useMemo(
-    () => [0, middleOffset, collapsedOffset],
-    [collapsedOffset, middleOffset],
+    () => [0, detailMiddleOffset, collapsedOffset],
+    [collapsedOffset, detailMiddleOffset],
   );
   // Start compact so the sheet can be dragged both upward and downward.
   const translateY = useRef(new Animated.Value(collapsedOffset)).current;
@@ -88,18 +106,25 @@ export function PlaceResultSheet({
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
-  const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
-  const [isReelsLoading, setIsReelsLoading] = useState(false);
   const isExpanded = activeSnapIndex === 0;
   const hiddenSheetHeight = isPageMode ? 0 : snapOffsets[activeSnapIndex];
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
+  const detailVisibleHeight = Math.max(
+    0,
+    sheetHeight - hiddenSheetHeight - (isPageMode ? 0 : COLLAPSED_SHEET_HEIGHT),
+  );
   const expandedHeaderHeight =
     topInset +
     MAP_SEARCH_BAR_TOP_GAP +
     MAP_SEARCH_BAR_HEIGHT +
     EXPANDED_RESULTS_TOP_GAP;
+
+  const reportVisibleHeight = useCallback(
+    (offset: number) => {
+      onVisibleHeightChange?.(sheetHeight - offset);
+    },
+    [onVisibleHeightChange, sheetHeight],
+  );
   useEffect(() => {
     onDetailViewChange?.(selectedPlace !== null);
   }, [onDetailViewChange, selectedPlace]);
@@ -158,7 +183,7 @@ export function PlaceResultSheet({
       }
       setActiveSnapIndex(nearestSnapIndex);
       updatePageMode(nearestSnapIndex === 0);
-      onVisibleHeightChange?.(sheetHeight - nearestOffset);
+      reportVisibleHeight(nearestOffset);
       Animated.spring(translateY, {
         toValue: nearestOffset,
         useNativeDriver: true,
@@ -170,8 +195,7 @@ export function PlaceResultSheet({
     [
       activeSnapIndex,
       collapsedOffset,
-      onVisibleHeightChange,
-      sheetHeight,
+      reportVisibleHeight,
       snapOffsets,
       translateY,
       updatePageMode,
@@ -191,11 +215,11 @@ export function PlaceResultSheet({
       currentOffset.current = snapOffsets[nearestSnapIndex];
       setActiveSnapIndex(nearestSnapIndex);
       updatePageMode(nearestSnapIndex === 0);
-      onVisibleHeightChange?.(sheetHeight - snapOffsets[nearestSnapIndex]);
+      reportVisibleHeight(snapOffsets[nearestSnapIndex]);
       translateY.setValue(currentOffset.current);
     });
   }, [
-    onVisibleHeightChange,
+    reportVisibleHeight,
     sheetHeight,
     snapOffsets,
     translateY,
@@ -225,10 +249,7 @@ export function PlaceResultSheet({
   }, [expandSignal, snapOffsets, snapTo]);
 
   useEffect(() => {
-    if (
-      openPlaceSignal === handledOpenPlaceSignal.current ||
-      !openPlaceId
-    ) {
+    if (openPlaceSignal === handledOpenPlaceSignal.current || !openPlaceId) {
       return;
     }
 
@@ -329,6 +350,7 @@ export function PlaceResultSheet({
   };
 
   const selectPlace = (place: Place) => {
+    onPlaceSelected?.(place);
     setSelectedPlace(place);
 
     if (activeSnapIndex === 2) {
@@ -337,6 +359,7 @@ export function PlaceResultSheet({
   };
 
   const backToPlaceList = () => {
+    onPlaceDetailBack?.();
     setSelectedPlace(null);
   };
 
@@ -368,28 +391,35 @@ export function PlaceResultSheet({
         ) : null}
       </View>
       {selectedPlace ? (
-        <CopyToastProvider>
-          <PlaceDetailContent
-            key={selectedPlace.id}
-            onBack={backToPlaceList}
-            place={selectedPlace}
-            reels={selectedPlaceReels}
-            reelsError={reelsError}
-            isReelsLoading={isReelsLoading}
-            onRetryReels={loadSelectedPlaceReels}
-            headerTopInset={topInset}
-            stickyHeaderTopInset={topInset}
-            scrollEnabled={activeSnapIndex !== 2}
-            contentBottomPadding={
-              isPageMode
-                ? DETAIL_PAGE_BOTTOM_PADDING
-                : DETAIL_INLINE_BOTTOM_PADDING
-            }
-          />
-          {isPageMode && selectedPlace.placeUrl ? (
-            <PlaceMapButton url={selectedPlace.placeUrl} />
-          ) : null}
-        </CopyToastProvider>
+        <View style={[styles.detailArea, { height: detailVisibleHeight }]}>
+          <CopyToastProvider>
+            <PlaceDetailContent
+              key={selectedPlace.id}
+              onBack={backToPlaceList}
+              place={selectedPlace}
+              reels={selectedPlaceReels}
+              reelsError={reelsError}
+              isReelsLoading={isReelsLoading}
+              onRetryReels={loadSelectedPlaceReels}
+              // A partially-open sheet is already below the status area, so
+              // reserving the map's safe-area inset here creates a large,
+              // unnecessary gap above the detail header. Keep that inset only
+              // when the sheet becomes a full-screen page.
+              headerTopInset={isPageMode ? topInset : 0}
+              stickyHeaderTopInset={isPageMode ? topInset : 0}
+              compactHeader={!isPageMode}
+              scrollEnabled={activeSnapIndex !== 2}
+              contentBottomPadding={
+                isPageMode
+                  ? DETAIL_PAGE_BOTTOM_PADDING
+                  : DETAIL_INLINE_BOTTOM_PADDING
+              }
+            />
+            {isPageMode && selectedPlace.placeUrl ? (
+              <PlaceMapButton url={selectedPlace.placeUrl} />
+            ) : null}
+          </CopyToastProvider>
+        </View>
       ) : (
         <FlatList
           key={`results-${activeSnapIndex}-${isPageMode ? 'page' : 'sheet'}`}
@@ -445,7 +475,9 @@ export function PlaceResultSheet({
           ListEmptyComponent={
             <View style={styles.emptyResult}>
               <Text style={styles.emptyResultText}>
-                {isSearchActive
+                {isVisibleAreaUpdating
+                  ? '현재 지도 영역을 확인하고 있어요.'
+                  : isSearchActive
                   ? '검색 결과 없습니다.'
                   : '현재 지도 영역에 저장한 장소가 없어요.'}
               </Text>
@@ -476,6 +508,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
   },
+  detailArea: {
+    minHeight: 0,
+    overflow: 'hidden',
+  },
   pill: {
     alignSelf: 'center',
     width: 97,
@@ -488,8 +524,8 @@ const styles = StyleSheet.create({
   handleArea: {
     paddingTop: 14,
     paddingHorizontal: 14,
-    paddingBottom: 17,
-    minHeight: 48,
+    paddingBottom: 2,
+    minHeight: 28,
   },
   title: {
     fontSize: 15,
