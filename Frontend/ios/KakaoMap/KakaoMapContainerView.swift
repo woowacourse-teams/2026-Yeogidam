@@ -20,6 +20,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }()
   private var currentLocationPoi: Poi?
   private var cameraStoppedHandler: (any DisposableEventHandler)?
+  private var viewResizedHandler: (any DisposableEventHandler)?
   private var savedPlaceStyleAdded = false
   private var savedPlacesJson = "[]"
   private var lastKnownLocation: CLLocation?
@@ -27,6 +28,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var latitude: Double = 37.5665
   private var longitude: Double = 126.9780
   private var zoomLevel: Int = 15
+  private var cameraMoveRequestId = 0
   private var showsCurrentLocation = false
   private var currentLocationRequestId = 0
   private var cameraBottomInset: CGFloat = 0
@@ -109,6 +111,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     latitude: Double,
     longitude: Double,
     zoomLevel: Int,
+    cameraMoveRequestId: Int,
     showsCurrentLocation: Bool,
     currentLocationRequestId: Int,
     cameraBottomInset: Double,
@@ -141,7 +144,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       }
     }
 
-    if defaultCameraChanged {
+    if defaultCameraChanged || self.cameraMoveRequestId != cameraMoveRequestId {
+      self.cameraMoveRequestId = cameraMoveRequestId
       moveCameraIfPossible()
     }
 
@@ -191,6 +195,12 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           { _ in owner.emitCameraChanged() }
         }
       )
+      viewResizedHandler = kakaoMap.addViewResizedEventHandler(
+        target: self,
+        handler: { owner in
+          { _ in owner.emitCameraChanged() }
+        }
+      )
     }
 
     onMapReady?([
@@ -207,6 +217,39 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   ) {
     guard layerID == Self.savedPlaceLayerID else { return }
     onMarkerPressed?(["id": poiID])
+  }
+
+  // The direct camera-stopped handler is not called for every user gesture on
+  // all SDK versions. Use the map event delegate as well, so the JS list is
+  // always recalculated from the camera the user is actually looking at.
+  func cameraDidStopped(kakaoMap: KakaoMap, by: MoveBy) {
+    emitCameraChanged()
+  }
+
+  func cameraWillMove(kakaoMap: KakaoMap, by: MoveBy) {
+    // An inverted range is a lightweight signal over the existing Fabric
+    // event: JS clears the previous list while the user is moving the map.
+    // `cameraDidStopped` immediately replaces it with the final real bounds.
+    onCameraChanged?([
+      "latitude": latitude,
+      "longitude": longitude,
+      "zoomLevel": zoomLevel,
+      "southLatitude": 1,
+      "northLatitude": 0,
+      "westLongitude": 1,
+      "eastLongitude": 0
+    ])
+  }
+
+  // A bottom-sheet resize changes the effective map viewport through margins.
+  // Emit only after the SDK has applied that margin, rather than relying on the
+  // previous frame's bounds.
+  func kakaoMapMarginDidUpdated(kakaoMap: KakaoMap) {
+    emitCameraChanged()
+  }
+
+  func kakaoMapDidResized(kakaoMap: KakaoMap) {
+    emitCameraChanged()
   }
 
   func addViewFailed(
@@ -253,19 +296,21 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private func updateCameraMargins() {
     guard
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap,
+      mapContainer.bounds.width > 0,
       mapContainer.bounds.height > 0
     else { return }
 
-    // Keep the Metal-backed native view at a stable full-screen size. Kakao's
-    // camera margin moves the visual center above the bottom sheet without
-    // resizing or translating the renderer itself.
-    let bottomInset = min(
-      cameraBottomInset,
-      max(0, mapContainer.bounds.height - 1)
+    // The SDK's `viewRect` is the actual map viewport. Resize that viewport to
+    // the exposed area above the bottom sheet so marker rendering and the
+    // bounds sent to JS always use the identical coordinate system.
+    let viewportHeight = max(1, mapContainer.bounds.height - cameraBottomInset)
+    kakaoMap.viewRect = CGRect(
+      x: 0,
+      y: 0,
+      width: mapContainer.bounds.width,
+      height: viewportHeight
     )
-    kakaoMap.setMargins(
-      UIEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
-    )
+    kakaoMap.setMargins(.zero)
     DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
   }
 
@@ -559,14 +604,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
     else { return }
 
-    let visibleRect = kakaoMap.viewRect.inset(
-      by: UIEdgeInsets(
-        top: 0,
-        left: 0,
-        bottom: min(cameraBottomInset, kakaoMap.viewRect.height - 1),
-        right: 0
-      )
-    )
+    let visibleRect = kakaoMap.viewRect
     let coordinate = kakaoMap.getPosition(
       CGPoint(x: visibleRect.midX, y: visibleRect.midY)
     ).wgsCoord

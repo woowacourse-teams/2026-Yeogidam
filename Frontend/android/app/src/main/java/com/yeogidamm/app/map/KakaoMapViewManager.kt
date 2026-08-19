@@ -43,6 +43,13 @@ class KakaoMapViewManager :
         view.setZoomLevel(value)
     }
 
+    override fun setCameraMoveRequestId(
+        view: KakaoMapView,
+        value: Int,
+    ) {
+        view.setCameraMoveRequestId(value)
+    }
+
     override fun setShowsCurrentLocation(
         view: KakaoMapView,
         value: Boolean,

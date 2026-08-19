@@ -1,11 +1,11 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
-import {toSavedPlaceDisplayPlace} from '../../entities/place/api';
-import type {Place} from '../../entities/place/types';
-import {getSavedPlaces} from '../../entities/info/api';
+import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
+import type { Place } from '../../entities/place/types';
+import { getSavedPlaces } from '../../entities/info/api';
 import { MapSearchBar } from './components/MapSearchBar';
 import {
   COLLAPSED_SHEET_HEIGHT,
@@ -17,7 +17,13 @@ type MapScreenProps = {
   onDetailViewChange?: (isDetailView: boolean) => void;
 };
 
-export function MapScreen({onDetailViewChange}: MapScreenProps) {
+type MapCamera = {
+  latitude: number;
+  longitude: number;
+  zoomLevel: number;
+};
+
+export function MapScreen({ onDetailViewChange }: MapScreenProps) {
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -29,8 +35,15 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
     longitude: 127.0557,
   });
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
+  const lastMapCameraRef = useRef<MapCamera>({
+    latitude: 37.5448,
+    longitude: 127.0557,
+    zoomLevel: 14,
+  });
+  const detailEntryCameraRef = useRef<MapCamera | null>(null);
+  const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
-  const [openedMarker, setOpenedMarker] = useState({id: '', signal: 0});
+  const [openedMarker, setOpenedMarker] = useState({ id: '', signal: 0 });
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -75,9 +88,10 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
     };
   }, []);
   const placesWithCoordinates = useMemo(
-    () => savedPlaces.filter(
-      place => place.latitude !== undefined && place.longitude !== undefined,
-    ),
+    () =>
+      savedPlaces.filter(
+        place => place.latitude !== undefined && place.longitude !== undefined,
+      ),
     [savedPlaces],
   );
   const visiblePlaces = useMemo(() => {
@@ -99,6 +113,19 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
   const hasActiveSearch = searchKeyword.trim().length > 0;
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
 
+  const handleSheetVisibleHeightChange = useCallback((height: number) => {
+    setSheetVisibleHeight(currentHeight =>
+      currentHeight === height ? currentHeight : height,
+    );
+
+    // The sheet can cover a different part of the map before the native map
+    // reports its new camera bounds. Do not keep rendering the previous area's
+    // results during that short interval.
+    if (!searchedPlaces) {
+      setVisibleBounds(null);
+    }
+  }, [searchedPlaces]);
+
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
     if (!keyword) return;
@@ -119,7 +146,10 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
 
     setSearchedPlaces(places);
     setSearchResultSignal(signal => signal + 1);
-    if (places[0]?.latitude !== undefined && places[0]?.longitude !== undefined) {
+    if (
+      places[0]?.latitude !== undefined &&
+      places[0]?.longitude !== undefined
+    ) {
       setMapCenter({
         latitude: places[0].latitude,
         longitude: places[0].longitude,
@@ -159,7 +189,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
-      <View style={[styles.mapStage, {marginBottom: mapBottomOffset}]}>
+      <View style={[styles.mapStage, { marginBottom: mapBottomOffset }]}>
         <View style={styles.mapViewport}>
           {mapHeight > 0 ? (
             <KakaoMapNativeComponent
@@ -167,9 +197,10 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
               latitude={mapCenter.latitude}
               longitude={mapCenter.longitude}
               zoomLevel={mapZoomLevel}
+              cameraMoveRequestId={cameraMoveRequestId}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
               savedPlacesJson={JSON.stringify(
-                markerPlaces.map(({id, name, latitude, longitude}) => ({
+                markerPlaces.map(({ id, name, latitude, longitude }) => ({
                   id,
                   name,
                   latitude,
@@ -194,6 +225,7 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
                   place.latitude !== undefined &&
                   place.longitude !== undefined
                 ) {
+                  detailEntryCameraRef.current = lastMapCameraRef.current;
                   setMapCenter({
                     latitude: place.latitude,
                     longitude: place.longitude,
@@ -208,11 +240,26 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
               }}
               onCameraChanged={event => {
                 const {
+                  latitude,
+                  longitude,
+                  zoomLevel,
                   southLatitude,
                   northLatitude,
                   westLongitude,
                   eastLongitude,
                 } = event.nativeEvent;
+
+                // Native sends an inverted range while a camera gesture is
+                // active. Clear the old area immediately; the final, valid
+                // range arrives once the gesture stops.
+                if (
+                  southLatitude > northLatitude ||
+                  westLongitude > eastLongitude
+                ) {
+                  setVisibleBounds(null);
+                  return;
+                }
+                lastMapCameraRef.current = { latitude, longitude, zoomLevel };
                 setVisibleBounds({
                   southLatitude,
                   northLatitude,
@@ -250,18 +297,47 @@ export function MapScreen({onDetailViewChange}: MapScreenProps) {
           <PlaceResultSheet
             height={mapHeight - mapBottomOffset}
             topInset={topInset}
+            bottomTabOffset={bottomNavigationOffset}
             places={resultPlaces}
             isSearchActive={hasActiveSearch}
             expandSignal={searchResultSignal}
             openPlaceId={openedMarker.id}
             openPlaceSignal={openedMarker.signal}
+            onPlaceSelected={place => {
+              if (place.latitude === undefined || place.longitude === undefined) {
+                return;
+              }
+
+              detailEntryCameraRef.current = lastMapCameraRef.current;
+              setMapCenter({
+                latitude: place.latitude,
+                longitude: place.longitude,
+              });
+              setMapZoomLevel(17);
+              // A map can have been panned after the same coordinates were set.
+              // Incrementing this signal makes selecting that place recentre it.
+              setCameraMoveRequestId(requestId => requestId + 1);
+            }}
+            onPlaceDetailBack={() => {
+              const entryCamera = detailEntryCameraRef.current;
+              detailEntryCameraRef.current = null;
+              if (!entryCamera) return;
+
+              setMapCenter({
+                latitude: entryCamera.latitude,
+                longitude: entryCamera.longitude,
+              });
+              setMapZoomLevel(entryCamera.zoomLevel);
+              setCameraMoveRequestId(requestId => requestId + 1);
+            }}
             collapseSignal={collapseSignal}
             onDetailViewChange={isDetailView => {
               setIsPlaceDetailVisible(isDetailView);
               onDetailViewChange?.(isDetailView);
             }}
             onExpandedChange={setIsSheetExpanded}
-            onVisibleHeightChange={setSheetVisibleHeight}
+            onVisibleHeightChange={handleSheetVisibleHeightChange}
+            isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
           />
         ) : null}
         {!isPlaceDetailVisible ? (
