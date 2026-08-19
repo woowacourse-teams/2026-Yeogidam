@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   AppState,
-  Platform,
   StatusBar,
   StyleSheet,
   View,
@@ -58,7 +57,7 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
-const IOS_SPLASH_MIN_DURATION_MS = 1200;
+const SPLASH_MIN_DURATION_MS = 2000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | null;
@@ -181,10 +180,7 @@ function App() {
     };
 
     const splashDelay = new Promise<void>(resolve => {
-      splashTimer = setTimeout(
-        () => resolve(),
-        Platform.OS === 'ios' ? IOS_SPLASH_MIN_DURATION_MS : 0,
-      );
+      splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
     });
 
     Promise.allSettled([syncFlowState(), splashDelay]).finally(() => {
