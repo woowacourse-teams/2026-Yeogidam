@@ -7,23 +7,26 @@ import {
   Text,
   View,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import type {Place} from '../../../entities/place/types';
 import {MapSearchBar} from '../../map/components/MapSearchBar';
 
-const RECENT_SEARCHES = ['카페 온월', '고양이 카페', '파스타'];
-
 type SavedPlacesSearchPanelProps = {
   places: Place[];
+  recentSearches: string[];
   onCloseSearch: () => void;
   onPressPlace: (place: Place) => void;
+  onSaveSearchTerm: (value: string) => void;
 };
 
 export function SavedPlacesSearchPanel({
   places,
+  recentSearches,
   onCloseSearch,
   onPressPlace,
+  onSaveSearchTerm,
 }: SavedPlacesSearchPanelProps) {
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
@@ -51,11 +54,13 @@ export function SavedPlacesSearchPanel({
     }
 
     setSubmittedQuery(nextQuery);
+    onSaveSearchTerm(nextQuery);
   };
 
   const selectRecentSearch = (value: string) => {
     setQuery(value);
     setSubmittedQuery(value);
+    onSaveSearchTerm(value);
   };
 
   const showResults = submittedQuery.trim().length > 0;
@@ -83,24 +88,38 @@ export function SavedPlacesSearchPanel({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           {filteredPlaces.length > 0 ? (
-            filteredPlaces.map(place => (
-              <View key={place.id} style={styles.resultCard}>
-                <Pressable
-                  onPress={() => onPressPlace(place)}
-                  style={styles.resultCardBody}>
-                  {place.image ? (
-                    <Image source={place.image} style={styles.resultImage} />
-                  ) : (
-                    <View style={[styles.resultImage, styles.resultImagePlaceholder]} />
-                  )}
-                  <View style={styles.resultDim} />
-                </Pressable>
-                <View style={styles.resultImageOverlay}>
-                  <Text style={styles.resultName}>{place.name}</Text>
-                  <Text style={styles.resultAddress}>{place.address}</Text>
+            <View style={styles.resultsGrid}>
+              {filteredPlaces.map(place => (
+                <View key={place.id} style={styles.resultCard}>
+                  <Pressable
+                    onPress={() => onPressPlace(place)}
+                    style={styles.resultCardBody}>
+                    {place.image ? (
+                      <Image source={place.image} style={styles.resultImage} />
+                    ) : (
+                      <View
+                        style={[styles.resultImage, styles.resultImagePlaceholder]}
+                      />
+                    )}
+                    <LinearGradient
+                      colors={[
+                        'rgba(0, 0, 0, 0)',
+                        'rgba(0, 0, 0, 0.22)',
+                        'rgba(0, 0, 0, 0.58)',
+                        'rgba(0, 0, 0, 0.86)',
+                      ]}
+                      locations={[0, 0.38, 0.72, 1]}
+                      pointerEvents="none"
+                      style={styles.resultDim}
+                    />
+                    <View style={styles.resultImageOverlay}>
+                      <Text style={styles.resultName}>{place.name}</Text>
+                      <Text style={styles.resultAddress}>{place.address}</Text>
+                    </View>
+                  </Pressable>
                 </View>
-              </View>
-            ))
+              ))}
+            </View>
           ) : (
             <View style={styles.emptyResult}>
               <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
@@ -113,20 +132,24 @@ export function SavedPlacesSearchPanel({
       ) : (
         <View style={styles.historySection}>
           <Text style={styles.historyTitle}>검색 기록</Text>
-          {RECENT_SEARCHES.map(item => (
-            <Pressable
-              key={item}
-              onPress={() => selectRecentSearch(item)}
-              style={styles.historyItem}>
-              <View style={styles.historyLeft}>
-                <View style={styles.historyIconWrap}>
-                  <MaterialIcons color="#d8dffe" name="access-time" size={20} />
+          {recentSearches.length > 0 ? (
+            recentSearches.map(item => (
+              <Pressable
+                key={item}
+                onPress={() => selectRecentSearch(item)}
+                style={styles.historyItem}>
+                <View style={styles.historyLeft}>
+                  <View style={styles.historyIconWrap}>
+                    <MaterialIcons color="#d8dffe" name="access-time" size={20} />
+                  </View>
+                  <Text style={styles.historyText}>{item}</Text>
                 </View>
-                <Text style={styles.historyText}>{item}</Text>
-              </View>
-              <MaterialIcons color="#c8c9d2" name="chevron-right" size={24} />
-            </Pressable>
-          ))}
+                <MaterialIcons color="#c8c9d2" name="chevron-right" size={24} />
+              </Pressable>
+            ))
+          ) : (
+            <Text style={styles.emptyHistoryText}>아직 검색 기록이 없어요.</Text>
+          )}
         </View>
       )}
     </View>
@@ -149,7 +172,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   historyItem: {
-    minHeight: 68,
+    minHeight: 50,
     borderBottomWidth: 1,
     borderBottomColor: '#ececf1',
     flexDirection: 'row',
@@ -160,31 +183,42 @@ const styles = StyleSheet.create({
   historyLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   historyIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#f4f6ff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   historyText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#2b2d43',
   },
-  resultsContent: {
-    paddingTop: 24,
+  emptyHistoryText: {
+    fontSize: 14,
+    color: '#9c9daa',
     paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingTop: 4,
+  },
+  resultsContent: {
+    padding: 12,
+    paddingTop: 18,
+    paddingBottom: 130,
+  },
+  resultsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
   },
   resultCard: {
     width: '48.5%',
     height: 248,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#d7d7dc',
+    backgroundColor: '#eeeeee',
   },
   resultCardBody: {
     flex: 1,
@@ -202,24 +236,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 92,
-    backgroundColor: 'rgba(24, 24, 24, 0.28)',
+    height: 100,
   },
   resultImageOverlay: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 18,
+    left: 10,
+    right: 10,
+    bottom: 10,
   },
   resultName: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
     color: '#ffffff',
   },
   resultAddress: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#ffffff',
-    marginTop: 4,
+    marginTop: 2,
   },
   emptyResult: {
     paddingTop: 56,
