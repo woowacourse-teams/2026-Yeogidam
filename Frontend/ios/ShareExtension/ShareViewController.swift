@@ -78,13 +78,13 @@ final class ShareViewController: UIViewController {
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     request.httpBody = try JSONSerialization.data(withJSONObject: [
       "instagramUrl": payload.text,
-      "source": "url_input",
+      "source": "instagram_share",
       "forceReprocess": false,
     ])
     let requestSentAt = Date().timeIntervalSince1970 * 1000
     logAPI(
       "request",
-      "requestId=\(payload.id) method=POST endpoint=\(endpoint.absoluteString) body={instagramUrl: \(payload.text), source: url_input, forceReprocess: false}"
+      "requestId=\(payload.id) method=POST endpoint=\(endpoint.absoluteString) body={instagramUrl: \(payload.text), source: instagram_share, forceReprocess: false}"
     )
     try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: "PENDING", reelId: nil, failureReason: nil, retryable: true, updatedAt: requestSentAt))
     do {
