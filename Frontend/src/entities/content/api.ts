@@ -11,21 +11,28 @@ const REEL_STATUS_SELECT =
   'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
 
 export function detectContentType(url: string): ContentType {
+  return normalizeInstagramContentUrl(url) ? 'instagram_reel' : 'unsupported';
+}
+
+export function normalizeInstagramContentUrl(url: string): string | null {
   try {
     const parsedUrl = new URL(url.trim());
     const hostname = parsedUrl.hostname.toLowerCase().replace(/^www\./, '');
+    if (hostname !== 'instagram.com') return null;
 
-    if (
-      hostname === 'instagram.com' &&
-      /^\/(reel|p)\/[^/]+\/?$/i.test(parsedUrl.pathname)
-    ) {
-      return 'instagram_reel';
-    }
+    const pathParts = parsedUrl.pathname.split('/').filter(Boolean);
+    const contentIndex = pathParts.findIndex(
+      part => part === 'reel' || part === 'p',
+    );
+    const shortcode = pathParts[contentIndex + 1];
+    if (contentIndex < 0 || !shortcode) return null;
+
+    return `https://www.instagram.com/${pathParts[contentIndex]}/${shortcode}/`;
   } catch {
     // The caller handles unsupported or malformed URLs uniformly.
   }
 
-  return 'unsupported';
+  return null;
 }
 
 export async function saveInstagramReel(
@@ -35,7 +42,11 @@ export async function saveInstagramReel(
   const {data, error} = await supabase.functions.invoke<SaveInstagramReelResponse>(
     'save-instagram-reel',
     {
-      body: {instagramUrl, source},
+      body: {
+        instagramUrl,
+        source,
+        forceReprocess: false,
+      },
     },
   );
 
@@ -71,9 +82,9 @@ export async function saveContent(
   url: string,
   source: SaveSource,
 ): Promise<SaveInstagramReelResponse> {
-  const normalizedUrl = url.trim();
+  const normalizedUrl = normalizeInstagramContentUrl(url);
 
-  if (detectContentType(normalizedUrl) !== 'instagram_reel') {
+  if (!normalizedUrl) {
     throw new ReelApiError({
       errorCode: 'REEL400_001',
       message: '지원하지 않는 링크입니다. Instagram 릴스 링크를 입력해주세요.',

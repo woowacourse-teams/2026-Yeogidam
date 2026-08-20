@@ -41,17 +41,14 @@ import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
 import { SplashScreen } from './src/pages/splash/SplashScreen';
-import {
-  addSharedContentListener,
-  getInitialSharedContent,
-  type SharedContent,
-} from './src/lib/share-intent';
+import {clearShareResult, getShareResults, syncShareAccessToken} from './src/lib/share-intent';
 import type {
   AppFlowState,
   AuthScreen,
   MainScreen,
   Screen,
 } from './src/types/navigation';
+import {getSharedSaveState, setSharedSaveState} from './src/lib/reel-save-state';
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -75,8 +72,7 @@ function App() {
     useState<SocialProvider | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
-  const handledSharedValues = useRef(new Set<string>());
-  const [pendingSharedUrl, setPendingSharedUrl] = useState<string | null>(null);
+  const lastHandledShareResultRef = useRef<string | null>(null);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
   const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
@@ -165,11 +161,14 @@ function App() {
       }
 
       if (error || !data.session) {
+        await syncShareAccessToken(null);
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
         setIsAuthReady(true);
         return;
       }
+
+      await syncShareAccessToken(data.session.access_token);
 
       setFlowState({
         kind: 'main',
@@ -194,6 +193,7 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      void syncShareAccessToken(session?.access_token ?? null);
       if (!isMounted) {
         return;
       }
@@ -235,40 +235,40 @@ function App() {
 
     let isMounted = true;
 
-    const handleSharedContent = async (sharedContent: SharedContent) => {
-      const url = sharedContent.value.trim();
-      if (!url || handledSharedValues.current.has(url)) {
-        return;
-      }
-      handledSharedValues.current.add(url);
-
-      const {data} = await supabase.auth.getSession();
-      if (!isMounted) {
-        return;
-      }
-
-      if (!data.session) {
-        setFlowState(INITIAL_FLOW_STATE);
-        Alert.alert('로그인이 필요해요', '공유한 릴스를 저장하려면 로그인해주세요.');
-        return;
-      }
-
-      setPendingSharedUrl(url);
-      openMainScreen('saved');
-    };
-
-    const subscription = addSharedContentListener(content => {
-      handleSharedContent(content).catch(() => undefined);
-    });
-
     const consumePendingSharedContent = () => {
-      getInitialSharedContent()
-        .then(content => {
-          if (content) {
-            handleSharedContent(content).catch(() => undefined);
+      getShareResults().then(results => {
+        if (!isMounted) {
+          return;
+        }
+        const currentShareState = getSharedSaveState();
+        const activeRequestId =
+          currentShareState?.source === 'instagram_share'
+            ? currentShareState.shareResultId
+            : undefined;
+        const result = activeRequestId
+          ? results.find(item => item.requestId === activeRequestId) ?? results[0]
+          : results[0];
+        if (!result) {
+          lastHandledShareResultRef.current = null;
+          if (currentShareState?.source === 'instagram_share') {
+            setSharedSaveState(null);
           }
-        })
-        .catch(() => undefined);
+          return;
+        }
+        const resultKey = `${result.requestId ?? result.url}:${result.updatedAt}`;
+        if (lastHandledShareResultRef.current === resultKey) return;
+        lastHandledShareResultRef.current = resultKey;
+        setSharedSaveState({
+          shareResultId: result.requestId,
+          url: result.url,
+          status: result.status,
+          source: 'instagram_share',
+          rawSharedText: result.rawSharedText,
+          reused: result.reused,
+          reel: {id: result.reelId ?? `share-${Date.now()}`, processing_status: result.status, failure_reason: result.failureReason ?? null, instagram_thumbnail_url: null, created_at: new Date(result.updatedAt).toISOString()},
+        });
+        openMainScreen('saved');
+      }).catch(() => undefined);
     };
 
     consumePendingSharedContent();
@@ -281,11 +281,14 @@ function App() {
         }
       },
     );
+    const resultPollId = setInterval(() => {
+      if (AppState.currentState === 'active') consumePendingSharedContent();
+    }, 1000);
 
     return () => {
       isMounted = false;
-      subscription.remove();
       appStateSubscription.remove();
+      clearInterval(resultPollId);
     };
   }, [isAuthReady]);
 
@@ -489,13 +492,8 @@ function App() {
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
-          sharedUrl={pendingSharedUrl}
-          onSharedUrlHandled={() => {
-            if (pendingSharedUrl) {
-              handledSharedValues.current.delete(pendingSharedUrl);
-            }
-            setPendingSharedUrl(null);
-          }}
+          onSharedResultConsumed={clearShareResult}
+          onSharedResultDismissed={clearShareResult}
         />
       );
     }

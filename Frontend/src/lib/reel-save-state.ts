@@ -1,9 +1,14 @@
 import type {ReelProcessingStatus} from '../entities/content/types';
+import type {SaveSource} from '../entities/content/types';
 
 export type SharedSaveState = {
+  shareResultId?: string;
   url: string;
   status: ReelProcessingStatus['processing_status'];
   reel: ReelProcessingStatus;
+  source: SaveSource;
+  rawSharedText?: string;
+  reused?: boolean;
 };
 
 let currentState: SharedSaveState | null = null;
