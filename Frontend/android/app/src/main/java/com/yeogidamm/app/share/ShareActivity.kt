@@ -11,26 +11,15 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.yeogidamm.app.BuildConfig
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.UUID
-import java.util.concurrent.Executors
 
 class ShareActivity : AppCompatActivity() {
-    private val executor = Executors.newSingleThreadExecutor()
     private lateinit var statusLabel: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureContentView()
         processShare(intent)
-    }
-
-    override fun onDestroy() {
-        executor.shutdownNow()
-        super.onDestroy()
     }
 
     private fun configureContentView() {
@@ -83,119 +72,8 @@ class ShareActivity : AppCompatActivity() {
             ),
         )
 
-        executor.execute {
-            submit(requestId, normalizedUrl, rawText)
-            runOnUiThread { showResultAndFinish("릴스 링크가 전달됐어요.") }
-        }
-    }
-
-    private fun submit(requestId: String, instagramUrl: String, rawText: String) {
-        val token = ShareResultStore.accessToken(this)
-        if (token.isNullOrBlank()) {
-            ShareResultStore.saveResult(
-                this,
-                ShareReelResult(
-                    requestId = requestId,
-                    url = instagramUrl,
-                    rawSharedText = rawText,
-                    status = "FAILED",
-                    failureReason = "AUTH401_001",
-                    retryable = false,
-                ),
-            )
-            return
-        }
-
-        val requestSentAt = System.currentTimeMillis()
-        ShareResultStore.saveResult(
-            this,
-            ShareReelResult(
-                requestId = requestId,
-                requestSentAt = requestSentAt,
-                url = instagramUrl,
-                rawSharedText = rawText,
-                status = "PENDING",
-                retryable = true,
-                updatedAt = requestSentAt,
-            ),
-        )
-
-        var connection: HttpURLConnection? = null
-        try {
-            connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/save-instagram-reel")
-                .openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.connectTimeout = 30_000
-            connection.readTimeout = 30_000
-            connection.doOutput = true
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
-            connection.setRequestProperty("Authorization", "Bearer $token")
-            val body = JSONObject().apply {
-                put("instagramUrl", instagramUrl)
-                put("source", "instagram_share")
-                put("forceReprocess", false)
-            }.toString()
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-
-            val responseCode = connection.responseCode
-            val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
-            val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            val response = runCatching { JSONObject(responseBody) }.getOrDefault(JSONObject())
-            val nestedError = response.optJSONObject("error")
-
-            if (responseCode !in 200..299) {
-                val errorCode = response.optNullableString("errorCode")
-                    ?: nestedError?.optNullableString("errorCode")
-                val message = response.optNullableString("message")
-                    ?: nestedError?.optNullableString("message")
-                val reason = listOfNotNull(errorCode, message, "HTTP_$responseCode").joinToString(" | ")
-                ShareResultStore.saveResult(
-                    this,
-                    ShareReelResult(
-                        requestId = requestId,
-                        requestSentAt = requestSentAt,
-                        url = instagramUrl,
-                        rawSharedText = rawText,
-                        status = "FAILED",
-                        reelId = response.optNullableString("reelId") ?: nestedError?.optNullableString("reelId"),
-                        failureReason = reason,
-                        retryable = response.optBoolean("retryable", nestedError?.optBoolean("retryable", responseCode >= 500) ?: (responseCode >= 500)),
-                    ),
-                )
-                return
-            }
-
-            ShareResultStore.saveResult(
-                this,
-                ShareReelResult(
-                    requestId = requestId,
-                    requestSentAt = requestSentAt,
-                    url = instagramUrl,
-                    rawSharedText = rawText,
-                    status = response.optString("status", "FAILED"),
-                    reelId = response.optNullableString("reelId"),
-                    failureReason = response.optNullableString("failureReason"),
-                    retryable = response.optBoolean("retryable", false),
-                    reused = if (response.has("reused") && !response.isNull("reused")) response.getBoolean("reused") else null,
-                ),
-            )
-        } catch (error: Exception) {
-            ShareResultStore.saveResult(
-                this,
-                ShareReelResult(
-                    requestId = requestId,
-                    requestSentAt = requestSentAt,
-                    url = instagramUrl,
-                    rawSharedText = rawText,
-                    status = "FAILED",
-                    failureReason = "CLIENT000_002 | ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
-                    retryable = true,
-                ),
-            )
-        } finally {
-            connection?.disconnect()
-        }
+        ShareSaveWorker.enqueue(this, requestId, normalizedUrl, rawText)
+        showResultAndFinish("릴스 링크가 전달됐어요.")
     }
 
     private fun showResultAndFinish(message: String) {
@@ -226,6 +104,3 @@ private fun extractInstagramUrl(text: String): String? {
     }
     return null
 }
-
-private fun JSONObject.optNullableString(key: String): String? =
-    if (isNull(key)) null else optString(key).takeIf { it.isNotBlank() }
