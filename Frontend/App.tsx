@@ -41,7 +41,11 @@ import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
 import { SplashScreen } from './src/pages/splash/SplashScreen';
-import {clearShareResult, getShareResults, syncShareAccessToken} from './src/lib/share-intent';
+import {
+  clearShareResult,
+  getShareResults,
+  syncShareAccessToken,
+} from './src/lib/share-intent';
 import type {
   AppFlowState,
   AuthScreen,

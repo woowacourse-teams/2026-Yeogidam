@@ -1,6 +1,7 @@
 package com.yeogidamm.app.share
 
 import com.facebook.react.bridge.Promise
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -24,6 +25,34 @@ class ShareIntentModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun clearPendingShare(shareId: String?, promise: Promise) {
         ShareIntentCoordinator.clearPendingShare(shareId)
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun setAccessToken(token: String?, promise: Promise) {
+        ShareResultStore.saveAccessToken(reactApplicationContext, token)
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun getShareResult(promise: Promise) {
+        promise.resolve(
+            ShareResultStore.loadResults(reactApplicationContext).firstOrNull()?.toWritableMap(),
+        )
+    }
+
+    @ReactMethod
+    fun getShareResults(promise: Promise) {
+        val results = Arguments.createArray()
+        ShareResultStore.loadResults(reactApplicationContext).forEach {
+            results.pushMap(it.toWritableMap())
+        }
+        promise.resolve(results)
+    }
+
+    @ReactMethod
+    fun clearShareResult(requestId: String?, promise: Promise) {
+        ShareResultStore.clearResult(reactApplicationContext, requestId)
         promise.resolve(null)
     }
 
