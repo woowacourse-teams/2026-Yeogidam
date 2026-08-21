@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   AppState,
-  Platform,
   StatusBar,
   StyleSheet,
   View,
@@ -30,6 +29,7 @@ import {
 } from './src/lib/auth/deleteAccount';
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
+import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
@@ -54,7 +54,7 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
-const IOS_SPLASH_MIN_DURATION_MS = 1200;
+const SPLASH_MIN_DURATION_MS = 2000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | null;
@@ -179,10 +179,7 @@ function App() {
     };
 
     const splashDelay = new Promise<void>(resolve => {
-      splashTimer = setTimeout(
-        () => resolve(),
-        Platform.OS === 'ios' ? IOS_SPLASH_MIN_DURATION_MS : 0,
-      );
+      splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
     });
 
     Promise.allSettled([syncFlowState(), splashDelay]).finally(() => {
@@ -457,6 +454,7 @@ function App() {
           onContinueWithApple={() => handleContinueWithSocial('apple')}
           onContinueWithGoogle={() => handleContinueWithSocial('google')}
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
+          onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
         />
       );
@@ -519,8 +517,9 @@ function App() {
         currentProfile={currentProfile}
         isProfileLoading={isProfileLoading}
         isLogoutPending={isLogoutPending}
+        onOpenContact={openKakaoChannelChat}
         onLogout={handleLogout}
-        onOpenTerms={() => setMyPageOverlay('terms')}
+        onOpenTerms={() => pushAuthScreen('terms')}
         onRetryProfile={handleRetryProfile}
         onWithdraw={handleOpenAccountDeletion}
         profileError={profileError}
