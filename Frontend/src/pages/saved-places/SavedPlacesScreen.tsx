@@ -143,12 +143,24 @@ function ReelStatusCard({
   );
 }
 
+function getFailureCode(reason: string | null): string | null {
+  return reason?.split(' | ', 1)[0]?.trim() || null;
+}
+
 function getFailureMessage(reason: string | null): string {
-  switch (reason) {
+  switch (getFailureCode(reason)) {
     case 'CLIENT000_001':
       return '인터넷 연결이 불안정해요.';
     case 'CLIENT000_002':
       return '응답이 늦어져 저장하지 못했어요.';
+    case 'CLIENT000_003':
+      return '저장 결과를 확인하지 못했어요.';
+    case 'AUTH401_001':
+      return '로그인 정보가 없어 릴스를 저장하지 못했어요.';
+    case 'AUTH401_002':
+      return '로그인이 만료되어 릴스를 저장하지 못했어요.';
+    case 'AUTH403_001':
+      return '릴스를 저장할 권한이 없어요.';
     case 'REEL400_001':
       return '지원하지 않는 링크예요.';
     case 'IG_CAPTION_NOT_FOUND':
@@ -159,17 +171,27 @@ function getFailureMessage(reason: string | null): string {
       return '지도에서 일치하는 장소를 찾지 못했어요.';
     case 'PLACE_NOT_FOUND':
       return '장소를 찾지 못했어요.';
+    case 'DATA500_001':
+    case 'COMMON500_001':
+      return '서버에서 저장 요청을 처리하지 못했어요.';
     default:
       return '릴스를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
   }
 }
 
 function getFailureDescription(reason: string | null): string {
-  switch (reason) {
+  switch (getFailureCode(reason)) {
     case 'CLIENT000_001':
       return '인터넷 연결을 확인한 뒤 다시 시도해주세요.';
     case 'CLIENT000_002':
       return '잠시 후 다시 시도해주세요.';
+    case 'CLIENT000_003':
+      return '보관함을 다시 열어 저장 결과를 확인해주세요.';
+    case 'AUTH401_001':
+    case 'AUTH401_002':
+      return '여기담에 다시 로그인한 뒤 공유해주세요.';
+    case 'AUTH403_001':
+      return '현재 계정의 권한을 확인해주세요.';
     case 'REEL400_001':
       return 'Instagram 릴스 링크를 공유해주세요.';
     case 'KAKAO_PLACE_NOT_FOUND':
@@ -180,6 +202,9 @@ function getFailureDescription(reason: string | null): string {
       return '릴스 캡션에 장소명이 포함되어 있는지 확인해주세요.';
     case 'PLACE_NOT_FOUND':
       return '릴스에 장소 정보가 포함되어 있는지 확인해주세요.';
+    case 'DATA500_001':
+    case 'COMMON500_001':
+      return '잠시 후 다시 시도해주세요.';
     default:
       return '잠시 후 다시 시도하거나 다른 릴스 링크를 사용해주세요.';
   }
@@ -191,7 +216,7 @@ function canRetryFailure(reason: string | null): boolean {
     'CLIENT000_002',
     'CLIENT000_003',
     'DATA500_001',
-  ].includes(reason ?? '');
+  ].includes(getFailureCode(reason) ?? '');
 }
 
 function getStatusQueryMessage(error: ReelApiError): string {

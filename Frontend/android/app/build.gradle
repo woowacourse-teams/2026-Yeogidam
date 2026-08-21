@@ -83,13 +83,20 @@ if (envFile.exists()) {
 }
 
 def kakaoNativeAppKey = envProperties.getProperty("KAKAO_NATIVE_APP_KEY", "").trim()
+def supabaseUrl = envProperties.getProperty("SUPABASE_URL", "").trim()
+def supabasePublishableKey = envProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "").trim()
 if (kakaoNativeAppKey.isEmpty()) {
     throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from Frontend/.env")
+}
+if (supabaseUrl.isEmpty() || supabasePublishableKey.isEmpty()) {
+    throw new GradleException("SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing from Frontend/.env")
 }
 
 def escapedKakaoNativeAppKey = kakaoNativeAppKey
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
+def escapedSupabaseUrl = supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
+def escapedSupabasePublishableKey = supabasePublishableKey.replace("\\", "\\\\").replace("\"", "\\\"")
 
 android {
     ndkVersion rootProject.ext.ndkVersion
@@ -107,6 +114,8 @@ android {
         versionCode 1
         versionName "1.0"
         buildConfigField "String", "KAKAO_NATIVE_APP_KEY", "\"${escapedKakaoNativeAppKey}\""
+        buildConfigField "String", "SUPABASE_URL", "\"${escapedSupabaseUrl}\""
+        buildConfigField "String", "SUPABASE_PUBLISHABLE_KEY", "\"${escapedSupabasePublishableKey}\""
     }
     signingConfigs {
         debug {
@@ -133,6 +142,7 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.fresco:animated-gif:3.6.0")
     implementation("com.kakao.maps.open:android:2.14.1")
