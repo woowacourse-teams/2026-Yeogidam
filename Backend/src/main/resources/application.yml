@@ -7,3 +7,27 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+management:
+  health:
+    defaults:
+      enabled: false
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      probes:
+        enabled: false
+      group:
+        liveness:
+          include: livenessState
+      show-components: never
+      show-details: never
