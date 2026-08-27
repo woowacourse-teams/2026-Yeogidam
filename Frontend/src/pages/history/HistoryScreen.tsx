@@ -1,11 +1,14 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 
-type HistoryScreenProps = {onBack: () => void};
+type HistoryGroup = {date: string; items: Array<'FAILED' | 'COMPLETED'>};
+type HistoryScreenProps = {onBack: () => void; groups?: HistoryGroup[]};
 
 const thumbnail = 'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
 
-const groups = [
+const emptyCharacter = 'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
+
+const defaultGroups: HistoryGroup[] = [
   {date: '2026.08.26', items: ['FAILED', 'COMPLETED', 'FAILED', 'FAILED']},
   {date: '2026.08.25', items: ['COMPLETED', 'FAILED', 'COMPLETED']},
 ];
@@ -28,7 +31,10 @@ function HistoryItem({status}: {status: 'FAILED' | 'COMPLETED'}) {
   );
 }
 
-export function HistoryScreen({onBack}: HistoryScreenProps) {
+export function HistoryScreen({onBack, groups = defaultGroups}: HistoryScreenProps) {
+  const [previewEmpty, setPreviewEmpty] = useState(false);
+  const visibleGroups = previewEmpty ? [] : groups;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -36,10 +42,22 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
           <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
-        <View style={styles.headerSpacer} />
+        {__DEV__ ? (
+          <Pressable onPress={() => setPreviewEmpty(current => !current)} style={styles.previewToggle}>
+            <Text style={styles.previewToggleText}>{previewEmpty ? '목록' : '빈 화면'}</Text>
+          </Pressable>
+        ) : <View style={styles.headerSpacer} />}
       </View>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {groups.map(group => (
+      <ScrollView contentContainerStyle={[styles.content, visibleGroups.length === 0 && styles.emptyContent]} showsVerticalScrollIndicator={false}>
+        {visibleGroups.length === 0 ? (
+          <View style={styles.emptyBody}>
+            <Image source={{uri: emptyCharacter}} style={styles.emptyCharacter} />
+            <View style={styles.emptyText}>
+              <Text style={styles.emptyTitle}>아직 공유된 콘텐츠가 없어요</Text>
+              <Text style={styles.emptyDescription}>인스타그램 릴스나 유튜브 쇼츠에서{ '\n' }공유하기를 통해 여기담에 저장해보세요.</Text>
+            </View>
+          </View>
+        ) : visibleGroups.map(group => (
           <View key={group.date} style={styles.group}>
             <Text style={styles.date}>{group.date}</Text>
             <View>
@@ -62,7 +80,15 @@ const styles = StyleSheet.create({
   back: {fontSize: 30, lineHeight: 34, color: 'rgba(0,0,0,.61)', fontWeight: '500'},
   headerTitle: {fontSize: 20, fontWeight: '700', color: '#1a1a2e'},
   headerSpacer: {flex: 1},
+  previewToggle: {marginLeft: 'auto', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: '#f3f4fb'},
+  previewToggleText: {fontSize: 12, fontWeight: '700', color: '#5c6fc8'},
   content: {paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40},
+  emptyContent: {flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 0, paddingBottom: 72, paddingHorizontal: 24},
+  emptyBody: {alignItems: 'center'},
+  emptyCharacter: {width: 195, height: 195, borderRadius: 30, marginBottom: 24},
+  emptyText: {alignItems: 'center'},
+  emptyTitle: {fontSize: 20, fontWeight: '800', color: '#1a1a2e', textAlign: 'center'},
+  emptyDescription: {fontSize: 14, lineHeight: 22.4, color: '#8e8e93', textAlign: 'center', marginTop: 8},
   group: {marginBottom: 16},
   date: {fontSize: 16, fontWeight: '600', color: '#727070', marginBottom: 12},
   item: {height: 86, borderBottomWidth: 1, borderBottomColor: '#f8f3f3', flexDirection: 'row', alignItems: 'center', gap: 22},
