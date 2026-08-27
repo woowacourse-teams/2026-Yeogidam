@@ -5,7 +5,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -249,6 +248,10 @@ export function SavedPlacesScreen({
 }: SavedPlacesScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedPlaceIds, setSelectedPlaceIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] = useState(false);
@@ -907,6 +910,23 @@ export function SavedPlacesScreen({
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
+  const handlePressEdit = useCallback(() => {
+    setIsEditing(current => !current);
+    setSelectedPlaceIds(new Set());
+  }, []);
+
+  const togglePlaceSelection = useCallback((placeId: string) => {
+    setSelectedPlaceIds(current => {
+      const next = new Set(current);
+      if (next.has(placeId)) {
+        next.delete(placeId);
+      } else {
+        next.add(placeId);
+      }
+      return next;
+    });
+  }, []);
+
   const saveRecentSearch = useCallback((value: string) => {
     const normalizedValue = value.trim();
     if (!normalizedValue) {
@@ -934,6 +954,26 @@ export function SavedPlacesScreen({
       ) : (
         <>
           <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
+          <View style={styles.editActionRow}>
+            <Pressable
+              accessibilityLabel={isEditing ? '보관함 편집 완료' : '보관함 편집'}
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={handlePressEdit}
+              style={({pressed}) => [
+                styles.editButton,
+                pressed && styles.editButtonPressed,
+              ]}>
+              <Text style={styles.editButtonText}>{isEditing ? '완료' : '편집'}</Text>
+            </Pressable>
+          </View>
+          {isEditing ? (
+            <Text style={styles.editModeHint}>
+              {selectedPlaceIds.size > 0
+                ? `${selectedPlaceIds.size}곳 선택됨`
+                : '편집할 장소를 선택하세요'}
+            </Text>
+          ) : null}
           {SHOW_CARD_PREVIEW ? (
             <ScrollView
               contentContainerStyle={styles.previewContent}
@@ -1042,7 +1082,13 @@ export function SavedPlacesScreen({
                 ref={scrollViewRef}
                 showsVerticalScrollIndicator={false}
               >
-                <SavedPlaceGrid places={places} onPressPlace={onOpenDetail} />
+                <SavedPlaceGrid
+                  isEditing={isEditing}
+                  places={places}
+                  onPressPlace={onOpenDetail}
+                  onTogglePlaceSelection={togglePlaceSelection}
+                  selectedPlaceIds={selectedPlaceIds}
+                />
                 <View style={styles.scrollFooter}>
                   <Pressable
                     onPress={scrollToTop}
@@ -1093,6 +1139,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  editActionRow: {
+    alignItems: 'flex-end',
+    marginHorizontal: 24,
+    marginBottom: 2,
+  },
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  editButtonPressed: {
+    opacity: 0.6,
+  },
+  editButtonText: {
+    color: '#7b7d8b',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  editModeHint: {
+    marginHorizontal: 24,
+    marginBottom: 4,
+    color: '#7b7d8b',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   processingCard: {
     marginHorizontal: 24,
