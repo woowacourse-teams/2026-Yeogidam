@@ -243,6 +243,30 @@ type SavedPlacesScreenProps = {
   onSharedResultDismissed?: (requestId?: string) => Promise<void>;
 };
 
+function SavedPlacesEditAction({
+  isEditing,
+  onPress,
+}: {
+  isEditing: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <View style={styles.editActionRow}>
+      <Pressable
+        accessibilityLabel={isEditing ? '보관함 편집 취소' : '보관함 편집'}
+        accessibilityRole="button"
+        hitSlop={8}
+        onPress={onPress}
+        style={({pressed}) => [
+          styles.editButton,
+          pressed && styles.editButtonPressed,
+        ]}>
+        <Text style={styles.editButtonText}>{isEditing ? '취소' : '편집'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export function SavedPlacesScreen({
   onOpenDetail,
   onAuthenticationRequired,
@@ -283,6 +307,7 @@ export function SavedPlacesScreen({
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const hasSavedPlaces = places.length > 0;
+  const isEditActionInScroll = hasSavedPlaces && !SHOW_CARD_PREVIEW;
   const bottomActionOffset =
     bottomInset > 0 ? BOTTOM_TAB_BAR_BOTTOM_GAP : 8;
 
@@ -974,19 +999,12 @@ export function SavedPlacesScreen({
       ) : (
         <>
           <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
-          <View style={styles.editActionRow}>
-            <Pressable
-              accessibilityLabel={isEditing ? '보관함 편집 완료' : '보관함 편집'}
-              accessibilityRole="button"
-              hitSlop={8}
+          {!isEditActionInScroll ? (
+            <SavedPlacesEditAction
+              isEditing={isEditing}
               onPress={handlePressEdit}
-              style={({pressed}) => [
-                styles.editButton,
-                pressed && styles.editButtonPressed,
-              ]}>
-              <Text style={styles.editButtonText}>{isEditing ? '완료' : '편집'}</Text>
-            </Pressable>
-          </View>
+            />
+          ) : null}
           {SHOW_CARD_PREVIEW ? (
             <ScrollView
               contentContainerStyle={styles.previewContent}
@@ -1095,6 +1113,10 @@ export function SavedPlacesScreen({
                 ref={scrollViewRef}
                 showsVerticalScrollIndicator={false}
               >
+                <SavedPlacesEditAction
+                  isEditing={isEditing}
+                  onPress={handlePressEdit}
+                />
                 <SavedPlaceGrid
                   isEditing={isEditing}
                   places={places}
@@ -1122,19 +1144,21 @@ export function SavedPlacesScreen({
       )}
       {isEditing ? (
         <Pressable
-          accessibilityLabel="선택한 장소 삭제하기"
+          accessibilityLabel={
+            selectedPlaceIds.size > 0 ? '선택한 장소 삭제하기' : '보관함 편집 취소'
+          }
           accessibilityRole="button"
-          accessibilityState={{disabled: selectedPlaceIds.size === 0}}
-          disabled={selectedPlaceIds.size === 0}
+          onPress={selectedPlaceIds.size === 0 ? handlePressEdit : undefined}
           style={({pressed}) => [
             bottomTabBarContainerStyle,
             styles.deleteAction,
             {bottom: bottomActionOffset},
-            selectedPlaceIds.size === 0 && styles.deleteActionDisabled,
             pressed && styles.deleteActionPressed,
           ]}>
           <View style={styles.deleteActionContent}>
-            <Text style={styles.deleteActionText}>삭제하기</Text>
+            <Text style={styles.deleteActionText}>
+              {selectedPlaceIds.size > 0 ? '삭제하기' : '취소'}
+            </Text>
             {selectedPlaceIds.size > 0 ? (
               <View style={styles.deleteCountBadge}>
                 <Text style={styles.deleteCountText}>{selectedPlaceIds.size}</Text>
@@ -1181,9 +1205,6 @@ const styles = StyleSheet.create({
   deleteAction: {
     backgroundColor: '#000000',
     justifyContent: 'center',
-  },
-  deleteActionDisabled: {
-    backgroundColor: '#000000',
   },
   deleteActionPressed: {
     opacity: 0.82,
