@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useRef} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -7,6 +7,7 @@ import type {Place} from '../../../entities/place/types';
 type SavedPlaceGridProps = {
   isEditing?: boolean;
   places: Place[];
+  onLongPressPlace?: () => void;
   onPressPlace: (place: Place) => void;
   onTogglePlaceSelection?: (placeId: string) => void;
   selectedPlaceIds?: ReadonlySet<string>;
@@ -15,10 +16,13 @@ type SavedPlaceGridProps = {
 export function SavedPlaceGrid({
   isEditing = false,
   places,
+  onLongPressPlace,
   onPressPlace,
   onTogglePlaceSelection,
   selectedPlaceIds,
 }: SavedPlaceGridProps) {
+  const didLongPressRef = useRef(false);
+
   return (
     <View style={styles.grid}>
       {places.map((place, index) => (
@@ -30,13 +34,27 @@ export function SavedPlaceGrid({
                 : place.name
             }
             accessibilityRole="button"
+            onLongPress={() => {
+              if (!isEditing) {
+                didLongPressRef.current = true;
+                onLongPressPlace?.();
+              }
+            }}
             onPress={() => {
+              if (didLongPressRef.current) {
+                didLongPressRef.current = false;
+                return;
+              }
+
               if (isEditing) {
                 onTogglePlaceSelection?.(place.id);
                 return;
               }
 
               onPressPlace(place);
+            }}
+            onPressIn={() => {
+              didLongPressRef.current = false;
             }}
             style={styles.cardBody}>
             {place.image ? (

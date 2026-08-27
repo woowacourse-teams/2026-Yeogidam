@@ -915,6 +915,11 @@ export function SavedPlacesScreen({
     setSelectedPlaceIds(new Set());
   }, []);
 
+  const enterEditMode = useCallback(() => {
+    setIsEditing(true);
+    setSelectedPlaceIds(new Set());
+  }, []);
+
   const togglePlaceSelection = useCallback((placeId: string) => {
     setSelectedPlaceIds(current => {
       const next = new Set(current);
@@ -1085,6 +1090,7 @@ export function SavedPlacesScreen({
                 <SavedPlaceGrid
                   isEditing={isEditing}
                   places={places}
+                  onLongPressPlace={enterEditMode}
                   onPressPlace={onOpenDetail}
                   onTogglePlaceSelection={togglePlaceSelection}
                   selectedPlaceIds={selectedPlaceIds}
