@@ -7,16 +7,19 @@ type HistoryScreenProps = {onBack: () => void; groups?: HistoryGroup[]};
 const thumbnail = 'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
 
 const emptyCharacter = 'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
+const detailCharacter = 'https://www.figma.com/api/mcp/asset/7be73af3-e4e8-417a-9664-9dbe530b90f2.png';
+const placeThumbnail = 'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
+const instagramIcon = 'https://www.figma.com/api/mcp/asset/419f69d2-26d0-400f-b10e-18c7d08c51e7.png';
 
 const defaultGroups: HistoryGroup[] = [
   {date: '2026.08.26', items: ['FAILED', 'COMPLETED', 'FAILED', 'FAILED']},
   {date: '2026.08.25', items: ['COMPLETED', 'FAILED', 'COMPLETED']},
 ];
 
-function HistoryItem({status}: {status: 'FAILED' | 'COMPLETED'}) {
+function HistoryItem({status, onPress}: {status: 'FAILED' | 'COMPLETED'; onPress?: () => void}) {
   const completed = status === 'COMPLETED';
   return (
-    <Pressable accessibilityRole="button" style={styles.item}>
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.item}>
       <Image source={{uri: thumbnail}} style={styles.thumbnail} />
       <View style={styles.itemText}>
         <View style={[styles.badge, completed ? styles.successBadge : styles.failureBadge]}>
@@ -31,9 +34,49 @@ function HistoryItem({status}: {status: 'FAILED' | 'COMPLETED'}) {
   );
 }
 
+function HistorySuccessDetail({onBack}: {onBack: () => void}) {
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Pressable hitSlop={12} onPress={onBack} style={styles.backButton}><Text style={styles.back}>‹</Text></Pressable>
+        <Text style={styles.headerTitle}>히스토리</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      <ScrollView contentContainerStyle={styles.detailContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.detailHero}>
+          <Image source={{uri: detailCharacter}} style={styles.detailCharacter} />
+          <Text style={styles.detailTitle}>장소 분석이 완료되었어요!</Text>
+          <Text style={styles.detailSubtitle}>총 2개의 장소를 찾았어요</Text>
+        </View>
+        <Pressable style={styles.originalButton}>
+          <Image source={{uri: instagramIcon}} style={styles.instagramIcon} />
+          <Text style={styles.originalText}>원본 릴스로 이동</Text>
+          <Text style={styles.detailChevron}>›</Text>
+        </Pressable>
+        <Text style={styles.foundTitle}>발견한 장소</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.placeRow}>
+          {['장소명', '장소명', '장소명', '장소명'].map((name, index) => (
+            <View key={`${name}-${index}`} style={styles.placeCard}>
+              <Image source={{uri: placeThumbnail}} style={styles.placeImage} />
+              <Text style={styles.placeName}>{name}</Text>
+              <Text style={styles.placeAddress}>서울 성동구</Text>
+            </View>
+          ))}
+        </ScrollView>
+      </ScrollView>
+      <View style={styles.homeIndicator} />
+    </View>
+  );
+}
+
 export function HistoryScreen({onBack, groups = defaultGroups}: HistoryScreenProps) {
   const [previewEmpty, setPreviewEmpty] = useState(false);
+  const [selectedSuccess, setSelectedSuccess] = useState(false);
   const visibleGroups = previewEmpty ? [] : groups;
+
+  if (selectedSuccess) {
+    return <HistorySuccessDetail onBack={() => setSelectedSuccess(false)} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -62,7 +105,7 @@ export function HistoryScreen({onBack, groups = defaultGroups}: HistoryScreenPro
             <Text style={styles.date}>{group.date}</Text>
             <View>
               {group.items.map((status, index) => (
-                <HistoryItem key={`${group.date}-${index}`} status={status as 'FAILED' | 'COMPLETED'} />
+                <HistoryItem key={`${group.date}-${index}`} status={status as 'FAILED' | 'COMPLETED'} onPress={status === 'COMPLETED' ? () => setSelectedSuccess(true) : undefined} />
               ))}
             </View>
           </View>
@@ -89,6 +132,21 @@ const styles = StyleSheet.create({
   emptyText: {alignItems: 'center'},
   emptyTitle: {fontSize: 20, fontWeight: '800', color: '#1a1a2e', textAlign: 'center'},
   emptyDescription: {fontSize: 14, lineHeight: 22.4, color: '#8e8e93', textAlign: 'center', marginTop: 8},
+  detailContent: {paddingBottom: 60},
+  detailHero: {alignItems: 'center', marginTop: 48},
+  detailCharacter: {width: 195, height: 195, borderRadius: 20},
+  detailTitle: {fontSize: 20, fontWeight: '800', color: '#1a1a2e', marginTop: 24},
+  detailSubtitle: {fontSize: 14, color: '#8e8e93', marginTop: 8},
+  originalButton: {height: 61, marginHorizontal: 22, marginTop: 49, borderWidth: 1, borderColor: 'rgba(0,0,0,.14)', borderRadius: 20, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 50},
+  instagramIcon: {width: 28, height: 27},
+  originalText: {fontSize: 15, fontWeight: '600', color: '#000', flex: 1, textAlign: 'center'},
+  detailChevron: {fontSize: 30, color: '#000'},
+  foundTitle: {fontSize: 20, fontWeight: '700', color: '#000', marginTop: 35, marginLeft: 32},
+  placeRow: {paddingLeft: 31, paddingTop: 12, gap: 6},
+  placeCard: {width: 98},
+  placeImage: {width: 98, height: 98, borderRadius: 2},
+  placeName: {fontSize: 13, fontWeight: '800', color: '#1a1a2e', marginTop: 2},
+  placeAddress: {fontSize: 9, color: '#8e8e93', marginTop: 3},
   group: {marginBottom: 16},
   date: {fontSize: 16, fontWeight: '600', color: '#727070', marginBottom: 12},
   item: {height: 86, borderBottomWidth: 1, borderBottomColor: '#f8f3f3', flexDirection: 'row', alignItems: 'center', gap: 22},
