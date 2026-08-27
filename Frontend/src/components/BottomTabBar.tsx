@@ -1,5 +1,5 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, View, type ViewStyle} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 import LinearGradient from 'react-native-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -12,9 +12,30 @@ type BottomTabBarProps = {
 };
 
 export const BOTTOM_TAB_BAR_HEIGHT = 64;
-const TAB_BAR_SIDE_INSET = 16;
-const TAB_BAR_BOTTOM_GAP = 20;
+export const BOTTOM_TAB_BAR_SIDE_INSET = 16;
+export const BOTTOM_TAB_BAR_BOTTOM_GAP = 20;
 const TAB_BAR_OVERLAY_FADE_HEIGHT = 60;
+
+export const bottomTabBarContainerStyle: ViewStyle = {
+  position: 'absolute',
+  left: BOTTOM_TAB_BAR_SIDE_INSET,
+  right: BOTTOM_TAB_BAR_SIDE_INSET,
+  minHeight: BOTTOM_TAB_BAR_HEIGHT,
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 10,
+  paddingVertical: 8,
+  borderRadius: 999,
+  backgroundColor: '#ffffff',
+  shadowColor: '#000000',
+  shadowOpacity: 0.09,
+  shadowOffset: {
+    width: 0,
+    height: 8,
+  },
+  shadowRadius: 20,
+  elevation: 10,
+};
 
 const tabs: {id: MainScreen; icon: 'bookmark' | 'map' | 'person'; label: string}[] = [
   {id: 'saved', icon: 'bookmark', label: '보관함'},
@@ -24,7 +45,7 @@ const tabs: {id: MainScreen; icon: 'bookmark' | 'map' | 'person'; label: string}
 
 export function BottomTabBar({active, onNavigate}: BottomTabBarProps) {
   const {bottom} = useSafeAreaInsets();
-  const tabBarBottom = bottom > 0 ? TAB_BAR_BOTTOM_GAP : 8;
+  const tabBarBottom = bottom > 0 ? BOTTOM_TAB_BAR_BOTTOM_GAP : 8;
   const overlayHeight =
     BOTTOM_TAB_BAR_HEIGHT + tabBarBottom + bottom + TAB_BAR_OVERLAY_FADE_HEIGHT;
 
@@ -79,24 +100,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   tabBar: {
-    position: 'absolute',
-    left: TAB_BAR_SIDE_INSET,
-    right: TAB_BAR_SIDE_INSET,
-    minHeight: BOTTOM_TAB_BAR_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000000',
-    shadowOpacity: 0.09,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowRadius: 20,
-    elevation: 10,
+    ...bottomTabBarContainerStyle,
   },
   tab: {
     flex: 1,

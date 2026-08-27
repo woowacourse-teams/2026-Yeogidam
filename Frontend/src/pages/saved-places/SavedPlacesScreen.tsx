@@ -16,7 +16,11 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/auth/supabase';
 
-import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
+import {
+  BOTTOM_TAB_BAR_BOTTOM_GAP,
+  BOTTOM_TAB_BAR_HEIGHT,
+  bottomTabBarContainerStyle,
+} from '../../components/BottomTabBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { getSavedPlaces } from '../../entities/info/api';
@@ -231,6 +235,7 @@ function getStatusQueryMessage(error: ReelApiError): string {
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place) => void;
   onAuthenticationRequired?: () => void;
+  onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
   places?: Place[];
@@ -241,6 +246,7 @@ type SavedPlacesScreenProps = {
 export function SavedPlacesScreen({
   onOpenDetail,
   onAuthenticationRequired,
+  onEditModeChange,
   onRequireLogin,
   places: providedPlaces,
   onSharedResultConsumed,
@@ -277,6 +283,12 @@ export function SavedPlacesScreen({
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const hasSavedPlaces = places.length > 0;
+  const bottomActionOffset =
+    bottomInset > 0 ? BOTTOM_TAB_BAR_BOTTOM_GAP : 8;
+
+  useEffect(() => {
+    return () => onEditModeChange?.(false);
+  }, [onEditModeChange]);
 
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
@@ -911,14 +923,17 @@ export function SavedPlacesScreen({
   };
 
   const handlePressEdit = useCallback(() => {
-    setIsEditing(current => !current);
+    const next = !isEditing;
+    setIsEditing(next);
     setSelectedPlaceIds(new Set());
-  }, []);
+    onEditModeChange?.(next);
+  }, [isEditing, onEditModeChange]);
 
   const enterEditMode = useCallback(() => {
     setIsEditing(true);
     setSelectedPlaceIds(new Set());
-  }, []);
+    onEditModeChange?.(true);
+  }, [onEditModeChange]);
 
   const togglePlaceSelection = useCallback((placeId: string) => {
     setSelectedPlaceIds(current => {
@@ -972,13 +987,6 @@ export function SavedPlacesScreen({
               <Text style={styles.editButtonText}>{isEditing ? '완료' : '편집'}</Text>
             </Pressable>
           </View>
-          {isEditing ? (
-            <Text style={styles.editModeHint}>
-              {selectedPlaceIds.size > 0
-                ? `${selectedPlaceIds.size}곳 선택됨`
-                : '편집할 장소를 선택하세요'}
-            </Text>
-          ) : null}
           {SHOW_CARD_PREVIEW ? (
             <ScrollView
               contentContainerStyle={styles.previewContent}
@@ -1112,19 +1120,43 @@ export function SavedPlacesScreen({
           )}
         </>
       )}
-      <Pressable
-        accessibilityLabel="장소 링크 추가"
-        accessibilityRole="button"
-        onPress={openDialog}
-        style={[
-          styles.fabShadow,
-          { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
-        ]}
-      >
-        <View style={styles.fab}>
-          <Text style={styles.fabText}>＋</Text>
-        </View>
-      </Pressable>
+      {isEditing ? (
+        <Pressable
+          accessibilityLabel="선택한 장소 삭제하기"
+          accessibilityRole="button"
+          accessibilityState={{disabled: selectedPlaceIds.size === 0}}
+          disabled={selectedPlaceIds.size === 0}
+          style={({pressed}) => [
+            bottomTabBarContainerStyle,
+            styles.deleteAction,
+            {bottom: bottomActionOffset},
+            selectedPlaceIds.size === 0 && styles.deleteActionDisabled,
+            pressed && styles.deleteActionPressed,
+          ]}>
+          <View style={styles.deleteActionContent}>
+            <Text style={styles.deleteActionText}>삭제하기</Text>
+            {selectedPlaceIds.size > 0 ? (
+              <View style={styles.deleteCountBadge}>
+                <Text style={styles.deleteCountText}>{selectedPlaceIds.size}</Text>
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
+      ) : (
+        <Pressable
+          accessibilityLabel="장소 링크 추가"
+          accessibilityRole="button"
+          onPress={openDialog}
+          style={[
+            styles.fabShadow,
+            { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
+          ]}
+        >
+          <View style={styles.fab}>
+            <Text style={styles.fabText}>＋</Text>
+          </View>
+        </Pressable>
+      )}
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
         value={linkValue}
@@ -1146,6 +1178,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  deleteAction: {
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+  },
+  deleteActionDisabled: {
+    backgroundColor: '#000000',
+  },
+  deleteActionPressed: {
+    opacity: 0.82,
+  },
+  deleteActionText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  deleteActionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteCountBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  deleteCountText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
   editActionRow: {
     alignItems: 'flex-end',
     marginHorizontal: 24,
@@ -1162,14 +1228,6 @@ const styles = StyleSheet.create({
     color: '#7b7d8b',
     fontSize: 14,
     fontWeight: '700',
-    lineHeight: 18,
-  },
-  editModeHint: {
-    marginHorizontal: 24,
-    marginBottom: 4,
-    color: '#7b7d8b',
-    fontSize: 13,
-    fontWeight: '600',
     lineHeight: 18,
   },
   processingCard: {
