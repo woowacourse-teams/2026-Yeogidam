@@ -1,5 +1,8 @@
 import React, {useState} from 'react';
-import {Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Alert, Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import RetryIcon from '../../assets/icons/actions/retry.svg';
+import ReportIcon from '../../assets/icons/actions/report.svg';
+import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
 
 type HistoryGroup = {date: string; items: Array<'FAILED' | 'COMPLETED'>};
 type HistoryScreenProps = {onBack: () => void; groups?: HistoryGroup[]};
@@ -8,8 +11,8 @@ const thumbnail = 'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e
 
 const emptyCharacter = 'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
 const detailCharacter = 'https://www.figma.com/api/mcp/asset/7be73af3-e4e8-417a-9664-9dbe530b90f2.png';
+const failureCharacter = 'https://www.figma.com/api/mcp/asset/b1cdc2ef-0cfa-47ed-b534-cbe706d9bb97.png';
 const placeThumbnail = 'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
-const instagramIcon = 'https://www.figma.com/api/mcp/asset/419f69d2-26d0-400f-b10e-18c7d08c51e7.png';
 
 const defaultGroups: HistoryGroup[] = [
   {date: '2026.08.26', items: ['FAILED', 'COMPLETED', 'FAILED', 'FAILED']},
@@ -49,7 +52,7 @@ function HistorySuccessDetail({onBack}: {onBack: () => void}) {
           <Text style={styles.detailSubtitle}>총 2개의 장소를 찾았어요</Text>
         </View>
         <Pressable style={styles.originalButton}>
-          <Image source={{uri: instagramIcon}} style={styles.instagramIcon} />
+          <InstagramIcon width={28} height={27} />
           <Text style={styles.originalText}>원본 릴스로 이동</Text>
           <Text style={styles.detailChevron}>›</Text>
         </Pressable>
@@ -69,13 +72,60 @@ function HistorySuccessDetail({onBack}: {onBack: () => void}) {
   );
 }
 
+function HistoryFailureDetail({onBack}: {onBack: () => void}) {
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Pressable hitSlop={12} onPress={onBack} style={styles.backButton}><Text style={styles.back}>‹</Text></Pressable>
+        <Text style={styles.headerTitle}>히스토리</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+      <ScrollView contentContainerStyle={styles.failureContent}>
+        <View style={styles.failureHero}>
+          <Image source={{uri: failureCharacter}} style={styles.detailCharacter} />
+          <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
+          <Text style={styles.failureDescription}>해당 장소에서 장소 정보를{ '\n' }찾지 못햇어요</Text>
+        </View>
+        <Pressable style={styles.originalButton}>
+          <InstagramIcon width={28} height={27} />
+          <Text style={styles.originalText}>원본 릴스로 이동</Text>
+          <Text style={styles.detailChevron}>›</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => Alert.alert('다시 시도하시겠어요?', '릴스를 다시 분석해볼게요.', [
+            {text: '취소', style: 'cancel'},
+            {text: '다시 시도', onPress: () => {}},
+          ])}
+          style={styles.actionButton}>
+          <RetryIcon width={20} height={20} style={styles.actionIcon} />
+          <Text style={styles.actionText}>다시 시도하기</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => Alert.alert('이 릴스를 제보하시겠어요?', '제보가 접수되면 내용을 확인해 더 나은 장소 정보를 제공할 수 있도록 도와드릴게요.', [
+            {text: '취소', style: 'cancel'},
+            {text: '제보하기', onPress: () => {}},
+          ])}
+          style={[styles.actionButton, styles.reportActionButton]}>
+          <ReportIcon width={20} height={20} style={styles.actionIcon} />
+          <Text style={styles.actionText}>제보하기</Text>
+        </Pressable>
+      </ScrollView>
+      <View style={styles.homeIndicator} />
+    </View>
+  );
+}
+
 export function HistoryScreen({onBack, groups = defaultGroups}: HistoryScreenProps) {
   const [previewEmpty, setPreviewEmpty] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
+  const [selectedFailure, setSelectedFailure] = useState(false);
   const visibleGroups = previewEmpty ? [] : groups;
 
   if (selectedSuccess) {
     return <HistorySuccessDetail onBack={() => setSelectedSuccess(false)} />;
+  }
+  if (selectedFailure) {
+    return <HistoryFailureDetail onBack={() => setSelectedFailure(false)} />;
   }
 
   return (
@@ -105,7 +155,7 @@ export function HistoryScreen({onBack, groups = defaultGroups}: HistoryScreenPro
             <Text style={styles.date}>{group.date}</Text>
             <View>
               {group.items.map((status, index) => (
-                <HistoryItem key={`${group.date}-${index}`} status={status as 'FAILED' | 'COMPLETED'} onPress={status === 'COMPLETED' ? () => setSelectedSuccess(true) : undefined} />
+                <HistoryItem key={`${group.date}-${index}`} status={status as 'FAILED' | 'COMPLETED'} onPress={status === 'COMPLETED' ? () => setSelectedSuccess(true) : () => setSelectedFailure(true)} />
               ))}
             </View>
           </View>
@@ -147,6 +197,13 @@ const styles = StyleSheet.create({
   placeImage: {width: 98, height: 98, borderRadius: 2},
   placeName: {fontSize: 13, fontWeight: '800', color: '#1a1a2e', marginTop: 2},
   placeAddress: {fontSize: 9, color: '#8e8e93', marginTop: 3},
+  failureContent: {paddingBottom: 60},
+  failureHero: {alignItems: 'center', marginTop: 44},
+  failureDescription: {fontSize: 14, lineHeight: 22.4, color: '#8e8e93', textAlign: 'center', marginTop: 6},
+  actionButton: {height: 40, marginHorizontal: 22, marginTop: 70, borderWidth: 1, borderColor: 'rgba(0,0,0,.16)', borderRadius: 10, alignItems: 'center', justifyContent: 'center'},
+  reportActionButton: {marginTop: 13},
+  actionIcon: {position: 'absolute', left: 32},
+  actionText: {fontSize: 15, fontWeight: '600', color: '#000'},
   group: {marginBottom: 16},
   date: {fontSize: 16, fontWeight: '600', color: '#727070', marginBottom: 12},
   item: {height: 86, borderBottomWidth: 1, borderBottomColor: '#f8f3f3', flexDirection: 'row', alignItems: 'center', gap: 22},
