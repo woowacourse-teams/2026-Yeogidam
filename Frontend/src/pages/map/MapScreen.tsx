@@ -1,8 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
+import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { getSavedPlaces } from '../../entities/info/api';
@@ -52,7 +58,7 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
-  const bottomNavigationOffset = BOTTOM_TAB_BAR_HEIGHT + bottomInset;
+  const bottomNavigationOffset = BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset;
   const mapBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
@@ -113,18 +119,21 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
   const hasActiveSearch = searchKeyword.trim().length > 0;
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
 
-  const handleSheetVisibleHeightChange = useCallback((height: number) => {
-    setSheetVisibleHeight(currentHeight =>
-      currentHeight === height ? currentHeight : height,
-    );
+  const handleSheetVisibleHeightChange = useCallback(
+    (height: number) => {
+      setSheetVisibleHeight(currentHeight =>
+        currentHeight === height ? currentHeight : height,
+      );
 
-    // The sheet can cover a different part of the map before the native map
-    // reports its new camera bounds. Do not keep rendering the previous area's
-    // results during that short interval.
-    if (!searchedPlaces) {
-      setVisibleBounds(null);
-    }
-  }, [searchedPlaces]);
+      // The sheet can cover a different part of the map before the native map
+      // reports its new camera bounds. Do not keep rendering the previous area's
+      // results during that short interval.
+      if (!searchedPlaces) {
+        setVisibleBounds(null);
+      }
+    },
+    [searchedPlaces],
+  );
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
@@ -304,7 +313,10 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
             openPlaceId={openedMarker.id}
             openPlaceSignal={openedMarker.signal}
             onPlaceSelected={place => {
-              if (place.latitude === undefined || place.longitude === undefined) {
+              if (
+                place.latitude === undefined ||
+                place.longitude === undefined
+              ) {
                 return;
               }
 
