@@ -17,7 +17,7 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/auth/supabase';
 
-import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
+import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { getSavedPlaces } from '../../entities/info/api';
@@ -1066,7 +1066,7 @@ export function SavedPlacesScreen({
         onPress={openDialog}
         style={[
           styles.fabShadow,
-          { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
+          { bottom: BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 12 },
         ]}
       >
         <View style={styles.fab}>
