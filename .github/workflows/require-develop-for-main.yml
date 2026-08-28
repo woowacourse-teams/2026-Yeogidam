@@ -14,16 +14,16 @@ jobs:
     name: Require develop source branch
     runs-on: ubuntu-latest
     steps:
-      - name: Allow only fe-develop and be-develop
+      - name: Allow only fe-dev and be-dev
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           case "$HEAD_BRANCH" in
-            fe-develop|be-develop)
+            fe-dev|be-dev)
               exit 0
               ;;
             *)
-              echo "::error::Pull requests into main must originate from fe-develop or be-develop. Current source: $HEAD_BRANCH"
+              echo "::error::Pull requests into main must originate from fe-dev or be-dev. Current source: $HEAD_BRANCH"
               exit 1
               ;;
           esac
