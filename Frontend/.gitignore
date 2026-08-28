@@ -11,6 +11,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 ### 환경 변수 (로컬 전용) ###
+.env
 .env.local
 .env.*.local
 
@@ -21,6 +22,7 @@ build/
 local.properties
 .cxx/
 .kotlin/
+*.aab
 *.hprof
 *.keystore
 !debug.keystore

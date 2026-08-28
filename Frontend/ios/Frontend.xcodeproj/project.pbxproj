@@ -9,21 +9,67 @@
 /* Begin PBXBuildFile section */
 		0C80B921A6F3F58F76C31292 /* libPods-Frontend.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */; };
+		19FBFE81302C722200049FC4 /* RCTKakaoMapView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */; };
+		19FBFE82302C722200049FC4 /* KakaoMapContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */; };
+		2093165182064A13401C5F29 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F6D98302FFD7E95E67CBD2 /* ShareViewController.swift */; };
 		61D730BB77CEB9174B449446 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		775ECDE24DBDFF754959223F /* ShareIntentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		8ADF704D968BA7FADBACB601 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34D8C133FE00FB78A589F46E /* Foundation.framework */; };
+		9B9D58B5EA4CF49C77B325E3 /* FrontendShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */; };
+		9D091FF6CF961902FEB30DF5 /* ShareIntentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */; };
+		B4285DA2BB719CBECE7B841F /* ShareIntentModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C962E32A69AAB6305A26757E /* ShareIntentModule.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		550C326FF0E1015ED5B4D65C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 11ACC1827BCB8179C54CF17B;
+			remoteInfo = FrontendShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		26AFCFC0A6A1EE6E0C3E8B25 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				9B9D58B5EA4CF49C77B325E3 /* FrontendShareExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* Frontend.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Frontend.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Frontend/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Frontend/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = Frontend/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		19FBFE7B302C5D8E00049FC4 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		19FBFE7C302C5D9800049FC4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KakaoMapContainerView.swift; sourceTree = "<group>"; };
+		19FBFE7E302C722200049FC4 /* RCTKakaoMapView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RCTKakaoMapView.h; sourceTree = "<group>"; };
+		19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RCTKakaoMapView.mm; sourceTree = "<group>"; };
+		34D8C133FE00FB78A589F46E /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		3B4392A12AC88292D35C810B /* Pods-Frontend.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Frontend.debug.xcconfig"; path = "Target Support Files/Pods-Frontend/Pods-Frontend.debug.xcconfig"; sourceTree = "<group>"; };
+		48F6D98302FFD7E95E67CBD2 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareViewController.swift; path = ShareExtension/ShareViewController.swift; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-Frontend.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Frontend.release.xcconfig"; path = "Target Support Files/Pods-Frontend/Pods-Frontend.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Frontend.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareIntentStorage.swift; path = Shared/ShareIntentStorage.swift; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Frontend/AppDelegate.swift; sourceTree = "<group>"; };
+		770DAA3EB3DBA3A90C73CA68 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = ShareExtension/Info.plist; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Frontend/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FrontendShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE3216032EEEE0A7AB1BE1B6 /* ShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = ShareExtension.entitlements; path = ShareExtension/ShareExtension.entitlements; sourceTree = "<group>"; };
+		C962E32A69AAB6305A26757E /* ShareIntentModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareIntentModule.swift; path = Frontend/ShareIntentModule.swift; sourceTree = "<group>"; };
+		DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = ShareIntentModuleBridge.m; path = Frontend/ShareIntentModuleBridge.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -36,9 +82,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EFB9F19B613E584871DC0FC7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8ADF704D968BA7FADBACB601 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0FCEC6FE205E0D07D1A9A89A /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				770DAA3EB3DBA3A90C73CA68 /* Info.plist */,
+				AE3216032EEEE0A7AB1BE1B6 /* ShareExtension.entitlements */,
+				48F6D98302FFD7E95E67CBD2 /* ShareViewController.swift */,
+			);
+			name = ShareExtension;
+			sourceTree = "<group>";
+		};
 		13B07FAE1A68108700A75B9A /* Frontend */ = {
 			isa = PBXGroup;
 			children = (
@@ -47,8 +111,20 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
+				C962E32A69AAB6305A26757E /* ShareIntentModule.swift */,
+				DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */,
 			);
 			name = Frontend;
+			sourceTree = "<group>";
+		};
+		19FBFE80302C722200049FC4 /* KakaoMap */ = {
+			isa = PBXGroup;
+			children = (
+				19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */,
+				19FBFE7E302C722200049FC4 /* RCTKakaoMapView.h */,
+				19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */,
+			);
+			path = KakaoMap;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
@@ -56,6 +132,7 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */,
+				F7EFF8159742671795A54E68 /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -70,11 +147,16 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
+				19FBFE80302C722200049FC4 /* KakaoMap */,
 				13B07FAE1A68108700A75B9A /* Frontend */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				19FBFE7B302C5D8E00049FC4 /* Debug.xcconfig */,
+				19FBFE7C302C5D9800049FC4 /* Release.xcconfig */,
+				AB471D19E93EEE1EA06B71D1 /* Shared */,
+				0FCEC6FE205E0D07D1A9A89A /* ShareExtension */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -85,8 +167,17 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* Frontend.app */,
+				A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AB471D19E93EEE1EA06B71D1 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */,
+			);
+			name = Shared;
 			sourceTree = "<group>";
 		};
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
@@ -98,9 +189,34 @@
 			path = Pods;
 			sourceTree = "<group>";
 		};
+		F7EFF8159742671795A54E68 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				34D8C133FE00FB78A589F46E /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		11ACC1827BCB8179C54CF17B /* FrontendShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5C6760418DE6A280A746577F /* Build configuration list for PBXNativeTarget "FrontendShareExtension" */;
+			buildPhases = (
+				59242002C7C38D8635092CCC /* Sources */,
+				EFB9F19B613E584871DC0FC7 /* Frameworks */,
+				7D310CB7FA3CBEA3A065CAFE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FrontendShareExtension;
+			productName = FrontendShareExtension;
+			productReference = A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		13B07F861A680F5B00A75B9A /* Frontend */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Frontend" */;
@@ -112,10 +228,12 @@
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
 				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
+				26AFCFC0A6A1EE6E0C3E8B25 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D78EB4FEDB49BF843A015FED /* PBXTargetDependency */,
 			);
 			name = Frontend;
 			productName = Frontend;
@@ -149,6 +267,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* Frontend */,
+				11ACC1827BCB8179C54CF17B /* FrontendShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -161,6 +280,13 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				61D730BB77CEB9174B449446 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D310CB7FA3CBEA3A065CAFE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,20 +372,45 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19FBFE81302C722200049FC4 /* RCTKakaoMapView.mm in Sources */,
+				19FBFE82302C722200049FC4 /* KakaoMapContainerView.swift in Sources */,
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				775ECDE24DBDFF754959223F /* ShareIntentStorage.swift in Sources */,
+				B4285DA2BB719CBECE7B841F /* ShareIntentModule.swift in Sources */,
+				19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		59242002C7C38D8635092CCC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9D091FF6CF961902FEB30DF5 /* ShareIntentStorage.swift in Sources */,
+				2093165182064A13401C5F29 /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		D78EB4FEDB49BF843A015FED /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = FrontendShareExtension;
+			target = 11ACC1827BCB8179C54CF17B /* FrontendShareExtension */;
+			targetProxy = 550C326FF0E1015ED5B4D65C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 3B4392A12AC88292D35C810B /* Pods-Frontend.debug.xcconfig */;
+			baseConfigurationReference = 19FBFE7B302C5D8E00049FC4 /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Frontend/Frontend.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QNP67WLL6;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Frontend/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -273,7 +424,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app;
 				PRODUCT_NAME = Frontend;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -285,11 +436,15 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 5709B34CF0A7D63546082F79 /* Pods-Frontend.release.xcconfig */;
+			baseConfigurationReference = 19FBFE7C302C5D9800049FC4 /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = Frontend/Frontend.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 8QNP67WLL6;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				INFOPLIST_FILE = Frontend/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -302,12 +457,68 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app;
 				PRODUCT_NAME = Frontend;
+				STRIP_INSTALLED_PRODUCT = NO;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		3AAB5092E2FFEC36B82BE3DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QNP67WLL6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app.Share;
+				PRODUCT_NAME = FrontendShareExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		59722665D33F5A81A5532F32 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8QNP67WLL6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app.Share;
+				PRODUCT_NAME = FrontendShareExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -424,11 +635,13 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
-				COPY_PHASE_STRIP = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = "";
 				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -463,6 +676,7 @@
 				PODFILE_DIR = "$(SRCROOT)";
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				STRIP_INSTALLED_PRODUCT = NO;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
 				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
@@ -477,6 +691,15 @@
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
 				13B07F951A680F5B00A75B9A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5C6760418DE6A280A746577F /* Build configuration list for PBXNativeTarget "FrontendShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				59722665D33F5A81A5532F32 /* Release */,
+				3AAB5092E2FFEC36B82BE3DE /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
