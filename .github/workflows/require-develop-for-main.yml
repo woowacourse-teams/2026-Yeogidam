@@ -1,4 +1,4 @@
-name: Enforce develop as main source
+name: Enforce develop sources for main
 
 on:
   pull_request:
@@ -9,15 +9,21 @@ permissions:
   contents: read
 
 jobs:
-  require-develop:
+  require-allowed-source:
+    # Keep this name until the required-status-check rule is updated in GitHub.
     name: Require develop source branch
     runs-on: ubuntu-latest
     steps:
-      - name: Allow only develop
+      - name: Allow only fe-develop and be-develop
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          if [ "$HEAD_BRANCH" != "develop" ]; then
-            echo "::error::Pull requests into main must originate from develop. Current source: $HEAD_BRANCH"
-            exit 1
-          fi
+          case "$HEAD_BRANCH" in
+            fe-develop|be-develop)
+              exit 0
+              ;;
+            *)
+              echo "::error::Pull requests into main must originate from fe-develop or be-develop. Current source: $HEAD_BRANCH"
+              exit 1
+              ;;
+          esac
