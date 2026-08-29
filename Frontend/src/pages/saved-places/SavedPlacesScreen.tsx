@@ -23,7 +23,7 @@ import {
 } from '../../components/BottomTabBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
-import { getSavedPlaces } from '../../entities/info/api';
+import { deleteSavedPlaces, getSavedPlaces } from '../../entities/info/api';
 import type { SavedPlacesApiError } from '../../entities/info/types';
 import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
 import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
@@ -291,6 +291,8 @@ export function SavedPlacesScreen({
   const [isLoading, setIsLoading] = useState(providedPlaces === undefined);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
   const [processingReelId, setProcessingReelId] = useState<string | null>(null);
   const [processingReel, setProcessingReel] =
     useState<ReelProcessingStatus | null>(null);
@@ -318,22 +320,23 @@ export function SavedPlacesScreen({
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
       setPlaces(providedPlaces);
-      return true;
+      return providedPlaces;
     }
 
     setIsLoading(true);
     setError(null);
     try {
       const savedPlaces = await getSavedPlaces();
-      setPlaces(savedPlaces.map(toSavedPlaceDisplayPlace));
-      return true;
+      const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
+      setPlaces(nextPlaces);
+      return nextPlaces;
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
       setError(apiError);
       if (apiError.errorCode === 'AUTH401_001') {
         onAuthenticationRequired?.();
       }
-      return false;
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -972,6 +975,70 @@ export function SavedPlacesScreen({
     });
   }, []);
 
+  const handleDeleteSelectedPlaces = useCallback(async () => {
+    if (isDeleting || selectedPlaceIds.size === 0) {
+      return;
+    }
+
+    const savedPlaceIds = places.flatMap(place =>
+      selectedPlaceIds.has(place.id) && place.savedPlaceId
+        ? [place.savedPlaceId]
+        : [],
+    );
+    if (savedPlaceIds.length !== selectedPlaceIds.size) {
+      setDeleteError({
+        status: 400,
+        errorCode: 'COMMON400_001',
+        message: '요청 내용을 확인해주세요.',
+        retryable: false,
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteSavedPlaces(savedPlaceIds);
+      const deletedIds = new Set(savedPlaceIds);
+      setPlaces(current =>
+        current.filter(place => !deletedIds.has(place.savedPlaceId ?? '')),
+      );
+      setSelectedPlaceIds(new Set());
+      setIsEditing(false);
+      onEditModeChange?.(false);
+    } catch (nextError) {
+      const apiError = nextError as SavedPlacesApiError;
+      if (apiError.errorCode === 'CLIENT000_002') {
+        const refreshedPlaces = await loadSavedPlaces();
+        const deletedIds = new Set(savedPlaceIds);
+        const isDeletionConfirmed =
+          refreshedPlaces !== null &&
+          refreshedPlaces.every(place => !deletedIds.has(place.savedPlaceId ?? ''));
+
+        if (isDeletionConfirmed) {
+          setSelectedPlaceIds(new Set());
+          setIsEditing(false);
+          onEditModeChange?.(false);
+          return;
+        }
+      }
+
+      setDeleteError(apiError);
+      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
+        onAuthenticationRequired?.();
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [
+    isDeleting,
+    loadSavedPlaces,
+    onAuthenticationRequired,
+    onEditModeChange,
+    places,
+    selectedPlaceIds,
+  ]);
+
   const saveRecentSearch = useCallback((value: string) => {
     const normalizedValue = value.trim();
     if (!normalizedValue) {
@@ -1105,6 +1172,18 @@ export function SavedPlacesScreen({
               ) : null}
             </View>
           ) : null}
+          {deleteError ? (
+            <View style={styles.deleteErrorBanner}>
+              <Text numberOfLines={2} style={styles.deleteErrorText}>
+                {deleteError.message}
+              </Text>
+              {deleteError.retryable ? (
+                <Pressable onPress={handleDeleteSelectedPlaces}>
+                  <Text style={styles.deleteErrorRetryText}>재시도</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
           {isLoading && !hasSavedPlaces ? (
             <SavedPlacesSkeleton />
           ) : hasSavedPlaces ? (
@@ -1148,16 +1227,26 @@ export function SavedPlacesScreen({
             selectedPlaceIds.size > 0 ? '선택한 장소 삭제하기' : '보관함 편집 취소'
           }
           accessibilityRole="button"
-          onPress={selectedPlaceIds.size === 0 ? handlePressEdit : undefined}
+          disabled={isDeleting}
+          onPress={
+            selectedPlaceIds.size === 0
+              ? handlePressEdit
+              : handleDeleteSelectedPlaces
+          }
           style={({pressed}) => [
             bottomTabBarContainerStyle,
             styles.deleteAction,
             {bottom: bottomActionOffset},
+            isDeleting && styles.deleteActionDisabled,
             pressed && styles.deleteActionPressed,
           ]}>
           <View style={styles.deleteActionContent}>
             <Text style={styles.deleteActionText}>
-              {selectedPlaceIds.size > 0 ? '삭제하기' : '취소'}
+              {selectedPlaceIds.size > 0
+                ? isDeleting
+                  ? '삭제 중...'
+                  : '삭제하기'
+                : '취소'}
             </Text>
             {selectedPlaceIds.size > 0 ? (
               <View style={styles.deleteCountBadge}>
@@ -1209,6 +1298,9 @@ const styles = StyleSheet.create({
   deleteActionPressed: {
     opacity: 0.82,
   },
+  deleteActionDisabled: {
+    opacity: 0.5,
+  },
   deleteActionText: {
     color: '#ffffff',
     fontSize: 16,
@@ -1232,6 +1324,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 16,
+  },
+  deleteErrorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#fff5f5',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  deleteErrorText: {
+    flex: 1,
+    color: '#7c2d2d',
+    fontSize: 13,
+  },
+  deleteErrorRetryText: {
+    color: '#5c6fc8',
+    fontSize: 13,
+    fontWeight: '700',
   },
   editActionRow: {
     alignItems: 'flex-end',

@@ -15,6 +15,7 @@ import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
 type MapScreenProps = {
   onDetailViewChange?: (isDetailView: boolean) => void;
+  onAuthenticationRequired?: () => void;
 };
 
 type MapCamera = {
@@ -23,7 +24,10 @@ type MapCamera = {
   zoomLevel: number;
 };
 
-export function MapScreen({ onDetailViewChange }: MapScreenProps) {
+export function MapScreen({
+  onDetailViewChange,
+  onAuthenticationRequired,
+}: MapScreenProps) {
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -334,6 +338,12 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
             onDetailViewChange={isDetailView => {
               setIsPlaceDetailVisible(isDetailView);
               onDetailViewChange?.(isDetailView);
+            }}
+            onAuthenticationRequired={onAuthenticationRequired}
+            onSavedPlaceDeleted={savedPlaceId => {
+              setSavedPlaces(current =>
+                current.filter(place => place.savedPlaceId !== savedPlaceId),
+              );
             }}
             onExpandedChange={setIsSheetExpanded}
             onVisibleHeightChange={handleSheetVisibleHeightChange}

@@ -1,15 +1,22 @@
 import React from 'react';
 import {Modal, Pressable, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+import type {SavedPlacesApiError} from '../../../entities/info/types';
 
 type PlaceDetailActionSheetProps = {
   visible: boolean;
   onClose: () => void;
+  onDelete: () => void;
+  isDeleting?: boolean;
+  deleteError?: SavedPlacesApiError | null;
 };
 
 export function PlaceDetailActionSheet({
   visible,
   onClose,
+  onDelete,
+  isDeleting = false,
+  deleteError = null,
 }: PlaceDetailActionSheetProps) {
   return (
     <Modal
@@ -25,13 +32,28 @@ export function PlaceDetailActionSheet({
           <Pressable
             accessibilityLabel="장소 삭제하기"
             accessibilityRole="button"
+            disabled={isDeleting}
+            onPress={onDelete}
             style={({pressed}) => [
               styles.deleteButton,
+              isDeleting && styles.deleteButtonDisabled,
               pressed && styles.deleteButtonPressed,
             ]}>
             <MaterialIcons color="#000000" name="delete-outline" size={21} />
-            <Text style={styles.deleteButtonText}>삭제하기</Text>
+            <Text style={styles.deleteButtonText}>
+              {isDeleting ? '삭제 중...' : '삭제하기'}
+            </Text>
           </Pressable>
+          {deleteError ? (
+            <View style={styles.errorArea}>
+              <Text style={styles.errorText}>{deleteError.message}</Text>
+              {deleteError.retryable ? (
+                <Pressable onPress={onDelete}>
+                  <Text style={styles.retryText}>재시도</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
         </Pressable>
       </Pressable>
     </Modal>
@@ -75,9 +97,30 @@ const styles = StyleSheet.create({
   deleteButtonPressed: {
     opacity: 0.72,
   },
+  deleteButtonDisabled: {
+    opacity: 0.5,
+  },
   deleteButtonText: {
     color: '#000000',
     fontSize: 16,
+    fontWeight: '800',
+  },
+  errorArea: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  errorText: {
+    flex: 1,
+    color: '#b42318',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  retryText: {
+    color: '#1f2238',
+    fontSize: 13,
     fontWeight: '800',
   },
 });

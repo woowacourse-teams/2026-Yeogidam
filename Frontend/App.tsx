@@ -505,7 +505,12 @@ function App() {
     }
 
     if (currentScreen === 'map') {
-      return <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />;
+      return (
+        <MapScreen
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onDetailViewChange={setIsMapPlaceDetailVisible}
+        />
+      );
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
