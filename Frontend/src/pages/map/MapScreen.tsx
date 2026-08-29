@@ -174,6 +174,13 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
     }
   };
   const handleSearchBack = () => {
+    if (isSheetExpanded) {
+      setCollapseSignal(signal => signal + 1);
+      setIsSearchFocused(false);
+      Keyboard.dismiss();
+      return;
+    }
+
     if (hasActiveSearch) {
       setSearchKeyword('');
       setSearchedPlaces(null);
@@ -185,11 +192,6 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
     if (isSearchFocused) {
       setIsSearchFocused(false);
       Keyboard.dismiss();
-      return;
-    }
-
-    if (isSheetExpanded) {
-      setCollapseSignal(signal => signal + 1);
     }
   };
 
