@@ -300,17 +300,25 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       mapContainer.bounds.height > 0
     else { return }
 
-    // The SDK's `viewRect` is the actual map viewport. Resize that viewport to
-    // the exposed area above the bottom sheet so marker rendering and the
-    // bounds sent to JS always use the identical coordinate system.
-    let viewportHeight = max(1, mapContainer.bounds.height - cameraBottomInset)
+    // Keep the map view itself full-screen and use the SDK's camera margins for
+    // the part covered by the bottom sheet. `viewRect` alone only clips the
+    // rendered map; it does not change the camera's target-point calculation.
+    // A bottom margin makes a target coordinate land at the centre of the
+    // exposed area above the sheet.
     kakaoMap.viewRect = CGRect(
       x: 0,
       y: 0,
       width: mapContainer.bounds.width,
-      height: viewportHeight
+      height: mapContainer.bounds.height
     )
-    kakaoMap.setMargins(.zero)
+    kakaoMap.setMargins(
+      UIEdgeInsets(
+        top: 0,
+        left: 0,
+        bottom: cameraBottomInset,
+        right: 0
+      )
+    )
     DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
   }
 
@@ -604,7 +612,12 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
     else { return }
 
-    let visibleRect = kakaoMap.viewRect
+    let visibleRect = CGRect(
+      x: 0,
+      y: 0,
+      width: kakaoMap.viewRect.width,
+      height: max(1, kakaoMap.viewRect.height - cameraBottomInset)
+    )
     let coordinate = kakaoMap.getPosition(
       CGPoint(x: visibleRect.midX, y: visibleRect.midY)
     ).wgsCoord

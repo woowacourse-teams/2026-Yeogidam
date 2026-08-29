@@ -49,7 +49,11 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
   const detailEntryCameraRef = useRef<MapCamera | null>(null);
   const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
-  const [openedMarker, setOpenedMarker] = useState({ id: '', signal: 0 });
+  const [openedMarker, setOpenedMarker] = useState<{
+    place: Place | null;
+    signal: number;
+  }>({ place: null, signal: 0 });
+  const shouldRecenterMarkerAfterSheetOpen = useRef(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -134,6 +138,21 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
     },
     [searchedPlaces],
   );
+
+  useEffect(() => {
+    if (
+      !shouldRecenterMarkerAfterSheetOpen.current ||
+      sheetVisibleHeight <= COLLAPSED_SHEET_HEIGHT
+    ) {
+      return;
+    }
+
+    // The initial marker move happens while the sheet is collapsed. Once the
+    // middle sheet height has been applied to the native map, move once more
+    // so the marker is centred in the remaining visible map area.
+    shouldRecenterMarkerAfterSheetOpen.current = false;
+    setCameraMoveRequestId(requestId => requestId + 1);
+  }, [sheetVisibleHeight]);
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
@@ -235,6 +254,7 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
                   place.longitude !== undefined
                 ) {
                   detailEntryCameraRef.current = lastMapCameraRef.current;
+                  shouldRecenterMarkerAfterSheetOpen.current = true;
                   setMapCenter({
                     latitude: place.latitude,
                     longitude: place.longitude,
@@ -243,7 +263,7 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
                 }
 
                 setOpenedMarker(current => ({
-                  id: place.id,
+                  place,
                   signal: current.signal + 1,
                 }));
               }}
@@ -310,7 +330,7 @@ export function MapScreen({ onDetailViewChange }: MapScreenProps) {
             places={resultPlaces}
             isSearchActive={hasActiveSearch}
             expandSignal={searchResultSignal}
-            openPlaceId={openedMarker.id}
+            openPlace={openedMarker.place}
             openPlaceSignal={openedMarker.signal}
             onPlaceSelected={place => {
               if (
