@@ -4,6 +4,7 @@ import { getPlaceReels } from '../../entities/info/api';
 import type { PlaceReel, PlaceReelsApiError } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
 import { CopyToastProvider } from './components/CopyToast';
+import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
 import { PlaceMapButton } from './components/PlaceMapButton';
 
@@ -21,6 +22,7 @@ export function PlaceDetailScreen({
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
+  const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
 
   const loadPosts = useCallback(async () => {
     setIsReelsLoading(true);
@@ -51,8 +53,13 @@ export function PlaceDetailScreen({
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
+        onPressMore={() => setIsActionSheetVisible(true)}
       />
       {place.placeUrl ? <PlaceMapButton url={place.placeUrl} /> : null}
+      <PlaceDetailActionSheet
+        visible={isActionSheetVisible}
+        onClose={() => setIsActionSheetVisible(false)}
+      />
     </CopyToastProvider>
   );
 }

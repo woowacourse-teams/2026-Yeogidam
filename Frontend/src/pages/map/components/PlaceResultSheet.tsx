@@ -26,6 +26,7 @@ import type {
 import type { Place } from '../../../entities/place/types';
 import { MAP_SEARCH_BAR_HEIGHT, MAP_SEARCH_BAR_TOP_GAP } from './MapSearchBar';
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
+import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
 import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 
@@ -79,6 +80,7 @@ export function PlaceResultSheet({
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(false);
+  const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
   const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
   const middleOffset = Math.min(
     collapsedOffset,
@@ -359,6 +361,7 @@ export function PlaceResultSheet({
   };
 
   const backToPlaceList = () => {
+    setIsActionSheetVisible(false);
     onPlaceDetailBack?.();
     setSelectedPlace(null);
   };
@@ -401,6 +404,7 @@ export function PlaceResultSheet({
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
               onRetryReels={loadSelectedPlaceReels}
+              onPressMore={() => setIsActionSheetVisible(true)}
               // A partially-open sheet is already below the status area, so
               // reserving the map's safe-area inset here creates a large,
               // unnecessary gap above the detail header. Keep that inset only
@@ -418,6 +422,10 @@ export function PlaceResultSheet({
             {isPageMode && selectedPlace.placeUrl ? (
               <PlaceMapButton url={selectedPlace.placeUrl} />
             ) : null}
+            <PlaceDetailActionSheet
+              visible={isActionSheetVisible}
+              onClose={() => setIsActionSheetVisible(false)}
+            />
           </CopyToastProvider>
         </View>
       ) : (
