@@ -136,7 +136,11 @@ const PLACE_LIST_LEFT_INSET =
   CARD_HORIZONTAL_PADDING + CHEVRON_WIDTH + CARD_CONTENT_GAP;
 const PLACE_LIST_RIGHT_INSET = 23;
 
-export function InBoxScreen() {
+type InBoxScreenProps = {
+  onOpenHistory: () => void;
+};
+
+export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
   const [expandedIds, setExpandedIds] = useState<string[]>([items[0].id]);
   const [isEmptyState, setIsEmptyState] = useState(false);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
@@ -243,6 +247,8 @@ export function InBoxScreen() {
           <Pressable
             accessibilityLabel="대기함 기록 보기"
             style={styles.headerAction}
+            accessibilityRole="button"
+            onPress={onOpenHistory}
           >
             <InboxHeaderFrame height={41} width={41} />
           </Pressable>

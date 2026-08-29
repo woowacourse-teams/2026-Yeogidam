@@ -27,6 +27,7 @@ import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
 import { InBoxScreen } from './src/pages/inBox/inBoxScreen';
+import { HistoryScreen } from './src/pages/history/HistoryScreen';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
@@ -80,6 +81,7 @@ function App() {
   );
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
@@ -167,6 +169,7 @@ function App() {
         await syncShareAccessToken(null);
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
+        setIsHistoryVisible(false);
         setIsAuthReady(true);
         return;
       }
@@ -204,6 +207,7 @@ function App() {
       if (!session) {
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
+        setIsHistoryVisible(false);
         setIsMapPlaceDetailVisible(false);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
@@ -445,6 +449,10 @@ function App() {
   };
 
   const renderScreen = () => {
+    if (isHistoryVisible) {
+      return <HistoryScreen onBack={() => setIsHistoryVisible(false)} />;
+    }
+
     if (myPageOverlay === 'terms') {
       return <TermsAgreementScreen onBack={() => setMyPageOverlay(null)} />;
     }
@@ -513,7 +521,7 @@ function App() {
     }
 
     if (currentScreen === 'inBox') {
-      return <InBoxScreen />;
+      return <InBoxScreen onOpenHistory={() => setIsHistoryVisible(true)} />;
     }
 
     if (currentScreen === 'map') {
@@ -549,6 +557,7 @@ function App() {
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
     myPageOverlay === null &&
+    !isHistoryVisible &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';
