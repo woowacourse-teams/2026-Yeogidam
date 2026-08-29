@@ -7,7 +7,12 @@ import {ProfileSection} from './components/ProfileSection';
 import {SettingList} from './components/SettingList';
 
 const DEFAULT_NICKNAME = '여기담 사용자';
-const DEFAULT_DESCRIPTION = '소개가 아직 없어요.';
+const UNAVAILABLE_PROFILE: User = {
+  id: 'profile-unavailable',
+  nickname: DEFAULT_NICKNAME,
+  description: '',
+  avatarUrl: null,
+};
 
 type MyPageScreenProps = {
   currentProfile: ProfileInfo | null;
@@ -47,33 +52,44 @@ export function MyPageScreen({
     ? {
         id: currentProfile.id,
         nickname: currentProfile.nickname?.trim() || DEFAULT_NICKNAME,
-        description: currentProfile.description?.trim() || DEFAULT_DESCRIPTION,
+        description: currentProfile.description?.trim() || '',
         avatarUrl: currentProfile.avatarUrl?.trim() || null,
       }
     : null;
 
   const showReauthenticateAction = profileError?.errorCode === 'PROFILE404_001';
+  const isProfileUnavailable = !user && Boolean(profileError);
+  const displayedUser = user ?? (isProfileUnavailable ? UNAVAILABLE_PROFILE : null);
+  const unavailableNotice = isProfileUnavailable ? (
+    <View style={styles.errorBanner}>
+      <Text style={styles.errorBannerText}>잠시 후 다시 시도해주세요</Text>
+      {onRetryProfile ? (
+        <Pressable
+          disabled={isProfileLoading}
+          onPress={onRetryProfile}
+          style={({pressed}) => [
+            pressed && !isProfileLoading && styles.errorBannerActionPressed,
+          ]}>
+          <Text style={styles.errorBannerAction}>
+            {isProfileLoading ? '재시도 중...' : '재시도'}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  ) : null;
 
   return (
     <View style={styles.container}>
-      {user ? (
+      {displayedUser ? (
         <>
           <ProfileSection
-            onPressEditProfile={onOpenEditProfile}
-            user={user}
+            bottomContent={unavailableNotice}
+            isProfileUnavailable={isProfileUnavailable}
+            onPressEditProfile={
+              isProfileUnavailable ? undefined : onOpenEditProfile
+            }
+            user={displayedUser}
           />
-          {profileError ? (
-            <View style={styles.errorBanner}>
-              <Text numberOfLines={1} style={styles.errorBannerText}>
-                {profileError.message}
-              </Text>
-              {profileError.retryable && onRetryProfile ? (
-                <Pressable onPress={onRetryProfile}>
-                  <Text style={styles.errorBannerAction}>재시도</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
           <SettingList items={settingItems} />
         </>
       ) : isProfileLoading ? (
@@ -130,22 +146,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   errorBanner: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
-    backgroundColor: '#fff5f5',
+    backgroundColor: '#FFC7C7',
+    marginTop: 24,
     paddingHorizontal: 24,
     paddingVertical: 10,
   },
   errorBannerText: {
     flex: 1,
-    color: '#7c2d2d',
-    fontSize: 13,
+    color: '#121212',
+    fontSize: 15,
   },
   errorBannerAction: {
-    color: '#5c6fc8',
-    fontSize: 13,
+    color: '#2563eb',
+    fontSize: 15,
     fontWeight: '700',
+  },
+  errorBannerActionPressed: {
+    opacity: 0.7,
   },
 });

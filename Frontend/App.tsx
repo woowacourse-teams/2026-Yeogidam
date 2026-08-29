@@ -430,7 +430,6 @@ function App() {
 
   const handleRetryProfile = async () => {
     setIsProfileLoading(true);
-    setProfileError(null);
 
     try {
       const profile = await getCurrentProfile();
