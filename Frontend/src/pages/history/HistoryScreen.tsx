@@ -41,7 +41,9 @@ function HistorySuccessDetail({onBack}: {onBack: () => void}) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={onBack} style={styles.backButton}><Text style={styles.back}>‹</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="대기함으로 돌아가기" hitSlop={12} onPress={onBack} style={styles.backButton}>
+          <Text style={styles.back}>‹</Text>
+        </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -76,7 +78,9 @@ function HistoryFailureDetail({onBack}: {onBack: () => void}) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={onBack} style={styles.backButton}><Text style={styles.back}>‹</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="히스토리 목록으로 돌아가기" hitSlop={12} onPress={onBack} style={styles.backButton}>
+          <Text style={styles.back}>‹</Text>
+        </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -168,10 +172,10 @@ export function HistoryScreen({onBack, groups = defaultGroups}: HistoryScreenPro
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: '#fff'},
-  header: {height: 60, paddingHorizontal: 5, flexDirection: 'row', alignItems: 'center', gap: 10},
-  backButton: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center'},
+  header: {height: 84, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center'},
+  backButton: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center'},
   back: {fontSize: 30, lineHeight: 34, color: 'rgba(0,0,0,.61)', fontWeight: '500'},
-  headerTitle: {fontSize: 20, fontWeight: '700', color: '#1a1a2e'},
+  headerTitle: {fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginLeft: 14},
   headerSpacer: {flex: 1},
   previewToggle: {marginLeft: 'auto', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: '#f3f4fb'},
   previewToggleText: {fontSize: 12, fontWeight: '700', color: '#5c6fc8'},
