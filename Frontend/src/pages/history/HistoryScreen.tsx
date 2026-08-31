@@ -3,8 +3,8 @@ import {Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View} fr
 import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
 import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
-import {getHistoryReels} from '../../entities/content/api';
-import type {HistoryCursor, HistoryReel} from '../../entities/content/types';
+import {getHistoryReelDetail, getHistoryReels} from '../../entities/content/api';
+import type {HistoryCursor, HistoryPlace, HistoryReel, HistoryReelDetail} from '../../entities/content/types';
 
 type HistoryScreenProps = {onBack: () => void};
 
@@ -66,7 +66,28 @@ function formatHistoryDate(createdAt: string) {
   return `${year}.${month}.${day}`;
 }
 
-function HistorySuccessDetail({onBack, originalUrl}: {onBack: () => void; originalUrl: string | null}) {
+function useHistoryReelDetail(reelId: string) {
+  const [detail, setDetail] = useState<HistoryReelDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(false);
+    getHistoryReelDetail(reelId)
+      .then(setDetail)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [reelId]);
+
+  return {detail, loading, error};
+}
+
+function HistorySuccessDetail({onBack, reel}: {onBack: () => void; reel: HistoryReel}) {
+  const {detail, loading, error} = useHistoryReelDetail(reel.id);
+  const displayReel = detail ?? reel;
+  const places = detail?.reel_places.map(item => item.place).filter((place): place is HistoryPlace => Boolean(place)) ?? [];
+  const originalUrl = displayReel.instagram_url;
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -80,7 +101,9 @@ function HistorySuccessDetail({onBack, originalUrl}: {onBack: () => void; origin
         <View style={styles.detailHero}>
           <Image source={{uri: detailCharacter}} style={styles.detailCharacter} />
           <Text style={styles.detailTitle}>장소 분석이 완료되었어요!</Text>
-          <Text style={styles.detailSubtitle}>총 2개의 장소를 찾았어요</Text>
+          <Text style={styles.detailSubtitle}>
+            {loading ? '장소를 확인하고 있어요.' : `총 ${places.length}개의 장소를 찾았어요`}
+          </Text>
         </View>
         <Pressable
           disabled={!originalUrl}
@@ -96,11 +119,11 @@ function HistorySuccessDetail({onBack, originalUrl}: {onBack: () => void; origin
         </Pressable>
         <Text style={styles.foundTitle}>발견한 장소</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.placeRow}>
-          {['장소명', '장소명', '장소명', '장소명'].map((name, index) => (
-            <View key={`${name}-${index}`} style={styles.placeCard}>
-              <Image source={{uri: placeThumbnail}} style={styles.placeImage} />
-              <Text style={styles.placeName}>{name}</Text>
-              <Text style={styles.placeAddress}>서울 성동구</Text>
+          {loading ? <Text style={styles.placeState}>장소를 불러오는 중이에요.</Text> : error ? <Text style={styles.placeState}>장소를 불러오지 못했어요.</Text> : places.length === 0 ? <Text style={styles.placeState}>발견한 장소가 없어요.</Text> : places.map(place => (
+            <View key={place.id} style={styles.placeCard}>
+              <Image source={{uri: place.thumbnail_url ?? placeThumbnail}} style={styles.placeImage} />
+              <Text numberOfLines={1} style={styles.placeName}>{place.name}</Text>
+              <Text numberOfLines={1} style={styles.placeAddress}>{place.road_address ?? place.address ?? ''}</Text>
             </View>
           ))}
         </ScrollView>
@@ -110,7 +133,7 @@ function HistorySuccessDetail({onBack, originalUrl}: {onBack: () => void; origin
   );
 }
 
-function HistoryFailureDetail({onBack, originalUrl}: {onBack: () => void; originalUrl: string | null}) {
+function HistoryFailureDetail({onBack}: {onBack: () => void}) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -126,14 +149,7 @@ function HistoryFailureDetail({onBack, originalUrl}: {onBack: () => void; origin
           <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
           <Text style={styles.failureDescription}>해당 장소에서 장소 정보를{ '\n' }찾지 못햇어요</Text>
         </View>
-        <Pressable
-          disabled={!originalUrl}
-          onPress={() => {
-            if (originalUrl) {
-              void Linking.openURL(originalUrl);
-            }
-          }}
-          style={[styles.originalButton, !originalUrl && styles.disabledButton]}>
+        <Pressable style={styles.originalButton}>
           <InstagramIcon width={28} height={27} />
           <Text style={styles.originalText}>원본 릴스로 이동</Text>
           <Text style={styles.detailChevron}>›</Text>
@@ -204,7 +220,7 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
           setSelectedSuccess(false);
           setSelectedReel(null);
         }}
-        originalUrl={selectedReel?.instagram_url ?? null}
+        reel={selectedReel as HistoryReel}
       />
     );
   }
@@ -215,7 +231,6 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
           setSelectedFailure(false);
           setSelectedReel(null);
         }}
-        originalUrl={selectedReel?.instagram_url ?? null}
       />
     );
   }
@@ -285,6 +300,7 @@ const styles = StyleSheet.create({
   placeImage: {width: 98, height: 98, borderRadius: 2},
   placeName: {fontSize: 13, fontWeight: '800', color: '#1a1a2e', marginTop: 2},
   placeAddress: {fontSize: 9, color: '#8e8e93', marginTop: 3},
+  placeState: {fontSize: 13, color: '#8e8e93', paddingTop: 24},
   failureContent: {paddingBottom: 60},
   failureHero: {alignItems: 'center', marginTop: 44},
   failureDescription: {fontSize: 14, lineHeight: 22.4, color: '#8e8e93', textAlign: 'center', marginTop: 6},

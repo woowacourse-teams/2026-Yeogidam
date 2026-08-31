@@ -6,6 +6,7 @@ import type {
   ReelProcessingStatus,
   HistoryCursor,
   HistoryReel,
+  HistoryReelDetail,
 } from './types';
 import {normalizeReelStatusError, reelErrorFromEnvelope, ReelApiError} from './errors';
 
@@ -13,6 +14,28 @@ const REEL_STATUS_SELECT =
   'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
 const HISTORY_SELECT =
   'id,instagram_url,instagram_title,instagram_description,instagram_author_username,instagram_thumbnail_url,processing_status,failure_reason,save_mode,created_at';
+const HISTORY_DETAIL_SELECT = `${HISTORY_SELECT},reel_places(id,position,review_status,reviewed_at,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution))`;
+
+export async function getHistoryReelDetail(
+  reelId: string,
+): Promise<HistoryReelDetail | null> {
+  const request = () =>
+    supabase
+      .from('reels')
+      .select(HISTORY_DETAIL_SELECT)
+      .eq('id', reelId)
+      .order('position', {ascending: true, referencedTable: 'reel_places'})
+      .limit(1)
+      .returns<HistoryReelDetail[]>();
+
+  let {data, error} = await request();
+  if ((error as {status?: number} | null)?.status === 401) {
+    const {error: refreshError} = await supabase.auth.refreshSession();
+    if (!refreshError) ({data, error} = await request());
+  }
+  if (error) throw error;
+  return data?.[0] ?? null;
+}
 
 export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
@@ -48,6 +71,7 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   }
 
   const rows = (data ?? []) as unknown as HistoryReel[];
+  console.warn('[History API] raw reels response', rows);
   const reels = rows.slice(0, 50);
   const last = reels.length === 50 ? reels[reels.length - 1] : null;
   return {
