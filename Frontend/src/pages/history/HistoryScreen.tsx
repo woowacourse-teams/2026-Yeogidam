@@ -35,6 +35,18 @@ function HistoryItem({reel, onPress}: {reel: HistoryReel; onPress?: () => void})
   );
 }
 
+function formatHistoryDate(createdAt: string) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) {
+    return createdAt;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}.${month}.${day}`;
+}
+
 function HistorySuccessDetail({onBack}: {onBack: () => void}) {
   return (
     <View style={styles.container}>
@@ -142,6 +154,15 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
 
   useEffect(() => { void load(); }, [load]);
 
+  const groupedReels = reels.reduce<Record<string, HistoryReel[]>>(
+    (groups, reel) => {
+      const date = formatHistoryDate(reel.created_at);
+      groups[date] = groups[date] ? [...groups[date], reel] : [reel];
+      return groups;
+    },
+    {},
+  );
+
   if (selectedSuccess) {
     return <HistorySuccessDetail onBack={() => setSelectedSuccess(false)} />;
   }
@@ -169,7 +190,12 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
               <Text style={styles.emptyDescription}>인스타그램 릴스나 유튜브 쇼츠에서{ '\n' }공유하기를 통해 여기담에 저장해보세요.</Text>
             </View>
           </View>
-        ) : reels.map(reel => <HistoryItem key={reel.id} reel={reel} onPress={reel.processing_status === 'COMPLETED' ? () => setSelectedSuccess(true) : reel.processing_status === 'FAILED' ? () => setSelectedFailure(true) : undefined} />)}
+        ) : Object.entries(groupedReels).map(([date, dateReels]) => (
+          <View key={date} style={styles.group}>
+            <Text style={styles.date}>{date}</Text>
+            {dateReels.map(reel => <HistoryItem key={reel.id} reel={reel} onPress={reel.processing_status === 'COMPLETED' ? () => setSelectedSuccess(true) : reel.processing_status === 'FAILED' ? () => setSelectedFailure(true) : undefined} />)}
+          </View>
+        ))}
         {cursor ? <Pressable disabled={loadingMore} onPress={() => load(cursor)} style={styles.moreButton}><Text style={styles.retryText}>{loadingMore ? '불러오는 중...' : '이전 기록 더 보기'}</Text></Pressable> : null}
       </ScrollView>
       <View style={styles.homeIndicator} />
