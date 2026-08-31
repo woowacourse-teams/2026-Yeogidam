@@ -239,6 +239,7 @@ type SavedPlacesScreenProps = {
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
   places?: Place[];
+  onPlacesChange?: (places: Place[]) => void;
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
   onSharedResultDismissed?: (requestId?: string) => Promise<void>;
 };
@@ -272,6 +273,7 @@ export function SavedPlacesScreen({
   onAuthenticationRequired,
   onEditModeChange,
   onRequireLogin,
+  onPlacesChange,
   places: providedPlaces,
   onSharedResultConsumed,
   onSharedResultDismissed,
@@ -329,6 +331,7 @@ export function SavedPlacesScreen({
       const savedPlaces = await getSavedPlaces();
       const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
       setPlaces(nextPlaces);
+      onPlacesChange?.(nextPlaces);
       return nextPlaces;
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
@@ -340,11 +343,38 @@ export function SavedPlacesScreen({
     } finally {
       setIsLoading(false);
     }
-  }, [onAuthenticationRequired, providedPlaces]);
+  }, [onAuthenticationRequired, onPlacesChange, providedPlaces]);
 
   useEffect(() => {
     loadSavedPlaces();
   }, [loadSavedPlaces]);
+
+  useEffect(() => {
+    if (providedPlaces !== undefined) {
+      setPlaces(providedPlaces);
+    }
+  }, [providedPlaces]);
+
+  const refreshSavedPlaces = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const savedPlaces = await getSavedPlaces();
+      const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
+      setPlaces(nextPlaces);
+      onPlacesChange?.(nextPlaces);
+      return nextPlaces;
+    } catch (nextError) {
+      const apiError = nextError as SavedPlacesApiError;
+      setError(apiError);
+      if (apiError.errorCode === 'AUTH401_001') {
+        onAuthenticationRequired?.();
+      }
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [onAuthenticationRequired, onPlacesChange]);
 
   useEffect(() => {
     let isMounted = true;
@@ -946,11 +976,11 @@ export function SavedPlacesScreen({
 
     // 저장 API의 즉시 완료 응답, 상태 폴링 완료, 공유 상태 복원 중 어느
     // 경로로 완료되더라도 최신 저장 장소를 보관함에 바로 반영합니다.
-    void loadSavedPlaces();
+    void refreshSavedPlaces();
 
     const timeoutId = setTimeout(() => setShowSaveSuccess(false), 1800);
     return () => clearTimeout(timeoutId);
-  }, [loadSavedPlaces, showSaveSuccess]);
+  }, [refreshSavedPlaces, showSaveSuccess]);
 
   const scrollToTop = () => {
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
@@ -1006,16 +1036,18 @@ export function SavedPlacesScreen({
     try {
       await deleteSavedPlaces(savedPlaceIds);
       const deletedIds = new Set(savedPlaceIds);
-      setPlaces(current =>
-        current.filter(place => !deletedIds.has(place.savedPlaceId ?? '')),
+      const nextPlaces = places.filter(
+        place => !deletedIds.has(place.savedPlaceId ?? ''),
       );
+      setPlaces(nextPlaces);
+      onPlacesChange?.(nextPlaces);
       setSelectedPlaceIds(new Set());
       setIsEditing(false);
       onEditModeChange?.(false);
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
       if (apiError.errorCode === 'CLIENT000_002') {
-        const refreshedPlaces = await loadSavedPlaces();
+        const refreshedPlaces = await refreshSavedPlaces();
         const deletedIds = new Set(savedPlaceIds);
         const isDeletionConfirmed =
           refreshedPlaces !== null &&
@@ -1038,9 +1070,10 @@ export function SavedPlacesScreen({
     }
   }, [
     isDeleting,
-    loadSavedPlaces,
+    refreshSavedPlaces,
     onAuthenticationRequired,
     onEditModeChange,
+    onPlacesChange,
     places,
     selectedPlaceIds,
   ]);

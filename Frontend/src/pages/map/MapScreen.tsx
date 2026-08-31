@@ -5,7 +5,14 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Keyboard,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
@@ -54,6 +61,7 @@ export function MapScreen({
   const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
+  const [detailBackSignal, setDetailBackSignal] = useState(0);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
     signal: number;
@@ -231,10 +239,27 @@ export function MapScreen({
     }
   };
 
+  const detailBackResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gestureState) =>
+      isPlaceDetailVisible &&
+      gestureState.x0 <= 24 &&
+      gestureState.dx > 12 &&
+      Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+    onPanResponderRelease: (_event, gestureState) => {
+      if (
+        gestureState.dx >= 72 &&
+        Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
+      ) {
+        setDetailBackSignal(signal => signal + 1);
+      }
+    },
+  });
+
   return (
     <View
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
+      {...detailBackResponder.panHandlers}
     >
       <View style={[styles.mapStage, { marginBottom: mapBottomOffset }]}>
         <View style={styles.mapViewport}>
@@ -384,6 +409,7 @@ export function MapScreen({
               setCameraMoveRequestId(requestId => requestId + 1);
             }}
             collapseSignal={collapseSignal}
+            detailBackSignal={detailBackSignal}
             onDetailViewChange={isDetailView => {
               setIsPlaceDetailVisible(isDetailView);
               onDetailViewChange?.(isDetailView);

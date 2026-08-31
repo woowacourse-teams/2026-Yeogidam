@@ -1,5 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  AppState,
+  Dimensions,
+  PanResponder,
+  StatusBar,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { configureDataSources } from './src/app/configureDataSources';
@@ -80,10 +89,16 @@ function App() {
   );
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
+  const [savedPlaces, setSavedPlaces] = useState<Place[] | undefined>(
+    undefined,
+  );
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
+  const [isSwipeBackActive, setIsSwipeBackActive] = useState(false);
+  const swipeBackTranslation = useRef(new Animated.Value(0)).current;
+  const screenWidth = Dimensions.get('window').width;
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -168,6 +183,7 @@ function App() {
         await syncShareAccessToken(null);
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
+        setSavedPlaces(undefined);
         setIsAuthReady(true);
         return;
       }
@@ -205,6 +221,7 @@ function App() {
       if (!session) {
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
+        setSavedPlaces(undefined);
         setIsMapPlaceDetailVisible(false);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
@@ -423,6 +440,7 @@ function App() {
     setCurrentProfile(null);
     setProfileError(null);
     setMyPageOverlay(null);
+    setSavedPlaces(undefined);
 
     await supabase.auth.signOut({ scope: 'local' });
     setFlowState(INITIAL_FLOW_STATE);
@@ -444,12 +462,97 @@ function App() {
     }
   };
 
-  const renderScreen = () => {
-    if (myPageOverlay === 'terms') {
+  const canSwipeBack =
+    myPageOverlay !== null ||
+    currentScreen === 'emailLogin' ||
+    currentScreen === 'signup' ||
+    currentScreen === 'terms' ||
+    currentScreen === 'detail';
+
+  const handleSwipeBack = () => {
+    if (myPageOverlay !== null) {
+      setMyPageOverlay(null);
+      return;
+    }
+
+    if (currentScreen === 'detail') {
+      closeDetail();
+      return;
+    }
+
+    popAuthScreen();
+  };
+
+  const resetSwipeBack = () => {
+    Animated.spring(swipeBackTranslation, {
+      toValue: 0,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 80,
+    }).start(({ finished }) => {
+      if (finished) {
+        setIsSwipeBackActive(false);
+      }
+    });
+  };
+
+  const completeSwipeBack = () => {
+    Animated.timing(swipeBackTranslation, {
+      toValue: screenWidth,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) {
+        return;
+      }
+
+      handleSwipeBack();
+      setIsSwipeBackActive(false);
+    });
+  };
+
+  useEffect(() => {
+    if (!isSwipeBackActive) {
+      swipeBackTranslation.setValue(0);
+    }
+  }, [isSwipeBackActive, swipeBackTranslation]);
+
+  // Start only at the left edge so scrollable content keeps its own gestures.
+  const swipeBackResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gestureState) =>
+      canSwipeBack &&
+      gestureState.x0 <= 24 &&
+      gestureState.dx > 12 &&
+      Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+    onPanResponderGrant: () => setIsSwipeBackActive(true),
+    onPanResponderMove: (_event, gestureState) => {
+      swipeBackTranslation.setValue(
+        Math.min(Math.max(gestureState.dx, 0), screenWidth),
+      );
+    },
+    onPanResponderRelease: (_event, gestureState) => {
+      if (
+        gestureState.dx >= 72 &&
+        Math.abs(gestureState.dx) > Math.abs(gestureState.dy)
+      ) {
+        completeSwipeBack();
+        return;
+      }
+
+      resetSwipeBack();
+    },
+    onPanResponderTerminate: resetSwipeBack,
+  });
+
+  const renderScreen = (
+    screen: Screen = currentScreen,
+    overlay: MyPageOverlay = myPageOverlay,
+  ) => {
+    if (overlay === 'terms') {
       return <TermsAgreementScreen onBack={() => setMyPageOverlay(null)} />;
     }
 
-    if (myPageOverlay === 'accountDeletion') {
+    if (overlay === 'accountDeletion') {
       return (
         <AccountDeletionScreen
           linkedProviders={linkedDeletionProviders}
@@ -459,7 +562,7 @@ function App() {
       );
     }
 
-    if (currentScreen === 'login') {
+    if (screen === 'login') {
       return (
         <LoginScreen
           isAppleLoginAvailable={isAppleSignInSupported}
@@ -474,7 +577,7 @@ function App() {
       );
     }
 
-    if (currentScreen === 'emailLogin') {
+    if (screen === 'emailLogin') {
       return (
         <EmailLoginScreen
           onBack={popAuthScreen}
@@ -485,7 +588,7 @@ function App() {
       );
     }
 
-    if (currentScreen === 'signup') {
+    if (screen === 'signup') {
       return (
         <SignUpScreen
           onBack={popAuthScreen}
@@ -496,28 +599,36 @@ function App() {
       );
     }
 
-    if (currentScreen === 'terms') {
+    if (screen === 'terms') {
       return <TermsAgreementScreen onBack={popAuthScreen} />;
     }
 
-    if (currentScreen === 'saved') {
+    if (screen === 'saved') {
       return (
         <SavedPlacesScreen
-          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onAuthenticationRequired={() => {
+            setSavedPlaces(undefined);
+            setFlowState(INITIAL_FLOW_STATE);
+          }}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={place => openDetailFrom('saved', place)}
-          onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
+          onPlacesChange={setSavedPlaces}
+          onRequireLogin={() => {
+            setSavedPlaces(undefined);
+            setFlowState(INITIAL_FLOW_STATE);
+          }}
           onSharedResultConsumed={clearShareResult}
           onSharedResultDismissed={clearShareResult}
+          places={savedPlaces}
         />
       );
     }
 
-    if (currentScreen === 'inBox') {
+    if (screen === 'inBox') {
       return <InBoxScreen />;
     }
 
-    if (currentScreen === 'map') {
+    if (screen === 'map') {
       return (
         <MapScreen
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
@@ -526,7 +637,7 @@ function App() {
       );
     }
 
-    if (currentScreen === 'detail' && selectedPlace) {
+    if (screen === 'detail' && selectedPlace) {
       return (
         <PlaceDetailScreen
           onBack={closeDetail}
@@ -551,6 +662,22 @@ function App() {
     );
   };
 
+  const renderPreviousScreen = () => {
+    if (myPageOverlay !== null) {
+      return renderScreen('my', null);
+    }
+
+    if (currentScreen === 'detail' && flowState.kind === 'main') {
+      return renderScreen(flowState.activeTab, null);
+    }
+
+    if (flowState.kind === 'auth' && flowState.stack.length > 1) {
+      return renderScreen(flowState.stack[flowState.stack.length - 2], null);
+    }
+
+    return null;
+  };
+
   const showTabBar =
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
@@ -560,6 +687,14 @@ function App() {
 
   const isMapScreen = currentScreen === 'map';
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
+  const previousMainScreen =
+    canSwipeBack && flowState.kind === 'main'
+      ? flowState.activeTab
+      : undefined;
+  const showPreviousTabBar =
+    previousMainScreen !== undefined &&
+    !isSavedPlacesEditing &&
+    !(previousMainScreen === 'map' && isMapPlaceDetailVisible);
 
   if (!isAuthReady || isSplashVisible) {
     return (
@@ -581,10 +716,32 @@ function App() {
           backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
           translucent={isMapScreen}
         />
-        <View style={styles.container}>
-          {renderScreen()}
-          {showTabBar && activeTab ? (
+        <View style={styles.container} {...swipeBackResponder.panHandlers}>
+          <View pointerEvents={canSwipeBack ? 'none' : 'auto'} style={styles.screen}>
+            {canSwipeBack ? renderPreviousScreen() : renderScreen()}
+          </View>
+          {canSwipeBack && showPreviousTabBar ? (
+            <View pointerEvents="none">
+              <BottomNavigationBar
+                active={previousMainScreen}
+                onNavigate={openMainScreen}
+              />
+            </View>
+          ) : null}
+          {!canSwipeBack && showTabBar && activeTab ? (
             <BottomNavigationBar active={activeTab} onNavigate={openMainScreen} />
+          ) : null}
+          {canSwipeBack ? (
+            <Animated.View
+              style={[
+                styles.outgoingScreen,
+                isSwipeBackActive
+                  ? { transform: [{ translateX: swipeBackTranslation }] }
+                  : undefined,
+              ]}
+            >
+              {renderScreen()}
+            </Animated.View>
           ) : null}
         </View>
       </SafeAreaView>
@@ -600,6 +757,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  screen: {
+    flex: 1,
+  },
+  outgoingScreen: {
+    ...StyleSheet.absoluteFill,
   },
 });
 

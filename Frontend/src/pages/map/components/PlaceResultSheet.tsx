@@ -45,6 +45,7 @@ type PlaceResultSheetProps = {
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
+  detailBackSignal?: number;
   expandSignal?: number;
   openPlace?: Place | null;
   openPlaceId?: string;
@@ -74,6 +75,7 @@ export function PlaceResultSheet({
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
+  detailBackSignal = 0,
   expandSignal = 0,
   openPlace,
   openPlaceId,
@@ -116,6 +118,7 @@ export function PlaceResultSheet({
   const startedInPageMode = useRef(false);
   const previousSheetHeight = useRef(sheetHeight);
   const handledCollapseSignal = useRef(collapseSignal);
+  const handledDetailBackSignal = useRef(detailBackSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
   const isPageModeRef = useRef(false);
@@ -401,6 +404,17 @@ export function PlaceResultSheet({
     onPlaceDetailBack?.();
     setSelectedPlace(null);
   }, [onPlaceDetailBack]);
+
+  useEffect(() => {
+    if (detailBackSignal === handledDetailBackSignal.current) {
+      return;
+    }
+
+    handledDetailBackSignal.current = detailBackSignal;
+    if (selectedPlace) {
+      backToPlaceList();
+    }
+  }, [backToPlaceList, detailBackSignal, selectedPlace]);
 
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
