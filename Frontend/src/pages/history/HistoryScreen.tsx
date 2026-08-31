@@ -34,7 +34,11 @@ function HistoryItem({reel, onPress}: {reel: HistoryReel; onPress?: () => void})
   const label = completed ? '성공' : processing ? '분석 중' : '실패';
   return (
     <Pressable accessibilityRole="button" onPress={onPress} style={styles.item}>
-      <Image source={{uri: reel.instagram_thumbnail_url ?? thumbnail}} style={styles.thumbnail} />
+      <Image
+        source={{uri: reel.instagram_thumbnail_url ?? thumbnail}}
+        resizeMode="cover"
+        style={styles.thumbnail}
+      />
       <View style={styles.itemText}>
         <View style={[styles.badge, completed ? styles.successBadge : processing ? styles.processingBadge : styles.failureBadge]}>
           <Text style={[styles.badgeText, completed ? styles.successText : processing ? styles.processingText : styles.failureText]}>
@@ -223,7 +227,7 @@ const styles = StyleSheet.create({
   header: {height: 84, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center'},
   backButton: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center'},
   back: {fontSize: 30, lineHeight: 34, color: 'rgba(0,0,0,.61)', fontWeight: '500'},
-  headerTitle: {fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginLeft: 14},
+  headerTitle: {fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginLeft: 17},
   headerSpacer: {flex: 1},
   previewToggle: {marginLeft: 'auto', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: '#f3f4fb'},
   previewToggleText: {fontSize: 12, fontWeight: '700', color: '#5c6fc8'},
