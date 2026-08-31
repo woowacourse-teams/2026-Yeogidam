@@ -407,9 +407,10 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
     }
   }, []);
-  const load = useCallback(async (nextCursor?: HistoryCursor | null) => {
+  const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
     setError(false);
-    nextCursor ? setLoadingMore(true) : setLoading(true);
+    if (nextCursor) setLoadingMore(true);
+    else if (!silent) setLoading(true);
     try {
       const result = await getHistoryReels(nextCursor ?? undefined);
       setReels(current =>
@@ -426,6 +427,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const refresh = setInterval(() => {
+      void load(undefined, true);
+    }, 5000);
+
+    return () => clearInterval(refresh);
   }, [load]);
 
   useEffect(() => {
