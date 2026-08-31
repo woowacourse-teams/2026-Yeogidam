@@ -14,6 +14,19 @@ const emptyCharacter = 'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8
 const detailCharacter = 'https://www.figma.com/api/mcp/asset/7be73af3-e4e8-417a-9664-9dbe530b90f2.png';
 const failureCharacter = 'https://www.figma.com/api/mcp/asset/b1cdc2ef-0cfa-47ed-b534-cbe706d9bb97.png';
 const placeThumbnail = 'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
+const CAPTION_QUOTE_PATTERN = /["“”＂]/;
+
+function getHistoryTitle(reel: HistoryReel) {
+  const source = reel.instagram_description?.trim() || reel.instagram_title?.trim();
+  if (!source) return '저장한 콘텐츠';
+
+  const quoteMatch = source.match(CAPTION_QUOTE_PATTERN);
+  const content = quoteMatch
+    ? source.slice((quoteMatch.index ?? -1) + 1)
+    : source;
+
+  return content.split('\n')[0]?.trim() || '저장한 콘텐츠';
+}
 
 function HistoryItem({reel, onPress}: {reel: HistoryReel; onPress?: () => void}) {
   const completed = reel.processing_status === 'COMPLETED';
@@ -28,7 +41,9 @@ function HistoryItem({reel, onPress}: {reel: HistoryReel; onPress?: () => void})
             {label}
           </Text>
         </View>
-        <Text numberOfLines={1} style={styles.title}>{reel.instagram_title || reel.instagram_description || '저장한 콘텐츠'}</Text>
+        <Text numberOfLines={1} style={styles.title}>
+          {getHistoryTitle(reel)}
+        </Text>
       </View>
       <Text style={styles.chevron}>›</Text>
     </Pressable>
