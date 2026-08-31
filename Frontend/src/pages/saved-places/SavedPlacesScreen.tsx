@@ -222,22 +222,13 @@ function canRetryFailure(reason: string | null): boolean {
   ].includes(getFailureCode(reason) ?? '');
 }
 
-function getStatusQueryMessage(error: ReelApiError): string {
-  if (error.errorCode === 'CLIENT000_001') {
-    return '인터넷 연결을 확인해주세요.';
-  }
-  if (error.errorCode === 'CLIENT000_002') {
-    return '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.';
-  }
-  return error.message;
-}
-
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place) => void;
   onAuthenticationRequired?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
+  onOpenInbox?: () => void;
   places?: Place[];
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
   onSharedResultDismissed?: (requestId?: string) => Promise<void>;
@@ -272,6 +263,7 @@ export function SavedPlacesScreen({
   onAuthenticationRequired,
   onEditModeChange,
   onRequireLogin,
+  onOpenInbox,
   places: providedPlaces,
   onSharedResultConsumed,
   onSharedResultDismissed,
@@ -298,7 +290,7 @@ export function SavedPlacesScreen({
     useState<ReelProcessingStatus | null>(null);
   const [processingUrl, setProcessingUrl] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(
+  const [_statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(
     null,
   );
   const [isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
@@ -631,11 +623,15 @@ export function SavedPlacesScreen({
         status: response.status,
         source: 'url_input',
         reused: response.reused,
+        saveMode: response.saveMode,
         reel: nextReel,
       });
       handleSaveResponse(response, normalizedUrl, 'url_input');
       setIsDialogVisible(false);
       setLinkValue('');
+      if (response.saveMode === 'REVIEW_QUEUE') {
+        onOpenInbox?.();
+      }
     } catch (error) {
       const normalizedError = normalizeReelError(error);
       setLastRequestId(normalizedError.requestId ?? null);
@@ -1137,30 +1133,6 @@ export function SavedPlacesScreen({
               // reused 값과 관계없이 동일 URL로 저장 요청을 다시 보냅니다.
               onRetry={
                 isSaveResponseFailure && canRetryFailure(processingReel.failure_reason)
-                  ? retryProcessing
-                  : undefined
-              }
-            />
-          ) : processingReel &&
-            processingReel.processing_status !== 'COMPLETED' &&
-            (processingReelId !== null ||
-              processingReel.processing_status === 'PENDING' ||
-              statusQueryError !== null) ? (
-            <ReelStatusCard
-              status={statusQueryError ? 'FAILED' : 'PROCESSING'}
-              message={
-                statusQueryError
-                  ? getStatusQueryMessage(statusQueryError)
-                  : '릴스에서 장소를 찾고 있어요.'
-              }
-              description={
-                statusQueryError
-                  ? '잠시 후 다시 시도하거나 카드를 닫아주세요.'
-                  : '처리가 완료되면 보관함에 반영됩니다.'
-              }
-              onCancel={dismissProcessingCard}
-              onRetry={
-                statusQueryError?.retryable
                   ? retryProcessing
                   : undefined
               }

@@ -26,7 +26,7 @@ type NativeShareIntentModule = {
   clearShareResult?(requestId: string | null): Promise<void>;
 };
 
-export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; reelId?: string; failureReason?: string; retryable?: boolean; updatedAt: number; reused?: boolean};
+export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; reelId?: string; failureReason?: string; retryable?: boolean; updatedAt: number; reused?: boolean; saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE'};
 
 export type SharedContentSubscription = {
   remove: () => void;

@@ -16,6 +16,7 @@ internal data class ShareReelResult(
     val retryable: Boolean,
     val updatedAt: Long = System.currentTimeMillis(),
     val reused: Boolean? = null,
+    val saveMode: String? = null,
 ) {
     fun toJson(): JSONObject =
         JSONObject().apply {
@@ -29,6 +30,7 @@ internal data class ShareReelResult(
             put("retryable", retryable)
             put("updatedAt", updatedAt)
             put("reused", reused ?: JSONObject.NULL)
+            put("saveMode", saveMode ?: JSONObject.NULL)
         }
 
     fun toWritableMap(): WritableMap =
@@ -43,6 +45,7 @@ internal data class ShareReelResult(
             putBoolean("retryable", retryable)
             putDouble("updatedAt", updatedAt.toDouble())
             reused?.let { putBoolean("reused", it) }
+            saveMode?.let { putString("saveMode", it) }
         }
 
     companion object {
@@ -60,6 +63,7 @@ internal data class ShareReelResult(
                     retryable = json.optBoolean("retryable", false),
                     updatedAt = json.getLong("updatedAt"),
                     reused = if (json.isNull("reused")) null else json.getBoolean("reused"),
+                    saveMode = json.optStringOrNull("saveMode"),
                 )
             }.getOrNull()
     }

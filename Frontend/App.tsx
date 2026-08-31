@@ -73,6 +73,7 @@ function App() {
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
   const lastHandledShareResultRef = useRef<string | null>(null);
+  const lastLoggedShareResultsRef = useRef<string | null>(null);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
     null,
   );
@@ -258,6 +259,28 @@ function App() {
             ? results.find(item => item.requestId === activeRequestId) ??
               results[0]
             : results[0];
+          const resultSummary = results.map(item =>
+            [
+              `requestId=${item.requestId ?? 'none'}`,
+              `status=${item.status}`,
+              `reelId=${item.reelId ?? 'none'}`,
+              `failureReason=${item.failureReason ?? 'none'}`,
+              `retryable=${item.retryable ?? false}`,
+              `updatedAt=${item.updatedAt}`,
+            ].join(' | '),
+          );
+          const resultSnapshot = JSON.stringify({
+            activeRequestId: activeRequestId ?? null,
+            resultSummary,
+          });
+          if (__DEV__ && lastLoggedShareResultsRef.current !== resultSnapshot) {
+            lastLoggedShareResultsRef.current = resultSnapshot;
+            console.log(
+              '[InstagramShare][native-results]',
+              `activeRequestId=${activeRequestId ?? 'none'}`,
+              ...resultSummary,
+            );
+          }
           if (!result) {
             lastHandledShareResultRef.current = null;
             if (currentShareState?.source === 'instagram_share') {
@@ -270,6 +293,20 @@ function App() {
           }`;
           if (lastHandledShareResultRef.current === resultKey) return;
           lastHandledShareResultRef.current = resultKey;
+          if (__DEV__) {
+            console.log('[InstagramShare][native-result-selected]', {
+              requestId: result.requestId ?? null,
+              requestSentAt: result.requestSentAt ?? null,
+              url: result.url,
+              status: result.status,
+              reelId: result.reelId ?? null,
+              failureReason: result.failureReason ?? null,
+              retryable: result.retryable ?? null,
+              updatedAt: result.updatedAt,
+              reused: result.reused ?? null,
+              saveMode: result.saveMode ?? null,
+            });
+          }
           setSharedSaveState({
             shareResultId: result.requestId,
             url: result.url,
@@ -277,6 +314,7 @@ function App() {
             source: 'instagram_share',
             rawSharedText: result.rawSharedText,
             reused: result.reused,
+            saveMode: result.saveMode,
             reel: {
               id: result.reelId ?? `share-${Date.now()}`,
               processing_status: result.status,
@@ -285,9 +323,13 @@ function App() {
               created_at: new Date(result.updatedAt).toISOString(),
             },
           });
-          openMainScreen('saved');
+          openMainScreen(result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox');
         })
-        .catch(() => undefined);
+        .catch(error => {
+          if (__DEV__) {
+            console.error('[InstagramShare][native-results-error]', error);
+          }
+        });
     };
 
     consumePendingSharedContent();
@@ -515,6 +557,7 @@ function App() {
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
+          onOpenInbox={() => openMainScreen('inBox')}
           onSharedResultConsumed={clearShareResult}
           onSharedResultDismissed={clearShareResult}
         />

@@ -68,7 +68,7 @@ final class ShareViewController: UIViewController {
     }
     let urlString = configuration.url
     let publishableKey = configuration.publishableKey
-    guard let endpoint = URL(string: "\(urlString)/functions/v1/save-instagram-reel") else { throw ShareIntentStorageError.appGroupUnavailable }
+    guard let endpoint = URL(string: "\(urlString)/functions/v1/save-instagram-reel-v2") else { throw ShareIntentStorageError.appGroupUnavailable }
     guard let token = ShareIntentStorage.accessToken(), !token.isEmpty else {
       logAPI("auth-missing", "requestId=\(payload.id) url=\(payload.text)")
       try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, url: payload.text, rawSharedText: payload.rawText, status: "FAILED", reelId: nil, failureReason: "AUTH401_001", retryable: false, updatedAt: Date().timeIntervalSince1970 * 1000))
@@ -111,7 +111,7 @@ final class ShareViewController: UIViewController {
         return
       }
       let status = json?["status"] as? String ?? "FAILED"
-      try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: status, reelId: json?["reelId"] as? String, failureReason: json?["failureReason"] as? String, retryable: json?["retryable"] as? Bool ?? false, updatedAt: Date().timeIntervalSince1970 * 1000, reused: json?["reused"] as? Bool))
+      try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: status, reelId: json?["reelId"] as? String, failureReason: json?["failureReason"] as? String, retryable: json?["retryable"] as? Bool ?? false, updatedAt: Date().timeIntervalSince1970 * 1000, reused: json?["reused"] as? Bool, saveMode: json?["saveMode"] as? String))
     } catch {
       let nsError = error as NSError
       logAPI(
