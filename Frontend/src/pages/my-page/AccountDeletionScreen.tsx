@@ -291,20 +291,22 @@ const styles = StyleSheet.create({
   },
   warningCard: {
     borderRadius: 24,
-    backgroundColor: '#fff3f1',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
     paddingHorizontal: 18,
     paddingVertical: 20,
   },
   warningTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#8a1c1c',
+    color: '#121212',
   },
   warningBody: {
     marginTop: 10,
     fontSize: 14,
     lineHeight: 21,
-    color: '#6b3b3b',
+    color: '#121212',
   },
   section: {
     marginTop: 28,
@@ -339,6 +341,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   providerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#ececf1',
@@ -347,6 +351,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   providerTextGroup: {
+    flex: 1,
     gap: 4,
   },
   providerName: {
@@ -359,7 +364,6 @@ const styles = StyleSheet.create({
     color: '#727789',
   },
   providerButton: {
-    alignSelf: 'flex-start',
     minWidth: 92,
     height: 36,
     borderRadius: 18,
@@ -405,13 +409,13 @@ const styles = StyleSheet.create({
   deleteButton: {
     height: 54,
     borderRadius: 27,
-    backgroundColor: '#8a1c1c',
+    backgroundColor: '#121212',
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 28,
   },
   deleteButtonDisabled: {
-    backgroundColor: '#d9c0c0',
+    backgroundColor: '#9ca3af',
   },
   deleteButtonPressed: {
     opacity: 0.88,
