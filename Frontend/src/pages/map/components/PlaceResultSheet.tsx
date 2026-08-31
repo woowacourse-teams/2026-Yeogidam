@@ -46,6 +46,7 @@ type PlaceResultSheetProps = {
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
   expandSignal?: number;
+  openPlace?: Place | null;
   openPlaceId?: string;
   openPlaceSignal?: number;
   onPlaceSelected?: (place: Place) => void;
@@ -74,6 +75,7 @@ export function PlaceResultSheet({
   onVisibleHeightChange,
   collapseSignal = 0,
   expandSignal = 0,
+  openPlace,
   openPlaceId,
   openPlaceSignal = 0,
   onPlaceSelected,
@@ -112,6 +114,7 @@ export function PlaceResultSheet({
   const currentOffset = useRef(collapsedOffset);
   const dragStartOffset = useRef(collapsedOffset);
   const startedInPageMode = useRef(false);
+  const previousSheetHeight = useRef(sheetHeight);
   const handledCollapseSignal = useRef(collapseSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
@@ -217,10 +220,24 @@ export function PlaceResultSheet({
 
   useEffect(() => {
     // Keep the selected snap point when device rotation changes the sheet size.
-    translateY.stopAnimation(value => {
+    // `snapOffsets` also changes when a place is selected because the detail
+    // sheet has its own middle offset. That must not reset a marker-selected
+    // detail sheet back to its collapsed position.
+    if (previousSheetHeight.current === sheetHeight) {
+      return;
+    }
+
+    previousSheetHeight.current = sheetHeight;
+    // `currentOffset` is updated before a snap animation begins. Prefer that
+    // intended snap over the instantaneous animated value: when opening a
+    // detail sheet also changes its height, the animation can still be near
+    // the old collapsed position at this point.
+    const offsetToPreserve = currentOffset.current;
+    translateY.stopAnimation(() => {
       const nearestSnapIndex = snapOffsets.reduce(
         (closestIndex, offset, index) =>
-          Math.abs(offset - value) < Math.abs(snapOffsets[closestIndex] - value)
+          Math.abs(offset - offsetToPreserve) <
+          Math.abs(snapOffsets[closestIndex] - offsetToPreserve)
             ? index
             : closestIndex,
         0,
@@ -262,17 +279,25 @@ export function PlaceResultSheet({
   }, [expandSignal, snapOffsets, snapTo]);
 
   useEffect(() => {
-    if (openPlaceSignal === handledOpenPlaceSignal.current || !openPlaceId) {
+    if (
+      openPlaceSignal === handledOpenPlaceSignal.current ||
+      (!openPlace && !openPlaceId)
+    ) {
       return;
     }
 
-    handledOpenPlaceSignal.current = openPlaceSignal;
-    const place = places.find(candidate => candidate.id === openPlaceId);
+    const place =
+      openPlace ?? places.find(candidate => candidate.id === openPlaceId);
+    // A marker press recentres the map, during which the visible-place list is
+    // intentionally cleared until native reports the new bounds. Do not
+    // consume this request during that transient empty state; retry when the
+    // list is populated again.
     if (!place) return;
 
+    handledOpenPlaceSignal.current = openPlaceSignal;
     setSelectedPlace(place);
     snapTo(snapOffsets[1]);
-  }, [openPlaceId, openPlaceSignal, places, snapOffsets, snapTo]);
+  }, [openPlace, openPlaceId, openPlaceSignal, places, snapOffsets, snapTo]);
 
   const panResponder = useMemo(
     () =>
