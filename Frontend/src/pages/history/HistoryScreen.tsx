@@ -28,6 +28,27 @@ function getHistoryTitle(reel: HistoryReel) {
   return content.split('\n')[0]?.trim() || '저장한 콘텐츠';
 }
 
+function getFailureCode(reason: string | null) {
+  return reason?.split(' | ', 1)[0]?.trim() || null;
+}
+
+function getHistoryFailureMessage(reason: string | null) {
+  switch (getFailureCode(reason)) {
+    case 'CLIENT000_001': return '인터넷 연결이 불안정해요.';
+    case 'CLIENT000_002': return '응답이 늦어져 분석하지 못했어요.';
+    case 'AUTH401_001': return '로그인이 필요해요.';
+    case 'AUTH401_002': return '로그인이 만료됐어요.';
+    case 'AUTH403_001': return '분석할 권한이 없어요.';
+    case 'IG_CAPTION_NOT_FOUND': return '릴스 내용을 읽지 못했어요.';
+    case 'GEMINI_PLACE_NOT_FOUND': return '캡션에서 장소를 찾지 못했어요.';
+    case 'KAKAO_PLACE_NOT_FOUND': return '지도에서 일치하는 장소를 찾지 못했어요.';
+    case 'PLACE_NOT_FOUND': return '장소를 찾지 못했어요.';
+    case 'DATA500_001':
+    case 'COMMON500_001': return '서버에서 분석을 처리하지 못했어요.';
+    default: return '장소 분석에 실패했어요. 잠시 후 다시 시도해주세요.';
+  }
+}
+
 function HistoryItem({reel, onPress}: {reel: HistoryReel; onPress?: () => void}) {
   const completed = reel.processing_status === 'COMPLETED';
   const processing = reel.processing_status === 'PENDING' || reel.processing_status === 'PROCESSING';
@@ -133,7 +154,11 @@ function HistorySuccessDetail({onBack, reel}: {onBack: () => void; reel: History
   );
 }
 
-function HistoryFailureDetail({onBack}: {onBack: () => void}) {
+function HistoryFailureDetail({onBack, reel}: {onBack: () => void; reel: HistoryReel}) {
+  const {detail} = useHistoryReelDetail(reel.id);
+  const displayReel = detail ?? reel;
+  const originalUrl = displayReel.instagram_url;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -147,9 +172,18 @@ function HistoryFailureDetail({onBack}: {onBack: () => void}) {
         <View style={styles.failureHero}>
           <Image source={{uri: failureCharacter}} style={styles.detailCharacter} />
           <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
-          <Text style={styles.failureDescription}>해당 장소에서 장소 정보를{ '\n' }찾지 못햇어요</Text>
+          <Text style={styles.failureDescription}>
+            {getHistoryFailureMessage(displayReel.failure_reason)}
+          </Text>
         </View>
-        <Pressable style={styles.originalButton}>
+        <Pressable
+          disabled={!originalUrl}
+          onPress={() => {
+            if (originalUrl) {
+              void Linking.openURL(originalUrl);
+            }
+          }}
+          style={[styles.originalButton, !originalUrl && styles.disabledButton]}>
           <InstagramIcon width={28} height={27} />
           <Text style={styles.originalText}>원본 릴스로 이동</Text>
           <Text style={styles.detailChevron}>›</Text>
@@ -231,6 +265,7 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
           setSelectedFailure(false);
           setSelectedReel(null);
         }}
+        reel={selectedReel as HistoryReel}
       />
     );
   }
