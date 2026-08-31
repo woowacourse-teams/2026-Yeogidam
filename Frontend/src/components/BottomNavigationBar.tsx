@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,9 +12,30 @@ type BottomNavigationBarProps = {
 };
 
 export const BOTTOM_NAVIGATION_BAR_HEIGHT = 64;
-const NAVIGATION_BAR_SIDE_INSET = 16;
-const NAVIGATION_BAR_BOTTOM_GAP = 20;
+export const BOTTOM_NAVIGATION_BAR_SIDE_INSET = 16;
+export const BOTTOM_NAVIGATION_BAR_BOTTOM_GAP = 20;
 const NAVIGATION_BAR_OVERLAY_FADE_HEIGHT = 60;
+
+export const bottomNavigationBarContainerStyle: ViewStyle = {
+  position: 'absolute',
+  left: BOTTOM_NAVIGATION_BAR_SIDE_INSET,
+  right: BOTTOM_NAVIGATION_BAR_SIDE_INSET,
+  minHeight: BOTTOM_NAVIGATION_BAR_HEIGHT,
+  flexDirection: 'row',
+  alignItems: 'center',
+  paddingHorizontal: 10,
+  paddingVertical: 8,
+  borderRadius: 999,
+  backgroundColor: '#ffffff',
+  shadowColor: '#000000',
+  shadowOpacity: 0.09,
+  shadowOffset: {
+    width: 0,
+    height: 8,
+  },
+  shadowRadius: 20,
+  elevation: 10,
+};
 
 const navigationItems: {
   id: MainScreen;
@@ -32,7 +53,7 @@ export function BottomNavigationBar({
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
-  const navigationBarBottom = bottom > 0 ? NAVIGATION_BAR_BOTTOM_GAP : 8;
+  const navigationBarBottom = bottom > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
   const overlayHeight =
     BOTTOM_NAVIGATION_BAR_HEIGHT +
     navigationBarBottom +
@@ -101,24 +122,7 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   navigationBar: {
-    position: 'absolute',
-    left: NAVIGATION_BAR_SIDE_INSET,
-    right: NAVIGATION_BAR_SIDE_INSET,
-    minHeight: BOTTOM_NAVIGATION_BAR_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000000',
-    shadowOpacity: 0.09,
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowRadius: 20,
-    elevation: 10,
+    ...bottomNavigationBarContainerStyle,
   },
   navigation: {
     flex: 1,

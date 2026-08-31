@@ -20,6 +20,7 @@ type PlaceDetailContentProps = {
   isReelsLoading?: boolean;
   onRetryReels?: () => void;
   onBack: () => void;
+  onPressMore?: () => void;
   scrollEnabled?: boolean;
   contentBottomPadding?: number;
   headerTopInset?: number;
@@ -34,6 +35,7 @@ export function PlaceDetailContent({
   isReelsLoading = false,
   onRetryReels,
   onBack,
+  onPressMore,
   scrollEnabled = true,
   contentBottomPadding = 100,
   headerTopInset = 0,
@@ -86,6 +88,7 @@ export function PlaceDetailContent({
     >
       <PlaceDetailHeader
         onBack={onBack}
+        onPressMore={onPressMore}
         topInset={headerTopInset}
         compact={compactHeader}
       />

@@ -7,6 +7,10 @@ export interface NativeProps extends ViewProps {
   zoomLevel?: CodegenTypes.Int32;
   /** Increments to force a camera move, even when the coordinates are unchanged. */
   cameraMoveRequestId?: CodegenTypes.Int32;
+  /** JSON array of coordinates to keep visible when cameraFitRequestId changes. */
+  cameraFitPointsJson?: string;
+  /** Increments to fit all cameraFitPointsJson coordinates into the map viewport. */
+  cameraFitRequestId?: CodegenTypes.Int32;
   showsCurrentLocation?: boolean;
   currentLocationRequestId?: CodegenTypes.Int32;
   cameraBottomInset?: CodegenTypes.Double;

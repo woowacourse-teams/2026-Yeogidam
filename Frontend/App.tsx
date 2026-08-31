@@ -82,6 +82,7 @@ function App() {
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
+  const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
@@ -434,7 +435,6 @@ function App() {
 
   const handleRetryProfile = async () => {
     setIsProfileLoading(true);
-    setProfileError(null);
 
     try {
       const profile = await getCurrentProfile();
@@ -512,6 +512,7 @@ function App() {
       return (
         <SavedPlacesScreen
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
           onSharedResultConsumed={clearShareResult}
@@ -525,7 +526,12 @@ function App() {
     }
 
     if (currentScreen === 'map') {
-      return <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />;
+      return (
+        <MapScreen
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onDetailViewChange={setIsMapPlaceDetailVisible}
+        />
+      );
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
@@ -558,6 +564,7 @@ function App() {
     flowState.detailSource === null &&
     myPageOverlay === null &&
     !isHistoryVisible &&
+    !isSavedPlacesEditing &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';

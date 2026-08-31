@@ -1,23 +1,62 @@
-import React from 'react';
+import React, {useRef} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
 import type {Place} from '../../../entities/place/types';
 
 type SavedPlaceGridProps = {
+  isEditing?: boolean;
   places: Place[];
+  onLongPressPlace?: () => void;
   onPressPlace: (place: Place) => void;
+  onTogglePlaceSelection?: (placeId: string) => void;
+  selectedPlaceIds?: ReadonlySet<string>;
 };
 
 export function SavedPlaceGrid({
+  isEditing = false,
   places,
+  onLongPressPlace,
   onPressPlace,
+  onTogglePlaceSelection,
+  selectedPlaceIds,
 }: SavedPlaceGridProps) {
+  const didLongPressRef = useRef(false);
+
   return (
     <View style={styles.grid}>
       {places.map((place, index) => (
         <View key={`${place.id}-${index}`} style={styles.card}>
-          <Pressable onPress={() => onPressPlace(place)} style={styles.cardBody}>
+          <Pressable
+            accessibilityLabel={
+              isEditing
+                ? `${place.name} ${selectedPlaceIds?.has(place.id) ? '선택 해제' : '선택'}`
+                : place.name
+            }
+            accessibilityRole="button"
+            onLongPress={() => {
+              if (!isEditing) {
+                didLongPressRef.current = true;
+                onLongPressPlace?.();
+              }
+            }}
+            onPress={() => {
+              if (didLongPressRef.current) {
+                didLongPressRef.current = false;
+                return;
+              }
+
+              if (isEditing) {
+                onTogglePlaceSelection?.(place.id);
+                return;
+              }
+
+              onPressPlace(place);
+            }}
+            onPressIn={() => {
+              didLongPressRef.current = false;
+            }}
+            style={styles.cardBody}>
             {place.image ? (
               <Image source={place.image} style={styles.image} />
             ) : (
@@ -38,6 +77,17 @@ export function SavedPlaceGrid({
               <Text style={styles.name}>{place.name}</Text>
               <Text style={styles.address}>{place.address}</Text>
             </View>
+            {isEditing ? (
+              <View
+                style={[
+                  styles.selectionIndicator,
+                  selectedPlaceIds?.has(place.id) && styles.selectionIndicatorSelected,
+                ]}>
+                {selectedPlaceIds?.has(place.id) ? (
+                  <Text style={styles.selectionCheck}>✓</Text>
+                ) : null}
+              </View>
+            ) : null}
           </Pressable>
         </View>
       ))}
@@ -62,6 +112,29 @@ const styles = StyleSheet.create({
   },
   cardBody: {
     flex: 1,
+  },
+  selectionIndicator: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectionIndicatorSelected: {
+    borderColor: '#7186ed',
+    backgroundColor: '#7186ed',
+  },
+  selectionCheck: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 18,
   },
   image: {
     width: '100%',

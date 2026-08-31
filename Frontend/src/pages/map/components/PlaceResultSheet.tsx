@@ -18,14 +18,20 @@ import {
   View,
 } from 'react-native';
 
-import { getPlaceReels } from '../../../entities/info/api';
+import {
+  deleteSavedPlaces,
+  getPlaceReels,
+  getSavedPlaces,
+} from '../../../entities/info/api';
 import type {
   PlaceReel,
   PlaceReelsApiError,
+  SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
 import { MAP_SEARCH_BAR_HEIGHT, MAP_SEARCH_BAR_TOP_GAP } from './MapSearchBar';
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
+import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
 import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 
@@ -40,11 +46,14 @@ type PlaceResultSheetProps = {
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
   expandSignal?: number;
+  openPlace?: Place | null;
   openPlaceId?: string;
   openPlaceSignal?: number;
   onPlaceSelected?: (place: Place) => void;
   onPlaceDetailBack?: () => void;
   onDetailViewChange?: (isDetailView: boolean) => void;
+  onAuthenticationRequired?: () => void;
+  onSavedPlaceDeleted?: (savedPlaceId: string) => void;
 };
 
 export const COLLAPSED_SHEET_HEIGHT = 48;
@@ -66,11 +75,14 @@ export function PlaceResultSheet({
   onVisibleHeightChange,
   collapseSignal = 0,
   expandSignal = 0,
+  openPlace,
   openPlaceId,
   openPlaceSignal = 0,
   onPlaceSelected,
   onPlaceDetailBack,
   onDetailViewChange,
+  onAuthenticationRequired,
+  onSavedPlaceDeleted,
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
   const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
@@ -79,6 +91,9 @@ export function PlaceResultSheet({
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(false);
+  const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
   const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
   const middleOffset = Math.min(
     collapsedOffset,
@@ -99,6 +114,7 @@ export function PlaceResultSheet({
   const currentOffset = useRef(collapsedOffset);
   const dragStartOffset = useRef(collapsedOffset);
   const startedInPageMode = useRef(false);
+  const previousSheetHeight = useRef(sheetHeight);
   const handledCollapseSignal = useRef(collapseSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
@@ -204,10 +220,24 @@ export function PlaceResultSheet({
 
   useEffect(() => {
     // Keep the selected snap point when device rotation changes the sheet size.
-    translateY.stopAnimation(value => {
+    // `snapOffsets` also changes when a place is selected because the detail
+    // sheet has its own middle offset. That must not reset a marker-selected
+    // detail sheet back to its collapsed position.
+    if (previousSheetHeight.current === sheetHeight) {
+      return;
+    }
+
+    previousSheetHeight.current = sheetHeight;
+    // `currentOffset` is updated before a snap animation begins. Prefer that
+    // intended snap over the instantaneous animated value: when opening a
+    // detail sheet also changes its height, the animation can still be near
+    // the old collapsed position at this point.
+    const offsetToPreserve = currentOffset.current;
+    translateY.stopAnimation(() => {
       const nearestSnapIndex = snapOffsets.reduce(
         (closestIndex, offset, index) =>
-          Math.abs(offset - value) < Math.abs(snapOffsets[closestIndex] - value)
+          Math.abs(offset - offsetToPreserve) <
+          Math.abs(snapOffsets[closestIndex] - offsetToPreserve)
             ? index
             : closestIndex,
         0,
@@ -249,17 +279,25 @@ export function PlaceResultSheet({
   }, [expandSignal, snapOffsets, snapTo]);
 
   useEffect(() => {
-    if (openPlaceSignal === handledOpenPlaceSignal.current || !openPlaceId) {
+    if (
+      openPlaceSignal === handledOpenPlaceSignal.current ||
+      (!openPlace && !openPlaceId)
+    ) {
       return;
     }
 
-    handledOpenPlaceSignal.current = openPlaceSignal;
-    const place = places.find(candidate => candidate.id === openPlaceId);
+    const place =
+      openPlace ?? places.find(candidate => candidate.id === openPlaceId);
+    // A marker press recentres the map, during which the visible-place list is
+    // intentionally cleared until native reports the new bounds. Do not
+    // consume this request during that transient empty state; retry when the
+    // list is populated again.
     if (!place) return;
 
+    handledOpenPlaceSignal.current = openPlaceSignal;
     setSelectedPlace(place);
     snapTo(snapOffsets[1]);
-  }, [openPlaceId, openPlaceSignal, places, snapOffsets, snapTo]);
+  }, [openPlace, openPlaceId, openPlaceSignal, places, snapOffsets, snapTo]);
 
   const panResponder = useMemo(
     () =>
@@ -358,10 +396,64 @@ export function PlaceResultSheet({
     }
   };
 
-  const backToPlaceList = () => {
+  const backToPlaceList = useCallback(() => {
+    setIsActionSheetVisible(false);
     onPlaceDetailBack?.();
     setSelectedPlace(null);
-  };
+  }, [onPlaceDetailBack]);
+
+  const handleDelete = useCallback(async () => {
+    if (isDeleting || !selectedPlace) {
+      return;
+    }
+    if (!selectedPlace.savedPlaceId) {
+      setDeleteError({
+        status: 400,
+        errorCode: 'COMMON400_001',
+        message: '요청 내용을 확인해주세요.',
+        retryable: false,
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteSavedPlaces([selectedPlace.savedPlaceId]);
+      onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
+      backToPlaceList();
+    } catch (nextError) {
+      const apiError = nextError as SavedPlacesApiError;
+      if (apiError.errorCode === 'CLIENT000_002') {
+        try {
+          const savedPlaces = await getSavedPlaces();
+          const isDeletionConfirmed = !savedPlaces.some(
+            savedPlace => savedPlace.id === selectedPlace.savedPlaceId,
+          );
+          if (isDeletionConfirmed) {
+            onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
+            backToPlaceList();
+            return;
+          }
+        } catch {
+          // Keep the original timeout error and allow the user to retry.
+        }
+      }
+
+      setDeleteError(apiError);
+      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
+        onAuthenticationRequired?.();
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [
+    backToPlaceList,
+    isDeleting,
+    onAuthenticationRequired,
+    onSavedPlaceDeleted,
+    selectedPlace,
+  ]);
 
   return (
     <Animated.View
@@ -401,6 +493,10 @@ export function PlaceResultSheet({
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
               onRetryReels={loadSelectedPlaceReels}
+              onPressMore={() => {
+                setDeleteError(null);
+                setIsActionSheetVisible(true);
+              }}
               // A partially-open sheet is already below the status area, so
               // reserving the map's safe-area inset here creates a large,
               // unnecessary gap above the detail header. Keep that inset only
@@ -418,6 +514,16 @@ export function PlaceResultSheet({
             {isPageMode && selectedPlace.placeUrl ? (
               <PlaceMapButton url={selectedPlace.placeUrl} />
             ) : null}
+            <PlaceDetailActionSheet
+              visible={isActionSheetVisible}
+              onClose={() => {
+                setDeleteError(null);
+                setIsActionSheetVisible(false);
+              }}
+              onDelete={handleDelete}
+              isDeleting={isDeleting}
+              deleteError={deleteError}
+            />
           </CopyToastProvider>
         </View>
       ) : (

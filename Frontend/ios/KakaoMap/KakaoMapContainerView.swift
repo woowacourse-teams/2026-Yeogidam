@@ -29,6 +29,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var longitude: Double = 126.9780
   private var zoomLevel: Int = 15
   private var cameraMoveRequestId = 0
+  private var cameraFitPointsJson = "[]"
+  private var cameraFitRequestId = 0
   private var showsCurrentLocation = false
   private var currentLocationRequestId = 0
   private var cameraBottomInset: CGFloat = 0
@@ -37,6 +39,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var currentLocationStyleAdded = false
   private var hasCenteredOnCurrentLocation = false
   private var needsDefaultCameraMove = false
+  private var needsFitSearchResultsCameraMove = false
   private var needsCurrentLocationCameraMove = false
   private var cameraMoveScheduled = false
 
@@ -112,6 +115,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     longitude: Double,
     zoomLevel: Int,
     cameraMoveRequestId: Int,
+    cameraFitPointsJson: String,
+    cameraFitRequestId: Int,
     showsCurrentLocation: Bool,
     currentLocationRequestId: Int,
     cameraBottomInset: Double,
@@ -125,6 +130,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     self.latitude = latitude
     self.longitude = longitude
     self.zoomLevel = zoomLevel
+    self.cameraFitPointsJson = cameraFitPointsJson
 
     let nextCameraBottomInset = max(0, CGFloat(cameraBottomInset))
     if self.cameraBottomInset != nextCameraBottomInset {
@@ -147,6 +153,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     if defaultCameraChanged || self.cameraMoveRequestId != cameraMoveRequestId {
       self.cameraMoveRequestId = cameraMoveRequestId
       moveCameraIfPossible()
+    }
+
+    if self.cameraFitRequestId != cameraFitRequestId {
+      self.cameraFitRequestId = cameraFitRequestId
+      moveCameraToFitSearchResultsIfPossible()
     }
 
     if self.currentLocationRequestId != currentLocationRequestId {
@@ -300,22 +311,35 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       mapContainer.bounds.height > 0
     else { return }
 
-    // The SDK's `viewRect` is the actual map viewport. Resize that viewport to
-    // the exposed area above the bottom sheet so marker rendering and the
-    // bounds sent to JS always use the identical coordinate system.
-    let viewportHeight = max(1, mapContainer.bounds.height - cameraBottomInset)
+    // Keep the map view itself full-screen and use the SDK's camera margins for
+    // the part covered by the bottom sheet. `viewRect` alone only clips the
+    // rendered map; it does not change the camera's target-point calculation.
+    // A bottom margin makes a target coordinate land at the centre of the
+    // exposed area above the sheet.
     kakaoMap.viewRect = CGRect(
       x: 0,
       y: 0,
       width: mapContainer.bounds.width,
-      height: viewportHeight
+      height: mapContainer.bounds.height
     )
-    kakaoMap.setMargins(.zero)
+    kakaoMap.setMargins(
+      UIEdgeInsets(
+        top: 0,
+        left: 0,
+        bottom: cameraBottomInset,
+        right: 0
+      )
+    )
     DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
   }
 
   private func moveCameraIfPossible() {
     needsDefaultCameraMove = true
+    scheduleCameraMove()
+  }
+
+  private func moveCameraToFitSearchResultsIfPossible() {
+    needsFitSearchResultsCameraMove = true
     scheduleCameraMove()
   }
 
@@ -372,6 +396,22 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       return
     }
 
+    if needsFitSearchResultsCameraMove {
+      needsFitSearchResultsCameraMove = false
+      needsDefaultCameraMove = false
+
+      guard let points = searchResultPoints(), points.count >= 2 else {
+        return
+      }
+
+      let cameraUpdate = CameraUpdate.make(
+        area: AreaRect(points: points),
+        levelLimit: Self.searchResultMaxZoomLevel
+      )
+      kakaoMap.moveCamera(cameraUpdate)
+      return
+    }
+
     guard needsDefaultCameraMove else { return }
     needsDefaultCameraMove = false
 
@@ -387,6 +427,26 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     )
 
     kakaoMap.moveCamera(cameraUpdate)
+  }
+
+  private func searchResultPoints() -> [MapPoint]? {
+    guard
+      let data = cameraFitPointsJson.data(using: .utf8),
+      let places = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+    else {
+      return nil
+    }
+
+    return places.compactMap { place in
+      guard
+        let latitude = place["latitude"] as? Double,
+        let longitude = place["longitude"] as? Double
+      else {
+        return nil
+      }
+
+      return MapPoint(longitude: longitude, latitude: latitude)
+    }
   }
 
   private func requestCurrentLocationIfNeeded() {
@@ -604,7 +664,12 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
     else { return }
 
-    let visibleRect = kakaoMap.viewRect
+    let visibleRect = CGRect(
+      x: 0,
+      y: 0,
+      width: kakaoMap.viewRect.width,
+      height: max(1, kakaoMap.viewRect.height - cameraBottomInset)
+    )
     let coordinate = kakaoMap.getPosition(
       CGPoint(x: visibleRect.midX, y: visibleRect.midY)
     ).wgsCoord
@@ -723,6 +788,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private static let currentLocationStyleID = "yeogidam-current-location-style"
   private static let currentLocationPoiID = "yeogidam-current-location-poi"
   private static let savedPlaceLayerID = "yeogidam-saved-place-layer"
+  private static let searchResultMaxZoomLevel = 16
   private static let savedPlaceStyleID = "yeogidam-saved-place-style"
   private static let savedPlaceMarkerAssetName = "MapMarker"
 }
