@@ -524,6 +524,15 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           styles.content,
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
+        onScroll={({nativeEvent}) => {
+          const reachedBottom =
+            nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
+            nativeEvent.contentSize.height - 80;
+          if (reachedBottom && cursor && !loadingMore) {
+            void load(cursor);
+          }
+        }}
+        scrollEventThrottle={200}
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
@@ -575,17 +584,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
             </View>
           ))
         )}
-        {cursor ? (
-          <Pressable
-            disabled={loadingMore}
-            onPress={() => load(cursor)}
-            style={styles.moreButton}
-          >
-            <Text style={styles.retryText}>
-              {loadingMore ? '불러오는 중...' : '이전 기록 더 보기'}
-            </Text>
-          </Pressable>
-        ) : null}
+        {loadingMore ? <Text style={styles.moreLoadingText}>이전 기록을 불러오는 중이에요.</Text> : null}
       </ScrollView>
       <View style={styles.homeIndicator} />
     </View>
@@ -751,6 +750,12 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 10,
     backgroundColor: '#f3f4fb',
+  },
+  moreLoadingText: {
+    paddingVertical: 18,
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#8e8e93',
   },
   date: { fontSize: 16, fontWeight: '600', color: '#727070', marginBottom: 8 },
   item: {
