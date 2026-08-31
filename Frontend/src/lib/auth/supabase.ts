@@ -1,11 +1,25 @@
 import {AppState, Platform} from 'react-native';
 import {createClient, processLock} from '@supabase/supabase-js';
+import Config from 'react-native-config';
 
 import {secureAuthStorage} from './authStorage';
 
-export const SUPABASE_URL = 'https://hbbrgudsbvnwuylxqlta.supabase.co';
-export const SUPABASE_PUBLISHABLE_KEY =
-  'sb_publishable_2bScMGo7Zpgmb9Q7lSA1Ag_sXmiGvCX';
+function requiredEnvironmentValue(
+  name: 'SUPABASE_URL' | 'SUPABASE_PUBLISHABLE_KEY',
+): string {
+  const value = Config[name]?.trim();
+
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
+
+export const SUPABASE_URL = requiredEnvironmentValue('SUPABASE_URL');
+export const SUPABASE_PUBLISHABLE_KEY = requiredEnvironmentValue(
+  'SUPABASE_PUBLISHABLE_KEY',
+);
 
 export const AUTH_CALLBACK_URL = 'com.yeogidamm.app://auth-callback';
 

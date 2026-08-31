@@ -51,6 +51,17 @@ final class ShareIntentModule: RCTEventEmitter {
     resolve(nil)
   }
 
+  @objc(setSupabaseConfiguration:publishableKey:resolver:rejecter:)
+  func setSupabaseConfiguration(
+    _ url: String,
+    publishableKey: String,
+    resolver resolve: RCTPromiseResolveBlock,
+    rejecter reject: RCTPromiseRejectBlock
+  ) {
+    ShareIntentStorage.saveSupabaseConfiguration(url: url, publishableKey: publishableKey)
+    resolve(nil)
+  }
+
   @objc(getShareResult:rejecter:)
   func getShareResult(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
     guard let result = ShareIntentStorage.loadResult(), let data = try? JSONEncoder().encode(result), let object = try? JSONSerialization.jsonObject(with: data) else { resolve(nil); return }

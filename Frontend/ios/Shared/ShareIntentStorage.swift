@@ -7,6 +7,8 @@ enum ShareIntentConstants {
   static let shareExtensionOpenURL = URL(string: "com.yeogidamm.app://share-extension")!
   static let eventName = "shareIntentReceived"
   static let authTokenKey = "auth_access_token"
+  static let supabaseURLKey = "supabase_url"
+  static let supabasePublishableKeyKey = "supabase_publishable_key"
   // Legacy single-result key. Kept only so existing installed builds can migrate
   // an unconsumed result after updating.
   static let shareResultKey = "share_reel_result"
@@ -73,6 +75,7 @@ struct ShareIntentPayload: Codable {
 enum ShareIntentStorageError: LocalizedError {
   case appGroupUnavailable
   case unsupportedContent
+  case missingConfiguration
 
   var errorDescription: String? {
     switch self {
@@ -80,6 +83,8 @@ enum ShareIntentStorageError: LocalizedError {
       return "App Group container could not be resolved."
     case .unsupportedContent:
       return "No supported shared content was found."
+    case .missingConfiguration:
+      return "Missing Supabase configuration."
     }
   }
 }
@@ -96,6 +101,26 @@ enum ShareIntentStorage {
   }
 
   static func accessToken() -> String? { defaults?.string(forKey: ShareIntentConstants.authTokenKey) }
+
+  static func saveSupabaseConfiguration(url: String, publishableKey: String) {
+    guard let defaults else { return }
+    defaults.set(url, forKey: ShareIntentConstants.supabaseURLKey)
+    defaults.set(publishableKey, forKey: ShareIntentConstants.supabasePublishableKeyKey)
+    defaults.synchronize()
+  }
+
+  static func supabaseConfiguration() -> (url: String, publishableKey: String)? {
+    guard
+      let defaults,
+      let url = defaults.string(forKey: ShareIntentConstants.supabaseURLKey),
+      !url.isEmpty,
+      let publishableKey = defaults.string(forKey: ShareIntentConstants.supabasePublishableKeyKey),
+      !publishableKey.isEmpty
+    else {
+      return nil
+    }
+    return (url, publishableKey)
+  }
 
   static func saveResult(_ result: ShareReelResult) throws {
     guard let defaults else {

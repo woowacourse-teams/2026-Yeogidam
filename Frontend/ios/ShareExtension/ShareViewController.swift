@@ -63,8 +63,11 @@ final class ShareViewController: UIViewController {
   }
 
   private func submit(_ payload: ShareIntentPayload) async throws {
-    let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String ?? "https://hbbrgudsbvnwuylxqlta.supabase.co"
-    let publishableKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_PUBLISHABLE_KEY") as? String ?? "sb_publishable_2bScMGo7Zpgmb9Q7lSA1Ag_sXmiGvCX"
+    guard let configuration = ShareIntentStorage.supabaseConfiguration() else {
+      throw ShareIntentStorageError.missingConfiguration
+    }
+    let urlString = configuration.url
+    let publishableKey = configuration.publishableKey
     guard let endpoint = URL(string: "\(urlString)/functions/v1/save-instagram-reel") else { throw ShareIntentStorageError.appGroupUnavailable }
     guard let token = ShareIntentStorage.accessToken(), !token.isEmpty else {
       logAPI("auth-missing", "requestId=\(payload.id) url=\(payload.text)")
