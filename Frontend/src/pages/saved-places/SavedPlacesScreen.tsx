@@ -17,10 +17,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/auth/supabase';
 
 import {
-  BOTTOM_TAB_BAR_BOTTOM_GAP,
-  BOTTOM_TAB_BAR_HEIGHT,
-  bottomTabBarContainerStyle,
-} from '../../components/BottomTabBar';
+  BOTTOM_NAVIGATION_BAR_BOTTOM_GAP,
+  BOTTOM_NAVIGATION_BAR_HEIGHT,
+  bottomNavigationBarContainerStyle,
+} from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { deleteSavedPlaces, getSavedPlaces } from '../../entities/info/api';
@@ -302,7 +302,7 @@ export function SavedPlacesScreen({
     null,
   );
   const [isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
-  const [shareApiDiagnostics, setShareApiDiagnostics] =
+  const [_shareApiDiagnostics, setShareApiDiagnostics] =
     useState<ShareApiDiagnostics | null>(null);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -311,7 +311,7 @@ export function SavedPlacesScreen({
   const hasSavedPlaces = places.length > 0;
   const isEditActionInScroll = hasSavedPlaces && !SHOW_CARD_PREVIEW;
   const bottomActionOffset =
-    bottomInset > 0 ? BOTTOM_TAB_BAR_BOTTOM_GAP : 8;
+    bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
 
   useEffect(() => {
     return () => onEditModeChange?.(false);
@@ -931,7 +931,13 @@ export function SavedPlacesScreen({
       isActive = false;
       clearInterval(intervalId);
     };
-  }, [processingReelId, processingReel?.processing_status, onRequireLogin]);
+  }, [
+    onRequireLogin,
+    processingReel?.created_at,
+    processingReel?.id,
+    processingReel?.processing_status,
+    processingReelId,
+  ]);
 
   useEffect(() => {
     if (!showSaveSuccess) {
@@ -1234,7 +1240,7 @@ export function SavedPlacesScreen({
               : handleDeleteSelectedPlaces
           }
           style={({pressed}) => [
-            bottomTabBarContainerStyle,
+            bottomNavigationBarContainerStyle,
             styles.deleteAction,
             {bottom: bottomActionOffset},
             isDeleting && styles.deleteActionDisabled,
@@ -1262,7 +1268,7 @@ export function SavedPlacesScreen({
           onPress={openDialog}
           style={[
             styles.fabShadow,
-            { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
+            { bottom: BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 12 },
           ]}
         >
           <View style={styles.fab}>

@@ -1,20 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  AppState,
-  StatusBar,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { configureDataSources } from './src/app/configureDataSources';
-import { BottomTabBar } from './src/components/BottomTabBar';
+import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { getCurrentProfile } from './src/entities/info/api';
-import type {
-  ProfileApiError,
-  ProfileInfo,
-} from './src/entities/info/types';
+import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
@@ -35,6 +26,7 @@ import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
+import { InBoxScreen } from './src/pages/inBox/inBoxScreen';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
@@ -52,7 +44,10 @@ import type {
   MainScreen,
   Screen,
 } from './src/types/navigation';
-import {getSharedSaveState, setSharedSaveState} from './src/lib/reel-save-state';
+import {
+  getSharedSaveState,
+  setSharedSaveState,
+} from './src/lib/reel-save-state';
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -77,8 +72,12 @@ function App() {
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
   const lastHandledShareResultRef = useRef<string | null>(null);
-  const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(null);
-  const [profileError, setProfileError] = useState<ProfileApiError | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
+    null,
+  );
+  const [profileError, setProfileError] = useState<ProfileApiError | null>(
+    null,
+  );
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
@@ -241,39 +240,50 @@ function App() {
     let isMounted = true;
 
     const consumePendingSharedContent = () => {
-      getShareResults().then(results => {
-        if (!isMounted) {
-          return;
-        }
-        const currentShareState = getSharedSaveState();
-        const activeRequestId =
-          currentShareState?.source === 'instagram_share'
-            ? currentShareState.shareResultId
-            : undefined;
-        const result = activeRequestId
-          ? results.find(item => item.requestId === activeRequestId) ?? results[0]
-          : results[0];
-        if (!result) {
-          lastHandledShareResultRef.current = null;
-          if (currentShareState?.source === 'instagram_share') {
-            setSharedSaveState(null);
+      getShareResults()
+        .then(results => {
+          if (!isMounted) {
+            return;
           }
-          return;
-        }
-        const resultKey = `${result.requestId ?? result.url}:${result.updatedAt}`;
-        if (lastHandledShareResultRef.current === resultKey) return;
-        lastHandledShareResultRef.current = resultKey;
-        setSharedSaveState({
-          shareResultId: result.requestId,
-          url: result.url,
-          status: result.status,
-          source: 'instagram_share',
-          rawSharedText: result.rawSharedText,
-          reused: result.reused,
-          reel: {id: result.reelId ?? `share-${Date.now()}`, processing_status: result.status, failure_reason: result.failureReason ?? null, instagram_thumbnail_url: null, created_at: new Date(result.updatedAt).toISOString()},
-        });
-        openMainScreen('saved');
-      }).catch(() => undefined);
+          const currentShareState = getSharedSaveState();
+          const activeRequestId =
+            currentShareState?.source === 'instagram_share'
+              ? currentShareState.shareResultId
+              : undefined;
+          const result = activeRequestId
+            ? results.find(item => item.requestId === activeRequestId) ??
+              results[0]
+            : results[0];
+          if (!result) {
+            lastHandledShareResultRef.current = null;
+            if (currentShareState?.source === 'instagram_share') {
+              setSharedSaveState(null);
+            }
+            return;
+          }
+          const resultKey = `${result.requestId ?? result.url}:${
+            result.updatedAt
+          }`;
+          if (lastHandledShareResultRef.current === resultKey) return;
+          lastHandledShareResultRef.current = resultKey;
+          setSharedSaveState({
+            shareResultId: result.requestId,
+            url: result.url,
+            status: result.status,
+            source: 'instagram_share',
+            rawSharedText: result.rawSharedText,
+            reused: result.reused,
+            reel: {
+              id: result.reelId ?? `share-${Date.now()}`,
+              processing_status: result.status,
+              failure_reason: result.failureReason ?? null,
+              instagram_thumbnail_url: null,
+              created_at: new Date(result.updatedAt).toISOString(),
+            },
+          });
+          openMainScreen('saved');
+        })
+        .catch(() => undefined);
     };
 
     consumePendingSharedContent();
@@ -504,6 +514,10 @@ function App() {
       );
     }
 
+    if (currentScreen === 'inBox') {
+      return <InBoxScreen />;
+    }
+
     if (currentScreen === 'map') {
       return (
         <MapScreen
@@ -571,7 +585,7 @@ function App() {
         <View style={styles.container}>
           {renderScreen()}
           {showTabBar && activeTab ? (
-            <BottomTabBar active={activeTab} onNavigate={openMainScreen} />
+            <BottomNavigationBar active={activeTab} onNavigate={openMainScreen} />
           ) : null}
         </View>
       </SafeAreaView>
