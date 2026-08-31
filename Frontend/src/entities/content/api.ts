@@ -4,11 +4,57 @@ import type {
   SaveInstagramReelResponse,
   SaveSource,
   ReelProcessingStatus,
+  HistoryCursor,
+  HistoryReel,
 } from './types';
 import {normalizeReelStatusError, reelErrorFromEnvelope, ReelApiError} from './errors';
 
 const REEL_STATUS_SELECT =
   'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
+const HISTORY_SELECT =
+  'id,instagram_url,instagram_title,instagram_description,instagram_author_username,instagram_thumbnail_url,processing_status,failure_reason,save_mode,created_at';
+
+export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
+  reels: HistoryReel[];
+  nextCursor: HistoryCursor | null;
+}> {
+  const request = () => {
+    let query = supabase
+      .from('reels')
+      .select(HISTORY_SELECT)
+      .order('created_at', {ascending: false})
+      .order('id', {ascending: false})
+      .limit(51);
+
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${encodeURIComponent(cursor.created_at)},and(created_at.eq.${encodeURIComponent(cursor.created_at)},id.lt.${cursor.id})`,
+      );
+    }
+
+    return query.returns<HistoryReel>();
+  };
+
+  let {data, error} = await request();
+  if (error?.code === 'PGRST301' || error?.message?.includes('401')) {
+    const {error: refreshError} = await supabase.auth.refreshSession();
+    if (!refreshError) {
+      ({data, error} = await request());
+    }
+  }
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = (data ?? []) as unknown as HistoryReel[];
+  const reels = rows.slice(0, 50);
+  const last = reels.length === 50 ? reels[reels.length - 1] : null;
+  return {
+    reels,
+    nextCursor: last ? {created_at: last.created_at, id: last.id} : null,
+  };
+}
 
 export function detectContentType(url: string): ContentType {
   return normalizeInstagramContentUrl(url) ? 'instagram_reel' : 'unsupported';

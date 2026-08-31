@@ -18,3 +18,18 @@ export type ReelProcessingStatus = {
   instagram_thumbnail_url: string | null;
   created_at: string;
 };
+
+export type HistoryReel = {
+  id: string;
+  instagram_url: string | null;
+  instagram_title: string | null;
+  instagram_description: string | null;
+  instagram_author_username: string | null;
+  instagram_thumbnail_url: string | null;
+  processing_status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  failure_reason: string | null;
+  save_mode: string | null;
+  created_at: string;
+};
+
+export type HistoryCursor = Pick<HistoryReel, 'created_at' | 'id'>;
