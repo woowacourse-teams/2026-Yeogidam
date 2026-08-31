@@ -1,5 +1,7 @@
 import {NativeEventEmitter, NativeModules} from 'react-native';
 
+import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL} from '../auth/supabase';
+
 export type SharedContent = {
   type: 'url' | 'text';
   value: string;
@@ -15,6 +17,10 @@ type NativeShareIntentModule = {
   getPendingShare(): Promise<NativeShareIntentPayload | null>;
   clearPendingShare(shareId: string | null): Promise<void>;
   setAccessToken?(token: string | null): Promise<void>;
+  setSupabaseConfiguration?(
+    url: string,
+    publishableKey: string,
+  ): Promise<void>;
   getShareResult?(): Promise<NativeShareResult | null>;
   getShareResults?(): Promise<NativeShareResult[]>;
   clearShareResult?(requestId: string | null): Promise<void>;
@@ -78,7 +84,13 @@ export async function getInitialSharedContent(): Promise<SharedContent | null> {
   return normalizeSharedContent(payload);
 }
 
-export async function syncShareAccessToken(token: string | null) { await nativeShareIntentModule?.setAccessToken?.(token); }
+export async function syncShareAccessToken(token: string | null) {
+  await nativeShareIntentModule?.setSupabaseConfiguration?.(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
+  );
+  await nativeShareIntentModule?.setAccessToken?.(token);
+}
 export async function getShareResult() { return nativeShareIntentModule?.getShareResult?.() ?? null; }
 export async function getShareResults(): Promise<NativeShareResult[]> {
   const results = await nativeShareIntentModule?.getShareResults?.();
