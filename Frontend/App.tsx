@@ -80,6 +80,7 @@ function App() {
   );
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
+  const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
@@ -504,6 +505,7 @@ function App() {
       return (
         <SavedPlacesScreen
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={place => openDetailFrom('saved', place)}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
           onSharedResultConsumed={clearShareResult}
@@ -517,7 +519,12 @@ function App() {
     }
 
     if (currentScreen === 'map') {
-      return <MapScreen onDetailViewChange={setIsMapPlaceDetailVisible} />;
+      return (
+        <MapScreen
+          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onDetailViewChange={setIsMapPlaceDetailVisible}
+        />
+      );
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
@@ -549,6 +556,7 @@ function App() {
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
     myPageOverlay === null &&
+    !isSavedPlacesEditing &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';

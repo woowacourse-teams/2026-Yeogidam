@@ -37,6 +37,8 @@ const PLACE_REELS_SELECT = [
   'reel_places!inner(place_id)',
 ].join(',');
 
+const SAVED_PLACES_REQUEST_TIMEOUT_MS = 10_000;
+
 type SupabaseApiOptions = {
   baseUrl: string;
   /** Supabase 프로젝트의 공개 publishable key입니다. service_role key는 앱에 넣지 않습니다. */
@@ -490,6 +492,77 @@ export function createSupabaseSavedPlacesRepository(
     return (body as SupabaseSavedPlaceResponse[]).map(toSavedPlaceListItem);
   };
 
+  const deleteSavedPlaceOnce = async (savedPlaceId: string): Promise<void> => {
+    if (!options.baseUrl) throw fallbackSavedPlacesError(null);
+
+    const token = await options.getAccessToken?.();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      SAVED_PLACES_REQUEST_TIMEOUT_MS,
+    );
+    const query = `id=eq.${encodeURIComponent(savedPlaceId)}`;
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/saved_places?${query}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+            ...(options.publishableKey
+              ? { apikey: options.publishableKey }
+              : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: controller.signal,
+        },
+      );
+    } catch {
+      throw controller.signal.aborted
+        ? savedPlacesError(
+            'CLIENT000_002',
+            null,
+            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+            true,
+          )
+        : savedPlacesError(
+            'CLIENT000_001',
+            null,
+            '인터넷 연결을 확인해주세요.',
+            true,
+          );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (response.ok) {
+      return;
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    const normalized = body as Partial<SavedPlacesApiError>;
+    const fallback = fallbackSavedPlacesError(response.status);
+    throw {
+      ...fallback,
+      ...normalized,
+      status: normalized.status ?? fallback.status,
+    };
+  };
+
+  const deleteSavedPlacesOnce = async (savedPlaceIds: string[]) => {
+    for (const savedPlaceId of savedPlaceIds) {
+      await deleteSavedPlaceOnce(savedPlaceId);
+    }
+  };
+
   return {
     async getSavedPlaces() {
       try {
@@ -500,6 +573,24 @@ export function createSupabaseSavedPlacesRepository(
           (await options.refreshSession?.())
         ) {
           return getSavedPlacesOnce();
+        }
+        throw error;
+      }
+    },
+    async deleteSavedPlaces(savedPlaceIds) {
+      if (savedPlaceIds.length === 0) {
+        return;
+      }
+
+      try {
+        await deleteSavedPlacesOnce(savedPlaceIds);
+      } catch (error) {
+        if (
+          (error as { errorCode?: string }).errorCode === 'AUTH401_002' &&
+          (await options.refreshSession?.())
+        ) {
+          await deleteSavedPlacesOnce(savedPlaceIds);
+          return;
         }
         throw error;
       }
@@ -531,6 +622,14 @@ export function createMockSavedPlacesRepository(): SavedPlacesRepository {
             : [];
         });
     },
+    async deleteSavedPlaces(savedPlaceIds) {
+      const idsToDelete = new Set(savedPlaceIds);
+      for (let index = frontendInfoDomainMock.savedPlaces.length - 1; index >= 0; index -= 1) {
+        if (idsToDelete.has(frontendInfoDomainMock.savedPlaces[index].id)) {
+          frontendInfoDomainMock.savedPlaces.splice(index, 1);
+        }
+      }
+    },
   };
 }
 
@@ -552,6 +651,10 @@ export function configureSavedPlacesApi(options: SavedPlacesApiOptions) {
 /** 화면은 이 함수만 사용하며 Supabase/자체 서버를 알 필요가 없습니다. */
 export function getSavedPlaces(): Promise<SavedPlaceListItem[]> {
   return savedPlacesRepository.getSavedPlaces();
+}
+
+export function deleteSavedPlaces(savedPlaceIds: string[]): Promise<void> {
+  return savedPlacesRepository.deleteSavedPlaces(savedPlaceIds);
 }
 
 type SupabasePlaceReelResponse = {

@@ -171,6 +171,7 @@ export type SavedPlacesApiError = {
 /** 화면이 의존하는 저장 장소 조회 계약입니다. 데이터 제공자가 바뀌어도 이 형태는 유지합니다. */
 export type SavedPlacesRepository = {
   getSavedPlaces: () => Promise<SavedPlaceListItem[]>;
+  deleteSavedPlaces: (savedPlaceIds: string[]) => Promise<void>;
 };
 
 export type ProviderUsageMonthly = {
