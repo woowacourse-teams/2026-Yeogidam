@@ -49,6 +49,8 @@ class KakaoMapView(
     private var longitude = 127.0557
     private var zoomLevel = 15
     private var cameraMoveRequestId = 0
+    private var cameraFitPointsJson = "[]"
+    private var cameraFitRequestId = 0
     private var showsCurrentLocation = false
     private var currentLocationRequestId = 0
     private var cameraBottomInset = 0
@@ -76,6 +78,45 @@ class KakaoMapView(
                 zoomLevel,
             ),
         )
+    }
+
+    private val fitSearchResultPoints = Runnable {
+        val map = kakaoMap ?: return@Runnable
+
+        if (!isAttachedToWindow) {
+            return@Runnable
+        }
+
+        try {
+            val points = JSONArray(cameraFitPointsJson).let { places ->
+                (0 until places.length()).mapNotNull { index ->
+                    places.optJSONObject(index)?.let { place ->
+                        if (place.has("latitude") && place.has("longitude")) {
+                            LatLng.from(
+                                place.getDouble("latitude"),
+                                place.getDouble("longitude"),
+                            )
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }
+
+            if (points.size < 2) {
+                return@Runnable
+            }
+
+            map.moveCamera(
+                CameraUpdateFactory.fitMapPoints(
+                    points.toTypedArray(),
+                    SEARCH_RESULT_CAMERA_PADDING,
+                    SEARCH_RESULT_MAX_ZOOM_LEVEL,
+                ),
+            )
+        } catch (error: Exception) {
+            Log.e("YeogidamKakaoMap", "검색 결과 범위에 카메라를 맞추지 못했습니다.", error)
+        }
     }
 
     init {
@@ -129,6 +170,9 @@ class KakaoMapView(
                         emitVisibleBounds(position.position, position.zoomLevel)
                     }
                     renderSavedPlaceMarkers()
+                    if (cameraFitRequestId > 0) {
+                        moveCameraToFitSearchResults()
+                    }
                     Log.d("YeogidamKakaoMap", "지도 준비 완료")
                     post(::resumeMapIfNeeded)
                     startCurrentLocationIfNeeded()
@@ -169,6 +213,19 @@ class KakaoMapView(
 
         cameraMoveRequestId = value
         moveCamera()
+    }
+
+    fun setCameraFitPointsJson(value: String) {
+        cameraFitPointsJson = value
+    }
+
+    fun setCameraFitRequestId(value: Int) {
+        if (cameraFitRequestId == value) {
+            return
+        }
+
+        cameraFitRequestId = value
+        moveCameraToFitSearchResults()
     }
 
     fun setShowsCurrentLocation(value: Boolean) {
@@ -223,6 +280,11 @@ class KakaoMapView(
     private fun moveCamera() {
         removeCallbacks(moveToDefaultPosition)
         post(moveToDefaultPosition)
+    }
+
+    private fun moveCameraToFitSearchResults() {
+        removeCallbacks(fitSearchResultPoints)
+        post(fitSearchResultPoints)
     }
 
     private fun renderSavedPlaceMarkers() {
@@ -575,6 +637,7 @@ class KakaoMapView(
     override fun onHostDestroy() {
         stopLocationUpdates()
         removeCallbacks(moveToDefaultPosition)
+        removeCallbacks(fitSearchResultPoints)
         nativeMapView.finish()
         reactContext.removeLifecycleEventListener(this)
     }
@@ -582,6 +645,7 @@ class KakaoMapView(
     override fun onDetachedFromWindow() {
         stopLocationUpdates()
         removeCallbacks(moveToDefaultPosition)
+        removeCallbacks(fitSearchResultPoints)
 
         if (nativeMapView.isStarted) {
             nativeMapView.pause()
@@ -594,6 +658,8 @@ class KakaoMapView(
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
         const val SAVED_PLACE_MARKER_SIZE_DP = 36
+        const val SEARCH_RESULT_CAMERA_PADDING = 48
+        const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
         const val LOCATION_PERMISSION_REQUEST_CODE = 9417
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f

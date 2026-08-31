@@ -52,6 +52,7 @@ export function MapScreen({
   });
   const detailEntryCameraRef = useRef<MapCamera | null>(null);
   const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
+  const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
@@ -126,6 +127,16 @@ export function MapScreen({
   const resultPlaces = searchedPlaces ?? visiblePlaces;
   const hasActiveSearch = searchKeyword.trim().length > 0;
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
+  const cameraFitPointsJson = useMemo(
+    () =>
+      JSON.stringify(
+        (searchedPlaces ?? []).map(({ latitude, longitude }) => ({
+          latitude,
+          longitude,
+        })),
+      ),
+    [searchedPlaces],
+  );
 
   const handleSheetVisibleHeightChange = useCallback(
     (height: number) => {
@@ -178,7 +189,9 @@ export function MapScreen({
 
     setSearchedPlaces(places);
     setSearchResultSignal(signal => signal + 1);
-    if (
+    if (places.length >= 2) {
+      setCameraFitRequestId(requestId => requestId + 1);
+    } else if (
       places[0]?.latitude !== undefined &&
       places[0]?.longitude !== undefined
     ) {
@@ -232,6 +245,8 @@ export function MapScreen({
               longitude={mapCenter.longitude}
               zoomLevel={mapZoomLevel}
               cameraMoveRequestId={cameraMoveRequestId}
+              cameraFitPointsJson={cameraFitPointsJson}
+              cameraFitRequestId={cameraFitRequestId}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
               savedPlacesJson={JSON.stringify(
                 markerPlaces.map(({ id, name, latitude, longitude }) => ({

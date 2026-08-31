@@ -70,6 +70,8 @@ using namespace facebook::react;
                      longitude:newProps.longitude
                      zoomLevel:newProps.zoomLevel
        cameraMoveRequestId:newProps.cameraMoveRequestId
+       cameraFitPointsJson:[NSString stringWithUTF8String:newProps.cameraFitPointsJson.c_str()]
+        cameraFitRequestId:newProps.cameraFitRequestId
           showsCurrentLocation:newProps.showsCurrentLocation
       currentLocationRequestId:newProps.currentLocationRequestId
           cameraBottomInset:newProps.cameraBottomInset

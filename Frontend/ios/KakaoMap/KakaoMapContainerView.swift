@@ -29,6 +29,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var longitude: Double = 126.9780
   private var zoomLevel: Int = 15
   private var cameraMoveRequestId = 0
+  private var cameraFitPointsJson = "[]"
+  private var cameraFitRequestId = 0
   private var showsCurrentLocation = false
   private var currentLocationRequestId = 0
   private var cameraBottomInset: CGFloat = 0
@@ -37,6 +39,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var currentLocationStyleAdded = false
   private var hasCenteredOnCurrentLocation = false
   private var needsDefaultCameraMove = false
+  private var needsFitSearchResultsCameraMove = false
   private var needsCurrentLocationCameraMove = false
   private var cameraMoveScheduled = false
 
@@ -112,6 +115,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     longitude: Double,
     zoomLevel: Int,
     cameraMoveRequestId: Int,
+    cameraFitPointsJson: String,
+    cameraFitRequestId: Int,
     showsCurrentLocation: Bool,
     currentLocationRequestId: Int,
     cameraBottomInset: Double,
@@ -125,6 +130,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     self.latitude = latitude
     self.longitude = longitude
     self.zoomLevel = zoomLevel
+    self.cameraFitPointsJson = cameraFitPointsJson
 
     let nextCameraBottomInset = max(0, CGFloat(cameraBottomInset))
     if self.cameraBottomInset != nextCameraBottomInset {
@@ -147,6 +153,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     if defaultCameraChanged || self.cameraMoveRequestId != cameraMoveRequestId {
       self.cameraMoveRequestId = cameraMoveRequestId
       moveCameraIfPossible()
+    }
+
+    if self.cameraFitRequestId != cameraFitRequestId {
+      self.cameraFitRequestId = cameraFitRequestId
+      moveCameraToFitSearchResultsIfPossible()
     }
 
     if self.currentLocationRequestId != currentLocationRequestId {
@@ -327,6 +338,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     scheduleCameraMove()
   }
 
+  private func moveCameraToFitSearchResultsIfPossible() {
+    needsFitSearchResultsCameraMove = true
+    scheduleCameraMove()
+  }
+
   private func scheduleCameraMove() {
     guard !cameraMoveScheduled else { return }
 
@@ -380,6 +396,22 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       return
     }
 
+    if needsFitSearchResultsCameraMove {
+      needsFitSearchResultsCameraMove = false
+      needsDefaultCameraMove = false
+
+      guard let points = searchResultPoints(), points.count >= 2 else {
+        return
+      }
+
+      let cameraUpdate = CameraUpdate.make(
+        area: AreaRect(points: points),
+        levelLimit: Self.searchResultMaxZoomLevel
+      )
+      kakaoMap.moveCamera(cameraUpdate)
+      return
+    }
+
     guard needsDefaultCameraMove else { return }
     needsDefaultCameraMove = false
 
@@ -395,6 +427,26 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     )
 
     kakaoMap.moveCamera(cameraUpdate)
+  }
+
+  private func searchResultPoints() -> [MapPoint]? {
+    guard
+      let data = cameraFitPointsJson.data(using: .utf8),
+      let places = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+    else {
+      return nil
+    }
+
+    return places.compactMap { place in
+      guard
+        let latitude = place["latitude"] as? Double,
+        let longitude = place["longitude"] as? Double
+      else {
+        return nil
+      }
+
+      return MapPoint(longitude: longitude, latitude: latitude)
+    }
   }
 
   private func requestCurrentLocationIfNeeded() {
@@ -736,6 +788,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private static let currentLocationStyleID = "yeogidam-current-location-style"
   private static let currentLocationPoiID = "yeogidam-current-location-poi"
   private static let savedPlaceLayerID = "yeogidam-saved-place-layer"
+  private static let searchResultMaxZoomLevel = 16
   private static let savedPlaceStyleID = "yeogidam-saved-place-style"
   private static let savedPlaceMarkerAssetName = "MapMarker"
 }
