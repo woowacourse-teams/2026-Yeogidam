@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {Alert, Image, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
 import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
@@ -66,7 +66,7 @@ function formatHistoryDate(createdAt: string) {
   return `${year}.${month}.${day}`;
 }
 
-function HistorySuccessDetail({onBack}: {onBack: () => void}) {
+function HistorySuccessDetail({onBack, originalUrl}: {onBack: () => void; originalUrl: string | null}) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -82,7 +82,14 @@ function HistorySuccessDetail({onBack}: {onBack: () => void}) {
           <Text style={styles.detailTitle}>장소 분석이 완료되었어요!</Text>
           <Text style={styles.detailSubtitle}>총 2개의 장소를 찾았어요</Text>
         </View>
-        <Pressable style={styles.originalButton}>
+        <Pressable
+          disabled={!originalUrl}
+          onPress={() => {
+            if (originalUrl) {
+              void Linking.openURL(originalUrl);
+            }
+          }}
+          style={[styles.originalButton, !originalUrl && styles.disabledButton]}>
           <InstagramIcon width={28} height={27} />
           <Text style={styles.originalText}>원본 릴스로 이동</Text>
           <Text style={styles.detailChevron}>›</Text>
@@ -103,7 +110,7 @@ function HistorySuccessDetail({onBack}: {onBack: () => void}) {
   );
 }
 
-function HistoryFailureDetail({onBack}: {onBack: () => void}) {
+function HistoryFailureDetail({onBack, originalUrl}: {onBack: () => void; originalUrl: string | null}) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -119,7 +126,14 @@ function HistoryFailureDetail({onBack}: {onBack: () => void}) {
           <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
           <Text style={styles.failureDescription}>해당 장소에서 장소 정보를{ '\n' }찾지 못햇어요</Text>
         </View>
-        <Pressable style={styles.originalButton}>
+        <Pressable
+          disabled={!originalUrl}
+          onPress={() => {
+            if (originalUrl) {
+              void Linking.openURL(originalUrl);
+            }
+          }}
+          style={[styles.originalButton, !originalUrl && styles.disabledButton]}>
           <InstagramIcon width={28} height={27} />
           <Text style={styles.originalText}>원본 릴스로 이동</Text>
           <Text style={styles.detailChevron}>›</Text>
@@ -156,6 +170,7 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
   const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
+  const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
   const load = useCallback(async (nextCursor?: HistoryCursor | null) => {
     setError(false);
     nextCursor ? setLoadingMore(true) : setLoading(true);
@@ -183,10 +198,26 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
   );
 
   if (selectedSuccess) {
-    return <HistorySuccessDetail onBack={() => setSelectedSuccess(false)} />;
+    return (
+      <HistorySuccessDetail
+        onBack={() => {
+          setSelectedSuccess(false);
+          setSelectedReel(null);
+        }}
+        originalUrl={selectedReel?.instagram_url ?? null}
+      />
+    );
   }
   if (selectedFailure) {
-    return <HistoryFailureDetail onBack={() => setSelectedFailure(false)} />;
+    return (
+      <HistoryFailureDetail
+        onBack={() => {
+          setSelectedFailure(false);
+          setSelectedReel(null);
+        }}
+        originalUrl={selectedReel?.instagram_url ?? null}
+      />
+    );
   }
 
   return (
@@ -212,7 +243,7 @@ export function HistoryScreen({onBack}: HistoryScreenProps) {
         ) : Object.entries(groupedReels).map(([date, dateReels]) => (
           <View key={date} style={styles.group}>
             <Text style={styles.date}>{date}</Text>
-            {dateReels.map(reel => <HistoryItem key={reel.id} reel={reel} onPress={reel.processing_status === 'COMPLETED' ? () => setSelectedSuccess(true) : reel.processing_status === 'FAILED' ? () => setSelectedFailure(true) : undefined} />)}
+            {dateReels.map(reel => <HistoryItem key={reel.id} reel={reel} onPress={reel.processing_status === 'COMPLETED' ? () => { setSelectedReel(reel); setSelectedSuccess(true); } : reel.processing_status === 'FAILED' ? () => { setSelectedReel(reel); setSelectedFailure(true); } : undefined} />)}
           </View>
         ))}
         {cursor ? <Pressable disabled={loadingMore} onPress={() => load(cursor)} style={styles.moreButton}><Text style={styles.retryText}>{loadingMore ? '불러오는 중...' : '이전 기록 더 보기'}</Text></Pressable> : null}
@@ -244,6 +275,7 @@ const styles = StyleSheet.create({
   detailTitle: {fontSize: 20, fontWeight: '800', color: '#1a1a2e', marginTop: 24},
   detailSubtitle: {fontSize: 14, color: '#8e8e93', marginTop: 8},
   originalButton: {height: 61, marginHorizontal: 22, marginTop: 49, borderWidth: 1, borderColor: 'rgba(0,0,0,.14)', borderRadius: 20, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 50},
+  disabledButton: {opacity: 0.45},
   instagramIcon: {width: 28, height: 27},
   originalText: {fontSize: 15, fontWeight: '600', color: '#000', flex: 1, textAlign: 'center'},
   detailChevron: {fontSize: 30, color: '#000'},
