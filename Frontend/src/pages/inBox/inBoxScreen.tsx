@@ -229,7 +229,7 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
       <View style={styles.header}>
         <View style={styles.brandMark}>
           <Image
-            source={require('../../assets/illustrations/empty-illustration.png')}
+            source={require('../../assets/icons/brand-mark.png')}
             style={styles.brandMarkImage}
           />
         </View>

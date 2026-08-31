@@ -13,7 +13,7 @@ export function SavedPlacesHeader({
     <View style={styles.header}>
       <View style={styles.leading}>
         <Image
-          source={require('../../../assets/illustrations/empty-illustration.png')}
+          source={require('../../../assets/icons/brand-mark.png')}
           style={styles.leadingImage}
         />
       </View>

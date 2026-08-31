@@ -82,7 +82,7 @@ export function MapSearchBar({
       ) : (
         <View style={styles.savedIconButton}>
           <Image
-            source={require('../../../assets/illustrations/empty-illustration.png')}
+            source={require('../../../assets/icons/brand-mark.png')}
             style={styles.savedIconImage}
           />
         </View>
