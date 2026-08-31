@@ -37,6 +37,14 @@ export async function getHistoryReelDetail(
   return data?.[0] ?? null;
 }
 
+export async function reportHistoryReel(reelId: string): Promise<void> {
+  const {error} = await supabase
+    .from('reel_reports')
+    .upsert({reel_id: reelId}, {onConflict: 'user_id,reel_id', ignoreDuplicates: true});
+
+  if (error) throw error;
+}
+
 export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
   nextCursor: HistoryCursor | null;
@@ -71,7 +79,6 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   }
 
   const rows = (data ?? []) as unknown as HistoryReel[];
-  console.warn('[History API] raw reels response', rows);
   const reels = rows.slice(0, 50);
   const last = reels.length === 50 ? reels[reels.length - 1] : null;
   return {

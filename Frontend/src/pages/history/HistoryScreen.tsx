@@ -15,6 +15,7 @@ import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
 import {
   getHistoryReelDetail,
   getHistoryReels,
+  reportHistoryReel,
   saveContent,
 } from '../../entities/content/api';
 import type {
@@ -267,6 +268,7 @@ function HistoryFailureDetail({
   reel: HistoryReel;
   onRetry: () => Promise<void>;
 }) {
+  const [reported, setReported] = useState(false);
   const { detail } = useHistoryReelDetail(reel.id);
   const displayReel = detail ?? reel;
   const originalUrl = displayReel.instagram_url;
@@ -313,11 +315,13 @@ function HistoryFailureDetail({
         <Pressable
           disabled={!originalUrl}
           onPress={() => {
-            Alert.alert('다시 시도하겠습니까?', '', [
+            Alert.alert('다시 시도할까요?', '', [
               { text: '취소', style: 'cancel' },
               {
                 text: '확인',
-                onPress: () => { void onRetry().catch(() => undefined); },
+                onPress: () => {
+                  void onRetry().catch(() => undefined);
+                },
               },
             ]);
           }}
@@ -327,20 +331,33 @@ function HistoryFailureDetail({
           <Text style={styles.actionText}>다시 시도하기</Text>
         </Pressable>
         <Pressable
+          disabled={reported}
           onPress={() =>
-            Alert.alert(
-              '이 릴스를 제보하시겠어요?',
-              '제보가 접수되면 내용을 확인해 더 나은 장소 정보를 제공할 수 있도록 도와드릴게요.',
-              [
-                { text: '취소', style: 'cancel' },
-                { text: '제보하기', onPress: () => {} },
-              ],
-            )
+            Alert.alert('제보할까요?', '', [
+              { text: '취소', style: 'cancel' },
+              {
+                text: '확인',
+                onPress: () => {
+                  setReported(true);
+                  reportHistoryReel(reel.id)
+                    .catch(() => {
+                      setReported(false);
+                      Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
+                    });
+                },
+              },
+            ])
           }
-          style={[styles.actionButton, styles.reportActionButton]}
+          style={[
+            styles.actionButton,
+            styles.reportActionButton,
+            reported && styles.disabledButton,
+          ]}
         >
           <ReportIcon width={20} height={20} style={styles.actionIcon} />
-          <Text style={styles.actionText}>제보하기</Text>
+          <Text style={styles.actionText}>
+            {reported ? '제보 완료' : '제보하기'}
+          </Text>
         </Pressable>
       </ScrollView>
       <View style={styles.homeIndicator} />
@@ -366,7 +383,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     setReels(current =>
       current.map(item =>
         item.id === reel.id
-          ? {...item, processing_status: 'PENDING', failure_reason: null}
+          ? { ...item, processing_status: 'PENDING', failure_reason: null }
           : item,
       ),
     );
@@ -602,7 +619,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4fb',
   },
   previewToggleText: { fontSize: 12, fontWeight: '700', color: '#5c6fc8' },
-  content: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
+  content: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
   emptyContent: {
     flexGrow: 1,
     alignItems: 'center',
@@ -726,9 +743,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f3f4fb',
   },
-  date: { fontSize: 16, fontWeight: '600', color: '#727070', marginBottom: 12 },
+  date: { fontSize: 16, fontWeight: '600', color: '#727070', marginBottom: 8 },
   item: {
-    height: 86,
+    height: 94,
     borderBottomWidth: 1,
     borderBottomColor: '#f8f3f3',
     flexDirection: 'row',
