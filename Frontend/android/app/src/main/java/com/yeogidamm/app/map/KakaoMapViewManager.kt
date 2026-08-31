@@ -50,6 +50,20 @@ class KakaoMapViewManager :
         view.setCameraMoveRequestId(value)
     }
 
+    override fun setCameraFitPointsJson(
+        view: KakaoMapView,
+        value: String?,
+    ) {
+        view.setCameraFitPointsJson(value ?: "[]")
+    }
+
+    override fun setCameraFitRequestId(
+        view: KakaoMapView,
+        value: Int,
+    ) {
+        view.setCameraFitRequestId(value)
+    }
+
     override fun setShowsCurrentLocation(
         view: KakaoMapView,
         value: Boolean,
