@@ -1,7 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Alert,
+  AppState,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,117 +20,36 @@ import {
   getInboxSelection,
   setInboxSelection,
 } from '../../lib/inbox-selection-storage';
+import {
+  resolveQueueItems,
+  getInboxReels,
+  type InboxPlace,
+  type InboxReel,
+  type QueueResolutionAction,
+} from '../../entities/content/inbox-api';
+import { normalizeReelError } from '../../entities/content/errors';
+import { supabase } from '../../lib/auth/supabase';
 
-type Place = { id: string; name: string; imageUrl: string };
-type Item = {
-  id: string;
-  title: string;
-  source: string;
-  imageUrl: string;
-  places: Place[];
-};
+function pendingPlaces(item: InboxReel) {
+  return item.places.filter(place => place.reviewStatus === 'PENDING');
+}
 
-const items: Item[] = [
-  {
-    id: 'seoul',
-    title: '서울 최초로 생김 숲속 감성 숙소',
-    source: '@seoul_sources',
-    imageUrl:
-      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=400&q=80',
-    places: [
-      {
-        id: 'layer',
-        name: '레이어 커피바',
-        imageUrl:
-          'https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        id: 'oneul',
-        name: '카페 온일',
-        imageUrl:
-          'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        id: 'layer-two',
-        name: '레이어 커피바',
-        imageUrl:
-          'https://images.unsplash.com/photo-1445116572660-236099ec97a0?auto=format&fit=crop&w=300&q=80',
-      },
-    ],
-  },
-  {
-    id: 'walk',
-    title: '더위를 잊게 하는 여름 산책 코스',
-    source: '@seoul_sources',
-    imageUrl:
-      'https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=400&q=80',
-    places: [
-      {
-        id: 'park',
-        name: '서울숲',
-        imageUrl:
-          'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=300&q=80',
-      },
-    ],
-  },
-  {
-    id: 'dessert',
-    title: '성수에서 찾은 작은 디저트 가게',
-    source: '@seoul_sources',
-    imageUrl:
-      'https://images.unsplash.com/photo-1551024506-0bccd828d307?auto=format&fit=crop&w=400&q=80',
-    places: [
-      {
-        id: 'seongsu-bakery',
-        name: '성수 베이커리',
-        imageUrl:
-          'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        id: 'sweet-table',
-        name: '스위트 테이블',
-        imageUrl:
-          'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=300&q=80',
-      },
-    ],
-  },
-  {
-    id: 'gallery',
-    title: '비 오는 날 가기 좋은 전시 공간',
-    source: '@artlog',
-    imageUrl:
-      'https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&w=400&q=80',
-    places: [
-      {
-        id: 'seoul-museum',
-        name: '서울시립미술관',
-        imageUrl:
-          'https://images.unsplash.com/photo-1561214115-f2f134cc4912?auto=format&fit=crop&w=300&q=80',
-      },
-    ],
-  },
-  {
-    id: 'night',
-    title: '한강 야경을 즐기는 서울의 밤',
-    source: '@seoul_sources',
-    imageUrl:
-      'https://images.unsplash.com/photo-1538485399081-7191377e8241?auto=format&fit=crop&w=400&q=80',
-    places: [
-      {
-        id: 'hangang-park',
-        name: '반포 한강공원',
-        imageUrl:
-          'https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?auto=format&fit=crop&w=300&q=80',
-      },
-      {
-        id: 'banpo-bridge',
-        name: '반포대교 달빛무지개분수',
-        imageUrl:
-          'https://images.unsplash.com/photo-1548115184-bc6544d06a58?auto=format&fit=crop&w=300&q=80',
-      },
-    ],
-  },
-];
+function placeAddress(place: InboxPlace) {
+  const address =
+    place.place?.sourceAddress ??
+    place.place?.roadAddress ??
+    place.place?.address ??
+    '';
+
+  return address.split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
+}
+
+function secondaryCategory(category: string | null | undefined) {
+  return category
+    ?.split('>')
+    .map(value => value.trim())
+    .filter(Boolean)[1];
+}
 
 const CARD_HORIZONTAL_PADDING = 6;
 const CHEVRON_WIDTH = 33;
@@ -135,20 +57,64 @@ const CARD_CONTENT_GAP = 10;
 const PLACE_LIST_LEFT_INSET =
   CARD_HORIZONTAL_PADDING + CHEVRON_WIDTH + CARD_CONTENT_GAP;
 const PLACE_LIST_RIGHT_INSET = 23;
+const ANALYSIS_POLL_INTERVAL_MS = 5000;
 
 type InBoxScreenProps = {
   onOpenHistory: () => void;
 };
 
-export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
-  const [expandedIds, setExpandedIds] = useState<string[]>([items[0].id]);
-  const [isEmptyState, setIsEmptyState] = useState(false);
+export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
+  const [items, setItems] = useState<InboxReel[]>([]);
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
-  const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
   const [isSelectionHydrated, setIsSelectionHydrated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const loadInbox = useCallback(async (isRefresh = false, silently = false) => {
+    if (!silently) {
+      if (isRefresh) setIsRefreshing(true);
+      else setIsLoading(true);
+    }
+
+    try {
+      const reels = await getInboxReels();
+      setItems(reels);
+      setErrorMessage(null);
+    } catch (error) {
+      // Keep the last successful list visible for permission, timeout, and network failures.
+      setErrorMessage(normalizeReelError(error).message);
+    } finally {
+      if (!silently) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
+    loadInbox();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') loadInbox(true);
+    });
+    return () => subscription.remove();
+  }, [loadInbox]);
+
+  useEffect(() => {
+    const intervalId = setInterval(
+      () => loadInbox(true, true),
+      ANALYSIS_POLL_INTERVAL_MS,
+    );
+    return () => clearInterval(intervalId);
+  }, [loadInbox]);
+
+  useEffect(() => {
+    if (isSelectionHydrated || isLoading) {
+      return;
+    }
+
     let isMounted = true;
 
     getInboxSelection().then(selection => {
@@ -156,12 +122,11 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
         return;
       }
 
-      setSelectedItemIds(
-        selection.itemIds.filter(id => items.some(item => item.id === id)),
-      );
       setSelectedPlaceIds(
         selection.placeIds.filter(id =>
-          items.some(item => item.places.some(place => place.id === id)),
+          items.some(item =>
+            pendingPlaces(item).some(place => place.id === id),
+          ),
         ),
       );
       setIsSelectionHydrated(true);
@@ -170,57 +135,101 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isLoading, isSelectionHydrated, items]);
 
   useEffect(() => {
     if (!isSelectionHydrated) {
       return;
     }
 
-    setInboxSelection({ itemIds: selectedItemIds, placeIds: selectedPlaceIds });
-  }, [isSelectionHydrated, selectedItemIds, selectedPlaceIds]);
+    setInboxSelection({ placeIds: selectedPlaceIds });
+  }, [isSelectionHydrated, selectedPlaceIds]);
   const toggleSelectedPlace = (id: string) =>
     setSelectedPlaceIds(current =>
       current.includes(id)
         ? current.filter(value => value !== id)
         : [...current, id],
     );
-  const toggleSelectedItem = (item: Item) => {
-    const allPlacesSelected = item.places.every(place =>
+  const toggleSelectedItem = (item: InboxReel) => {
+    const selectablePlaces = pendingPlaces(item);
+    const allPlacesSelected = selectablePlaces.every(place =>
       selectedPlaceIds.includes(place.id),
     );
 
-    if (selectedItemIds.includes(item.id)) {
-      setSelectedItemIds(current => current.filter(value => value !== item.id));
-      return;
-    }
-
     if (allPlacesSelected) {
       setSelectedPlaceIds(current =>
-        current.filter(id => !item.places.some(place => place.id === id)),
+        current.filter(id => !selectablePlaces.some(place => place.id === id)),
       );
       return;
     }
 
-    setSelectedItemIds(current => [...current, item.id]);
+    setSelectedPlaceIds(current => [
+      ...current,
+      ...selectablePlaces
+        .map(place => place.id)
+        .filter(id => !current.includes(id)),
+    ]);
   };
-  const hasSelection =
-    selectedItemIds.length > 0 || selectedPlaceIds.length > 0;
-  const visibleItems = isEmptyState
-    ? []
-    : items.filter(item => !deletedItemIds.includes(item.id));
+  const hasSelection = selectedPlaceIds.length > 0;
+  const visibleItems = items;
   const toggleExpandedItem = (id: string) =>
     setExpandedIds(current =>
       current.includes(id)
         ? current.filter(value => value !== id)
         : [...current, id],
     );
-  const deleteSelectedItems = () => {
-    setDeletedItemIds(current => [...current, ...selectedItemIds]);
-    setSelectedItemIds([]);
-    setSelectedPlaceIds([]);
-    setExpandedIds(current =>
-      current.filter(id => !selectedItemIds.includes(id)),
+  const selectedPendingPlaceIds = () =>
+    items.flatMap(item =>
+      pendingPlaces(item)
+        .map(place => place.id)
+        .filter(id => selectedPlaceIds.includes(id)),
+    );
+  const resolveSelectedItems = async (action: QueueResolutionAction) => {
+    if (isResolving) {
+      return;
+    }
+
+    const reelPlaceIds = selectedPendingPlaceIds();
+    if (reelPlaceIds.length === 0) {
+      return;
+    }
+
+    setIsResolving(true);
+    try {
+      await resolveQueueItems(reelPlaceIds, action);
+      setSelectedPlaceIds([]);
+      await loadInbox(true);
+    } catch (error) {
+      const normalized = normalizeReelError(error);
+      setErrorMessage(normalized.message);
+
+      if (normalized.status === 401) {
+        await supabase.auth.refreshSession();
+      }
+      if (normalized.errorCode !== 'COMMON400_001') {
+        await loadInbox(true, true);
+      }
+    } finally {
+      setIsResolving(false);
+    }
+  };
+  const confirmResolveSelectedItems = (action: QueueResolutionAction) => {
+    const label = action === 'SAVE' ? '저장' : '삭제';
+    Alert.alert(
+      `선택한 장소를 ${label}할까요?`,
+      action === 'SAVE'
+        ? '선택한 장소를 보관함에 저장합니다.'
+        : '선택한 장소를 대기함에서 삭제합니다.',
+      [
+        {text: '취소', style: 'cancel'},
+        {
+          text: label,
+          style: action === 'DISCARD' ? 'destructive' : 'default',
+          onPress: () => {
+            resolveSelectedItems(action).catch(() => undefined);
+          },
+        },
+      ],
     );
   };
 
@@ -236,29 +245,42 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
         <Text style={styles.title}>대기함</Text>
         <View style={styles.headerActions}>
           <Pressable
-            accessibilityLabel="빈 상태 화면 전환"
-            onPress={() => setIsEmptyState(current => !current)}
-            style={styles.emptyStateToggle}
-          >
-            <Text style={styles.emptyStateToggleText}>
-              {isEmptyState ? '목록 보기' : '빈 상태 보기'}
-            </Text>
-          </Pressable>
-          <Pressable
             accessibilityLabel="대기함 기록 보기"
-            style={styles.headerAction}
             accessibilityRole="button"
             onPress={onOpenHistory}
+            style={styles.headerAction}
           >
             <InboxHeaderFrame height={41} width={41} />
           </Pressable>
         </View>
       </View>
       <ScrollView
-        contentContainerStyle={[styles.list, isEmptyState && styles.emptyList]}
+        contentContainerStyle={[
+          styles.list,
+          visibleItems.length === 0 && styles.emptyList,
+        ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => loadInbox(true)}
+          />
+        }
         showsVerticalScrollIndicator={false}
       >
-        {isEmptyState ? (
+        {errorMessage && visibleItems.length > 0 ? (
+          <Pressable onPress={() => loadInbox(true)} style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>
+              {errorMessage} · 다시 시도
+            </Text>
+          </Pressable>
+        ) : null}
+        {isLoading && visibleItems.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyDescription}>
+              대기함을 불러오는 중이에요.
+            </Text>
+          </View>
+        ) : visibleItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Image
               source={require('../../assets/illustrations/empty-illustration.png')}
@@ -266,19 +288,20 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
             />
             <Text style={styles.emptyTitle}>대기 중인 장소가 없어요</Text>
             <Text style={styles.emptyDescription}>
-              인스타그램 릴스나 유튜브 쇼츠에서{`\n`}공유하기를 통해 여기담에
-              저장해보세요.
+              {errorMessage
+                ? `${errorMessage}\n아래로 당겨 새로고침 해주세요.`
+                : '인스타그램 릴스나 유튜브 쇼츠에서\n공유하기를 통해 여기담에 저장해보세요.'}
             </Text>
           </View>
         ) : (
           visibleItems.map(item => {
             const expanded = expandedIds.includes(item.id);
-            const selectedByReel = selectedItemIds.includes(item.id);
-            const selected =
-              selectedByReel ||
-              item.places.every(place => selectedPlaceIds.includes(place.id));
+            const selectablePlaces = pendingPlaces(item);
+            const selected = selectablePlaces.every(place =>
+              selectedPlaceIds.includes(place.id),
+            );
             const selectedPlaceCount = selected
-              ? item.places.length
+              ? selectablePlaces.length
               : item.places.filter(place => selectedPlaceIds.includes(place.id))
                   .length;
             return (
@@ -286,7 +309,11 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
                 <View style={styles.cardContent}>
                   <View style={styles.summary}>
                     <Pressable
-                      accessibilityLabel={`${item.title} 펼치기`}
+                      accessibilityLabel={`${
+                        item.instagramTitle ??
+                        item.instagramDescription ??
+                        '릴스'
+                      } 펼치기`}
                       accessibilityRole="button"
                       accessibilityState={{ expanded }}
                       onPress={() => toggleExpandedItem(item.id)}
@@ -298,13 +325,24 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
                         width={CHEVRON_WIDTH}
                       />
                       <View style={styles.summaryContentView}>
-                        <Image
-                          source={{ uri: item.imageUrl }}
-                          style={styles.summaryImage}
-                        />
+                        {item.instagramThumbnailUrl ? (
+                          <Image
+                            source={{ uri: item.instagramThumbnailUrl }}
+                            style={styles.summaryImage}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.summaryImage,
+                              styles.imagePlaceholder,
+                            ]}
+                          />
+                        )}
                         <View style={styles.summaryText}>
                           <Text numberOfLines={1} style={styles.itemTitle}>
-                            {item.title}
+                            {item.instagramTitle ??
+                              item.instagramDescription ??
+                              '제목 없는 릴스'}
                           </Text>
                           <View style={styles.sourceRow}>
                             <InstagramIcon
@@ -312,7 +350,9 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
                               opacity={0.45}
                               width={15}
                             />
-                            <Text style={styles.source}>{item.source}</Text>
+                            <Text style={styles.source}>
+                              @{item.instagramAuthorUsername ?? 'unknown'}
+                            </Text>
                           </View>
                           <Text style={styles.count}>
                             {item.places.length}개의 장소 발견
@@ -324,7 +364,11 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
                       </View>
                     </Pressable>
                     <Pressable
-                      accessibilityLabel={`${item.title} 선택`}
+                      accessibilityLabel={`${
+                        item.instagramTitle ??
+                        item.instagramDescription ??
+                        '릴스'
+                      } 선택`}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: selected }}
                       hitSlop={10}
@@ -343,32 +387,52 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
                     <View style={styles.placeList}>
                       <View style={styles.placeRows}>
                         {item.places.map(place => {
+                          const isPending = place.reviewStatus === 'PENDING';
+                          const category = secondaryCategory(place.place?.category);
                           const saved =
-                            selected || selectedPlaceIds.includes(place.id);
+                            isPending &&
+                            (selected || selectedPlaceIds.includes(place.id));
                           return (
                             <View key={place.id} style={styles.placeRow}>
-                              <Image
-                                source={{ uri: place.imageUrl }}
-                                style={styles.placeImage}
-                              />
+                              {place.place?.thumbnailUrl ? (
+                                <Image
+                                  source={{ uri: place.place.thumbnailUrl }}
+                                  style={styles.placeImage}
+                                />
+                              ) : (
+                                <View
+                                  style={[
+                                    styles.placeImage,
+                                    styles.imagePlaceholder,
+                                  ]}
+                                />
+                              )}
                               <View style={styles.placeInfo}>
-                                <View style={styles.placeNameRow}>
-                                  <Text style={styles.placeName}>
-                                    {place.name}
+                                <Text numberOfLines={1} style={styles.placeName}>
+                                  {place.place?.name ?? '알 수 없는 장소'}
+                                </Text>
+                                {category ? (
+                                  <Text style={styles.category}>
+                                    {category}
                                   </Text>
-                                  <Text style={styles.category}>카페</Text>
-                                </View>
-                                <Text style={styles.address}>서울 성동구</Text>
+                                ) : null}
+                                <Text numberOfLines={2} style={styles.address}>
+                                  {placeAddress(place)}
+                                </Text>
                               </View>
                               <Pressable
-                                accessibilityLabel={`${place.name} 보관함에 저장`}
+                                accessibilityLabel={`${
+                                  place.place?.name ?? '장소'
+                                } 보관함에 저장`}
                                 accessibilityRole="checkbox"
                                 accessibilityState={{ checked: saved }}
+                                disabled={!isPending}
                                 hitSlop={10}
                                 onPress={() => toggleSelectedPlace(place.id)}
                                 style={[
                                   styles.saveButton,
                                   saved && styles.saveButtonActive,
+                                  !isPending && styles.saveButtonDisabled,
                                 ]}
                               >
                                 {saved ? (
@@ -391,22 +455,29 @@ export function InBoxScreen({onOpenHistory}: InBoxScreenProps) {
           })
         )}
       </ScrollView>
-      {hasSelection && !isEmptyState ? (
+      {hasSelection ? (
         <View pointerEvents="box-none" style={styles.bulkActionContainer}>
           <Pressable
             accessibilityLabel="선택한 항목 삭제"
-            onPress={deleteSelectedItems}
-            style={[styles.bulkAction, styles.deleteAction]}
+            disabled={isResolving}
+            onPress={() => confirmResolveSelectedItems('DISCARD')}
+            style={[
+              styles.bulkAction,
+              styles.deleteAction,
+              isResolving && styles.bulkActionDisabled,
+            ]}
           >
             <Text style={styles.deleteActionText}>삭제</Text>
           </Pressable>
           <Pressable
             accessibilityLabel="선택한 항목 저장"
-            onPress={() => {
-              setSelectedItemIds([]);
-              setSelectedPlaceIds([]);
-            }}
-            style={[styles.bulkAction, styles.storeAction]}
+            disabled={isResolving}
+            onPress={() => confirmResolveSelectedItems('SAVE')}
+            style={[
+              styles.bulkAction,
+              styles.storeAction,
+              isResolving && styles.bulkActionDisabled,
+            ]}
           >
             <Text style={styles.storeActionText}>저장</Text>
           </Pressable>
@@ -441,13 +512,13 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   headerAction: { alignItems: 'center', justifyContent: 'center' },
-  emptyStateToggle: {
-    backgroundColor: '#F1F3FB',
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+  errorBanner: {
+    backgroundColor: '#FFF4F4',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
-  emptyStateToggleText: { color: '#59617B', fontSize: 11, fontWeight: '700' },
+  errorBannerText: { color: '#A54D4D', fontSize: 13, textAlign: 'center' },
   expandedChevron: { transform: [{ rotate: '90deg' }] },
   list: {
     gap: 16,
@@ -506,10 +577,18 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     gap: CARD_CONTENT_GAP,
+    minWidth: 0,
   },
-  summaryContentView: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  summaryContentView: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 14,
+    minWidth: 0,
+  },
   summaryImage: { borderRadius: 7, height: 97, width: 65 },
-  summaryText: { flex: 1 },
+  imagePlaceholder: { backgroundColor: '#F1F3FB' },
+  summaryText: { flex: 1, minWidth: 0 },
   itemTitle: { color: '#000', fontSize: 15, fontWeight: '700' },
   sourceRow: { alignItems: 'center', flexDirection: 'row', marginTop: 6 },
   source: { color: '#8D8D8D', fontSize: 13, marginLeft: 3 },
@@ -530,11 +609,9 @@ const styles = StyleSheet.create({
     minHeight: 96,
   },
   placeImage: { borderRadius: 3, height: 64, width: 64 },
-  placeInfo: { flex: 1, marginHorizontal: 10 },
-  placeNameRow: { alignItems: 'center', flexDirection: 'row', gap: 6 },
+  placeInfo: { flex: 1, marginHorizontal: 10, minWidth: 0 },
   placeName: {
     color: '#202020',
-    flexShrink: 1,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -545,6 +622,8 @@ const styles = StyleSheet.create({
     color: '#6F6F6F',
     fontSize: 10,
     overflow: 'hidden',
+    alignSelf: 'flex-start',
+    marginTop: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
@@ -567,6 +646,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
+  saveButtonDisabled: { borderColor: '#E5E5E5', opacity: 0.45 },
   itemSelectButton: {
     alignItems: 'center',
     borderColor: '#A5A5A5',
@@ -574,6 +654,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 23,
     justifyContent: 'center',
+    flexShrink: 0,
     width: 23,
   },
   itemSelectButtonActive: {
@@ -605,6 +686,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  bulkActionDisabled: { opacity: 0.5 },
   deleteAction: { backgroundColor: '#FFFFFF' },
   deleteActionText: { color: '#1F2238', fontSize: 16, fontWeight: '800' },
   storeAction: { backgroundColor: '#B8C5FF' },

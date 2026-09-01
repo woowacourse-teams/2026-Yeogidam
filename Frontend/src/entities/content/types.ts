@@ -5,6 +5,7 @@ export type ContentType = 'instagram_reel' | 'unsupported';
 export type SaveInstagramReelResponse = {
   reelId: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  saveMode: 'REVIEW_QUEUE' | 'AUTO_SAVE';
   placeId?: string;
   placeIds?: string[];
   failureReason?: string;

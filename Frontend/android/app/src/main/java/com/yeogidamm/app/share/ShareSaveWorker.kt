@@ -54,7 +54,7 @@ internal class ShareSaveWorker(
 
         var connection: HttpURLConnection? = null
         return try {
-            connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/save-instagram-reel")
+            connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/save-instagram-reel-v2")
                 .openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 30_000
@@ -118,6 +118,7 @@ internal class ShareSaveWorker(
                     } else {
                         null
                     },
+                    saveMode = response.optNullableString("saveMode"),
                 ),
             )
             Result.success()

@@ -26,6 +26,7 @@ struct ShareReelResult: Codable {
   var retryable: Bool
   var updatedAt: Double
   var reused: Bool? = nil
+  var saveMode: String? = nil
 }
 
 struct ShareIntentPayload: Codable {

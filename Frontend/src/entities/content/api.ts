@@ -117,7 +117,7 @@ export async function saveInstagramReel(
   source: SaveSource,
 ): Promise<SaveInstagramReelResponse> {
   const {data, error} = await supabase.functions.invoke<SaveInstagramReelResponse>(
-    'save-instagram-reel',
+    'save-instagram-reel-v2',
     {
       body: {
         instagramUrl,
