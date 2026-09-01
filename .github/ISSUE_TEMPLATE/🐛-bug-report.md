@@ -1,8 +1,8 @@
 ---
 name: "\U0001F41B Bug Report"
 about: 버그가 발생했을 때 디버깅에 필요한 정보를 기록
-title: ''
-labels: ''
+title: "[Bug] 제목"
+labels: ["Bug"]
 assignees: ''
 
 ---
