@@ -1,7 +1,7 @@
 ---
 name: "📣 Marketing Template"
 about: 마케팅 관련 업무를 등록하고 관리
-title: '"[Marketing] "'
+title: '[Marketing] '
 labels: 'marketing'
 assignees: ''
 ---

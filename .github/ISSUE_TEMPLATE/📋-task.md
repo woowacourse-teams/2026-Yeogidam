@@ -1,7 +1,7 @@
 ---
 name: "📋 Task Template"
 about: 개발 외 일반 업무를 등록하고 관리
-title: '"[Task] "'
+title: '[Task] '
 labels: 'task'
 assignees: ''
 ---
