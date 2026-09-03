@@ -84,6 +84,7 @@ function App() {
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
+  const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
@@ -565,7 +566,12 @@ function App() {
     }
 
     if (currentScreen === 'inBox') {
-      return <InBoxScreen onOpenHistory={() => setIsHistoryVisible(true)} />;
+      return (
+        <InBoxScreen
+          onOpenHistory={() => setIsHistoryVisible(true)}
+          onSelectionChange={setIsInBoxSelecting}
+        />
+      );
     }
 
     if (currentScreen === 'map') {
@@ -608,6 +614,7 @@ function App() {
     myPageOverlay === null &&
     !isHistoryVisible &&
     !isSavedPlacesEditing &&
+    !isInBoxSelecting &&
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';
