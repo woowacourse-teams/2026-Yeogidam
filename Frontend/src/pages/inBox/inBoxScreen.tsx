@@ -17,10 +17,6 @@ import InboxChevronRight from '../../assets/icons/inbox-chevron-right.svg';
 import InboxHeaderFrame from '../../assets/icons/inbox-header-frame.svg';
 import InstagramIcon from '../../assets/icons/social/instagram.svg';
 import {
-  getInboxSelection,
-  setInboxSelection,
-} from '../../lib/inbox-selection-storage';
-import {
   resolveQueueItems,
   getInboxReels,
   type InboxPlace,
@@ -68,7 +64,6 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
   const [items, setItems] = useState<InboxReel[]>([]);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
-  const [isSelectionHydrated, setIsSelectionHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
@@ -111,40 +106,6 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
     return () => clearInterval(intervalId);
   }, [loadInbox]);
 
-  useEffect(() => {
-    if (isSelectionHydrated || isLoading) {
-      return;
-    }
-
-    let isMounted = true;
-
-    getInboxSelection().then(selection => {
-      if (!isMounted) {
-        return;
-      }
-
-      setSelectedPlaceIds(
-        selection.placeIds.filter(id =>
-          items.some(item =>
-            pendingPlaces(item).some(place => place.id === id),
-          ),
-        ),
-      );
-      setIsSelectionHydrated(true);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isLoading, isSelectionHydrated, items]);
-
-  useEffect(() => {
-    if (!isSelectionHydrated) {
-      return;
-    }
-
-    setInboxSelection({ placeIds: selectedPlaceIds });
-  }, [isSelectionHydrated, selectedPlaceIds]);
   const toggleSelectedPlace = (id: string) =>
     setSelectedPlaceIds(current =>
       current.includes(id)
