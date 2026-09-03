@@ -64,7 +64,9 @@ export function MapScreen({
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
     COLLAPSED_SHEET_HEIGHT,
   );
-  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
+  // Request the initial camera position from the user's location. The native
+  // map waits for the permission/location callback before moving the camera.
+  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(1);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const bottomNavigationOffset = BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset;
