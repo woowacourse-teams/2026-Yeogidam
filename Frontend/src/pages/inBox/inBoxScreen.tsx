@@ -28,6 +28,7 @@ import {
   type QueueResolutionAction,
 } from '../../entities/content/inbox-api';
 import { normalizeReelError } from '../../entities/content/errors';
+import {normalizeReelTitle} from '../../entities/content/title';
 import { supabase } from '../../lib/auth/supabase';
 
 function pendingPlaces(item: InboxReel) {
@@ -295,6 +296,10 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
           </View>
         ) : (
           visibleItems.map(item => {
+            const displayTitle = normalizeReelTitle(
+              item.instagramDescription,
+              item.instagramTitle,
+            );
             const expanded = expandedIds.includes(item.id);
             const selectablePlaces = pendingPlaces(item);
             const selected = selectablePlaces.every(place =>
@@ -310,9 +315,7 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
                   <View style={styles.summary}>
                     <Pressable
                       accessibilityLabel={`${
-                        item.instagramTitle ??
-                        item.instagramDescription ??
-                        '릴스'
+                        displayTitle
                       } 펼치기`}
                       accessibilityRole="button"
                       accessibilityState={{ expanded }}
@@ -340,9 +343,7 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
                         )}
                         <View style={styles.summaryText}>
                           <Text numberOfLines={1} style={styles.itemTitle}>
-                            {item.instagramTitle ??
-                              item.instagramDescription ??
-                              '제목 없는 릴스'}
+                            {displayTitle}
                           </Text>
                           <View style={styles.sourceRow}>
                             <InstagramIcon
@@ -365,9 +366,7 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
                     </Pressable>
                     <Pressable
                       accessibilityLabel={`${
-                        item.instagramTitle ??
-                        item.instagramDescription ??
-                        '릴스'
+                        displayTitle
                       } 선택`}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: selected }}
