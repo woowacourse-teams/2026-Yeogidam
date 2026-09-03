@@ -5,7 +5,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -52,8 +51,6 @@ import {
   setRecentSearches as persistRecentSearches,
 } from '../../lib/searchHistoryStorage';
 
-// 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
-const SHOW_CARD_PREVIEW = false;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
 const MAX_RECENT_SEARCHES = 10;
@@ -70,81 +67,6 @@ type ShareApiDiagnostics = {
   queriedStatus: ReelProcessingStatus['processing_status'] | null;
   queryFailureReason: string | null;
 };
-
-function ReelStatusCard({
-  status,
-  message,
-  description,
-  onCancel,
-  onRetry,
-}: {
-  status: 'PROCESSING' | 'FAILED' | 'COMPLETED';
-  message: string;
-  description: string;
-  onCancel?: () => void;
-  onRetry?: () => void;
-}) {
-  const failed = status === 'FAILED';
-  const completed = status === 'COMPLETED';
-  const progress = useRef(new Animated.Value(-1)).current;
-
-  useEffect(() => {
-    if (failed || completed) {
-      return;
-    }
-
-    const animation = Animated.loop(
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: 1200,
-        useNativeDriver: true,
-      }),
-    );
-    animation.start();
-
-    return () => animation.stop();
-  }, [completed, failed, progress]);
-
-  return (
-    <View style={styles.processingCard}>
-      <Text style={styles.processingTitle}>{message}</Text>
-      <Text style={styles.processingMessage}>{description}</Text>
-      {!failed && !completed ? (
-        <View style={styles.progressTrack}>
-          <Animated.View
-            style={[
-              styles.progressIndicator,
-              {
-                transform: [
-                  {
-                    translateX: progress.interpolate({
-                      inputRange: [-1, 1],
-                      outputRange: [-80, 180],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        </View>
-      ) : null}
-      {failed ? (
-        <View style={styles.processingActions}>
-          {failed && onRetry ? (
-            <Pressable onPress={onRetry} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>다시 시도</Text>
-            </Pressable>
-          ) : null}
-          <Pressable onPress={onCancel} style={styles.dismissButton}>
-            <Text style={styles.dismissButtonText}>
-              {failed ? '닫기' : '취소'}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </View>
-  );
-}
 
 function getFailureCode(reason: string | null): string | null {
   return reason?.split(' | ', 1)[0]?.trim() || null;
@@ -231,7 +153,6 @@ type SavedPlacesScreenProps = {
   onOpenInbox?: () => void;
   places?: Place[];
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
-  onSharedResultDismissed?: (requestId?: string) => Promise<void>;
 };
 
 function SavedPlacesEditAction({
@@ -266,7 +187,6 @@ export function SavedPlacesScreen({
   onOpenInbox,
   places: providedPlaces,
   onSharedResultConsumed,
-  onSharedResultDismissed,
 }: SavedPlacesScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
@@ -288,7 +208,6 @@ export function SavedPlacesScreen({
   const [processingReelId, setProcessingReelId] = useState<string | null>(null);
   const [processingReel, setProcessingReel] =
     useState<ReelProcessingStatus | null>(null);
-  const [processingUrl, setProcessingUrl] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [_statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(
     null,
@@ -301,7 +220,7 @@ export function SavedPlacesScreen({
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const hasSavedPlaces = places.length > 0;
-  const isEditActionInScroll = hasSavedPlaces && !SHOW_CARD_PREVIEW;
+  const isEditActionInScroll = hasSavedPlaces;
   const bottomActionOffset =
     bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
 
@@ -483,7 +402,6 @@ export function SavedPlacesScreen({
         setShareApiDiagnostics(null);
         setProcessingReelId(null);
         setProcessingReel(null);
-        setProcessingUrl(null);
         setStatusQueryError(null);
         return;
       }
@@ -515,7 +433,6 @@ export function SavedPlacesScreen({
         // reelId가 오기 전에는 상태 API를 호출하지 않고 응답 대기 카드만 표시합니다.
         setProcessingReelId(null);
         setProcessingReel(state.reel);
-        setProcessingUrl(state.url);
         setStatusQueryError(null);
         setIsSaveResponseFailure(false);
         return;
@@ -529,7 +446,6 @@ export function SavedPlacesScreen({
       ) {
         setProcessingReelId(null);
         setProcessingReel(null);
-        setProcessingUrl(null);
         setStatusQueryError(null);
         if (!verificationInFlight.has(verificationKey)) {
           void verifySharedReelBeforeShowing(state, verificationKey);
@@ -537,7 +453,6 @@ export function SavedPlacesScreen({
         return;
       }
 
-      setProcessingUrl(state.url);
       setProcessingReelId(
         (state.status === 'PROCESSING' || state.status === 'PENDING') &&
         hasRealReelId
@@ -597,7 +512,6 @@ export function SavedPlacesScreen({
     // 새 링크 요청은 이전 릴스의 카드/폴링 상태를 이어받지 않습니다.
     setProcessingReelId(null);
     setProcessingReel(initialReel);
-    setProcessingUrl(normalizedUrl);
     setStatusQueryError(null);
     setIsSaveResponseFailure(false);
     setShowSaveSuccess(false);
@@ -683,7 +597,6 @@ export function SavedPlacesScreen({
       setIsSaveResponseFailure(false);
       setProcessingReelId(null);
       setProcessingReel(null);
-      setProcessingUrl(null);
       setShowSaveSuccess(source === 'url_input');
       return;
     }
@@ -691,7 +604,6 @@ export function SavedPlacesScreen({
     // REEL-01의 200 FAILED 결과는 reused 값과 관계없이 재시도 UI를 표시합니다.
     setIsSaveResponseFailure(response.status === 'FAILED');
     setProcessingReelId(response.reelId);
-    setProcessingUrl(url);
     setProcessingReel({
       id: response.reelId,
       processing_status: response.status,
@@ -699,62 +611,6 @@ export function SavedPlacesScreen({
       instagram_thumbnail_url: null,
       created_at: new Date().toISOString(),
     });
-  };
-
-  const dismissProcessingCard = async () => {
-    const currentState = getSharedSaveState();
-    const isExternalShare = currentState?.source === 'instagram_share';
-    const requestId = currentState?.shareResultId;
-    setSharedSaveState(null);
-    setIsSaveResponseFailure(false);
-    setProcessingReelId(null);
-    setProcessingReel(null);
-    setProcessingUrl(null);
-    setStatusQueryError(null);
-    if (isExternalShare) {
-      try {
-        await onSharedResultDismissed?.(requestId);
-      } catch {
-        // 카드는 즉시 닫되 다음 실행에서 삭제를 다시 시도할 수 있습니다.
-      }
-    }
-  };
-
-  const retryProcessing = async () => {
-    if (!processingUrl || isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    const source = getSharedSaveState()?.source ?? 'url_input';
-    const requestSource: SaveSource =
-      source === 'instagram_share' ? 'url_input' : source;
-    try {
-      const response = await saveContent(processingUrl, requestSource);
-      handleSaveResponse(response, processingUrl, source);
-    } catch (error) {
-      const normalized = normalizeReelError(error);
-      if (normalized.errorCode === 'AUTH401_002') {
-        const {error: refreshError} = await supabase.auth.refreshSession();
-        if (!refreshError) {
-          try {
-            const response = await saveContent(processingUrl, requestSource);
-            handleSaveResponse(response, processingUrl, source);
-            return;
-          } catch (retryError) {
-            error = retryError;
-          }
-        } else {
-          onRequireLogin?.();
-          return;
-        }
-      }
-      const finalError = normalizeReelError(error);
-      setStatusQueryError(finalError);
-      setIsSaveResponseFailure(true);
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   useEffect(() => {
@@ -1074,70 +930,6 @@ export function SavedPlacesScreen({
               onPress={handlePressEdit}
             />
           ) : null}
-          {SHOW_CARD_PREVIEW ? (
-            <ScrollView
-              contentContainerStyle={styles.previewContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <ReelStatusCard
-                status="PROCESSING"
-                message="릴스에서 장소를 찾고 있어요."
-                description="처리가 완료되면 보관함에 반영됩니다."
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="인터넷 연결을 확인해주세요."
-                description="연결을 확인한 뒤 다시 시도해주세요."
-                onCancel={() => {}}
-                onRetry={() => {}}
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="데이터를 처리하지 못했어요."
-                description="잠시 후 다시 시도해주세요."
-                onCancel={() => {}}
-                onRetry={() => {}}
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="지도에서 일치하는 장소를 찾지 못했어요."
-                description="릴스의 장소 정보를 확인한 뒤 다시 시도해주세요."
-                onCancel={() => {}}
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="릴스 캡션을 읽지 못했어요."
-                description="릴스에 장소 정보가 포함되어 있는지 확인해주세요."
-                onCancel={() => {}}
-              />
-              <ReelStatusCard
-                status="COMPLETED"
-                message="장소를 저장했어요."
-                description="보관함에 반영되었습니다."
-              />
-            </ScrollView>
-          ) : showSaveSuccess ? (
-            <ReelStatusCard
-              status="COMPLETED"
-              message="장소를 저장했어요."
-              description="보관함에 반영되었습니다."
-            />
-          ) : processingReel &&
-            processingReel.processing_status === 'FAILED' ? (
-            <ReelStatusCard
-              status="FAILED"
-              message={getFailureMessage(processingReel.failure_reason)}
-              description={getFailureDescription(processingReel.failure_reason)}
-              onCancel={dismissProcessingCard}
-              // REEL-01이 200 FAILED를 반환한 경우
-              // reused 값과 관계없이 동일 URL로 저장 요청을 다시 보냅니다.
-              onRetry={
-                isSaveResponseFailure && canRetryFailure(processingReel.failure_reason)
-                  ? retryProcessing
-                  : undefined
-              }
-            />
-          ) : null}
           {error && hasSavedPlaces ? (
             <View style={styles.errorBanner}>
               <Text numberOfLines={1} style={styles.errorText}>
@@ -1339,122 +1131,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 18,
-  },
-  processingCard: {
-    marginHorizontal: 24,
-    marginTop: 10,
-    marginBottom: 16,
-    borderRadius: 20,
-    backgroundColor: '#e9edff',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    flexDirection: 'column',
-    shadowColor: '#4b4e5d',
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 5 },
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  previewContent: {
-    paddingBottom: 32,
-  },
-  floatingStatus: {
-    marginHorizontal: 24,
-    marginTop: 12,
-    minHeight: 48,
-    borderRadius: 24,
-    backgroundColor: '#e9edff',
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#4b4e5d',
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 5 },
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  floatingStatusText: {
-    color: '#24243a',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  floatingStatusChevron: {
-    color: '#7186ed',
-    fontSize: 28,
-    lineHeight: 28,
-  },
-  successCard: {
-    backgroundColor: '#e9edff',
-  },
-  processingTextBlock: {
-    flex: 0,
-    minWidth: 0,
-    width: '100%',
-  },
-  processingTitle: {
-    color: '#24243a',
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-  },
-  processingMessage: {
-    marginTop: 4,
-    color: '#70758d',
-    fontSize: 12,
-    lineHeight: 17,
-    letterSpacing: -0.1,
-  },
-  progressTrack: {
-    height: 4,
-    marginTop: 12,
-    borderRadius: 2,
-    overflow: 'hidden',
-    backgroundColor: '#dce2ff',
-  },
-  progressIndicator: {
-    width: 80,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#8fa2ff',
-  },
-  processingActions: {
-    alignSelf: 'flex-end',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 10,
-  },
-  retryButton: {
-    minWidth: 70,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#8fa2ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  dismissButton: {
-    minWidth: 64,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#e0e5ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  dismissButtonText: {
-    color: '#4f5d9b',
-    fontSize: 13,
-    fontWeight: '800',
-    textAlign: 'center',
   },
   errorBanner: {
     flexDirection: 'row',
