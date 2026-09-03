@@ -15,6 +15,7 @@ const SAVED_PLACES_SELECT = [
   'id',
   'thumbnail_url',
   'created_at',
+  'last_saved_at',
   'place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)',
 ].join(',');
 
@@ -30,11 +31,8 @@ const PROFILE_SELECT = [
 const PLACE_REELS_SELECT = [
   'id',
   'instagram_url',
-  'instagram_author_username',
-  'instagram_description',
   'instagram_thumbnail_url',
   'created_at',
-  'reel_places!inner(place_id)',
 ].join(',');
 
 const SAVED_PLACES_REQUEST_TIMEOUT_MS = 10_000;
@@ -397,6 +395,7 @@ type SupabaseSavedPlaceResponse = {
   id: string;
   thumbnail_url: string | null;
   created_at: string;
+  last_saved_at: string;
   place: {
     id: string;
     name: string;
@@ -420,6 +419,7 @@ function toSavedPlaceListItem(
     id: item.id,
     thumbnailUrl: item.thumbnail_url,
     createdAt: item.created_at,
+    lastSavedAt: item.last_saved_at,
     place: {
       id: item.place.id,
       name: item.place.name,
@@ -449,7 +449,7 @@ export function createSupabaseSavedPlacesRepository(
     const token = await options.getAccessToken?.();
     const query = `?select=${encodeURIComponent(
       SAVED_PLACES_SELECT,
-    )}&order=created_at.desc`;
+    )}&order=last_saved_at.desc,id.desc`;
     let response: Response;
     try {
       response = await fetch(
@@ -660,8 +660,6 @@ export function deleteSavedPlaces(savedPlaceIds: string[]): Promise<void> {
 type SupabasePlaceReelResponse = {
   id: string;
   instagram_url: string;
-  instagram_author_username: string | null;
-  instagram_description: string | null;
   instagram_thumbnail_url: string | null;
   created_at: string;
 };
@@ -709,8 +707,8 @@ function toPlaceReel(reel: SupabasePlaceReelResponse): PlaceReel {
   return {
     id: reel.id,
     instagramUrl: reel.instagram_url,
-    instagramAuthorUsername: reel.instagram_author_username,
-    instagramDescription: reel.instagram_description,
+    instagramAuthorUsername: null,
+    instagramDescription: null,
     instagramThumbnailUrl: reel.instagram_thumbnail_url,
     createdAt: reel.created_at,
   };
@@ -724,16 +722,15 @@ export function createSupabasePlaceReelsRepository(
     const token = await options.getAccessToken?.();
     const query = [
       `select=${encodeURIComponent(PLACE_REELS_SELECT)}`,
-      'processing_status=eq.COMPLETED',
-      `reel_places.place_id=eq.${encodeURIComponent(placeId)}`,
-      'order=created_at.desc',
+      `place_id=eq.${encodeURIComponent(placeId)}`,
+      'order=created_at.desc,id.desc',
     ].join('&');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
     let response: Response;
     try {
       response = await fetch(
-        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/reels?${query}`,
+        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/user_related_reels?${query}`,
         {
           headers: {
             Accept: 'application/json',

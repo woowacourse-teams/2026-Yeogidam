@@ -165,14 +165,14 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
       return;
     }
 
-    const reelPlaceIds = selectedPendingPlaceIds();
-    if (reelPlaceIds.length === 0) {
+    const queueItemIds = selectedPendingPlaceIds();
+    if (queueItemIds.length === 0) {
       return;
     }
 
     setIsResolving(true);
     try {
-      await resolveQueueItems(reelPlaceIds, action);
+      await resolveQueueItems(queueItemIds, action);
       setSelectedPlaceIds([]);
       await loadInbox(true);
     } catch (error) {

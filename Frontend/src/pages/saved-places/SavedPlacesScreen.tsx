@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {v4 as uuidv4} from 'uuid';
 import { supabase } from '../../lib/auth/supabase';
 
 import {
@@ -219,6 +220,7 @@ export function SavedPlacesScreen({
   const scrollViewRef = useRef<ScrollView>(null);
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
+  const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
   const isEditActionInScroll = hasSavedPlaces;
   const bottomActionOffset =
@@ -501,6 +503,10 @@ export function SavedPlacesScreen({
 
     const normalizedUrl =
       normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
+    if (!isSessionRetry || !saveRequestIdRef.current) {
+      saveRequestIdRef.current = uuidv4();
+    }
+    const clientRequestId = saveRequestIdRef.current;
     const initialReel: ReelProcessingStatus = {
       id: `manual-${Date.now()}`,
       processing_status: 'PROCESSING',
@@ -524,7 +530,7 @@ export function SavedPlacesScreen({
     setIsSubmitting(true);
     setLinkError(null);
     try {
-      const response = await saveContent(linkValue, 'url_input');
+      const response = await saveContent(linkValue, 'url_input', clientRequestId);
       const nextReel: ReelProcessingStatus = {
         id: response.reelId,
         processing_status: response.status,

@@ -1,4 +1,5 @@
 import {supabase} from '../../lib/auth/supabase';
+import {v4 as uuidv4} from 'uuid';
 import type {
   ContentType,
   SaveInstagramReelResponse,
@@ -14,7 +15,7 @@ const REEL_STATUS_SELECT =
   'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
 const HISTORY_SELECT =
   'id,instagram_url,instagram_title,instagram_description,instagram_author_username,instagram_thumbnail_url,processing_status,failure_reason,save_mode,created_at';
-const HISTORY_DETAIL_SELECT = `${HISTORY_SELECT},reel_places(id,position,review_status,reviewed_at,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution))`;
+const HISTORY_DETAIL_SELECT = `${HISTORY_SELECT},extraction:reel_extractions!reels_extraction_id_fkey(extraction_places:reel_extraction_places(id,position,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)))`;
 
 export async function getHistoryReelDetail(
   reelId: string,
@@ -24,7 +25,10 @@ export async function getHistoryReelDetail(
       .from('reels')
       .select(HISTORY_DETAIL_SELECT)
       .eq('id', reelId)
-      .order('position', {ascending: true, referencedTable: 'reel_places'})
+      .order('position', {
+        ascending: true,
+        referencedTable: 'extraction.extraction_places',
+      })
       .limit(1)
       .returns<HistoryReelDetail[]>();
 
@@ -115,6 +119,7 @@ export function normalizeInstagramContentUrl(url: string): string | null {
 export async function saveInstagramReel(
   instagramUrl: string,
   source: SaveSource,
+  clientRequestId = uuidv4(),
 ): Promise<SaveInstagramReelResponse> {
   const {data, error} = await supabase.functions.invoke<SaveInstagramReelResponse>(
     'save-instagram-reel-v2',
@@ -122,7 +127,7 @@ export async function saveInstagramReel(
       body: {
         instagramUrl,
         source,
-        forceReprocess: false,
+        clientRequestId,
       },
     },
   );
@@ -158,6 +163,7 @@ export async function saveInstagramReel(
 export async function saveContent(
   url: string,
   source: SaveSource,
+  clientRequestId?: string,
 ): Promise<SaveInstagramReelResponse> {
   const normalizedUrl = normalizeInstagramContentUrl(url);
 
@@ -170,7 +176,7 @@ export async function saveContent(
     });
   }
 
-  return saveInstagramReel(normalizedUrl, source);
+  return saveInstagramReel(normalizedUrl, source, clientRequestId);
 }
 
 export async function getReelProcessingStatus(

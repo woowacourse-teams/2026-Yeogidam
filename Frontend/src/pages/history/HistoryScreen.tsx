@@ -166,7 +166,7 @@ function HistorySuccessDetail({
   const { detail, loading, error } = useHistoryReelDetail(reel.id);
   const displayReel = detail ?? reel;
   const places =
-    detail?.reel_places
+    detail?.extraction?.extraction_places
       .map(item => item.place)
       .filter((place): place is HistoryPlace => Boolean(place)) ?? [];
   const originalUrl = displayReel.instagram_url;

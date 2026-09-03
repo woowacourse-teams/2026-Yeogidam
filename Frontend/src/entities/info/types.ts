@@ -137,12 +137,13 @@ export type SavedPlaceInfo = {
   placeId: string;
   thumbnailUrl?: string | null;
   createdAt: string;
+  lastSavedAt?: string;
 };
 
 /** `saved_places`와 `places` 조인 조회에 사용하는 목록 항목입니다. */
 export type SavedPlaceListItem = Pick<
   SavedPlaceInfo,
-  'id' | 'thumbnailUrl' | 'createdAt'
+  'id' | 'thumbnailUrl' | 'createdAt' | 'lastSavedAt'
 > & {
   place: Pick<
     InfoPlace,

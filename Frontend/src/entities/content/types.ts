@@ -52,11 +52,11 @@ export type HistoryPlace = {
 export type HistoryReelPlace = {
   id: string;
   position: number;
-  review_status: string | null;
-  reviewed_at: string | null;
   place: HistoryPlace | null;
 };
 
 export type HistoryReelDetail = HistoryReel & {
-  reel_places: HistoryReelPlace[];
+  extraction: {
+    extraction_places: HistoryReelPlace[];
+  } | null;
 };
