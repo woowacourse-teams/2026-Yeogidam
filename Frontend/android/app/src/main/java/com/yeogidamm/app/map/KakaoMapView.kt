@@ -332,7 +332,11 @@ class KakaoMapView(
         val map = kakaoMap ?: return
         if (id == NO_ID || width <= 0 || height <= 0 || center == null) return
 
-        val visibleBottom = (height - map.padding.bottom).coerceAtLeast(1)
+        // The list should include every pin visible on the map, including
+        // pins covered by a partially expanded bottom sheet. Keep map padding
+        // for camera positioning, but calculate list bounds from the full map
+        // viewport.
+        val visibleBottom = height.coerceAtLeast(1)
 
         val corners = listOfNotNull(
             map.fromScreenPoint(0, 0),
