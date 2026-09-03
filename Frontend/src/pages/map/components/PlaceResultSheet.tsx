@@ -11,7 +11,6 @@ import {
   Image,
   PanResponder,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -64,6 +63,16 @@ const EXPANDED_RESULTS_TOP_GAP = 16;
 const DETAIL_INLINE_BOTTOM_PADDING = 24;
 const DETAIL_PAGE_BOTTOM_PADDING = 100;
 
+function getMiddleCategory(category?: string) {
+  if (!category) return undefined;
+
+  const categories = category
+    .split('>')
+    .map(item => item.trim())
+    .filter(Boolean);
+  return categories[1] ?? categories[0];
+}
+
 export function PlaceResultSheet({
   places,
   isSearchActive = false,
@@ -86,7 +95,7 @@ export function PlaceResultSheet({
 }: PlaceResultSheetProps) {
   const { width: windowWidth } = useWindowDimensions();
   const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
-  const photoWidth = (windowWidth - 26) / 4;
+  const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
@@ -546,36 +555,27 @@ export function PlaceResultSheet({
                 accessibilityRole="button"
                 accessibilityLabel={`${place.name} 상세 보기`}
                 onPress={() => selectPlace(place)}
-                style={styles.resultTop}
+                style={styles.resultCard}
               >
+                {place.image ? (
+                  <Image source={place.image} style={[styles.photo, {width: photoWidth}]} />
+                ) : (
+                  <View style={[styles.photo, styles.imagePlaceholder, {width: photoWidth}]} />
+                )}
                 <View style={styles.resultText}>
-                  <Text style={styles.name}>{place.name}</Text>
-                  <Text style={styles.address}>{place.fullAddress}</Text>
+                  {getMiddleCategory(place.category) ? (
+                    <View style={styles.titleRow}>
+                      <Text numberOfLines={1} style={styles.name}>{place.name}</Text>
+                      <View style={styles.categoryPill}>
+                        <Text style={styles.category}>{getMiddleCategory(place.category)}</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <Text numberOfLines={1} style={styles.name}>{place.name}</Text>
+                  )}
+                  <Text style={styles.address}>{place.fullAddress || place.address}</Text>
                 </View>
               </Pressable>
-              <ScrollView
-                horizontal
-                directionalLockEnabled
-                nestedScrollEnabled
-                scrollEventThrottle={16}
-                contentContainerStyle={styles.photoStrip}
-                showsHorizontalScrollIndicator={false}
-              >
-                {(
-                  place.images ?? [
-                    place.image,
-                    place.image,
-                    place.image,
-                    place.image,
-                  ]
-                ).map((image, index) => (
-                  <Image
-                    key={index}
-                    source={image}
-                    style={[styles.photo, { width: photoWidth }]}
-                  />
-                ))}
-              </ScrollView>
             </View>
           )}
           ListEmptyComponent={
@@ -647,8 +647,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   result: {
-    paddingTop: 9,
-    paddingBottom: 15,
+    paddingVertical: 12,
   },
   emptyResult: {
     paddingTop: 34,
@@ -658,37 +657,50 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8e8e93',
   },
-  resultTop: {
+  resultCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 7,
+    alignItems: 'flex-start',
+    minHeight: 92,
   },
   resultText: {
     flex: 1,
-    paddingRight: 12,
+    paddingLeft: 14,
+    paddingTop: 3,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   name: {
+    flexShrink: 1,
     fontSize: 16,
     fontWeight: '800',
     color: '#1a1a2e',
   },
+  categoryPill: {
+    borderWidth: 1.5,
+    borderColor: '#C9C9CE',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  category: {
+    color: '#77777D',
+    fontSize: 12,
+  },
   address: {
     fontSize: 12,
     color: '#8e8e93',
-    marginTop: 3,
-  },
-  photoStrip: {
-    flexDirection: 'row',
-    height: 118,
-    borderRadius: 14,
-    overflow: 'hidden',
+    lineHeight: 18,
+    marginTop: 7,
   },
   photo: {
-    width: 96,
-    height: '100%',
-    borderRightWidth: 1,
-    borderRightColor: '#ffffff',
+    height: 92,
+    borderRadius: 4,
     resizeMode: 'cover',
+  },
+  imagePlaceholder: {
+    backgroundColor: '#F1F3FB',
   },
 });

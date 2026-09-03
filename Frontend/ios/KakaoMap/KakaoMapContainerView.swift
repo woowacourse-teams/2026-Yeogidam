@@ -664,11 +664,15 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
     else { return }
 
+    // The list should include every pin visible on the map, including pins
+    // currently covered by a partially expanded bottom sheet. Camera margins
+    // still keep programmatic camera moves centred in the exposed area, but
+    // bounds for list filtering must cover the full map viewport.
     let visibleRect = CGRect(
       x: 0,
       y: 0,
       width: kakaoMap.viewRect.width,
-      height: max(1, kakaoMap.viewRect.height - cameraBottomInset)
+      height: kakaoMap.viewRect.height
     )
     let coordinate = kakaoMap.getPosition(
       CGPoint(x: visibleRect.midX, y: visibleRect.midY)

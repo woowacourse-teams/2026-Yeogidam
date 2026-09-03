@@ -64,7 +64,9 @@ export function MapScreen({
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
     COLLAPSED_SHEET_HEIGHT,
   );
-  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
+  // Request the initial camera position from the user's location. The native
+  // map waits for the permission/location callback before moving the camera.
+  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(1);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const bottomNavigationOffset = BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset;
@@ -109,12 +111,12 @@ export function MapScreen({
       ),
     [savedPlaces],
   );
-  const visiblePlaces = useMemo(() => {
-    if (!visibleBounds) {
-      return [];
-    }
+  const hasActiveSearch = searchKeyword.trim().length > 0;
+  const resultPlaces = useMemo(() => {
+    const candidatePlaces = searchedPlaces ?? placesWithCoordinates;
+    if (!visibleBounds) return [];
 
-    return placesWithCoordinates.filter(
+    return candidatePlaces.filter(
       place =>
         place.latitude !== undefined &&
         place.longitude !== undefined &&
@@ -123,9 +125,7 @@ export function MapScreen({
         place.longitude >= visibleBounds.westLongitude &&
         place.longitude <= visibleBounds.eastLongitude,
     );
-  }, [placesWithCoordinates, visibleBounds]);
-  const resultPlaces = searchedPlaces ?? visiblePlaces;
-  const hasActiveSearch = searchKeyword.trim().length > 0;
+  }, [placesWithCoordinates, searchedPlaces, visibleBounds]);
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
   const cameraFitPointsJson = useMemo(
     () =>
@@ -147,9 +147,7 @@ export function MapScreen({
       // The sheet can cover a different part of the map before the native map
       // reports its new camera bounds. Do not keep rendering the previous area's
       // results during that short interval.
-      if (!searchedPlaces) {
-        setVisibleBounds(null);
-      }
+      setVisibleBounds(null);
     },
     [searchedPlaces],
   );
