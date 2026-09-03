@@ -33,10 +33,6 @@ const thumbnail =
 
 const emptyCharacter =
   'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
-const detailCharacter =
-  'https://www.figma.com/api/mcp/asset/7be73af3-e4e8-417a-9664-9dbe530b90f2.png';
-const failureCharacter =
-  'https://www.figma.com/api/mcp/asset/b1cdc2ef-0cfa-47ed-b534-cbe706d9bb97.png';
 const placeThumbnail =
   'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
 function getHistoryTitle(reel: HistoryReel) {
@@ -216,8 +212,9 @@ function HistorySuccessDetail({
       >
         <View style={styles.detailHero}>
           <Image
-            source={{ uri: detailCharacter }}
-            style={styles.detailCharacter}
+            source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
+            resizeMode="cover"
+            style={styles.detailThumbnail}
           />
           <Text style={styles.detailTitle}>장소 분석이 완료되었어요!</Text>
           <Text style={styles.detailSubtitle}>
@@ -306,8 +303,9 @@ function HistoryFailureDetail({
       <ScrollView contentContainerStyle={styles.failureContent}>
         <View style={styles.failureHero}>
           <Image
-            source={{ uri: failureCharacter }}
-            style={styles.detailCharacter}
+            source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
+            resizeMode="cover"
+            style={styles.detailThumbnail}
           />
           <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
           <Text style={styles.failureDescription}>
@@ -756,7 +754,11 @@ const styles = StyleSheet.create({
   },
   detailContent: { paddingBottom: 60 },
   detailHero: { alignItems: 'center', marginTop: 48 },
-  detailCharacter: { width: 195, height: 195, borderRadius: 20 },
+  detailThumbnail: {
+    width: 180,
+    height: 226,
+    borderRadius: 12,
+  },
   detailTitle: {
     fontSize: 20,
     fontWeight: '800',
