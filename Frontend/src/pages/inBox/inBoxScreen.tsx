@@ -11,15 +11,15 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
+import {
+  BOTTOM_NAVIGATION_BAR_BOTTOM_GAP,
+  BOTTOM_NAVIGATION_BAR_HEIGHT,
+} from '../../components/BottomNavigationBar';
 import InboxChevronRight from '../../assets/icons/inbox-chevron-right.svg';
 import InboxHeaderFrame from '../../assets/icons/inbox-header-frame.svg';
 import InstagramIcon from '../../assets/icons/social/instagram.svg';
-import {
-  getInboxSelection,
-  setInboxSelection,
-} from '../../lib/inbox-selection-storage';
 import {
   resolveQueueItems,
   getInboxReels,
@@ -28,6 +28,7 @@ import {
   type QueueResolutionAction,
 } from '../../entities/content/inbox-api';
 import { normalizeReelError } from '../../entities/content/errors';
+import {normalizeReelTitle} from '../../entities/content/title';
 import { supabase } from '../../lib/auth/supabase';
 
 function pendingPlaces(item: InboxReel) {
@@ -61,17 +62,26 @@ const ANALYSIS_POLL_INTERVAL_MS = 5000;
 
 type InBoxScreenProps = {
   onOpenHistory: () => void;
+  onSelectionChange: (hasSelection: boolean) => void;
 };
 
-export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
+export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps) {
+  const {bottom: bottomInset} = useSafeAreaInsets();
+  const bottomActionOffset =
+    bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
   const [items, setItems] = useState<InboxReel[]>([]);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
-  const [isSelectionHydrated, setIsSelectionHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    onSelectionChange(selectedPlaceIds.length > 0);
+  }, [onSelectionChange, selectedPlaceIds.length]);
+
+  useEffect(() => () => onSelectionChange(false), [onSelectionChange]);
 
   const loadInbox = useCallback(async (isRefresh = false, silently = false) => {
     if (!silently) {
@@ -110,40 +120,6 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
     return () => clearInterval(intervalId);
   }, [loadInbox]);
 
-  useEffect(() => {
-    if (isSelectionHydrated || isLoading) {
-      return;
-    }
-
-    let isMounted = true;
-
-    getInboxSelection().then(selection => {
-      if (!isMounted) {
-        return;
-      }
-
-      setSelectedPlaceIds(
-        selection.placeIds.filter(id =>
-          items.some(item =>
-            pendingPlaces(item).some(place => place.id === id),
-          ),
-        ),
-      );
-      setIsSelectionHydrated(true);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isLoading, isSelectionHydrated, items]);
-
-  useEffect(() => {
-    if (!isSelectionHydrated) {
-      return;
-    }
-
-    setInboxSelection({ placeIds: selectedPlaceIds });
-  }, [isSelectionHydrated, selectedPlaceIds]);
   const toggleSelectedPlace = (id: string) =>
     setSelectedPlaceIds(current =>
       current.includes(id)
@@ -189,14 +165,14 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
       return;
     }
 
-    const reelPlaceIds = selectedPendingPlaceIds();
-    if (reelPlaceIds.length === 0) {
+    const queueItemIds = selectedPendingPlaceIds();
+    if (queueItemIds.length === 0) {
       return;
     }
 
     setIsResolving(true);
     try {
-      await resolveQueueItems(reelPlaceIds, action);
+      await resolveQueueItems(queueItemIds, action);
       setSelectedPlaceIds([]);
       await loadInbox(true);
     } catch (error) {
@@ -295,6 +271,10 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
           </View>
         ) : (
           visibleItems.map(item => {
+            const displayTitle = normalizeReelTitle(
+              item.instagramDescription,
+              item.instagramTitle,
+            );
             const expanded = expandedIds.includes(item.id);
             const selectablePlaces = pendingPlaces(item);
             const selected = selectablePlaces.every(place =>
@@ -310,9 +290,7 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
                   <View style={styles.summary}>
                     <Pressable
                       accessibilityLabel={`${
-                        item.instagramTitle ??
-                        item.instagramDescription ??
-                        '릴스'
+                        displayTitle
                       } 펼치기`}
                       accessibilityRole="button"
                       accessibilityState={{ expanded }}
@@ -340,9 +318,7 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
                         )}
                         <View style={styles.summaryText}>
                           <Text numberOfLines={1} style={styles.itemTitle}>
-                            {item.instagramTitle ??
-                              item.instagramDescription ??
-                              '제목 없는 릴스'}
+                            {displayTitle}
                           </Text>
                           <View style={styles.sourceRow}>
                             <InstagramIcon
@@ -365,9 +341,7 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
                     </Pressable>
                     <Pressable
                       accessibilityLabel={`${
-                        item.instagramTitle ??
-                        item.instagramDescription ??
-                        '릴스'
+                        displayTitle
                       } 선택`}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: selected }}
@@ -456,7 +430,10 @@ export function InBoxScreen({ onOpenHistory }: InBoxScreenProps) {
         )}
       </ScrollView>
       {hasSelection ? (
-        <View pointerEvents="box-none" style={styles.bulkActionContainer}>
+        <View
+          pointerEvents="box-none"
+          style={[styles.bulkActionContainer, {bottom: bottomActionOffset}]}
+        >
           <Pressable
             accessibilityLabel="선택한 항목 삭제"
             disabled={isResolving}
@@ -667,18 +644,18 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   bulkActionContainer: {
-    bottom: BOTTOM_NAVIGATION_BAR_HEIGHT + 44,
     flexDirection: 'row',
     gap: 16,
     left: 20,
     position: 'absolute',
     right: 20,
+    zIndex: 20,
   },
   bulkAction: {
     alignItems: 'center',
-    borderRadius: 24,
+    borderRadius: 999,
     flex: 1,
-    height: 48,
+    height: BOTTOM_NAVIGATION_BAR_HEIGHT,
     justifyContent: 'center',
     shadowColor: '#2D3655',
     shadowOpacity: 0.18,
@@ -689,6 +666,6 @@ const styles = StyleSheet.create({
   bulkActionDisabled: { opacity: 0.5 },
   deleteAction: { backgroundColor: '#FFFFFF' },
   deleteActionText: { color: '#1F2238', fontSize: 16, fontWeight: '800' },
-  storeAction: { backgroundColor: '#B8C5FF' },
-  storeActionText: { color: '#1F2238', fontSize: 16, fontWeight: '800' },
+  storeAction: { backgroundColor: '#000000' },
+  storeActionText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
 });

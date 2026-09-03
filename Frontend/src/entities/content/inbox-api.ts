@@ -4,11 +4,9 @@ import {ReelApiError} from './errors';
 
 const INBOX_REELS_SELECT = [
   'id',
-  'instagram_title',
-  'instagram_description',
-  'instagram_author_username',
-  'instagram_thumbnail_url',
-  'reel_places!inner(id,position,review_status,reviewed_at,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution))',
+  'created_at',
+  'extraction:reel_extractions(instagram_title,instagram_description,instagram_author_username,instagram_thumbnail_url)',
+  'queue_items:reel_queue_items!inner(id,position,review_status,reviewed_at,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution))',
 ].join(',');
 
 type InboxPlaceResponse = {
@@ -33,11 +31,14 @@ type InboxPlaceResponse = {
 
 type InboxReelResponse = {
   id: string;
-  instagram_title: string | null;
-  instagram_description: string | null;
-  instagram_author_username: string | null;
-  instagram_thumbnail_url: string | null;
-  reel_places: InboxPlaceResponse[];
+  created_at: string;
+  extraction: {
+    instagram_title: string | null;
+    instagram_description: string | null;
+    instagram_author_username: string | null;
+    instagram_thumbnail_url: string | null;
+  } | null;
+  queue_items: InboxPlaceResponse[];
 };
 
 export type InboxPlace = {
@@ -74,11 +75,11 @@ export type QueueResolutionAction = 'SAVE' | 'DISCARD';
 function toInboxReel(reel: InboxReelResponse): InboxReel {
   return {
     id: reel.id,
-    instagramTitle: reel.instagram_title,
-    instagramDescription: reel.instagram_description,
-    instagramAuthorUsername: reel.instagram_author_username,
-    instagramThumbnailUrl: reel.instagram_thumbnail_url,
-    places: (reel.reel_places ?? []).map(reelPlace => ({
+    instagramTitle: reel.extraction?.instagram_title ?? null,
+    instagramDescription: reel.extraction?.instagram_description ?? null,
+    instagramAuthorUsername: reel.extraction?.instagram_author_username ?? null,
+    instagramThumbnailUrl: reel.extraction?.instagram_thumbnail_url ?? null,
+    places: (reel.queue_items ?? []).map(reelPlace => ({
       id: reelPlace.id,
       position: reelPlace.position,
       reviewStatus: reelPlace.review_status,
@@ -151,18 +152,17 @@ async function getInboxReelsOnce(): Promise<InboxReel[]> {
   } = await supabase.auth.getSession();
   const query = [
     `select=${encodeURIComponent(INBOX_REELS_SELECT)}`,
-    'processing_status=eq.COMPLETED',
-    'save_mode=eq.REVIEW_QUEUE',
-    'reel_places.review_status=eq.PENDING',
-    'order=created_at.desc',
-    'reel_places.order=position.asc',
+    'resolved_at=is.null',
+    'queue_items.review_status=eq.PENDING',
+    'order=created_at.desc,id.desc',
+    'queue_items.order=position.asc',
   ].join('&');
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   let response: Response;
   try {
-    response = await fetch(`${SUPABASE_URL}/rest/v1/reels?${query}`, {
+    response = await fetch(`${SUPABASE_URL}/rest/v1/reel_queue_batches?${query}`, {
       headers: {
         Accept: 'application/json',
         apikey: SUPABASE_PUBLISHABLE_KEY,
@@ -253,13 +253,13 @@ function queueResolutionError(status: number | null, message: string) {
 
 /** 선택한 대기 장소를 보관함에 저장하거나 대기함에서 폐기합니다. */
 export async function resolveQueueItems(
-  reelPlaceIds: string[],
+  queueItemIds: string[],
   action: QueueResolutionAction,
 ): Promise<number> {
-  const uniqueIds = [...new Set(reelPlaceIds)];
+  const uniqueIds = [...new Set(queueItemIds)];
   if (
     uniqueIds.length === 0 ||
-    uniqueIds.length !== reelPlaceIds.length ||
+    uniqueIds.length !== queueItemIds.length ||
     !uniqueIds.every(id => typeof id === 'string' && id.length > 0)
   ) {
     throw queueResolutionError(400, 'queue_selection_required');
@@ -282,6 +282,7 @@ export async function resolveQueueItems(
         Authorization: `Bearer ${session?.access_token ?? SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({
+        // API 필드명은 호환성을 위해 유지하지만, 값은 reel_queue_items.id입니다.
         p_reel_place_ids: uniqueIds,
         p_action: action,
       }),

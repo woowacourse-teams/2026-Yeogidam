@@ -24,6 +24,7 @@ import type {
   HistoryReel,
   HistoryReelDetail,
 } from '../../entities/content/types';
+import {normalizeReelTitle} from '../../entities/content/title';
 
 type HistoryScreenProps = { onBack: () => void };
 
@@ -38,19 +39,8 @@ const failureCharacter =
   'https://www.figma.com/api/mcp/asset/b1cdc2ef-0cfa-47ed-b534-cbe706d9bb97.png';
 const placeThumbnail =
   'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
-const CAPTION_QUOTE_PATTERN = /["“”＂]/;
-
 function getHistoryTitle(reel: HistoryReel) {
-  const source =
-    reel.instagram_description?.trim() || reel.instagram_title?.trim();
-  if (!source) return '저장한 콘텐츠';
-
-  const quoteMatch = source.match(CAPTION_QUOTE_PATTERN);
-  const content = quoteMatch
-    ? source.slice((quoteMatch.index ?? -1) + 1)
-    : source;
-
-  return content.split('\n')[0]?.trim() || '저장한 콘텐츠';
+  return normalizeReelTitle(reel.instagram_description, reel.instagram_title);
 }
 
 function getFailureCode(reason: string | null) {
@@ -176,7 +166,7 @@ function HistorySuccessDetail({
   const { detail, loading, error } = useHistoryReelDetail(reel.id);
   const displayReel = detail ?? reel;
   const places =
-    detail?.reel_places
+    detail?.extraction?.extraction_places
       .map(item => item.place)
       .filter((place): place is HistoryPlace => Boolean(place)) ?? [];
   const originalUrl = displayReel.instagram_url;

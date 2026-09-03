@@ -70,7 +70,7 @@ final class ShareViewController: UIViewController {
     let publishableKey = configuration.publishableKey
     guard let endpoint = URL(string: "\(urlString)/functions/v1/save-instagram-reel-v2") else { throw ShareIntentStorageError.appGroupUnavailable }
     guard let token = ShareIntentStorage.accessToken(), !token.isEmpty else {
-      logAPI("auth-missing", "requestId=\(payload.id) url=\(payload.text)")
+      logAPI("auth-missing", "requestId=\(payload.id) url=\(payload.text) tokenPresent=false")
       try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, url: payload.text, rawSharedText: payload.rawText, status: "FAILED", reelId: nil, failureReason: "AUTH401_001", retryable: false, updatedAt: Date().timeIntervalSince1970 * 1000))
       return
     }
@@ -82,12 +82,12 @@ final class ShareViewController: UIViewController {
     request.httpBody = try JSONSerialization.data(withJSONObject: [
       "instagramUrl": payload.text,
       "source": "instagram_share",
-      "forceReprocess": false,
+      "clientRequestId": payload.id,
     ])
     let requestSentAt = Date().timeIntervalSince1970 * 1000
     logAPI(
       "request",
-      "requestId=\(payload.id) method=POST endpoint=\(endpoint.absoluteString) body={instagramUrl: \(payload.text), source: instagram_share, forceReprocess: false}"
+      "requestId=\(payload.id) method=POST endpoint=\(endpoint.absoluteString) body={instagramUrl: \(payload.text), source: instagram_share, clientRequestId: \(payload.id)}"
     )
     try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: "PENDING", reelId: nil, failureReason: nil, retryable: true, updatedAt: requestSentAt))
     do {
