@@ -43,6 +43,10 @@ function getHistoryTitle(reel: HistoryReel) {
   return normalizeReelTitle(reel.instagram_description, reel.instagram_title);
 }
 
+function hasResolvedHistoryTitle(reel: HistoryReel) {
+  return getHistoryTitle(reel) !== '저장한 콘텐츠';
+}
+
 function getFailureCode(reason: string | null) {
   return reason?.split(' | ', 1)[0]?.trim() || null;
 }
@@ -77,52 +81,73 @@ function getHistoryFailureMessage(reason: string | null) {
 
 function HistoryItem({
   reel,
+  skeleton = false,
   onPress,
 }: {
   reel: HistoryReel;
+  skeleton?: boolean;
   onPress?: () => void;
 }) {
   const completed = reel.processing_status === 'COMPLETED';
   const processing =
     reel.processing_status === 'PENDING' ||
     reel.processing_status === 'PROCESSING';
+  const title = getHistoryTitle(reel);
   const label = completed ? '성공' : processing ? '처리중' : '실패';
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={styles.item}>
-      <Image
-        source={{ uri: reel.instagram_thumbnail_url ?? thumbnail }}
-        resizeMode="cover"
-        style={styles.thumbnail}
-      />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={skeleton ? '새 히스토리를 불러오는 중' : undefined}
+      onPress={skeleton ? undefined : onPress}
+      style={styles.item}
+    >
+      {skeleton ? (
+        <View style={[styles.thumbnail, styles.skeletonBlock]} />
+      ) : (
+        <Image
+          source={{ uri: reel.instagram_thumbnail_url ?? thumbnail }}
+          resizeMode="cover"
+          style={styles.thumbnail}
+        />
+      )}
       <View style={styles.itemText}>
-        <View
-          style={[
-            styles.badge,
-            completed
-              ? styles.successBadge
-              : processing
-              ? styles.processingBadge
-              : styles.failureBadge,
-          ]}
-        >
-          <Text
-            style={[
-              styles.badgeText,
-              completed
-                ? styles.successText
-                : processing
-                ? styles.processingText
-                : styles.failureText,
-            ]}
-          >
-            {label}
-          </Text>
-        </View>
-        <Text numberOfLines={1} style={styles.title}>
-          {getHistoryTitle(reel)}
-        </Text>
+        {skeleton ? (
+          <>
+            <View style={[styles.skeletonBadge, styles.skeletonBlock]} />
+            <View style={[styles.skeletonTitle, styles.skeletonBlock]} />
+          </>
+        ) : (
+          <>
+            <View
+              style={[
+                styles.badge,
+                completed
+                  ? styles.successBadge
+                  : processing
+                  ? styles.processingBadge
+                  : styles.failureBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.badgeText,
+                  completed
+                    ? styles.successText
+                    : processing
+                    ? styles.processingText
+                    : styles.failureText,
+                ]}
+              >
+                {label}
+              </Text>
+            </View>
+            <Text numberOfLines={1} style={styles.title}>
+              {title}
+            </Text>
+          </>
+        )}
       </View>
-      <Text style={styles.chevron}>›</Text>
+      {!skeleton ? <Text style={styles.chevron}>›</Text> : null}
     </Pressable>
   );
 }
@@ -364,48 +389,51 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+  const [retrySkeletonIds, setRetrySkeletonIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
-  const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
-    if (!reel.instagram_url) {
-      return;
-    }
-
-    setReels(current =>
-      current.map(item =>
-        item.id === reel.id
-          ? { ...item, processing_status: 'PENDING', failure_reason: null }
-          : item,
-      ),
-    );
-    setSelectedFailure(false);
-    setSelectedReel(null);
-
-    try {
-      const response = await saveContent(reel.instagram_url, 'url_input');
-      setReels(current =>
-        current.map(item =>
-          item.id === reel.id
-            ? {
-                ...item,
-                processing_status: response.status,
-                failure_reason: response.failureReason ?? null,
-              }
-            : item,
-        ),
-      );
-    } catch {
-      Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
-    }
-  }, []);
   const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
     setError(false);
     if (nextCursor) setLoadingMore(true);
     else if (!silent) setLoading(true);
     try {
       const result = await getHistoryReels(nextCursor ?? undefined);
-      setReels(current =>
-        nextCursor ? [...current, ...result.reels] : result.reels,
-      );
+      setRetrySkeletonIds(current => {
+        const next = new Set(current);
+        result.reels.forEach(reel => {
+          if (next.has(reel.id) && hasResolvedHistoryTitle(reel)) {
+            next.delete(reel.id);
+          }
+        });
+        return next;
+      });
+      setReels(current => {
+        const temporaryReels = current.filter(item => item.id.startsWith('retry-'));
+        const temporaryUrls = new Set(
+          temporaryReels
+            .map(item => item.instagram_url)
+            .filter((url): url is string => Boolean(url)),
+        );
+        const knownReelIds = new Set(
+          current
+            .filter(item => !item.id.startsWith('retry-'))
+            .map(item => item.id),
+        );
+        const refreshedReels = nextCursor
+          ? [...current, ...result.reels]
+          : result.reels;
+
+        return [
+          ...temporaryReels,
+          ...refreshedReels.filter(
+            item =>
+              !temporaryReels.some(temporary => temporary.id === item.id) &&
+              (!temporaryUrls.has(item.instagram_url ?? '') ||
+                knownReelIds.has(item.id)),
+          ),
+        ];
+      });
       setCursor(result.nextCursor);
     } catch {
       setError(true);
@@ -414,6 +442,76 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       setLoadingMore(false);
     }
   }, []);
+
+  const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
+    if (!reel.instagram_url) {
+      return;
+    }
+
+    const temporaryId = `retry-${reel.id}-${Date.now()}`;
+    const temporaryReel: HistoryReel = {
+      ...reel,
+      id: temporaryId,
+      processing_status: 'PENDING',
+      failure_reason: null,
+      created_at: new Date().toISOString(),
+    };
+
+    // Show the new attempt immediately while the retry request is in flight.
+    setReels(current => [temporaryReel, ...current]);
+    setRetrySkeletonIds(current => new Set(current).add(temporaryId));
+    setSelectedFailure(false);
+    setSelectedReel(null);
+
+    try {
+      const response = await saveContent(reel.instagram_url, 'url_input');
+      // Retry creates a new history record on the backend. Keep the original
+      // failed record and add the new attempt to the top of the list.
+      const retriedReel = await getHistoryReelDetail(response.reelId);
+      if (!retriedReel) {
+        setRetrySkeletonIds(current => {
+          const next = new Set(current);
+          next.delete(temporaryId);
+          next.add(response.reelId);
+          return next;
+        });
+        setReels(current => current.filter(item => item.id !== temporaryId));
+        await load(undefined, true);
+        return;
+      }
+
+      setRetrySkeletonIds(current => {
+        const next = new Set(current);
+        next.delete(temporaryId);
+        if (!hasResolvedHistoryTitle(retriedReel)) {
+          next.add(retriedReel.id);
+        }
+        return next;
+      });
+
+      setReels(current => {
+        const nextReel = {
+          ...retriedReel,
+          processing_status: response.status,
+          failure_reason: response.failureReason ?? retriedReel.failure_reason,
+        };
+        return [
+          nextReel,
+          ...current.filter(
+            item => item.id !== temporaryId && item.id !== retriedReel.id,
+          ),
+        ];
+      });
+    } catch {
+      setReels(current => current.filter(item => item.id !== temporaryId));
+      setRetrySkeletonIds(current => {
+        const next = new Set(current);
+        next.delete(temporaryId);
+        return next;
+      });
+      Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
+    }
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -449,6 +547,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           getHistoryReelDetail(reel.id)
             .then(detail => {
               if (!detail) return;
+              if (hasResolvedHistoryTitle(detail)) {
+                setRetrySkeletonIds(current => {
+                  if (!current.has(detail.id)) return current;
+                  const next = new Set(current);
+                  next.delete(detail.id);
+                  return next;
+                });
+              }
               setReels(current =>
                 current.map(item =>
                   item.id === detail.id
@@ -556,6 +662,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
                 <HistoryItem
                   key={reel.id}
                   reel={reel}
+                  skeleton={retrySkeletonIds.has(reel.id)}
                   onPress={
                     reel.processing_status === 'COMPLETED'
                       ? () => {
@@ -762,6 +869,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#eee',
   },
+  skeletonBlock: { backgroundColor: '#eeeeF2' },
+  skeletonBadge: { width: 34, height: 19, borderRadius: 10 },
+  skeletonTitle: { width: '72%', height: 16, borderRadius: 5 },
   itemText: { height: 73, flex: 1, justifyContent: 'center', gap: 4 },
   badge: {
     height: 19,
