@@ -594,7 +594,7 @@ function App() {
         isLogoutPending={isLogoutPending}
         onOpenContact={openKakaoChannelChat}
         onLogout={handleLogout}
-        onOpenTerms={() => pushAuthScreen('terms')}
+        onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={handleRetryProfile}
         onWithdraw={handleOpenAccountDeletion}
         profileError={profileError}
