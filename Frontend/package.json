@@ -1,6 +1,6 @@
 {
   "name": "Frontend",
-  "version": "0.0.1",
+  "version": "1.1.0",
   "private": true,
   "codegenConfig": {
     "name": "YeogidamMapSpec",
@@ -22,7 +22,8 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "test:ci": "jest --runInBand --no-watchman"
   },
   "dependencies": {
     "@invertase/react-native-apple-authentication": "^2.5.1",

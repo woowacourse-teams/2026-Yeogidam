@@ -4,6 +4,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
+import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
@@ -22,6 +23,7 @@ import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
+import { getAppUpdatePolicy } from './src/lib/app-update-policy';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
@@ -67,6 +69,9 @@ function App() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
+    string | null
+  >(null);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -186,11 +191,23 @@ function App() {
       setIsAuthReady(true);
     };
 
+    const checkUpdatePolicy = async () => {
+      const policy = await getAppUpdatePolicy();
+
+      if (isMounted && policy?.updateRequired) {
+        setRequiredUpdateStoreUrl(policy.storeUrl);
+      }
+    };
+
     const splashDelay = new Promise<void>(resolve => {
       splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
     });
 
-    Promise.allSettled([syncFlowState(), splashDelay]).finally(() => {
+    Promise.allSettled([
+      syncFlowState(),
+      checkUpdatePolicy(),
+      splashDelay,
+    ]).finally(() => {
       if (!isMounted) {
         return;
       }
@@ -235,6 +252,22 @@ function App() {
       }
       subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') {
+        return;
+      }
+
+      getAppUpdatePolicy().then(policy => {
+        if (policy?.updateRequired) {
+          setRequiredUpdateStoreUrl(policy.storeUrl);
+        }
+      });
+    });
+
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
@@ -636,10 +669,17 @@ function App() {
         <View style={styles.container}>
           {renderScreen()}
           {showTabBar && activeTab ? (
-            <BottomNavigationBar active={activeTab} onNavigate={openMainScreen} />
+            <BottomNavigationBar
+              active={activeTab}
+              onNavigate={openMainScreen}
+            />
           ) : null}
         </View>
       </SafeAreaView>
+      <RequiredAppUpdateModal
+        storeUrl={requiredUpdateStoreUrl ?? ''}
+        visible={requiredUpdateStoreUrl !== null}
+      />
     </SafeAreaProvider>
   );
 }
