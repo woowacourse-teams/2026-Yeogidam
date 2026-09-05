@@ -24,6 +24,11 @@ import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { getAppUpdatePolicy } from './src/lib/app-update-policy';
+import {
+  completeAppGuide,
+  hasCompletedAppGuide,
+} from './src/lib/app-guide-storage';
+import { AppGuideScreen } from './src/pages/guide/AppGuideScreen';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
@@ -59,7 +64,7 @@ const INITIAL_FLOW_STATE: AppFlowState = {
 const SPLASH_MIN_DURATION_MS = 2000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
-type MyPageOverlay = 'terms' | 'accountDeletion' | null;
+type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
 
 configureDataSources();
 
@@ -69,6 +74,9 @@ function App() {
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
+    null,
+  );
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
@@ -200,6 +208,14 @@ function App() {
       }
     };
 
+    const loadGuideCompletion = async () => {
+      const completed = await hasCompletedAppGuide();
+
+      if (isMounted) {
+        setHasCompletedGuide(completed);
+      }
+    };
+
     const splashDelay = new Promise<void>(resolve => {
       splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
     });
@@ -207,6 +223,7 @@ function App() {
     Promise.allSettled([
       syncFlowState(),
       checkUpdatePolicy(),
+      loadGuideCompletion(),
       splashDelay,
     ]).finally(() => {
       if (!isMounted) {
@@ -455,6 +472,11 @@ function App() {
     }
   };
 
+  const handleCompleteGuide = () => {
+    setHasCompletedGuide(true);
+    completeAppGuide();
+  };
+
   const showPreparingAlert = (featureName: string) => {
     Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
@@ -539,6 +561,15 @@ function App() {
           linkedProviders={linkedDeletionProviders}
           onBack={() => setMyPageOverlay(null)}
           onDeleteAccount={handleDeleteAccount}
+        />
+      );
+    }
+
+    if (myPageOverlay === 'guide') {
+      return (
+        <AppGuideScreen
+          onClose={() => setMyPageOverlay(null)}
+          onComplete={() => setMyPageOverlay(null)}
         />
       );
     }
@@ -632,6 +663,7 @@ function App() {
         isProfileLoading={isProfileLoading}
         isLogoutPending={isLogoutPending}
         onOpenContact={openKakaoChannelChat}
+        onOpenGuide={() => setMyPageOverlay('guide')}
         onLogout={handleLogout}
         onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={handleRetryProfile}
@@ -653,11 +685,25 @@ function App() {
   const isMapScreen = currentScreen === 'map';
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
-  if (!isAuthReady || isSplashVisible) {
+  if (!isAuthReady || isSplashVisible || hasCompletedGuide === null) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
         <SplashScreen />
+      </SafeAreaProvider>
+    );
+  }
+
+  if (!hasCompletedGuide) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <SafeAreaView
+          edges={['top', 'left', 'right', 'bottom']}
+          style={styles.safeArea}
+        >
+          <AppGuideScreen onComplete={handleCompleteGuide} />
+        </SafeAreaView>
       </SafeAreaProvider>
     );
   }
