@@ -64,7 +64,7 @@ const INITIAL_FLOW_STATE: AppFlowState = {
 const SPLASH_MIN_DURATION_MS = 2000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
-type MyPageOverlay = 'terms' | 'accountDeletion' | null;
+type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
 
 configureDataSources();
 
@@ -565,6 +565,15 @@ function App() {
       );
     }
 
+    if (myPageOverlay === 'guide') {
+      return (
+        <AppGuideScreen
+          onClose={() => setMyPageOverlay(null)}
+          onComplete={() => setMyPageOverlay(null)}
+        />
+      );
+    }
+
     if (currentScreen === 'login') {
       return (
         <LoginScreen
@@ -654,6 +663,7 @@ function App() {
         isProfileLoading={isProfileLoading}
         isLogoutPending={isLogoutPending}
         onOpenContact={openKakaoChannelChat}
+        onOpenGuide={() => setMyPageOverlay('guide')}
         onLogout={handleLogout}
         onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={handleRetryProfile}

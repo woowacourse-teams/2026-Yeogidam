@@ -18,9 +18,13 @@ const GUIDE_PAGES = [
 
 type AppGuideScreenProps = {
   onComplete: () => void;
+  onClose?: () => void;
 };
 
-export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
+export function AppGuideScreen({
+  onComplete,
+  onClose,
+}: AppGuideScreenProps) {
   const { width } = useWindowDimensions();
   const listRef = useRef<FlatList<number>>(null);
   const [currentPage, setCurrentPage] = useState(0);
@@ -37,6 +41,20 @@ export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
 
   return (
     <View style={styles.container}>
+      {onClose ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="사용 가이드 닫기"
+          hitSlop={12}
+          onPress={onClose}
+          style={({ pressed }) => [
+            styles.closeButton,
+            pressed && styles.closeButtonPressed,
+          ]}
+        >
+          <Text style={styles.closeButtonText}>닫기</Text>
+        </Pressable>
+      ) : null}
       <FlatList
         ref={listRef}
         data={GUIDE_PAGES}
@@ -86,6 +104,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 24,
+    zIndex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  closeButtonPressed: {
+    opacity: 0.65,
+  },
+  closeButtonText: {
+    color: '#596275',
+    fontSize: 15,
+    fontWeight: '700',
   },
   page: {
     flex: 1,

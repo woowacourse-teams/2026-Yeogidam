@@ -20,6 +20,7 @@ type MyPageScreenProps = {
   isProfileLoading?: boolean;
   onOpenEditProfile?: () => void;
   onOpenContact?: () => void;
+  onOpenGuide?: () => void;
   onOpenTerms?: () => void;
   onWithdraw?: () => void;
   onLogout?: () => void;
@@ -34,6 +35,7 @@ export function MyPageScreen({
   isProfileLoading = false,
   onOpenEditProfile,
   onOpenContact,
+  onOpenGuide,
   onOpenTerms,
   onWithdraw,
   onLogout,
@@ -42,6 +44,7 @@ export function MyPageScreen({
   isLogoutPending = false,
 }: MyPageScreenProps) {
   const settingItems = [
+    {label: '사용 가이드', onPress: onOpenGuide},
     {label: '약관 동의', onPress: onOpenTerms},
     {label: '문의하기', onPress: onOpenContact},
     {label: '회원탈퇴', onPress: onWithdraw},
