@@ -1,0 +1,16 @@
+.dockerignore
+.env
+.env.*
+.git
+.gitignore
+.gradle
+.idea
+bin
+build
+docs
+out
+src/test
+*.iml
+*.log
+README.md
+gradlew.bat
