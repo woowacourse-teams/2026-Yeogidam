@@ -1,57 +1,45 @@
 package com.yeogidam.media.domain;
 
-import com.yeogidam.place.domain.PlaceDecisionStatus;
-import java.util.List;
-
 /**
- * 사용자가 공유한 미디어 하나.
- * 소유자(OwnerId), 인스타그램 URL(원본과 정체성), 표시용 내용, 추출 상태로 이루어진다.
- * 표시용 내용은 도메인이 들되 검증하지 않는다.
+ * 인스타그램 게시물 하나.
+ * 정체성(shortcode), 표시용 내용, 추출 상태로 이루어지며 사용자와 공유 사건을 모른다.
+ * 같은 게시물의 추출 결과는 모든 공유 건이 재사용한다. 표시용 내용은 도메인이 들되 검증하지 않는다.
  */
 public class InstagramMedia {
 
     private final Long id;
-    private final OwnerId ownerId;
-    private final InstagramUrl instagramUrl;
+    private final MediaShortcode shortcode;
     private MediaMetadata metadata;
     private Extraction extraction;
 
-    public InstagramMedia(
-            OwnerId ownerId,
-            InstagramUrl instagramUrl
-    ) {
-        this(null, ownerId, instagramUrl, new MediaMetadata(null, null, null, null), new InProgressExtraction());
+    public InstagramMedia(MediaShortcode shortcode) {
+        this(null, shortcode, new MediaMetadata(null, null, null, null), new InProgressExtraction());
     }
 
     public InstagramMedia(
             Long id,
-            OwnerId ownerId,
-            InstagramUrl instagramUrl,
+            MediaShortcode shortcode,
             MediaMetadata metadata,
             Extraction extraction
     ) {
-        validate(ownerId, instagramUrl, extraction);
+        validate(shortcode, extraction);
         this.id = id;
-        this.ownerId = ownerId;
-        this.instagramUrl = instagramUrl;
+        this.shortcode = shortcode;
         this.metadata = metadata;
         this.extraction = extraction;
     }
 
-    private void validate(OwnerId ownerId, InstagramUrl instagramUrl, Extraction extraction) {
-        if (ownerId == null) {
-            throw new IllegalArgumentException("소유자가 비어 있습니다.");
-        }
-        if (instagramUrl == null) {
-            throw new IllegalArgumentException("인스타그램 URL이 비어 있습니다.");
+    private void validate(MediaShortcode shortcode, Extraction extraction) {
+        if (shortcode == null) {
+            throw new IllegalArgumentException("게시물 식별자가 비어 있습니다.");
         }
         if (extraction == null) {
             throw new IllegalArgumentException("추출 상태가 비어 있습니다.");
         }
     }
 
-    public void succeed(ExtractedPlaces extractedPlaces) {
-        this.extraction = extraction.succeed(extractedPlaces);
+    public void succeed(ExtractedPlaces places) {
+        this.extraction = extraction.succeed(places);
     }
 
     public void fail(ExtractionFailureReason failureReason) {
@@ -66,23 +54,12 @@ public class InstagramMedia {
         this.metadata = metadata;
     }
 
-    public void decidePlaces(
-            List<Long> placeIds,
-            PlaceDecisionStatus target
-    ) {
-        extraction.extractedPlaces().decide(placeIds, target);
-    }
-
     public Long id() {
         return id;
     }
 
-    public OwnerId ownerId() {
-        return ownerId;
-    }
-
-    public InstagramUrl instagramUrl() {
-        return instagramUrl;
+    public MediaShortcode shortcode() {
+        return shortcode;
     }
 
     public MediaMetadata metadata() {

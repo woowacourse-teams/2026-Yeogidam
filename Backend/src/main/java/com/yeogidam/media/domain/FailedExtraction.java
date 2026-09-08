@@ -14,7 +14,7 @@ public class FailedExtraction implements Extraction {
 
     private void validate(ExtractionFailureReason failureReason) {
         if (failureReason == null) {
-            throw new IllegalArgumentException("추출에 실패한 릴스는 실패 사유가 필요합니다.");
+            throw new IllegalArgumentException("추출에 실패한 게시물은 실패 사유가 필요합니다.");
         }
     }
 
@@ -25,12 +25,12 @@ public class FailedExtraction implements Extraction {
 
     @Override
     public Extraction succeed(ExtractedPlaces ignored) {
-        throw new InvalidExtractionTransitionException("이미 추출이 끝난 릴스입니다.");
+        throw new InvalidExtractionTransitionException("이미 추출이 끝난 게시물입니다.");
     }
 
     @Override
     public Extraction fail(ExtractionFailureReason ignored) {
-        throw new InvalidExtractionTransitionException("이미 추출이 끝난 릴스입니다.");
+        throw new InvalidExtractionTransitionException("이미 추출이 끝난 게시물입니다.");
     }
 
     @Override
@@ -39,8 +39,8 @@ public class FailedExtraction implements Extraction {
     }
 
     @Override
-    public ExtractedPlaces extractedPlaces() {
-        throw new UnselectablePlaceException("추출에 실패한 릴스에는 선택할 장소가 없습니다.");
+    public ExtractedPlaces places() {
+        throw new UnselectablePlaceException("추출에 실패한 게시물에는 장소가 없습니다.");
     }
 
     @Override

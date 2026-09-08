@@ -1,20 +1,24 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.domain.ExtractedPlace;
-import com.yeogidam.media.domain.ExtractedPlaces;
+import com.yeogidam.media.domain.PlaceCandidate;
+import com.yeogidam.media.domain.PlaceCandidates;
 import com.yeogidam.media.domain.Extraction;
 import com.yeogidam.media.domain.ExtractionFailureReason;
 import com.yeogidam.media.domain.ExtractionStatus;
 import com.yeogidam.media.domain.InstagramMedia;
 import com.yeogidam.media.domain.InstagramUrl;
 import com.yeogidam.media.domain.MediaMetadata;
+import com.yeogidam.media.domain.MediaShare;
+import com.yeogidam.media.domain.MediaShortcode;
 import com.yeogidam.media.domain.OwnerId;
+import com.yeogidam.media.domain.ExtractedPlaces;
 import com.yeogidam.media.exception.InstagramMediaNotFoundException;
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.InstagramMediaRecord;
 import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.domain.Coordinate;
 import com.yeogidam.place.domain.Place;
+import com.yeogidam.place.domain.PlaceDecisionStatus;
 import com.yeogidam.place.domain.PlaceExternalSource;
 import com.yeogidam.place.domain.PlaceName;
 import com.yeogidam.place.domain.PlaceProfile;
@@ -25,8 +29,9 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 
 /**
- * DB 표현(InstagramMediaRecord, media_place, place)을 도메인(InstagramMedia)으로 되살린다.
- * 도메인과 DB 엔티티를 분리했기 때문에 조립 지점이 명시적으로 존재한다.
+ * DB 표현(InstagramMediaRecord, media_place, place)을 도메인으로 되살린다.
+ * 한 record에서 게시물(InstagramMedia)과 공유 사건(MediaShare)을 각각 조립한다.
+ * 아직 옛 스키마(사용자마다 행 하나)라 공유 사건의 id와 mediaId가 같은 값이다.
  */
 @Component
 public class InstagramMediaReader {
@@ -70,27 +75,52 @@ public class InstagramMediaReader {
         InstagramMediaRecord record = readRecord(mediaId);
         return new InstagramMedia(
                 record.id(),
-                new OwnerId(record.userId()),
-                new InstagramUrl(record.sharedUrl()),
+                new MediaShortcode(record.mediaShortcode()),
                 new MediaMetadata(record.title(), record.caption(), record.thumbnailUrl(), record.authorUsername()),
                 toExtraction(record));
     }
 
-    private Extraction toExtraction(InstagramMediaRecord record) {
-        ExtractionStatus status = ExtractionStatus.valueOf(record.extractionStatus());
-        return status.toExtraction(
-                () -> new ExtractedPlaces(readPlaces(record.id())),
-                () -> ExtractionFailureReason.valueOf(record.failureReason()));
+    public MediaShare readOwnedShare(
+            Long userId,
+            Long mediaId
+    ) {
+        InstagramMediaRecord record = readOwnedRecord(userId, mediaId);
+        return new MediaShare(
+                record.id(),
+                new OwnerId(record.userId()),
+                record.id(),
+                new InstagramUrl(record.sharedUrl()),
+                toCandidates(record));
     }
 
-    private List<ExtractedPlace> readPlaces(Long mediaId) {
+    private PlaceCandidates toCandidates(InstagramMediaRecord record) {
+        if (ExtractionStatus.valueOf(record.extractionStatus()) != ExtractionStatus.SUCCEEDED) {
+            return null;
+        }
+        return new PlaceCandidates(readCandidates(record.id()));
+    }
+
+    private List<PlaceCandidate> readCandidates(Long mediaId) {
         return placeDao.findAllByMediaId(mediaId).stream()
                 .map(this::toExtractedPlace)
                 .toList();
     }
 
-    private ExtractedPlace toExtractedPlace(PlaceDecisionView view) {
-        return new ExtractedPlace(toPlace(view), com.yeogidam.place.domain.PlaceDecisionStatus.valueOf(view.decisionStatus()));
+    private PlaceCandidate toExtractedPlace(PlaceDecisionView view) {
+        return new PlaceCandidate(toPlace(view), PlaceDecisionStatus.valueOf(view.decisionStatus()));
+    }
+
+    private Extraction toExtraction(InstagramMediaRecord record) {
+        ExtractionStatus status = ExtractionStatus.valueOf(record.extractionStatus());
+        return status.toExtraction(
+                () -> new ExtractedPlaces(readPlaceFacts(record.id())),
+                () -> ExtractionFailureReason.valueOf(record.failureReason()));
+    }
+
+    private List<Place> readPlaceFacts(Long mediaId) {
+        return placeDao.findAllByMediaId(mediaId).stream()
+                .map(this::toPlace)
+                .toList();
     }
 
     private Place toPlace(PlaceDecisionView view) {

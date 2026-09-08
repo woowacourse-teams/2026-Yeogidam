@@ -1,54 +1,32 @@
 package com.yeogidam.media.domain;
 
-import com.yeogidam.media.exception.UnselectablePlaceException;
-import com.yeogidam.place.domain.PlaceDecisionStatus;
+import com.yeogidam.place.domain.Place;
 import java.util.List;
 
+/**
+ * 추출 사실의 일급 컬렉션. 이 게시물에서 이 장소들이 나왔다는 것만 알고 결정은 모른다.
+ * 결정은 공유 사건(MediaShare)에 발급된 후보(PlaceCandidates)의 몫이다.
+ */
 public class ExtractedPlaces {
 
-    private final List<ExtractedPlace> places;
+    private final List<Place> places;
 
-    public ExtractedPlaces(List<ExtractedPlace> places) {
+    public ExtractedPlaces(List<Place> places) {
         validateNotEmpty(places);
         this.places = List.copyOf(places);
     }
 
-    private void validateNotEmpty(List<ExtractedPlace> places) {
+    private void validateNotEmpty(List<Place> places) {
         if (places == null || places.isEmpty()) {
-            throw new IllegalArgumentException("추출에 성공한 미디어는 장소가 한 개 이상이어야 합니다.");
+            throw new IllegalArgumentException("추출에 성공한 게시물은 장소가 한 개 이상이어야 합니다.");
         }
-    }
-
-    public void decide(
-            List<Long> placeIds,
-            PlaceDecisionStatus target
-    ) {
-        validateKnown(placeIds);
-        places.stream()
-                .filter(extractedPlace -> placeIds.contains(extractedPlace.place().id()))
-                .forEach(extractedPlace -> extractedPlace.decide(target));
-    }
-
-    private void validateKnown(List<Long> placeIds) {
-        if (placeIds == null || placeIds.isEmpty()) {
-            throw new UnselectablePlaceException("결정할 장소를 한 개 이상 선택해야 합니다.");
-        }
-        if (!placeIdValues().containsAll(placeIds)) {
-            throw new UnselectablePlaceException("이 미디어에서 추출되지 않은 장소는 결정할 수 없습니다.");
-        }
-    }
-
-    private List<Long> placeIdValues() {
-        return places.stream()
-                .map(extractedPlace -> extractedPlace.place().id())
-                .toList();
     }
 
     public int count() {
         return places.size();
     }
 
-    public List<ExtractedPlace> values() {
+    public List<Place> values() {
         return places;
     }
 }

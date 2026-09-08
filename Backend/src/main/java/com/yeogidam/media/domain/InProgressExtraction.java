@@ -11,8 +11,8 @@ public class InProgressExtraction implements Extraction {
     }
 
     @Override
-    public Extraction succeed(ExtractedPlaces extractedPlaces) {
-        return new SucceededExtraction(extractedPlaces);
+    public Extraction succeed(ExtractedPlaces places) {
+        return new SucceededExtraction(places);
     }
 
     @Override
@@ -22,12 +22,12 @@ public class InProgressExtraction implements Extraction {
 
     @Override
     public Extraction retry() {
-        throw new RetryNotAllowedException("추출이 진행 중인 릴스는 다시 시도할 수 없습니다.");
+        throw new RetryNotAllowedException("추출이 진행 중인 게시물은 다시 시도할 수 없습니다.");
     }
 
     @Override
-    public ExtractedPlaces extractedPlaces() {
-        throw new UnselectablePlaceException("추출이 끝나지 않은 릴스에는 선택할 장소가 없습니다.");
+    public ExtractedPlaces places() {
+        throw new UnselectablePlaceException("추출이 끝나지 않은 게시물에는 장소가 없습니다.");
     }
 
     @Override

@@ -1,0 +1,58 @@
+package com.yeogidam.media.domain;
+
+import com.yeogidam.media.exception.UnselectablePlaceException;
+import com.yeogidam.place.domain.PlaceDecisionStatus;
+import java.util.List;
+
+/**
+ * 한 공유 건(MediaShare)에 발급된 후보 전부의 일급 컬렉션.
+ * 이 공유 건의 후보 중에서만 결정할 수 있다는 선택 규칙을 안다.
+ */
+public class PlaceCandidates {
+
+    private final List<PlaceCandidate> places;
+
+    public PlaceCandidates(List<PlaceCandidate> places) {
+        validateNotEmpty(places);
+        this.places = List.copyOf(places);
+    }
+
+    private void validateNotEmpty(List<PlaceCandidate> places) {
+        if (places == null || places.isEmpty()) {
+            throw new IllegalArgumentException("추출에 성공한 미디어는 장소가 한 개 이상이어야 합니다.");
+        }
+    }
+
+    public void decide(
+            List<Long> placeIds,
+            PlaceDecisionStatus target
+    ) {
+        validateKnown(placeIds);
+        places.stream()
+                .filter(extractedPlace -> placeIds.contains(extractedPlace.place().id()))
+                .forEach(extractedPlace -> extractedPlace.decide(target));
+    }
+
+    private void validateKnown(List<Long> placeIds) {
+        if (placeIds == null || placeIds.isEmpty()) {
+            throw new UnselectablePlaceException("결정할 장소를 한 개 이상 선택해야 합니다.");
+        }
+        if (!placeIdValues().containsAll(placeIds)) {
+            throw new UnselectablePlaceException("이 공유 건의 후보가 아닌 장소는 결정할 수 없습니다.");
+        }
+    }
+
+    private List<Long> placeIdValues() {
+        return places.stream()
+                .map(extractedPlace -> extractedPlace.place().id())
+                .toList();
+    }
+
+    public int count() {
+        return places.size();
+    }
+
+    public List<PlaceCandidate> values() {
+        return places;
+    }
+}

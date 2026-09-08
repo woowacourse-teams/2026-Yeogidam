@@ -1,6 +1,6 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.domain.InstagramMedia;
+import com.yeogidam.media.domain.MediaShare;
 import com.yeogidam.media.dto.request.PlaceDiscardRequest;
 import com.yeogidam.media.dto.request.PlaceSelectionRequest;
 import com.yeogidam.media.repository.MediaPlaceDao;
@@ -29,8 +29,8 @@ public class PlaceSelectionService {
             Long mediaId,
             PlaceSelectionRequest request
     ) {
-        InstagramMedia instagramMedia = instagramMediaReader.readOwned(userId, mediaId);
-        instagramMedia.decidePlaces(request.placeIds(), PlaceDecisionStatus.SAVED);
+        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, mediaId);
+        mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.SAVED);
         mediaPlaceDao.markSaved(mediaId, request.placeIds());
     }
 
@@ -40,8 +40,8 @@ public class PlaceSelectionService {
             Long mediaId,
             PlaceDiscardRequest request
     ) {
-        InstagramMedia instagramMedia = instagramMediaReader.readOwned(userId, mediaId);
-        instagramMedia.decidePlaces(request.placeIds(), PlaceDecisionStatus.DISCARDED);
+        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, mediaId);
+        mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.DISCARDED);
         mediaPlaceDao.markDiscarded(mediaId, request.placeIds());
     }
 }

@@ -7,7 +7,7 @@ public enum ExtractionStatus {
     EXTRACTING {
         @Override
         public Extraction toExtraction(
-                Supplier<ExtractedPlaces> extractedPlaces,
+                Supplier<ExtractedPlaces> places,
                 Supplier<ExtractionFailureReason> failureReason
         ) {
             return new InProgressExtraction();
@@ -16,16 +16,16 @@ public enum ExtractionStatus {
     SUCCEEDED {
         @Override
         public Extraction toExtraction(
-                Supplier<ExtractedPlaces> extractedPlaces,
+                Supplier<ExtractedPlaces> places,
                 Supplier<ExtractionFailureReason> failureReason
         ) {
-            return new SucceededExtraction(extractedPlaces.get());
+            return new SucceededExtraction(places.get());
         }
     },
     FAILED {
         @Override
         public Extraction toExtraction(
-                Supplier<ExtractedPlaces> extractedPlaces,
+                Supplier<ExtractedPlaces> places,
                 Supplier<ExtractionFailureReason> failureReason
         ) {
             return new FailedExtraction(failureReason.get());
@@ -33,7 +33,7 @@ public enum ExtractionStatus {
     };
 
     public abstract Extraction toExtraction(
-            Supplier<ExtractedPlaces> extractedPlaces,
+            Supplier<ExtractedPlaces> places,
             Supplier<ExtractionFailureReason> failureReason
     );
 }

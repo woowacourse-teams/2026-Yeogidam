@@ -4,15 +4,15 @@ import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
 
 /**
- * 추출 사실(이 미디어에서 이 장소가 나왔다)과 사용자 해석(결정)의 쌍.
+ * 공유 건에 발급된 후보 하나. 추출 사실의 사본(장소)과 사용자 해석(결정)의 쌍이다.
  * 결정은 UNDECIDED에서만 내릴 수 있고, 이미 결정된 대상에 대한 요청은 조용히 무시한다.
  */
-public class ExtractedPlace {
+public class PlaceCandidate {
 
     private final Place place;
     private PlaceDecisionStatus decision;
 
-    public ExtractedPlace(
+    public PlaceCandidate(
             Place place,
             PlaceDecisionStatus decision
     ) {

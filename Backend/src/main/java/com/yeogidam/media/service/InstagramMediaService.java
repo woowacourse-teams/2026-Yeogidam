@@ -4,6 +4,7 @@ import com.yeogidam.media.domain.ExtractionFailureReason;
 import com.yeogidam.media.domain.ExtractionStatus;
 import com.yeogidam.media.domain.InstagramMedia;
 import com.yeogidam.media.domain.InstagramUrl;
+import com.yeogidam.media.domain.MediaShare;
 import com.yeogidam.media.domain.OwnerId;
 import com.yeogidam.media.dto.request.InstagramMediaCreateRequest;
 import com.yeogidam.media.dto.response.InstagramMediaDetailResponse;
@@ -59,12 +60,12 @@ public class InstagramMediaService {
             InstagramMediaCreateRequest request
     ) {
         userService.validateExists(userId);
-        InstagramUrl instagramUrl = parseInstagramUrl(request.instagramUrl());
-        InstagramMedia instagramMedia = new InstagramMedia(new OwnerId(userId), instagramUrl);
-        String shortcode = instagramUrl.getMediaShortcode().value();
+        MediaShare mediaShare = new MediaShare(new OwnerId(userId), parseInstagramUrl(request.instagramUrl()));
+        InstagramMedia instagramMedia = new InstagramMedia(mediaShare.instagramUrl().getMediaShortcode());
+        String shortcode = instagramMedia.shortcode().value();
         return instagramMediaDao.findCompletedByShortcode(shortcode, ExtractionPipeline.PROCESSING_VERSION)
-                .map(completed -> reuseCompleted(userId, instagramUrl.getSharedUrl(), completed))
-                .orElseGet(() -> receiveNew(userId, instagramUrl.getSharedUrl(), instagramMedia));
+                .map(completed -> reuseCompleted(userId, mediaShare.instagramUrl().getSharedUrl(), completed))
+                .orElseGet(() -> receiveNew(userId, mediaShare.instagramUrl().getSharedUrl(), instagramMedia));
     }
 
     private InstagramUrl parseInstagramUrl(String instagramUrl) {
@@ -106,7 +107,7 @@ public class InstagramMediaService {
                 null,
                 userId,
                 sharedUrl,
-                instagramMedia.instagramUrl().getMediaShortcode().value(),
+                instagramMedia.shortcode().value(),
                 null,
                 null,
                 null,
