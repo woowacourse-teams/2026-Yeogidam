@@ -1,8 +1,8 @@
 package com.yeogidam.place.service;
 
-import com.yeogidam.media.repository.InstagramMediaDao;
-import com.yeogidam.media.repository.InstagramMediaRecord;
-import com.yeogidam.media.repository.MediaPlaceDao;
+import com.yeogidam.media.repository.MediaShareDao;
+import com.yeogidam.media.repository.MediaShareView;
+import com.yeogidam.media.repository.SharePlaceDao;
 import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.dto.response.PlaceMediaResponse;
 import com.yeogidam.place.dto.response.PlaceMediaResponses;
@@ -20,17 +20,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class SavedPlaceService {
 
     private final PlaceDao placeDao;
-    private final MediaPlaceDao mediaPlaceDao;
-    private final InstagramMediaDao instagramMediaDao;
+    private final SharePlaceDao sharePlaceDao;
+    private final MediaShareDao mediaShareDao;
 
     public SavedPlaceService(
             PlaceDao placeDao,
-            MediaPlaceDao mediaPlaceDao,
-            InstagramMediaDao instagramMediaDao
+            SharePlaceDao sharePlaceDao,
+            MediaShareDao mediaShareDao
     ) {
         this.placeDao = placeDao;
-        this.mediaPlaceDao = mediaPlaceDao;
-        this.instagramMediaDao = instagramMediaDao;
+        this.sharePlaceDao = sharePlaceDao;
+        this.mediaShareDao = mediaShareDao;
     }
 
     public SavedPlaceResponses readSavedPlaces(Long userId) {
@@ -60,20 +60,20 @@ public class SavedPlaceService {
             Long placeId
     ) {
         validateSavedForUser(userId, placeId);
-        List<PlaceMediaResponse> media = instagramMediaDao.findAllSavedByPlaceForUser(userId, placeId).stream()
+        List<PlaceMediaResponse> media = mediaShareDao.findAllSavedByPlaceForUser(userId, placeId).stream()
                 .map(this::toPlaceMediaResponse)
                 .toList();
         return new PlaceMediaResponses(media);
     }
 
-    private PlaceMediaResponse toPlaceMediaResponse(InstagramMediaRecord record) {
+    private PlaceMediaResponse toPlaceMediaResponse(MediaShareView view) {
         return new PlaceMediaResponse(
-                record.id(),
-                record.title(),
-                record.thumbnailUrl(),
-                record.authorUsername(),
-                record.sharedUrl(),
-                record.createdAt().toLocalDate());
+                view.shareId(),
+                view.title(),
+                view.thumbnailUrl(),
+                view.authorUsername(),
+                view.sharedUrl(),
+                view.sharedAt().toLocalDate());
     }
 
     @Transactional
@@ -82,14 +82,14 @@ public class SavedPlaceService {
             Long placeId
     ) {
         validateSavedForUser(userId, placeId);
-        mediaPlaceDao.unsave(userId, placeId);
+        sharePlaceDao.unsave(userId, placeId);
     }
 
     private void validateSavedForUser(
             Long userId,
             Long placeId
     ) {
-        if (!mediaPlaceDao.existsSavedForUser(userId, placeId)) {
+        if (!sharePlaceDao.existsSavedForUser(userId, placeId)) {
             throw new SavedPlaceNotFoundException();
         }
     }

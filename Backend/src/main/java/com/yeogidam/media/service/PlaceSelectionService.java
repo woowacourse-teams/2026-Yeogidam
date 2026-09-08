@@ -3,7 +3,7 @@ package com.yeogidam.media.service;
 import com.yeogidam.media.domain.MediaShare;
 import com.yeogidam.media.dto.request.PlaceDiscardRequest;
 import com.yeogidam.media.dto.request.PlaceSelectionRequest;
-import com.yeogidam.media.repository.MediaPlaceDao;
+import com.yeogidam.media.repository.SharePlaceDao;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,35 +13,35 @@ import org.springframework.transaction.annotation.Transactional;
 public class PlaceSelectionService {
 
     private final InstagramMediaReader instagramMediaReader;
-    private final MediaPlaceDao mediaPlaceDao;
+    private final SharePlaceDao sharePlaceDao;
 
     public PlaceSelectionService(
             InstagramMediaReader instagramMediaReader,
-            MediaPlaceDao mediaPlaceDao
+            SharePlaceDao sharePlaceDao
     ) {
         this.instagramMediaReader = instagramMediaReader;
-        this.mediaPlaceDao = mediaPlaceDao;
+        this.sharePlaceDao = sharePlaceDao;
     }
 
     @Transactional
     public void createPlaceSelection(
             Long userId,
-            Long mediaId,
+            Long shareId,
             PlaceSelectionRequest request
     ) {
-        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, mediaId);
+        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, shareId);
         mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.SAVED);
-        mediaPlaceDao.markSaved(mediaId, request.placeIds());
+        sharePlaceDao.markSaved(shareId, request.placeIds());
     }
 
     @Transactional
     public void createPlaceDiscard(
             Long userId,
-            Long mediaId,
+            Long shareId,
             PlaceDiscardRequest request
     ) {
-        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, mediaId);
+        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, shareId);
         mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.DISCARDED);
-        mediaPlaceDao.markDiscarded(mediaId, request.placeIds());
+        sharePlaceDao.markDiscarded(shareId, request.placeIds());
     }
 }

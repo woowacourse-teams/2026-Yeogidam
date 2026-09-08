@@ -1,7 +1,7 @@
 package com.yeogidam.media.service;
 
 import com.yeogidam.media.domain.ExtractionFailureReason;
-import com.yeogidam.media.domain.InstagramUrl;
+import com.yeogidam.media.domain.MediaShortcode;
 import com.yeogidam.media.exception.ExtractionFailedException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -29,10 +29,10 @@ public class ExtractionPipeline {
     @Async("extractionTaskExecutor")
     public void run(
             Long mediaId,
-            String sharedUrl
+            String shortcode
     ) {
         try {
-            extractionResultRecorder.recordSuccess(mediaId, extractionProcess.run(new InstagramUrl(sharedUrl)));
+            extractionResultRecorder.recordSuccess(mediaId, extractionProcess.run(new MediaShortcode(shortcode)));
         } catch (ExtractionFailedException exception) {
             extractionResultRecorder.recordFailure(mediaId, exception.reason());
         } catch (RuntimeException exception) {

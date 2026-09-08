@@ -2,7 +2,6 @@ package com.yeogidam.media.repository;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,8 +16,6 @@ public class InstagramMediaDao {
     private static final RowMapper<InstagramMediaRecord> MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
             new InstagramMediaRecord(
                     resultSet.getLong("id"),
-                    resultSet.getLong("user_id"),
-                    resultSet.getString("shared_url"),
                     resultSet.getString("media_shortcode"),
                     resultSet.getString("title"),
                     resultSet.getString("caption"),
@@ -38,9 +35,9 @@ public class InstagramMediaDao {
     public Long insert(InstagramMediaRecord mediaRecord) {
         String sql = """
                 INSERT INTO instagram_media
-                    (user_id, shared_url, media_shortcode, title, caption, thumbnail_url, author_username,
+                    (media_shortcode, title, caption, thumbnail_url, author_username,
                      extraction_status, processing_version)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """;
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(
@@ -53,21 +50,14 @@ public class InstagramMediaDao {
             PreparedStatement statement,
             InstagramMediaRecord mediaRecord
     ) throws SQLException {
-        statement.setLong(1, mediaRecord.userId());
-        statement.setString(2, mediaRecord.sharedUrl());
-        statement.setString(3, mediaRecord.mediaShortcode());
-        statement.setString(4, mediaRecord.title());
-        statement.setString(5, mediaRecord.caption());
-        statement.setString(6, mediaRecord.thumbnailUrl());
-        statement.setString(7, mediaRecord.authorUsername());
-        statement.setString(8, mediaRecord.extractionStatus());
-        statement.setInt(9, mediaRecord.processingVersion());
+        statement.setString(1, mediaRecord.mediaShortcode());
+        statement.setString(2, mediaRecord.title());
+        statement.setString(3, mediaRecord.caption());
+        statement.setString(4, mediaRecord.thumbnailUrl());
+        statement.setString(5, mediaRecord.authorUsername());
+        statement.setString(6, mediaRecord.extractionStatus());
+        statement.setInt(7, mediaRecord.processingVersion());
         return statement;
-    }
-
-    public List<InstagramMediaRecord> findAllByUserId(Long userId) {
-        String sql = "SELECT * FROM instagram_media WHERE user_id = ? ORDER BY created_at DESC, id DESC";
-        return jdbcTemplate.query(sql, MEDIA_ROW_MAPPER, userId);
     }
 
     public Optional<InstagramMediaRecord> findById(Long id) {
@@ -76,31 +66,10 @@ public class InstagramMediaDao {
                 .findFirst();
     }
 
-    public Optional<InstagramMediaRecord> findCompletedByShortcode(
-            String mediaShortcode,
-            int processingVersion
-    ) {
-        String sql = """
-                SELECT * FROM instagram_media
-                WHERE media_shortcode = ? AND extraction_status = 'SUCCEEDED' AND processing_version = ?
-                ORDER BY id DESC
-                """;
-        return jdbcTemplate.query(sql, MEDIA_ROW_MAPPER, mediaShortcode, processingVersion).stream()
+    public Optional<InstagramMediaRecord> findByShortcode(String mediaShortcode) {
+        String sql = "SELECT * FROM instagram_media WHERE media_shortcode = ?";
+        return jdbcTemplate.query(sql, MEDIA_ROW_MAPPER, mediaShortcode).stream()
                 .findFirst();
-    }
-
-    public List<InstagramMediaRecord> findAllSavedByPlaceForUser(
-            Long userId,
-            Long placeId
-    ) {
-        String sql = """
-                SELECT m.* FROM instagram_media AS m
-                INNER JOIN media_place AS mp
-                  ON mp.media_id = m.id
-                WHERE mp.place_id = ? AND mp.decision_status = 'SAVED' AND m.user_id = ?
-                ORDER BY m.created_at DESC, m.id DESC
-                """;
-        return jdbcTemplate.query(sql, MEDIA_ROW_MAPPER, placeId, userId);
     }
 
     public void updateContent(
@@ -137,5 +106,22 @@ public class InstagramMediaDao {
                 WHERE id = ? AND extraction_status = 'FAILED'
                 """;
         return jdbcTemplate.update(sql, id);
+    }
+
+    /**
+     * 실패했거나 처리 버전이 지난 게시물의 재추출을 선점한다.
+     * 이미 추출 중이면 손대지 않아, 동시에 여러 공유가 붙어도 파이프라인은 한 번만 돈다.
+     */
+    public int claimReprocess(
+            Long id,
+            int currentVersion
+    ) {
+        String sql = """
+                UPDATE instagram_media
+                SET extraction_status = 'EXTRACTING', failure_reason = NULL, processing_version = ?
+                WHERE id = ? AND extraction_status <> 'EXTRACTING'
+                  AND (extraction_status = 'FAILED' OR processing_version <> ?)
+                """;
+        return jdbcTemplate.update(sql, currentVersion, id, currentVersion);
     }
 }

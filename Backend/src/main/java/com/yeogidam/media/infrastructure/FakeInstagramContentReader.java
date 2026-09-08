@@ -1,6 +1,6 @@
 package com.yeogidam.media.infrastructure;
 
-import com.yeogidam.media.domain.InstagramUrl;
+import com.yeogidam.media.domain.MediaShortcode;
 import com.yeogidam.media.service.InstagramContent;
 import com.yeogidam.media.service.InstagramContentReader;
 import org.springframework.stereotype.Component;
@@ -13,8 +13,8 @@ import org.springframework.stereotype.Component;
 public class FakeInstagramContentReader implements InstagramContentReader {
 
     @Override
-    public InstagramContent read(InstagramUrl instagramUrl) {
-        String shortcode = instagramUrl.getMediaShortcode().value();
+    public InstagramContent read(MediaShortcode mediaShortcode) {
+        String shortcode = mediaShortcode.value();
         return new InstagramContent(
                 "성수 감성 카페 릴스 " + shortcode,
                 "성수에서 발견한 카페 온월, 분위기 최고",

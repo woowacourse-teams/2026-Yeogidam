@@ -1,6 +1,6 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.domain.InstagramUrl;
+import com.yeogidam.media.domain.MediaShortcode;
 
 /**
  * 게시물 내용을 읽어 오는 포트.
@@ -8,5 +8,5 @@ import com.yeogidam.media.domain.InstagramUrl;
  */
 public interface InstagramContentReader {
 
-    InstagramContent read(InstagramUrl instagramUrl);
+    InstagramContent read(MediaShortcode shortcode);
 }

@@ -15,24 +15,32 @@ import com.yeogidam.media.exception.RetryNotAllowedException;
 import com.yeogidam.media.exception.UnsupportedInstagramLinkException;
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.InstagramMediaRecord;
-import com.yeogidam.media.repository.MediaPlaceDao;
+import com.yeogidam.media.repository.MediaShareDao;
+import com.yeogidam.media.repository.MediaShareView;
+import com.yeogidam.media.repository.SharePlaceDao;
 import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.dto.response.PlaceResponse;
 import com.yeogidam.place.repository.PlaceDao;
 import com.yeogidam.place.repository.PlaceDecisionView;
 import com.yeogidam.user.service.UserService;
 import java.util.List;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+/**
+ * 접수는 "게시물 찾기 → 공유 붙이기"의 두 걸음이다. 게시물은 shortcode로 유일해
+ * 이미 있으면 공유만 쌓고, 추출 성공본이면 후보를 발급하며, 없을 때만 추출이 돈다.
+ */
 @Service
 @Transactional(readOnly = true)
 public class InstagramMediaService {
 
     private final InstagramMediaDao instagramMediaDao;
-    private final MediaPlaceDao mediaPlaceDao;
+    private final MediaShareDao mediaShareDao;
+    private final SharePlaceDao sharePlaceDao;
     private final PlaceDao placeDao;
     private final InstagramMediaReader instagramMediaReader;
     private final ExtractionPipeline extractionPipeline;
@@ -40,14 +48,16 @@ public class InstagramMediaService {
 
     public InstagramMediaService(
             InstagramMediaDao instagramMediaDao,
-            MediaPlaceDao mediaPlaceDao,
+            MediaShareDao mediaShareDao,
+            SharePlaceDao sharePlaceDao,
             PlaceDao placeDao,
             InstagramMediaReader instagramMediaReader,
             ExtractionPipeline extractionPipeline,
             UserService userService
     ) {
         this.instagramMediaDao = instagramMediaDao;
-        this.mediaPlaceDao = mediaPlaceDao;
+        this.mediaShareDao = mediaShareDao;
+        this.sharePlaceDao = sharePlaceDao;
         this.placeDao = placeDao;
         this.instagramMediaReader = instagramMediaReader;
         this.extractionPipeline = extractionPipeline;
@@ -60,12 +70,12 @@ public class InstagramMediaService {
             InstagramMediaCreateRequest request
     ) {
         userService.validateExists(userId);
-        MediaShare mediaShare = new MediaShare(new OwnerId(userId), parseInstagramUrl(request.instagramUrl()));
-        InstagramMedia instagramMedia = new InstagramMedia(mediaShare.instagramUrl().getMediaShortcode());
-        String shortcode = instagramMedia.shortcode().value();
-        return instagramMediaDao.findCompletedByShortcode(shortcode, ExtractionPipeline.PROCESSING_VERSION)
-                .map(completed -> reuseCompleted(userId, mediaShare.instagramUrl().getSharedUrl(), completed))
-                .orElseGet(() -> receiveNew(userId, mediaShare.instagramUrl().getSharedUrl(), instagramMedia));
+        MediaShare share = new MediaShare(new OwnerId(userId), parseInstagramUrl(request.instagramUrl()));
+        String shortcode = share.instagramUrl().getMediaShortcode().value();
+        String sharedUrl = share.instagramUrl().getSharedUrl();
+        return instagramMediaDao.findByShortcode(shortcode)
+                .map(media -> attachShare(userId, sharedUrl, media))
+                .orElseGet(() -> receiveNewMedia(userId, shortcode, sharedUrl));
     }
 
     private InstagramUrl parseInstagramUrl(String instagramUrl) {
@@ -76,76 +86,103 @@ public class InstagramMediaService {
         }
     }
 
-    private InstagramMediaReceiptResponse reuseCompleted(
+    private InstagramMediaReceiptResponse receiveNewMedia(
             Long userId,
-            String sharedUrl,
-            InstagramMediaRecord completed
+            String shortcode,
+            String sharedUrl
     ) {
-        Long mediaId = instagramMediaDao.insert(new InstagramMediaRecord(
-                null,
-                userId,
-                sharedUrl,
-                completed.mediaShortcode(),
-                completed.title(),
-                completed.caption(),
-                completed.thumbnailUrl(),
-                completed.authorUsername(),
-                ExtractionStatus.SUCCEEDED.name(),
-                null,
-                completed.processingVersion(),
-                null));
-        mediaPlaceDao.copyLinks(completed.id(), mediaId);
-        return new InstagramMediaReceiptResponse(mediaId, ExtractionStatus.SUCCEEDED.name());
+        Long mediaId = insertOrFindExisting(shortcode);
+        InstagramMediaRecord media = instagramMediaDao.findById(mediaId)
+                .orElseThrow(() -> new IllegalStateException("방금 만든 게시물이 없습니다. mediaId=" + mediaId));
+        return attachShare(userId, sharedUrl, media);
     }
 
-    private InstagramMediaReceiptResponse receiveNew(
-            Long userId,
-            String sharedUrl,
-            InstagramMedia instagramMedia
-    ) {
-        Long mediaId = instagramMediaDao.insert(new InstagramMediaRecord(
+    /**
+     * 동시 접수가 같은 게시물을 함께 넣으려는 경쟁에서, 늦은 쪽은
+     * shortcode 유니크 위반을 삼키고 먼저 들어간 행에 공유를 붙인다.
+     */
+    private Long insertOrFindExisting(String shortcode) {
+        try {
+            Long mediaId = instagramMediaDao.insert(newExtractingRecord(shortcode));
+            dispatchAfterCommit(mediaId, shortcode);
+            return mediaId;
+        } catch (DuplicateKeyException exception) {
+            return instagramMediaDao.findByShortcode(shortcode)
+                    .map(InstagramMediaRecord::id)
+                    .orElseThrow(() -> exception);
+        }
+    }
+
+    private InstagramMediaRecord newExtractingRecord(String shortcode) {
+        return new InstagramMediaRecord(
                 null,
-                userId,
-                sharedUrl,
-                instagramMedia.shortcode().value(),
+                shortcode,
                 null,
                 null,
                 null,
                 null,
-                instagramMedia.extraction().status().name(),
+                ExtractionStatus.EXTRACTING.name(),
                 null,
                 ExtractionPipeline.PROCESSING_VERSION,
-                null));
-        dispatchAfterCommit(mediaId, sharedUrl);
-        return new InstagramMediaReceiptResponse(mediaId, instagramMedia.extraction().status().name());
+                null);
+    }
+
+    private InstagramMediaReceiptResponse attachShare(
+            Long userId,
+            String sharedUrl,
+            InstagramMediaRecord media
+    ) {
+        Long shareId = mediaShareDao.insert(userId, media.id(), sharedUrl);
+        if (isReusable(media)) {
+            sharePlaceDao.issueCandidates(shareId, media.id());
+            return new InstagramMediaReceiptResponse(shareId, ExtractionStatus.SUCCEEDED.name());
+        }
+        reprocessIfClaimed(media);
+        return new InstagramMediaReceiptResponse(shareId, ExtractionStatus.EXTRACTING.name());
+    }
+
+    private boolean isReusable(InstagramMediaRecord media) {
+        String succeeded = ExtractionStatus.SUCCEEDED.name();
+        return succeeded.equals(media.extractionStatus())
+                && media.processingVersion() == ExtractionPipeline.PROCESSING_VERSION;
+    }
+
+    /**
+     * 실패했거나 버전이 지난 게시물만 조건부 UPDATE로 선점해 다시 돌린다.
+     * 선점에 진 공유는 이미 도는 추출에 합류한다(파이프라인은 게시물당 한 번).
+     */
+    private void reprocessIfClaimed(InstagramMediaRecord media) {
+        if (instagramMediaDao.claimReprocess(media.id(), ExtractionPipeline.PROCESSING_VERSION) > 0) {
+            dispatchAfterCommit(media.id(), media.mediaShortcode());
+        }
     }
 
     public InstagramMediaResponses readInstagramMedias(Long userId) {
-        List<InstagramMediaResponse> medias = instagramMediaDao.findAllByUserId(userId).stream()
+        List<InstagramMediaResponse> shares = mediaShareDao.findAllByUserId(userId).stream()
                 .map(this::toInstagramMediaResponse)
                 .toList();
-        return new InstagramMediaResponses(medias);
+        return new InstagramMediaResponses(shares);
     }
 
-    private InstagramMediaResponse toInstagramMediaResponse(InstagramMediaRecord record) {
+    private InstagramMediaResponse toInstagramMediaResponse(MediaShareView view) {
         return new InstagramMediaResponse(
-                record.id(),
-                record.title(),
-                record.thumbnailUrl(),
-                record.authorUsername(),
-                record.extractionStatus(),
-                record.createdAt().toLocalDate());
+                view.shareId(),
+                view.title(),
+                view.thumbnailUrl(),
+                view.authorUsername(),
+                view.extractionStatus(),
+                view.sharedAt().toLocalDate());
     }
 
     public InstagramMediaDetailResponse readInstagramMedia(
             Long userId,
-            Long mediaId
+            Long shareId
     ) {
-        InstagramMediaRecord record = instagramMediaReader.readOwnedRecord(userId, mediaId);
-        List<PlaceResponse> places = placeDao.findAllByMediaId(mediaId).stream()
+        MediaShareView view = instagramMediaReader.readOwnedShareView(userId, shareId);
+        List<PlaceResponse> places = placeDao.findAllByShareId(shareId).stream()
                 .map(this::toPlaceResponse)
                 .toList();
-        return toDetailResponse(record, places);
+        return toDetailResponse(view, places);
     }
 
     private PlaceResponse toPlaceResponse(PlaceDecisionView view) {
@@ -162,17 +199,17 @@ public class InstagramMediaService {
     }
 
     private InstagramMediaDetailResponse toDetailResponse(
-            InstagramMediaRecord record,
+            MediaShareView view,
             List<PlaceResponse> places
     ) {
         return new InstagramMediaDetailResponse(
-                record.id(),
-                record.title(),
-                record.thumbnailUrl(),
-                record.authorUsername(),
-                record.extractionStatus(),
-                toFailureDescription(record.failureReason()),
-                record.sharedUrl(),
+                view.shareId(),
+                view.title(),
+                view.thumbnailUrl(),
+                view.authorUsername(),
+                view.extractionStatus(),
+                toFailureDescription(view.failureReason()),
+                view.sharedUrl(),
                 places.size(),
                 places);
     }
@@ -187,28 +224,29 @@ public class InstagramMediaService {
     @Transactional
     public void createExtractionRetry(
             Long userId,
-            Long mediaId
+            Long shareId
     ) {
-        InstagramMedia instagramMedia = instagramMediaReader.readOwned(userId, mediaId);
+        MediaShareView view = instagramMediaReader.readOwnedShareView(userId, shareId);
+        InstagramMedia instagramMedia = instagramMediaReader.read(view.mediaId());
         instagramMedia.retry();
-        claimRetry(mediaId);
-        dispatchAfterCommit(mediaId, instagramMediaReader.readRecord(mediaId).sharedUrl());
+        claimRetry(view.mediaId());
+        dispatchAfterCommit(view.mediaId(), instagramMedia.shortcode().value());
     }
 
     private void claimRetry(Long mediaId) {
         if (instagramMediaDao.updateToExtractingIfFailed(mediaId) == 0) {
-            throw new RetryNotAllowedException("이미 다시 시도가 접수된 미디어입니다.");
+            throw new RetryNotAllowedException("이미 다시 시도가 접수된 게시물입니다.");
         }
     }
 
     private void dispatchAfterCommit(
             Long mediaId,
-            String sharedUrl
+            String shortcode
     ) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                extractionPipeline.run(mediaId, sharedUrl);
+                extractionPipeline.run(mediaId, shortcode);
             }
         });
     }

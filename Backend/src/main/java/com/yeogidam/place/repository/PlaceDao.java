@@ -122,11 +122,25 @@ public class PlaceDao {
                 .findFirst();
     }
 
-    public List<PlaceDecisionView> findAllByMediaId(Long mediaId) {
+    public List<PlaceDecisionView> findAllByShareId(Long shareId) {
         String sql = """
                 SELECT p.id AS place_id, p.kakao_place_id, p.name, p.category, p.address, p.road_address,
                        p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
-                       mp.decision_status
+                       sp.decision_status
+                FROM share_place AS sp
+                INNER JOIN place AS p
+                  ON p.id = sp.place_id
+                WHERE sp.share_id = ?
+                ORDER BY sp.position
+                """;
+        return jdbcTemplate.query(sql, DECISION_VIEW_ROW_MAPPER, shareId);
+    }
+
+    public List<PlaceDecisionView> findAllFactsByMediaId(Long mediaId) {
+        String sql = """
+                SELECT p.id AS place_id, p.kakao_place_id, p.name, p.category, p.address, p.road_address,
+                       p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
+                       NULL AS decision_status
                 FROM media_place AS mp
                 INNER JOIN place AS p
                   ON p.id = mp.place_id
@@ -140,14 +154,14 @@ public class PlaceDao {
         String sql = """
                 SELECT p.id, p.name, p.category, p.address, p.road_address,
                        p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
-                       COUNT(DISTINCT mp.media_id) AS media_count
-                FROM media_place AS mp
+                       COUNT(DISTINCT s.media_id) AS media_count
+                FROM share_place AS sp
                 INNER JOIN place AS p
-                  ON p.id = mp.place_id
-                INNER JOIN instagram_media AS m
-                  ON m.id = mp.media_id
-                WHERE m.user_id = ?
-                  AND mp.decision_status = 'SAVED'
+                  ON p.id = sp.place_id
+                INNER JOIN media_share AS s
+                  ON s.id = sp.share_id
+                WHERE s.user_id = ?
+                  AND sp.decision_status = 'SAVED'
                 GROUP BY p.id, p.name, p.category, p.address, p.road_address,
                          p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url
                 ORDER BY p.id

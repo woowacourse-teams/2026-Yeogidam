@@ -1,6 +1,6 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.repository.InstagramMediaReportDao;
+import com.yeogidam.media.repository.MediaShareReportDao;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,22 +9,22 @@ import org.springframework.transaction.annotation.Transactional;
 public class InstagramMediaReportService {
 
     private final InstagramMediaReader instagramMediaReader;
-    private final InstagramMediaReportDao instagramMediaReportDao;
+    private final MediaShareReportDao mediaShareReportDao;
 
     public InstagramMediaReportService(
             InstagramMediaReader instagramMediaReader,
-            InstagramMediaReportDao instagramMediaReportDao
+            MediaShareReportDao mediaShareReportDao
     ) {
         this.instagramMediaReader = instagramMediaReader;
-        this.instagramMediaReportDao = instagramMediaReportDao;
+        this.mediaShareReportDao = mediaShareReportDao;
     }
 
     @Transactional
     public void createReport(
             Long userId,
-            Long mediaId
+            Long shareId
     ) {
-        instagramMediaReader.readOwnedRecord(userId, mediaId);
-        instagramMediaReportDao.insert(mediaId);
+        instagramMediaReader.readOwnedShareView(userId, shareId);
+        mediaShareReportDao.insert(shareId);
     }
 }

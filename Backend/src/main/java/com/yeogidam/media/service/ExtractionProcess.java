@@ -8,7 +8,7 @@ import com.yeogidam.place.service.CandidatePlaceName;
 import com.yeogidam.place.service.PlaceSearcher;
 import com.yeogidam.place.service.SearchedPlace;
 import com.yeogidam.media.domain.ExtractionFailureReason;
-import com.yeogidam.media.domain.InstagramUrl;
+import com.yeogidam.media.domain.MediaShortcode;
 import com.yeogidam.media.exception.ExtractionFailedException;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,16 +37,16 @@ public class ExtractionProcess {
         this.placeSearcher = placeSearcher;
     }
 
-    public ExtractionOutcome run(InstagramUrl instagramUrl) {
-        InstagramContent content = readContent(instagramUrl);
+    public ExtractionOutcome run(MediaShortcode shortcode) {
+        InstagramContent content = readContent(shortcode);
         List<CandidatePlaceName> candidates = extractCandidates(content);
         List<SearchedPlace> places = searchAll(candidates);
         return new ExtractionOutcome(content, places);
     }
 
-    private InstagramContent readContent(InstagramUrl instagramUrl) {
+    private InstagramContent readContent(MediaShortcode shortcode) {
         try {
-            return instagramContentReader.read(instagramUrl);
+            return instagramContentReader.read(shortcode);
         } catch (RuntimeException exception) {
             throw new ExtractionFailedException(ExtractionFailureReason.CONTENT_UNAVAILABLE);
         }

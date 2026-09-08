@@ -2,6 +2,8 @@ package com.yeogidam.media.service;
 
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.MediaPlaceDao;
+import com.yeogidam.media.repository.MediaShareDao;
+import com.yeogidam.media.repository.SharePlaceDao;
 import com.yeogidam.media.domain.ExtractionFailureReason;
 import com.yeogidam.media.domain.ExtractionStatus;
 import com.yeogidam.place.repository.PlaceDao;
@@ -24,15 +26,21 @@ public class ExtractionResultRecorder {
     private final InstagramMediaDao instagramMediaDao;
     private final PlaceDao placeDao;
     private final MediaPlaceDao mediaPlaceDao;
+    private final MediaShareDao mediaShareDao;
+    private final SharePlaceDao sharePlaceDao;
 
     public ExtractionResultRecorder(
             InstagramMediaDao instagramMediaDao,
             PlaceDao placeDao,
-            MediaPlaceDao mediaPlaceDao
+            MediaPlaceDao mediaPlaceDao,
+            MediaShareDao mediaShareDao,
+            SharePlaceDao sharePlaceDao
     ) {
         this.instagramMediaDao = instagramMediaDao;
         this.placeDao = placeDao;
         this.mediaPlaceDao = mediaPlaceDao;
+        this.mediaShareDao = mediaShareDao;
+        this.sharePlaceDao = sharePlaceDao;
     }
 
     @Transactional
@@ -44,7 +52,14 @@ public class ExtractionResultRecorder {
         instagramMediaDao.updateContent(mediaId, content.title(), content.caption(), content.thumbnailUrl(), content.authorUsername());
         mediaPlaceDao.deleteAllByMediaId(mediaId);
         linkPlaces(mediaId, outcome.places());
+        issueCandidatesToWaitingShares(mediaId);
         instagramMediaDao.updateExtractionResult(mediaId, ExtractionStatus.SUCCEEDED.name(), null);
+    }
+
+    private void issueCandidatesToWaitingShares(Long mediaId) {
+        for (Long shareId : mediaShareDao.findIdsWithoutCandidatesByMediaId(mediaId)) {
+            sharePlaceDao.issueCandidates(shareId, mediaId);
+        }
     }
 
     private void linkPlaces(
@@ -99,6 +114,7 @@ public class ExtractionResultRecorder {
             Long mediaId,
             ExtractionFailureReason reason
     ) {
+        sharePlaceDao.deleteAllByMediaId(mediaId);
         mediaPlaceDao.deleteAllByMediaId(mediaId);
         instagramMediaDao.updateExtractionResult(mediaId, ExtractionStatus.FAILED.name(), reason.name());
     }
