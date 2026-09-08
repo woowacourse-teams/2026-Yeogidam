@@ -6,9 +6,9 @@ import com.yeogidam.media.domain.Extraction;
 import com.yeogidam.media.domain.ExtractionFailureReason;
 import com.yeogidam.media.domain.ExtractionStatus;
 import com.yeogidam.media.domain.InstagramMedia;
+import com.yeogidam.media.domain.InstagramUrl;
 import com.yeogidam.media.domain.MediaMetadata;
 import com.yeogidam.media.domain.OwnerId;
-import com.yeogidam.media.domain.SharedLink;
 import com.yeogidam.media.exception.InstagramMediaNotFoundException;
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.InstagramMediaRecord;
@@ -71,7 +71,7 @@ public class InstagramMediaReader {
         return new InstagramMedia(
                 record.id(),
                 new OwnerId(record.userId()),
-                new SharedLink(record.sharedUrl()),
+                new InstagramUrl(record.sharedUrl()),
                 new MediaMetadata(record.title(), record.caption(), record.thumbnailUrl(), record.authorUsername()),
                 toExtraction(record));
     }

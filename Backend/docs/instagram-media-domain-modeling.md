@@ -87,11 +87,11 @@ RetryNotAllowedException 등 도메인이 던지는 예외는 순수 DomainExcep
 
 ### 5. 표시용 값은 도메인이 들되 검증하지 않는다
 
-처음에는 표시용 값을 도메인 밖(record)에만 뒀는데, 장기(java-janggi) 방식을 따라 도메인 관계를 먼저 완성하고 영속화할 값을 매퍼가 고르는 구조로 방향을 정하면서 원칙을 바꿨다. 제목, 썸네일, 계정명은 MediaContent record로 도메인이 들되 검증하지 않고, 원본 URL은 SharedLink가 파싱된 정체성(InstagramUrl)과 사실(원본 문자열)을 한 쌍으로 든다. 소유자는 OwnerId로 집합체 간 id 참조를 하고, 결정 상태는 ExtractedPlace(장소와 결정의 쌍)로 도메인 행위(decidePlaces)가 됐다. 조회(히스토리, 상세)는 여전히 record에서 응답으로 바로 간다.
+처음에는 표시용 값을 도메인 밖(record)에만 뒀는데, 장기(java-janggi) 방식을 따라 도메인 관계를 먼저 완성하고 영속화할 값을 매퍼가 고르는 구조로 방향을 정하면서 원칙을 바꿨다. 제목, 썸네일, 계정명은 MediaMetadata record로 도메인이 들되 검증하지 않고, 원본 URL은 InstagramUrl이 직접 보관한다. 생성자가 원본(사실)을 받아 shortcode(해석)를 파싱하고 둘 다 들기 때문에 해석은 항상 그 원본의 해석이며, 동등성은 shortcode만 본다. 처음에는 이 쌍을 SharedLink라는 별도 값 객체로 묶었는데, 원본과 해석을 따로 받는 생성자가 모순 쌍을 허용하는 구멍이 있어 러키와의 논의에서 InstagramUrl로 흡수하기로 했다. 소유자는 OwnerId로 집합체 간 id 참조를 하고, 결정 상태는 ExtractedPlace(장소와 결정의 쌍)로 도메인 행위(decidePlaces)가 됐다. 조회(히스토리, 상세)는 여전히 record에서 응답으로 바로 간다.
 
 ### 6. 원본 URL은 record에 보관한다
 
-받은 그대로의 sharedUrl을 instagram_media 행에 남긴다. ADR-01의 남은 결정이었던 자리인데, 파싱은 해석이고 원본은 사실이라 실패 릴스의 "원본 릴스로 이동"과 향후 재처리의 근거가 된다. 도메인 InstagramUrl은 shortcode만 들고 원본 문자열은 들지 않는다.
+받은 그대로의 sharedUrl을 instagram_media 행에 남긴다. ADR-01의 남은 결정이었던 자리인데, 파싱은 해석이고 원본은 사실이라 실패 릴스의 "원본 릴스로 이동"과 향후 재처리의 근거가 된다. 도메인에서는 InstagramUrl이 원본 문자열과 shortcode를 함께 들고, 복원 시 행의 sharedUrl로 InstagramUrl을 다시 만든다.
 
 ### 7. 실패 사유는 관측된 것부터 만든다
 
