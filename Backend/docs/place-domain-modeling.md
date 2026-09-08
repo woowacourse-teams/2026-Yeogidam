@@ -74,7 +74,7 @@ DB 컬럼이 DECIMAL(13, 10)이고 지도 핀을 묶을 때 좌표 동등 비교
 
 ### 7. 도메인과 DB 표현은 분리한다
 
-PlaceRecord는 place 테이블 한 행을 그대로 옮긴 평평한 record이고 도메인 Place는 규칙에 따라 값 객체로 뭉친 구조다. 둘을 잇는 조립 지점(ReelReader)이 명시적으로 존재해서 DB 컬럼이 늘어도 도메인이 끌려가지 않고 그 반대도 마찬가지다.
+PlaceRecord는 place 테이블 한 행을 그대로 옮긴 평평한 record이고 도메인 Place는 규칙에 따라 값 객체로 뭉친 구조다. 둘을 잇는 조립 지점(InstagramMediaReader)이 명시적으로 존재해서 DB 컬럼이 늘어도 도메인이 끌려가지 않고 그 반대도 마찬가지다.
 
 ## 남은 결정
 

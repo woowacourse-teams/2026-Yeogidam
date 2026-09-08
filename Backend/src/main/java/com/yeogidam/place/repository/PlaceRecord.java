@@ -3,23 +3,21 @@ package com.yeogidam.place.repository;
 import java.math.BigDecimal;
 
 /**
- * place 테이블 한 행. DB 전용 표현이며 도메인 Place와 분리된다.
+ * place 테이블 한 행. 전역 장소 사실(사용자 무관)의 DB 표현이다.
  */
 public record PlaceRecord(
         Long id,
-        Long reelId,
+        String kakaoPlaceId,
         String name,
         String category,
         String address,
         String roadAddress,
         BigDecimal latitude,
         BigDecimal longitude,
-        String kakaoPlaceId,
         String kakaoPlaceUrl,
         String telephone,
         String thumbnailUrl,
         String thumbnailSource,
-        String photoAttribution,
-        boolean saved
+        String photoAttribution
 ) {
 }

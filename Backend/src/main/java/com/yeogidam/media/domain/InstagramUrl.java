@@ -1,4 +1,4 @@
-package com.yeogidam;
+package com.yeogidam.media.domain;
 
 import java.net.URI;
 import java.util.regex.Matcher;

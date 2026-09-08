@@ -1,16 +1,16 @@
 package com.yeogidam.place.service;
 
+import com.yeogidam.media.repository.InstagramMediaDao;
+import com.yeogidam.media.repository.InstagramMediaRecord;
+import com.yeogidam.media.repository.MediaPlaceDao;
 import com.yeogidam.place.domain.Address;
-import com.yeogidam.place.dto.response.PlaceReelResponse;
-import com.yeogidam.place.dto.response.PlaceReelResponses;
+import com.yeogidam.place.dto.response.PlaceMediaResponse;
+import com.yeogidam.place.dto.response.PlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponse;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.exception.SavedPlaceNotFoundException;
 import com.yeogidam.place.repository.PlaceDao;
-import com.yeogidam.place.repository.PlaceRecord;
 import com.yeogidam.place.repository.SavedPlaceRecord;
-import com.yeogidam.reel.repository.ReelDao;
-import com.yeogidam.reel.repository.ReelRecord;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,18 +20,21 @@ import org.springframework.transaction.annotation.Transactional;
 public class SavedPlaceService {
 
     private final PlaceDao placeDao;
-    private final ReelDao reelDao;
+    private final MediaPlaceDao mediaPlaceDao;
+    private final InstagramMediaDao instagramMediaDao;
 
     public SavedPlaceService(
             PlaceDao placeDao,
-            ReelDao reelDao
+            MediaPlaceDao mediaPlaceDao,
+            InstagramMediaDao instagramMediaDao
     ) {
         this.placeDao = placeDao;
-        this.reelDao = reelDao;
+        this.mediaPlaceDao = mediaPlaceDao;
+        this.instagramMediaDao = instagramMediaDao;
     }
 
-    public SavedPlaceResponses readSavedPlaces() {
-        List<SavedPlaceResponse> savedPlaces = placeDao.findAllSaved().stream()
+    public SavedPlaceResponses readSavedPlaces(Long userId) {
+        List<SavedPlaceResponse> savedPlaces = placeDao.findAllSavedByUserId(userId).stream()
                 .map(this::toSavedPlaceResponse)
                 .toList();
         return new SavedPlaceResponses(savedPlaces);
@@ -49,25 +52,22 @@ public class SavedPlaceService {
                 record.kakaoPlaceUrl(),
                 record.telephone(),
                 record.thumbnailUrl(),
-                record.reelCount());
+                record.mediaCount());
     }
 
-    public PlaceReelResponses readSavedPlaceReels(Long placeId) {
-        getSavedPlace(placeId);
-        List<PlaceReelResponse> reels = reelDao.findAllBySamePlace(placeId).stream()
-                .map(this::toPlaceReelResponse)
+    public PlaceMediaResponses readSavedPlaceMedia(
+            Long userId,
+            Long placeId
+    ) {
+        validateSavedForUser(userId, placeId);
+        List<PlaceMediaResponse> media = instagramMediaDao.findAllSavedByPlaceForUser(userId, placeId).stream()
+                .map(this::toPlaceMediaResponse)
                 .toList();
-        return new PlaceReelResponses(reels);
+        return new PlaceMediaResponses(media);
     }
 
-    private PlaceRecord getSavedPlace(Long placeId) {
-        return placeDao.findById(placeId)
-                .filter(PlaceRecord::saved)
-                .orElseThrow(SavedPlaceNotFoundException::new);
-    }
-
-    private PlaceReelResponse toPlaceReelResponse(ReelRecord record) {
-        return new PlaceReelResponse(
+    private PlaceMediaResponse toPlaceMediaResponse(InstagramMediaRecord record) {
+        return new PlaceMediaResponse(
                 record.id(),
                 record.title(),
                 record.thumbnailUrl(),
@@ -77,8 +77,20 @@ public class SavedPlaceService {
     }
 
     @Transactional
-    public void deleteSavedPlace(Long placeId) {
-        getSavedPlace(placeId);
-        placeDao.unsaveSamePlace(placeId);
+    public void deleteSavedPlace(
+            Long userId,
+            Long placeId
+    ) {
+        validateSavedForUser(userId, placeId);
+        mediaPlaceDao.unsave(userId, placeId);
+    }
+
+    private void validateSavedForUser(
+            Long userId,
+            Long placeId
+    ) {
+        if (!mediaPlaceDao.existsSavedForUser(userId, placeId)) {
+            throw new SavedPlaceNotFoundException();
+        }
     }
 }

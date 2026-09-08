@@ -16,20 +16,33 @@ public class PlaceDao {
 
     private static final RowMapper<PlaceRecord> PLACE_ROW_MAPPER = (resultSet, rowNumber) -> new PlaceRecord(
             resultSet.getLong("id"),
-            resultSet.getLong("reel_id"),
+            resultSet.getString("kakao_place_id"),
             resultSet.getString("name"),
             resultSet.getString("category"),
             resultSet.getString("address"),
             resultSet.getString("road_address"),
             resultSet.getBigDecimal("latitude"),
             resultSet.getBigDecimal("longitude"),
-            resultSet.getString("kakao_place_id"),
             resultSet.getString("kakao_place_url"),
             resultSet.getString("telephone"),
             resultSet.getString("thumbnail_url"),
             resultSet.getString("thumbnail_source"),
-            resultSet.getString("photo_attribution"),
-            resultSet.getBoolean("saved"));
+            resultSet.getString("photo_attribution"));
+
+    private static final RowMapper<PlaceDecisionView> DECISION_VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
+            new PlaceDecisionView(
+                    resultSet.getLong("place_id"),
+                    resultSet.getString("kakao_place_id"),
+                    resultSet.getString("name"),
+                    resultSet.getString("category"),
+                    resultSet.getString("address"),
+                    resultSet.getString("road_address"),
+                    resultSet.getBigDecimal("latitude"),
+                    resultSet.getBigDecimal("longitude"),
+                    resultSet.getString("kakao_place_url"),
+                    resultSet.getString("telephone"),
+                    resultSet.getString("thumbnail_url"),
+                    resultSet.getString("decision_status"));
 
     private static final RowMapper<SavedPlaceRecord> SAVED_PLACE_ROW_MAPPER = (resultSet, rowNumber) ->
             new SavedPlaceRecord(
@@ -43,7 +56,7 @@ public class PlaceDao {
                     resultSet.getString("kakao_place_url"),
                     resultSet.getString("telephone"),
                     resultSet.getString("thumbnail_url"),
-                    resultSet.getInt("reel_count"));
+                    resultSet.getInt("media_count"));
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -53,10 +66,9 @@ public class PlaceDao {
 
     public Long insert(PlaceRecord placeRecord) {
         String sql = """
-                INSERT INTO place (reel_id, name, category, address, road_address, latitude, longitude,
-                                   kakao_place_id, kakao_place_url, telephone,
-                                   thumbnail_url, thumbnail_source, photo_attribution, saved)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO place (kakao_place_id, name, category, address, road_address, latitude, longitude,
+                                   kakao_place_url, telephone, thumbnail_url, thumbnail_source, photo_attribution)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(
@@ -69,26 +81,39 @@ public class PlaceDao {
             PreparedStatement statement,
             PlaceRecord placeRecord
     ) throws SQLException {
-        statement.setLong(1, placeRecord.reelId());
+        bindIdentityAndAddress(statement, placeRecord);
+        bindContactAndThumbnail(statement, placeRecord);
+        return statement;
+    }
+
+    private void bindIdentityAndAddress(
+            PreparedStatement statement,
+            PlaceRecord placeRecord
+    ) throws SQLException {
+        statement.setString(1, placeRecord.kakaoPlaceId());
         statement.setString(2, placeRecord.name());
         statement.setString(3, placeRecord.category());
         statement.setString(4, placeRecord.address());
         statement.setString(5, placeRecord.roadAddress());
         statement.setBigDecimal(6, placeRecord.latitude());
         statement.setBigDecimal(7, placeRecord.longitude());
-        statement.setString(8, placeRecord.kakaoPlaceId());
-        statement.setString(9, placeRecord.kakaoPlaceUrl());
-        statement.setString(10, placeRecord.telephone());
-        statement.setString(11, placeRecord.thumbnailUrl());
-        statement.setString(12, placeRecord.thumbnailSource());
-        statement.setString(13, placeRecord.photoAttribution());
-        statement.setBoolean(14, placeRecord.saved());
-        return statement;
     }
 
-    public List<PlaceRecord> findAllByReelId(Long reelId) {
-        String sql = "SELECT * FROM place WHERE reel_id = ? ORDER BY id";
-        return jdbcTemplate.query(sql, PLACE_ROW_MAPPER, reelId);
+    private void bindContactAndThumbnail(
+            PreparedStatement statement,
+            PlaceRecord placeRecord
+    ) throws SQLException {
+        statement.setString(8, placeRecord.kakaoPlaceUrl());
+        statement.setString(9, placeRecord.telephone());
+        statement.setString(10, placeRecord.thumbnailUrl());
+        statement.setString(11, placeRecord.thumbnailSource());
+        statement.setString(12, placeRecord.photoAttribution());
+    }
+
+    public Optional<PlaceRecord> findByKakaoPlaceId(String kakaoPlaceId) {
+        String sql = "SELECT * FROM place WHERE kakao_place_id = ?";
+        return jdbcTemplate.query(sql, PLACE_ROW_MAPPER, kakaoPlaceId).stream()
+                .findFirst();
     }
 
     public Optional<PlaceRecord> findById(Long placeId) {
@@ -97,41 +122,36 @@ public class PlaceDao {
                 .findFirst();
     }
 
-    public List<SavedPlaceRecord> findAllSaved() {
+    public List<PlaceDecisionView> findAllByMediaId(Long mediaId) {
         String sql = """
-                SELECT MIN(id) AS id, name, latitude, longitude,
-                       MIN(category) AS category, MIN(address) AS address, MIN(road_address) AS road_address,
-                       MIN(kakao_place_url) AS kakao_place_url, MIN(telephone) AS telephone,
-                       MIN(thumbnail_url) AS thumbnail_url, COUNT(DISTINCT reel_id) AS reel_count
-                FROM place
-                WHERE saved = TRUE
-                GROUP BY name, latitude, longitude
-                ORDER BY MIN(id)
+                SELECT p.id AS place_id, p.kakao_place_id, p.name, p.category, p.address, p.road_address,
+                       p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
+                       mp.decision_status
+                FROM media_place AS mp
+                INNER JOIN place AS p
+                  ON p.id = mp.place_id
+                WHERE mp.media_id = ?
+                ORDER BY mp.position
                 """;
-        return jdbcTemplate.query(sql, SAVED_PLACE_ROW_MAPPER);
+        return jdbcTemplate.query(sql, DECISION_VIEW_ROW_MAPPER, mediaId);
     }
 
-    public void markSaved(List<Long> placeIds) {
-        String sql = "UPDATE place SET saved = TRUE WHERE id = ?";
-        List<Object[]> arguments = placeIds.stream()
-                .map(placeId -> new Object[]{placeId})
-                .toList();
-        jdbcTemplate.batchUpdate(sql, arguments);
-    }
-
-    public int unsaveSamePlace(Long placeId) {
+    public List<SavedPlaceRecord> findAllSavedByUserId(Long userId) {
         String sql = """
-                UPDATE place SET saved = FALSE
-                WHERE saved = TRUE
-                  AND (name, latitude, longitude) = (
-                      SELECT anchor.name, anchor.latitude, anchor.longitude
-                      FROM (SELECT name, latitude, longitude FROM place WHERE id = ?) AS anchor)
+                SELECT p.id, p.name, p.category, p.address, p.road_address,
+                       p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
+                       COUNT(DISTINCT mp.media_id) AS media_count
+                FROM media_place AS mp
+                INNER JOIN place AS p
+                  ON p.id = mp.place_id
+                INNER JOIN instagram_media AS m
+                  ON m.id = mp.media_id
+                WHERE m.user_id = ?
+                  AND mp.decision_status = 'SAVED'
+                GROUP BY p.id, p.name, p.category, p.address, p.road_address,
+                         p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url
+                ORDER BY p.id
                 """;
-        return jdbcTemplate.update(sql, placeId);
-    }
-
-    public void deleteAllByReelId(Long reelId) {
-        String sql = "DELETE FROM place WHERE reel_id = ?";
-        jdbcTemplate.update(sql, reelId);
+        return jdbcTemplate.query(sql, SAVED_PLACE_ROW_MAPPER, userId);
     }
 }

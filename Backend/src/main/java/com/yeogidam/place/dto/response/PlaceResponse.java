@@ -9,6 +9,6 @@ public record PlaceResponse(
         String kakaoPlaceUrl,
         String telephone,
         String thumbnailUrl,
-        boolean saved
+        String decisionStatus
 ) {
 }

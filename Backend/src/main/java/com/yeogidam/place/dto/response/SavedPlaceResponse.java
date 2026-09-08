@@ -13,6 +13,6 @@ public record SavedPlaceResponse(
         String kakaoPlaceUrl,
         String telephone,
         String thumbnailUrl,
-        int reelCount
+        int mediaCount
 ) {
 }

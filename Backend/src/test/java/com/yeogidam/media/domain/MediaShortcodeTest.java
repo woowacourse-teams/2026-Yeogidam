@@ -1,4 +1,4 @@
-package com.yeogidam;
+package com.yeogidam.media.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;

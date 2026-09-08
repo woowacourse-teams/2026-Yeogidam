@@ -3,7 +3,7 @@ package com.yeogidam.place.repository;
 import java.math.BigDecimal;
 
 /**
- * 지도 핀 하나. 같은 장소(이름·좌표가 같은 행)를 묶은 조회 전용 표현이다.
+ * 지도 핀 하나. 그 사용자가 SAVED로 결정한 전역 장소와, 연결된 미디어 수다.
  */
 public record SavedPlaceRecord(
         Long id,
@@ -16,6 +16,6 @@ public record SavedPlaceRecord(
         String kakaoPlaceUrl,
         String telephone,
         String thumbnailUrl,
-        int reelCount
+        int mediaCount
 ) {
 }

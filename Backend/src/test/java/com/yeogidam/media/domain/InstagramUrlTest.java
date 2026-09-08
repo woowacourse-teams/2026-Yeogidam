@@ -1,4 +1,4 @@
-package com.yeogidam;
+package com.yeogidam.media.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -122,7 +122,7 @@ class InstagramUrlTest {
     @Test
     void 복수형_reels_경로면_예외가_발생한다() {
         // given
-        String url = "https://www.instagram.com/reels/Dcx0WFJtLfb/";
+        String url = "https://www.instagram.com/media/Dcx0WFJtLfb/";
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))

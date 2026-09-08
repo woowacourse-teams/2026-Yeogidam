@@ -1,4 +1,4 @@
-package com.yeogidam;
+package com.yeogidam.media.domain;
 
 import java.util.regex.Pattern;
 

@@ -3,7 +3,7 @@ package com.yeogidam.place.domain;
 /**
  * 릴스에서 추출된 장소.
  * 내부 식별자(id), 외부 정체성(externalSource), 받아온 표시 정보(profile)로 이루어진다.
- * Reel이 외부 정체성인 InstagramUrl을 몸통에 직접 드는 것과 같은 그림이다.
+ * InstagramMedia가 외부 정체성인 InstagramUrl을 몸통에 직접 드는 것과 같은 그림이다.
  */
 public class Place {
 
