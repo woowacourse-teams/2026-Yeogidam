@@ -53,25 +53,25 @@ public class InstagramMediaReader {
     }
 
     public MediaShareView readOwnedShareView(
-            Long userId,
+            Long memberId,
             Long shareId
     ) {
         MediaShareView view = mediaShareDao.findViewById(shareId)
                 .orElseThrow(InstagramMediaNotFoundException::new);
-        if (!view.userId().equals(userId)) {
+        if (!view.memberId().equals(memberId)) {
             throw new InstagramMediaNotFoundException();
         }
         return view;
     }
 
     public MediaShare readOwnedShare(
-            Long userId,
+            Long memberId,
             Long shareId
     ) {
-        MediaShareView view = readOwnedShareView(userId, shareId);
+        MediaShareView view = readOwnedShareView(memberId, shareId);
         return new MediaShare(
                 view.shareId(),
-                new OwnerId(view.userId()),
+                new OwnerId(view.memberId()),
                 view.mediaId(),
                 new InstagramUrl(view.sharedUrl()),
                 toCandidates(view));

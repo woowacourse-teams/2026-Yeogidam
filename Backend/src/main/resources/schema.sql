@@ -4,9 +4,9 @@ DROP TABLE IF EXISTS media_place;
 DROP TABLE IF EXISTS media_share;
 DROP TABLE IF EXISTS instagram_media;
 DROP TABLE IF EXISTS place;
-DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS member;
 
-CREATE TABLE users (
+CREATE TABLE member (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     nickname VARCHAR(50) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -30,11 +30,11 @@ CREATE TABLE instagram_media (
 -- 공유 사건. 같은 게시물을 다시 공유해도 새 행이 생겨 이력이 쌓인다.
 CREATE TABLE media_share (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    member_id BIGINT NOT NULL,
     media_id BIGINT NOT NULL,
     shared_url VARCHAR(512) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_share_user FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT fk_share_member FOREIGN KEY (member_id) REFERENCES member (id),
     CONSTRAINT fk_share_media FOREIGN KEY (media_id) REFERENCES instagram_media (id)
 );
 

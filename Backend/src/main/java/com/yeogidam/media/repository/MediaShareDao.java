@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 public class MediaShareDao {
 
     private static final String VIEW_SELECT = """
-            SELECT s.id AS share_id, s.user_id, s.media_id, s.shared_url, s.created_at AS shared_at,
+            SELECT s.id AS share_id, s.member_id, s.media_id, s.shared_url, s.created_at AS shared_at,
                    m.title, m.caption, m.thumbnail_url, m.author_username,
                    m.extraction_status, m.failure_reason, m.processing_version
             FROM media_share AS s
@@ -24,7 +24,7 @@ public class MediaShareDao {
     private static final RowMapper<MediaShareView> VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
             new MediaShareView(
                     resultSet.getLong("share_id"),
-                    resultSet.getLong("user_id"),
+                    resultSet.getLong("member_id"),
                     resultSet.getLong("media_id"),
                     resultSet.getString("shared_url"),
                     resultSet.getTimestamp("shared_at").toLocalDateTime(),
@@ -43,15 +43,15 @@ public class MediaShareDao {
     }
 
     public Long insert(
-            Long userId,
+            Long memberId,
             Long mediaId,
             String sharedUrl
     ) {
-        String sql = "INSERT INTO media_share (user_id, media_id, shared_url) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO media_share (member_id, media_id, shared_url) VALUES (?, ?, ?)";
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             var statement = connection.prepareStatement(sql, new String[]{"id"});
-            statement.setLong(1, userId);
+            statement.setLong(1, memberId);
             statement.setLong(2, mediaId);
             statement.setString(3, sharedUrl);
             return statement;
@@ -65,22 +65,22 @@ public class MediaShareDao {
                 .findFirst();
     }
 
-    public List<MediaShareView> findAllByUserId(Long userId) {
-        String sql = VIEW_SELECT + "WHERE s.user_id = ? ORDER BY s.created_at DESC, s.id DESC";
-        return jdbcTemplate.query(sql, VIEW_ROW_MAPPER, userId);
+    public List<MediaShareView> findAllByMemberId(Long memberId) {
+        String sql = VIEW_SELECT + "WHERE s.member_id = ? ORDER BY s.created_at DESC, s.id DESC";
+        return jdbcTemplate.query(sql, VIEW_ROW_MAPPER, memberId);
     }
 
-    public List<MediaShareView> findAllSavedByPlaceForUser(
-            Long userId,
+    public List<MediaShareView> findAllSavedByPlaceForMember(
+            Long memberId,
             Long placeId
     ) {
         String sql = VIEW_SELECT + """
                 INNER JOIN share_place AS sp
                   ON sp.share_id = s.id
-                WHERE sp.place_id = ? AND sp.decision_status = 'SAVED' AND s.user_id = ?
+                WHERE sp.place_id = ? AND sp.decision_status = 'SAVED' AND s.member_id = ?
                 ORDER BY s.created_at DESC, s.id DESC
                 """;
-        return jdbcTemplate.query(sql, VIEW_ROW_MAPPER, placeId, userId);
+        return jdbcTemplate.query(sql, VIEW_ROW_MAPPER, placeId, memberId);
     }
 
     /**

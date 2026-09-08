@@ -1,9 +1,9 @@
-package com.yeogidam.user.exception;
+package com.yeogidam.member.exception;
 
 import com.yeogidam.global.exception.ErrorType;
 import org.springframework.http.HttpStatus;
 
-public enum UserErrorType implements ErrorType {
+public enum MemberErrorType implements ErrorType {
 
     NOT_FOUND(HttpStatus.NOT_FOUND, "USER404_001", "존재하지 않는 사용자입니다.");
 
@@ -11,7 +11,7 @@ public enum UserErrorType implements ErrorType {
     private final String errorCode;
     private final String errorMessage;
 
-    UserErrorType(
+    MemberErrorType(
             HttpStatus httpStatus,
             String errorCode,
             String errorMessage

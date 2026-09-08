@@ -21,10 +21,10 @@ public class InstagramMediaReportService {
 
     @Transactional
     public void createReport(
-            Long userId,
+            Long memberId,
             Long shareId
     ) {
-        instagramMediaReader.readOwnedShareView(userId, shareId);
+        instagramMediaReader.readOwnedShareView(memberId, shareId);
         mediaShareReportDao.insert(shareId);
     }
 }

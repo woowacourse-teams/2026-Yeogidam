@@ -150,7 +150,7 @@ public class PlaceDao {
         return jdbcTemplate.query(sql, DECISION_VIEW_ROW_MAPPER, mediaId);
     }
 
-    public List<SavedPlaceRecord> findAllSavedByUserId(Long userId) {
+    public List<SavedPlaceRecord> findAllSavedByMemberId(Long memberId) {
         String sql = """
                 SELECT p.id, p.name, p.category, p.address, p.road_address,
                        p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
@@ -160,12 +160,12 @@ public class PlaceDao {
                   ON p.id = sp.place_id
                 INNER JOIN media_share AS s
                   ON s.id = sp.share_id
-                WHERE s.user_id = ?
+                WHERE s.member_id = ?
                   AND sp.decision_status = 'SAVED'
                 GROUP BY p.id, p.name, p.category, p.address, p.road_address,
                          p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url
                 ORDER BY p.id
                 """;
-        return jdbcTemplate.query(sql, SAVED_PLACE_ROW_MAPPER, userId);
+        return jdbcTemplate.query(sql, SAVED_PLACE_ROW_MAPPER, memberId);
     }
 }

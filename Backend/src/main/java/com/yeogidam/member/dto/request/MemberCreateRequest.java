@@ -1,8 +1,8 @@
-package com.yeogidam.user.dto.request;
+package com.yeogidam.member.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record UserCreateRequest(
+public record MemberCreateRequest(
         @NotBlank
         String nickname
 ) {

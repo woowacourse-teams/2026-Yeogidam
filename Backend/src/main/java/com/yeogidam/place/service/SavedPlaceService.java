@@ -33,8 +33,8 @@ public class SavedPlaceService {
         this.mediaShareDao = mediaShareDao;
     }
 
-    public SavedPlaceResponses readSavedPlaces(Long userId) {
-        List<SavedPlaceResponse> savedPlaces = placeDao.findAllSavedByUserId(userId).stream()
+    public SavedPlaceResponses readSavedPlaces(Long memberId) {
+        List<SavedPlaceResponse> savedPlaces = placeDao.findAllSavedByMemberId(memberId).stream()
                 .map(this::toSavedPlaceResponse)
                 .toList();
         return new SavedPlaceResponses(savedPlaces);
@@ -56,11 +56,11 @@ public class SavedPlaceService {
     }
 
     public PlaceMediaResponses readSavedPlaceMedia(
-            Long userId,
+            Long memberId,
             Long placeId
     ) {
-        validateSavedForUser(userId, placeId);
-        List<PlaceMediaResponse> media = mediaShareDao.findAllSavedByPlaceForUser(userId, placeId).stream()
+        validateSavedForMember(memberId, placeId);
+        List<PlaceMediaResponse> media = mediaShareDao.findAllSavedByPlaceForMember(memberId, placeId).stream()
                 .map(this::toPlaceMediaResponse)
                 .toList();
         return new PlaceMediaResponses(media);
@@ -78,18 +78,18 @@ public class SavedPlaceService {
 
     @Transactional
     public void deleteSavedPlace(
-            Long userId,
+            Long memberId,
             Long placeId
     ) {
-        validateSavedForUser(userId, placeId);
-        sharePlaceDao.unsave(userId, placeId);
+        validateSavedForMember(memberId, placeId);
+        sharePlaceDao.unsave(memberId, placeId);
     }
 
-    private void validateSavedForUser(
-            Long userId,
+    private void validateSavedForMember(
+            Long memberId,
             Long placeId
     ) {
-        if (!sharePlaceDao.existsSavedForUser(userId, placeId)) {
+        if (!sharePlaceDao.existsSavedForMember(memberId, placeId)) {
             throw new SavedPlaceNotFoundException();
         }
     }

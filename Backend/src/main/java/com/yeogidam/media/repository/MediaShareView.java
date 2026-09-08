@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
  */
 public record MediaShareView(
         Long shareId,
-        Long userId,
+        Long memberId,
         Long mediaId,
         String sharedUrl,
         LocalDateTime sharedAt,

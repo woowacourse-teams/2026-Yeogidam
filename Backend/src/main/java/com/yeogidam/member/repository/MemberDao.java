@@ -1,4 +1,4 @@
-package com.yeogidam.user.repository;
+package com.yeogidam.member.repository;
 
 import java.sql.PreparedStatement;
 import java.util.Objects;
@@ -10,21 +10,21 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class UserDao {
+public class MemberDao {
 
-    private static final RowMapper<UserRecord> USER_ROW_MAPPER = (resultSet, rowNumber) -> new UserRecord(
+    private static final RowMapper<MemberRecord> MEMBER_ROW_MAPPER = (resultSet, rowNumber) -> new MemberRecord(
             resultSet.getLong("id"),
             resultSet.getString("nickname"),
             resultSet.getTimestamp("created_at").toLocalDateTime());
 
     private final JdbcTemplate jdbcTemplate;
 
-    public UserDao(JdbcTemplate jdbcTemplate) {
+    public MemberDao(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
     public Long insert(String nickname) {
-        String sql = "INSERT INTO users (nickname) VALUES (?)";
+        String sql = "INSERT INTO member (nickname) VALUES (?)";
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(
                 connection -> prepareInsert(connection.prepareStatement(sql, new String[]{"id"}), nickname),
@@ -40,9 +40,9 @@ public class UserDao {
         return statement;
     }
 
-    public Optional<UserRecord> findById(Long userId) {
-        String sql = "SELECT * FROM users WHERE id = ?";
-        return jdbcTemplate.query(sql, USER_ROW_MAPPER, userId).stream()
+    public Optional<MemberRecord> findById(Long memberId) {
+        String sql = "SELECT * FROM member WHERE id = ?";
+        return jdbcTemplate.query(sql, MEMBER_ROW_MAPPER, memberId).stream()
                 .findFirst();
     }
 }

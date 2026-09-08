@@ -25,22 +25,22 @@ public class PlaceSelectionService {
 
     @Transactional
     public void createPlaceSelection(
-            Long userId,
+            Long memberId,
             Long shareId,
             PlaceSelectionRequest request
     ) {
-        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, shareId);
+        MediaShare mediaShare = instagramMediaReader.readOwnedShare(memberId, shareId);
         mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.SAVED);
         sharePlaceDao.markSaved(shareId, request.placeIds());
     }
 
     @Transactional
     public void createPlaceDiscard(
-            Long userId,
+            Long memberId,
             Long shareId,
             PlaceDiscardRequest request
     ) {
-        MediaShare mediaShare = instagramMediaReader.readOwnedShare(userId, shareId);
+        MediaShare mediaShare = instagramMediaReader.readOwnedShare(memberId, shareId);
         mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.DISCARDED);
         sharePlaceDao.markDiscarded(shareId, request.placeIds());
     }

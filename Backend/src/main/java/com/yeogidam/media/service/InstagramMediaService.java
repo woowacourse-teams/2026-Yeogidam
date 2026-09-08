@@ -22,7 +22,7 @@ import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.dto.response.PlaceResponse;
 import com.yeogidam.place.repository.PlaceDao;
 import com.yeogidam.place.repository.PlaceDecisionView;
-import com.yeogidam.user.service.UserService;
+import com.yeogidam.member.service.MemberService;
 import java.util.List;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -44,7 +44,7 @@ public class InstagramMediaService {
     private final PlaceDao placeDao;
     private final InstagramMediaReader instagramMediaReader;
     private final ExtractionPipeline extractionPipeline;
-    private final UserService userService;
+    private final MemberService memberService;
 
     public InstagramMediaService(
             InstagramMediaDao instagramMediaDao,
@@ -53,7 +53,7 @@ public class InstagramMediaService {
             PlaceDao placeDao,
             InstagramMediaReader instagramMediaReader,
             ExtractionPipeline extractionPipeline,
-            UserService userService
+            MemberService memberService
     ) {
         this.instagramMediaDao = instagramMediaDao;
         this.mediaShareDao = mediaShareDao;
@@ -61,21 +61,21 @@ public class InstagramMediaService {
         this.placeDao = placeDao;
         this.instagramMediaReader = instagramMediaReader;
         this.extractionPipeline = extractionPipeline;
-        this.userService = userService;
+        this.memberService = memberService;
     }
 
     @Transactional
     public InstagramMediaReceiptResponse createInstagramMedia(
-            Long userId,
+            Long memberId,
             InstagramMediaCreateRequest request
     ) {
-        userService.validateExists(userId);
-        MediaShare share = new MediaShare(new OwnerId(userId), parseInstagramUrl(request.instagramUrl()));
+        memberService.validateExists(memberId);
+        MediaShare share = new MediaShare(new OwnerId(memberId), parseInstagramUrl(request.instagramUrl()));
         String shortcode = share.instagramUrl().getMediaShortcode().value();
         String sharedUrl = share.instagramUrl().getSharedUrl();
         return instagramMediaDao.findByShortcode(shortcode)
-                .map(media -> attachShare(userId, sharedUrl, media))
-                .orElseGet(() -> receiveNewMedia(userId, shortcode, sharedUrl));
+                .map(media -> attachShare(memberId, sharedUrl, media))
+                .orElseGet(() -> receiveNewMedia(memberId, shortcode, sharedUrl));
     }
 
     private InstagramUrl parseInstagramUrl(String instagramUrl) {
@@ -87,14 +87,14 @@ public class InstagramMediaService {
     }
 
     private InstagramMediaReceiptResponse receiveNewMedia(
-            Long userId,
+            Long memberId,
             String shortcode,
             String sharedUrl
     ) {
         Long mediaId = insertOrFindExisting(shortcode);
         InstagramMediaRecord media = instagramMediaDao.findById(mediaId)
                 .orElseThrow(() -> new IllegalStateException("방금 만든 게시물이 없습니다. mediaId=" + mediaId));
-        return attachShare(userId, sharedUrl, media);
+        return attachShare(memberId, sharedUrl, media);
     }
 
     /**
@@ -128,11 +128,11 @@ public class InstagramMediaService {
     }
 
     private InstagramMediaReceiptResponse attachShare(
-            Long userId,
+            Long memberId,
             String sharedUrl,
             InstagramMediaRecord media
     ) {
-        Long shareId = mediaShareDao.insert(userId, media.id(), sharedUrl);
+        Long shareId = mediaShareDao.insert(memberId, media.id(), sharedUrl);
         if (isReusable(media)) {
             sharePlaceDao.issueCandidates(shareId, media.id());
             return new InstagramMediaReceiptResponse(shareId, ExtractionStatus.SUCCEEDED.name());
@@ -157,8 +157,8 @@ public class InstagramMediaService {
         }
     }
 
-    public InstagramMediaResponses readInstagramMedias(Long userId) {
-        List<InstagramMediaResponse> shares = mediaShareDao.findAllByUserId(userId).stream()
+    public InstagramMediaResponses readInstagramMedias(Long memberId) {
+        List<InstagramMediaResponse> shares = mediaShareDao.findAllByMemberId(memberId).stream()
                 .map(this::toInstagramMediaResponse)
                 .toList();
         return new InstagramMediaResponses(shares);
@@ -175,10 +175,10 @@ public class InstagramMediaService {
     }
 
     public InstagramMediaDetailResponse readInstagramMedia(
-            Long userId,
+            Long memberId,
             Long shareId
     ) {
-        MediaShareView view = instagramMediaReader.readOwnedShareView(userId, shareId);
+        MediaShareView view = instagramMediaReader.readOwnedShareView(memberId, shareId);
         List<PlaceResponse> places = placeDao.findAllByShareId(shareId).stream()
                 .map(this::toPlaceResponse)
                 .toList();
@@ -223,10 +223,10 @@ public class InstagramMediaService {
 
     @Transactional
     public void createExtractionRetry(
-            Long userId,
+            Long memberId,
             Long shareId
     ) {
-        MediaShareView view = instagramMediaReader.readOwnedShareView(userId, shareId);
+        MediaShareView view = instagramMediaReader.readOwnedShareView(memberId, shareId);
         InstagramMedia instagramMedia = instagramMediaReader.read(view.mediaId());
         instagramMedia.retry();
         claimRetry(view.mediaId());

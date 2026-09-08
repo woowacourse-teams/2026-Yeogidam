@@ -40,63 +40,63 @@ public class InstagramMediaController {
 
     @PostMapping
     public ResponseEntity<InstagramMediaReceiptResponse> createInstagramMedia(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @Valid @RequestBody InstagramMediaCreateRequest request
     ) {
-        InstagramMediaReceiptResponse response = instagramMediaService.createInstagramMedia(userId, request);
+        InstagramMediaReceiptResponse response = instagramMediaService.createInstagramMedia(memberId, request);
         return ResponseEntity.created(URI.create("/media/" + response.id())).body(response);
     }
 
     @GetMapping
     public ResponseEntity<InstagramMediaResponses> readInstagramMedias(
-            @RequestHeader("X-User-Id") Long userId
+            @RequestHeader("X-Member-Id") Long memberId
     ) {
-        return ResponseEntity.ok(instagramMediaService.readInstagramMedias(userId));
+        return ResponseEntity.ok(instagramMediaService.readInstagramMedias(memberId));
     }
 
     @GetMapping("/{shareId}")
     public ResponseEntity<InstagramMediaDetailResponse> readInstagramMedia(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @PathVariable Long shareId
     ) {
-        return ResponseEntity.ok(instagramMediaService.readInstagramMedia(userId, shareId));
+        return ResponseEntity.ok(instagramMediaService.readInstagramMedia(memberId, shareId));
     }
 
     @PostMapping("/{shareId}/extraction-retries")
     public ResponseEntity<Void> createExtractionRetry(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @PathVariable Long shareId
     ) {
-        instagramMediaService.createExtractionRetry(userId, shareId);
+        instagramMediaService.createExtractionRetry(memberId, shareId);
         return ResponseEntity.accepted().build();
     }
 
     @PostMapping("/{shareId}/place-selections")
     public ResponseEntity<Void> createPlaceSelection(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @PathVariable Long shareId,
             @Valid @RequestBody PlaceSelectionRequest request
     ) {
-        placeSelectionService.createPlaceSelection(userId, shareId, request);
+        placeSelectionService.createPlaceSelection(memberId, shareId, request);
         return ResponseEntity.created(URI.create("/media/" + shareId + "/place-selections")).build();
     }
 
     @PostMapping("/{shareId}/place-discards")
     public ResponseEntity<Void> createPlaceDiscard(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @PathVariable Long shareId,
             @Valid @RequestBody PlaceDiscardRequest request
     ) {
-        placeSelectionService.createPlaceDiscard(userId, shareId, request);
+        placeSelectionService.createPlaceDiscard(memberId, shareId, request);
         return ResponseEntity.created(URI.create("/media/" + shareId + "/place-discards")).build();
     }
 
     @PostMapping("/{shareId}/reports")
     public ResponseEntity<Void> createReport(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @PathVariable Long shareId
     ) {
-        instagramMediaReportService.createReport(userId, shareId);
+        instagramMediaReportService.createReport(memberId, shareId);
         return ResponseEntity.created(URI.create("/media/" + shareId + "/reports")).build();
     }
 }

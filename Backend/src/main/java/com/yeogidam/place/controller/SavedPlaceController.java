@@ -23,25 +23,25 @@ public class SavedPlaceController {
 
     @GetMapping
     public ResponseEntity<SavedPlaceResponses> readSavedPlaces(
-            @RequestHeader("X-User-Id") Long userId
+            @RequestHeader("X-Member-Id") Long memberId
     ) {
-        return ResponseEntity.ok(savedPlaceService.readSavedPlaces(userId));
+        return ResponseEntity.ok(savedPlaceService.readSavedPlaces(memberId));
     }
 
     @GetMapping("/{placeId}/media")
     public ResponseEntity<PlaceMediaResponses> readSavedPlaceMedia(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @PathVariable Long placeId
     ) {
-        return ResponseEntity.ok(savedPlaceService.readSavedPlaceMedia(userId, placeId));
+        return ResponseEntity.ok(savedPlaceService.readSavedPlaceMedia(memberId, placeId));
     }
 
     @DeleteMapping("/{placeId}")
     public ResponseEntity<Void> deleteSavedPlace(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader("X-Member-Id") Long memberId,
             @PathVariable Long placeId
     ) {
-        savedPlaceService.deleteSavedPlace(userId, placeId);
+        savedPlaceService.deleteSavedPlace(memberId, placeId);
         return ResponseEntity.noContent().build();
     }
 }

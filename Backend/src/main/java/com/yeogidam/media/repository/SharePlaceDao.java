@@ -58,27 +58,27 @@ public class SharePlaceDao {
     }
 
     public int unsave(
-            Long userId,
+            Long memberId,
             Long placeId
     ) {
         String sql = """
                 UPDATE share_place SET decision_status = 'UNDECIDED', decided_at = NULL
                 WHERE place_id = ? AND decision_status = 'SAVED'
-                  AND share_id IN (SELECT id FROM media_share WHERE user_id = ?)
+                  AND share_id IN (SELECT id FROM media_share WHERE member_id = ?)
                 """;
-        return jdbcTemplate.update(sql, placeId, userId);
+        return jdbcTemplate.update(sql, placeId, memberId);
     }
 
-    public boolean existsSavedForUser(
-            Long userId,
+    public boolean existsSavedForMember(
+            Long memberId,
             Long placeId
     ) {
         String sql = """
                 SELECT COUNT(*) FROM share_place AS sp
                 INNER JOIN media_share AS s ON s.id = sp.share_id
-                WHERE sp.place_id = ? AND sp.decision_status = 'SAVED' AND s.user_id = ?
+                WHERE sp.place_id = ? AND sp.decision_status = 'SAVED' AND s.member_id = ?
                 """;
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, placeId, userId);
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, placeId, memberId);
         return count != null && count > 0;
     }
 

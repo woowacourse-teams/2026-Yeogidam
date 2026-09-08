@@ -1,8 +1,8 @@
-package com.yeogidam.user.repository;
+package com.yeogidam.member.repository;
 
 import java.time.LocalDateTime;
 
-public record UserRecord(
+public record MemberRecord(
         Long id,
         String nickname,
         LocalDateTime createdAt

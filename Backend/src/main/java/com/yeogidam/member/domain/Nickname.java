@@ -1,4 +1,4 @@
-package com.yeogidam.user.domain;
+package com.yeogidam.member.domain;
 
 public record Nickname(
         String value
