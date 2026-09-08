@@ -30,18 +30,12 @@ public class PlaceCandidate {
         }
     }
 
-    public void decide(PlaceDecisionStatus target) {
+    public boolean decide(PlaceDecisionStatus target) {
         if (decision != PlaceDecisionStatus.UNDECIDED) {
-            return;
+            return false;
         }
         this.decision = target;
-    }
-
-    public void revertToUndecided() {
-        if (decision != PlaceDecisionStatus.SAVED) {
-            return;
-        }
-        this.decision = PlaceDecisionStatus.UNDECIDED;
+        return true;
     }
 
     public Place place() {

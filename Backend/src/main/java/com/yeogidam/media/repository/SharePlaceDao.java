@@ -57,29 +57,19 @@ public class SharePlaceDao {
         jdbcTemplate.batchUpdate(sql, arguments);
     }
 
-    public int unsave(
+    /**
+     * 재공유가 이전 공유들의 미결정 후보를 닫는다. 저장·버림 이력(SAVED, DISCARDED)은 남는다.
+     */
+    public int supersedeUndecided(
             Long memberId,
-            Long placeId
+            Long mediaId
     ) {
         String sql = """
-                UPDATE share_place SET decision_status = 'UNDECIDED', decided_at = NULL
-                WHERE place_id = ? AND decision_status = 'SAVED'
-                  AND share_id IN (SELECT id FROM media_share WHERE member_id = ?)
+                UPDATE share_place SET decision_status = 'SUPERSEDED', decided_at = CURRENT_TIMESTAMP
+                WHERE decision_status = 'UNDECIDED'
+                  AND share_id IN (SELECT id FROM media_share WHERE member_id = ? AND media_id = ?)
                 """;
-        return jdbcTemplate.update(sql, placeId, memberId);
-    }
-
-    public boolean existsSavedForMember(
-            Long memberId,
-            Long placeId
-    ) {
-        String sql = """
-                SELECT COUNT(*) FROM share_place AS sp
-                INNER JOIN media_share AS s ON s.id = sp.share_id
-                WHERE sp.place_id = ? AND sp.decision_status = 'SAVED' AND s.member_id = ?
-                """;
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, placeId, memberId);
-        return count != null && count > 0;
+        return jdbcTemplate.update(sql, memberId, mediaId);
     }
 
     public void deleteAllByMediaId(Long mediaId) {

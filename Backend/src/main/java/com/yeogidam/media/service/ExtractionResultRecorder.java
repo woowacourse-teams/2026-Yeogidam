@@ -56,6 +56,10 @@ public class ExtractionResultRecorder {
         instagramMediaDao.updateExtractionResult(mediaId, ExtractionStatus.SUCCEEDED.name(), null);
     }
 
+    /**
+     * 후보가 없는 공유 중 member별 최신 건에만 발급한다.
+     * 추출 중 재공유로 대체된 지나간 공유 건은 후보를 받지 않는다.
+     */
     private void issueCandidatesToWaitingShares(Long mediaId) {
         for (Long shareId : mediaShareDao.findIdsWithoutCandidatesByMediaId(mediaId)) {
             sharePlaceDao.issueCandidates(shareId, mediaId);

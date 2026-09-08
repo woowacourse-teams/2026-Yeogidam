@@ -127,11 +127,16 @@ public class InstagramMediaService {
                 null);
     }
 
+    /**
+     * 재공유는 이력 유지, 열린 후보 교체다. 새 공유를 붙이기 전에
+     * 같은 member와 게시물의 이전 미결정 후보를 SUPERSEDED로 닫는다(첫 공유면 닫을 것이 없다).
+     */
     private InstagramMediaReceiptResponse attachShare(
             Long memberId,
             String sharedUrl,
             InstagramMediaRecord media
     ) {
+        sharePlaceDao.supersedeUndecided(memberId, media.id());
         Long shareId = mediaShareDao.insert(memberId, media.id(), sharedUrl);
         if (isReusable(media)) {
             sharePlaceDao.issueCandidates(shareId, media.id());

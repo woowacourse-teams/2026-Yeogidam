@@ -49,12 +49,12 @@ public class MediaShare {
         }
     }
 
-    public void decidePlaces(
+    public List<Long> decidePlaces(
             List<Long> placeIds,
             PlaceDecisionStatus target
     ) {
         validateCandidatesIssued();
-        candidates.decide(placeIds, target);
+        return candidates.decide(placeIds, target);
     }
 
     private void validateCandidatesIssued() {

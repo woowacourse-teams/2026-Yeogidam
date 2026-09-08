@@ -44,19 +44,6 @@ public class PlaceDao {
                     resultSet.getString("thumbnail_url"),
                     resultSet.getString("decision_status"));
 
-    private static final RowMapper<SavedPlaceRecord> SAVED_PLACE_ROW_MAPPER = (resultSet, rowNumber) ->
-            new SavedPlaceRecord(
-                    resultSet.getLong("id"),
-                    resultSet.getString("name"),
-                    resultSet.getString("category"),
-                    resultSet.getString("address"),
-                    resultSet.getString("road_address"),
-                    resultSet.getBigDecimal("latitude"),
-                    resultSet.getBigDecimal("longitude"),
-                    resultSet.getString("kakao_place_url"),
-                    resultSet.getString("telephone"),
-                    resultSet.getString("thumbnail_url"),
-                    resultSet.getInt("media_count"));
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -150,22 +137,4 @@ public class PlaceDao {
         return jdbcTemplate.query(sql, DECISION_VIEW_ROW_MAPPER, mediaId);
     }
 
-    public List<SavedPlaceRecord> findAllSavedByMemberId(Long memberId) {
-        String sql = """
-                SELECT p.id, p.name, p.category, p.address, p.road_address,
-                       p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
-                       COUNT(DISTINCT s.media_id) AS media_count
-                FROM share_place AS sp
-                INNER JOIN place AS p
-                  ON p.id = sp.place_id
-                INNER JOIN media_share AS s
-                  ON s.id = sp.share_id
-                WHERE s.member_id = ?
-                  AND sp.decision_status = 'SAVED'
-                GROUP BY p.id, p.name, p.category, p.address, p.road_address,
-                         p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url
-                ORDER BY p.id
-                """;
-        return jdbcTemplate.query(sql, SAVED_PLACE_ROW_MAPPER, memberId);
-    }
 }

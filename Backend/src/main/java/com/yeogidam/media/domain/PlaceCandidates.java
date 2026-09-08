@@ -23,14 +23,16 @@ public class PlaceCandidates {
         }
     }
 
-    public void decide(
+    public List<Long> decide(
             List<Long> placeIds,
             PlaceDecisionStatus target
     ) {
         validateKnown(placeIds);
-        places.stream()
-                .filter(extractedPlace -> placeIds.contains(extractedPlace.place().id()))
-                .forEach(extractedPlace -> extractedPlace.decide(target));
+        return places.stream()
+                .filter(placeCandidate -> placeIds.contains(placeCandidate.place().id()))
+                .filter(placeCandidate -> placeCandidate.decide(target))
+                .map(placeCandidate -> placeCandidate.place().id())
+                .toList();
     }
 
     private void validateKnown(List<Long> placeIds) {
@@ -44,7 +46,7 @@ public class PlaceCandidates {
 
     private List<Long> placeIdValues() {
         return places.stream()
-                .map(extractedPlace -> extractedPlace.place().id())
+                .map(placeCandidate -> placeCandidate.place().id())
                 .toList();
     }
 

@@ -30,7 +30,7 @@ MediaShare                    공유 사건 하나. 재공유해도 새 사건�
 ├── mediaId                   게시물. 집합체 경계를 넘는 id 참조
 ├── InstagramUrl              받은 원본(사실)을 보관하고 shortcode(해석)를 파싱한다. 동등성은 shortcode만 본다
 └── PlaceCandidates           이 공유 건에 발급된 후보의 일급 컬렉션. 소속 검증과 결정(decidePlaces)을 안다
-    └── PlaceCandidate        후보 하나. 장소 사실과 결정 상태(PlaceDecisionStatus)의 쌍
+    └── PlaceCandidate        후보 하나. 장소 사실과 결정 상태(PlaceDecisionStatus, SUPERSEDED 포함 4값)의 쌍
 ```
 
 경계 쪽 객체는 media.service 패키지에 있다. InstagramContent는 인스타그램 조회 어댑터의 산출물이고 InstagramContentReader와 PlaceNameExtractor는 수집과 추출 단계의 포트 인터페이스다. 수집 포트의 입력은 shortcode다. 추출이 게시물 단위가 되면서 특정 공유의 URL에 의존할 이유가 없어졌다. DB 쪽 표현은 media.repository의 InstagramMediaRecord(게시물 행)와 MediaShareRecord, MediaShareView(공유 행과 게시물을 조인한 조회 투영)이고, 도메인으로 되살리는 조립 지점은 InstagramMediaReader 하나다. Reader는 공유 행에서 MediaShare를 조립하고(추출 성공 전에는 후보 없이), 게시물 행에서 InstagramMedia를 조립한다(성공이면 추출 사실까지).
@@ -143,6 +143,6 @@ RetryNotAllowedException 등 도메인이 던지는 예외는 순수 DomainExcep
 ## 남은 결정
 
 - 재시도 이력. 지금은 재시도가 이전 결과를 덮는다. 시도별 사유 이력이 필요해지면 Extraction이 불변이라 List로 늘리는 확장이 국소적이다.
-- 재공유 시 이전 공유의 미결정 후보를 닫는 규칙. 지금은 재공유하면 새 후보가 발급되고 옛 공유의 UNDECIDED가 그대로 남아 대기함에 이중으로 보인다. 운영 앱 실측 규칙("이전 미결정은 이중으로 보이지 않는다")을 채우는 일은 task 15다.
-- 보관함 실체화. 지도는 아직 share_place의 SAVED를 모으는 조회 투영이라 같은 장소를 여러 공유에서 저장하면 여러 번 센다. (user, place)당 한 행의 보관함 테이블은 task 15다.
+- (task 15에서 결정됨) 재공유는 새 공유를 붙이기 전에 같은 member와 게시물의 미결정 후보를 SUPERSEDED로 닫는다. 저장·버림 이력은 남고, 결정이 UNDECIDED에서만 되므로 닫힌 후보는 자동으로 결정 불가다.
+- (task 15에서 결정됨) 보관함은 saved_place 실체다. (member, place) UNIQUE로 핀이 장소당 하나임을 DB가 보장하고, 재저장은 SavedPlace.saveAgain으로 last_saved_at만 갱신되며(멱등), 어느 공유에서 저장했는지는 saved_place_share 연결이 기억한다. 보관함 삭제는 행과 연결만 지우고 지나간 공유의 후보를 되살리지 않는다(ADR-02 결정 6, 팀 확인 항목).
 - MediaShare라는 이름. 공유 한 건을 세는 SNS 어휘 그대로라 유지 중이고 Order와 Reservation 계보를 따라 Share로 줄이는 안이 있어 팀 논의 대상이다.

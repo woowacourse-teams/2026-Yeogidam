@@ -1,4 +1,6 @@
 DROP TABLE IF EXISTS media_share_report;
+DROP TABLE IF EXISTS saved_place_share;
+DROP TABLE IF EXISTS saved_place;
 DROP TABLE IF EXISTS share_place;
 DROP TABLE IF EXISTS media_place;
 DROP TABLE IF EXISTS media_share;
@@ -78,6 +80,29 @@ CREATE TABLE share_place (
     CONSTRAINT uk_share_place UNIQUE (share_id, place_id),
     CONSTRAINT fk_candidate_share FOREIGN KEY (share_id) REFERENCES media_share (id),
     CONSTRAINT fk_candidate_place FOREIGN KEY (place_id) REFERENCES place (id)
+);
+
+-- 보관함. 회원과 장소당 하나를 DB 제약이 보장하고, 재저장은 last_saved_at만 갱신된다.
+CREATE TABLE saved_place (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    member_id BIGINT NOT NULL,
+    place_id BIGINT NOT NULL,
+    first_saved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_saved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_saved_member_place UNIQUE (member_id, place_id),
+    CONSTRAINT fk_saved_member FOREIGN KEY (member_id) REFERENCES member (id),
+    CONSTRAINT fk_saved_place FOREIGN KEY (place_id) REFERENCES place (id)
+);
+
+-- 보관함 장소와 그 장소를 저장하게 된 공유 건의 연결. 핀에서 원본 릴스 목록으로 돌아가는 길이다.
+CREATE TABLE saved_place_share (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    saved_place_id BIGINT NOT NULL,
+    share_id BIGINT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_saved_place_share UNIQUE (saved_place_id, share_id),
+    CONSTRAINT fk_link_saved FOREIGN KEY (saved_place_id) REFERENCES saved_place (id),
+    CONSTRAINT fk_link_share FOREIGN KEY (share_id) REFERENCES media_share (id)
 );
 
 -- 제보는 공유 건 대상이다.
