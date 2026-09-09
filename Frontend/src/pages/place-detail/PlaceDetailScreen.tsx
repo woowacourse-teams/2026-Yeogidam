@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 
 import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
 import type {
@@ -94,6 +95,23 @@ export function PlaceDetailScreen({
     }
   }, [isDeleting, onAuthenticationRequired, onBack, place.savedPlaceId]);
 
+  const confirmDelete = useCallback(() => {
+    if (isDeleting) {
+      return;
+    }
+
+    Alert.alert('선택한 장소를 삭제할까요?', '선택한 장소가 보관함에서 삭제됩니다.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => {
+          handleDelete().catch(() => undefined);
+        },
+      },
+    ]);
+  }, [handleDelete, isDeleting]);
+
   return (
     <CopyToastProvider>
       <PlaceDetailContent
@@ -115,7 +133,7 @@ export function PlaceDetailScreen({
           setDeleteError(null);
           setIsActionSheetVisible(false);
         }}
-        onDelete={handleDelete}
+        onDelete={confirmDelete}
         isDeleting={isDeleting}
         deleteError={deleteError}
       />
