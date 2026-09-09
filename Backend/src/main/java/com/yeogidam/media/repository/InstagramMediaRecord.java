@@ -9,10 +9,9 @@ import java.time.LocalDateTime;
 public record InstagramMediaRecord(
         Long id,
         String mediaShortcode,
-        String title,
         String caption,
         String thumbnailUrl,
-        String authorUsername,
+        String author,
         String extractionStatus,
         String failureReason,
         int processingVersion,

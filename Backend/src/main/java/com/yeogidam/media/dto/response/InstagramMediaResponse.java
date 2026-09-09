@@ -5,9 +5,9 @@ import java.time.LocalDate;
 
 public record InstagramMediaResponse(
         Long id,
-        String title,
+        String caption,
         String thumbnailUrl,
-        String authorUsername,
+        String author,
         String extractionStatus,
         LocalDate sharedDate
 ) {
@@ -15,9 +15,9 @@ public record InstagramMediaResponse(
     public static InstagramMediaResponse from(MediaShareProjection projection) {
         return new InstagramMediaResponse(
                 projection.shareId(),
-                projection.title(),
+                projection.caption(),
                 projection.thumbnailUrl(),
-                projection.authorUsername(),
+                projection.author(),
                 projection.extractionStatus(),
                 projection.sharedAt().toLocalDate());
     }

@@ -3,8 +3,7 @@ package com.yeogidam.media.service;
 import com.yeogidam.media.domain.ExtractionStatus;
 import com.yeogidam.media.domain.InstagramMedia;
 import com.yeogidam.media.domain.InstagramUrl;
-import com.yeogidam.media.domain.MediaShare;
-import com.yeogidam.media.domain.OwnerId;
+import com.yeogidam.media.domain.SharedInstagramMedia;
 import com.yeogidam.media.dto.request.InstagramMediaCreateRequest;
 import com.yeogidam.media.dto.response.InstagramMediaDetailResponse;
 import com.yeogidam.media.dto.response.InstagramMediaReceiptResponse;
@@ -68,7 +67,7 @@ public class InstagramMediaService {
             InstagramMediaCreateRequest request
     ) {
         memberService.validateExists(memberId);
-        MediaShare share = new MediaShare(new OwnerId(memberId), parseInstagramUrl(request.instagramUrl()));
+        SharedInstagramMedia share = new SharedInstagramMedia(memberId, parseInstagramUrl(request.instagramUrl()));
         String shortcode = share.instagramUrl().getMediaShortcode().value();
         String sharedUrl = share.instagramUrl().getSharedUrl();
         return instagramMediaDao.findByShortcode(shortcode)
@@ -116,7 +115,6 @@ public class InstagramMediaService {
         return new InstagramMediaRecord(
                 null,
                 shortcode,
-                null,
                 null,
                 null,
                 null,

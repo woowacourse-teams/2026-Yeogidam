@@ -49,7 +49,7 @@ public class ExtractionResultRecorder {
             ExtractionOutcome outcome
     ) {
         InstagramContent content = outcome.content();
-        instagramMediaDao.updateContent(mediaId, content.title(), content.caption(), content.thumbnailUrl(), content.authorUsername());
+        instagramMediaDao.updateContent(mediaId, content.caption(), content.thumbnailUrl(), content.author());
         mediaPlaceDao.deleteAllByMediaId(mediaId);
         linkPlaces(mediaId, outcome.places());
         issueCandidatesToWaitingShares(mediaId);

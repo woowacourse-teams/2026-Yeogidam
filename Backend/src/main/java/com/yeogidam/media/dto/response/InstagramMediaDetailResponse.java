@@ -8,9 +8,9 @@ import java.util.List;
 
 public record InstagramMediaDetailResponse(
         Long id,
-        String title,
+        String caption,
         String thumbnailUrl,
-        String authorUsername,
+        String author,
         String extractionStatus,
         String failureReason,
         String originalUrl,
@@ -27,9 +27,9 @@ public record InstagramMediaDetailResponse(
                 .toList();
         return new InstagramMediaDetailResponse(
                 projection.shareId(),
-                projection.title(),
+                projection.caption(),
                 projection.thumbnailUrl(),
-                projection.authorUsername(),
+                projection.author(),
                 projection.extractionStatus(),
                 toFailureDescription(projection.failureReason()),
                 projection.sharedUrl(),

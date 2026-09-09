@@ -12,10 +12,9 @@ public record MediaShareProjection(
         Long mediaId,
         String sharedUrl,
         LocalDateTime sharedAt,
-        String title,
         String caption,
         String thumbnailUrl,
-        String authorUsername,
+        String author,
         String extractionStatus,
         String failureReason,
         int processingVersion

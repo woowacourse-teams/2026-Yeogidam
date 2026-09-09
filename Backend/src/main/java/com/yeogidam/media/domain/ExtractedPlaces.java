@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * 추출 사실의 일급 컬렉션. 이 게시물에서 이 장소들이 나왔다는 것만 알고 결정은 모른다.
- * 결정은 공유 사건(MediaShare)에 발급된 후보(PlaceCandidates)의 몫이다.
+ * 결정은 공유 사건(SharedInstagramMedia)에 발급된 후보(PlaceCandidates)의 몫이다.
  */
 public class ExtractedPlaces {
 

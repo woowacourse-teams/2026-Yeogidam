@@ -1,6 +1,7 @@
 package com.yeogidam.member.service;
 
 import com.yeogidam.member.domain.Nickname;
+import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.Member;
 import com.yeogidam.member.dto.request.MemberCreateRequest;
 import com.yeogidam.member.dto.response.MemberResponse;
@@ -22,8 +23,9 @@ public class MemberService {
 
     @Transactional
     public MemberResponse createMember(MemberCreateRequest request) {
-        Member member = new Member(null, new Nickname(request.nickname()));
-        Long memberId = memberDao.insert(member.nickname().value());
+        OAuthAccount oauthAccount = new OAuthAccount(request.provider(), request.providerUserId());
+        Member member = new Member(null, new Nickname(request.nickname()), oauthAccount);
+        Long memberId = memberDao.insert(member);
         return MemberResponse.from(memberId, member);
     }
 

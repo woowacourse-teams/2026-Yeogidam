@@ -11,17 +11,19 @@ DROP TABLE IF EXISTS member;
 CREATE TABLE member (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     nickname VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    oauth_provider VARCHAR(20) NOT NULL,
+    oauth_provider_user_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_member_oauth UNIQUE (oauth_provider, oauth_provider_user_id)
 );
 
 -- 게시물. shortcode로 유일하며 추출 상태와 결과의 주인이다. 사용자와 공유 사건을 모른다.
 CREATE TABLE instagram_media (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     media_shortcode VARCHAR(64) NOT NULL,
-    title VARCHAR(255),
     caption VARCHAR(2200),
     thumbnail_url VARCHAR(512),
-    author_username VARCHAR(100),
+    author VARCHAR(100),
     extraction_status VARCHAR(20) NOT NULL,
     failure_reason VARCHAR(40),
     processing_version INT NOT NULL,

@@ -7,9 +7,8 @@ import com.yeogidam.media.domain.ExtractionStatus;
 import com.yeogidam.media.domain.InstagramMedia;
 import com.yeogidam.media.domain.InstagramUrl;
 import com.yeogidam.media.domain.MediaMetadata;
-import com.yeogidam.media.domain.MediaShare;
+import com.yeogidam.media.domain.SharedInstagramMedia;
 import com.yeogidam.media.domain.MediaShortcode;
-import com.yeogidam.media.domain.OwnerId;
 import com.yeogidam.media.domain.PlaceCandidate;
 import com.yeogidam.media.domain.PlaceCandidates;
 import com.yeogidam.media.exception.MediaErrorCode;
@@ -33,7 +32,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * DB 표현(instagram_media, media_share, share_place, place)을 도메인으로 되살린다.
- * 게시물(InstagramMedia)은 media 행에서, 공유 사건(MediaShare)은 share 행과 후보에서 조립하며
+ * 게시물(InstagramMedia)은 media 행에서, 공유 사건(SharedInstagramMedia)은 share 행과 후보에서 조립하며
  * 소유 검증은 공유 사건 기준이다(남의 공유는 존재 자체를 숨긴다).
  */
 @Component
@@ -65,14 +64,14 @@ public class InstagramMediaReader {
         return projection;
     }
 
-    public MediaShare readOwnedShare(
+    public SharedInstagramMedia readOwnedShare(
             Long memberId,
             Long shareId
     ) {
         MediaShareProjection projection = readOwnedShareView(memberId, shareId);
-        return new MediaShare(
+        return new SharedInstagramMedia(
                 projection.shareId(),
-                new OwnerId(projection.memberId()),
+                projection.memberId(),
                 projection.mediaId(),
                 new InstagramUrl(projection.sharedUrl()),
                 toCandidates(projection));
@@ -101,7 +100,7 @@ public class InstagramMediaReader {
         return new InstagramMedia(
                 record.id(),
                 new MediaShortcode(record.mediaShortcode()),
-                new MediaMetadata(record.title(), record.caption(), record.thumbnailUrl(), record.authorUsername()),
+                new MediaMetadata(record.caption(), record.thumbnailUrl(), record.author()),
                 toExtraction(record));
     }
 

@@ -6,7 +6,7 @@ import com.yeogidam.place.domain.PlaceDecisionStatus;
 import java.util.List;
 
 /**
- * 한 공유 건(MediaShare)에 발급된 후보 전부의 일급 컬렉션.
+ * 한 공유 건(SharedInstagramMedia)에 발급된 후보 전부의 일급 컬렉션.
  * 이 공유 건의 후보 중에서만 결정할 수 있다는 선택 규칙을 안다.
  */
 public class PlaceCandidates {

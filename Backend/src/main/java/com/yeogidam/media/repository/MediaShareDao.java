@@ -14,7 +14,7 @@ public class MediaShareDao {
 
     private static final String VIEW_SELECT = """
             SELECT s.id AS share_id, s.member_id, s.media_id, s.shared_url, s.created_at AS shared_at,
-                   m.title, m.caption, m.thumbnail_url, m.author_username,
+                   m.caption, m.thumbnail_url, m.author,
                    m.extraction_status, m.failure_reason, m.processing_version
             FROM media_share AS s
             INNER JOIN instagram_media AS m
@@ -28,10 +28,9 @@ public class MediaShareDao {
                     resultSet.getLong("media_id"),
                     resultSet.getString("shared_url"),
                     resultSet.getTimestamp("shared_at").toLocalDateTime(),
-                    resultSet.getString("title"),
                     resultSet.getString("caption"),
                     resultSet.getString("thumbnail_url"),
-                    resultSet.getString("author_username"),
+                    resultSet.getString("author"),
                     resultSet.getString("extraction_status"),
                     resultSet.getString("failure_reason"),
                     resultSet.getInt("processing_version"));

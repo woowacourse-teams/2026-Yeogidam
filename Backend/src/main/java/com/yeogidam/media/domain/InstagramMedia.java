@@ -13,7 +13,7 @@ public class InstagramMedia {
     private Extraction extraction;
 
     public InstagramMedia(MediaShortcode shortcode) {
-        this(null, shortcode, new MediaMetadata(null, null, null, null), new InProgressExtraction());
+        this(null, shortcode, new MediaMetadata(null, null, null), new InProgressExtraction());
     }
 
     public InstagramMedia(

@@ -1,6 +1,6 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.domain.MediaShare;
+import com.yeogidam.media.domain.SharedInstagramMedia;
 import com.yeogidam.media.dto.request.PlaceDiscardRequest;
 import com.yeogidam.media.dto.request.PlaceSelectionRequest;
 import com.yeogidam.media.repository.SharePlaceDao;
@@ -42,8 +42,8 @@ public class PlaceSelectionService {
             Long shareId,
             PlaceSelectionRequest request
     ) {
-        MediaShare mediaShare = instagramMediaReader.readOwnedShare(memberId, shareId);
-        List<Long> savedPlaceIds = mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.SAVED);
+        SharedInstagramMedia sharedInstagramMedia = instagramMediaReader.readOwnedShare(memberId, shareId);
+        List<Long> savedPlaceIds = sharedInstagramMedia.decidePlaces(request.placeIds(), PlaceDecisionStatus.SAVED);
         sharePlaceDao.markSaved(shareId, savedPlaceIds);
         savedPlaceIds.forEach(placeId -> storeToArchive(memberId, placeId, shareId));
     }
@@ -95,8 +95,8 @@ public class PlaceSelectionService {
             Long shareId,
             PlaceDiscardRequest request
     ) {
-        MediaShare mediaShare = instagramMediaReader.readOwnedShare(memberId, shareId);
-        List<Long> discardedPlaceIds = mediaShare.decidePlaces(request.placeIds(), PlaceDecisionStatus.DISCARDED);
+        SharedInstagramMedia sharedInstagramMedia = instagramMediaReader.readOwnedShare(memberId, shareId);
+        List<Long> discardedPlaceIds = sharedInstagramMedia.decidePlaces(request.placeIds(), PlaceDecisionStatus.DISCARDED);
         sharePlaceDao.markDiscarded(shareId, discardedPlaceIds);
     }
 }

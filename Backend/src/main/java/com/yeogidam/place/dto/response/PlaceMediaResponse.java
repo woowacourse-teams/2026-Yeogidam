@@ -5,9 +5,9 @@ import java.time.LocalDate;
 
 public record PlaceMediaResponse(
         Long id,
-        String title,
+        String caption,
         String thumbnailUrl,
-        String authorUsername,
+        String author,
         String originalUrl,
         LocalDate sharedDate
 ) {
@@ -15,9 +15,9 @@ public record PlaceMediaResponse(
     public static PlaceMediaResponse from(MediaShareProjection projection) {
         return new PlaceMediaResponse(
                 projection.shareId(),
-                projection.title(),
+                projection.caption(),
                 projection.thumbnailUrl(),
-                projection.authorUsername(),
+                projection.author(),
                 projection.sharedUrl(),
                 projection.sharedAt().toLocalDate());
     }

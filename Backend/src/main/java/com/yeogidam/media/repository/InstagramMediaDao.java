@@ -17,10 +17,9 @@ public class InstagramMediaDao {
             new InstagramMediaRecord(
                     resultSet.getLong("id"),
                     resultSet.getString("media_shortcode"),
-                    resultSet.getString("title"),
                     resultSet.getString("caption"),
                     resultSet.getString("thumbnail_url"),
-                    resultSet.getString("author_username"),
+                    resultSet.getString("author"),
                     resultSet.getString("extraction_status"),
                     resultSet.getString("failure_reason"),
                     resultSet.getInt("processing_version"),
@@ -35,9 +34,9 @@ public class InstagramMediaDao {
     public Long insert(InstagramMediaRecord mediaRecord) {
         String sql = """
                 INSERT INTO instagram_media
-                    (media_shortcode, title, caption, thumbnail_url, author_username,
+                    (media_shortcode, caption, thumbnail_url, author,
                      extraction_status, processing_version)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """;
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(
@@ -51,12 +50,11 @@ public class InstagramMediaDao {
             InstagramMediaRecord mediaRecord
     ) throws SQLException {
         statement.setString(1, mediaRecord.mediaShortcode());
-        statement.setString(2, mediaRecord.title());
-        statement.setString(3, mediaRecord.caption());
-        statement.setString(4, mediaRecord.thumbnailUrl());
-        statement.setString(5, mediaRecord.authorUsername());
-        statement.setString(6, mediaRecord.extractionStatus());
-        statement.setInt(7, mediaRecord.processingVersion());
+        statement.setString(2, mediaRecord.caption());
+        statement.setString(3, mediaRecord.thumbnailUrl());
+        statement.setString(4, mediaRecord.author());
+        statement.setString(5, mediaRecord.extractionStatus());
+        statement.setInt(6, mediaRecord.processingVersion());
         return statement;
     }
 
@@ -74,13 +72,12 @@ public class InstagramMediaDao {
 
     public void updateContent(
             Long id,
-            String title,
             String caption,
             String thumbnailUrl,
-            String authorUsername
+            String author
     ) {
-        String sql = "UPDATE instagram_media SET title = ?, caption = ?, thumbnail_url = ?, author_username = ? WHERE id = ?";
-        jdbcTemplate.update(sql, title, caption, thumbnailUrl, authorUsername, id);
+        String sql = "UPDATE instagram_media SET caption = ?, thumbnail_url = ?, author = ? WHERE id = ?";
+        jdbcTemplate.update(sql, caption, thumbnailUrl, author, id);
     }
 
     public void updateExtractionResult(

@@ -55,22 +55,22 @@ to-be에서는 선정을 도메인 일급 컬렉션이, 실행을 DAO가 맡는�
 
 ```java
 // 도메인 — 규칙이 자바 메서드로 선언되어 단위 테스트가 가능해진다
-public class MediaShares {
+public class SharedInstagramMedias {
 
-    private final List<MediaShare> shares;
+    private final List<SharedInstagramMedia> shares;
 
     public List<Long> latestPerMemberWithoutCandidates() {
-        Map<OwnerId, MediaShare> latestByMember = new LinkedHashMap<>();
-        for (MediaShare share : shares) {
-            latestByMember.merge(share.ownerId(), share, this::later);
+        Map<Long, SharedInstagramMedia> latestByMember = new LinkedHashMap<>();
+        for (SharedInstagramMedia share : shares) {
+            latestByMember.merge(share.memberId(), share, this::later);
         }
         return latestByMember.values().stream()
-                .filter(MediaShare::hasNoCandidates)
-                .map(MediaShare::id)
+                .filter(SharedInstagramMedia::hasNoCandidates)
+                .map(SharedInstagramMedia::id)
                 .toList();
     }
 
-    private MediaShare later(MediaShare left, MediaShare right) {
+    private SharedInstagramMedia later(SharedInstagramMedia left, SharedInstagramMedia right) {
         if (left.id() > right.id()) {
             return left;
         }
@@ -81,7 +81,7 @@ public class MediaShares {
 
 ```java
 // ExtractionResultRecorder — 도메인의 선정 결과를 집행한다
-MediaShares shares = mediaShareRepository.findAllByMediaId(mediaId);
+SharedInstagramMedias shares = sharedInstagramMediaRepository.findAllByMediaId(mediaId);
 for (Long shareId : shares.latestPerMemberWithoutCandidates()) {
     sharePlaceDao.issueCandidates(shareId, mediaId);
 }

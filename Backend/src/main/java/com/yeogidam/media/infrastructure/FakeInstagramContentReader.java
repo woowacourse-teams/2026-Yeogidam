@@ -16,7 +16,6 @@ public class FakeInstagramContentReader implements InstagramContentReader {
     public InstagramContent read(MediaShortcode mediaShortcode) {
         String shortcode = mediaShortcode.value();
         return new InstagramContent(
-                "성수 감성 카페 릴스 " + shortcode,
                 "성수에서 발견한 카페 온월, 분위기 최고",
                 "https://picsum.photos/seed/" + shortcode + "/400",
                 "seoul_sources");
