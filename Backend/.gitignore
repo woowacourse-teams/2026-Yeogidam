@@ -27,3 +27,6 @@ bin/
 app.log
 nohup.out
 restart.sh
+
+### Claude ###
+CLAUDE.md
