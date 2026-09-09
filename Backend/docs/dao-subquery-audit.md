@@ -25,17 +25,139 @@ bean-fable의 DAO 여덟 개(InstagramMediaDao, MediaShareDao, MediaPlaceDao, Sh
 
 집계하면 조사 대상 14건 중 (a)가 10건, (b) 확정이 2건(#5, #6), 절반 내지 경미한 (b)가 2건(#3, #12)이다.
 
-## 2. (b) 항목을 도메인 언어로 끌어올린다면
+## 2. (b) 항목을 도메인 언어로 끌어올린다면: as-is → to-be
 
-수정은 하지 않았고 모양만 스케치한다.
+수정은 하지 않았고 코드 모양만 스케치한다. to-be는 task 12와 13(Repository 포트, 매퍼 은닉)의 어휘를 전제한다.
 
-**#6 후보 발급 대상 선정.** 선정은 도메인이, 실행은 DAO가 맡는 분업으로 바꿀 수 있다. task 12의 Repository 포트가 게시물의 공유 목록을 후보 보유 여부와 함께 조립해 주면, 일급 컬렉션(가칭 MediaShares)의 `latestPerMemberWithoutCandidates()`가 대상을 고르고 DAO는 그 id들에 issueCandidates만 실행한다. 규칙이 자바 메서드가 되므로 단위 테스트가 가능해지고, 이미 예고된 규칙 변화(ADR-02 남은 결정의 "이력 화면 요구가 생기면 지나간 공유에도 SUPERSEDED 후보를 발급")가 도메인 한 곳의 수정이 된다. 쿼리는 한 번에서 두 번이 되지만 게시물당 공유 수는 소수라 비용이 미미하고, 선정과 실행 사이의 동시성 창은 지금 SQL 방식에도 똑같이 존재해(새 공유 insert는 다른 트랜잭션) 차이가 없다.
+### #6 후보 발급 대상 선정
 
-**#5 핀 상세의 릴스당 최신 공유.** 상관 MAX 서브쿼리를 버리고 서비스 오케스트레이션으로 바꿀 수 있다. 연결된 공유 전부를 단순 조인으로 가져온 뒤 자바에서 mediaId로 groupingBy 하고 shareId 최댓값을 고르면 된다. 행 수가 "그 장소를 저장하게 된 공유 수"라 소량이고, 조인 두 개가 든 상관 서브쿼리가 사라져 SQL이 단순해지며, #12와 같은 규칙(릴스 단위로 센다)을 자바 한 곳으로 모을 길이 열린다.
+as-is에서는 "후보 없는 공유 중 member별 최신 건"이라는 규칙이 상관 MAX 서브쿼리에만 있고, 자바 쪽은 결과 id 목록을 받아 실행만 한다.
 
-**#3 재추출 대상 판정.** 선점 UPDATE는 동시성 방어라 SQL에 남기되, "이 게시물은 재추출 대상인가"라는 판정을 도메인이 말하게 할 수 있다. task 12와 13에서 InstagramMedia가 processingVersion을 들면 `media.isStale(currentVersion)` 같은 메서드로 조건이 자바에 선언되고, SQL은 상태 선점만 남는다.
+```java
+// ExtractionResultRecorder — 규칙을 모른 채 실행만 한다
+private void issueCandidatesToWaitingShares(Long mediaId) {
+    for (Long shareId : mediaShareDao.findIdsWithoutCandidatesByMediaId(mediaId)) {
+        sharePlaceDao.issueCandidates(shareId, mediaId);
+    }
+}
+```
 
-**#12 mediaCount의 DISTINCT.** 집계 목록 쿼리라 SQL 유지가 실용적이다. #5를 오케스트레이션으로 바꾸는 경우 같은 규칙임을 두 자리에 주석으로 상호 참조시키는 정도가 알맞다.
+```sql
+-- MediaShareDao.findIdsWithoutCandidatesByMediaId — 규칙이 여기에만 산다
+SELECT s.id FROM media_share AS s
+WHERE s.media_id = ?
+  AND NOT EXISTS (SELECT 1 FROM share_place AS sp WHERE sp.share_id = s.id)
+  AND s.id = (SELECT MAX(latest.id) FROM media_share AS latest
+              WHERE latest.media_id = s.media_id AND latest.member_id = s.member_id)
+```
+
+to-be에서는 선정을 도메인 일급 컬렉션이, 실행을 DAO가 맡는다. DAO 쿼리는 규칙 없는 단순 SELECT가 된다.
+
+```java
+// 도메인 — 규칙이 자바 메서드로 선언되어 단위 테스트가 가능해진다
+public class MediaShares {
+
+    private final List<MediaShare> shares;
+
+    public List<Long> latestPerMemberWithoutCandidates() {
+        Map<OwnerId, MediaShare> latestByMember = new LinkedHashMap<>();
+        for (MediaShare share : shares) {
+            latestByMember.merge(share.ownerId(), share, this::later);
+        }
+        return latestByMember.values().stream()
+                .filter(MediaShare::hasNoCandidates)
+                .map(MediaShare::id)
+                .toList();
+    }
+
+    private MediaShare later(MediaShare left, MediaShare right) {
+        if (left.id() > right.id()) {
+            return left;
+        }
+        return right;
+    }
+}
+```
+
+```java
+// ExtractionResultRecorder — 도메인의 선정 결과를 집행한다
+MediaShares shares = mediaShareRepository.findAllByMediaId(mediaId);
+for (Long shareId : shares.latestPerMemberWithoutCandidates()) {
+    sharePlaceDao.issueCandidates(shareId, mediaId);
+}
+```
+
+```sql
+-- DAO에 남는 쿼리 — FK 해석뿐
+SELECT ... FROM media_share WHERE media_id = ?
+```
+
+예고된 규칙 변화(ADR-02 남은 결정: 이력 화면 요구가 생기면 지나간 공유에도 SUPERSEDED 후보를 발급)가 오면 latestPerMemberWithoutCandidates 한 메서드의 수정으로 끝난다. 쿼리는 한 번에서 두 번이 되지만 게시물당 공유 수가 소수라 비용이 미미하고, 선정과 실행 사이의 동시성 창은 지금 SQL 방식에도 똑같이 있어(새 공유 insert는 다른 트랜잭션) 차이가 없다.
+
+### #5 핀 상세의 릴스당 최신 공유
+
+as-is에서는 이중 조인이 든 상관 MAX 서브쿼리가 "릴스당 최신 공유 한 건"을 고른다.
+
+```sql
+-- MediaShareDao.findAllSavedByPlaceForMember
+SELECT ... FROM media_share AS s
+INNER JOIN instagram_media ...
+INNER JOIN saved_place_share AS link ON link.share_id = s.id
+INNER JOIN saved_place AS saved ON saved.id = link.saved_place_id
+WHERE saved.place_id = ? AND saved.member_id = ?
+  AND s.id = (SELECT MAX(latest.id) FROM media_share AS latest
+              INNER JOIN saved_place_share AS latestLink ON latestLink.share_id = latest.id
+              WHERE latestLink.saved_place_id = saved.id AND latest.media_id = s.media_id)
+ORDER BY s.created_at DESC, s.id DESC
+```
+
+to-be에서는 PR 425의 최종 형태처럼 단순 조인으로 전부 가져오고 자바가 고른다.
+
+```java
+// SavedPlaceService — 오케스트레이션
+public PlaceMediaResponses readSavedPlaceMedia(
+        Long memberId,
+        Long placeId
+) {
+    validateSavedForMember(memberId, placeId);
+    List<MediaShareProjection> linked = mediaShareDao.findAllLinkedToSavedPlace(memberId, placeId);
+    return PlaceMediaResponses.from(latestPerMedia(linked));
+}
+
+private List<MediaShareProjection> latestPerMedia(List<MediaShareProjection> shares) {
+    Map<Long, MediaShareProjection> latestByMedia = new LinkedHashMap<>();
+    for (MediaShareProjection share : shares) {
+        latestByMedia.merge(share.mediaId(), share, this::later);
+    }
+    return List.copyOf(latestByMedia.values());
+}
+```
+
+MediaShareProjection에는 mediaId가 이미 있어 준비물이 없다. 행 수가 그 장소를 저장하게 된 공유 수라 소량이고, 이중 조인이 든 상관 서브쿼리가 사라지며, "릴스 단위로 센다"는 규칙을 #12와 함께 자바 한 곳으로 모을 길이 열린다.
+
+### #3 재추출 대상 판정
+
+as-is에서는 "성공했고 버전이 현재면 재사용, 아니면 재추출"이라는 판정이 서비스의 isReusable과 claimReprocess의 WHERE 조건에 흩어져 있고, processing_version은 도메인 어휘가 아니다.
+
+```java
+// InstagramMediaService — record 필드를 직접 비교한다
+private boolean isReusable(InstagramMediaRecord media) {
+    String succeeded = ExtractionStatus.SUCCEEDED.name();
+    return succeeded.equals(media.extractionStatus())
+            && media.processingVersion() == ExtractionPipeline.PROCESSING_VERSION;
+}
+```
+
+to-be에서는 task 12와 13에서 게시물 도메인이 버전을 들면 판정이 도메인 문장이 되고, 선점 UPDATE는 동시성 방어로 SQL에 남는다.
+
+```java
+// InstagramMedia — 판정이 도메인 어휘가 된다
+public boolean isReusable(int currentVersion) {
+    return extraction.isSucceeded() && processingVersion == currentVersion;
+}
+```
+
+#12(mediaCount의 DISTINCT)는 집계라 SQL 유지가 실용적이고, #5를 오케스트레이션으로 바꾸는 경우 같은 규칙임을 두 자리에 주석으로 상호 참조시키는 정도가 알맞다.
 
 ## 3. 참고 PR(woowacourse/spring-roomescape-waiting #425)의 조립 방식
 
