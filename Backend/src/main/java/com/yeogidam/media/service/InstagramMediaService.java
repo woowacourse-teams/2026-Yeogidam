@@ -1,6 +1,5 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.domain.ExtractionFailureReason;
 import com.yeogidam.media.domain.ExtractionStatus;
 import com.yeogidam.media.domain.InstagramMedia;
 import com.yeogidam.media.domain.InstagramUrl;
@@ -9,7 +8,6 @@ import com.yeogidam.media.domain.OwnerId;
 import com.yeogidam.media.dto.request.InstagramMediaCreateRequest;
 import com.yeogidam.media.dto.response.InstagramMediaDetailResponse;
 import com.yeogidam.media.dto.response.InstagramMediaReceiptResponse;
-import com.yeogidam.media.dto.response.InstagramMediaResponse;
 import com.yeogidam.media.dto.response.InstagramMediaResponses;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
@@ -18,12 +16,8 @@ import com.yeogidam.media.repository.InstagramMediaRecord;
 import com.yeogidam.media.repository.MediaShareDao;
 import com.yeogidam.media.repository.MediaShareView;
 import com.yeogidam.media.repository.SharePlaceDao;
-import com.yeogidam.place.domain.Address;
-import com.yeogidam.place.dto.response.PlaceResponse;
 import com.yeogidam.place.repository.PlaceDao;
-import com.yeogidam.place.repository.PlaceDecisionView;
 import com.yeogidam.member.service.MemberService;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
@@ -145,10 +139,10 @@ public class InstagramMediaService {
         Long shareId = mediaShareDao.insert(memberId, media.id(), sharedUrl);
         if (isReusable(media)) {
             sharePlaceDao.issueCandidates(shareId, media.id());
-            return new InstagramMediaReceiptResponse(shareId, ExtractionStatus.SUCCEEDED.name());
+            return InstagramMediaReceiptResponse.from(shareId, ExtractionStatus.SUCCEEDED);
         }
         reprocessIfClaimed(media);
-        return new InstagramMediaReceiptResponse(shareId, ExtractionStatus.EXTRACTING.name());
+        return InstagramMediaReceiptResponse.from(shareId, ExtractionStatus.EXTRACTING);
     }
 
     private boolean isReusable(InstagramMediaRecord media) {
@@ -168,20 +162,7 @@ public class InstagramMediaService {
     }
 
     public InstagramMediaResponses readInstagramMedias(Long memberId) {
-        List<InstagramMediaResponse> shares = mediaShareDao.findAllByMemberId(memberId).stream()
-                .map(this::toInstagramMediaResponse)
-                .toList();
-        return new InstagramMediaResponses(shares);
-    }
-
-    private InstagramMediaResponse toInstagramMediaResponse(MediaShareView view) {
-        return new InstagramMediaResponse(
-                view.shareId(),
-                view.title(),
-                view.thumbnailUrl(),
-                view.authorUsername(),
-                view.extractionStatus(),
-                view.sharedAt().toLocalDate());
+        return InstagramMediaResponses.from(mediaShareDao.findAllByMemberId(memberId));
     }
 
     public InstagramMediaDetailResponse readInstagramMedia(
@@ -189,46 +170,7 @@ public class InstagramMediaService {
             Long shareId
     ) {
         MediaShareView view = instagramMediaReader.readOwnedShareView(memberId, shareId);
-        List<PlaceResponse> places = placeDao.findAllByShareId(shareId).stream()
-                .map(this::toPlaceResponse)
-                .toList();
-        return toDetailResponse(view, places);
-    }
-
-    private PlaceResponse toPlaceResponse(PlaceDecisionView view) {
-        return new PlaceResponse(
-                view.placeId(),
-                view.name(),
-                view.category(),
-                new Address(view.address(), view.roadAddress()).summary(),
-                view.roadAddress(),
-                view.kakaoPlaceUrl(),
-                view.telephone(),
-                view.thumbnailUrl(),
-                view.decisionStatus());
-    }
-
-    private InstagramMediaDetailResponse toDetailResponse(
-            MediaShareView view,
-            List<PlaceResponse> places
-    ) {
-        return new InstagramMediaDetailResponse(
-                view.shareId(),
-                view.title(),
-                view.thumbnailUrl(),
-                view.authorUsername(),
-                view.extractionStatus(),
-                toFailureDescription(view.failureReason()),
-                view.sharedUrl(),
-                places.size(),
-                places);
-    }
-
-    private String toFailureDescription(String failureReason) {
-        if (failureReason == null) {
-            return null;
-        }
-        return ExtractionFailureReason.valueOf(failureReason).description();
+        return InstagramMediaDetailResponse.from(view, placeDao.findAllByShareId(shareId));
     }
 
     @Transactional

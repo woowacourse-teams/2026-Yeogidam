@@ -24,7 +24,7 @@ public class MemberService {
     public MemberResponse createMember(MemberCreateRequest request) {
         Member member = new Member(null, new Nickname(request.nickname()));
         Long memberId = memberDao.insert(member.nickname().value());
-        return new MemberResponse(memberId, member.nickname().value());
+        return MemberResponse.from(memberId, member);
     }
 
     public void validateExists(Long memberId) {
