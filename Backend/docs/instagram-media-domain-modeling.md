@@ -143,4 +143,4 @@ public class InstagramMedia {
 
 - 재시도 이력. 지금은 재시도가 이전 결과를 덮는다. 시도별 사유 이력이 필요해지면 Extraction이 불변이라 List로 늘리는 확장이 국소적이다.
 - (task 15에서 결정됨) 재공유는 새 공유를 붙이기 전에 같은 member와 게시물의 미결정 후보를 SUPERSEDED로 닫는다. 저장·버림 이력은 남고, 결정이 UNDECIDED에서만 되므로 닫힌 후보는 자동으로 결정 불가다.
-- (task 15에서 결정됨) 보관함은 saved_place 실체다. (member, place) UNIQUE로 핀이 장소당 하나임을 DB가 보장하고, 재저장은 SavedPlace.saveAgain으로 last_saved_at만 갱신되며(멱등), 어느 공유에서 저장했는지는 saved_place_share 연결이 기억한다. 보관함 삭제는 행과 연결만 지우고 지나간 공유의 후보를 되살리지 않는다(ADR-02 결정 6, 팀 확인 항목).
+- (task 15에서 결정됨) 보관함은 saved_place 실체다. (member, place) UNIQUE로 핀이 장소당 하나임을 DB가 보장하고, 재저장은 SavedPlace.saveAgain으로 last_saved_at만 갱신되며(멱등), 어느 공유에서 저장했는지는 saved_place_share 연결이 기억한다. 보관함 삭제는 행과 연결만 지우고 지나간 공유의 후보를 되살리지 않는다(ADR-02 결정 6, 2026-09-09 확정).
