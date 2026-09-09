@@ -3,11 +3,10 @@ package com.yeogidam.place.repository;
 import java.math.BigDecimal;
 
 /**
- * 미디어 상세 조회 전용 프로젝션. 전역 장소 사실에 그 미디어에서의 결정 상태를 붙인 것이다.
+ * 지도 핀 하나. 그 사용자가 SAVED로 결정한 전역 장소와, 연결된 미디어 수다.
  */
-public record PlaceDecisionView(
-        Long placeId,
-        String kakaoPlaceId,
+public record SavedPlaceProjection(
+        Long id,
         String name,
         String category,
         String address,
@@ -17,6 +16,6 @@ public record PlaceDecisionView(
         String kakaoPlaceUrl,
         String telephone,
         String thumbnailUrl,
-        String decisionStatus
+        int mediaCount
 ) {
 }

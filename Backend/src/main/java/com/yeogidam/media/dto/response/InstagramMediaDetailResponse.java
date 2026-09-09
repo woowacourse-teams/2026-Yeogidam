@@ -1,9 +1,9 @@
 package com.yeogidam.media.dto.response;
 
 import com.yeogidam.media.domain.ExtractionFailureReason;
-import com.yeogidam.media.repository.MediaShareView;
+import com.yeogidam.media.repository.MediaShareProjection;
 import com.yeogidam.place.dto.response.PlaceResponse;
-import com.yeogidam.place.repository.PlaceDecisionView;
+import com.yeogidam.place.repository.PlaceDecisionProjection;
 import java.util.List;
 
 public record InstagramMediaDetailResponse(
@@ -19,20 +19,20 @@ public record InstagramMediaDetailResponse(
 ) {
 
     public static InstagramMediaDetailResponse from(
-            MediaShareView view,
-            List<PlaceDecisionView> placeViews
+            MediaShareProjection projection,
+            List<PlaceDecisionProjection> placeViews
     ) {
         List<PlaceResponse> places = placeViews.stream()
                 .map(PlaceResponse::from)
                 .toList();
         return new InstagramMediaDetailResponse(
-                view.shareId(),
-                view.title(),
-                view.thumbnailUrl(),
-                view.authorUsername(),
-                view.extractionStatus(),
-                toFailureDescription(view.failureReason()),
-                view.sharedUrl(),
+                projection.shareId(),
+                projection.title(),
+                projection.thumbnailUrl(),
+                projection.authorUsername(),
+                projection.extractionStatus(),
+                toFailureDescription(projection.failureReason()),
+                projection.sharedUrl(),
                 places.size(),
                 places);
     }

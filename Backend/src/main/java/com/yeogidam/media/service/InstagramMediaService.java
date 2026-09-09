@@ -14,7 +14,7 @@ import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.InstagramMediaRecord;
 import com.yeogidam.media.repository.MediaShareDao;
-import com.yeogidam.media.repository.MediaShareView;
+import com.yeogidam.media.repository.MediaShareProjection;
 import com.yeogidam.media.repository.SharePlaceDao;
 import com.yeogidam.place.repository.PlaceDao;
 import com.yeogidam.member.service.MemberService;
@@ -169,8 +169,8 @@ public class InstagramMediaService {
             Long memberId,
             Long shareId
     ) {
-        MediaShareView view = instagramMediaReader.readOwnedShareView(memberId, shareId);
-        return InstagramMediaDetailResponse.from(view, placeDao.findAllByShareId(shareId));
+        MediaShareProjection projection = instagramMediaReader.readOwnedShareView(memberId, shareId);
+        return InstagramMediaDetailResponse.from(projection, placeDao.findAllByShareId(shareId));
     }
 
     @Transactional
@@ -178,11 +178,11 @@ public class InstagramMediaService {
             Long memberId,
             Long shareId
     ) {
-        MediaShareView view = instagramMediaReader.readOwnedShareView(memberId, shareId);
-        InstagramMedia instagramMedia = instagramMediaReader.read(view.mediaId());
+        MediaShareProjection projection = instagramMediaReader.readOwnedShareView(memberId, shareId);
+        InstagramMedia instagramMedia = instagramMediaReader.read(projection.mediaId());
         instagramMedia.retry();
-        claimRetry(view.mediaId());
-        dispatchAfterCommit(view.mediaId(), instagramMedia.shortcode().value());
+        claimRetry(projection.mediaId());
+        dispatchAfterCommit(projection.mediaId(), instagramMedia.shortcode().value());
     }
 
     private void claimRetry(Long mediaId) {

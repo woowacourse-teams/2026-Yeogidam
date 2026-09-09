@@ -21,8 +21,8 @@ public class MediaShareDao {
               ON m.id = s.media_id
             """;
 
-    private static final RowMapper<MediaShareView> VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
-            new MediaShareView(
+    private static final RowMapper<MediaShareProjection> VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
+            new MediaShareProjection(
                     resultSet.getLong("share_id"),
                     resultSet.getLong("member_id"),
                     resultSet.getLong("media_id"),
@@ -59,13 +59,13 @@ public class MediaShareDao {
         return Objects.requireNonNull(keyHolder.getKey()).longValue();
     }
 
-    public Optional<MediaShareView> findViewById(Long shareId) {
+    public Optional<MediaShareProjection> findViewById(Long shareId) {
         String sql = VIEW_SELECT + "WHERE s.id = ?";
         return jdbcTemplate.query(sql, VIEW_ROW_MAPPER, shareId).stream()
                 .findFirst();
     }
 
-    public List<MediaShareView> findAllByMemberId(Long memberId) {
+    public List<MediaShareProjection> findAllByMemberId(Long memberId) {
         String sql = VIEW_SELECT + "WHERE s.member_id = ? ORDER BY s.created_at DESC, s.id DESC";
         return jdbcTemplate.query(sql, VIEW_ROW_MAPPER, memberId);
     }
@@ -74,7 +74,7 @@ public class MediaShareDao {
      * 핀의 원본 릴스 목록. 그 장소를 저장하게 된 공유 건들을 연결 테이블로 따라가되,
      * 같은 릴스를 여러 공유에서 저장했으면 릴스당 최신 공유 한 건만 보여준다(mediaCount와 같은 셈).
      */
-    public List<MediaShareView> findAllSavedByPlaceForMember(
+    public List<MediaShareProjection> findAllSavedByPlaceForMember(
             Long memberId,
             Long placeId
     ) {

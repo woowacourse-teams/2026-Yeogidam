@@ -1,6 +1,6 @@
 package com.yeogidam.media.dto.response;
 
-import com.yeogidam.media.repository.MediaShareView;
+import com.yeogidam.media.repository.MediaShareProjection;
 import java.time.LocalDate;
 
 public record InstagramMediaResponse(
@@ -12,13 +12,13 @@ public record InstagramMediaResponse(
         LocalDate sharedDate
 ) {
 
-    public static InstagramMediaResponse from(MediaShareView view) {
+    public static InstagramMediaResponse from(MediaShareProjection projection) {
         return new InstagramMediaResponse(
-                view.shareId(),
-                view.title(),
-                view.thumbnailUrl(),
-                view.authorUsername(),
-                view.extractionStatus(),
-                view.sharedAt().toLocalDate());
+                projection.shareId(),
+                projection.title(),
+                projection.thumbnailUrl(),
+                projection.authorUsername(),
+                projection.extractionStatus(),
+                projection.sharedAt().toLocalDate());
     }
 }

@@ -29,8 +29,8 @@ public class PlaceDao {
             resultSet.getString("thumbnail_source"),
             resultSet.getString("photo_attribution"));
 
-    private static final RowMapper<PlaceDecisionView> DECISION_VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
-            new PlaceDecisionView(
+    private static final RowMapper<PlaceDecisionProjection> DECISION_VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
+            new PlaceDecisionProjection(
                     resultSet.getLong("place_id"),
                     resultSet.getString("kakao_place_id"),
                     resultSet.getString("name"),
@@ -109,7 +109,7 @@ public class PlaceDao {
                 .findFirst();
     }
 
-    public List<PlaceDecisionView> findAllByShareId(Long shareId) {
+    public List<PlaceDecisionProjection> findAllByShareId(Long shareId) {
         String sql = """
                 SELECT p.id AS place_id, p.kakao_place_id, p.name, p.category, p.address, p.road_address,
                        p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,
@@ -123,7 +123,7 @@ public class PlaceDao {
         return jdbcTemplate.query(sql, DECISION_VIEW_ROW_MAPPER, shareId);
     }
 
-    public List<PlaceDecisionView> findAllFactsByMediaId(Long mediaId) {
+    public List<PlaceDecisionProjection> findAllFactsByMediaId(Long mediaId) {
         String sql = """
                 SELECT p.id AS place_id, p.kakao_place_id, p.name, p.category, p.address, p.road_address,
                        p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,

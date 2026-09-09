@@ -17,7 +17,7 @@ import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.InstagramMediaRecord;
 import com.yeogidam.media.repository.MediaShareDao;
-import com.yeogidam.media.repository.MediaShareView;
+import com.yeogidam.media.repository.MediaShareProjection;
 import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.domain.Coordinate;
 import com.yeogidam.place.domain.Place;
@@ -27,7 +27,7 @@ import com.yeogidam.place.domain.PlaceName;
 import com.yeogidam.place.domain.PlaceProfile;
 import com.yeogidam.place.domain.PlaceThumbnail;
 import com.yeogidam.place.repository.PlaceDao;
-import com.yeogidam.place.repository.PlaceDecisionView;
+import com.yeogidam.place.repository.PlaceDecisionProjection;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -53,36 +53,36 @@ public class InstagramMediaReader {
         this.placeDao = placeDao;
     }
 
-    public MediaShareView readOwnedShareView(
+    public MediaShareProjection readOwnedShareView(
             Long memberId,
             Long shareId
     ) {
-        MediaShareView view = mediaShareDao.findViewById(shareId)
+        MediaShareProjection projection = mediaShareDao.findViewById(shareId)
                 .orElseThrow(() -> new MediaException(MediaErrorCode.NOT_FOUND));
-        if (!view.memberId().equals(memberId)) {
+        if (!projection.memberId().equals(memberId)) {
             throw new MediaException(MediaErrorCode.NOT_FOUND);
         }
-        return view;
+        return projection;
     }
 
     public MediaShare readOwnedShare(
             Long memberId,
             Long shareId
     ) {
-        MediaShareView view = readOwnedShareView(memberId, shareId);
+        MediaShareProjection projection = readOwnedShareView(memberId, shareId);
         return new MediaShare(
-                view.shareId(),
-                new OwnerId(view.memberId()),
-                view.mediaId(),
-                new InstagramUrl(view.sharedUrl()),
-                toCandidates(view));
+                projection.shareId(),
+                new OwnerId(projection.memberId()),
+                projection.mediaId(),
+                new InstagramUrl(projection.sharedUrl()),
+                toCandidates(projection));
     }
 
-    private PlaceCandidates toCandidates(MediaShareView view) {
-        if (ExtractionStatus.valueOf(view.extractionStatus()) != ExtractionStatus.SUCCEEDED) {
+    private PlaceCandidates toCandidates(MediaShareProjection projection) {
+        if (ExtractionStatus.valueOf(projection.extractionStatus()) != ExtractionStatus.SUCCEEDED) {
             return null;
         }
-        return new PlaceCandidates(readCandidates(view.shareId()));
+        return new PlaceCandidates(readCandidates(projection.shareId()));
     }
 
     private List<PlaceCandidate> readCandidates(Long shareId) {
@@ -91,8 +91,8 @@ public class InstagramMediaReader {
                 .toList();
     }
 
-    private PlaceCandidate toPlaceCandidate(PlaceDecisionView view) {
-        return new PlaceCandidate(toPlace(view), PlaceDecisionStatus.valueOf(view.decisionStatus()));
+    private PlaceCandidate toPlaceCandidate(PlaceDecisionProjection projection) {
+        return new PlaceCandidate(toPlace(projection), PlaceDecisionStatus.valueOf(projection.decisionStatus()));
     }
 
     public InstagramMedia read(Long mediaId) {
@@ -118,15 +118,15 @@ public class InstagramMediaReader {
                 .toList();
     }
 
-    private Place toPlace(PlaceDecisionView view) {
+    private Place toPlace(PlaceDecisionProjection projection) {
         PlaceProfile profile = new PlaceProfile(
-                new PlaceName(view.name()),
-                new Address(view.address(), view.roadAddress()),
-                new Coordinate(view.latitude(), view.longitude()),
-                view.category(),
-                view.telephone(),
-                new PlaceThumbnail(view.thumbnailUrl(), null, null));
-        PlaceExternalSource externalSource = new PlaceExternalSource(view.kakaoPlaceId(), view.kakaoPlaceUrl());
-        return new Place(view.placeId(), externalSource, profile);
+                new PlaceName(projection.name()),
+                new Address(projection.address(), projection.roadAddress()),
+                new Coordinate(projection.latitude(), projection.longitude()),
+                projection.category(),
+                projection.telephone(),
+                new PlaceThumbnail(projection.thumbnailUrl(), null, null));
+        PlaceExternalSource externalSource = new PlaceExternalSource(projection.kakaoPlaceId(), projection.kakaoPlaceUrl());
+        return new Place(projection.placeId(), externalSource, profile);
     }
 }

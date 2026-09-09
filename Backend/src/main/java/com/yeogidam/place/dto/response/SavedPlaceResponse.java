@@ -1,7 +1,7 @@
 package com.yeogidam.place.dto.response;
 
 import com.yeogidam.place.domain.Address;
-import com.yeogidam.place.repository.SavedPlaceView;
+import com.yeogidam.place.repository.SavedPlaceProjection;
 import java.math.BigDecimal;
 
 public record SavedPlaceResponse(
@@ -18,18 +18,18 @@ public record SavedPlaceResponse(
         int mediaCount
 ) {
 
-    public static SavedPlaceResponse from(SavedPlaceView view) {
+    public static SavedPlaceResponse from(SavedPlaceProjection projection) {
         return new SavedPlaceResponse(
-                view.id(),
-                view.name(),
-                view.category(),
-                new Address(view.address(), view.roadAddress()).summary(),
-                view.roadAddress(),
-                view.latitude(),
-                view.longitude(),
-                view.kakaoPlaceUrl(),
-                view.telephone(),
-                view.thumbnailUrl(),
-                view.mediaCount());
+                projection.id(),
+                projection.name(),
+                projection.category(),
+                new Address(projection.address(), projection.roadAddress()).summary(),
+                projection.roadAddress(),
+                projection.latitude(),
+                projection.longitude(),
+                projection.kakaoPlaceUrl(),
+                projection.telephone(),
+                projection.thumbnailUrl(),
+                projection.mediaCount());
     }
 }

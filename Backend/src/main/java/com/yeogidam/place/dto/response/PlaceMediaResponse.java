@@ -1,6 +1,6 @@
 package com.yeogidam.place.dto.response;
 
-import com.yeogidam.media.repository.MediaShareView;
+import com.yeogidam.media.repository.MediaShareProjection;
 import java.time.LocalDate;
 
 public record PlaceMediaResponse(
@@ -12,13 +12,13 @@ public record PlaceMediaResponse(
         LocalDate sharedDate
 ) {
 
-    public static PlaceMediaResponse from(MediaShareView view) {
+    public static PlaceMediaResponse from(MediaShareProjection projection) {
         return new PlaceMediaResponse(
-                view.shareId(),
-                view.title(),
-                view.thumbnailUrl(),
-                view.authorUsername(),
-                view.sharedUrl(),
-                view.sharedAt().toLocalDate());
+                projection.shareId(),
+                projection.title(),
+                projection.thumbnailUrl(),
+                projection.authorUsername(),
+                projection.sharedUrl(),
+                projection.sharedAt().toLocalDate());
     }
 }

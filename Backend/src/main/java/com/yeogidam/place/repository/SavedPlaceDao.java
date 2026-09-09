@@ -26,8 +26,8 @@ public class SavedPlaceDao {
                     resultSet.getTimestamp("first_saved_at").toLocalDateTime(),
                     resultSet.getTimestamp("last_saved_at").toLocalDateTime());
 
-    private static final RowMapper<SavedPlaceView> VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
-            new SavedPlaceView(
+    private static final RowMapper<SavedPlaceProjection> VIEW_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SavedPlaceProjection(
                     resultSet.getLong("id"),
                     resultSet.getString("name"),
                     resultSet.getString("category"),
@@ -98,7 +98,7 @@ public class SavedPlaceDao {
         }
     }
 
-    public List<SavedPlaceView> findAllViewsByMemberId(Long memberId) {
+    public List<SavedPlaceProjection> findAllViewsByMemberId(Long memberId) {
         String sql = """
                 SELECT p.id, p.name, p.category, p.address, p.road_address,
                        p.latitude, p.longitude, p.kakao_place_url, p.telephone, p.thumbnail_url,

@@ -1,7 +1,7 @@
 package com.yeogidam.place.dto.response;
 
 import com.yeogidam.place.domain.Address;
-import com.yeogidam.place.repository.PlaceDecisionView;
+import com.yeogidam.place.repository.PlaceDecisionProjection;
 
 public record PlaceResponse(
         Long id,
@@ -15,16 +15,16 @@ public record PlaceResponse(
         String decisionStatus
 ) {
 
-    public static PlaceResponse from(PlaceDecisionView view) {
+    public static PlaceResponse from(PlaceDecisionProjection projection) {
         return new PlaceResponse(
-                view.placeId(),
-                view.name(),
-                view.category(),
-                new Address(view.address(), view.roadAddress()).summary(),
-                view.roadAddress(),
-                view.kakaoPlaceUrl(),
-                view.telephone(),
-                view.thumbnailUrl(),
-                view.decisionStatus());
+                projection.placeId(),
+                projection.name(),
+                projection.category(),
+                new Address(projection.address(), projection.roadAddress()).summary(),
+                projection.roadAddress(),
+                projection.kakaoPlaceUrl(),
+                projection.telephone(),
+                projection.thumbnailUrl(),
+                projection.decisionStatus());
     }
 }
