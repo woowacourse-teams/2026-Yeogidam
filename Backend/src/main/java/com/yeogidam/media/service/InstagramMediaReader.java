@@ -12,7 +12,8 @@ import com.yeogidam.media.domain.MediaShortcode;
 import com.yeogidam.media.domain.OwnerId;
 import com.yeogidam.media.domain.PlaceCandidate;
 import com.yeogidam.media.domain.PlaceCandidates;
-import com.yeogidam.media.exception.InstagramMediaNotFoundException;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.InstagramMediaRecord;
 import com.yeogidam.media.repository.MediaShareDao;
@@ -57,9 +58,9 @@ public class InstagramMediaReader {
             Long shareId
     ) {
         MediaShareView view = mediaShareDao.findViewById(shareId)
-                .orElseThrow(InstagramMediaNotFoundException::new);
+                .orElseThrow(() -> new MediaException(MediaErrorCode.NOT_FOUND));
         if (!view.memberId().equals(memberId)) {
-            throw new InstagramMediaNotFoundException();
+            throw new MediaException(MediaErrorCode.NOT_FOUND);
         }
         return view;
     }
@@ -96,7 +97,7 @@ public class InstagramMediaReader {
 
     public InstagramMedia read(Long mediaId) {
         InstagramMediaRecord record = instagramMediaDao.findById(mediaId)
-                .orElseThrow(InstagramMediaNotFoundException::new);
+                .orElseThrow(() -> new MediaException(MediaErrorCode.NOT_FOUND));
         return new InstagramMedia(
                 record.id(),
                 new MediaShortcode(record.mediaShortcode()),

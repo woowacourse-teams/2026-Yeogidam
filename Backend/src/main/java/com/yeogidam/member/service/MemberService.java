@@ -4,7 +4,8 @@ import com.yeogidam.member.domain.Nickname;
 import com.yeogidam.member.domain.Member;
 import com.yeogidam.member.dto.request.MemberCreateRequest;
 import com.yeogidam.member.dto.response.MemberResponse;
-import com.yeogidam.member.exception.MemberNotFoundException;
+import com.yeogidam.member.exception.MemberErrorCode;
+import com.yeogidam.member.exception.MemberException;
 import com.yeogidam.member.repository.MemberDao;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,6 @@ public class MemberService {
 
     public void validateExists(Long memberId) {
         memberDao.findById(memberId)
-                .orElseThrow(MemberNotFoundException::new);
+                .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
     }
 }

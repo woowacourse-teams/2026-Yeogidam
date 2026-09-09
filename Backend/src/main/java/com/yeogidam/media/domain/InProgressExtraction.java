@@ -1,7 +1,7 @@
 package com.yeogidam.media.domain;
 
-import com.yeogidam.media.exception.RetryNotAllowedException;
-import com.yeogidam.media.exception.UnselectablePlaceException;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 
 public class InProgressExtraction implements Extraction {
 
@@ -22,12 +22,12 @@ public class InProgressExtraction implements Extraction {
 
     @Override
     public Extraction retry() {
-        throw new RetryNotAllowedException("추출이 진행 중인 게시물은 다시 시도할 수 없습니다.");
+        throw new MediaException(MediaErrorCode.RETRY_WHILE_EXTRACTING);
     }
 
     @Override
     public ExtractedPlaces places() {
-        throw new UnselectablePlaceException("추출이 끝나지 않은 게시물에는 장소가 없습니다.");
+        throw new MediaException(MediaErrorCode.EXTRACTION_NOT_FINISHED);
     }
 
     @Override

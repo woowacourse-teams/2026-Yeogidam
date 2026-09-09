@@ -1,7 +1,7 @@
 package com.yeogidam.media.domain;
 
-import com.yeogidam.media.exception.InvalidExtractionTransitionException;
-import com.yeogidam.media.exception.RetryNotAllowedException;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 
 public class SucceededExtraction implements Extraction {
 
@@ -25,17 +25,17 @@ public class SucceededExtraction implements Extraction {
 
     @Override
     public Extraction succeed(ExtractedPlaces ignored) {
-        throw new InvalidExtractionTransitionException("이미 추출이 끝난 게시물입니다.");
+        throw new MediaException(MediaErrorCode.EXTRACTION_ALREADY_FINISHED);
     }
 
     @Override
     public Extraction fail(ExtractionFailureReason ignored) {
-        throw new InvalidExtractionTransitionException("이미 추출이 끝난 게시물입니다.");
+        throw new MediaException(MediaErrorCode.EXTRACTION_ALREADY_FINISHED);
     }
 
     @Override
     public Extraction retry() {
-        throw new RetryNotAllowedException("추출에 성공한 게시물은 다시 시도할 수 없습니다.");
+        throw new MediaException(MediaErrorCode.RETRY_ON_SUCCEEDED);
     }
 
     @Override

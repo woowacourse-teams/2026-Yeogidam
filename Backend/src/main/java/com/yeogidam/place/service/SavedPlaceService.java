@@ -7,7 +7,8 @@ import com.yeogidam.place.dto.response.PlaceMediaResponse;
 import com.yeogidam.place.dto.response.PlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponse;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
-import com.yeogidam.place.exception.SavedPlaceNotFoundException;
+import com.yeogidam.place.exception.PlaceErrorCode;
+import com.yeogidam.place.exception.PlaceException;
 import com.yeogidam.place.repository.SavedPlaceDao;
 import com.yeogidam.place.repository.SavedPlaceView;
 import java.util.List;
@@ -89,7 +90,7 @@ public class SavedPlaceService {
             Long placeId
     ) {
         if (!savedPlaceDao.existsByMemberAndPlace(memberId, placeId)) {
-            throw new SavedPlaceNotFoundException();
+            throw new PlaceException(PlaceErrorCode.SAVED_PLACE_NOT_FOUND);
         }
     }
 }

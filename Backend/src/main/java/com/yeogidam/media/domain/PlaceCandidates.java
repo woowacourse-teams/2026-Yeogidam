@@ -1,6 +1,7 @@
 package com.yeogidam.media.domain;
 
-import com.yeogidam.media.exception.UnselectablePlaceException;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
 import java.util.List;
 
@@ -37,10 +38,10 @@ public class PlaceCandidates {
 
     private void validateKnown(List<Long> placeIds) {
         if (placeIds == null || placeIds.isEmpty()) {
-            throw new UnselectablePlaceException("결정할 장소를 한 개 이상 선택해야 합니다.");
+            throw new MediaException(MediaErrorCode.EMPTY_PLACE_SELECTION);
         }
         if (!placeIdValues().containsAll(placeIds)) {
-            throw new UnselectablePlaceException("이 공유 건의 후보가 아닌 장소는 결정할 수 없습니다.");
+            throw new MediaException(MediaErrorCode.NOT_A_CANDIDATE);
         }
     }
 

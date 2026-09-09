@@ -2,11 +2,11 @@ package com.yeogidam.global.exception;
 
 import org.springframework.http.HttpStatus;
 
-public interface ErrorType {
+public interface ErrorCode {
 
     HttpStatus getHttpStatus();
 
-    String getErrorCode();
+    String getCode();
 
-    String getErrorMessage();
+    String getMessage();
 }

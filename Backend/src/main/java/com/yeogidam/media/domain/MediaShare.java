@@ -1,6 +1,7 @@
 package com.yeogidam.media.domain;
 
-import com.yeogidam.media.exception.UnselectablePlaceException;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
 import java.util.List;
 
@@ -59,7 +60,7 @@ public class MediaShare {
 
     private void validateCandidatesIssued() {
         if (candidates == null) {
-            throw new UnselectablePlaceException("추출이 끝나지 않은 공유에는 선택할 장소가 없습니다.");
+            throw new MediaException(MediaErrorCode.EXTRACTION_NOT_FINISHED);
         }
     }
 

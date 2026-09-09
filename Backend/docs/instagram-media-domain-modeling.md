@@ -114,9 +114,9 @@ public class InstagramMedia {
 
 성공은 추출 사실 없이, 실패는 사유 없이 만들어질 수 없다. 생성자가 불변식을 지키므로 "성공인데 사유가 있다"나 "실패인데 장소가 있다" 같은 모순 조합이 타입 수준에서 불가능하다. 필드 절반이 상태에 따라 null이 되는 한 덩어리 클래스와 갈리는 대목이다.
 
-### 6. 도메인 예외는 스프링을 모른다
+### 6. 예외는 도메인당 하나, 사유는 에러코드 enum으로
 
-RetryNotAllowedException 등 도메인이 던지는 예외는 순수 DomainException을 상속하고 HTTP 상태 코드를 모른다. 400으로 변환하는 일은 웹 계층(GlobalExceptionHandler)의 몫이다. 우테코 미션처럼 콘솔 수준에서도 도메인이 통째로 돌아가야 한다는 목적 때문이다.
+처음에는 사유마다 예외 클래스를 만들고(media에만 6개) 도메인 예외가 스프링을 모르게 했는데, 사유가 늘 때마다 클래스가 늘어나는 비용이 커서 spring-roomescape-waiting(step3) 방식으로 바꿨다. 도메인당 예외 클래스는 MediaException 하나이고, 사유는 MediaErrorCode enum 상수(HTTP 상태, 코드, 메시지)로 관리하며, GlobalExceptionHandler가 일괄 변환한다. 이때 enum이 HttpStatus를 들면서 도메인이 스프링 상수 하나에 의존하게 되는데, 팀 결정으로 허용했다. 허용 범위는 이 에러코드 enum 하나뿐이고 @Component, @Transactional 같은 프레임워크 요소가 도메인에 들어오는 것은 여전히 금지다. 예외 메시지에 입력값을 실어 콘솔에서 관측하는 습관은 detail 생성자로 유지한다.
 
 ### 7. 표시용 값은 도메인이 들되 검증하지 않는다
 

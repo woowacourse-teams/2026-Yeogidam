@@ -11,8 +11,8 @@ import com.yeogidam.media.dto.response.InstagramMediaDetailResponse;
 import com.yeogidam.media.dto.response.InstagramMediaReceiptResponse;
 import com.yeogidam.media.dto.response.InstagramMediaResponse;
 import com.yeogidam.media.dto.response.InstagramMediaResponses;
-import com.yeogidam.media.exception.RetryNotAllowedException;
-import com.yeogidam.media.exception.UnsupportedInstagramLinkException;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.repository.InstagramMediaDao;
 import com.yeogidam.media.repository.InstagramMediaRecord;
 import com.yeogidam.media.repository.MediaShareDao;
@@ -24,6 +24,8 @@ import com.yeogidam.place.repository.PlaceDao;
 import com.yeogidam.place.repository.PlaceDecisionView;
 import com.yeogidam.member.service.MemberService;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +39,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Service
 @Transactional(readOnly = true)
 public class InstagramMediaService {
+
+    private static final Logger log = LoggerFactory.getLogger(InstagramMediaService.class);
 
     private final InstagramMediaDao instagramMediaDao;
     private final MediaShareDao mediaShareDao;
@@ -82,7 +86,8 @@ public class InstagramMediaService {
         try {
             return new InstagramUrl(instagramUrl);
         } catch (IllegalArgumentException exception) {
-            throw new UnsupportedInstagramLinkException(exception.getMessage());
+            log.info("[미지원 링크] {}", exception.getMessage());
+            throw new MediaException(MediaErrorCode.UNSUPPORTED_LINK);
         }
     }
 
@@ -240,7 +245,7 @@ public class InstagramMediaService {
 
     private void claimRetry(Long mediaId) {
         if (instagramMediaDao.updateToExtractingIfFailed(mediaId) == 0) {
-            throw new RetryNotAllowedException("이미 다시 시도가 접수된 게시물입니다.");
+            throw new MediaException(MediaErrorCode.RETRY_ALREADY_CLAIMED);
         }
     }
 
