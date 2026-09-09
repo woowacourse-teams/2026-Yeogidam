@@ -1,6 +1,6 @@
 package com.yeogidam.media.dto.response;
 
-import com.yeogidam.media.repository.MediaShareProjection;
+import com.yeogidam.media.share.repository.MediaShareProjection;
 import java.util.List;
 
 public record InstagramMediaResponses(

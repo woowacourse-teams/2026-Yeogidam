@@ -1,6 +1,6 @@
 package com.yeogidam.media.dto.response;
 
-import com.yeogidam.media.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
 
 public record InstagramMediaReceiptResponse(
         Long id,

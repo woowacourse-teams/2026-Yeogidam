@@ -18,7 +18,7 @@ US-01(공유로 저장)을 구현하며 정리된 구조에 게시물과 공유 
 ```
 InstagramMedia                게시물 하나. 정체성, 표시용 내용, 추출 상태로 이루어지며 사용자와 공유 사건을 모른다
 ├── MediaShortcode            게시물 정체성. base64url 문자셋만 검증하고 길이는 고정하지 않는다
-├── MediaMetadata             표시용 내용(제목, 캡션, 썸네일, 계정명). 들되 검증하지 않는다
+├── MediaMetadata             표시용 내용(캡션, 썸네일, 계정명). 들되 검증하지 않는다. 제목은 클라이언트가 캡션 첫 줄로 만든다
 └── Extraction                장소 추출이 어디까지 왔는지 (인터페이스)
     ├── InProgressExtraction  진행중. 재시도가 거부된다
     ├── SucceededExtraction   성공. 짝 데이터인 ExtractedPlaces 없이 만들어질 수 없다
@@ -33,7 +33,7 @@ SharedInstagramMedia                    공유 사건 하나. 재공유해도 �
     └── PlaceCandidate        후보 하나. 장소 사실과 결정 상태(PlaceDecisionStatus, SUPERSEDED 포함 4값)의 쌍
 ```
 
-경계 쪽 객체는 media.service 패키지에 있다. InstagramContent는 인스타그램 조회 어댑터의 산출물이고 InstagramContentReader와 PlaceNameExtractor는 수집과 추출 단계의 포트 인터페이스다. 수집 포트의 입력은 shortcode다. 추출이 게시물 단위가 되면서 특정 공유의 URL에 의존할 이유가 없어졌다. DB 쪽 표현은 media.repository의 InstagramMediaRecord(게시물 행)와 MediaShareRecord, MediaShareProjection(공유 행과 게시물을 조인한 조회 투영)이고, 도메인으로 되살리는 조립 지점은 InstagramMediaReader 하나다. Reader는 공유 행에서 SharedInstagramMedia를 조립하고(추출 성공 전에는 후보 없이), 게시물 행에서 InstagramMedia를 조립한다(성공이면 추출 사실까지).
+패키지는 media 아래 하위 도메인 셋으로 나뉜다. 게시물 집합체와 그 DAO는 media.instagram에, 추출 상태 객체와 파이프라인·포트(InstagramContentReader, PlaceNameExtractor)·Fake 어댑터는 media.extraction에, 공유 집합체와 후보·공유 쪽 DAO는 media.share에 있다. InstagramUrl은 공유가 들지만(소속) 아는 것이 전부 인스타그램 세계의 지식이라 거주지는 media.instagram이다. 필드의 소속과 클래스의 거주지는 다른 문제이고, 거주지는 지식을 따른다. 수집 포트의 입력은 shortcode다. 추출이 게시물 단위가 되면서 특정 공유의 URL에 의존할 이유가 없어졌다. DB 쪽 표현은 media.instagram.repository의 InstagramMediaRecord(게시물 행)와 media.share.repository의 MediaShareRecord, MediaShareProjection(공유 행과 게시물을 조인한 조회 투영)이고, 도메인으로 되살리는 조립 지점은 media 루트 service의 InstagramMediaReader 하나다. Reader는 공유 행에서 SharedInstagramMedia를 조립하고(추출 성공 전에는 후보 없이), 게시물 행에서 InstagramMedia를 조립한다(성공이면 추출 사실까지).
 
 ## 객체별 책임
 
@@ -129,15 +129,15 @@ public class InstagramMedia {
 
 운영에서 관측된 실패 지점(원본 조회 실패, 장소 미추출, 지도 미매칭)에 예비용 UNEXPECTED를 더해 4종으로 시작했다. shortcode 길이를 고정하지 않은 ADR-01 결정 4와 같은 기준이며 사유가 관측되면 그때 늘린다.
 
-### 10. 패키지 경계는 media 하나를 유지한다
+### 10. media 아래를 하위 도메인 셋으로 나눈다
 
 구조를 두고 세 가지 물음이 있었고 결론은 모두 유지다.
 
 **두 일급 컬렉션은 place가 아니라 media.domain에 둔다.** 일급 컬렉션의 자리는 규칙의 주인을 따른다. 사실 컬렉션(ExtractedPlaces)의 규칙("성공한 추출은 장소 1개 이상")과 후보 컬렉션(PlaceCandidates)의 규칙("이 공유 건의 후보 중에서만 결정한다")은 장소의 사정이 아니라 추출과 선택의 사정이다. 장소 표현이 바뀌어도 두 컬렉션은 안 바뀌고 추출과 선택 요구가 바뀌면 바뀐다. Place가 자기 출신(추출)을 모르는 채 순수하게 남는 것도 이 배치 덕분이다.
 
-**media 안을 하위 도메인 패키지로 쪼개지 않는다.** 예전에 쪼개는 트리거로 "추출 결과가 미디어 하나에 종속되지 않는 독자 생명을 얻을 때"를 적어 뒀는데, task 14에서 그 순간이 실제로 왔고 답은 패키지 분리가 아니라 집합체 분리(InstagramMedia와 SharedInstagramMedia)였다. 패키지는 여전히 media 하나가 "공유된 미디어와 그 생애"를 담고 전이 규칙 하나를 이해하는 데 두 패키지를 오갈 일이 없다. 남은 트리거는 유튜브 쇼츠 같은 두 번째 소스가 들어와 추출이 소스 공통 개념이 될 때다.
+**media 안을 하위 도메인 셋으로 나눴다.** 처음에는 "쪼개는 트리거가 오면 그때"라며 media 하나를 유지했는데, task 14와 15를 지나며 파일이 47개로 불어 트리거가 왔다. media.instagram(게시물과 그 저장), media.extraction(추출 상태와 파이프라인, 포트, Fake), media.share(공유 사건과 후보, 그 저장)로 나뉘고, 각 하위 도메인이 자기 domain과 repository 계층을 가진다. 웹 접점과 유스케이스 조립(controller, dto, MediaException, InstagramMediaService·Reader·PlaceSelectionService)은 media 루트에 남아 세 하위 도메인을 잇는다. 컨트롤러 URL(/media)과 동작은 바뀐 것이 없다.
 
-**패키지 이름은 media를 유지한다.** media 도메인의 정의가 "공유된 미디어와 그 생애"라 게시물과 공유 사건과 추출을 자연히 담는다. 두 번째 소스가 들어오면 InstagramMedia와 YoutubeMedia를 나란히 담는 그릇으로 오히려 더 잘 맞는다.
+**최상위 이름은 media를 유지한다.** media 도메인의 정의가 "공유된 미디어와 그 생애"라 게시물과 공유 사건과 추출을 자연히 담는다. 유튜브 쇼츠 같은 두 번째 소스가 들어오면 media.instagram 옆에 media.youtube가 나란히 서는 그릇으로 오히려 더 잘 맞는다.
 
 ## 남은 결정
 

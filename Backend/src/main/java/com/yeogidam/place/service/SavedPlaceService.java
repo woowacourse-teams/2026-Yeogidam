@@ -1,6 +1,6 @@
 package com.yeogidam.place.service;
 
-import com.yeogidam.media.repository.MediaShareDao;
+import com.yeogidam.media.share.repository.MediaShareDao;
 import com.yeogidam.place.dto.response.PlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.exception.PlaceErrorCode;

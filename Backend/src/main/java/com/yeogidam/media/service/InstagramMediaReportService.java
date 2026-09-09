@@ -1,6 +1,6 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.repository.MediaShareReportDao;
+import com.yeogidam.media.share.repository.MediaShareReportDao;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

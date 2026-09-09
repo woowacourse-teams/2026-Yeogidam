@@ -1,9 +1,9 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.domain.SharedInstagramMedia;
+import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.media.dto.request.PlaceDiscardRequest;
 import com.yeogidam.media.dto.request.PlaceSelectionRequest;
-import com.yeogidam.media.repository.SharePlaceDao;
+import com.yeogidam.media.share.repository.SharePlaceDao;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
 import com.yeogidam.place.domain.SavedPlace;
 import com.yeogidam.place.repository.SavedPlaceDao;

@@ -1,20 +1,20 @@
 package com.yeogidam.media.service;
 
-import com.yeogidam.media.domain.ExtractionStatus;
-import com.yeogidam.media.domain.InstagramMedia;
-import com.yeogidam.media.domain.InstagramUrl;
-import com.yeogidam.media.domain.SharedInstagramMedia;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.instagram.domain.InstagramMedia;
+import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.media.dto.request.InstagramMediaCreateRequest;
 import com.yeogidam.media.dto.response.InstagramMediaDetailResponse;
 import com.yeogidam.media.dto.response.InstagramMediaReceiptResponse;
 import com.yeogidam.media.dto.response.InstagramMediaResponses;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
-import com.yeogidam.media.repository.InstagramMediaDao;
-import com.yeogidam.media.repository.InstagramMediaRecord;
-import com.yeogidam.media.repository.MediaShareDao;
-import com.yeogidam.media.repository.MediaShareProjection;
-import com.yeogidam.media.repository.SharePlaceDao;
+import com.yeogidam.media.instagram.repository.InstagramMediaDao;
+import com.yeogidam.media.instagram.repository.InstagramMediaRecord;
+import com.yeogidam.media.share.repository.MediaShareDao;
+import com.yeogidam.media.share.repository.MediaShareProjection;
+import com.yeogidam.media.share.repository.SharePlaceDao;
 import com.yeogidam.place.repository.PlaceDao;
 import com.yeogidam.member.service.MemberService;
 import org.slf4j.Logger;
@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import com.yeogidam.media.extraction.service.ExtractionPipeline;
 
 /**
  * 접수는 "게시물 찾기 → 공유 붙이기"의 두 걸음이다. 게시물은 shortcode로 유일해

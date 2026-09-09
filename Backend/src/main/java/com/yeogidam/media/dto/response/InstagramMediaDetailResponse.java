@@ -1,7 +1,7 @@
 package com.yeogidam.media.dto.response;
 
-import com.yeogidam.media.domain.ExtractionFailureReason;
-import com.yeogidam.media.repository.MediaShareProjection;
+import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.share.repository.MediaShareProjection;
 import com.yeogidam.place.dto.response.PlaceResponse;
 import com.yeogidam.place.repository.PlaceDecisionProjection;
 import java.util.List;
