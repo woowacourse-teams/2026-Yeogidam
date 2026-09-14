@@ -1,0 +1,22 @@
+spring:
+  sql:
+    init:
+      mode: always
+
+jwt:
+  secret: dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LXRoaXJ0eS10d28tYnl0ZXM=
+
+oauth:
+  providers:
+    kakao:
+      client-id: test-kakao-client
+      client-secret: test-kakao-secret
+      redirect-uri: https://app.example.com/oauth/kakao
+    google:
+      client-id: test-google-client
+      client-secret: test-google-secret
+      redirect-uri: https://app.example.com/oauth/google
+    apple:
+      client-id: test-apple-client
+      team-id: test-team-id
+      key-id: test-apple-key
