@@ -9,7 +9,7 @@ import com.yeogidam.member.domain.Member;
 import com.yeogidam.member.domain.MemberProfile;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
-import com.yeogidam.member.repository.MemberRepository;
+import com.yeogidam.member.repository.MemberDao;
 import com.yeogidam.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +26,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
     private MemberAuthenticator memberAuthenticator;
 
     @Autowired
-    private MemberRepository memberRepository;
+    private MemberDao memberDao;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -37,7 +37,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         Member member = memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
 
         // then
-        Member saved = memberRepository.findByOAuthAccount(ACCOUNT).orElseThrow();
+        Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
                 () -> assertThat(saved.id()).isEqualTo(member.id()),
                 () -> assertThat(saved.nickname()).isEqualTo("빈"),
@@ -54,7 +54,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         Member again = memberAuthenticator.authenticate(ACCOUNT, profile("새이름"));
 
         // then
-        Member saved = memberRepository.findByOAuthAccount(ACCOUNT).orElseThrow();
+        Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
                 () -> assertThat(again.id()).isEqualTo(created.id()),
                 () -> assertThat(saved.nickname()).isEqualTo("새이름"),
@@ -71,7 +71,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         memberAuthenticator.authenticate(ACCOUNT, new MemberProfile(null, null, null));
 
         // then
-        Member saved = memberRepository.findByOAuthAccount(ACCOUNT).orElseThrow();
+        Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
                 () -> assertThat(saved.nickname()).isNull(),
                 () -> assertThat(saved.profile().email()).isNull(),

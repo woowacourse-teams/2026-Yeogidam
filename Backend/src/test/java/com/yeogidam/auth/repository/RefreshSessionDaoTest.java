@@ -14,8 +14,8 @@ import org.springframework.test.context.jdbc.Sql;
 /**
  * DB 쿼리와 매핑이 실제 MySQL에서 동작하는지 검증한다. 읽기 검증은 SQL fixture로 행을 심는다.
  */
-@Import(RefreshSessionRepository.class)
-class RefreshSessionRepositoryTest extends JdbcTestSupport {
+@Import(RefreshSessionDao.class)
+class RefreshSessionDaoTest extends JdbcTestSupport {
 
     private static final Instant EXPIRES_AT = Instant.parse("2026-10-15T00:00:00Z");
     private static final String INSERT_MEMBER_AND_SESSION_SQL = """
@@ -26,13 +26,13 @@ class RefreshSessionRepositoryTest extends JdbcTestSupport {
             """;
 
     @Autowired
-    private RefreshSessionRepository refreshSessionRepository;
+    private RefreshSessionDao refreshSessionDao;
 
     @Test
     @Sql(statements = INSERT_MEMBER_AND_SESSION_SQL)
     void 세션_식별자로_읽으면_모든_열이_매핑되고_만료는_UTC로_읽는다() {
         // when
-        RefreshSession session = refreshSessionRepository.findBySessionId("session-1").orElseThrow();
+        RefreshSession session = refreshSessionDao.findBySessionId("session-1").orElseThrow();
 
         // then
         assertAll(
@@ -51,10 +51,10 @@ class RefreshSessionRepositoryTest extends JdbcTestSupport {
         Instant expiresAt = Instant.parse("2026-11-01T12:34:56.123456Z");
 
         // when
-        refreshSessionRepository.save(new RefreshSession("session-2", 1L, "hash-2", expiresAt, false));
+        refreshSessionDao.save(new RefreshSession("session-2", 1L, "hash-2", expiresAt, false));
 
         // then
-        RefreshSession saved = refreshSessionRepository.findBySessionId("session-2").orElseThrow();
+        RefreshSession saved = refreshSessionDao.findBySessionId("session-2").orElseThrow();
         assertAll(
                 () -> assertThat(saved.getId()).isNotNull(),
                 () -> assertThat(saved.getExpiresAt()).isEqualTo(expiresAt)
@@ -65,13 +65,13 @@ class RefreshSessionRepositoryTest extends JdbcTestSupport {
     @Sql(statements = INSERT_MEMBER_AND_SESSION_SQL)
     void 갱신하면_해시와_폐기_여부만_바뀐다() {
         // given
-        RefreshSession session = refreshSessionRepository.findBySessionId("session-1").orElseThrow();
+        RefreshSession session = refreshSessionDao.findBySessionId("session-1").orElseThrow();
 
         // when
-        refreshSessionRepository.update(session.rotate("hash-9").revoke());
+        refreshSessionDao.update(session.rotate("hash-9").revoke());
 
         // then
-        RefreshSession updated = refreshSessionRepository.findBySessionId("session-1").orElseThrow();
+        RefreshSession updated = refreshSessionDao.findBySessionId("session-1").orElseThrow();
         assertAll(
                 () -> assertThat(updated.getTokenHash()).isEqualTo("hash-9"),
                 () -> assertThat(updated.isRevoked()).isTrue(),
@@ -81,6 +81,6 @@ class RefreshSessionRepositoryTest extends JdbcTestSupport {
 
     @Test
     void 없는_세션은_빈_값이다() {
-        assertThat(refreshSessionRepository.findBySessionId("nope")).isEmpty();
+        assertThat(refreshSessionDao.findBySessionId("nope")).isEmpty();
     }
 }

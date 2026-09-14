@@ -9,7 +9,7 @@ import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.exception.RefreshTokenMismatchException;
 import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
-import com.yeogidam.auth.repository.RefreshSessionRepository;
+import com.yeogidam.auth.repository.RefreshSessionDao;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -27,14 +27,14 @@ public class TokenManager {
 
     private final Clock clock;
     private final JwtTokenProvider tokenProvider;
-    private final RefreshSessionRepository sessionRepository;
+    private final RefreshSessionDao refreshSessionDao;
 
     @Transactional
     public TokenResponse createTokens(Long memberId) {
         String sessionId = UUID.randomUUID().toString();
         Token accessToken = tokenProvider.createAccessToken(memberId);
         Token refreshToken = tokenProvider.createRefreshToken(memberId, sessionId);
-        sessionRepository.save(new RefreshSession(sessionId, memberId, hashToken(refreshToken.value()),
+        refreshSessionDao.save(new RefreshSession(sessionId, memberId, hashToken(refreshToken.value()),
                 refreshToken.expiresAt(), false));
         return new TokenResponse(accessToken, refreshToken);
     }
@@ -45,18 +45,18 @@ public class TokenManager {
         RefreshSession session = getActiveSession(claims);
         String tokenHash = hashToken(request.refreshToken());
         if (session.isTokenMismatch(tokenHash)) {
-            sessionRepository.update(session.revoke());
+            refreshSessionDao.update(session.revoke());
             throw new RefreshTokenMismatchException();
         }
         Token refreshToken = tokenProvider.reissueRefreshToken(
                 session.getMemberId(), session.getSessionId(), session.getExpiresAt());
         TokenResponse tokens = new TokenResponse(tokenProvider.createAccessToken(session.getMemberId()), refreshToken);
-        sessionRepository.update(session.rotate(hashToken(tokens.refreshToken())));
+        refreshSessionDao.update(session.rotate(hashToken(tokens.refreshToken())));
         return tokens;
     }
 
     private RefreshSession getActiveSession(RefreshTokenClaims claims) {
-        RefreshSession session = sessionRepository.findBySessionId(claims.sessionId())
+        RefreshSession session = refreshSessionDao.findBySessionId(claims.sessionId())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_TOKEN));
         if (!session.canRefresh(claims.memberId(), clock.instant())) {
             throw new AuthException(AuthErrorCode.INVALID_TOKEN);
@@ -67,10 +67,10 @@ public class TokenManager {
     @Transactional
     public void revokeRefreshSession(RefreshTokenRequest request) {
         RefreshTokenClaims claims = tokenProvider.parseRefreshToken(request.refreshToken());
-        RefreshSession session = sessionRepository.findBySessionId(claims.sessionId())
+        RefreshSession session = refreshSessionDao.findBySessionId(claims.sessionId())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.INVALID_TOKEN));
         if (session.isOwnedBy(claims.memberId())) {
-            sessionRepository.update(session.revoke());
+            refreshSessionDao.update(session.revoke());
             return;
         }
         throw new AuthException(AuthErrorCode.INVALID_TOKEN);

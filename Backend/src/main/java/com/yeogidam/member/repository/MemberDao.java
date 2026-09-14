@@ -13,7 +13,7 @@ import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class MemberRepository {
+public class MemberDao {
 
     private static final String FIND_BY_OAUTH_ACCOUNT_SQL = """
             SELECT *
@@ -40,7 +40,7 @@ public class MemberRepository {
     private final JdbcTemplate jdbcTemplate;
     private final SimpleJdbcInsert jdbcInsert;
 
-    public MemberRepository(JdbcTemplate jdbcTemplate) {
+    public MemberDao(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
         this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
                 .withTableName("members")

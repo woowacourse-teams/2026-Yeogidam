@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
-public class RefreshSessionRepository {
+public class RefreshSessionDao {
 
     private static final RowMapper<RefreshSession> ROW_MAPPER = (resultSet, rowNumber) -> new RefreshSession(
             resultSet.getLong("id"),

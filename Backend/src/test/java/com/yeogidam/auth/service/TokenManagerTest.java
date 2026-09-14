@@ -12,8 +12,8 @@ import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.exception.RefreshTokenMismatchException;
 import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
-import com.yeogidam.auth.repository.RefreshSessionRepository;
-import com.yeogidam.member.repository.MemberRepository;
+import com.yeogidam.auth.repository.RefreshSessionDao;
+import com.yeogidam.member.repository.MemberDao;
 import com.yeogidam.support.IntegrationTestSupport;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -38,16 +38,16 @@ class TokenManagerTest extends IntegrationTestSupport {
     private JwtTokenProvider tokenProvider;
 
     @Autowired
-    private RefreshSessionRepository refreshSessionRepository;
+    private RefreshSessionDao refreshSessionDao;
 
     @Autowired
-    private MemberRepository memberRepository;
+    private MemberDao memberDao;
 
     private Long memberId;
 
     @BeforeEach
     void setUp() {
-        memberId = memberRepository.save(kakaoMember("kakao-1")).id();
+        memberId = memberDao.save(kakaoMember("kakao-1")).id();
     }
 
     @Test
@@ -103,7 +103,7 @@ class TokenManagerTest extends IntegrationTestSupport {
     void 만료된_세션은_JWT가_유효해도_회전하지_못한다() {
         // given
         Instant pastExpiry = Instant.now().minus(Duration.ofDays(1));
-        refreshSessionRepository.save(new RefreshSession("expired-session", memberId, "hash", pastExpiry, false));
+        refreshSessionDao.save(new RefreshSession("expired-session", memberId, "hash", pastExpiry, false));
         String stillValidJwt = tokenProvider.reissueRefreshToken(
                 memberId, "expired-session", Instant.now().plus(Duration.ofDays(1))).value();
 
@@ -116,7 +116,7 @@ class TokenManagerTest extends IntegrationTestSupport {
         // given
         TokenResponse issued = tokenManager.createTokens(memberId);
         String sessionId = tokenProvider.parseRefreshToken(issued.refreshToken()).sessionId();
-        Long otherMemberId = memberRepository.save(kakaoMember("kakao-2")).id();
+        Long otherMemberId = memberDao.save(kakaoMember("kakao-2")).id();
         String otherMembersJwt = tokenProvider.reissueRefreshToken(
                 otherMemberId, sessionId, issued.refreshTokenExpiresAt()).value();
 
@@ -142,7 +142,7 @@ class TokenManagerTest extends IntegrationTestSupport {
 
     private RefreshSession sessionOf(String refreshToken) {
         String sessionId = tokenProvider.parseRefreshToken(refreshToken).sessionId();
-        return refreshSessionRepository.findBySessionId(sessionId).orElseThrow();
+        return refreshSessionDao.findBySessionId(sessionId).orElseThrow();
     }
 
     private static String sha256(String value) throws Exception {
