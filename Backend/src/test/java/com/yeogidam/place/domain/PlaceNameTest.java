@@ -16,7 +16,8 @@ class PlaceNameTest {
         PlaceName placeName = new PlaceName(value);
 
         // then
-        assertThat(placeName.value()).isEqualTo(value);
+        assertThat(placeName.value())
+                .isEqualTo(value);
     }
 
     @Test
