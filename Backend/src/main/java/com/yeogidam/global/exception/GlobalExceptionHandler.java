@@ -2,25 +2,39 @@ package com.yeogidam.global.exception;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(YeogidamException.class)
     public ResponseEntity<ErrorResponse> handleYeogidamException(YeogidamException exception) {
         ErrorCode errorCode = exception.getErrorCode();
-        log.info("[요청 거부] {} {}", errorCode.getCode(), exception.getMessage());
+        logException(errorCode);
         return ResponseEntity.status(errorCode.getHttpStatus())
                 .body(new ErrorResponse(exception.getMessage(), errorCode.getCode()));
+    }
+
+    private void logException(ErrorCode errorCode) {
+        if (errorCode.getHttpStatus()
+                .is5xxServerError()) {
+            log.error("[요청 실패] {}", errorCode.getCode());
+            return;
+        }
+        if (errorCode.getHttpStatus() == HttpStatus.UNAUTHORIZED || errorCode.getHttpStatus() == HttpStatus.FORBIDDEN) {
+            log.warn("[인증 거부] {}", errorCode.getCode());
+            return;
+        }
+        log.info("[요청 거부] {}", errorCode.getCode());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -31,6 +45,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException exception) {
         return toResponse(CommonErrorCode.HTTP_MESSAGE_NOT_READABLE);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException exception) {
+        return toResponse(CommonErrorCode.RESOURCE_NOT_FOUND);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException exception) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .headers(exception.getHeaders())
+                .body(new ErrorResponse(CommonErrorCode.METHOD_NOT_ALLOWED.getMessage(),
+                        CommonErrorCode.METHOD_NOT_ALLOWED.getCode()));
     }
 
     @ExceptionHandler(Exception.class)
