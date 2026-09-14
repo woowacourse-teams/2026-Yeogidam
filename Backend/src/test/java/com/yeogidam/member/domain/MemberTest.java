@@ -1,113 +1,50 @@
 package com.yeogidam.member.domain;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.yeogidam.support.MemberFixture.kakaoAccount;
+import static com.yeogidam.support.MemberFixture.profile;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class MemberTest {
 
     @Test
-    void 닉네임을_포함한_선택_정보가_없어도_회원을_생성한다() {
-        // given
-        MemberProfile profile = new MemberProfile(null, null, null);
-
+    void 프로필과_OAuth_계정으로_회원을_만든다() {
         // when
-        Member member = new Member(profile, new OAuthAccount(OAuthProvider.APPLE, "apple-user"));
+        Member member = new Member(profile("빈"), kakaoAccount("kakao-1"));
 
         // then
         assertAll(
-                () -> Assertions.assertThat(member.nickname())
-                        .isNull(),
-                () -> Assertions.assertThat(member.profile()
-                                .email())
-                        .isNull(),
-                () -> Assertions.assertThat(member.profile()
-                                .imageUrl())
-                        .isNull()
+                () -> assertThat(member.id()).isNull(),
+                () -> assertThat(member.nickname()).isEqualTo("빈"),
+                () -> assertThat(member.oauthAccount()).isEqualTo(kakaoAccount("kakao-1"))
         );
     }
 
     @Test
-    void 이메일과_사진이_없어도_회원을_생성한다() {
+    void 프로필을_갱신하면_계정은_그대로고_프로필만_바뀐다() {
         // given
-        MemberProfile profile = new MemberProfile("러키", null, null);
+        Member member = new Member(1L, profile("빈"), kakaoAccount("kakao-1"));
 
         // when
-        Member member = new Member(profile, new OAuthAccount(OAuthProvider.APPLE, "apple-user"));
+        member.updateProfile(profile("새이름"));
 
         // then
         assertAll(
-                () -> Assertions.assertThat(member.nickname())
-                        .isEqualTo("러키"),
-                () -> Assertions.assertThat(member.profile()
-                                .email())
-                        .isNull(),
-                () -> Assertions.assertThat(member.profile()
-                                .imageUrl())
-                        .isNull()
+                () -> assertThat(member.nickname()).isEqualTo("새이름"),
+                () -> assertThat(member.oauthAccount()).isEqualTo(kakaoAccount("kakao-1"))
         );
     }
 
     @Test
-    void 재로그인에_선택_정보가_없으면_기존_정보도_비운다() {
-        // given
-        MemberProfile profile = new MemberProfile("내 닉네임", "user@example.com",
-                "https://image.example.com/a");
-        Member member = new Member(1L, profile, new OAuthAccount(OAuthProvider.GOOGLE, "user"));
-
-        // when
-        member.updateProfile(new MemberProfile(null, null, null));
-
-        // then
+    void 프로필이나_계정이_없으면_예외가_발생한다() {
         assertAll(
-                () -> Assertions.assertThat(member.nickname())
-                        .isNull(),
-                () -> Assertions.assertThat(member.profile()
-                                .email())
-                        .isNull(),
-                () -> Assertions.assertThat(member.profile()
-                                .imageUrl())
-                        .isNull()
-        );
-    }
-
-    @Test
-    void 재로그인하면_기존_프로필을_최신_정보로_갱신한다() {
-        // given
-        Member member = new Member(
-                1L,
-                new MemberProfile("러키", "old@example.com", "https://image.example.com/original"),
-                new OAuthAccount(OAuthProvider.GOOGLE, "user")
-        );
-
-        // when
-        member.updateProfile(new MemberProfile("새 이름", "user@example.com", "https://image.example.com/new"));
-
-        // then
-        assertAll(
-                () -> Assertions.assertThat(member.nickname())
-                        .isEqualTo("새 이름"),
-                () -> Assertions.assertThat(member.profile()
-                                .email())
-                        .isEqualTo("user@example.com"),
-                () -> Assertions.assertThat(member.profile()
-                                .imageUrl())
-                        .isEqualTo("https://image.example.com/new")
-        );
-    }
-
-    @Test
-    void 선택_정보의_빈_문자열은_null로_정규화한다() {
-        // when
-        MemberProfile profile = new MemberProfile("러키", " ", "");
-
-        // then
-        assertAll(
-                () -> Assertions.assertThat(profile.email())
-                        .isNull(),
-                () -> Assertions.assertThat(profile.imageUrl())
-                        .isNull()
+                () -> assertThatThrownBy(() -> new Member(null, kakaoAccount("kakao-1")))
+                        .isInstanceOf(IllegalArgumentException.class),
+                () -> assertThatThrownBy(() -> new Member(profile("빈"), null))
+                        .isInstanceOf(IllegalArgumentException.class)
         );
     }
 }
