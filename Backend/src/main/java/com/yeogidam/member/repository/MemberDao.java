@@ -24,6 +24,12 @@ public class MemberDao {
 
     private static final String FIND_BY_OAUTH_ACCOUNT_FOR_UPDATE_SQL = FIND_BY_OAUTH_ACCOUNT_SQL + "FOR UPDATE";
 
+    private static final String FIND_BY_ID_SQL = """
+            SELECT *
+            FROM members
+            WHERE id = ?
+            """;
+
     private static final RowMapper<Member> ROW_MAPPER = (resultSet, rowNumber) -> new Member(
             resultSet.getLong("id"),
             new MemberProfile(
@@ -52,6 +58,12 @@ public class MemberDao {
                         "image_url"
                 )
                 .usingGeneratedKeyColumns("id");
+    }
+
+    public Optional<Member> findById(Long id) {
+        return jdbcTemplate.query(FIND_BY_ID_SQL, ROW_MAPPER, id)
+                .stream()
+                .findFirst();
     }
 
     public Optional<Member> findByOAuthAccount(OAuthAccount account) {
