@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS members (
     provider_user_id VARBINARY(255) NOT NULL,
     nickname VARCHAR(255),
     email VARCHAR(320),
-    image_url TEXT,
+    image_url VARCHAR(512),
+    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_members_oauth_account UNIQUE (oauth_provider, provider_user_id)
 );

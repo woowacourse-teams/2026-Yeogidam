@@ -44,6 +44,13 @@ public class MemberDao {
         this.jdbcTemplate = jdbcTemplate;
         this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
                 .withTableName("members")
+                .usingColumns(
+                        "oauth_provider",
+                        "provider_user_id",
+                        "nickname",
+                        "email",
+                        "image_url"
+                )
                 .usingGeneratedKeyColumns("id");
     }
 
