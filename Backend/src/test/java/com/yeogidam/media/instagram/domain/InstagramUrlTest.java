@@ -149,6 +149,7 @@ class InstagramUrlTest {
         InstagramUrl postForm = new InstagramUrl("https://www.instagram.com/p/DcVaTEdRMyP/");
 
         // when & then
-        assertThat(reelForm).isEqualTo(postForm);
+        assertThat(reelForm)
+                .isEqualTo(postForm);
     }
 }

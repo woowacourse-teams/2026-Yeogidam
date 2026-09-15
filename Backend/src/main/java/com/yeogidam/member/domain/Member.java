@@ -1,44 +1,52 @@
 package com.yeogidam.member.domain;
 
 /**
- * 여기담 사용자. 닉네임과 OAuth 계정 정체성을 든다.
- * 진짜 로그인(토큰 발급·검증)은 아직 없고, 사용자 구분과 인증 재료 보관까지만 맡는다.
+ * OAuth 계정으로 식별하는 여기담 회원. 로그인 시 최신 프로필로 갱신한다.
  */
 public class Member {
 
     private final Long id;
-    private final Nickname nickname;
     private final OAuthAccount oauthAccount;
+    private MemberProfile profile;
 
-    public Member(
-            Long id,
-            Nickname nickname,
-            OAuthAccount oauthAccount
-    ) {
-        validate(nickname, oauthAccount);
+    public Member(MemberProfile profile, OAuthAccount oauthAccount) {
+        this(null, profile, oauthAccount);
+    }
+
+    public Member(Long id, MemberProfile profile, OAuthAccount oauthAccount) {
+        validate(profile, oauthAccount);
         this.id = id;
-        this.nickname = nickname;
+        this.profile = profile;
         this.oauthAccount = oauthAccount;
     }
 
-    private void validate(Nickname nickname, OAuthAccount oauthAccount) {
-        if (nickname == null) {
-            throw new IllegalArgumentException("닉네임이 비어 있습니다.");
+    private void validate(MemberProfile profile, OAuthAccount oauthAccount) {
+        if (profile == null) {
+            throw new IllegalArgumentException("회원 프로필이 비어 있습니다.");
         }
         if (oauthAccount == null) {
             throw new IllegalArgumentException("OAuth 계정이 비어 있습니다.");
         }
     }
 
+    public void updateProfile(MemberProfile profile) {
+        validate(profile, oauthAccount);
+        this.profile = profile;
+    }
+
     public Long id() {
         return id;
     }
 
-    public Nickname nickname() {
-        return nickname;
+    public String nickname() {
+        return profile.nickname();
     }
 
     public OAuthAccount oauthAccount() {
         return oauthAccount;
+    }
+
+    public MemberProfile profile() {
+        return profile;
     }
 }

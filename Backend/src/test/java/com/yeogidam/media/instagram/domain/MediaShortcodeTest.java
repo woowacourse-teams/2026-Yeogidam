@@ -17,7 +17,8 @@ class MediaShortcodeTest {
         MediaShortcode mediaShortcode = new MediaShortcode(value);
 
         // then
-        assertThat(mediaShortcode.value()).isEqualTo("DcVaTEdRMyP");
+        assertThat(mediaShortcode.value())
+                .isEqualTo("DcVaTEdRMyP");
     }
 
     @Test

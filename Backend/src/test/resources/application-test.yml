@@ -1,0 +1,23 @@
+# 데이터소스 접속 정보와 스키마는 MySqlContainerSupport가 Testcontainers MySQL을 띄우며 채운다.
+# Docker가 없으면 부팅에 실패하는 것이 의도된 동작이다.
+jwt:
+  secret: dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LXRoaXJ0eS10d28tYnl0ZXM=
+  issuer: yeogidam
+  access-token-ttl: 30m
+  refresh-token-ttl: 30d
+
+# 제공자 클라이언트 빈을 만들기 위한 자리값. E2E는 FakeOAuthClientConfig가 제공자를 대신한다.
+oauth:
+  providers:
+    kakao:
+      client-id: test-kakao-client
+      client-secret: test-kakao-secret
+      redirect-uri: https://app.example.com/oauth/kakao
+    google:
+      client-id: test-google-client
+      client-secret: test-google-secret
+      redirect-uri: https://app.example.com/oauth/google
+    apple:
+      client-id: test-apple-client
+      team-id: test-team-id
+      key-id: test-apple-key

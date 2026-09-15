@@ -22,13 +22,28 @@ class SharedInstagramMediaTest {
         SharedInstagramMedia first = share(1L, extracted);
         SharedInstagramMedia second = share(2L, extracted);
 
-        assertThat(first.decidePlaces(List.of(1L), PlaceDecisionStatus.SAVED)).containsExactly(1L);
+        assertThat(first.decidePlaces(List.of(1L), PlaceDecisionStatus.SAVED))
+                .containsExactly(1L);
 
-        assertThat(first.candidates().values().getFirst().decision()).isEqualTo(PlaceDecisionStatus.SAVED);
-        assertThat(second.candidates().values().getFirst().decision()).isEqualTo(PlaceDecisionStatus.UNDECIDED);
-        assertThat(extracted.values()).containsExactly(placeFrom(first));
-        assertThat(first.decidePlaces(List.of(1L), PlaceDecisionStatus.DISCARDED)).isEmpty();
-        assertThat(first.candidates().values().getFirst().decision()).isEqualTo(PlaceDecisionStatus.SAVED);
+        assertThat(first.candidates()
+                .values()
+                .getFirst()
+                .decision())
+                .isEqualTo(PlaceDecisionStatus.SAVED);
+        assertThat(second.candidates()
+                .values()
+                .getFirst()
+                .decision())
+                .isEqualTo(PlaceDecisionStatus.UNDECIDED);
+        assertThat(extracted.values())
+                .containsExactly(placeFrom(first));
+        assertThat(first.decidePlaces(List.of(1L), PlaceDecisionStatus.DISCARDED))
+                .isEmpty();
+        assertThat(first.candidates()
+                .values()
+                .getFirst()
+                .decision())
+                .isEqualTo(PlaceDecisionStatus.SAVED);
     }
 
     @Test
@@ -37,8 +52,13 @@ class SharedInstagramMediaTest {
 
         assertThatThrownBy(() -> share.decidePlaces(List.of(1L, 2L), PlaceDecisionStatus.SAVED))
                 .isInstanceOfSatisfying(MediaException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.NOT_A_CANDIDATE));
-        assertThat(share.candidates().values().getFirst().decision()).isEqualTo(PlaceDecisionStatus.UNDECIDED);
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(MediaErrorCode.NOT_A_CANDIDATE));
+        assertThat(share.candidates()
+                .values()
+                .getFirst()
+                .decision())
+                .isEqualTo(PlaceDecisionStatus.UNDECIDED);
     }
 
     @Test
@@ -47,15 +67,22 @@ class SharedInstagramMediaTest {
 
         assertThatThrownBy(() -> share.decidePlaces(List.of(1L), PlaceDecisionStatus.SAVED))
                 .isInstanceOfSatisfying(MediaException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.EXTRACTION_NOT_FINISHED));
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(MediaErrorCode.EXTRACTION_NOT_FINISHED));
     }
 
     private SharedInstagramMedia share(Long id, ExtractedPlaces extracted) {
-        PlaceCandidates candidates = new PlaceCandidates(extracted.values().stream().map(PlaceCandidate::new).toList());
+        PlaceCandidates candidates = new PlaceCandidates(extracted.values()
+                .stream()
+                .map(PlaceCandidate::new)
+                .toList());
         return new SharedInstagramMedia(id, 1L, 10L, URL, candidates);
     }
 
     private com.yeogidam.place.domain.Place placeFrom(SharedInstagramMedia share) {
-        return share.candidates().values().getFirst().place();
+        return share.candidates()
+                .values()
+                .getFirst()
+                .place();
     }
 }
