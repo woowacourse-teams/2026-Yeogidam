@@ -148,6 +148,8 @@ function canRetryFailure(reason: string | null): boolean {
 
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place) => void;
+  initialScrollOffset?: number;
+  onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
@@ -183,6 +185,8 @@ function SavedPlacesEditAction({
 
 export function SavedPlacesScreen({
   onOpenDetail,
+  initialScrollOffset = 0,
+  onScrollOffsetChange,
   onAuthenticationRequired,
   onEditModeChange,
   onRequireLogin,
@@ -225,6 +229,21 @@ export function SavedPlacesScreen({
   const hasSavedPlaces = places.length > 0;
   const bottomActionOffset =
     bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
+
+  useEffect(() => {
+    if (isLoading || !hasSavedPlaces || initialScrollOffset <= 0) {
+      return;
+    }
+
+    const restoreScrollPosition = requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({
+        y: initialScrollOffset,
+        animated: false,
+      });
+    });
+
+    return () => cancelAnimationFrame(restoreScrollPosition);
+  }, [hasSavedPlaces, initialScrollOffset, isLoading]);
 
   useEffect(() => {
     return () => onEditModeChange?.(false);
@@ -982,6 +1001,10 @@ export function SavedPlacesScreen({
             <>
               <ScrollView
                 ref={scrollViewRef}
+                onScroll={event =>
+                  onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
+                }
+                scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
               >
                 <SavedPlacesEditAction
