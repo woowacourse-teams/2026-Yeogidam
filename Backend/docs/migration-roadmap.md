@@ -81,7 +81,7 @@
 | media_share_report | media_share_reports | 제보. share_id |
 
 2. `cleanup.sql`에 위 8개 TRUNCATE를 추가한다.
-3. 남은 결정 1, 3, 4를 이 PR 설명에 적어 확정한다. 자원 이름은 `/shares`, 게시물 테이블은 `instagram_posts`, 응답 DTO는 생성자 조립이 기본이고 출처가 둘 이상일 때만 정적 팩토리다. DAO 분리 규칙은 4.1에 적은 대로다.
+3. 남은 결정 1, 3, 4를 이 PR 설명에 적어 확정한다. 자원 이름은 `/shares`, 게시물 테이블은 `instagram_posts`, 응답 DTO는 `new MemberResponse(member)`처럼 부생성자로 조립하고 정적 팩토리는 쓰지 않는다. DAO 분리 규칙은 4.1에 적은 대로다.
 
 ### 4.3 일정
 
@@ -153,7 +153,7 @@
 1. **자원 이름.** (PR 0에서 확정) /shares. bean-fable의 /media는 {id}가 공유 id라 게시물(InstagramMedia)과 헷갈린다.
 2. **접수 멱등키.** 네이티브 공유 확장이 30초 타임아웃과 재시도를 하므로 clientRequestId(UUID)를 받아 (member_id, request_id) 유니크로 막는 쪽을 권한다. 안 받으면 재시도마다 공유 이력이 하나씩 더 생긴다.
 3. **테이블 이름.** (PR 0에서 확정) 전부 복수형이고 게시물은 instagram_posts다.
-4. **응답 DTO 조립.** (PR 0에서 확정) 생성자 조립이 기본이고 출처가 둘 이상인 DTO만 정적 팩토리를 쓴다.
+4. **응답 DTO 조립.** (정함, 2026-09-16) 부생성자로 조립하고 정적 팩토리(from)는 쓰지 않는다. `MemberResponse(Member member)`가 본보기다.
 5. **탈퇴 시 제공자 연결 해제.** 운영과 같게 unlink/revoke까지 할지, 우리 DB 삭제만 할지.
 6. **대기함 다건 결정.** 공유 건마다 호출(도메인 경계와 일치) 또는 배치 엔드포인트 하나.
 7. **공유 확장의 만료 토큰.** 401 저장 후 앱 재접수(권장), 또는 확장이 직접 갱신(리프레시 회전 때문에 앱 세션이 깨지므로 비권장).
