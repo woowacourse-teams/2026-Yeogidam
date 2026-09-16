@@ -1053,7 +1053,12 @@ export function SavedPlacesScreen({
           onPress={openDialog}
           style={[
             styles.fabShadow,
-            { bottom: BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 12 },
+            {
+              bottom:
+                BOTTOM_NAVIGATION_BAR_HEIGHT +
+                getBottomNavigationBarOffset(bottomInset) +
+                12,
+            },
           ]}
         >
           <View style={styles.fab}>
