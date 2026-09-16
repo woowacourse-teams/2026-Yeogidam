@@ -18,9 +18,9 @@ import {v4 as uuidv4} from 'uuid';
 import { supabase } from '../../lib/auth/supabase';
 
 import {
-  BOTTOM_NAVIGATION_BAR_BOTTOM_GAP,
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   bottomNavigationBarContainerStyle,
+  getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
@@ -223,8 +223,7 @@ export function SavedPlacesScreen({
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
-  const bottomActionOffset =
-    bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
+  const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
 
   useEffect(() => {
     return () => onEditModeChange?.(false);
