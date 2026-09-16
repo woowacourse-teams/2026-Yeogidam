@@ -61,11 +61,10 @@ export function BottomNavigationBar({
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
-  const navigationBarBottom = bottom > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
+  const navigationBarBottom = getBottomNavigationBarOffset(bottom);
   const overlayHeight =
     BOTTOM_NAVIGATION_BAR_HEIGHT +
     navigationBarBottom +
-    bottom +
     NAVIGATION_BAR_OVERLAY_FADE_HEIGHT;
 
   return (
