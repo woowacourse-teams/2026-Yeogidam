@@ -223,7 +223,6 @@ export function SavedPlacesScreen({
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
-  const isEditActionInScroll = hasSavedPlaces;
   const bottomActionOffset =
     bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
 
@@ -953,12 +952,6 @@ export function SavedPlacesScreen({
       ) : (
         <>
           <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
-          {!isEditActionInScroll ? (
-            <SavedPlacesEditAction
-              isEditing={isEditing}
-              onPress={handlePressEdit}
-            />
-          ) : null}
           {error && hasSavedPlaces ? (
             <View style={styles.errorBanner}>
               <Text numberOfLines={1} style={styles.errorText}>

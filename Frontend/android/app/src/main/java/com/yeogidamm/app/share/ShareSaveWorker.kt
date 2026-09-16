@@ -66,7 +66,7 @@ internal class ShareSaveWorker(
             val body = JSONObject().apply {
                 put("instagramUrl", instagramUrl)
                 put("source", "instagram_share")
-                put("clientRequestId", payload.id)
+                put("clientRequestId", requestId)
             }.toString()
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
