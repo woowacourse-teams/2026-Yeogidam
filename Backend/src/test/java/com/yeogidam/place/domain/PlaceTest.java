@@ -12,14 +12,11 @@ class PlaceTest {
     void 외부_식별자와_장소_정보로_장소를_생성한다() {
         Place place = place(1L);
 
-        assertThat(place.externalSource()
-                .placeId())
+        assertThat(place.externalSource().placeId())
                 .isEqualTo("kakao-1");
-        assertThat(place.profile()
-                .name())
+        assertThat(place.profile().name())
                 .isEqualTo(new PlaceName("경복궁"));
-        assertThat(place.profile()
-                .category())
+        assertThat(place.profile().category())
                 .isEqualTo("관광명소");
         assertThat(place.summaryAddress())
                 .isEqualTo("서울 종로구");

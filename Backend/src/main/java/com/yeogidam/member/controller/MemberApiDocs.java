@@ -12,7 +12,8 @@ import org.springframework.http.ResponseEntity;
 @Tag(name = "Member", description = "회원 API")
 public interface MemberApiDocs {
 
-    @Operation(summary = "내 정보 조회", description = "액세스 토큰의 회원 정보를 돌려줍니다. 토큰이 없으면 401(AUTH401_004), 유효하지 않으면 401(AUTH401_001)입니다.",
+    @Operation(summary = "내 정보 조회",
+            description = "액세스 토큰의 회원 정보를 돌려줍니다. 토큰이 없으면 401(AUTH401_004), 유효하지 않으면 401(AUTH401_001)입니다.",
             security = @SecurityRequirement(name = "access-token"))
     ResponseEntity<MemberResponse> readMe(Long memberId);
 }

@@ -39,7 +39,8 @@ class ExtractionTest {
     @MethodSource("finishedExtractions")
     void 끝난_추출은_다시_성공이나_실패로_기록할_수_없다(Extraction extraction) {
         assertAll(
-                () -> assertMediaException(() -> extraction.succeed(PLACES), MediaErrorCode.EXTRACTION_ALREADY_FINISHED),
+                () -> assertMediaException(() -> extraction.succeed(PLACES),
+                        MediaErrorCode.EXTRACTION_ALREADY_FINISHED),
                 () -> assertMediaException(() -> extraction.fail(ExtractionFailureReason.UNEXPECTED),
                         MediaErrorCode.EXTRACTION_ALREADY_FINISHED)
         );

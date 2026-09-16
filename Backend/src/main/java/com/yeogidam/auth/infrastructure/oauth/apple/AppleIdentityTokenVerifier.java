@@ -55,8 +55,7 @@ public class AppleIdentityTokenVerifier {
 
     private OAuth2TokenValidatorResult validateClaims(Jwt jwt) {
         if (!hasValidIssuerAndAudience(jwt) || !hasValidTimestamps(jwt)
-                || jwt.getSubject() == null || jwt.getSubject()
-                .isBlank()) {
+                || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
             return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token"));
         }
         return OAuth2TokenValidatorResult.success();
@@ -72,8 +71,7 @@ public class AppleIdentityTokenVerifier {
                 && jwt.getAudience() != null
                 && jwt.getAudience()
                 .contains(properties.clientId())
-                && (jwt.getAudience()
-                .size() == 1 || authorizedParty != null);
+                && (jwt.getAudience().size() == 1 || authorizedParty != null);
     }
 
     private boolean hasValidTimestamps(Jwt jwt) {

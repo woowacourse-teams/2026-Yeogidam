@@ -25,8 +25,7 @@ public class GlobalExceptionHandler {
     }
 
     private void logException(ErrorCode errorCode) {
-        if (errorCode.getHttpStatus()
-                .is5xxServerError()) {
+        if (errorCode.getHttpStatus().is5xxServerError()) {
             log.error("[요청 실패] {}", errorCode.getCode());
             return;
         }

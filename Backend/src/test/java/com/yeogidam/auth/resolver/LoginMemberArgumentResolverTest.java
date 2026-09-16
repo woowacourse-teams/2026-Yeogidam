@@ -43,8 +43,7 @@ class LoginMemberArgumentResolverTest {
     void 액세스_토큰의_회원_식별자를_돌려준다() throws NoSuchMethodException {
         // given
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + jwtTokenProvider.createAccessToken(7L)
-                .value());
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + jwtTokenProvider.createAccessToken(7L).value());
 
         // when
         Long memberId = resolver.resolveArgument(

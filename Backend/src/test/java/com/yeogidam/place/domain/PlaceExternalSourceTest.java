@@ -38,7 +38,9 @@ class PlaceExternalSourceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"ftp://place.map.kakao.com/1", "javascript:alert(1)", "place.map.kakao.com/1", "https://", "not a url"})
+    @ValueSource(strings = {
+            "ftp://place.map.kakao.com/1", "javascript:alert(1)", "place.map.kakao.com/1", "https://", "not a url"
+    })
     void http_링크가_아니면_장소는_두고_링크만_null로_정규화한다(String placeUrl) {
         // when
         PlaceExternalSource source = new PlaceExternalSource("1", placeUrl);

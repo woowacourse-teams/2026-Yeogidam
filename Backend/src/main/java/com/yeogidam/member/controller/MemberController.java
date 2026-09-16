@@ -20,6 +20,7 @@ public class MemberController implements MemberApiDocs {
     @GetMapping("/me")
     public ResponseEntity<MemberResponse> readMe(@LoginMember Long memberId) {
         MemberResponse response = memberService.readMember(memberId);
-        return ResponseEntity.ok().body(response);
+        return ResponseEntity.ok()
+                .body(response);
     }
 }

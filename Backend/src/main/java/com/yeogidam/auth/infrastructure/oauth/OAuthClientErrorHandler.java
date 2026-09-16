@@ -80,8 +80,7 @@ public class OAuthClientErrorHandler {
     ) {
         String error = readSafeError(response);
         String detail = readSafeDetail(response);
-        if (errorCode.getHttpStatus()
-                .is5xxServerError()) {
+        if (errorCode.getHttpStatus().is5xxServerError()) {
             log.error("[소셜 로그인 실패] provider={}, status={}, error={}, detail={}, code={}, mappedCode={}",
                     provider, status, error, detail, response.code(), errorCode.getCode());
             return;
@@ -113,8 +112,7 @@ public class OAuthClientErrorHandler {
             errorCode = AuthErrorCode.PROVIDER_UNAVAILABLE;
         }
         log.error("[소셜 로그인 통신 실패] provider={}, exception={}, mappedCode={}",
-                provider, exception.getClass()
-                        .getSimpleName(), errorCode.getCode());
+                provider, exception.getClass().getSimpleName(), errorCode.getCode());
         return new AuthException(errorCode, exception);
     }
 }

@@ -62,8 +62,7 @@ public class AppleClient implements OAuthClient {
                     .onStatus(HttpStatusCode::isError,
                             (request, providerResponse) -> errorHandler.handle(getProvider(), providerResponse))
                     .body(OAuthTokenResponse.class);
-            if (response == null || response.idToken() == null || response.idToken()
-                    .isBlank()) {
+            if (response == null || response.idToken() == null || response.idToken().isBlank()) {
                 throw new AuthException(AuthErrorCode.INVALID_PROVIDER_RESPONSE);
             }
             return response;

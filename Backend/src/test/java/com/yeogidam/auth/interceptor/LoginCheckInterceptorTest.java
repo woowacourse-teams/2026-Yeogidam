@@ -26,8 +26,7 @@ class LoginCheckInterceptorTest {
     @Test
     void 유효한_액세스_토큰이면_통과한다() {
         // given
-        String accessToken = jwtTokenProvider.createAccessToken(7L)
-                .value();
+        String accessToken = jwtTokenProvider.createAccessToken(7L).value();
 
         // when & then
         assertThat(preHandle("Bearer " + accessToken)).isTrue();
@@ -43,8 +42,7 @@ class LoginCheckInterceptorTest {
     @Test
     void 리프레시_토큰을_보내면_유효하지_않은_토큰_예외가_발생한다() {
         // given
-        String refreshToken = jwtTokenProvider.createRefreshToken(7L, "session-1")
-                .value();
+        String refreshToken = jwtTokenProvider.createRefreshToken(7L, "session-1").value();
 
         // when & then
         assertAuthException(() -> preHandle("Bearer " + refreshToken), AuthErrorCode.INVALID_TOKEN);
@@ -53,8 +51,7 @@ class LoginCheckInterceptorTest {
     @Test
     void 만료된_액세스_토큰이면_유효하지_않은_토큰_예외가_발생한다() {
         // given
-        String accessToken = jwtTokenProvider.createAccessToken(7L)
-                .value();
+        String accessToken = jwtTokenProvider.createAccessToken(7L).value();
         clock.advance(JwtFixture.PROPERTIES.accessTokenTtl()
                 .plusMinutes(2));
 

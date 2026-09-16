@@ -25,34 +25,39 @@ public class AuthController implements AuthApiDocs {
     @PostMapping("/logins/kakao")
     public ResponseEntity<LoginResponse> createKakaoLogin(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.createLogin(OAuthProvider.KAKAO, request);
-        return ResponseEntity.ok().body(response);
+        return ResponseEntity.ok()
+                .body(response);
     }
 
     @Override
     @PostMapping("/logins/google")
     public ResponseEntity<LoginResponse> createGoogleLogin(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.createLogin(OAuthProvider.GOOGLE, request);
-        return ResponseEntity.ok().body(response);
+        return ResponseEntity.ok()
+                .body(response);
     }
 
     @Override
     @PostMapping("/logins/apple")
     public ResponseEntity<LoginResponse> createAppleLogin(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.createLogin(OAuthProvider.APPLE, request);
-        return ResponseEntity.ok().body(response);
+        return ResponseEntity.ok()
+                .body(response);
     }
 
     @Override
     @PostMapping("/token-refreshes")
     public ResponseEntity<TokenResponse> reissueTokens(@Valid @RequestBody RefreshTokenRequest request) {
         TokenResponse response = authService.reissueTokens(request);
-        return ResponseEntity.ok().body(response);
+        return ResponseEntity.ok()
+                .body(response);
     }
 
     @Override
     @PostMapping("/logouts")
     public ResponseEntity<Void> createLogout(@Valid @RequestBody RefreshTokenRequest request) {
         authService.createLogout(request);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent()
+                .build();
     }
 }

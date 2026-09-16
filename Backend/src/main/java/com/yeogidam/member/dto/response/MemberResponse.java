@@ -14,12 +14,9 @@ public record MemberResponse(
         this(
                 member.id(),
                 member.nickname(),
-                member.profile()
-                        .email(),
-                member.profile()
-                        .imageUrl(),
-                member.oauthAccount()
-                        .provider()
+                member.profile().email(),
+                member.profile().imageUrl(),
+                member.oauthAccount().provider()
         );
     }
 }
