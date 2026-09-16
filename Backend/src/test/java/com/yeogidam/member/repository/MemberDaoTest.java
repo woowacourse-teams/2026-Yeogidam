@@ -58,6 +58,28 @@ class MemberDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    @Sql(statements = INSERT_SINGLE_MEMBER_SQL)
+    void 식별자로_회원을_읽으면_모든_열이_매핑된다() {
+        // when
+        Member member = memberDao.findById(1L).orElseThrow();
+
+        // then
+        assertAll(
+                () -> assertThat(member.id()).isEqualTo(1L),
+                () -> assertThat(member.nickname()).isEqualTo("빈"),
+                () -> assertThat(member.profile().email()).isEqualTo("bean@example.com"),
+                () -> assertThat(member.profile().imageUrl()).isEqualTo("https://img.example.com/bean"),
+                () -> assertThat(member.oauthAccount()).isEqualTo(KAKAO_ACCOUNT)
+        );
+    }
+
+    @Test
+    @Sql(statements = INSERT_SINGLE_MEMBER_SQL)
+    void 없는_식별자로_읽으면_빈_값이다() {
+        assertThat(memberDao.findById(999L)).isEmpty();
+    }
+
+    @Test
     void 저장하면_생성된_식별자를_돌려주고_같은_계정으로_다시_읽힌다() {
         // when
         Member saved = memberDao.save(kakaoMember("kakao-2"));

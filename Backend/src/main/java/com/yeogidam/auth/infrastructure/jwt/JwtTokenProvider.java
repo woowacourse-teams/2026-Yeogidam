@@ -82,8 +82,7 @@ public class JwtTokenProvider {
     private JwtClaimsSet.Builder createCommonClaims(Long memberId, TokenType type, Instant expiresAt) {
         Instant issuedAt = clock.instant()
                 .truncatedTo(ChronoUnit.SECONDS);
-        String tokenId = UUID.randomUUID()
-                .toString();
+        String tokenId = UUID.randomUUID().toString();
         return JwtClaimsSet.builder()
                 .issuer(properties.issuer())
                 .subject(memberId.toString())

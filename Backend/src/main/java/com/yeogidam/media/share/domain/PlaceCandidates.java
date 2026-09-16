@@ -24,15 +24,27 @@ public class PlaceCandidates {
         }
     }
 
+    /**
+     * 고른 장소 중 아직 미결정인 후보만 결정하고, 실제로 바뀐 장소 id를 돌려준다.
+     * 이미 결정된 후보는 건너뛰므로 같은 장소를 다시 골라도 멱등이고, 버린 장소는 다시 저장되지 않는다.
+     * 결정 값이 SAVED와 DISCARDED뿐이라는 검증은 상태를 바꾸는 PlaceCandidate가 맡는다.
+     */
     public List<Long> decide(
             List<Long> placeIds,
             PlaceDecisionStatus target
     ) {
         validateKnown(placeIds);
+        List<PlaceCandidate> decidable = decidableAmong(placeIds);
+        decidable.forEach(placeCandidate -> placeCandidate.decide(target));
+        return decidable.stream()
+                .map(placeCandidate -> placeCandidate.place().id())
+                .toList();
+    }
+
+    private List<PlaceCandidate> decidableAmong(List<Long> placeIds) {
         return places.stream()
                 .filter(placeCandidate -> placeIds.contains(placeCandidate.place().id()))
-                .filter(placeCandidate -> placeCandidate.decide(target))
-                .map(placeCandidate -> placeCandidate.place().id())
+                .filter(PlaceCandidate::canDecide)
                 .toList();
     }
 

@@ -15,12 +15,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-public class AuthController {
+public class AuthController implements AuthApiDocs {
 
     private final AuthService authService;
 
+    @Override
     @PostMapping("/logins/kakao")
     public ResponseEntity<LoginResponse> createKakaoLogin(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.createLogin(OAuthProvider.KAKAO, request);
@@ -28,6 +29,7 @@ public class AuthController {
                 .body(response);
     }
 
+    @Override
     @PostMapping("/logins/google")
     public ResponseEntity<LoginResponse> createGoogleLogin(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.createLogin(OAuthProvider.GOOGLE, request);
@@ -35,6 +37,7 @@ public class AuthController {
                 .body(response);
     }
 
+    @Override
     @PostMapping("/logins/apple")
     public ResponseEntity<LoginResponse> createAppleLogin(@Valid @RequestBody LoginRequest request) {
         LoginResponse response = authService.createLogin(OAuthProvider.APPLE, request);
@@ -42,6 +45,7 @@ public class AuthController {
                 .body(response);
     }
 
+    @Override
     @PostMapping("/token-refreshes")
     public ResponseEntity<TokenResponse> reissueTokens(@Valid @RequestBody RefreshTokenRequest request) {
         TokenResponse response = authService.reissueTokens(request);
@@ -49,6 +53,7 @@ public class AuthController {
                 .body(response);
     }
 
+    @Override
     @PostMapping("/logouts")
     public ResponseEntity<Void> createLogout(@Valid @RequestBody RefreshTokenRequest request) {
         authService.createLogout(request);

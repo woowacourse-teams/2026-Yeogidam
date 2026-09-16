@@ -65,7 +65,7 @@ class AuthE2eTest extends E2eTestSupport {
     void 인가_코드가_비면_400이다() {
         given().contentType(ContentType.JSON)
                 .body("{\"authorizationCode\":\" \"}")
-                .when().post("/auth/logins/kakao")
+                .when().post("/api/v1/auth/logins/kakao")
                 .then().statusCode(400)
                 .body("errorCode", equalTo("COMMON400_001"));
     }
@@ -124,7 +124,7 @@ class AuthE2eTest extends E2eTestSupport {
         given().when().get("/nothing")
                 .then().statusCode(404)
                 .body("errorCode", equalTo("COMMON404_001"));
-        given().when().get("/auth/logins/kakao")
+        given().when().get("/api/v1/auth/logins/kakao")
                 .then().statusCode(405)
                 .body("errorCode", equalTo("COMMON405_001"));
     }
@@ -135,18 +135,18 @@ class AuthE2eTest extends E2eTestSupport {
     ) {
         return given().contentType(ContentType.JSON)
                 .body("{\"authorizationCode\":\"" + authorizationCode + "\"}")
-                .when().post("/auth/logins/" + provider);
+                .when().post("/api/v1/auth/logins/" + provider);
     }
 
     private static Response refresh(String refreshToken) {
         return given().contentType(ContentType.JSON)
                 .body("{\"refreshToken\":\"" + refreshToken + "\"}")
-                .when().post("/auth/token-refreshes");
+                .when().post("/api/v1/auth/token-refreshes");
     }
 
     private static Response logout(String refreshToken) {
         return given().contentType(ContentType.JSON)
                 .body("{\"refreshToken\":\"" + refreshToken + "\"}")
-                .when().post("/auth/logouts");
+                .when().post("/api/v1/auth/logouts");
     }
 }

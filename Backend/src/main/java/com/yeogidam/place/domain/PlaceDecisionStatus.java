@@ -13,5 +13,12 @@ public enum PlaceDecisionStatus {
     UNDECIDED,
     SAVED,
     DISCARDED,
-    SUPERSEDED
+    SUPERSEDED;
+
+    /**
+     * 사용자가 후보에 내릴 수 있는 결정인지. UNDECIDED는 출발 상태이고 SUPERSEDED는 재공유가 닫는 상태라 결정이 아니다.
+     */
+    public boolean isDecision() {
+        return this == SAVED || this == DISCARDED;
+    }
 }

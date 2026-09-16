@@ -21,8 +21,7 @@ class InstagramMediaTest {
     void 새_게시물은_장소_추출을_진행한다() {
         InstagramMedia media = new InstagramMedia(SHORTCODE);
 
-        assertThat(media.extraction()
-                .status())
+        assertThat(media.extraction().status())
                 .isEqualTo(ExtractionStatus.EXTRACTING);
     }
 
@@ -33,15 +32,11 @@ class InstagramMediaTest {
 
         media.succeed(new ExtractedPlaces(List.of(place)));
 
-        assertThat(media.extraction()
-                .status())
+        assertThat(media.extraction().status())
                 .isEqualTo(ExtractionStatus.SUCCEEDED);
-        assertThat(media.extraction()
-                .places()
-                .values())
+        assertThat(media.extraction().places().values())
                 .containsExactly(place);
-        assertThat(media.extraction()
-                .failureReason())
+        assertThat(media.extraction().failureReason())
                 .isNull();
     }
 
@@ -51,8 +46,7 @@ class InstagramMediaTest {
 
         assertThatThrownBy(() -> media.succeed(new ExtractedPlaces(List.of())))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThat(media.extraction()
-                .status())
+        assertThat(media.extraction().status())
                 .isEqualTo(ExtractionStatus.EXTRACTING);
     }
 
@@ -62,14 +56,11 @@ class InstagramMediaTest {
 
         media.fail(ExtractionFailureReason.PLACE_NOT_EXTRACTED);
 
-        assertThat(media.extraction()
-                .status())
+        assertThat(media.extraction().status())
                 .isEqualTo(ExtractionStatus.FAILED);
-        assertThat(media.extraction()
-                .failureReason())
+        assertThat(media.extraction().failureReason())
                 .isEqualTo(ExtractionFailureReason.PLACE_NOT_EXTRACTED);
-        assertThatThrownBy(() -> media.extraction()
-                .places())
+        assertThatThrownBy(() -> media.extraction().places())
                 .isInstanceOfSatisfying(MediaException.class, exception ->
                         assertThat(exception.getErrorCode())
                                 .isEqualTo(MediaErrorCode.FAILED_EXTRACTION_HAS_NO_PLACES));
@@ -81,8 +72,7 @@ class InstagramMediaTest {
 
         assertThatThrownBy(() -> media.fail(null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThat(media.extraction()
-                .status())
+        assertThat(media.extraction().status())
                 .isEqualTo(ExtractionStatus.EXTRACTING);
     }
 
@@ -99,17 +89,14 @@ class InstagramMediaTest {
 
         media.retry();
 
-        assertThat(media.extraction()
-                .status())
+        assertThat(media.extraction().status())
                 .isEqualTo(ExtractionStatus.EXTRACTING);
-        assertThat(media.extraction()
-                .failureReason())
+        assertThat(media.extraction().failureReason())
                 .isNull();
 
         media.succeed(new ExtractedPlaces(List.of(place(1L))));
 
-        assertThat(media.extraction()
-                .status())
+        assertThat(media.extraction().status())
                 .isEqualTo(ExtractionStatus.SUCCEEDED);
     }
 

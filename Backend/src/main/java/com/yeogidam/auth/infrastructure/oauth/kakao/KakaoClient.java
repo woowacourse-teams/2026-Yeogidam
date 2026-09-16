@@ -54,8 +54,7 @@ public class KakaoClient implements OAuthClient {
                     .onStatus(HttpStatusCode::isError,
                             (request, providerResponse) -> errorHandler.handle(getProvider(), providerResponse))
                     .body(OAuthTokenResponse.class);
-            if (response == null || response.accessToken() == null || response.accessToken()
-                    .isBlank()) {
+            if (response == null || response.accessToken() == null || response.accessToken().isBlank()) {
                 throw new AuthException(AuthErrorCode.INVALID_PROVIDER_RESPONSE);
             }
             return response;
@@ -85,8 +84,7 @@ public class KakaoClient implements OAuthClient {
     private OAuthIdentity readIdentity(KakaoUserResponse user) {
         KakaoUserResponse.Account account = user.account();
         if (account == null) {
-            return new OAuthIdentity(getProvider(), user.id()
-                    .toString(), null, null, null);
+            return new OAuthIdentity(getProvider(), user.id().toString(), null, null, null);
         }
         KakaoUserResponse.Profile profile = account.profile();
         String nickname = null;
@@ -97,8 +95,7 @@ public class KakaoClient implements OAuthClient {
         }
         return new OAuthIdentity(
                 getProvider(),
-                user.id()
-                        .toString(),
+                user.id().toString(),
                 nickname,
                 readVerifiedEmail(account),
                 imageUrl
