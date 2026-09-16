@@ -60,6 +60,7 @@ const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
 const DETAIL_ACTION_BOTTOM_PADDING = 76;
+const RESULT_ITEM_HEIGHT = 116;
 
 function getMiddleCategory(category?: string) {
   if (!category) return undefined;
@@ -128,6 +129,12 @@ export function PlaceResultSheet({
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
   const isPageModeRef = useRef(false);
+  const resultsScrollOffsetRef = useRef(0);
+  const resultsListRef = useRef<FlatList<Place>>(null);
+  const pendingResultsScrollOffsetRef = useRef<number | null>(null);
+  const restoringResultsScrollOffsetRef = useRef<number | null>(null);
+  const restoreScheduledRef = useRef(false);
+  const isResultsUserScrollingRef = useRef(false);
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
@@ -150,6 +157,53 @@ export function PlaceResultSheet({
     },
     [onVisibleHeightChange, sheetHeight],
   );
+  const recordResultsScroll = useCallback((offset: number) => {
+    const nextOffset = Math.max(0, offset);
+    const restoringOffset = restoringResultsScrollOffsetRef.current;
+
+    // A newly mounted FlatList can emit offset=0 after the restored offset was
+    // applied. Ignore only that mount-time event. Any event during an actual
+    // user drag must always become the latest saved position.
+    if (
+      !isResultsUserScrollingRef.current &&
+      nextOffset === 0 &&
+      resultsScrollOffsetRef.current > 0
+    ) {
+      return;
+    }
+
+    if (
+      restoringOffset !== null &&
+      (isResultsUserScrollingRef.current ||
+        Math.abs(nextOffset - restoringOffset) <= 1)
+    ) {
+      restoringResultsScrollOffsetRef.current = null;
+    }
+    resultsScrollOffsetRef.current = nextOffset;
+  }, []);
+  const restoreResultsScroll = useCallback(() => {
+    const savedOffset = pendingResultsScrollOffsetRef.current;
+    if (savedOffset === null || restoreScheduledRef.current) {
+      return;
+    }
+
+    restoreScheduledRef.current = true;
+    pendingResultsScrollOffsetRef.current = null;
+    restoringResultsScrollOffsetRef.current = savedOffset;
+    resultsScrollOffsetRef.current = savedOffset;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          restoreScheduledRef.current = false;
+          resultsListRef.current?.scrollToOffset({
+            offset: savedOffset,
+            animated: false,
+          });
+        });
+      });
+    });
+  }, []);
   useEffect(() => {
     onDetailViewChange?.(selectedPlace !== null);
   }, [onDetailViewChange, selectedPlace]);
@@ -398,6 +452,9 @@ export function PlaceResultSheet({
   };
 
   const selectPlace = (place: Place) => {
+    pendingResultsScrollOffsetRef.current = resultsScrollOffsetRef.current;
+    restoringResultsScrollOffsetRef.current = null;
+    isResultsUserScrollingRef.current = false;
     detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
 
@@ -549,7 +606,7 @@ export function PlaceResultSheet({
         </View>
       ) : (
         <FlatList
-          key={`results-${activeSnapIndex}-${isPageMode ? 'page' : 'sheet'}`}
+          ref={resultsListRef}
           data={places}
           style={styles.resultsScroll}
           contentContainerStyle={[
@@ -557,10 +614,33 @@ export function PlaceResultSheet({
             { paddingBottom: listBottomClearance },
           ]}
           keyExtractor={place => place.id}
+          getItemLayout={(_, index) => ({
+            length: RESULT_ITEM_HEIGHT,
+            offset: RESULT_ITEM_HEIGHT * index,
+            index,
+          })}
           contentInsetAdjustmentBehavior="never"
           scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
           showsVerticalScrollIndicator={false}
           scrollEnabled={activeSnapIndex !== 2}
+          onScrollBeginDrag={event => {
+            isResultsUserScrollingRef.current = true;
+            restoringResultsScrollOffsetRef.current = null;
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+          }}
+          onScroll={event => {
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+          }}
+          scrollEventThrottle={16}
+          onScrollEndDrag={event => {
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+            isResultsUserScrollingRef.current = false;
+          }}
+          onMomentumScrollEnd={event => {
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+            isResultsUserScrollingRef.current = false;
+          }}
+          onContentSizeChange={restoreResultsScroll}
           renderItem={({ item: place }) => (
             <View style={styles.result}>
               <Pressable
@@ -676,6 +756,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   result: {
+    height: RESULT_ITEM_HEIGHT,
     paddingVertical: 12,
   },
   emptyResult: {
