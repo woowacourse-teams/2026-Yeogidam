@@ -15,21 +15,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class MemberDao {
 
-    private static final String FIND_BY_OAUTH_ACCOUNT_SQL = """
-            SELECT *
-            FROM members
-            WHERE oauth_provider = ?
-              AND provider_user_id = ?
-            """;
-
-    private static final String FIND_BY_OAUTH_ACCOUNT_FOR_UPDATE_SQL = FIND_BY_OAUTH_ACCOUNT_SQL + "FOR UPDATE";
-
-    private static final String FIND_BY_ID_SQL = """
-            SELECT *
-            FROM members
-            WHERE id = ?
-            """;
-
     private static final RowMapper<Member> ROW_MAPPER = (resultSet, rowNumber) -> new Member(
             resultSet.getLong("id"),
             new MemberProfile(
@@ -61,20 +46,42 @@ public class MemberDao {
     }
 
     public Optional<Member> findById(Long id) {
-        return jdbcTemplate.query(FIND_BY_ID_SQL, ROW_MAPPER, id)
+        String sql = """
+                SELECT *
+                FROM members
+                WHERE id = ?
+                """;
+        return jdbcTemplate.query(sql, ROW_MAPPER, id)
                 .stream()
                 .findFirst();
     }
 
     public Optional<Member> findByOAuthAccount(OAuthAccount account) {
-        return find(FIND_BY_OAUTH_ACCOUNT_SQL, account);
+        String sql = """
+                SELECT *
+                FROM members
+                WHERE oauth_provider = ?
+                  AND provider_user_id = ?
+                """;
+        return findByOAuthAccount(sql, account);
     }
 
+    /**
+     * 잠금 읽기. 같은 계정의 동시 첫 로그인에서 DuplicateKeyException을 받은 트랜잭션이
+     * 스냅샷 대신 다른 트랜잭션이 막 커밋한 행을 읽어 프로필 갱신으로 이어 가게 한다.
+     */
     public Optional<Member> findByOAuthAccountForUpdate(OAuthAccount account) {
-        return find(FIND_BY_OAUTH_ACCOUNT_FOR_UPDATE_SQL, account);
+        String sql = """
+                SELECT *
+                FROM members
+                WHERE oauth_provider = ?
+                  AND provider_user_id = ?
+                FOR UPDATE
+                """;
+        return findByOAuthAccount(sql, account);
     }
 
-    private Optional<Member> find(String sql, OAuthAccount account) {
+    private Optional<Member> findByOAuthAccount(String sql, OAuthAccount account) {
         return jdbcTemplate.query(sql, ROW_MAPPER, account.provider().name(),
                         account.providerUserId().getBytes(StandardCharsets.UTF_8))
                 .stream()
