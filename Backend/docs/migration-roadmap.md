@@ -17,7 +17,7 @@
 파이프라인이 여러 기능과 엮여 보이는 이유는 파이프라인이 **쓰기 쪽**이고 화면들이 전부 그 결과를 **읽는 쪽**이기 때문이다. 둘 사이의 계약은 테이블 여덟 개(스키마)뿐이므로 스키마를 먼저 고정하고 파이프라인 자리에 Fake를 두면 화면은 파이프라인과 무관하게 한 화면씩 붙일 수 있다. bean-fable이 이미 같은 구조(포트 3개 + Fake 3개 + afterCommit 디스패치)라서 새로 설계할 것은 없다.
 
 1. **공통 사이클과 화면 사이클을 구분한다.** 공통 사이클은 /api/v1, Swagger, 인가, 에러 계약, 페이징 규약처럼 화면과 무관한 기반 작업이고 각각 반나절에서 하루짜리다. 화면 사이클은 "피그마 화면 하나(또는 한 묶음)가 실제 HTTP로 끝까지 돈다"가 완료 조건이다.
-2. **화면 사이클의 순서는 데이터가 만들어지는 순서다.** 접수(공유) → 히스토리 → 대기함(결정) → 보관함 → 상세 → 지도 → 마이. 앞 화면이 만든 행을 뒤 화면이 읽으므로 E2E 픽스처가 자연스럽게 쌓인다.
+2. **화면 사이클의 순서는 데이터가 만들어지는 순서다.** 접수(공유) → 히스토리 → 대기함(결정) → 보관함 → 상세 → 지도 → 마이. 앞 화면이 만든 행을 뒤 화면이 읽으므로 E2E 픽스처가 자연스럽게 쌓인다. 둘이 나눠 할 때는 읽기 쪽이 SQL 픽스처로 행을 심어 쓰기 쪽을 기다리지 않는다(4절).
 3. **파이프라인 실체화는 화면이 다 돈 뒤에 어댑터 하나씩 한다.** 인스타그램 조회, AI 추출, 카카오 매칭, 구글 사진은 각각 포트 하나를 교체하는 일이고 스키마와 화면을 건드리지 않는다.
 4. **여러 테이블을 읽을 때는 서비스가 조립한다.** DAO는 한 테이블 또는 단순 조인까지만 맡고 "릴스당 최신 공유 한 건", "회원별 최신 공유에만 후보 발급" 같은 규칙은 서비스나 도메인에 둔다. bean-fable의 DAO 감사(dao-subquery-audit.md)가 SQL에 들어간 규칙 두 건(#5, #6)을 이미 지적했으니 옮길 때 그 권고대로 한다.
 5. **be-dev에서 합의된 것은 be-dev 방식으로 통일한다.** 테이블 복수형과 DATETIME(6), Instant와 주입된 Clock, 도메인당 XxxException 하나 + XxxErrorCode(noRollbackFor용 하위 예외만 예외), Fake는 test와 fake 프로필에서 @Primary, 테스트 4계층(Testcontainers MySQL). bean-fable 코드를 옮길 때 위 다섯 가지를 맞춘다.
@@ -47,7 +47,65 @@
 
 공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
 
-## 4. 사이클 로드맵
+## 4. 3일 병렬 계획 (2026-09-16 수 ~ 09-18 금)
+
+빈이 origin에 올리면 러키가 커밋 로그를 보고 머지하던 방식을, 둘이 기능을 나눠 각자 브랜치에서 만들고 PR 리뷰 뒤 be-dev에 머지하는 방식으로 바꾼다. 나누는 기준은 읽기 모델과 쓰기 모델이다. 빈이 쓰기(접수 파이프라인, 결정, 재시도, 제보), 러키가 읽기(화면 조회 API와 보관함 삭제)를 맡는다.
+
+### 4.1 충돌을 줄이는 규칙
+
+| 대상 | 규칙 |
+|---|---|
+| `schema.sql`, `cleanup.sql` | 수요일 오전 공동 PR 0에서 테이블 8개를 한 번에 확정한다. 이후 3일간 스키마 변경은 다른 작업을 섞지 않은 단독 소형 PR로만 한다 |
+| DAO | 조회 전용 DAO와 명령 DAO를 파일로 나눈다. `XxxQueryDao`는 화면 응답용 Projection만 돌려주고 상태를 바꾸지 않는다(러키). `XxxDao`는 도메인 객체를 넣고 돌려받으며 상태를 바꾼다(빈). 예외로 `SavedPlaceDao`는 러키가 R1에서 `deleteByMemberAndPlace`로 먼저 만들고 빈이 W3에서 rebase 뒤 upsert 메서드를 더한다(순차라 충돌 없음) |
+| 서비스 | 읽기 서비스(`SavedPlaceService`, `ShareQueryService`)와 쓰기 서비스(`ShareService`, `ExtractionResultRecorder`, `PlaceSelectionService`)를 다른 클래스로 둔다 |
+| 컨트롤러와 문서 인터페이스 | 자원마다 파일이 따로라 겹치지 않는다. 같은 자원의 읽기와 쓰기 엔드포인트가 한 컨트롤러에 모이는 `/shares`는 빈이 `ShareController`를 먼저 만들고 러키가 목요일 rebase 뒤 GET 메서드를 추가한다 |
+| DTO | 응답 DTO는 만든 사람이 소유한다. 공용 DTO를 만들지 않는다 |
+| `E2eTestSupport` | 건드리지 않는다. 픽스처와 헬퍼는 `SavedPlaceSqlFixture`, `ShareSqlFixture`, `ExtractionAwait`처럼 새 파일로 둔다 |
+| 브랜치와 리뷰 | `feat/#이슈-bean`, `feat/#이슈-lucky`에서 작업하고 PR은 서로 교차 리뷰한다. 상대 PR이 머지되면 그날 퇴근 전에 자기 브랜치를 be-dev에 rebase한다 |
+
+### 4.2 PR 0 (수 오전, 공동)
+
+정오 전에 머지한다. 내용은 스키마와 결정뿐이며 코드는 넣지 않는다.
+
+1. `schema.sql`에 테이블 8개를 be-dev 규칙(복수형, `DATETIME(6)`, `CREATE TABLE IF NOT EXISTS`)으로 추가한다. bean-fable의 이름을 이렇게 옮긴다.
+
+| bean-fable | be-dev | 비고 |
+|---|---|---|
+| instagram_media | instagram_posts | 게시물. shortcode UNIQUE, extraction_status, failure_reason, processing_version, caption, thumbnail_url, author |
+| media_share | media_shares | 공유 사건. member_id, post_id, shared_url, created_at |
+| media_place | media_places | 추출 사실. post_id, place_id, position |
+| share_place | share_places | 후보와 결정. share_id, place_id, position, decision_status(UNDECIDED, SAVED, DISCARDED, SUPERSEDED), decided_at |
+| place | places | 전역 장소. kakao_place_id UNIQUE, 이름, 지번, 도로명, 좌표, 카테고리, 전화, 썸네일 3열 |
+| saved_place | saved_places | 보관함. (member_id, place_id) UNIQUE, first_saved_at, last_saved_at |
+| saved_place_share | saved_place_shares | 어느 공유에서 저장했나. (saved_place_id, share_id) UNIQUE |
+| media_share_report | media_share_reports | 제보. share_id |
+
+2. `cleanup.sql`에 위 8개 TRUNCATE를 추가한다.
+3. 남은 결정 1, 3, 4를 이 PR 설명에 적어 확정한다. 자원 이름은 `/shares`, 게시물 테이블은 `instagram_posts`, 응답 DTO는 생성자 조립이 기본이고 출처가 둘 이상일 때만 정적 팩토리다. DAO 분리 규칙은 4.1에 적은 대로다.
+
+### 4.3 일정
+
+| | 빈 (쓰기) | 러키 (읽기) |
+|---|---|---|
+| 수 오전 | PR 0 (공동) | PR 0 (공동) |
+| 수 오후 | **W1 파이프라인 골격.** 포트 3개(`InstagramContentReader`, `PlaceNameExtractor`, `PlaceSearcher`)와 Fake 3개(test, fake 프로필 `@Primary`), `ExtractionProcess`, `ExtractionResultRecorder`, `ExtractionPipeline`(`@Async`, 커밋 후 디스패치), `AsyncConfig`, `InstagramPostDao`, `MediaPlaceDao`, `PlaceDao`(kakao_place_id로 get-or-create), `SharePlaceDao.issueCandidates`. 테스트는 서비스 + DB 통합으로 성공 기록과 실패 기록의 최종 상태 | **R1 보관함.** `GET /saved-places`, `GET /saved-places/{placeId}`, `DELETE /saved-places/{placeId}`. `SavedPlaceQueryDao`(places 조인, mediaCount 집계, last_saved_at 정렬), `SavedPlaceDao.deleteByMemberAndPlace`, `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs`. `@JdbcTest`와 E2E(SQL 픽스처로 회원 1, places, saved_places를 심고 `loginAsKakao("user-1")`) |
+| 목 | **W2 접수.** `POST /shares`(`ShareService.createShare`: 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 이전 미결정 SUPERSEDED, 공유 삽입, 성공본이면 후보 발급 아니면 재추출 선점, 커밋 후 디스패치), `MediaShareDao`, `ShareController` + `ShareApiDocs`, `ExtractionRecoveryRunner`. E2E는 접수 후 awaitility로 DB 상태(instagram_posts.extraction_status, share_places 행)를 확인 | **R2 관련 릴스와 히스토리.** `GET /saved-places/{placeId}/media`, `GET /shares`(커서 sharedAt, shareId), `GET /shares/{shareId}`. `ShareQueryDao`, `ShareQueryService`("릴스당 최신 공유 한 건"은 서비스에서 groupingBy). W2 머지 뒤 rebase해 `ShareController`에 GET 두 개를 추가 |
+| 금 | **W3 결정과 재시도.** `POST /shares/{shareId}/place-selections`, `place-discards`(`PlaceSelectionService`, `SharePlaceDao.markSaved/markDiscarded`, `SavedPlaceDao` upsert와 `linkShare`), `POST /shares/{shareId}/extraction-retries`, `POST /shares/{shareId}/reports`. R2 머지 뒤 접수 E2E를 `GET /shares/{shareId}` 폴링으로 보강 | **R3 대기함과 마무리.** `GET /place-candidates`(UNDECIDED 후보가 있는 공유 목록, 후보는 서비스에서 묶기), Swagger 확인, 로드맵과 FigJam 갱신. 여유가 있으면 `GET /app-update-policies`(인증 없음, `AuthenticationConfig` exclude 추가) |
+| 금 오후 | **왕복 E2E (공동).** 접수 → Fake 완료 → 대기함 조회 → 저장 → 보관함 조회 → 관련 릴스 조회를 한 시나리오로 도는 E2E 하나를 같이 쓴다. 읽기와 쓰기가 같은 스키마 해석 위에 있는지 여기서 확인한다 | (같이) |
+
+### 4.4 의존과 합류 지점
+
+- W2의 접수 E2E는 읽기 API 없이 DB 상태로 확인한다. R2가 머지되면 금요일에 `GET /shares/{shareId}` 폴링으로 보강한다.
+- R2의 `ShareController` GET 추가는 W2 머지 뒤에 한다. 목요일 오전에 W2가 안 끝났으면 러키는 `GET /saved-places/{placeId}/media`와 `ShareQueryDao`를 먼저 하고 컨트롤러 메서드는 오후에 붙인다.
+- R3의 `GET /place-candidates`는 `share_places`에 UNDECIDED 행을 SQL 픽스처로 심어 W3와 독립으로 만든다. W3의 결정 API가 같은 테이블을 바꾸지만 `SharePlaceDao`(빈)와 `ShareQueryDao`(러키)로 파일이 갈린다.
+- W3의 `SavedPlaceDao` upsert는 R1이 만든 파일에 rebase 뒤 추가한다.
+- 회원 탈퇴(`DELETE /members/me`)는 삭제 정책이 정해질 때까지 미룬다. 지도와 검색은 R1의 응답에 좌표가 들어 있으므로 별도 작업이 없다.
+
+### 4.5 다음 주부터
+
+읽기 화면이 전부 돌면 어댑터 실체화(아래 5절 사이클 8~11)는 빈이, 회원 탈퇴 정책과 앱 정책과 클라이언트 전환 준비(사이클 7, 13)는 러키가 맡는 식으로 같은 방식을 반복한다. 어댑터는 포트 하나씩 교체하는 일이라 읽기 쪽과 부딪히지 않는다.
+
+## 5. 전체 로드맵 (사이클 단위)
 
 | # | 사이클 | 종류 | 화면 | 만드는 것 | 완료 조건 |
 |---|---|---|---|---|---|
@@ -68,7 +126,7 @@
 | 14 | 데이터 이관 | 전환 | (없음) | supabase-migration-parity.md 매핑으로 1회 이관 스크립트, 검증 쿼리 | 사용자 35명 보관함 개수 일치 |
 | 15 | 컷오버 | 전환 | (없음) | 운영 배포, 강제 업데이트로 구버전 차단, Supabase 읽기 전용 → 종료 | 앱스토어 새 버전 |
 
-사이클 1부터 7까지가 끝나면 모든 화면이 Fake 파이프라인으로 실제 HTTP에서 돌고 그 시점부터 클라이언트 전환(13)을 병행할 수 있다. 어댑터 사이클(8~11)은 화면과 독립이라 페어가 나눠 맡기 좋다.
+사이클 2부터 7까지는 4절의 3일 계획으로 나눠 진행한다. 사이클 1부터 7까지가 끝나면 모든 화면이 Fake 파이프라인으로 실제 HTTP에서 돌고 그 시점부터 클라이언트 전환(13)을 병행할 수 있다. 어댑터 사이클(8~11)은 화면과 독립이라 페어가 나눠 맡기 좋다.
 
 ### 사이클별 메모
 
@@ -90,20 +148,21 @@
 
 **13 클라이언트 전환.** 바뀌는 곳은 JS 데이터 계층 10~14파일과 App.tsx의 supabase.auth 의존 5곳, 네이티브 공유 2벌이다. 로그인은 Supabase OAuth(PKCE 브라우저 세션) 대신 제공자 SDK 또는 인가 코드 콜백으로 코드를 받아 /auth/logins에 보내는 구조로 바뀐다. 공유 확장은 액세스 토큰이 만료돼 401을 받으면 결과를 PENDING_AUTH로 저장하고 앱이 포그라운드에서 갱신 후 재접수한다(남은 결정 7).
 
-## 5. 남은 결정
+## 6. 남은 결정
 
-1. **자원 이름.** bean-fable의 /media는 {id}가 공유 id라 게시물(InstagramMedia)과 헷갈린다. /shares를 제안하고, 유지하려면 /media 그대로 써도 나머지는 같다.
+1. **자원 이름.** (PR 0에서 확정) /shares. bean-fable의 /media는 {id}가 공유 id라 게시물(InstagramMedia)과 헷갈린다.
 2. **접수 멱등키.** 네이티브 공유 확장이 30초 타임아웃과 재시도를 하므로 clientRequestId(UUID)를 받아 (member_id, request_id) 유니크로 막는 쪽을 권한다. 안 받으면 재시도마다 공유 이력이 하나씩 더 생긴다.
-3. **테이블 이름.** be-dev가 복수형(members)이므로 전부 복수형으로 맞춘다. instagram_media는 instagram_posts 또는 instagram_medias 중 택일.
-4. **응답 DTO 조립.** CLAUDE.md의 bean-fable 결정은 from 정적 팩토리, be-dev #150은 보조 생성자다. 하나로 정한다.
+3. **테이블 이름.** (PR 0에서 확정) 전부 복수형이고 게시물은 instagram_posts다.
+4. **응답 DTO 조립.** (PR 0에서 확정) 생성자 조립이 기본이고 출처가 둘 이상인 DTO만 정적 팩토리를 쓴다.
 5. **탈퇴 시 제공자 연결 해제.** 운영과 같게 unlink/revoke까지 할지, 우리 DB 삭제만 할지.
 6. **대기함 다건 결정.** 공유 건마다 호출(도메인 경계와 일치) 또는 배치 엔드포인트 하나.
 7. **공유 확장의 만료 토큰.** 401 저장 후 앱 재접수(권장), 또는 확장이 직접 갱신(리프레시 회전 때문에 앱 세션이 깨지므로 비권장).
 8. **썸네일 저장소.** S3 계열 버킷 하나와 ThumbnailStore 포트. 인스타그램 직링크는 1~2주면 만료된다.
 9. **보관함 검색.** 클라이언트 메모리 필터로 시작(권장), 페이징 도입 시 서버 ?query=.
 10. **Fake 어댑터 배치.** be-dev 방식(test, fake 프로필에서 @Primary)으로 통일하고 bean-fable의 상시 @Component Fake는 버린다.
+11. **DAO 분리.** (정함, 2026-09-16) 조회 전용 `XxxQueryDao`(Projection 반환, 상태 변경 없음)와 명령 `XxxDao`(도메인 객체 입출력)를 파일로 나눈다. 두 사람이 같은 주에 같은 테이블을 만지는 동안 파일 충돌을 없애기 위한 규칙이며, 한 사람이 맡는 테이블은 나누지 않아도 된다.
 
-## 6. 부록: 운영 Supabase 구조와의 대응 요점
+## 7. 부록: 운영 Supabase 구조와의 대응 요점
 
 | 운영 | Spring | 비고 |
 |---|---|---|
@@ -118,7 +177,7 @@
 | app-update-policy | GET /app-update-policies | 설정값 |
 | reel_place_match_failures, provider_usage_monthly | 로그 계층, 사용량 카운터 | 사이클 10, 11 |
 
-## 7. 부록: 운영 Supabase에서 추가로 확인한 사실 (2026-09-16, 마이그레이션 22개와 DB 덤프 대조)
+## 8. 부록: 운영 Supabase에서 추가로 확인한 사실 (2026-09-16, 마이그레이션 22개와 DB 덤프 대조)
 
 1. **대기함은 한 번 롤백된 적이 있다.** 2026-08-27에 큐(review_status)를 도입했다가 08-28에 "대기함/히스토리 기능이 운영 앱보다 먼저 배포되어 기존 saved_places 계약이 깨진 상태"를 복구하려고 전부 되돌렸고 08-30에 v1(AUTO_SAVE)과 v2(REVIEW_QUEUE)가 같은 스키마에서 병행되도록 재도입했다. 서버 동작을 앱보다 먼저 바꾸면 깨진다는 교훈이라 컷오버(사이클 15)는 app-update-policies로 구버전을 막은 뒤에 한다.
 2. **반복 요청 처리(09-01)가 지금 구조의 기본이다.** (user_id, request_id) 멱등키, shortcode + pipeline_version 단위의 추출 캐시(reel_extractions, cacheable 플래그), 15분 stale 인수, 대기함 카드의 세대 watermark가 이때 들어왔다. 남은 결정 2(멱등키)와 사이클 12(stale 인수)의 근거다.
