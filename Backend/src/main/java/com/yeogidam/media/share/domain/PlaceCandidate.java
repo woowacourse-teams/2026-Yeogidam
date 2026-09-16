@@ -6,7 +6,8 @@ import com.yeogidam.place.domain.PlaceDecisionStatus;
 /**
  * 공유 건에 발급된 후보 하나. 추출 사실의 사본(장소)과 사용자 해석(결정)의 쌍이다.
  * 후보는 미결정(UNDECIDED)으로 태어난다. 발급 생성자가 이 규칙을 선언하고 스키마 기본값은 이중 방어다.
- * 결정은 UNDECIDED에서만 내릴 수 있고, 이미 결정된 대상에 대한 요청은 조용히 무시한다.
+ * 결정은 UNDECIDED에서만 내릴 수 있고 값은 SAVED 또는 DISCARDED뿐이다.
+ * 이미 결정된 후보를 조용히 건너뛰는 것은 PlaceCandidates의 몫이라, 후보 하나는 canDecide로 묻고 decide로 바꾼다.
  */
 public class PlaceCandidate {
 
@@ -35,12 +36,22 @@ public class PlaceCandidate {
         }
     }
 
-    public boolean decide(PlaceDecisionStatus target) {
-        if (decision != PlaceDecisionStatus.UNDECIDED) {
-            return false;
+    public boolean canDecide() {
+        return decision == PlaceDecisionStatus.UNDECIDED;
+    }
+
+    public void decide(PlaceDecisionStatus target) {
+        validateTarget(target);
+        if (!canDecide()) {
+            throw new IllegalStateException("이미 결정된 후보입니다: " + decision);
         }
         this.decision = target;
-        return true;
+    }
+
+    private void validateTarget(PlaceDecisionStatus target) {
+        if (target == null || !target.isDecision()) {
+            throw new IllegalArgumentException("후보의 결정은 SAVED 또는 DISCARDED여야 합니다: " + target);
+        }
     }
 
     public Place place() {

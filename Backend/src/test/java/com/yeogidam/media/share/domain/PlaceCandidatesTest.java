@@ -11,7 +11,9 @@ import com.yeogidam.place.domain.PlaceDecisionStatus;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
 
 /**
  * 후보 밖 장소가 섞인 요청은 SharedInstagramMediaTest가 공유 건을 통해 검증하므로 여기서는 반복하지 않는다.
@@ -75,6 +77,23 @@ class PlaceCandidatesTest {
         assertThatThrownBy(() -> candidates.decide(placeIds, PlaceDecisionStatus.SAVED))
                 .isInstanceOfSatisfying(MediaException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.EMPTY_PLACE_SELECTION));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @EnumSource(value = PlaceDecisionStatus.class, names = {"UNDECIDED", "SUPERSEDED"})
+    void 저장이나_버림이_아닌_값이면_후보의_예외가_그대로_올라오고_아무_후보도_바뀌지_않는다(PlaceDecisionStatus target) {
+        // given
+        PlaceCandidates candidates = new PlaceCandidates(List.of(
+                new PlaceCandidate(place(1L)), new PlaceCandidate(place(2L), PlaceDecisionStatus.SAVED)));
+
+        // when & then
+        assertAll(
+                () -> assertThatThrownBy(() -> candidates.decide(List.of(1L, 2L), target))
+                        .isInstanceOf(IllegalArgumentException.class),
+                () -> assertThat(decisionOf(candidates, 1L)).isEqualTo(PlaceDecisionStatus.UNDECIDED),
+                () -> assertThat(decisionOf(candidates, 2L)).isEqualTo(PlaceDecisionStatus.SAVED)
+        );
     }
 
     @ParameterizedTest
