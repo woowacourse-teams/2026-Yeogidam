@@ -3,6 +3,7 @@ package com.yeogidam.auth.interceptor;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
+import com.yeogidam.auth.resolver.LoginMember;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,8 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
     ) {
         String token = TokenExtractor.extract(request)
                 .orElseThrow(() -> new AuthException(AuthErrorCode.AUTHENTICATION_REQUIRED));
-        jwtTokenProvider.parseAccessToken(token);
+        Long memberId = jwtTokenProvider.parseAccessToken(token);
+        request.setAttribute(LoginMember.class.getName(), memberId);
         return true;
     }
 }

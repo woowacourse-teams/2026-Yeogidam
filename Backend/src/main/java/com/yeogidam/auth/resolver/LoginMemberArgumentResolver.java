@@ -2,10 +2,7 @@ package com.yeogidam.auth.resolver;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
-import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
-import com.yeogidam.auth.interceptor.TokenExtractor;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import org.springframework.core.MethodParameter;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.support.WebDataBinderFactory;
@@ -13,11 +10,11 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+/**
+ * LoginCheckInterceptor가 검증해 요청 속성에 저장한 회원 식별자를 컨트롤러 파라미터에 주입한다.
+ */
 @Component
-@RequiredArgsConstructor
 public class LoginMemberArgumentResolver implements HandlerMethodArgumentResolver {
-
-    private final JwtTokenProvider jwtTokenProvider;
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -33,8 +30,10 @@ public class LoginMemberArgumentResolver implements HandlerMethodArgumentResolve
             WebDataBinderFactory binderFactory
     ) {
         HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
-        String token = TokenExtractor.extract(request)
-                .orElseThrow(() -> new AuthException(AuthErrorCode.AUTHENTICATION_REQUIRED));
-        return jwtTokenProvider.parseAccessToken(token);
+        Object memberId = request.getAttribute(LoginMember.class.getName());
+        if (memberId instanceof Long value) {
+            return value;
+        }
+        throw new AuthException(AuthErrorCode.AUTHENTICATION_REQUIRED);
     }
 }

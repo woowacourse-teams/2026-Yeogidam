@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
+import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.support.JwtFixture;
 import com.yeogidam.support.MutableClock;
 import java.time.Duration;
@@ -24,12 +25,14 @@ class LoginCheckInterceptorTest {
     private final LoginCheckInterceptor interceptor = new LoginCheckInterceptor(jwtTokenProvider);
 
     @Test
-    void 유효한_액세스_토큰이면_통과한다() {
+    void 유효한_액세스_토큰이면_회원_식별자를_저장하고_통과한다() {
         // given
         String accessToken = jwtTokenProvider.createAccessToken(7L).value();
+        MockHttpServletRequest request = requestWithHeader("Bearer " + accessToken);
 
         // when & then
-        assertThat(preHandle("Bearer " + accessToken)).isTrue();
+        assertThat(interceptor.preHandle(request, new MockHttpServletResponse(), new Object())).isTrue();
+        assertThat(request.getAttribute(LoginMember.class.getName())).isEqualTo(7L);
     }
 
     @Test
@@ -60,9 +63,14 @@ class LoginCheckInterceptorTest {
     }
 
     private boolean preHandle(String authorizationHeader) {
+        MockHttpServletRequest request = requestWithHeader(authorizationHeader);
+        return interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+    }
+
+    private MockHttpServletRequest requestWithHeader(String authorizationHeader) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader(HttpHeaders.AUTHORIZATION, authorizationHeader);
-        return interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+        return request;
     }
 
     private static void assertAuthException(

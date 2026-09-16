@@ -5,24 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
-import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
 import com.yeogidam.member.domain.Member;
-import com.yeogidam.support.JwtFixture;
-import com.yeogidam.support.MutableClock;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
-import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.ServletWebRequest;
 
 /**
- * 리졸버는 MVC 인프라 컴포넌트라 직접 호출로 검증한다. 어느 파라미터를 맡는지와 토큰에서 회원 식별자를 꺼내는지를 본다.
+ * 리졸버는 MVC 인프라 컴포넌트라 직접 호출로 검증한다. 어느 파라미터를 맡는지와 요청 속성에서 회원 식별자를 꺼내는지를 본다.
  */
 class LoginMemberArgumentResolverTest {
 
-    private final JwtTokenProvider jwtTokenProvider = JwtFixture.jwtTokenProvider(new MutableClock(JwtFixture.NOW));
-    private final LoginMemberArgumentResolver resolver = new LoginMemberArgumentResolver(jwtTokenProvider);
+    private final LoginMemberArgumentResolver resolver = new LoginMemberArgumentResolver();
 
     @Test
     void 어노테이션이_있고_Long_타입이면_지원한다() throws NoSuchMethodException {
@@ -40,10 +35,25 @@ class LoginMemberArgumentResolverTest {
     }
 
     @Test
-    void 액세스_토큰의_회원_식별자를_돌려준다() throws NoSuchMethodException {
+    void 요청에_저장된_회원_식별자를_돌려준다() throws NoSuchMethodException {
         // given
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + jwtTokenProvider.createAccessToken(7L).value());
+        request.setAttribute(LoginMember.class.getName(), 7L);
+
+        // when
+        Long memberId = resolver.resolveArgument(
+                methodParameter("withAnnotation", Long.class), null, new ServletWebRequest(request), null);
+
+        // then
+        assertThat(memberId).isEqualTo(7L);
+    }
+
+    @Test
+    void 요청에_저장된_회원_식별자가_있으면_토큰을_파싱하지_않는다() throws NoSuchMethodException {
+        // given
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setAttribute(LoginMember.class.getName(), 7L);
+        request.addHeader("Authorization", "Bearer invalid-token");
 
         // when
         Long memberId = resolver.resolveArgument(
