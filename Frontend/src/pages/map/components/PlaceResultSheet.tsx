@@ -48,8 +48,6 @@ type PlaceResultSheetProps = {
   openPlace?: Place | null;
   openPlaceId?: string;
   openPlaceSignal?: number;
-  onPlaceSelected?: (place: Place) => void;
-  onPlaceDetailBack?: () => void;
   onDetailViewChange?: (isDetailView: boolean) => void;
   onAuthenticationRequired?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
@@ -60,8 +58,9 @@ const MIDDLE_SHEET_HEIGHT_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
-const DETAIL_INLINE_BOTTOM_PADDING = 24;
-const DETAIL_PAGE_BOTTOM_PADDING = 100;
+const DETAIL_PAGE_BOTTOM_PADDING = 68;
+const DETAIL_ACTION_BOTTOM_PADDING = 76;
+const RESULT_ITEM_HEIGHT = 116;
 
 function getMiddleCategory(category?: string) {
   if (!category) return undefined;
@@ -87,8 +86,6 @@ export function PlaceResultSheet({
   openPlace,
   openPlaceId,
   openPlaceSignal = 0,
-  onPlaceSelected,
-  onPlaceDetailBack,
   onDetailViewChange,
   onAuthenticationRequired,
   onSavedPlaceDeleted,
@@ -102,18 +99,22 @@ export function PlaceResultSheet({
   const [isReelsLoading, setIsReelsLoading] = useState(false);
   const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
+  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
+    null,
+  );
+  const detailEntryOffsetRef = useRef<number | null>(null);
   const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
   const middleOffset = Math.min(
     collapsedOffset,
     sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
   );
-  // When the tab bar disappears for a selected place, the sheet grows down to
-  // the bottom of the screen. Offset its middle snap by half that growth so
-  // the top edge (and its drag handle) remains in the same screen position.
-  const detailMiddleOffset = selectedPlace
-    ? Math.max(0, middleOffset - bottomTabOffset / 2)
-    : middleOffset;
+  // The sheet uses the bottom-tab offset only while showing the list. Once
+  // detail is opened its bottom edge moves to the screen edge, so preserving
+  // the same offset also preserves the sheet's existing top position.
+  const detailMiddleOffset =
+    selectedPlace && detailEntryOffsetRef.current !== null
+      ? Math.min(collapsedOffset, detailEntryOffsetRef.current)
+      : middleOffset;
   const snapOffsets = useMemo(
     () => [0, detailMiddleOffset, collapsedOffset],
     [collapsedOffset, detailMiddleOffset],
@@ -128,6 +129,12 @@ export function PlaceResultSheet({
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
   const isPageModeRef = useRef(false);
+  const resultsScrollOffsetRef = useRef(0);
+  const resultsListRef = useRef<FlatList<Place>>(null);
+  const pendingResultsScrollOffsetRef = useRef<number | null>(null);
+  const restoringResultsScrollOffsetRef = useRef<number | null>(null);
+  const restoreScheduledRef = useRef(false);
+  const isResultsUserScrollingRef = useRef(false);
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
@@ -150,6 +157,53 @@ export function PlaceResultSheet({
     },
     [onVisibleHeightChange, sheetHeight],
   );
+  const recordResultsScroll = useCallback((offset: number) => {
+    const nextOffset = Math.max(0, offset);
+    const restoringOffset = restoringResultsScrollOffsetRef.current;
+
+    // A newly mounted FlatList can emit offset=0 after the restored offset was
+    // applied. Ignore only that mount-time event. Any event during an actual
+    // user drag must always become the latest saved position.
+    if (
+      !isResultsUserScrollingRef.current &&
+      nextOffset === 0 &&
+      resultsScrollOffsetRef.current > 0
+    ) {
+      return;
+    }
+
+    if (
+      restoringOffset !== null &&
+      (isResultsUserScrollingRef.current ||
+        Math.abs(nextOffset - restoringOffset) <= 1)
+    ) {
+      restoringResultsScrollOffsetRef.current = null;
+    }
+    resultsScrollOffsetRef.current = nextOffset;
+  }, []);
+  const restoreResultsScroll = useCallback(() => {
+    const savedOffset = pendingResultsScrollOffsetRef.current;
+    if (savedOffset === null || restoreScheduledRef.current) {
+      return;
+    }
+
+    restoreScheduledRef.current = true;
+    pendingResultsScrollOffsetRef.current = null;
+    restoringResultsScrollOffsetRef.current = savedOffset;
+    resultsScrollOffsetRef.current = savedOffset;
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          restoreScheduledRef.current = false;
+          resultsListRef.current?.scrollToOffset({
+            offset: savedOffset,
+            animated: false,
+          });
+        });
+      });
+    });
+  }, []);
   useEffect(() => {
     onDetailViewChange?.(selectedPlace !== null);
   }, [onDetailViewChange, selectedPlace]);
@@ -304,6 +358,7 @@ export function PlaceResultSheet({
     if (!place) return;
 
     handledOpenPlaceSignal.current = openPlaceSignal;
+    detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
     snapTo(snapOffsets[1]);
   }, [openPlace, openPlaceId, openPlaceSignal, places, snapOffsets, snapTo]);
@@ -397,7 +452,10 @@ export function PlaceResultSheet({
   };
 
   const selectPlace = (place: Place) => {
-    onPlaceSelected?.(place);
+    pendingResultsScrollOffsetRef.current = resultsScrollOffsetRef.current;
+    restoringResultsScrollOffsetRef.current = null;
+    isResultsUserScrollingRef.current = false;
+    detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
 
     if (activeSnapIndex === 2) {
@@ -407,9 +465,9 @@ export function PlaceResultSheet({
 
   const backToPlaceList = useCallback(() => {
     setIsActionSheetVisible(false);
-    onPlaceDetailBack?.();
+    detailEntryOffsetRef.current = null;
     setSelectedPlace(null);
-  }, [onPlaceDetailBack]);
+  }, []);
 
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
@@ -450,7 +508,10 @@ export function PlaceResultSheet({
       }
 
       setDeleteError(apiError);
-      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
+      if (
+        apiError.errorCode === 'AUTH401_001' ||
+        apiError.errorCode === 'AUTH401_002'
+      ) {
         onAuthenticationRequired?.();
       }
     } finally {
@@ -471,6 +532,7 @@ export function PlaceResultSheet({
         isPageMode && styles.pageSheet,
         {
           height: sheetHeight,
+          bottom: selectedPlace ? 0 : bottomTabOffset,
           transform: [{ translateY }],
         },
       ]}
@@ -495,7 +557,10 @@ export function PlaceResultSheet({
         <View style={[styles.detailArea, { height: detailVisibleHeight }]}>
           <CopyToastProvider>
             <PlaceDetailContent
-              key={selectedPlace.id}
+              // Recreate the detail scroll view when it becomes a full page so
+              // the header always starts below the status bar instead of
+              // inheriting the inline sheet's scroll position.
+              key={`${selectedPlace.id}-${isPageMode ? 'page' : 'sheet'}`}
               onBack={backToPlaceList}
               place={selectedPlace}
               reels={selectedPlaceReels}
@@ -510,17 +575,21 @@ export function PlaceResultSheet({
               // reserving the map's safe-area inset here creates a large,
               // unnecessary gap above the detail header. Keep that inset only
               // when the sheet becomes a full-screen page.
-              headerTopInset={isPageMode ? topInset : 0}
-              stickyHeaderTopInset={isPageMode ? topInset : 0}
+              headerTopInset={
+                isPageMode || activeSnapIndex === 0 ? topInset : 0
+              }
+              stickyHeaderTopInset={
+                isPageMode || activeSnapIndex === 0 ? topInset : 0
+              }
               compactHeader={!isPageMode}
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
                 isPageMode
                   ? DETAIL_PAGE_BOTTOM_PADDING
-                  : DETAIL_INLINE_BOTTOM_PADDING
+                  : DETAIL_ACTION_BOTTOM_PADDING
               }
             />
-            {isPageMode && selectedPlace.placeUrl ? (
+            {selectedPlace.placeUrl ? (
               <PlaceMapButton url={selectedPlace.placeUrl} />
             ) : null}
             <PlaceDetailActionSheet
@@ -537,7 +606,7 @@ export function PlaceResultSheet({
         </View>
       ) : (
         <FlatList
-          key={`results-${activeSnapIndex}-${isPageMode ? 'page' : 'sheet'}`}
+          ref={resultsListRef}
           data={places}
           style={styles.resultsScroll}
           contentContainerStyle={[
@@ -545,10 +614,33 @@ export function PlaceResultSheet({
             { paddingBottom: listBottomClearance },
           ]}
           keyExtractor={place => place.id}
+          getItemLayout={(_, index) => ({
+            length: RESULT_ITEM_HEIGHT,
+            offset: RESULT_ITEM_HEIGHT * index,
+            index,
+          })}
           contentInsetAdjustmentBehavior="never"
           scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
           showsVerticalScrollIndicator={false}
           scrollEnabled={activeSnapIndex !== 2}
+          onScrollBeginDrag={event => {
+            isResultsUserScrollingRef.current = true;
+            restoringResultsScrollOffsetRef.current = null;
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+          }}
+          onScroll={event => {
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+          }}
+          scrollEventThrottle={16}
+          onScrollEndDrag={event => {
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+            isResultsUserScrollingRef.current = false;
+          }}
+          onMomentumScrollEnd={event => {
+            recordResultsScroll(event.nativeEvent.contentOffset.y);
+            isResultsUserScrollingRef.current = false;
+          }}
+          onContentSizeChange={restoreResultsScroll}
           renderItem={({ item: place }) => (
             <View style={styles.result}>
               <Pressable
@@ -558,22 +650,39 @@ export function PlaceResultSheet({
                 style={styles.resultCard}
               >
                 {place.image ? (
-                  <Image source={place.image} style={[styles.photo, {width: photoWidth}]} />
+                  <Image
+                    source={place.image}
+                    style={[styles.photo, { width: photoWidth }]}
+                  />
                 ) : (
-                  <View style={[styles.photo, styles.imagePlaceholder, {width: photoWidth}]} />
+                  <View
+                    style={[
+                      styles.photo,
+                      styles.imagePlaceholder,
+                      { width: photoWidth },
+                    ]}
+                  />
                 )}
                 <View style={styles.resultText}>
                   {getMiddleCategory(place.category) ? (
                     <View style={styles.titleRow}>
-                      <Text numberOfLines={1} style={styles.name}>{place.name}</Text>
+                      <Text numberOfLines={1} style={styles.name}>
+                        {place.name}
+                      </Text>
                       <View style={styles.categoryPill}>
-                        <Text style={styles.category}>{getMiddleCategory(place.category)}</Text>
+                        <Text style={styles.category}>
+                          {getMiddleCategory(place.category)}
+                        </Text>
                       </View>
                     </View>
                   ) : (
-                    <Text numberOfLines={1} style={styles.name}>{place.name}</Text>
+                    <Text numberOfLines={1} style={styles.name}>
+                      {place.name}
+                    </Text>
                   )}
-                  <Text style={styles.address}>{place.fullAddress || place.address}</Text>
+                  <Text style={styles.address}>
+                    {place.fullAddress || place.address}
+                  </Text>
                 </View>
               </Pressable>
             </View>
@@ -647,6 +756,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   result: {
+    height: RESULT_ITEM_HEIGHT,
     paddingVertical: 12,
   },
   emptyResult: {

@@ -53,15 +53,12 @@ export function MapScreen({
     longitude: 127.0557,
     zoomLevel: 14,
   });
-  const detailEntryCameraRef = useRef<MapCamera | null>(null);
-  const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
     signal: number;
   }>({ place: null, signal: 0 });
-  const shouldRecenterMarkerAfterSheetOpen = useRef(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -73,9 +70,9 @@ export function MapScreen({
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const bottomNavigationOffset =
-    BOTTOM_NAVIGATION_BAR_HEIGHT +
-    getBottomNavigationBarOffset(bottomInset);
-  const mapBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
+    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
+
+  const sheetBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
     northLatitude: number;
@@ -157,21 +154,6 @@ export function MapScreen({
     [searchedPlaces],
   );
 
-  useEffect(() => {
-    if (
-      !shouldRecenterMarkerAfterSheetOpen.current ||
-      sheetVisibleHeight <= COLLAPSED_SHEET_HEIGHT
-    ) {
-      return;
-    }
-
-    // The initial marker move happens while the sheet is collapsed. Once the
-    // middle sheet height has been applied to the native map, move once more
-    // so the marker is centred in the remaining visible map area.
-    shouldRecenterMarkerAfterSheetOpen.current = false;
-    setCameraMoveRequestId(requestId => requestId + 1);
-  }, [sheetVisibleHeight]);
-
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
     if (!keyword) return;
@@ -239,15 +221,14 @@ export function MapScreen({
       style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
-      <View style={[styles.mapStage, { marginBottom: mapBottomOffset }]}>
-        <View style={styles.mapViewport}>
+      <View style={styles.mapStage}>
+        <View style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}>
           {mapHeight > 0 ? (
             <KakaoMapNativeComponent
               style={styles.map}
               latitude={mapCenter.latitude}
               longitude={mapCenter.longitude}
               zoomLevel={mapZoomLevel}
-              cameraMoveRequestId={cameraMoveRequestId}
               cameraFitPointsJson={cameraFitPointsJson}
               cameraFitRequestId={cameraFitRequestId}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
@@ -272,19 +253,6 @@ export function MapScreen({
                   candidate => candidate.id === event.nativeEvent.id,
                 );
                 if (!place) return;
-
-                if (
-                  place.latitude !== undefined &&
-                  place.longitude !== undefined
-                ) {
-                  detailEntryCameraRef.current = lastMapCameraRef.current;
-                  shouldRecenterMarkerAfterSheetOpen.current = true;
-                  setMapCenter({
-                    latitude: place.latitude,
-                    longitude: place.longitude,
-                  });
-                  setMapZoomLevel(17);
-                }
 
                 setOpenedMarker(current => ({
                   place,
@@ -348,7 +316,7 @@ export function MapScreen({
         ) : null}
         {mapHeight > 0 ? (
           <PlaceResultSheet
-            height={mapHeight - mapBottomOffset}
+            height={mapHeight - sheetBottomOffset}
             topInset={topInset}
             bottomTabOffset={bottomNavigationOffset}
             places={resultPlaces}
@@ -356,36 +324,6 @@ export function MapScreen({
             expandSignal={searchResultSignal}
             openPlace={openedMarker.place}
             openPlaceSignal={openedMarker.signal}
-            onPlaceSelected={place => {
-              if (
-                place.latitude === undefined ||
-                place.longitude === undefined
-              ) {
-                return;
-              }
-
-              detailEntryCameraRef.current = lastMapCameraRef.current;
-              setMapCenter({
-                latitude: place.latitude,
-                longitude: place.longitude,
-              });
-              setMapZoomLevel(17);
-              // A map can have been panned after the same coordinates were set.
-              // Incrementing this signal makes selecting that place recentre it.
-              setCameraMoveRequestId(requestId => requestId + 1);
-            }}
-            onPlaceDetailBack={() => {
-              const entryCamera = detailEntryCameraRef.current;
-              detailEntryCameraRef.current = null;
-              if (!entryCamera) return;
-
-              setMapCenter({
-                latitude: entryCamera.latitude,
-                longitude: entryCamera.longitude,
-              });
-              setMapZoomLevel(entryCamera.zoomLevel);
-              setCameraMoveRequestId(requestId => requestId + 1);
-            }}
             collapseSignal={collapseSignal}
             onDetailViewChange={isDetailView => {
               setIsPlaceDetailVisible(isDetailView);
