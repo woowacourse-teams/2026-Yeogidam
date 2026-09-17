@@ -14,8 +14,8 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
-  BOTTOM_NAVIGATION_BAR_BOTTOM_GAP,
   BOTTOM_NAVIGATION_BAR_HEIGHT,
+  getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import InboxChevronRight from '../../assets/icons/inbox-chevron-right.svg';
 import InboxHeaderFrame from '../../assets/icons/inbox-header-frame.svg';
@@ -67,8 +67,7 @@ type InBoxScreenProps = {
 
 export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps) {
   const {bottom: bottomInset} = useSafeAreaInsets();
-  const bottomActionOffset =
-    bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
+  const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
   const [items, setItems] = useState<InboxReel[]>([]);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);

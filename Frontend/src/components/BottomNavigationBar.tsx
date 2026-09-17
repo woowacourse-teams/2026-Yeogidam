@@ -14,6 +14,14 @@ type BottomNavigationBarProps = {
 export const BOTTOM_NAVIGATION_BAR_HEIGHT = 64;
 export const BOTTOM_NAVIGATION_BAR_SIDE_INSET = 16;
 export const BOTTOM_NAVIGATION_BAR_BOTTOM_GAP = 20;
+
+export function getBottomNavigationBarOffset(bottomInset: number) {
+  const bottomGap =
+    bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
+
+  return bottomInset + bottomGap;
+}
+
 const NAVIGATION_BAR_OVERLAY_FADE_HEIGHT = 60;
 
 export const bottomNavigationBarContainerStyle: ViewStyle = {
@@ -53,11 +61,10 @@ export function BottomNavigationBar({
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
-  const navigationBarBottom = bottom > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
+  const navigationBarBottom = getBottomNavigationBarOffset(bottom);
   const overlayHeight =
     BOTTOM_NAVIGATION_BAR_HEIGHT +
     navigationBarBottom +
-    bottom +
     NAVIGATION_BAR_OVERLAY_FADE_HEIGHT;
 
   return (
