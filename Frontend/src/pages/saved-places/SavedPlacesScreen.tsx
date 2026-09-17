@@ -1039,7 +1039,7 @@ export function SavedPlacesScreen({
             isDeleting && styles.deleteActionDisabled,
             pressed && styles.deleteActionPressed,
           ]}>
-          <View style={styles.deleteActionContent}>
+          <View key="saved-places-delete-action-content" style={styles.deleteActionContent}>
             <Text style={styles.deleteActionText}>
               {selectedPlaceIds.size > 0
                 ? isDeleting
@@ -1064,7 +1064,10 @@ export function SavedPlacesScreen({
             { bottom: BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 12 },
           ]}
         >
-          <View style={styles.fab}>
+          <View
+            key="saved-places-fab"
+            style={styles.fab}
+          >
             <Text style={styles.fabText}>＋</Text>
           </View>
         </Pressable>
