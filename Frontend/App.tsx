@@ -87,6 +87,7 @@ function App() {
     useState<NormalizedAuthError | null>(null);
   const lastHandledShareResultRef = useRef<string | null>(null);
   const lastLoggedShareResultsRef = useRef<string | null>(null);
+  const savedPlacesScrollOffsetRef = useRef(0);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
     null,
   );
@@ -618,9 +619,13 @@ function App() {
     if (currentScreen === 'saved') {
       return (
         <SavedPlacesScreen
+          initialScrollOffset={savedPlacesScrollOffsetRef.current}
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={place => openDetailFrom('saved', place)}
+          onScrollOffsetChange={offset => {
+            savedPlacesScrollOffsetRef.current = offset;
+          }}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
           onOpenInbox={() => openMainScreen('inBox')}
           onSharedResultConsumed={clearShareResult}
