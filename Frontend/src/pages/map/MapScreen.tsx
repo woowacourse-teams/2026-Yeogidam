@@ -8,7 +8,10 @@ import React, {
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
+import {
+  BOTTOM_NAVIGATION_BAR_HEIGHT,
+  getBottomNavigationBarOffset,
+} from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { getSavedPlaces } from '../../entities/info/api';
@@ -66,7 +69,9 @@ export function MapScreen({
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(1);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
-  const bottomNavigationOffset = BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset;
+  const bottomNavigationOffset =
+    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
+
   const sheetBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;

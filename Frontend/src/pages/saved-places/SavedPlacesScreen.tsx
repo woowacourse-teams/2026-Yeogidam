@@ -18,9 +18,9 @@ import {v4 as uuidv4} from 'uuid';
 import { supabase } from '../../lib/auth/supabase';
 
 import {
-  BOTTOM_NAVIGATION_BAR_BOTTOM_GAP,
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   bottomNavigationBarContainerStyle,
+  getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
@@ -56,6 +56,10 @@ import {
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
 const MAX_RECENT_SEARCHES = 10;
+
+// 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
+// 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
+let cachedSavedPlaces: Place[] | null = null;
 
 type ShareApiDiagnostics = {
   source: SaveSource;
@@ -148,6 +152,8 @@ function canRetryFailure(reason: string | null): boolean {
 
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place) => void;
+  initialScrollOffset?: number;
+  onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
@@ -183,6 +189,8 @@ function SavedPlacesEditAction({
 
 export function SavedPlacesScreen({
   onOpenDetail,
+  initialScrollOffset = 0,
+  onScrollOffsetChange,
   onAuthenticationRequired,
   onEditModeChange,
   onRequireLogin,
@@ -200,9 +208,13 @@ export function SavedPlacesScreen({
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] = useState(false);
   const [linkValue, setLinkValue] = useState('');
-  const [places, setPlaces] = useState<Place[]>(providedPlaces ?? []);
+  const [places, setPlaces] = useState<Place[]>(
+    providedPlaces ?? cachedSavedPlaces ?? [],
+  );
   const [error, setError] = useState<SavedPlacesApiError | null>(null);
-  const [isLoading, setIsLoading] = useState(providedPlaces === undefined);
+  const [isLoading, setIsLoading] = useState(
+    providedPlaces === undefined && cachedSavedPlaces === null,
+  );
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -223,8 +235,22 @@ export function SavedPlacesScreen({
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
-  const bottomActionOffset =
-    bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
+  const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
+
+  useEffect(() => {
+    if (isLoading || !hasSavedPlaces || initialScrollOffset <= 0) {
+      return;
+    }
+
+    const restoreScrollPosition = requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({
+        y: initialScrollOffset,
+        animated: false,
+      });
+    });
+
+    return () => cancelAnimationFrame(restoreScrollPosition);
+  }, [hasSavedPlaces, initialScrollOffset, isLoading]);
 
   useEffect(() => {
     return () => onEditModeChange?.(false);
@@ -241,6 +267,7 @@ export function SavedPlacesScreen({
     try {
       const savedPlaces = await getSavedPlaces();
       const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
+      cachedSavedPlaces = nextPlaces;
       setPlaces(nextPlaces);
       return nextPlaces;
     } catch (nextError) {
@@ -982,6 +1009,10 @@ export function SavedPlacesScreen({
             <>
               <ScrollView
                 ref={scrollViewRef}
+                onScroll={event =>
+                  onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
+                }
+                scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
               >
                 <SavedPlacesEditAction
@@ -1032,7 +1063,7 @@ export function SavedPlacesScreen({
             isDeleting && styles.deleteActionDisabled,
             pressed && styles.deleteActionPressed,
           ]}>
-          <View style={styles.deleteActionContent}>
+          <View key="saved-places-delete-action-content" style={styles.deleteActionContent}>
             <Text style={styles.deleteActionText}>
               {selectedPlaceIds.size > 0
                 ? isDeleting
@@ -1054,10 +1085,18 @@ export function SavedPlacesScreen({
           onPress={openDialog}
           style={[
             styles.fabShadow,
-            { bottom: BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 12 },
+            {
+              bottom:
+                BOTTOM_NAVIGATION_BAR_HEIGHT +
+                getBottomNavigationBarOffset(bottomInset) +
+                12,
+            },
           ]}
         >
-          <View style={styles.fab}>
+          <View
+            key="saved-places-fab"
+            style={styles.fab}
+          >
             <Text style={styles.fabText}>＋</Text>
           </View>
         </Pressable>
