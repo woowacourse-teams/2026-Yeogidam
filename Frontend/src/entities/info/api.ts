@@ -775,7 +775,34 @@ export function createSupabasePlaceReelsRepository(
         status: normalized.status ?? fallback.status,
       };
     }
-    return (body as SupabasePlaceReelResponse[]).map(toPlaceReel);
+    const relatedReels = body as SupabasePlaceReelResponse[];
+    if (relatedReels.length === 0) return [];
+
+    const reelIds = relatedReels.map(reel => reel.id).join(',');
+    const descriptionsResponse = await fetch(
+      `${options.baseUrl.replace(/\/$/, '')}/rest/v1/reels?select=id,instagram_description&id=in.(${encodeURIComponent(reelIds)})`,
+      {
+        headers: {
+          Accept: 'application/json',
+          ...(options.publishableKey ? { apikey: options.publishableKey } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      },
+    );
+    const descriptions = descriptionsResponse.ok
+      ? ((await descriptionsResponse.json()) as Array<{
+          id: string;
+          instagram_description: string | null;
+        }>)
+      : [];
+    const descriptionById = new Map(
+      descriptions.map(reel => [reel.id, reel.instagram_description]),
+    );
+
+    return relatedReels.map(reel => ({
+      ...toPlaceReel(reel),
+      instagramDescription: descriptionById.get(reel.id) ?? null,
+    }));
   };
 
   return {
