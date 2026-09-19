@@ -9,6 +9,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.share.dto.response.ShareResultResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.exception.ShareException;
 import com.yeogidam.media.share.service.ShareService;
 import com.yeogidam.support.IntegrationTestSupport;
@@ -137,6 +139,53 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
         assertThatThrownBy(() -> shareService.readShareResult(910035L, 999999L))
                 .isInstanceOf(ShareException.class)
                 .hasMessage("존재하지 않는 공유입니다.");
+    }
+
+    @Test
+    void 서비스는_히스토리_목록을_최근순_응답으로_조립한다() {
+        // given
+        insertMember(910036L, "share-service-list-user");
+        insertMedia(jdbcTemplate, 920036L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        insertMediaWithStatus(920037L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
+
+        insertSharedMedia(jdbcTemplate, 930036L, 910036L, 920036L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 930037L, 910036L, 920037L,
+                Timestamp.valueOf("2026-09-17 10:01:00"));
+
+        // when
+        ShareHistoryResponses response = shareService.readShareHistory(910036L);
+
+        // then
+        ShareHistoryResponse failed = response.sharedMedias().getFirst();
+        ShareHistoryResponse succeeded = response.sharedMedias().getLast();
+        assertAll(
+                () -> assertThat(response.sharedMedias()).hasSize(2),
+                () -> assertThat(failed.sharedMediaId()).isEqualTo(930037L),
+                () -> assertThat(failed.thumbnailUrl()).isNull(),
+                () -> assertThat(failed.caption()).isNull(),
+                () -> assertThat(failed.author()).isNull(),
+                () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
+                () -> assertThat(failed.originalUrl())
+                        .isEqualTo("https://www.instagram.com/reel/fixture-930037/"),
+                () -> assertThat(succeeded.sharedMediaId()).isEqualTo(930036L),
+                () -> assertThat(succeeded.thumbnailUrl())
+                        .isEqualTo("https://img.example.com/succeeded.jpg"),
+                () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
+                () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
+                () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
+                () -> assertThat(succeeded.originalUrl())
+                        .isEqualTo("https://www.instagram.com/reel/fixture-930036/")
+        );
+    }
+
+    @Test
+    void 서비스는_히스토리가_없으면_빈_응답을_조립한다() {
+        // when
+        ShareHistoryResponses response = shareService.readShareHistory(910037L);
+
+        // then
+        assertThat(response.sharedMedias()).isEmpty();
     }
 
     private void insertMember(Long memberId, String providerUserId) {

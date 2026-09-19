@@ -2,6 +2,7 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.media.share.dto.response.ShareResultResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class ShareController implements ShareApiDocs {
 
     private final ShareService shareService;
+
+    @Override
+    @GetMapping
+    public ResponseEntity<ShareHistoryResponses> readShareHistory(@LoginMember Long memberId) {
+        ShareHistoryResponses response = shareService.readShareHistory(memberId);
+        return ResponseEntity.ok()
+                .body(response);
+    }
 
     @Override
     @GetMapping("/{sharedMediaId}")

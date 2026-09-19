@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.support.JdbcTestSupport;
 import java.sql.Timestamp;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -91,6 +92,59 @@ class ShareDaoTest extends JdbcTestSupport {
         // then
         assertThat(otherMemberResult).isEmpty();
         assertThat(missingResult).isEmpty();
+    }
+
+    @Test
+    void 히스토리_목록을_회원별로_공유_시각과_ID_내림차순으로_조회하고_요약_필드를_매핑한다() {
+        // given
+        insertMember(jdbcTemplate, 910024L, "share-dao-list-user");
+        insertMember(jdbcTemplate, 910025L, "share-dao-list-other");
+
+        insertMedia(jdbcTemplate, 920024L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        insertMediaWithStatus(920025L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
+        insertMedia(jdbcTemplate, 920026L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
+
+        insertSharedMedia(jdbcTemplate, 930024L, 910024L, 920024L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 930025L, 910024L, 920025L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 930026L, 910025L, 920026L,
+                Timestamp.valueOf("2026-09-17 11:00:00"));
+
+        // when
+        List<ShareProjection> shares = shareDao.findShares(910024L);
+
+        // then
+        assertThat(shares)
+                .extracting(ShareProjection::sharedMediaId)
+                .containsExactly(930025L, 930024L);
+
+        ShareProjection failed = shares.getFirst();
+        ShareProjection succeeded = shares.getLast();
+        assertAll(
+                () -> assertThat(failed.thumbnailUrl()).isNull(),
+                () -> assertThat(failed.caption()).isNull(),
+                () -> assertThat(failed.author()).isNull(),
+                () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
+                () -> assertThat(failed.originalUrl())
+                        .isEqualTo("https://www.instagram.com/reel/fixture-930025/"),
+                () -> assertThat(succeeded.thumbnailUrl())
+                        .isEqualTo("https://img.example.com/succeeded.jpg"),
+                () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
+                () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
+                () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
+                () -> assertThat(succeeded.originalUrl())
+                        .isEqualTo("https://www.instagram.com/reel/fixture-930024/")
+        );
+    }
+
+    @Test
+    void 히스토리가_없으면_빈_목록을_반환한다() {
+        // when
+        List<ShareProjection> shares = shareDao.findShares(910027L);
+
+        // then
+        assertThat(shares).isEmpty();
     }
 
     private void insertMediaWithStatus(
