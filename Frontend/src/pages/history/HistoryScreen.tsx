@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -379,6 +379,9 @@ function HistoryFailureDetail({
 }
 
 export function HistoryScreen({ onBack }: HistoryScreenProps) {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(0);
+  const shouldRestoreScrollRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>([]);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -454,6 +457,11 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       failure_reason: null,
       created_at: new Date().toISOString(),
     };
+
+    // A retry adds a new item at the top, so the list should start at the top
+    // instead of restoring the position of the failed item's detail view.
+    scrollOffsetRef.current = 0;
+    shouldRestoreScrollRef.current = false;
 
     // Show the new attempt immediately while the retry request is in flight.
     setReels(current => [temporaryReel, ...current]);
@@ -571,6 +579,28 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     return () => clearInterval(poll);
   }, [reels]);
 
+  useEffect(() => {
+    if (
+      selectedSuccess ||
+      selectedFailure ||
+      loading ||
+      !shouldRestoreScrollRef.current ||
+      scrollOffsetRef.current <= 0
+    ) {
+      return;
+    }
+
+    const restoreScroll = requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({
+        y: scrollOffsetRef.current,
+        animated: false,
+      });
+      shouldRestoreScrollRef.current = false;
+    });
+
+    return () => cancelAnimationFrame(restoreScroll);
+  }, [loading, reels.length, selectedFailure, selectedSuccess]);
+
   const groupedReels = reels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
       const date = formatHistoryDate(reel.created_at);
@@ -584,6 +614,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     return (
       <HistorySuccessDetail
         onBack={() => {
+          shouldRestoreScrollRef.current = true;
           setSelectedSuccess(false);
           setSelectedReel(null);
         }}
@@ -595,6 +626,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     return (
       <HistoryFailureDetail
         onBack={() => {
+          shouldRestoreScrollRef.current = true;
           setSelectedFailure(false);
           setSelectedReel(null);
         }}
@@ -614,11 +646,13 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
         <View style={styles.headerSpacer} />
       </View>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={[
           styles.content,
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
+          scrollOffsetRef.current = nativeEvent.contentOffset.y;
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
