@@ -1,0 +1,169 @@
+package com.yeogidam.media.share;
+
+import static com.yeogidam.support.PlaceCandidateSqlFixture.insertMedia;
+import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlace;
+import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlaceCandidate;
+import static com.yeogidam.support.PlaceCandidateSqlFixture.insertSharedMedia;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
+
+import com.yeogidam.media.share.dto.response.ShareResultResponse;
+import com.yeogidam.media.share.exception.ShareException;
+import com.yeogidam.media.share.service.ShareService;
+import com.yeogidam.support.IntegrationTestSupport;
+import java.sql.Timestamp;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+class ShareServiceIntegrationTest extends IntegrationTestSupport {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ShareService shareService;
+
+    @Test
+    void 서비스는_분석_성공_결과와_장소_정보를_응답으로_조립한다() {
+        // given
+        insertMember(910030L, "share-service-success-user");
+        insertMedia(jdbcTemplate, 920030L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
+        insertSharedMedia(jdbcTemplate, 930030L, 910030L, 920030L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+
+        insertPlace(jdbcTemplate, 940030L, "첫 번째 카페", "https://img.example.com/place-1.jpg", "카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1");
+        insertPlace(jdbcTemplate, 940031L, "두 번째 카페", "https://img.example.com/place-2.jpg", "카페",
+                "부산 해운대구 중동 1-1", "부산 해운대구 해운대로 1");
+
+        insertPlaceCandidate(jdbcTemplate, 950030L, 930030L, 940030L, "UNDECIDED");
+        insertPlaceCandidate(jdbcTemplate, 950031L, 930030L, 940031L, "UNDECIDED");
+
+        // when
+        ShareResultResponse response = shareService.readShareResult(910030L, 930030L);
+
+        // then
+        assertAll(
+                () -> assertThat(response.sharedMediaId()).isEqualTo(930030L),
+                () -> assertThat(response.thumbnailUrl()).isEqualTo("https://img.example.com/media.jpg"),
+                () -> assertThat(response.caption()).isEqualTo("성수동 카페 모음"),
+                () -> assertThat(response.author()).isEqualTo("@seongsu"),
+                () -> assertThat(response.extractionStatus()).isEqualTo("SUCCEEDED"),
+                () -> assertThat(response.failureReason()).isNull(),
+                () -> assertThat(response.originalUrl())
+                        .isEqualTo("https://www.instagram.com/reel/fixture-930030/"),
+                () -> assertThat(response.places()).hasSize(2),
+                () -> assertThat(response.places().getFirst().landLotAddress())
+                        .isEqualTo("서울 성동구 성수동2가 1-1"),
+                () -> assertThat(response.places().getFirst().roadAddress())
+                        .isEqualTo("서울 성동구 연무장길 1")
+        );
+    }
+
+    @Test
+    void 서비스는_게시글_접근_실패_결과의_null_게시글_정보를_응답으로_조립한다() {
+        // given
+        insertMember(910031L, "share-service-content-unavailable-user");
+        insertMediaWithStatus(920031L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
+        insertSharedMedia(jdbcTemplate, 930031L, 910031L, 920031L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+
+        // when
+        ShareResultResponse response = shareService.readShareResult(910031L, 930031L);
+
+        // then
+        assertAll(
+                () -> assertThat(response.thumbnailUrl()).isNull(),
+                () -> assertThat(response.caption()).isNull(),
+                () -> assertThat(response.author()).isNull(),
+                () -> assertThat(response.extractionStatus()).isEqualTo("FAILED"),
+                () -> assertThat(response.failureReason()).isEqualTo("CONTENT_UNAVAILABLE"),
+                () -> assertThat(response.places()).isEmpty()
+        );
+    }
+
+    @Test
+    void 서비스는_장소_추출_실패_결과의_게시글_정보와_실패_사유를_응답으로_조립한다() {
+        // given
+        insertMember(910032L, "share-service-place-not-extracted-user");
+        insertMediaWithStatus(
+                920032L,
+                "장소가 없는 게시글",
+                "https://img.example.com/media.jpg",
+                "@author",
+                "FAILED",
+                "PLACE_NOT_EXTRACTED"
+        );
+        insertSharedMedia(jdbcTemplate, 930032L, 910032L, 920032L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+
+        // when
+        ShareResultResponse response = shareService.readShareResult(910032L, 930032L);
+
+        // then
+        assertAll(
+                () -> assertThat(response.thumbnailUrl()).isEqualTo("https://img.example.com/media.jpg"),
+                () -> assertThat(response.caption()).isEqualTo("장소가 없는 게시글"),
+                () -> assertThat(response.author()).isEqualTo("@author"),
+                () -> assertThat(response.extractionStatus()).isEqualTo("FAILED"),
+                () -> assertThat(response.failureReason()).isEqualTo("PLACE_NOT_EXTRACTED"),
+                () -> assertThat(response.places()).isEmpty()
+        );
+    }
+
+    @Test
+    void 서비스는_다른_회원의_공유를_조회하면_예외가_발생한다() {
+        // given
+        insertMember(910033L, "share-service-owner");
+        insertMember(910034L, "share-service-other");
+        insertMedia(jdbcTemplate, 920033L, "게시글", "https://img.example.com/media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 930033L, 910033L, 920033L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+
+        // when & then
+        assertThatThrownBy(() -> shareService.readShareResult(910034L, 930033L))
+                .isInstanceOf(ShareException.class)
+                .hasMessage("존재하지 않는 공유입니다.");
+    }
+
+    @Test
+    void 서비스는_없는_공유를_조회하면_예외가_발생한다() {
+        // given
+        insertMember(910035L, "share-service-missing-user");
+
+        // when & then
+        assertThatThrownBy(() -> shareService.readShareResult(910035L, 999999L))
+                .isInstanceOf(ShareException.class)
+                .hasMessage("존재하지 않는 공유입니다.");
+    }
+
+    private void insertMember(Long memberId, String providerUserId) {
+        jdbcTemplate.update("""
+                INSERT INTO members (
+                    id, oauth_provider, provider_user_id, nickname, email, image_url
+                )
+                VALUES (?, 'KAKAO', ?, ?, ?, ?)
+                """, memberId, providerUserId, providerUserId,
+                providerUserId + "@example.com", "https://img.example.com/" + providerUserId);
+    }
+
+    private void insertMediaWithStatus(
+            Long mediaId,
+            String caption,
+            String thumbnailUrl,
+            String author,
+            String extractionStatus,
+            String failureReason
+    ) {
+        jdbcTemplate.update("""
+                INSERT INTO media (
+                    id, media_shortcode, caption, thumbnail_url, author,
+                    extraction_status, failure_reason, extraction_version, source_type
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SEEDED')
+                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailUrl, author,
+                extractionStatus, failureReason);
+    }
+}
