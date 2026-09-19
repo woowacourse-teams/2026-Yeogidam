@@ -1,9 +1,9 @@
 package com.yeogidam.media.share;
 
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertMedia;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlace;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlaceCandidate;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertSharedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -31,17 +31,21 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
     void 서비스는_분석_성공_결과와_장소_정보를_응답으로_조립한다() {
         // given
         insertMember(910030L, "share-service-success-user");
-        insertMedia(jdbcTemplate, 920030L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
-        insertSharedMedia(jdbcTemplate, 930030L, 910030L, 920030L,
+        createMedia(jdbcTemplate, 920030L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
+        createSharedMedia(jdbcTemplate, 930030L, 910030L, 920030L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
-        insertPlace(jdbcTemplate, 940030L, "첫 번째 카페", "https://img.example.com/place-1.jpg", "카페",
-                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1");
-        insertPlace(jdbcTemplate, 940031L, "두 번째 카페", "https://img.example.com/place-2.jpg", "카페",
-                "부산 해운대구 중동 1-1", "부산 해운대구 해운대로 1");
+        insertPlace(jdbcTemplate, 940030L, "kakao-fixture-940030", "첫 번째 카페", "카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new java.math.BigDecimal("37.5446"),
+                new java.math.BigDecimal("127.0559"), "https://place.map.kakao.com/940030", null,
+                "https://img.example.com/place-1.jpg", null, null);
+        insertPlace(jdbcTemplate, 940031L, "kakao-fixture-940031", "두 번째 카페", "카페",
+                "부산 해운대구 중동 1-1", "부산 해운대구 해운대로 1", new java.math.BigDecimal("35.1631"),
+                new java.math.BigDecimal("129.1635"), "https://place.map.kakao.com/940031", null,
+                "https://img.example.com/place-2.jpg", null, null);
 
-        insertPlaceCandidate(jdbcTemplate, 950030L, 930030L, 940030L, "UNDECIDED");
-        insertPlaceCandidate(jdbcTemplate, 950031L, 930030L, 940031L, "UNDECIDED");
+        insertUndecidedCandidate(jdbcTemplate, 950030L, 930030L, 940030L);
+        insertUndecidedCandidate(jdbcTemplate, 950031L, 930030L, 940031L);
 
         // when
         ShareHistoryDetailResponse response = shareService.readShareHistoryDetail(910030L, 930030L);
@@ -54,7 +58,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(response.author()).isEqualTo("@seongsu"),
                 () -> assertThat(response.extractionStatus()).isEqualTo("SUCCEEDED"),
                 () -> assertThat(response.failureReason()).isNull(),
-                () -> assertThat(response.originalUrl())
+                () -> assertThat(response.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930030/"),
                 () -> assertThat(response.places()).hasSize(2),
                 () -> assertThat(response.places().getFirst().landLotAddress())
@@ -69,7 +73,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
         // given
         insertMember(910031L, "share-service-content-unavailable-user");
         insertMediaWithStatus(920031L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        insertSharedMedia(jdbcTemplate, 930031L, 910031L, 920031L,
+        createSharedMedia(jdbcTemplate, 930031L, 910031L, 920031L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -98,7 +102,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 "FAILED",
                 "PLACE_NOT_EXTRACTED"
         );
-        insertSharedMedia(jdbcTemplate, 930032L, 910032L, 920032L,
+        createSharedMedia(jdbcTemplate, 930032L, 910032L, 920032L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -120,8 +124,8 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
         // given
         insertMember(910033L, "share-service-owner");
         insertMember(910034L, "share-service-other");
-        insertMedia(jdbcTemplate, 920033L, "게시글", "https://img.example.com/media.jpg", "@author");
-        insertSharedMedia(jdbcTemplate, 930033L, 910033L, 920033L,
+        createMedia(jdbcTemplate, 920033L, "게시글", "https://img.example.com/media.jpg", "@author");
+        createSharedMedia(jdbcTemplate, 930033L, 910033L, 920033L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when & then
@@ -145,12 +149,12 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
     void 서비스는_히스토리_목록을_최근순_응답으로_조립한다() {
         // given
         insertMember(910036L, "share-service-list-user");
-        insertMedia(jdbcTemplate, 920036L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        createMedia(jdbcTemplate, 920036L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
         insertMediaWithStatus(920037L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
 
-        insertSharedMedia(jdbcTemplate, 930036L, 910036L, 920036L,
+        createSharedMedia(jdbcTemplate, 930036L, 910036L, 920036L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 930037L, 910036L, 920037L,
+        createSharedMedia(jdbcTemplate, 930037L, 910036L, 920037L,
                 Timestamp.valueOf("2026-09-17 10:01:00"));
 
         // when
@@ -166,7 +170,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(failed.caption()).isNull(),
                 () -> assertThat(failed.author()).isNull(),
                 () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
-                () -> assertThat(failed.originalUrl())
+                () -> assertThat(failed.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930037/"),
                 () -> assertThat(succeeded.sharedMediaId()).isEqualTo(930036L),
                 () -> assertThat(succeeded.thumbnailUrl())
@@ -174,7 +178,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
                 () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
                 () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
-                () -> assertThat(succeeded.originalUrl())
+                () -> assertThat(succeeded.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930036/")
         );
     }

@@ -13,7 +13,7 @@ public record ShareHistoryDetailResponse(
         String author,
         String extractionStatus,
         String failureReason,
-        String originalUrl,
+        String sharedUrl,
         List<PlaceCandidateResponse> places
 ) {
     public ShareHistoryDetailResponse(
@@ -28,9 +28,9 @@ public record ShareHistoryDetailResponse(
                 projection.author(),
                 projection.extractionStatus(),
                 projection.failureReason(),
-                projection.originalUrl(),
+                projection.sharedUrl(),
                 placeProjections.stream()
-                        .map(PlaceCandidateResponse::new)
+                        .map(PlaceCandidateResponse::from)
                         .toList()
         );
     }

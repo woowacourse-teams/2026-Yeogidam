@@ -10,6 +10,6 @@ public record ShareHistoryDetailProjection(
         String author,
         String extractionStatus,
         String failureReason,
-        String originalUrl
+        String sharedUrl
 ) {
 }

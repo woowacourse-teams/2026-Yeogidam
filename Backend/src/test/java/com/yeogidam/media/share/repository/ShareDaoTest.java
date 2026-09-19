@@ -1,8 +1,8 @@
 package com.yeogidam.media.share.repository;
 
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertMember;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertMedia;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertSharedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -27,7 +27,8 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 본인_공유_결과를_모든_필드로_매핑한다() {
         // given
-        insertMember(jdbcTemplate, 910020L, "share-dao-user");
+        insertKakaoMember(jdbcTemplate, 910020L, "share-dao-user", "share-dao-user",
+                "share-dao-user@example.com", "https://img.example.com/share-dao-user");
         insertMediaWithStatus(
                 920020L,
                 "성수동 카페 모음",
@@ -36,7 +37,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 "SUCCEEDED",
                 null
         );
-        insertSharedMedia(jdbcTemplate, 930020L, 910020L, 920020L,
+        createSharedMedia(jdbcTemplate, 930020L, 910020L, 920020L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -50,7 +51,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 () -> assertThat(result.author()).isEqualTo("@seongsu"),
                 () -> assertThat(result.extractionStatus()).isEqualTo("SUCCEEDED"),
                 () -> assertThat(result.failureReason()).isNull(),
-                () -> assertThat(result.originalUrl())
+                () -> assertThat(result.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930020/")
         );
     }
@@ -58,9 +59,11 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 게시글_접근_실패_결과의_게시글_정보_null을_매핑한다() {
         // given
-        insertMember(jdbcTemplate, 910021L, "share-dao-content-unavailable-user");
+        insertKakaoMember(jdbcTemplate, 910021L, "share-dao-content-unavailable-user",
+                "share-dao-content-unavailable-user", "share-dao-content-unavailable-user@example.com",
+                "https://img.example.com/share-dao-content-unavailable-user");
         insertMediaWithStatus(920021L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        insertSharedMedia(jdbcTemplate, 930021L, 910021L, 920021L,
+        createSharedMedia(jdbcTemplate, 930021L, 910021L, 920021L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -79,10 +82,12 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 다른_회원의_공유_결과_또는_존재하지_않는_공유_결과는_빈_Optional을_반환한다() {
         // given
-        insertMember(jdbcTemplate, 910022L, "share-dao-owner");
-        insertMember(jdbcTemplate, 910023L, "share-dao-other");
-        insertMedia(jdbcTemplate, 920022L, "게시글", "https://img.example.com/media.jpg", "@author");
-        insertSharedMedia(jdbcTemplate, 930022L, 910022L, 920022L,
+        insertKakaoMember(jdbcTemplate, 910022L, "share-dao-owner", "share-dao-owner",
+                "share-dao-owner@example.com", "https://img.example.com/share-dao-owner");
+        insertKakaoMember(jdbcTemplate, 910023L, "share-dao-other", "share-dao-other",
+                "share-dao-other@example.com", "https://img.example.com/share-dao-other");
+        createMedia(jdbcTemplate, 920022L, "게시글", "https://img.example.com/media.jpg", "@author");
+        createSharedMedia(jdbcTemplate, 930022L, 910022L, 920022L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -97,18 +102,20 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 히스토리_목록을_회원별로_공유_시각과_ID_내림차순으로_조회하고_요약_필드를_매핑한다() {
         // given
-        insertMember(jdbcTemplate, 910024L, "share-dao-list-user");
-        insertMember(jdbcTemplate, 910025L, "share-dao-list-other");
+        insertKakaoMember(jdbcTemplate, 910024L, "share-dao-list-user", "share-dao-list-user",
+                "share-dao-list-user@example.com", "https://img.example.com/share-dao-list-user");
+        insertKakaoMember(jdbcTemplate, 910025L, "share-dao-list-other", "share-dao-list-other",
+                "share-dao-list-other@example.com", "https://img.example.com/share-dao-list-other");
 
-        insertMedia(jdbcTemplate, 920024L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        createMedia(jdbcTemplate, 920024L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
         insertMediaWithStatus(920025L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        insertMedia(jdbcTemplate, 920026L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
+        createMedia(jdbcTemplate, 920026L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
 
-        insertSharedMedia(jdbcTemplate, 930024L, 910024L, 920024L,
+        createSharedMedia(jdbcTemplate, 930024L, 910024L, 920024L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 930025L, 910024L, 920025L,
+        createSharedMedia(jdbcTemplate, 930025L, 910024L, 920025L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 930026L, 910025L, 920026L,
+        createSharedMedia(jdbcTemplate, 930026L, 910025L, 920026L,
                 Timestamp.valueOf("2026-09-17 11:00:00"));
 
         // when
@@ -126,14 +133,14 @@ class ShareDaoTest extends JdbcTestSupport {
                 () -> assertThat(failed.caption()).isNull(),
                 () -> assertThat(failed.author()).isNull(),
                 () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
-                () -> assertThat(failed.originalUrl())
+                () -> assertThat(failed.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930025/"),
                 () -> assertThat(succeeded.thumbnailUrl())
                         .isEqualTo("https://img.example.com/succeeded.jpg"),
                 () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
                 () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
                 () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
-                () -> assertThat(succeeded.originalUrl())
+                () -> assertThat(succeeded.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930024/")
         );
     }

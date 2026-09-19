@@ -1,15 +1,16 @@
 package com.yeogidam.media.share;
 
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertMedia;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlace;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlaceCandidate;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertSharedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,28 +35,42 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
     void 장소_분석_성공_결과와_장소_정보를_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-result-success-user");
-        insertMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
-        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
         insertPlace(
                 jdbcTemplate,
                 301L,
+                "kakao-fixture-301",
                 "첫 번째 카페",
-                "https://img.example.com/place-1.jpg",
                 "카페",
                 "서울 성동구 성수동2가 315-11",
-                "서울 성동구 연무장9길 4"
+                "서울 성동구 연무장9길 4",
+                new BigDecimal("37.5446"),
+                new BigDecimal("127.0559"),
+                "https://place.map.kakao.com/301",
+                null,
+                "https://img.example.com/place-1.jpg",
+                null,
+                null
         );
         insertPlace(
                 jdbcTemplate,
                 302L,
+                "kakao-fixture-302",
                 "두 번째 카페",
-                "https://img.example.com/place-2.jpg",
                 "카페",
                 "부산 해운대구 중동 123-4",
-                "부산 해운대구 해운대로 123"
+                "부산 해운대구 해운대로 123",
+                new BigDecimal("35.1631"),
+                new BigDecimal("129.1635"),
+                "https://place.map.kakao.com/302",
+                null,
+                "https://img.example.com/place-2.jpg",
+                null,
+                null
         );
-        insertPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "UNDECIDED");
-        insertPlaceCandidate(jdbcTemplate, 402L, 101L, 302L, "UNDECIDED");
+        insertUndecidedCandidate(jdbcTemplate, 401L, 101L, 301L);
+        insertUndecidedCandidate(jdbcTemplate, 402L, 101L, 302L);
 
         // when & then
         givenBearer(login.accessToken())
@@ -68,7 +83,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("author", equalTo("@seongsu"))
                 .body("extractionStatus", equalTo("SUCCEEDED"))
                 .body("failureReason", equalTo(null))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(2))
                 .body("places[0].placeId", equalTo(301))
                 .body("places[0].thumbnailUrl", equalTo("https://img.example.com/place-1.jpg"))
@@ -89,7 +104,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("share-result-extracting-user");
         insertMediaWithStatus(201L, null, null, null, "EXTRACTING", null);
-        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -100,7 +115,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("thumbnailUrl", equalTo(null))
                 .body("caption", equalTo(null))
                 .body("author", equalTo(null))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(0));
     }
 
@@ -116,7 +131,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 "FAILED",
                 "CONTENT_UNAVAILABLE"
         );
-        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -127,7 +142,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("thumbnailUrl", equalTo(null))
                 .body("caption", equalTo(null))
                 .body("author", equalTo(null))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(0));
     }
 
@@ -143,7 +158,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 "FAILED",
                 "PLACE_NOT_EXTRACTED"
         );
-        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -154,7 +169,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("thumbnailUrl", equalTo("https://img.example.com/media.jpg"))
                 .body("caption", equalTo("장소가 없는 게시글"))
                 .body("author", equalTo("@author"))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(0));
     }
 
@@ -163,8 +178,8 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
         // given
         LoginResult owner = loginAsKakao("share-result-owner");
         LoginResult other = loginAsKakao("share-result-other");
-        insertMedia(jdbcTemplate, 201L, "다른 회원 미디어", "https://img.example.com/media.jpg", "@owner");
-        insertSharedMedia(jdbcTemplate, 101L, owner.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createMedia(jdbcTemplate, 201L, "다른 회원 미디어", "https://img.example.com/media.jpg", "@owner");
+        createSharedMedia(jdbcTemplate, 101L, owner.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(other.accessToken())

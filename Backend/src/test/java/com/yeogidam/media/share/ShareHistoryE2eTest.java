@@ -1,7 +1,7 @@
 package com.yeogidam.media.share;
 
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertMedia;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertSharedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,10 +35,10 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         // given
         LoginResult memberA = loginAsKakao("share-list-user-a");
         LoginResult memberB = loginAsKakao("share-list-user-b");
-        insertMedia(jdbcTemplate, 201L, "회원 A 게시글", "https://img.example.com/a.jpg", "@member-a");
-        insertMedia(jdbcTemplate, 202L, "회원 B 게시글", "https://img.example.com/b.jpg", "@member-b");
-        insertSharedMedia(jdbcTemplate, 101L, memberA.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 102L, memberB.memberId(), 202L, timestamp("2026-09-17 11:00:00"));
+        createMedia(jdbcTemplate, 201L, "회원 A 게시글", "https://img.example.com/a.jpg", "@member-a");
+        createMedia(jdbcTemplate, 202L, "회원 B 게시글", "https://img.example.com/b.jpg", "@member-b");
+        createSharedMedia(jdbcTemplate, 101L, memberA.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createSharedMedia(jdbcTemplate, 102L, memberB.memberId(), 202L, timestamp("2026-09-17 11:00:00"));
 
         // when
         List<Integer> sharedMediaIds = givenBearer(memberA.accessToken())
@@ -54,9 +54,9 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     void 같은_릴스를_다시_공유한_기록은_서로_다른_히스토리로_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-list-reshares-user");
-        insertMedia(jdbcTemplate, 201L, "같은 릴스", "https://img.example.com/media.jpg", "@author");
-        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 102L, login.memberId(), 201L, timestamp("2026-09-17 11:00:00"));
+        createMedia(jdbcTemplate, 201L, "같은 릴스", "https://img.example.com/media.jpg", "@author");
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createSharedMedia(jdbcTemplate, 102L, login.memberId(), 201L, timestamp("2026-09-17 11:00:00"));
 
         // when
         List<Integer> sharedMediaIds = givenBearer(login.accessToken())
@@ -72,10 +72,10 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     void 공유_시각과_공유_ID_내림차순으로_정렬하고_공유_요약_정보를_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-list-summary-user");
-        insertMedia(jdbcTemplate, 201L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        createMedia(jdbcTemplate, 201L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
         insertMediaWithStatus(202L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 102L, login.memberId(), 202L, timestamp("2026-09-17 10:00:00"));
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createSharedMedia(jdbcTemplate, 102L, login.memberId(), 202L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -88,13 +88,13 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .body("sharedMedias[0].caption", equalTo(null))
                 .body("sharedMedias[0].author", equalTo(null))
                 .body("sharedMedias[0].extractionStatus", equalTo("FAILED"))
-                .body("sharedMedias[0].originalUrl", equalTo("https://www.instagram.com/reel/fixture-102/"))
+                .body("sharedMedias[0].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-102/"))
                 .body("sharedMedias[1].sharedMediaId", equalTo(101))
                 .body("sharedMedias[1].thumbnailUrl", equalTo("https://img.example.com/succeeded.jpg"))
                 .body("sharedMedias[1].caption", equalTo("성공 게시글"))
                 .body("sharedMedias[1].author", equalTo("@succeeded"))
                 .body("sharedMedias[1].extractionStatus", equalTo("SUCCEEDED"))
-                .body("sharedMedias[1].originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"));
+                .body("sharedMedias[1].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"));
     }
 
     @Test
