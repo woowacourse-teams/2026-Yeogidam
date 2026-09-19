@@ -144,7 +144,16 @@ function HistoryItem({
           </>
         )}
       </View>
-      {!showSkeleton ? <Text style={styles.chevron}>›</Text> : null}
+      {!showSkeleton && !processing ? (
+        <Text style={styles.chevron}>›</Text>
+      ) : processing ? (
+        <Text
+          accessibilityElementsHidden
+          style={[styles.chevron, styles.hiddenChevron]}
+        >
+          ›
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -909,6 +918,7 @@ const styles = StyleSheet.create({
   processingText: { color: '#8e8e93' },
   title: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
   chevron: { fontSize: 32, lineHeight: 32, color: '#1c1c1e', marginRight: 5 },
+  hiddenChevron: { opacity: 0 },
   homeIndicator: {
     position: 'absolute',
     bottom: 8,
