@@ -48,8 +48,7 @@ class RefreshSessionDaoTest extends JdbcTestSupport {
     @Sql(statements = INSERT_MEMBER_AND_SESSION_SQL)
     void 저장한_세션은_같은_만료_시각으로_다시_읽힌다() {
         // given
-        Instant expiresAt = Instant.parse("2026-11-01T12:34:56.123456Z");
-
+        Instant expiresAt = Instant.parse("2026-11-01T12:34:56Z");
         // when
         refreshSessionDao.save(new RefreshSession("session-2", 1L, "hash-2", expiresAt, false));
 
