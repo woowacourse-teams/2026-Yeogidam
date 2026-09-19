@@ -1,0 +1,81 @@
+# PR 이벤트를 디스코드로 알린다. 바뀐 파일 경로로 BE(Backend/)와 FE(Frontend/) 채널을 가른다.
+# 웹훅 URL은 저장소 secrets의 DISCORD_WEBHOOK_BE, DISCORD_WEBHOOK_FE에 둔다.
+name: Discord PR notification
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened, closed]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  notify:
+    # draft PR은 리뷰 준비가 되면(ready_for_review) 알린다
+    if: github.event.pull_request.draft == false || github.event.action == 'ready_for_review'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Detect area from changed files
+        id: area
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          FILES=$(gh api "repos/$REPO/pulls/$NUMBER/files" --paginate --jq '.[].filename')
+          echo "be=$(echo "$FILES" | grep -q '^Backend/'  && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "fe=$(echo "$FILES" | grep -q '^Frontend/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Build message
+        id: msg
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          TITLE: ${{ github.event.pull_request.title }}
+          URL: ${{ github.event.pull_request.html_url }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          REVIEW_BY: ${{ github.event.review.user.login }}
+        run: |
+          case "$EVENT:$ACTION" in
+            pull_request:opened)           TEXT="📬 새 PR by $AUTHOR" ;;
+            pull_request:ready_for_review) TEXT="✅ 리뷰 준비됨 by $AUTHOR" ;;
+            pull_request:reopened)         TEXT="🔁 다시 열림 by $AUTHOR" ;;
+            pull_request:closed)
+              if [ "$MERGED" = "true" ]; then TEXT="🎉 머지됨"; else TEXT="🗑️ 닫힘"; fi ;;
+            pull_request_review:submitted)
+              case "$REVIEW_STATE" in
+                approved)          TEXT="👍 승인 by $REVIEW_BY" ;;
+                changes_requested) TEXT="🔧 수정 요청 by $REVIEW_BY" ;;
+                *)                 TEXT="📝 리뷰 코멘트 by $REVIEW_BY" ;;
+              esac ;;
+            *) TEXT="$EVENT/$ACTION" ;;
+          esac
+          {
+            echo "text<<EOF"
+            echo "$TEXT: **$TITLE**"
+            echo "$URL"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify BE channel
+        if: steps.area.outputs.be == 'true'
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BE }}
+          TEXT: ${{ steps.msg.outputs.text }}
+        run: |
+          jq -n --arg content "$TEXT" '{content: $content}' \
+            | curl -sS --fail -H "Content-Type: application/json" -d @- "$WEBHOOK"
+
+      - name: Notify FE channel
+        if: steps.area.outputs.fe == 'true'
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_FE }}
+          TEXT: ${{ steps.msg.outputs.text }}
+        run: |
+          jq -n --arg content "$TEXT" '{content: $content}' \
+            | curl -sS --fail -H "Content-Type: application/json" -d @- "$WEBHOOK"
