@@ -1,0 +1,15 @@
+package com.yeogidam.media.share.repository;
+
+import java.time.Instant;
+
+public record ShareResultProjection(
+        Long sharedMediaId,
+        Instant sharedAt,
+        String thumbnailUrl,
+        String caption,
+        String author,
+        String extractionStatus,
+        String failureReason,
+        String originalUrl
+) {
+}

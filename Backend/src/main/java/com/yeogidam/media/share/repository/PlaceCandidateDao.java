@@ -81,4 +81,22 @@ public class PlaceCandidateDao {
                 """.formatted(placeholders);
         return jdbcTemplate.query(sql, PLACE_CANDIDATE_ROW_MAPPER, sharedMediaIds.toArray());
     }
+
+    public List<PlaceCandidateProjection> findCandidates(Long sharedMediaId) {
+        String sql = """
+                SELECT pc.shared_media_id,
+                       pc.id AS candidate_id,
+                       p.id AS place_id,
+                       p.thumbnail_url,
+                       p.name,
+                       p.category,
+                       p.land_lot_address,
+                       p.road_address
+                FROM place_candidates pc
+                JOIN places p ON p.id = pc.place_id
+                WHERE pc.shared_media_id = ?
+                ORDER BY pc.id ASC
+                """;
+        return jdbcTemplate.query(sql, PLACE_CANDIDATE_ROW_MAPPER, sharedMediaId);
+    }
 }

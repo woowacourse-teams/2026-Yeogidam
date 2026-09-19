@@ -1,6 +1,7 @@
 package com.yeogidam.media.share.repository;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertDiscardedCandidate;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSavedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
@@ -157,6 +158,53 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
 
         // then
         assertThat(candidates).isEmpty();
+    }
+
+    @Test
+    void 공유_결과의_모든_장소_후보를_후보_ID_오름차순으로_조회한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 910020L, "share-result-candidate-user",
+                "share-result-candidate-user", "share-result-candidate-user@example.com",
+                "https://img.example.com/share-result-candidate-user");
+        createMedia(jdbcTemplate, 920020L, "장소 모음", "https://img.example.com/media.jpg", "@author");
+        createSharedMedia(jdbcTemplate, 930020L, 910020L, 920020L,
+                timestamp("2026-09-17 10:00:00"));
+
+        insertPlace(jdbcTemplate, 940020L, "kakao-fixture-940020", "첫 장소", "카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", FIXTURE_LATITUDE,
+                FIXTURE_LONGITUDE, "https://place.map.kakao.com/940020", null,
+                "https://img.example.com/place-1.jpg", null, null);
+        insertPlace(jdbcTemplate, 940021L, "kakao-fixture-940021", "두 번째 장소", "식당",
+                "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", FIXTURE_LATITUDE,
+                FIXTURE_LONGITUDE, "https://place.map.kakao.com/940021", null,
+                "https://img.example.com/place-2.jpg", null, null);
+        insertPlace(jdbcTemplate, 940022L, "kakao-fixture-940022", "세 번째 장소", "카페",
+                "서울 중구 명동 1-1", "서울 중구 남대문로 1", FIXTURE_LATITUDE,
+                FIXTURE_LONGITUDE, "https://place.map.kakao.com/940022", null,
+                "https://img.example.com/place-3.jpg", null, null);
+
+        insertDiscardedCandidate(jdbcTemplate, 950020L, 930020L, 940021L,
+                timestamp("2026-09-17 10:00:00"));
+        insertUndecidedCandidate(jdbcTemplate, 950021L, 930020L, 940020L);
+        insertSavedCandidate(jdbcTemplate, 950022L, 930020L, 940022L,
+                timestamp("2026-09-17 10:00:00"));
+
+        // when
+        List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(930020L);
+
+        // then
+        assertThat(candidates)
+                .extracting(PlaceCandidateProjection::candidateId)
+                .containsExactly(950020L, 950021L, 950022L);
+
+        PlaceCandidateProjection first = candidates.getFirst();
+        assertAll(
+                () -> assertThat(first.thumbnailUrl()).isEqualTo("https://img.example.com/place-2.jpg"),
+                () -> assertThat(first.name()).isEqualTo("두 번째 장소"),
+                () -> assertThat(first.category()).isEqualTo("식당"),
+                () -> assertThat(first.landLotAddress()).isEqualTo("서울 종로구 관철동 1-1"),
+                () -> assertThat(first.roadAddress()).isEqualTo("서울 종로구 삼일대로 1")
+        );
     }
 
     private static Timestamp timestamp(String value) {
