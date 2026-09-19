@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Animated,
 } from 'react-native';
 import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
@@ -91,6 +92,32 @@ function HistoryItem({
   const title = getHistoryTitle(reel);
   const showSkeleton = skeleton;
   const label = completed ? '성공' : processing ? '처리중' : '실패';
+  const pulse = useRef(new Animated.Value(0.45)).current;
+
+  useEffect(() => {
+    if (!processing || skeleton) {
+      pulse.stopAnimation();
+      pulse.setValue(1);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.45,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [processing, pulse, skeleton]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -115,6 +142,10 @@ function HistoryItem({
           </>
         ) : (
           <>
+            <Animated.View
+              key={processing ? 'processing-badge' : 'static-badge'}
+              style={{opacity: processing ? pulse : 1}}
+            >
             <View
               style={[
                 styles.badge,
@@ -138,6 +169,7 @@ function HistoryItem({
                 {label}
               </Text>
             </View>
+            </Animated.View>
             <Text numberOfLines={1} style={styles.title}>
               {title}
             </Text>
