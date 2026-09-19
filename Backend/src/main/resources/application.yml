@@ -1,10 +1,15 @@
+# 프로필: local(개발자 노트북), test(Gradle 테스트), dev(개발 서버), prod(운영). 사용법은 docs/profiles.md.
+# 프로필을 지정하지 않으면 local로 뜬다. 서버는 SPRING_PROFILES_ACTIVE로 명시한다.
 spring:
   config:
     import: optional:file:.env[.properties]
+  profiles:
+    default: local
 
+  # schema.sql이 DROP TABLE로 시작하므로 공통 기본값은 never다. local과 test만 always로 켠다.
   sql:
     init:
-      mode: always
+      mode: never
 
   datasource:
     url: ${DB_URL}
