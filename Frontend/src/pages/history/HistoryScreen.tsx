@@ -90,7 +90,10 @@ function HistoryItem({
     reel.processing_status === 'PENDING' ||
     reel.processing_status === 'PROCESSING';
   const title = getHistoryTitle(reel);
-  const showSkeleton = skeleton;
+  const metadataPending =
+    processing &&
+    (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel));
+  const showSkeleton = skeleton || metadataPending;
   const label = completed ? '성공' : processing ? '처리중' : '실패';
   const pulse = useRef(new Animated.Value(0.45)).current;
 
