@@ -11,7 +11,7 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.yeogidam.auth.config.oauth.AppleProperties;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
-import com.yeogidam.support.ProviderKeyFixture;
+import com.yeogidam.support.fixture.ProviderKeyFixture;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;

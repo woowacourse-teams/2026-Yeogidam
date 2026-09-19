@@ -1,8 +1,5 @@
 package com.yeogidam.place.repository;
 
-import static com.yeogidam.support.SavedPlaceSqlFixture.INSERT_MEMBERS_SQL;
-import static com.yeogidam.support.SavedPlaceSqlFixture.INSERT_PLACES_SQL;
-import static com.yeogidam.support.SavedPlaceSqlFixture.INSERT_SAVED_PLACES_SQL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -19,7 +16,7 @@ import org.springframework.test.context.jdbc.Sql;
  * 보관함 조회 쿼리의 조인, 정렬, 열 매핑이 실제 MySQL에서 동작하는지 검증한다.
  */
 @Import(SavedPlaceDao.class)
-@Sql(statements = {INSERT_MEMBERS_SQL, INSERT_PLACES_SQL, INSERT_SAVED_PLACES_SQL})
+@Sql({"/members.sql", "/places.sql", "/saved-places.sql"})
 class SavedPlaceDaoTest extends JdbcTestSupport {
 
     @Autowired

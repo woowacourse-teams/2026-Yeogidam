@@ -1,4 +1,4 @@
-package com.yeogidam.support;
+package com.yeogidam.support.fixture;
 
 import com.yeogidam.member.domain.Member;
 import com.yeogidam.member.domain.MemberProfile;

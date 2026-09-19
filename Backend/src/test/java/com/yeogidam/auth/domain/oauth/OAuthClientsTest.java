@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.yeogidam.member.domain.OAuthProvider;
-import com.yeogidam.support.FakeOAuthClient;
+import com.yeogidam.support.fake.FakeOAuthClient;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

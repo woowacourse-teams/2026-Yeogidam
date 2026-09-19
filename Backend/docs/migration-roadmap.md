@@ -1,12 +1,12 @@
 # Supabase → Spring 전환 로드맵 (화면 단위로 나눈 사이클)
 
-작성일 2026-09-16. 근거는 같은 날 읽은 네 가지다. 백엔드 세 트리(bean-fable 217a197, be-dev 1edfa26, feat/#151 작업 트리), 운영 Supabase(hbbrgudsbvnwuylxqlta, CLI 읽기 전용)와 Edge Function 저장소(Jiihyun/yeogidam 02a90f2), 클라이언트(origin/fe-dev 13c40ef), 피그마 화면 명세 1.1.0(40화면)과 FigJam 보드.
+작성일 2026-09-16, 코드 기준 갱신 2026-09-19. 근거는 작성일에 읽은 네 가지다. 백엔드 세 트리(bean-fable 217a197, be-dev 1edfa26, feat/#151 작업 트리), 운영 Supabase(hbbrgudsbvnwuylxqlta, CLI 읽기 전용)와 Edge Function 저장소(Jiihyun/yeogidam 02a90f2), 클라이언트(origin/fe-dev 13c40ef), 피그마 화면 명세 1.1.0(40화면)과 FigJam 보드.
 
 ## 1. 현재 상태
 
 | 갈래 | 상태 |
 |---|---|
-| be-dev | 도메인 객체(#138), 소셜 로그인과 재발급과 로그아웃(#150), /api/v1 접두어와 springdoc 3.1.1 문서 인터페이스와 사이클 1 인가(#162, 2026-09-16 머지, 3b89af3)까지. 테이블은 members, refresh_sessions 둘. 테스트 175건(도메인, 클라이언트 단위, @JdbcTest, 통합, E2E, 인터셉터와 리졸버 단위). |
+| be-dev | 도메인 객체(#138), 소셜 로그인과 재발급과 로그아웃(#150), /api/v1 접두어와 springdoc 3.1.1 문서 인터페이스와 사이클 1 인가(#162, 2026-09-16 머지, 3b89af3)까지. 테이블은 스키마 PR(4df7ec9)로 10개. 테스트 175건(도메인, 클라이언트 단위, @JdbcTest, 통합, E2E, 인터셉터와 리졸버 단위). 1단계 첫 슬라이스 `GET /saved-places`(#166)와 대기함 `GET /place-candidates`(#172)가 PR 중이다. |
 | bean-fable | ADR-02 구조(게시물과 공유 사건 분리, 후보와 결정 분리, 보관함 실체화)로 엔드포인트 11개가 Fake 어댑터 3종과 함께 H2에서 전 구간 돈다. 인증은 X-Member-Id 헤더. |
 | 운영 Supabase | 테이블 12개, 파이프라인 RPC 11개(service_role 전용), Edge Function 5개. 클라이언트는 읽기를 PostgREST로 직접 하고 쓰기는 대부분 Edge Function과 RPC resolve_queue_items로 한다. 사용자 35명, 공유 요청 4,438건, 장소 3,521건, 보관 3,525건. |
 | 클라이언트 | 화면 13개(연결 안 된 2개 제외). 데이터 접근은 info 도메인(프로필, 보관함, 장소별 릴스)만 Repository로 격리되어 있고 나머지(공유 접수, 상태 폴링, 히스토리, 대기함, 탈퇴, 업데이트 정책)는 모듈 함수가 Supabase를 직접 부른다. 네이티브 공유 확장 2벌이 Edge Function URL을 하드코딩한다. |
@@ -29,22 +29,22 @@
 |---|---|---|---|
 | P-1 로그인 | POST /auth/logins/{kakao,google,apple} | 토큰 쌍 + 회원 | 있음 |
 | (세션) | POST /auth/token-refreshes, POST /auth/logouts | 회전, 폐기 | 있음 |
-| P-5 마이 A, A-1 | GET /members/me | id, nickname, imageUrl, oauthProvider | 있음(사이클 1 완료) |
+| P-5 마이 A, A-1 | GET /members/me | id, nickname, email, imageUrl, oauthProvider | 있음(사이클 1 완료) |
 | P-5 회원탈퇴 B | DELETE /members/me | 204. 전 세션 폐기 + 회원 데이터 삭제 | 신규 |
 | P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl, source, clientRequestId} | 202 {shareId, extractionStatus} / 400 미지원 링크 | 이식(POST /media) |
 | P-6 히스토리 B, B-1 | GET /shares?cursor&size | {shares:[{shareId, sharedAt, thumbnailUrl, caption, author, extractionStatus, originalUrl}], nextCursor} | 이식 + 페이징 신규 |
-| P-6 성공/실패 상세 C, C-1, 접수 후 상태 폴링 | GET /shares/{shareId} | 상세 + failureReason + originalUrl + places[{placeId, name, category, addressSummary, thumbnailUrl, decisionStatus}] | 이식 |
+| P-6 성공/실패 상세 C, C-1, 접수 후 상태 폴링 | GET /shares/{shareId} | 상세 + failureReason + originalUrl + places[{placeId, name, category, landLotAddress, roadAddress, thumbnailUrl, decisionStatus}] | 이식 |
 | P-6 실패 상세 C-1 | POST /shares/{shareId}/extraction-retries, POST /shares/{shareId}/reports | 202 / 201 | 이식 |
-| P-6 대기함 A~A-5 | GET /place-candidates | UNDECIDED 후보가 있는 공유 목록. 공유마다 places[] 포함 | 신규 |
+| P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 있는 공유만, 최신순 | 신규(#172 PR 중) |
 | P-6 대기함 저장/삭제 | POST /shares/{shareId}/place-selections, POST /shares/{shareId}/place-discards {placeIds} | 201 | 이식 |
-| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | [{placeId, name, category, addressSummary, roadAddress, address, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, lastSavedAt, mediaCount}] lastSavedAt 내림차순 | 이식 + lastSavedAt 추가 |
+| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{placeId, name, category, landLotAddress, roadAddress, summaryAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, thumbnailAttribution, lastSavedAt}]} lastSavedAt 내림차순. summaryAddress는 지번의 도/시 + 시/군/구 | 이식 + lastSavedAt 추가(#166 PR 중) |
 | P-2 보관함 편집 D-1 | DELETE /saved-places/{placeId} | 204. 다건은 클라이언트 반복 호출 | 이식 |
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
 | P-3 지도 전부 | GET /saved-places (좌표 포함 전량), GET /saved-places/{placeId}/media (시트의 이미지 띠) | 지도 범위와 검색어 필터는 클라이언트 | 이식 |
-| P-4 장소 상세 전부 | GET /saved-places/{placeId}, GET /saved-places/{placeId}/media, DELETE /saved-places/{placeId} | 장소 정보 / 관련 공유 [{shareId, thumbnailUrl, author, caption, originalUrl, sharedAt}] | 상세만 신규 |
+| P-4 장소 상세 전부 | GET /saved-places/{placeId}, GET /saved-places/{placeId}/media, DELETE /saved-places/{placeId} | 장소 정보(목록 항목과 같은 모양) / 관련 공유 {media:[{shareId, thumbnailUrl, author, caption, originalUrl, sharedAt}]} | 상세만 신규 |
 | 강제 업데이트 모달 | GET /app-update-policies?platform&appVersion | {updateRequired, minimumSupportedVersion, storeUrl}, 인증 없음 | 신규 |
 
-공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
+공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 summaryAddress다. 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
 
 ## 4. 두 단계 계획 (2026-09-16 팀 결정)
 
@@ -60,7 +60,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 정오 전에 머지한다. 내용은 스키마와 결정뿐이며 코드는 넣지 않는다.
 
-1. (2026-09-16 작성, 미커밋) `schema.sql`에 테이블 8개를 추가했다. 파일은 `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들고(씨앗은 나중에 `data-local.sql`로), 시각은 `TIMESTAMP`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 상태 어휘(`extraction_status`, `source_type`, `failure_reason`, `decision_status`)는 CHECK로 막고, `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 그 아래 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. `application.yml`이 `spring.sql.init.mode: always`이므로 운영 프로필에는 `mode: never`가 반드시 있어야 한다. bean-fable의 이름은 이렇게 옮겼다.
+1. (2026-09-16 작성, 커밋 4df7ec9, be-dev 머지) `schema.sql`에 테이블 8개를 추가했다. 파일은 `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들고(씨앗은 나중에 `data-local.sql`로), 시각은 `TIMESTAMP`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 상태 어휘(`extraction_status`, `source_type`, `failure_reason`, `decision_status`)는 CHECK로 막고, `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 그 아래 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. `application.yml`이 `spring.sql.init.mode: always`이므로 운영 프로필에는 `mode: never`가 반드시 있어야 한다. bean-fable의 이름은 이렇게 옮겼다.
 
 | bean-fable | be-dev | 비고 |
 |---|---|---|
@@ -80,21 +80,21 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 ### 4.2 1단계: 읽기 API와 회원 탈퇴 (수 ~ 금, 3일)
 
-자원 단위로 task를 나눈다. 한 task를 맡은 사람이 그 자원의 조회 DAO, 서비스, 컨트롤러와 문서 인터페이스, 응답 DTO, 테스트(`@JdbcTest`, E2E)를 통째로 만든다. 읽기 task는 쓰기 API가 아직 없으므로 SQL 픽스처로 행을 심어 검증하고, 그 픽스처(`SavedPlaceSqlFixture`, `ShareSqlFixture`)는 2단계의 E2E가 다시 쓴다. 로그인은 `E2eTestSupport.loginAsKakao`를 그대로 쓴다.
+자원 단위로 task를 나눈다. 한 task를 맡은 사람이 그 자원의 조회 DAO, 서비스, 컨트롤러와 문서 인터페이스, 응답 DTO, 테스트(`@JdbcTest`, E2E)를 통째로 만든다. 읽기 task는 쓰기 API가 아직 없으므로 SQL 픽스처로 행을 심어 검증하고, 그 픽스처(`src/test/resources`의 `members.sql`, `places.sql`, `saved-places.sql` 같은 SQL 파일)는 2단계의 E2E가 다시 쓴다. 로그인은 `E2eTestSupport.loginAsKakao`를 그대로 쓴다.
 
 A와 B로 나눈다(2026-09-16 확정). A는 정콩(빈), B는 러키가 맡는다. 자원 기준으로 갈려 두 사람이 같은 파일을 만질 일이 없다.
 
-2026-09-16 오후 기준 진행 상황은 이렇다. 사이클 1 인가(#162)가 be-dev에 머지되어 `@LoginMember`와 `loginAsKakao`를 쓸 수 있고, 코드 규칙(getter 체이닝 한 줄, `ResponseEntity.ok()` 뒤 개행, DAO SQL은 메서드 안 텍스트 블록, 응답 DTO 부생성자)은 러키에게 전달했다. 이슈는 묶음별로 파고 브랜치는 이슈 번호로 `feat/#번호`처럼 만든다. PR 0은 진행 중이다.
+2026-09-19 기준 진행 상황은 이렇다. 사이클 1 인가(#162)와 PR 0 스키마(4df7ec9)가 be-dev에 있고, 코드 규칙(getter 체이닝 한 줄, `ResponseEntity.ok()` 뒤 개행, DAO SQL은 메서드 안 텍스트 블록, 응답 DTO 부생성자)은 러키에게 전달했다. 이슈는 A가 #166~#170, B가 #164부터이고 브랜치는 이슈 번호로 `feat/#번호`다. A의 첫 슬라이스 #166(보관함 목록)과 B의 #172(대기함 목록)가 PR 중이며 서로 교차 리뷰한다.
 
 | 묶음 | task | API | 만드는 것 | 크기 |
 |---|---|---|---|---|
-| A | 보관함 전체 조회 | `GET /saved-places` | `SavedPlaceQueryDao`(places 조인, mediaCount 집계, last_saved_at 정렬), `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs` | 0.5일 |
+| A | 보관함 전체 조회 | `GET /saved-places` | (#166 PR 중) `SavedPlaceDao.findAllByMember`(saved_places ⋈ places, last_saved_at 정렬)와 `SavedPlaceProjection`, `SavedPlaceResponse`(부생성자, summaryAddress 계산), `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs` | 0.5일 |
 | A | 보관함 장소 상세 조회 | `GET /saved-places/{placeId}` | 목록 항목과 같은 모양. 남의 장소는 404 | 0.25일 |
 | A | 보관함 장소 삭제 | `DELETE /saved-places/{placeId}` | `SavedPlaceDao.deleteByMemberAndPlace`. 후보와 이력은 남는다 | 0.25일 |
-| A | 장소 관련 릴스 조회 | `GET /saved-places/{placeId}/media` | `SavedPlaceQueryDao`에 조회 추가. "릴스당 최신 공유 한 건"은 서비스에서 groupingBy | 0.5일 |
+| A | 장소 관련 릴스 조회 | `GET /saved-places/{placeId}/media` | `SavedPlaceDao`에 조회 추가. "릴스당 최신 공유 한 건"은 서비스에서 groupingBy | 0.5일 |
 | A | 앱 업데이트 | `GET /app-update-policies?platform&appVersion` | 설정값 4개를 읽는 엔드포인트. 인증 없음(`AuthenticationConfig` exclude 추가) | 0.2일 |
-| B | 대기함 목록 조회 | `GET /place-candidates` | UNDECIDED 후보가 있는 공유를 최신순으로 읽고 후보(place_candidates ⋈ places)를 한 번 더 읽어 서비스에서 묶는다. `PlaceCandidateController` + `PlaceCandidateApiDocs` | 0.75일 |
-| B | 히스토리 목록 조회 | `GET /shares?cursor&size` | `ShareQueryDao`, `ShareQueryService`, `ShareController`(GET만) + `ShareApiDocs`. 커서는 (sharedAt, shareId) | 0.5일 |
+| B | 대기함 목록 조회 | `GET /place-candidates` | (#172 PR 중) `PlaceCandidateDao`가 UNDECIDED 후보가 있는 공유를 최신순으로 읽고(`findSharedMedias`) 그 공유들의 후보를 IN 조회로 한 번 더 읽어(`findUndecidedCandidates`) `PlaceCandidateResponses`에서 묶는다. `PlaceCandidateService`, `PlaceCandidateController` + `PlaceCandidateApiDocs` | 0.75일 |
+| B | 히스토리 목록 조회 | `GET /shares?cursor&size` | `ShareDao`, `ShareService`, `ShareController`(GET만) + `ShareApiDocs`. 커서는 (sharedAt, shareId) | 0.5일 |
 | B | 히스토리 결과 조회 | `GET /shares/{shareId}` | 상세 + failureReason + originalUrl + places[](decisionStatus 포함). 남의 공유는 404. 접수 후 상태 폴링도 이 API를 쓴다 | 0.5일 |
 | B | 회원 탈퇴 | `DELETE /members/me` | `MemberService.deleteMember`: 전 세션 폐기 + members 삭제(FK CASCADE). 탈퇴 뒤 같은 토큰이 401인지 E2E. 범위는 PR 0에서 정한다 | 0.5일 |
 
@@ -107,7 +107,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | `schema.sql`, `cleanup.sql` | PR 0 이후의 스키마 변경은 다른 작업을 섞지 않은 단독 소형 PR로만 한다 |
 | 컨트롤러와 문서 인터페이스 | 자원마다 파일이 따로다. `/shares`의 GET은 1단계에서 B가 만들고 POST는 2단계에서 각자 추가한다 |
 | DTO | 응답 DTO는 만든 사람이 소유한다. 공용 DTO를 만들지 않는다. 장소 목록 항목과 장소 상세처럼 모양이 같은 곳은 같은 묶음 안에서만 공유하고, A와 B에 같이 나오는 "공유 한 건"은 PR 0에서 맞춘 필드 이름을 쓴다 |
-| `E2eTestSupport` | 건드리지 않는다. A는 `SavedPlaceSqlFixture`(places, saved_places, shared_media_saved_places와 관련 릴스용 media, shared_media), B는 `ShareSqlFixture`(media, shared_media, place_candidates, places)를 각자 만든다. 같은 테이블을 두 파일이 채우는 중복은 2단계 왕복 E2E를 쓸 때 하나로 합친다 |
+| `E2eTestSupport` | 건드리지 않는다. DB 행 픽스처는 `src/test/resources/*.sql` 파일로 두고 `@Sql`로 골라 심는다(2026-09-19 결정, 자바 상수와 JdbcTemplate 헬퍼는 쓰지 않음). A는 `members.sql`, `places.sql`, `saved-places.sql`(+관련 릴스용 media, shared_media 파일), B는 media, shared_media, place_candidates 파일을 각자 만들고 겹치는 테이블은 2단계 왕복 E2E를 쓸 때 하나로 합친다 |
 | 브랜치와 리뷰 | 이슈 번호별 `feat/#번호`(예: `feat/#141`)에서 작업하고 PR은 서로 교차 리뷰한다. 상대 PR이 머지되면 그날 퇴근 전에 be-dev에 rebase한다 |
 | 완료 조건 | 표의 API가 Swagger에 보이고 E2E가 통과하며 be-dev에 머지되어 있다 |
 
@@ -115,7 +115,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 두 사람이 각각 아래 범위를 전부 만든다. 1단계에서 머지된 읽기 API 위에서 동작해야 한다.
 
-1. **파이프라인 골격.** 포트 3개(`InstagramContentReader`, `PlaceNameExtractor`, `PlaceSearcher`)와 Fake 3개(test, fake 프로필 `@Primary`), `ExtractionProcess`, `ExtractionResultRecorder`, `ExtractionPipeline`(`@Async`, 커밋 후 디스패치), `AsyncConfig`, `MediaDao`, `MediaPlaceDao`, `PlaceDao`(kakao_place_id로 get-or-create), `PlaceCandidateDao.issueCandidates`(DAO 이름은 테이블을 따른 제안).
+1. **파이프라인 골격.** 포트 3개(`InstagramContentReader`, `PlaceNameExtractor`, `PlaceSearcher`)와 Fake 3개(test, fake 프로필 `@Primary`), `ExtractionProcess`, `ExtractionResultRecorder`, `ExtractionPipeline`(`@Async`, 커밋 후 디스패치), `AsyncConfig`, `MediaDao`, `MediaPlaceDao`, `PlaceDao`(kakao_place_id로 get-or-create), `PlaceCandidateDao.issueCandidates`(DAO 이름은 테이블을 따른다. `PlaceCandidateDao`는 #172가 조회로 먼저 만들었으니 쓰기 메서드를 더한다).
 2. **접수.** `POST /shares`(`ShareService.createShare`: 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 이전 미결정 SUPERSEDED, 공유 삽입, 성공본이면 후보 발급 아니면 재추출 선점, 커밋 후 디스패치), `SharedMediaDao`, `ShareController`의 POST, `ExtractionRecoveryRunner`.
 3. **결정과 재시도.** `POST /shares/{shareId}/place-selections`, `place-discards`(`PlaceSelectionService`, `PlaceCandidateDao.markSaved/markDiscarded`, `SavedPlaceDao` upsert와 `linkShare`), `POST /shares/{shareId}/extraction-retries`, `POST /shares/{shareId}/reports`.
 
@@ -164,11 +164,11 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **1 인가 기초 작업.** (2026-09-16 완료) 구조는 spring-roomescape-waiting의 auth 패키지를 따랐다. LoginCheckInterceptor가 /api/** 중 /api/v1/auth/**를 뺀 경로에서 Bearer 토큰을 검증하고, LoginMemberArgumentResolver가 @LoginMember Long에 회원 식별자를 넣으며, 토큰 없음은 AUTH401_004, 깨지거나 만료된 토큰은 AUTH401_001이다. E2eTestSupport에 "로그인해서 액세스 토큰을 얻는" 헬퍼를 두면 이후 모든 화면 E2E가 같은 헬퍼를 쓴다. 액세스 토큰 만료 30분은 공유 확장이 같은 토큰을 쓰므로 사이클 13에서 다시 본다.
 
-**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 여기서 정하는 것이 이후 전부의 계약이다. bean-fable schema.sql의 instagram_media, media_share, media_place, share_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP, 기동마다 DROP 뒤 CREATE다. 접수 서비스(InstagramMediaService.createInstagramMedia)는 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 SUPERSEDED 닫기, 공유 삽입, 후보 발급 또는 재추출 선점, 커밋 후 디스패치까지 하나의 트랜잭션이다. 멱등키 clientRequestId를 받을지는 남은 결정 2다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기) 네 겹이다.
+**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 여기서 정하는 것이 이후 전부의 계약이다. bean-fable schema.sql의 instagram_media, media_share, media_place, share_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP, 기동마다 DROP 뒤 CREATE다. 접수 서비스(`ShareService.createShare`, 4.3)는 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 SUPERSEDED 닫기, 공유 삽입, 후보 발급 또는 재추출 선점, 커밋 후 디스패치까지 하나의 트랜잭션이다. 멱등키 clientRequestId를 받을지는 남은 결정 2다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기) 네 겹이다.
 
 **3 히스토리.** 목록은 커서(sharedAt, shareId) 페이징이고 클라이언트가 이미 같은 방식(50건)이다. 재시도는 FAILED에서만 도메인이 허용하고 DB 조건부 UPDATE가 경쟁을 막는다(bean-fable 그대로).
 
-**4 대기함.** GET /place-candidates는 서비스 오케스트레이션의 대표 예다. 회원의 공유 중 UNDECIDED 후보가 하나라도 있는 것을 최신순으로 읽고 그 공유들의 후보(place_candidates ⋈ places)를 한 번 더 읽어 서비스에서 묶는다. 결정은 공유 건 단위(SharedInstagramMedia.decidePlaces)라 여러 릴스를 한 번에 고르면 클라이언트가 공유마다 호출한다(남은 결정 6).
+**4 대기함.** GET /place-candidates는 서비스 오케스트레이션의 대표 예다. 회원의 공유 중 UNDECIDED 후보가 하나라도 있는 것을 최신순으로 읽고 그 공유들의 후보(place_candidates ⋈ places)를 한 번 더 읽어 서비스에서 묶는다. 결정은 공유 건 단위(`PlaceCandidates.decide(placeIds, target)`)라 여러 릴스를 한 번에 고르면 클라이언트가 공유마다 호출한다(남은 결정 6). 응답 모양은 3절 표에 적었다(#172).
 
 **5 보관함과 장소 상세.** 보관함 응답에 lastSavedAt을 넣어 정렬 근거를 준다(client-impact-report 남은 확인 2). 장소 상세는 목록 항목과 같은 모양이라 DTO를 공유한다. 관련 릴스 목록의 "릴스당 최신 공유 한 건" 규칙은 SQL 대신 서비스에서 groupingBy로 만든다.
 
@@ -187,8 +187,8 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 1. **자원 이름.** (PR 0에서 확정) /shares. bean-fable의 /media는 {id}가 공유 id라 게시물(InstagramMedia)과 헷갈린다.
 2. **접수 멱등키.** 네이티브 공유 확장이 30초 타임아웃과 재시도를 하므로 clientRequestId(UUID)를 받아 (member_id, request_id) 유니크로 막는 쪽을 권한다. 안 받으면 재시도마다 공유 이력이 하나씩 더 생긴다.
 3. **테이블 이름.** (정함, 2026-09-16) media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports. 게시물은 `media`고 FK 컬럼은 `media_id`, `shared_media_id`다.
-4. **응답 DTO 조립.** (정함, 2026-09-16) 부생성자로 조립하고 정적 팩토리(from)는 쓰지 않는다. `MemberResponse(Member member)`가 본보기다.
-5. **탈퇴 시 제공자 연결 해제.** (PR 0에서 정한다) 우리 DB 삭제만 할지, 카카오 unlink(admin key + 저장된 provider id)까지 1단계에 넣을지. 구글과 애플 revoke는 제공자 토큰이 필요해 탈퇴 화면의 재인증 코드를 그 자리에서 쓰는 방식으로 어댑터 시기에 붙인다. 애플은 계정 삭제 시 revoke를 요구하고 카카오는 로그인 검수 항목에 연결 끊기가 있어 컷오버 전에는 둘째 겹이 필요하다.
+4. **응답 DTO 조립.** (정함, 2026-09-16) 부생성자로 조립하고 정적 팩토리(from)는 쓰지 않는다. `MemberResponse(Member member)`가 본보기다. 예외 하나가 있다(2026-09-19). 항목 하나짜리 `XxxResponses(List<XxxResponse>)` 껍데기에는 `List<XxxProjection>` 부생성자를 둘 수 없어서(제네릭 소거로 정식 생성자와 시그니처가 겹침) 목록 변환은 서비스의 스트림 한 줄로 두고 항목 변환만 부생성자가 한다. 정적 팩토리를 허용할지는 PR 코멘트로 논의 중이다.
+5. **탈퇴 시 제공자 연결 해제.** (미결, B의 탈퇴 착수 전에 정한다) 우리 DB 삭제만 할지, 카카오 unlink(admin key + 저장된 provider id)까지 1단계에 넣을지. 구글과 애플 revoke는 제공자 토큰이 필요해 탈퇴 화면의 재인증 코드를 그 자리에서 쓰는 방식으로 어댑터 시기에 붙인다. 애플은 계정 삭제 시 revoke를 요구하고 카카오는 로그인 검수 항목에 연결 끊기가 있어 컷오버 전에는 둘째 겹이 필요하다.
 6. **대기함 다건 결정.** 공유 건마다 호출(도메인 경계와 일치) 또는 배치 엔드포인트 하나.
 7. **공유 확장의 만료 토큰.** 401 저장 후 앱 재접수(권장), 또는 확장이 직접 갱신(리프레시 회전 때문에 앱 세션이 깨지므로 비권장).
 8. **썸네일 저장소.** (S3로 간다, 2026-09-16) S3 버킷 하나와 ThumbnailStore 포트. 인스타그램 직링크는 1~2주면 만료된다. 버킷과 자격 증명이 준비되는 날에 맞춰 사이클 11에 넣는다.

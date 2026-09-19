@@ -1,4 +1,4 @@
-package com.yeogidam.support;
+package com.yeogidam.support.fixture;
 
 import java.time.Clock;
 import java.time.Duration;

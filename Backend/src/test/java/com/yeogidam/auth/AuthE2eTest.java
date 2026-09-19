@@ -6,7 +6,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 import com.yeogidam.support.E2eTestSupport;
-import com.yeogidam.support.FakeOAuthClient;
+import com.yeogidam.support.fake.FakeOAuthClient;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;

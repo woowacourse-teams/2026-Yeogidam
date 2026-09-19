@@ -1,7 +1,7 @@
 package com.yeogidam.member.repository;
 
-import static com.yeogidam.support.MemberFixture.kakaoMember;
-import static com.yeogidam.support.MemberFixture.profile;
+import static com.yeogidam.support.fixture.MemberFixture.kakaoMember;
+import static com.yeogidam.support.fixture.MemberFixture.profile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -21,16 +21,12 @@ import org.springframework.test.context.jdbc.Sql;
 class MemberDaoTest extends JdbcTestSupport {
 
     private static final OAuthAccount KAKAO_ACCOUNT = new OAuthAccount(OAuthProvider.KAKAO, "kakao-1");
-    private static final String INSERT_SINGLE_MEMBER_SQL = """
-            INSERT INTO members (id, oauth_provider, provider_user_id, nickname, email, image_url)
-            VALUES (1, 'KAKAO', 'kakao-1', '빈', 'bean@example.com', 'https://img.example.com/bean');
-            """;
 
     @Autowired
     private MemberDao memberDao;
 
     @Test
-    @Sql(statements = INSERT_SINGLE_MEMBER_SQL)
+    @Sql("/single-member.sql")
     void OAuth_계정으로_회원을_읽으면_모든_열이_매핑된다() {
         // when
         Member member = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();
@@ -46,7 +42,7 @@ class MemberDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    @Sql(statements = INSERT_SINGLE_MEMBER_SQL)
+    @Sql("/single-member.sql")
     void OAuth_계정_조회는_제공자와_식별자가_모두_같아야_하고_식별자의_대소문자를_구분한다() {
         assertAll(
                 () -> assertThat(memberDao.findByOAuthAccount(new OAuthAccount(OAuthProvider.GOOGLE, "kakao-1")))
@@ -58,7 +54,7 @@ class MemberDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    @Sql(statements = INSERT_SINGLE_MEMBER_SQL)
+    @Sql("/single-member.sql")
     void 식별자로_회원을_읽으면_모든_열이_매핑된다() {
         // when
         Member member = memberDao.findById(1L).orElseThrow();
@@ -74,7 +70,7 @@ class MemberDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    @Sql(statements = INSERT_SINGLE_MEMBER_SQL)
+    @Sql("/single-member.sql")
     void 없는_식별자로_읽으면_빈_값이다() {
         assertThat(memberDao.findById(999L)).isEmpty();
     }
@@ -94,7 +90,7 @@ class MemberDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    @Sql(statements = INSERT_SINGLE_MEMBER_SQL)
+    @Sql("/single-member.sql")
     void 갱신하면_프로필_세_열이_바뀐다() {
         // given
         Member member = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();

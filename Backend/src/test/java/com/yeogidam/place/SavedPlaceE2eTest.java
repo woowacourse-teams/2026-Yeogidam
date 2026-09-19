@@ -1,8 +1,5 @@
 package com.yeogidam.place;
 
-import static com.yeogidam.support.SavedPlaceSqlFixture.INSERT_MEMBERS_SQL;
-import static com.yeogidam.support.SavedPlaceSqlFixture.INSERT_PLACES_SQL;
-import static com.yeogidam.support.SavedPlaceSqlFixture.INSERT_SAVED_PLACES_SQL;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -23,7 +20,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     private static final String SAVED_PLACES_PATH = "/api/v1/saved-places";
 
     @Test
-    @Sql(statements = {INSERT_MEMBERS_SQL, INSERT_PLACES_SQL, INSERT_SAVED_PLACES_SQL})
+    @Sql({"/members.sql", "/places.sql", "/saved-places.sql"})
     void 로그인한_회원은_보관함_목록을_최근_저장_순으로_조회한다() {
         // given
         LoginResult login = loginAsKakao("user-1");

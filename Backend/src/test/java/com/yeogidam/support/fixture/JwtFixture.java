@@ -1,4 +1,4 @@
-package com.yeogidam.support;
+package com.yeogidam.support.fixture;
 
 import com.yeogidam.auth.config.AuthConfig;
 import com.yeogidam.auth.config.JwtProperties;
