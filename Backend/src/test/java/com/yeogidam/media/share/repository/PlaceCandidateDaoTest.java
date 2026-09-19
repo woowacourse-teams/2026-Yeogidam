@@ -43,6 +43,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         // given
         insertMember(jdbcTemplate, FIRST_MEMBER_ID, "lucky-1234453");
         insertMember(jdbcTemplate, SECOND_MEMBER_ID, "kong-1144254");
+
         insertMedia(jdbcTemplate, FIRST_MEDIA_ID, "오래된 미디어", "https://img.example.com/old.jpg", "@old");
         insertMedia(jdbcTemplate, SECOND_MEDIA_ID, "최신 미디어", "https://img.example.com/new.jpg", "@new");
         insertMedia(jdbcTemplate, THIRD_MEDIA_ID, "다른 회원 미디어", "https://img.example.com/other.jpg", "@other");
@@ -75,6 +76,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         assertThat(sharedMedias)
                 .extracting(SharedMediaProjection::sharedMediaId)
                 .containsExactly(SECOND_SHARED_MEDIA_ID, FIRST_SHARED_MEDIA_ID);
+
         SharedMediaProjection latest = sharedMedias.getFirst();
         assertAll(
                 () -> assertThat(latest.thumbnailUrl()).isEqualTo("https://img.example.com/new.jpg"),
@@ -124,6 +126,42 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
 
         // then
         assertThat(candidates).isEmpty();
+    }
+
+    @Test
+    void 공유_결과의_모든_장소_후보를_후보_ID_오름차순으로_조회한다() {
+        // given
+        insertMember(jdbcTemplate, 910020L, "share-result-candidate-user");
+        insertMedia(jdbcTemplate, 920020L, "장소 모음", "https://img.example.com/media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 930020L, 910020L, 920020L, timestamp("2026-09-17 10:00:00"));
+
+        insertPlace(jdbcTemplate, 940020L, "첫 장소", "https://img.example.com/place-1.jpg", "카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1");
+        insertPlace(jdbcTemplate, 940021L, "두 번째 장소", "https://img.example.com/place-2.jpg", "식당",
+                "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1");
+        insertPlace(jdbcTemplate, 940022L, "세 번째 장소", "https://img.example.com/place-3.jpg", "카페",
+                "서울 중구 명동 1-1", "서울 중구 남대문로 1");
+
+        insertPlaceCandidate(jdbcTemplate, 950020L, 930020L, 940021L, "DISCARDED");
+        insertPlaceCandidate(jdbcTemplate, 950021L, 930020L, 940020L, "UNDECIDED");
+        insertPlaceCandidate(jdbcTemplate, 950022L, 930020L, 940022L, "SAVED");
+
+        // when
+        List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(930020L);
+
+        // then
+        assertThat(candidates)
+                .extracting(PlaceCandidateProjection::candidateId)
+                .containsExactly(950020L, 950021L, 950022L);
+
+        PlaceCandidateProjection first = candidates.getFirst();
+        assertAll(
+                () -> assertThat(first.thumbnailUrl()).isEqualTo("https://img.example.com/place-2.jpg"),
+                () -> assertThat(first.name()).isEqualTo("두 번째 장소"),
+                () -> assertThat(first.category()).isEqualTo("식당"),
+                () -> assertThat(first.landLotAddress()).isEqualTo("서울 종로구 관철동 1-1"),
+                () -> assertThat(first.roadAddress()).isEqualTo("서울 종로구 삼일대로 1")
+        );
     }
 
     private static Timestamp timestamp(String value) {
