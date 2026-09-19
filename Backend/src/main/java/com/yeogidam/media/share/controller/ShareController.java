@@ -1,7 +1,7 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
-import com.yeogidam.media.share.dto.response.ShareResultResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.service.ShareService;
 import lombok.RequiredArgsConstructor;
@@ -28,11 +28,11 @@ public class ShareController implements ShareApiDocs {
 
     @Override
     @GetMapping("/{sharedMediaId}")
-    public ResponseEntity<ShareResultResponse> readShareResult(
+    public ResponseEntity<ShareHistoryDetailResponse> readShareHistoryDetail(
             @LoginMember Long memberId,
             @PathVariable Long sharedMediaId
     ) {
-        ShareResultResponse response = shareService.readShareResult(memberId, sharedMediaId);
+        ShareHistoryDetailResponse response = shareService.readShareHistoryDetail(memberId, sharedMediaId);
         return ResponseEntity.ok()
                 .body(response);
     }

@@ -2,7 +2,7 @@ package com.yeogidam.media.share.repository;
 
 import java.time.Instant;
 
-public record ShareResultProjection(
+public record ShareHistoryDetailProjection(
         Long sharedMediaId,
         Instant sharedAt,
         String thumbnailUrl,

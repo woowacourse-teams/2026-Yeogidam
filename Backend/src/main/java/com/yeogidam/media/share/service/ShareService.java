@@ -1,6 +1,6 @@
 package com.yeogidam.media.share.service;
 
-import com.yeogidam.media.share.dto.response.ShareResultResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.exception.ShareErrorCode;
 import com.yeogidam.media.share.exception.ShareException;
@@ -8,7 +8,7 @@ import com.yeogidam.media.share.repository.PlaceCandidateDao;
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
 import com.yeogidam.media.share.repository.ShareDao;
 import com.yeogidam.media.share.repository.ShareProjection;
-import com.yeogidam.media.share.repository.ShareResultProjection;
+import com.yeogidam.media.share.repository.ShareHistoryDetailProjection;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,10 +27,10 @@ public class ShareService {
         return new ShareHistoryResponses(history);
     }
 
-    public ShareResultResponse readShareResult(Long memberId, Long sharedMediaId) {
-        ShareResultProjection sharedMedia = shareDao.findShareResult(memberId, sharedMediaId)
+    public ShareHistoryDetailResponse readShareHistoryDetail(Long memberId, Long sharedMediaId) {
+        ShareHistoryDetailProjection sharedMedia = shareDao.findShareHistoryDetail(memberId, sharedMediaId)
                 .orElseThrow(() -> new ShareException(ShareErrorCode.NOT_FOUND));
         List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(sharedMediaId);
-        return new ShareResultResponse(sharedMedia, candidates);
+        return new ShareHistoryDetailResponse(sharedMedia, candidates);
     }
 }
