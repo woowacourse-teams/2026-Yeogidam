@@ -2,7 +2,7 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
-import com.yeogidam.media.share.dto.response.ShareResultResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -61,7 +61,7 @@ public interface ShareApiDocs {
             responses = {
                     @ApiResponse(responseCode = "200", description = "공유 결과 조회 성공",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ShareResultResponse.class))),
+                                    schema = @Schema(implementation = ShareHistoryDetailResponse.class))),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -82,5 +82,5 @@ public interface ShareApiDocs {
                                             {"message": "존재하지 않는 공유입니다.", "errorCode": "SHARE404_001"}
                                             """)))
             })
-    ResponseEntity<ShareResultResponse> readShareResult(Long memberId, Long sharedMediaId);
+    ResponseEntity<ShareHistoryDetailResponse> readShareHistoryDetail(Long memberId, Long sharedMediaId);
 }

@@ -40,7 +40,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareResultProjection result = shareDao.findShareResult(910020L, 930020L).orElseThrow();
+        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(910020L, 930020L).orElseThrow();
 
         // then
         assertAll(
@@ -64,7 +64,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareResultProjection result = shareDao.findShareResult(910021L, 930021L).orElseThrow();
+        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(910021L, 930021L).orElseThrow();
 
         // then
         assertAll(
@@ -86,8 +86,8 @@ class ShareDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        Optional<ShareResultProjection> otherMemberResult = shareDao.findShareResult(910023L, 930022L);
-        Optional<ShareResultProjection> missingResult = shareDao.findShareResult(910022L, 999999L);
+        Optional<ShareHistoryDetailProjection> otherMemberResult = shareDao.findShareHistoryDetail(910023L, 930022L);
+        Optional<ShareHistoryDetailProjection> missingResult = shareDao.findShareHistoryDetail(910022L, 999999L);
 
         // then
         assertThat(otherMemberResult).isEmpty();

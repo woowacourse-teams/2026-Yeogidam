@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-import com.yeogidam.media.share.dto.response.ShareResultResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.exception.ShareException;
@@ -44,7 +44,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
         insertPlaceCandidate(jdbcTemplate, 950031L, 930030L, 940031L, "UNDECIDED");
 
         // when
-        ShareResultResponse response = shareService.readShareResult(910030L, 930030L);
+        ShareHistoryDetailResponse response = shareService.readShareHistoryDetail(910030L, 930030L);
 
         // then
         assertAll(
@@ -73,7 +73,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareResultResponse response = shareService.readShareResult(910031L, 930031L);
+        ShareHistoryDetailResponse response = shareService.readShareHistoryDetail(910031L, 930031L);
 
         // then
         assertAll(
@@ -102,7 +102,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareResultResponse response = shareService.readShareResult(910032L, 930032L);
+        ShareHistoryDetailResponse response = shareService.readShareHistoryDetail(910032L, 930032L);
 
         // then
         assertAll(
@@ -125,7 +125,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when & then
-        assertThatThrownBy(() -> shareService.readShareResult(910034L, 930033L))
+        assertThatThrownBy(() -> shareService.readShareHistoryDetail(910034L, 930033L))
                 .isInstanceOf(ShareException.class)
                 .hasMessage("존재하지 않는 공유입니다.");
     }
@@ -136,7 +136,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
         insertMember(910035L, "share-service-missing-user");
 
         // when & then
-        assertThatThrownBy(() -> shareService.readShareResult(910035L, 999999L))
+        assertThatThrownBy(() -> shareService.readShareHistoryDetail(910035L, 999999L))
                 .isInstanceOf(ShareException.class)
                 .hasMessage("존재하지 않는 공유입니다.");
     }

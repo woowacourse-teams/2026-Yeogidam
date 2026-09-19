@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-class ShareResultE2eTest extends E2eTestSupport {
+class ShareHistoryDetailE2eTest extends E2eTestSupport {
 
     private static final String PATH = "/api/v1/shares/";
 

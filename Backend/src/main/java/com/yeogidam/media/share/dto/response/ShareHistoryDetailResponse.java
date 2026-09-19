@@ -1,11 +1,11 @@
 package com.yeogidam.media.share.dto.response;
 
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
-import com.yeogidam.media.share.repository.ShareResultProjection;
+import com.yeogidam.media.share.repository.ShareHistoryDetailProjection;
 import java.time.Instant;
 import java.util.List;
 
-public record ShareResultResponse(
+public record ShareHistoryDetailResponse(
         Long sharedMediaId,
         Instant sharedAt,
         String thumbnailUrl,
@@ -16,8 +16,8 @@ public record ShareResultResponse(
         String originalUrl,
         List<PlaceCandidateResponse> places
 ) {
-    public ShareResultResponse(
-            ShareResultProjection projection,
+    public ShareHistoryDetailResponse(
+            ShareHistoryDetailProjection projection,
             List<PlaceCandidateProjection> placeProjections
     ) {
         this(
