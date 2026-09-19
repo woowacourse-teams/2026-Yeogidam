@@ -54,7 +54,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(response.author()).isEqualTo("@seongsu"),
                 () -> assertThat(response.extractionStatus()).isEqualTo("SUCCEEDED"),
                 () -> assertThat(response.failureReason()).isNull(),
-                () -> assertThat(response.originalUrl())
+                () -> assertThat(response.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930030/"),
                 () -> assertThat(response.places()).hasSize(2),
                 () -> assertThat(response.places().getFirst().landLotAddress())
@@ -166,7 +166,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(failed.caption()).isNull(),
                 () -> assertThat(failed.author()).isNull(),
                 () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
-                () -> assertThat(failed.originalUrl())
+                () -> assertThat(failed.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930037/"),
                 () -> assertThat(succeeded.sharedMediaId()).isEqualTo(930036L),
                 () -> assertThat(succeeded.thumbnailUrl())
@@ -174,7 +174,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
                 () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
                 () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
-                () -> assertThat(succeeded.originalUrl())
+                () -> assertThat(succeeded.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930036/")
         );
     }

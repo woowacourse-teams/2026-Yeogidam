@@ -50,7 +50,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 () -> assertThat(result.author()).isEqualTo("@seongsu"),
                 () -> assertThat(result.extractionStatus()).isEqualTo("SUCCEEDED"),
                 () -> assertThat(result.failureReason()).isNull(),
-                () -> assertThat(result.originalUrl())
+                () -> assertThat(result.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930020/")
         );
     }
@@ -126,14 +126,14 @@ class ShareDaoTest extends JdbcTestSupport {
                 () -> assertThat(failed.caption()).isNull(),
                 () -> assertThat(failed.author()).isNull(),
                 () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
-                () -> assertThat(failed.originalUrl())
+                () -> assertThat(failed.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930025/"),
                 () -> assertThat(succeeded.thumbnailUrl())
                         .isEqualTo("https://img.example.com/succeeded.jpg"),
                 () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
                 () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
                 () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
-                () -> assertThat(succeeded.originalUrl())
+                () -> assertThat(succeeded.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-930024/")
         );
     }

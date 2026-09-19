@@ -9,6 +9,6 @@ public record ShareProjection(
         String caption,
         String author,
         String extractionStatus,
-        String originalUrl
+        String sharedUrl
 ) {
 }

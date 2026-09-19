@@ -68,7 +68,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("author", equalTo("@seongsu"))
                 .body("extractionStatus", equalTo("SUCCEEDED"))
                 .body("failureReason", equalTo(null))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(2))
                 .body("places[0].placeId", equalTo(301))
                 .body("places[0].thumbnailUrl", equalTo("https://img.example.com/place-1.jpg"))
@@ -100,7 +100,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("thumbnailUrl", equalTo(null))
                 .body("caption", equalTo(null))
                 .body("author", equalTo(null))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(0));
     }
 
@@ -127,7 +127,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("thumbnailUrl", equalTo(null))
                 .body("caption", equalTo(null))
                 .body("author", equalTo(null))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(0));
     }
 
@@ -154,7 +154,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .body("thumbnailUrl", equalTo("https://img.example.com/media.jpg"))
                 .body("caption", equalTo("장소가 없는 게시글"))
                 .body("author", equalTo("@author"))
-                .body("originalUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
+                .body("sharedUrl", equalTo("https://www.instagram.com/reel/fixture-101/"))
                 .body("places", hasSize(0));
     }
 

@@ -10,7 +10,7 @@ public record ShareHistoryResponse(
         String caption,
         String author,
         String extractionStatus,
-        String originalUrl
+        String sharedUrl
 ) {
 
     public ShareHistoryResponse(ShareProjection projection) {
@@ -21,7 +21,7 @@ public record ShareHistoryResponse(
                 projection.caption(),
                 projection.author(),
                 projection.extractionStatus(),
-                projection.originalUrl()
+                projection.sharedUrl()
         );
     }
 }
