@@ -33,3 +33,14 @@ jwt:
   issuer: yeogidam
   access-token-ttl: 30m
   refresh-token-ttl: 30d
+
+# 앱 업데이트 정책. 최소 버전 아래는 강제, 최신 버전 아래는 권고. 바꿀 때 재배포한다. 운영 값은 application-prod.yml에서 덮는다.
+app-update:
+  ios:
+    minimum-supported-version: 1.0.0
+    latest-version: 1.1.0
+    store-url: https://apps.apple.com/kr/app/id0000000000
+  android:
+    minimum-supported-version: 1.0.0
+    latest-version: 1.1.0
+    store-url: https://play.google.com/store/apps/details?id=com.yeogidam.app
