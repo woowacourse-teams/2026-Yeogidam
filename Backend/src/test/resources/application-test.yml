@@ -1,5 +1,11 @@
 # 데이터소스 접속 정보와 스키마는 MySqlContainerSupport가 Testcontainers MySQL을 띄우며 채운다.
 # Docker가 없으면 부팅에 실패하는 것이 의도된 동작이다.
+# 컨텍스트가 뜰 때마다 schema.sql로 테이블을 새로 만든다. data-local.sql은 읽지 않는다.
+spring:
+  sql:
+    init:
+      mode: always
+
 jwt:
   secret: dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LXRoaXJ0eS10d28tYnl0ZXM=
   issuer: yeogidam

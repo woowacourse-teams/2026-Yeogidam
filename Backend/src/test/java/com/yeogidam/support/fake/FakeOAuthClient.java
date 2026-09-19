@@ -1,4 +1,4 @@
-package com.yeogidam.support;
+package com.yeogidam.support.fake;
 
 import com.yeogidam.auth.domain.oauth.OAuthClient;
 import com.yeogidam.auth.domain.oauth.OAuthIdentity;

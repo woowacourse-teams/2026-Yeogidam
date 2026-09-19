@@ -18,18 +18,12 @@ import org.springframework.test.context.jdbc.Sql;
 class RefreshSessionDaoTest extends JdbcTestSupport {
 
     private static final Instant EXPIRES_AT = Instant.parse("2026-10-15T00:00:00Z");
-    private static final String INSERT_MEMBER_AND_SESSION_SQL = """
-            INSERT INTO members (id, oauth_provider, provider_user_id, nickname)
-            VALUES (1, 'KAKAO', 'kakao-1', '빈');
-            INSERT INTO refresh_sessions (id, session_id, member_id, token_hash, expires_at, revoked)
-            VALUES (10, 'session-1', 1, 'hash-1', '2026-10-15 00:00:00', FALSE);
-            """;
 
     @Autowired
     private RefreshSessionDao refreshSessionDao;
 
     @Test
-    @Sql(statements = INSERT_MEMBER_AND_SESSION_SQL)
+    @Sql({"/single-member.sql", "/refresh-session.sql"})
     void 세션_식별자로_읽으면_모든_열이_매핑되고_만료는_UTC로_읽는다() {
         // when
         RefreshSession session = refreshSessionDao.findBySessionId("session-1").orElseThrow();
@@ -45,10 +39,10 @@ class RefreshSessionDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    @Sql(statements = INSERT_MEMBER_AND_SESSION_SQL)
+    @Sql({"/single-member.sql", "/refresh-session.sql"})
     void 저장한_세션은_같은_만료_시각으로_다시_읽힌다() {
         // given
-        Instant expiresAt = Instant.parse("2026-11-01T12:34:56.123456Z");
+        Instant expiresAt = Instant.parse("2026-11-01T12:34:56Z");
 
         // when
         refreshSessionDao.save(new RefreshSession("session-2", 1L, "hash-2", expiresAt, false));
@@ -62,7 +56,7 @@ class RefreshSessionDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    @Sql(statements = INSERT_MEMBER_AND_SESSION_SQL)
+    @Sql({"/single-member.sql", "/refresh-session.sql"})
     void 갱신하면_해시와_폐기_여부만_바뀐다() {
         // given
         RefreshSession session = refreshSessionDao.findBySessionId("session-1").orElseThrow();
