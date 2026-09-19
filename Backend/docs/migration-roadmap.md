@@ -42,7 +42,7 @@
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
 | P-3 지도 전부 | GET /saved-places (좌표 포함 전량), GET /saved-places/{placeId}/media (시트의 이미지 띠) | 지도 범위와 검색어 필터는 클라이언트 | 이식 |
 | P-4 장소 상세 전부 | GET /saved-places/{placeId}, GET /saved-places/{placeId}/media, DELETE /saved-places/{placeId} | 장소 정보 / 관련 공유 [{shareId, thumbnailUrl, author, caption, originalUrl, sharedAt}] | 상세만 신규 |
-| 강제 업데이트 모달 | GET /app-update-policies?platform&appVersion | {updateRequired, minimumSupportedVersion, storeUrl}, 인증 없음 | 신규 |
+| 강제 업데이트 모달, 업데이트 권고 안내(1.2.0 앱부터) | GET /app-update-policies?platform&appVersion | {updateRequired, updateRecommended, minimumSupportedVersion, latestVersion, storeUrl}, 인증 없음. 비교는 서버가 한다 | 신규(#170 진행 중) |
 
 공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
 
@@ -92,7 +92,7 @@ A와 B로 나눈다(2026-09-16 확정). A는 정콩(빈), B는 러키가 맡는�
 | A | 보관함 장소 상세 조회 | `GET /saved-places/{placeId}` | 목록 항목과 같은 모양. 남의 장소는 404 | 0.25일 |
 | A | 보관함 장소 삭제 | `DELETE /saved-places/{placeId}` | `SavedPlaceDao.deleteByMemberAndPlace`. 후보와 이력은 남는다 | 0.25일 |
 | A | 장소 관련 릴스 조회 | `GET /saved-places/{placeId}/media` | `SavedPlaceQueryDao`에 조회 추가. "릴스당 최신 공유 한 건"은 서비스에서 groupingBy | 0.5일 |
-| A | 앱 업데이트 | `GET /app-update-policies?platform&appVersion` | 설정값 4개를 읽는 엔드포인트. 인증 없음(`AuthenticationConfig` exclude 추가) | 0.2일 |
+| A | 앱 업데이트 | `GET /app-update-policies?platform&appVersion` | 설정값 플랫폼당 3개(minimum-supported-version, latest-version, store-url)를 `application.yml`에서 읽는 엔드포인트. `AppVersion` 값 객체가 비교. 인증 없음(`AuthenticationConfig` exclude 추가) | 0.3일 |
 | B | 대기함 목록 조회 | `GET /place-candidates` | UNDECIDED 후보가 있는 공유를 최신순으로 읽고 후보(place_candidates ⋈ places)를 한 번 더 읽어 서비스에서 묶는다. `PlaceCandidateController` + `PlaceCandidateApiDocs` | 0.75일 |
 | B | 히스토리 목록 조회 | `GET /shares?cursor&size` | `ShareQueryDao`, `ShareQueryService`, `ShareController`(GET만) + `ShareApiDocs`. 커서는 (sharedAt, shareId) | 0.5일 |
 | B | 히스토리 결과 조회 | `GET /shares/{shareId}` | 상세 + failureReason + originalUrl + places[](decisionStatus 포함). 남의 공유는 404. 접수 후 상태 폴링도 이 API를 쓴다 | 0.5일 |
@@ -148,7 +148,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | 4 | 대기함 | 화면 | 대기함 A~A-5 | GET /place-candidates, place-selections, place-discards, saved_places upsert, SUPERSEDED 재공유 규칙 | 저장한 장소가 보관함에 한 행으로 생긴다 |
 | 5 | 보관함과 장소 상세 | 화면 | 보관함 A, A-1, D, D-1, 장소 상세 전부 | GET /saved-places(lastSavedAt), GET /saved-places/{placeId}, /media, DELETE | 삭제해도 후보와 이력은 남는다 |
 | 6 | 지도와 검색 | 화면 | 지도 전부, 검색 C | 좌표 포함 확인, 시트 이미지 띠(/media 재사용), 검색은 클라이언트 필터로 결정 | 핀 = saved_places 행 |
-| 7 | 회원 탈퇴와 앱 정책 | 화면 | 회원탈퇴 B, 강제 업데이트 모달 | DELETE /members/me, GET /app-update-policies(설정값) | 탈퇴 후 토큰 전부 401 |
+| 7 | 회원 탈퇴와 앱 정책 | 화면 | 회원탈퇴 B, 강제 업데이트 모달 | DELETE /members/me, GET /app-update-policies(설정값, 강제 + 권고 두 단계) | 탈퇴 후 토큰 전부 401 |
 | 8 | 인스타그램 조회 어댑터 | 어댑터 | (없음) | HTML meta 파싱(Edge Function instagram.ts 이식), 실패 사유 CONTENT_UNAVAILABLE, 썸네일 저장소 포트(S3)와 재호스팅 | 실제 릴스 링크로 캡션과 썸네일이 들어온다 |
 | 9 | AI 추출 어댑터 | 어댑터 | (없음) | Gemini 호출, 프롬프트와 JSON 스키마 이식, 타임아웃과 키 폴백 | 캡션에서 장소 후보 배열이 나온다 |
 | 10 | 카카오 매칭 어댑터 | 어댑터 | (없음) | 키워드 검색 + 주소 좌표 + AI 판정 루프(place_resolution.ts 이식), 매칭 실패 진단은 로그 | 후보가 places 행으로 저장된다 |
@@ -156,7 +156,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | 12 | 운영 장애 대비 | 공통 | (없음) | 처리 중 고착 인수(stale 15분), 기동 복구(있음), 관측 로그, 알림(선택) | 비정상 종료 뒤에도 EXTRACTING이 남지 않는다 |
 | 13 | 클라이언트 전환 | 전환 | 전부 | 인증 SDK(제공자 인가 코드 → /auth/logins), 데이터 어댑터 교체, 네이티브 공유 2벌, 토큰 저장 | Supabase 호출 0건 |
 | 14 | 데이터 이관 | 전환 | (없음) | supabase-migration-parity.md 매핑으로 1회 이관 스크립트, 검증 쿼리 | 사용자 35명 보관함 개수 일치 |
-| 15 | 컷오버 | 전환 | (없음) | 운영 배포, 강제 업데이트로 구버전 차단, Supabase 읽기 전용 → 종료 | 앱스토어 새 버전 |
+| 15 | 컷오버 | 전환 | (없음) | 운영 배포, 1.2.0 앱 점진적 출시 100% 확인, Supabase 환경변수의 최소 버전을 올려 1.1.0 차단, Supabase 읽기 전용 → 종료 | 앱스토어 새 버전 |
 
 사이클 2부터 7까지는 4절의 두 단계 계획으로 진행한다. 1단계가 사이클 3, 4, 5, 6의 읽기 부분과 사이클 7이고, 2단계가 사이클 2, 3, 4의 쓰기 부분이다. 사이클 1부터 7까지가 끝나면 모든 화면이 Fake 파이프라인으로 실제 HTTP에서 돌고 그 시점부터 클라이언트 전환(13)을 병행할 수 있다. 어댑터 사이클(8~11)은 화면과 독립이라 페어가 나눠 맡기 좋다.
 
@@ -174,7 +174,9 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **6 지도와 검색.** 지도는 보관함 목록을 좌표까지 그대로 쓰고 범위 필터는 클라이언트가 한다(현행과 같고 사용자당 평균 100건). 검색도 같은 목록의 메모리 필터로 시작하고 페이징이 필요해질 때 ?query=를 붙인다.
 
-**7 회원 탈퇴와 앱 정책.** (1단계 task) 탈퇴는 전 세션 폐기 + members와 딸린 행 삭제(FK CASCADE)로 시작한다. 운영 Edge Function은 카카오 unlink, 구글 revoke, 애플 revoke까지 했는데 be-dev는 제공자 토큰을 저장하지 않으므로 같은 동작을 하려면 탈퇴 화면의 재인증에서 받은 코드를 그 자리에서 쓴다(남은 결정 5). 앱 업데이트 정책은 설정값(application.yml) 네 개를 읽는 엔드포인트 하나다.
+**7 회원 탈퇴와 앱 정책.** (1단계 task) 탈퇴는 전 세션 폐기 + members와 딸린 행 삭제(FK CASCADE)로 시작한다. 운영 Edge Function은 카카오 unlink, 구글 revoke, 애플 revoke까지 했는데 be-dev는 제공자 토큰을 저장하지 않으므로 같은 동작을 하려면 탈퇴 화면의 재인증에서 받은 코드를 그 자리에서 쓴다(남은 결정 5). 앱 업데이트 정책은 설정값(application.yml, 플랫폼당 minimum-supported-version, latest-version, store-url)을 읽는 엔드포인트 하나다.
+
+**앱 업데이트 정책 설계 (2026-09-19 결정, #170).** 정책은 강제와 권고 두 단계다. `minimumSupportedVersion` 아래는 `updateRequired: true`(닫을 수 없는 모달, 스토어로), `latestVersion` 아래는 `updateRecommended: true`(닫을 수 있는 안내)이고 비교는 서버가 해서 boolean으로 내려준다. 값은 `application.yml`에 프로필별로 두고 바꿀 때 재배포한다. 최소 버전은 구버전이 동작하지 못하는 변화(서버 주소 변경, API 버전 제거, 보안 결함)가 있을 때만 올리고 평소 출시는 권고로 밀어 구버전 비율을 줄인다. 필드 해석은 앱 코드에 고정되어 배포된 버전에서는 바꿀 수 없으므로, 권고 UI는 1.2.0(Spring을 부르는 첫 빌드)에 넣어야 하고 그러려면 서버가 `latestVersion`, `updateRecommended`를 먼저 내려주고 있어야 한다. 지금 배포된 1.1.0 앱은 Supabase Edge Function을 부르고 필드 하나를 강제로만 해석하므로, 컷오버 날 1.1.0을 끊는 것은 Spring 값이 아니라 Supabase 환경변수(`APP_UPDATE_*_MINIMUM_SUPPORTED_VERSION`)로 한다. 스토어 점진적 출시가 100%가 된 뒤에만 최소 버전을 올린다. 버전 형식은 `주.부.수정`(두 자리는 수정 0), 앞자리 0과 접미사는 400이다. 근거 조사: 우테코 pheeeew, 소마 732, seorilabs 저장소와 RN, Expo, Firebase 문서(2026-09-19).
 
 **8~11 어댑터.** Edge Function 저장소의 instagram.ts, ai/*, kakao.ts, matching.ts, place_resolution.ts, google.ts, thumbnail.ts가 그대로 사양서다. 포트는 bean-fable의 InstagramContentReader, PlaceNameExtractor, PlaceSearcher 셋이고 썸네일 재호스팅만 포트를 하나 더 둔다(ThumbnailStore, S3). Fake는 fake 프로필에 남겨 E2E가 계속 쓴다.
 
