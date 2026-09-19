@@ -25,6 +25,7 @@ import type {
   HistoryReelDetail,
 } from '../../entities/content/types';
 import {normalizeReelTitle} from '../../entities/content/title';
+import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
 type HistoryScreenProps = { onBack: () => void };
 
@@ -397,6 +398,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     else if (!silent) setLoading(true);
     try {
       const result = await getHistoryReels(nextCursor ?? undefined);
+      // This screen is visible while refreshing, so the newest status is
+      // already seen by the user and must not create a badge on exit.
+      if (!nextCursor && result.reels[0]) {
+        await setLastSeenHistorySnapshot({
+          id: result.reels[0].id,
+          status: result.reels[0].processing_status,
+        });
+      }
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         result.reels.forEach(reel => {
@@ -463,6 +472,12 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
 
     try {
       const response = await saveContent(reel.instagram_url, 'url_input');
+      // The newly created retry is already visible in this screen, so it
+      // should not appear as an unread history when returning to the inbox.
+      await setLastSeenHistorySnapshot({
+        id: response.reelId,
+        status: response.status,
+      });
       // Retry creates a new history record on the backend. Keep the original
       // failed record and add the new attempt to the top of the list.
       const retriedReel = await getHistoryReelDetail(response.reelId);
