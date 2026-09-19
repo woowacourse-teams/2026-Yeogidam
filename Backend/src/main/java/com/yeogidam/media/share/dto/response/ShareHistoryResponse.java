@@ -1,0 +1,27 @@
+package com.yeogidam.media.share.dto.response;
+
+import com.yeogidam.media.share.repository.ShareProjection;
+import java.time.Instant;
+
+public record ShareHistoryResponse(
+        Long sharedMediaId,
+        Instant sharedAt,
+        String thumbnailUrl,
+        String caption,
+        String author,
+        String extractionStatus,
+        String originalUrl
+) {
+
+    public ShareHistoryResponse(ShareProjection projection) {
+        this(
+                projection.sharedMediaId(),
+                projection.sharedAt(),
+                projection.thumbnailUrl(),
+                projection.caption(),
+                projection.author(),
+                projection.extractionStatus(),
+                projection.originalUrl()
+        );
+    }
+}
