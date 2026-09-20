@@ -18,7 +18,7 @@
 1. **공통 사이클과 화면 사이클을 구분한다.** 공통 사이클은 /api/v1, Swagger, 인가, 에러 계약, 페이징 규약처럼 화면과 무관한 기반 작업이고 각각 반나절에서 하루짜리다. 화면 사이클은 "피그마 화면 하나(또는 한 묶음)가 실제 HTTP로 끝까지 돈다"가 완료 조건이다.
 2. **화면 사이클의 순서는 데이터가 만들어지는 순서다.** 접수(공유) → 히스토리 → 대기함(결정) → 보관함 → 상세 → 지도 → 마이. 앞 화면이 만든 행을 뒤 화면이 읽으므로 E2E 픽스처가 자연스럽게 쌓인다. 둘이 나눠 할 때는 읽기 쪽이 SQL 픽스처로 행을 심어 쓰기 쪽을 기다리지 않는다(4절).
 3. **파이프라인 실체화는 화면이 다 돈 뒤에 어댑터 하나씩 한다.** 인스타그램 조회, AI 추출, 카카오 매칭, 구글 사진은 각각 포트 하나를 교체하는 일이고 스키마와 화면을 건드리지 않는다.
-4. **여러 테이블을 읽을 때는 서비스가 조립한다.** DAO는 한 테이블 또는 단순 조인까지만 맡고 "릴스당 최신 공유 한 건", "회원별 최신 공유에만 후보 발급" 같은 규칙은 서비스나 도메인에 둔다. bean-fable의 DAO 감사(dao-subquery-audit.md)가 SQL에 들어간 규칙 두 건(#5, #6)을 이미 지적했으니 옮길 때 그 권고대로 한다.
+4. **여러 테이블을 읽을 때는 서비스가 조립한다.** DAO는 한 테이블 또는 단순 조인까지만 맡고 "릴스당 최신 공유 한 건", "회원별 최신 공유에만 후보 발급" 같은 규칙은 서비스나 도메인에 둔다. DAO 조인과 서비스 조립은 행이 늘어나는지로 나눈다(2026-09-19). 보관함 목록의 saved_places ⋈ places처럼 행이 늘지 않는 1:1 조인은 DAO에서 하고, 대기함의 공유와 후보처럼 1:N이면 쿼리 둘로 읽어 서비스에서 groupingBy로 묶는다. bean-fable의 DAO 감사(dao-subquery-audit.md)가 SQL에 들어간 규칙 두 건(#5, #6)을 이미 지적했으니 옮길 때 그 권고대로 한다.
 5. **be-dev에서 합의된 것은 be-dev 방식으로 통일한다.** 테이블 복수형과 TIMESTAMP(2026-09-16 팀 결정, 초 단위), Instant와 주입된 Clock, 도메인당 XxxException 하나 + XxxErrorCode(noRollbackFor용 하위 예외만 예외), Fake는 test와 fake 프로필에서 @Primary, 테스트 4계층(Testcontainers MySQL). bean-fable 코드를 옮길 때 위 다섯 가지를 맞춘다.
 
 ## 3. 화면별 필요 API (v1 제안)
@@ -60,7 +60,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 정오 전에 머지한다. 내용은 스키마와 결정뿐이며 코드는 넣지 않는다.
 
-1. (2026-09-16 작성, 커밋 4df7ec9, be-dev 머지) `schema.sql`에 테이블 8개를 추가했다. 파일은 `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들고(씨앗은 나중에 `data-local.sql`로), 시각은 `TIMESTAMP`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 상태 어휘(`extraction_status`, `source_type`, `failure_reason`, `decision_status`)는 CHECK로 막고, `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 그 아래 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. `application.yml`이 `spring.sql.init.mode: always`이므로 운영 프로필에는 `mode: never`가 반드시 있어야 한다. bean-fable의 이름은 이렇게 옮겼다.
+1. (2026-09-16 작성, 커밋 4df7ec9, be-dev 머지) `schema.sql`에 테이블 8개를 추가했다. 파일은 `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들고(로컬 실행용 데이터는 `data-local.sql`로), 시각은 `TIMESTAMP`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 상태 어휘(`extraction_status`, `source_type`, `failure_reason`, `decision_status`)는 CHECK로 막고, `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 그 아래 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. `application.yml`의 기본은 `spring.sql.init.mode: never`이고 `local`, `test` 프로필만 `always`다(2026-09-19 프로필 분리, docs/profiles.md). 로컬 실행용 데이터는 `data-local.sql`에 두어 `local` 프로필의 `data-locations`에서만 읽고, 회원 행은 `LocalMemberSeeder`가 `.env`의 카카오 id로 넣는다. bean-fable의 이름은 이렇게 옮겼다.
 
 | bean-fable | be-dev | 비고 |
 |---|---|---|
@@ -84,13 +84,13 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 A와 B로 나눈다(2026-09-16 확정). A는 정콩(빈), B는 러키가 맡는다. 자원 기준으로 갈려 두 사람이 같은 파일을 만질 일이 없다.
 
-2026-09-19 기준 진행 상황은 이렇다. 사이클 1 인가(#162)와 PR 0 스키마(4df7ec9)가 be-dev에 있고, 코드 규칙(getter 체이닝 한 줄, `ResponseEntity.ok()` 뒤 개행, DAO SQL은 메서드 안 텍스트 블록, 응답 DTO 부생성자)은 러키에게 전달했다. 이슈는 A가 #166~#170, B가 #164부터이고 브랜치는 이슈 번호로 `feat/#번호`다. A의 첫 슬라이스 #166(보관함 목록)과 B의 #172(대기함 목록)가 PR 중이며 서로 교차 리뷰한다.
+2026-09-20 기준 진행 상황은 다음과 같다. 사이클 1 인가(#162)와 PR 0 스키마(4df7ec9)가 be-dev에 있고, 코드 규칙(getter 체이닝 한 줄, `ResponseEntity.ok()` 뒤 개행, DAO SQL은 메서드 안 텍스트 블록, 응답 DTO 부생성자)은 러키에게 전달했다. 이슈는 A가 #166~#170, B가 #164부터이고 브랜치는 이슈 번호로 `feat/#번호`다. A는 #166 보관함 목록이 PR #179, #168 삭제가 #179 위에 쌓은 PR, #170 앱 정책이 PR #192이고, B는 #172 대기함 목록과 그 위에 쌓은 #190 히스토리가 PR 중이며 서로 교차 리뷰한다. PR 알림 Discord 워크플로(#186, PR #188)는 머지됐다. #167 장소 상세는 클라이언트가 목록 항목을 그대로 넘겨 써서 필요 없을 가능성이 커 러키 확인 중이다.
 
 | 묶음 | task | API | 만드는 것 | 크기 |
 |---|---|---|---|---|
-| A | 보관함 전체 조회 | `GET /saved-places` | (#166 PR 중) `SavedPlaceDao.findAllByMember`(saved_places ⋈ places, last_saved_at 정렬)와 `SavedPlaceProjection`, `SavedPlaceResponse.from`, `SavedPlaceResponses.from`(정적 팩토리), `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs` | 0.5일 |
-| A | 보관함 장소 상세 조회 | `GET /saved-places/{placeId}` | 목록 항목과 같은 모양. 남의 장소는 404 | 0.25일 |
-| A | 보관함 장소 삭제 | `DELETE /saved-places/{placeId}` | `SavedPlaceDao.deleteByMemberAndPlace`. 후보와 이력은 남는다 | 0.25일 |
+| A | 보관함 전체 조회 | `GET /saved-places` | (#179 머지, 2026-09-21) `SavedPlaceDao.findAllByMember`(saved_places ⋈ places, last_saved_at 정렬)와 `SavedPlaceProjection`, `SavedPlaceResponse.from`, `SavedPlaceResponses.from`(정적 팩토리), `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs` | 0.5일 |
+| A | 보관함 장소 상세 조회 | `GET /saved-places/{placeId}` | (#167, 러키 확인 중) 클라이언트 `PlaceDetailScreen`이 목록 항목을 props로 받아 쓰고 릴스만 따로 조회하므로 필요 없을 가능성이 크다. 확정되면 이 행을 뺀다 | 0.25일 |
+| A | 보관함 장소 삭제 | `DELETE /saved-places/{placeId}` | (#168 PR 중) `SavedPlaceDao.deleteByMemberAndPlace`가 지운 행 수를 돌려주고 0이면 404. 연결 행(shared_media_saved_places)은 FK CASCADE로 함께 지워지고 후보, 공유 이력, 장소는 남는다 | 0.25일 |
 | A | 장소 관련 릴스 조회 | `GET /saved-places/{placeId}/media` | `SavedPlaceDao`에 조회 추가. "릴스당 최신 공유 한 건"은 서비스에서 groupingBy | 0.5일 |
 | A | 앱 업데이트 | `GET /app-update-policies?platform&appVersion` | 설정값 4개를 읽는 엔드포인트. 인증 없음(`AuthenticationConfig` exclude 추가) | 0.2일 |
 | B | 대기함 목록 조회 | `GET /place-candidates` | UNDECIDED 후보가 하나 이상 있는 공유를 `shared_media.created_at DESC`, 동일 시각은 `shared_media.id DESC`로 읽고, `place_candidates ⋈ places`에서 UNDECIDED 후보만 `place_candidates.id ASC`로 조회해 서비스에서 묶는다. 장소 응답에는 `placeId`, `thumbnailUrl`, `name`, `category`, `landLotAddress`, `roadAddress`를 포함한다. 별도 장소 개수 필드와 COUNT 쿼리는 사용하지 않는다. `PlaceCandidateController` + `PlaceCandidateApiDocs`. 페이징은 백로그로 이동한다. | 0.75일 |
@@ -108,7 +108,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | 컨트롤러와 문서 인터페이스 | 자원마다 파일이 따로다. `/shares`의 GET은 1단계에서 B가 만들고 POST는 2단계에서 각자 추가한다 |
 | DTO | 응답 DTO는 만든 사람이 소유한다. 공용 DTO를 만들지 않는다. 장소 목록 항목과 장소 상세처럼 모양이 같은 곳은 같은 묶음 안에서만 공유하고, A와 B에 같이 나오는 "공유 한 건"은 PR 0에서 맞춘 필드 이름을 쓴다 |
 | `E2eTestSupport` | 건드리지 않는다. DB 행 픽스처는 `support/fixture/sql`의 `XxxSqlFixture`(final 클래스, `insertXxx(jdbcTemplate, id, …)` 정적 메서드, 텍스트 블록 INSERT)로 두고 DAO 테스트와 E2E가 given에서 필요한 행만 직접 넣는다(2026-09-21 결정, `src/test/resources`의 `*.sql` 픽스처 파일과 `@Sql` 심기는 폐기, `cleanup.sql`만 남김). 같은 given이 반복되면 테스트 클래스의 private 메서드로 뺀다. E2E의 회원은 `loginAsKakao`가 만들고 `LoginResult.memberId()`를 fixture에 넘긴다. A는 members, places, saved_places(+media, shared_media, shared_media_saved_places), B는 media, shared_media, place_candidates fixture를 각자 만들고 겹치면 2단계에서 하나로 합친다 |
-| 브랜치와 리뷰 | 이슈 번호별 `feat/#번호`(예: `feat/#141`)에서 작업하고 PR은 서로 교차 리뷰한다. 상대 PR이 머지되면 그날 퇴근 전에 be-dev에 rebase한다 |
+| 브랜치와 리뷰 | 이슈 번호별 `feat/#번호`(예: `feat/#141`)에서 작업하고 PR은 서로 교차 리뷰한다. 상대 PR이 머지되면 그날 퇴근 전에 be-dev에 rebase한다. 같은 자원의 후속 PR은 앞 PR 브랜치를 base로 쌓고 PR을 만들 때 "Start a pull request stack"을 켠다(#179 → #197 → #200). 앞 PR이 머지되면 GitHub가 위 PR을 be-dev 위로 다시 얹고 base를 바꾸는데, 충돌이 있으면 서버가 못 하므로 `git rebase --onto origin/be-dev <앞 브랜치> <내 브랜치>`로 로컬에서 풀고 force push한다. PR을 올리거나 리뷰와 댓글이 달리면 Discord 워크플로(#188)가 BE 채널로 알리고, 리뷰 기한은 제출 다음날 23:59다 |
 | 완료 조건 | 표의 API가 Swagger에 보이고 E2E가 통과하며 be-dev에 머지되어 있다 |
 
 ### 4.3 2단계: 쓰기 모델을 각자 구현해 와서 합친다 (다음 주 월 ~, 합치는 날은 정한다)
@@ -121,7 +121,8 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 각자 구현에 들어가기 전에 월요일 오전에 같이 맞춘다. 왕복 E2E 시나리오 초안은 금요일 오후에 잡아 둔다.
 
-- **왕복 E2E 하나를 같이 쓴다.** 접수 → Fake 완료(awaitility) → 대기함 조회 → 저장 → 보관함 조회 → 관련 릴스 조회. 조회는 1단계 API를 그대로 쓰므로 두 구현은 이 E2E를 똑같이 통과해야 하고, 합칠 때 동작 비교는 이 E2E가 대신한다.
+- **왕복 E2E 하나를 같이 쓴다.** 접수 → Fake 완료(awaitility) → 대기함 조회 → 저장 → 보관함 조회 → 같은 릴스 재접수 → 대기함(새 후보만 보이고 옛 미결정 후보는 SUPERSEDED) → 다시 저장 → 보관함(행이 늘지 않고 시각만 갱신) → 관련 릴스 조회(같은 릴스는 최신 공유 한 건) → 히스토리(공유 2건). 조회는 1단계 API를 그대로 쓰므로 두 구현은 이 E2E를 똑같이 통과해야 하고, 합칠 때 동작 비교는 이 E2E가 대신한다. 검증 항목에 "SAVED 후보 수 = shared_media_saved_places 행 수"를 넣어 저장 트랜잭션이 셋(후보 SAVED, 보관함 upsert, 연결 삽입)을 함께 쓰는지 확인한다.
+- **재공유 때 후보는 이전 결정과 무관하게 새로 발급한다(2026-09-20 결정).** 접수는 이전 공유의 UNDECIDED 후보만 SUPERSEDED로 닫고(SAVED, DISCARDED는 그대로) 새 공유에는 릴스의 장소 전부를 UNDECIDED로 발급한다. 이미 보관함에 있는 장소도 다른 장소와 똑같이 뜬다. 이렇게 하면 접수는 후보를 만들고, 대기함 조회는 UNDECIDED를 읽고, 저장은 세 테이블을 쓰는 것으로 서로의 상태를 몰라도 되어 규칙이 가장 적다. 다시 저장해도 saved_places는 (member_id, place_id) UNIQUE라 last_saved_at만 갱신되고 연결 행이 하나 더 쌓인다. 이미 저장한 장소를 다시 보는 것이 어색하다는 피드백이 오면 대기함 응답에 "보관함에 있음" boolean 하나를 더하는 것으로 해결하고, 접수 때 후보에서 빼는 방식은 접수가 saved_places를 알아야 하고 카드가 비는 경우가 생겨 쓰지 않는다.
 - **스키마는 PR 0 그대로 쓴다.** 바꿔야 하면 단독 PR로 be-dev에 먼저 넣고 둘 다 rebase한다.
 - **1단계 코드는 고치지 않는다.** 읽기 DAO, 읽기 서비스, GET 컨트롤러에 손댈 일이 생기면 별도 PR로 낸다. `ShareController`의 POST는 각자 브랜치에서 추가하고 합칠 때 하나만 남긴다.
 - **브랜치는 이슈 번호별 `feat/#번호`다.** 2단계는 같은 일을 두 사람이 따로 만드니 이슈를 각자 하나씩 파서 번호로 구분한다. 구현 중에 서로 코드를 보지 않을지, 중간 공유를 할지는 도메인 모델링 때 방식으로 맞춘다.
@@ -197,6 +198,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 11. **DAO 분리.** (철회, 2026-09-16) 조회 전용 `XxxQueryDao`와 명령 `XxxDao`의 파일 분리는 두 사람이 같은 주에 같은 테이블을 만질 때의 충돌 회피 규칙이었다. 1단계는 자원별로 한 사람이 맡고 2단계는 각자 브랜치에서 전부 만드니 이유가 사라졌다. 조회 DAO가 Projection을 돌려주고 명령 DAO가 도메인 객체를 다루는 설계는 컨벤션 문제로 2단계를 합칠 때 본다.
 12. **카카오 매칭 수단.** 로컬 REST API(운영 검증 완료, 응답에 id, 좌표, place_url이 있어 Gemini 환각이 끼어들 자리가 없음, 무료 한도 하루 10만 건 수준)와 Playwright 웹 검색(브라우저 운영 비용, selector 변경, 약관 위험) 중 하나. 빈의 검토는 REST API 권장이다.
 13. **2단계 합치는 날과 방식.** 후보는 다음 주 목요일(09-24). 비교 기준은 4.3에 적었고, 구현 중 서로 코드를 볼지는 도메인 모델링 때 방식을 따른다.
+14. **시각 형식 통일.** (논의 예정, 이슈 초안 2건) 도메인 `SavedPlace`는 `LocalDateTime`이고 스키마에서 뺀 `firstSavedAt`도 아직 들고 있는데, `SavedPlaceProjection`과 응답은 `Instant`다. 어느 쪽으로 맞출지와 `TIMESTAMP`(초)를 유지할지 `TIMESTAMP(6)`로 갈지를 같이 정한다. 정하기 전에는 3절의 "시각은 ISO-8601 UTC(Instant)"와 2절 원칙 5를 따른다.
 
 ## 7. 부록: 운영 Supabase 구조와의 대응 요점
 
