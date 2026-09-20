@@ -18,7 +18,7 @@
 1. **공통 사이클과 화면 사이클을 구분한다.** 공통 사이클은 /api/v1, Swagger, 인가, 에러 계약, 페이징 규약처럼 화면과 무관한 기반 작업이고 각각 반나절에서 하루짜리다. 화면 사이클은 "피그마 화면 하나(또는 한 묶음)가 실제 HTTP로 끝까지 돈다"가 완료 조건이다.
 2. **화면 사이클의 순서는 데이터가 만들어지는 순서다.** 접수(공유) → 히스토리 → 대기함(결정) → 보관함 → 상세 → 지도 → 마이. 앞 화면이 만든 행을 뒤 화면이 읽으므로 E2E 픽스처가 자연스럽게 쌓인다. 둘이 나눠 할 때는 읽기 쪽이 SQL 픽스처로 행을 심어 쓰기 쪽을 기다리지 않는다(4절).
 3. **파이프라인 실체화는 화면이 다 돈 뒤에 어댑터 하나씩 한다.** 인스타그램 조회, AI 추출, 카카오 매칭, 구글 사진은 각각 포트 하나를 교체하는 일이고 스키마와 화면을 건드리지 않는다.
-4. **여러 테이블을 읽을 때는 서비스가 조립한다.** DAO는 한 테이블 또는 단순 조인까지만 맡고 "릴스당 최신 공유 한 건", "회원별 최신 공유에만 후보 발급" 같은 규칙은 서비스나 도메인에 둔다. DAO 조인과 서비스 조립은 행이 늘어나는지로 나눈다(2026-09-19). 보관함 목록의 saved_places ⋈ places처럼 행이 늘지 않는 1:1 조인은 DAO에서 하고, 대기함의 공유와 후보처럼 1:N이면 쿼리 둘로 읽어 서비스에서 groupingBy로 묶는다. bean-fable의 DAO 감사(dao-subquery-audit.md)가 SQL에 들어간 규칙 두 건(#5, #6)을 이미 지적했으니 옮길 때 그 권고대로 한다.
+4. **여러 테이블을 읽을 때는 서비스가 조립한다.** DAO는 한 테이블 또는 단순 조인까지만 맡고 "릴스당 최신 공유 한 건", "회원별 최신 공유에만 후보 발급" 같은 규칙은 서비스나 도메인에 둔다. DAO 조인과 서비스 조립은 행이 늘어나는지로 나눈다(2026-09-19). 보관함 목록의 saved_places ⋈ places처럼 행이 늘지 않는 1:1 조인은 DAO에서 하고, 대기함의 공유와 후보처럼 1:N이면 쿼리 둘로 읽어 자바에서 묶는다. 여러 행을 줄이거나 묶는 읽기 규칙은 Projection을 감싼 일급 컬렉션(예: `SavedPlaceMediaProjections.latestPerMedia()`)에 두어 DB 없이 단위 테스트하고, 한 항목의 표시값은 응답 DTO의 정적 팩토리 `from`이 계산한다(2026-09-21). bean-fable의 DAO 감사(dao-subquery-audit.md)가 SQL에 들어간 규칙 두 건(#5, #6)을 이미 지적했으니 옮길 때 그 권고대로 한다.
 5. **be-dev에서 합의된 것은 be-dev 방식으로 통일한다.** 테이블 복수형과 TIMESTAMP(2026-09-16 팀 결정, 초 단위), Instant와 주입된 Clock, 도메인당 XxxException 하나 + XxxErrorCode(noRollbackFor용 하위 예외만 예외), Fake는 test와 fake 프로필에서 @Primary, 테스트 4계층(Testcontainers MySQL). bean-fable 코드를 옮길 때 위 다섯 가지를 맞춘다.
 
 ## 3. 화면별 필요 API (v1 제안)
@@ -84,14 +84,14 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 A와 B로 나눈다(2026-09-16 확정). A는 정콩(빈), B는 러키가 맡는다. 자원 기준으로 갈려 두 사람이 같은 파일을 만질 일이 없다.
 
-2026-09-20 기준 진행 상황은 다음과 같다. 사이클 1 인가(#162)와 PR 0 스키마(4df7ec9)가 be-dev에 있고, 코드 규칙(getter 체이닝 한 줄, `ResponseEntity.ok()` 뒤 개행, DAO SQL은 메서드 안 텍스트 블록, 응답 DTO 부생성자)은 러키에게 전달했다. 이슈는 A가 #166~#170, B가 #164부터이고 브랜치는 이슈 번호로 `feat/#번호`다. A는 #166 보관함 목록이 PR #179, #168 삭제가 #179 위에 쌓은 PR, #170 앱 정책이 PR #192이고, B는 #172 대기함 목록과 그 위에 쌓은 #190 히스토리가 PR 중이며 서로 교차 리뷰한다. PR 알림 Discord 워크플로(#186, PR #188)는 머지됐다. #167 장소 상세는 클라이언트가 목록 항목을 그대로 넘겨 써서 필요 없을 가능성이 커 러키 확인 중이다.
+2026-09-20 기준 진행 상황은 다음과 같다. 사이클 1 인가(#162)와 PR 0 스키마(4df7ec9)가 be-dev에 있고, 코드 규칙(getter 체이닝 한 줄, `ResponseEntity.ok()` 뒤 개행, DAO SQL은 메서드 안 텍스트 블록, 응답 DTO 부생성자)은 러키에게 전달했다. 이슈는 A가 #166~#170, B가 #164부터이고 브랜치는 이슈 번호로 `feat/#번호`다. A는 #166 보관함 목록이 PR #179로 머지됐고(2026-09-21), #168 삭제가 PR #197, #169 관련 릴스가 #197 위에 쌓은 PR #200(스택 #197 → #200), #170 앱 정책이 PR #192이고, B는 #172 대기함 목록과 그 위에 쌓은 #190 히스토리가 PR 중이며 서로 교차 리뷰한다. PR 알림 Discord 워크플로(#186, PR #188)는 머지됐다. #167 장소 상세는 클라이언트가 목록 항목을 그대로 넘겨 써서 필요 없을 가능성이 커 러키 확인 중이다.
 
 | 묶음 | task | API | 만드는 것 | 크기 |
 |---|---|---|---|---|
 | A | 보관함 전체 조회 | `GET /saved-places` | (#179 머지, 2026-09-21) `SavedPlaceDao.findAllByMember`(saved_places ⋈ places, last_saved_at 정렬)와 `SavedPlaceProjection`, `SavedPlaceResponse.from`, `SavedPlaceResponses.from`(정적 팩토리), `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs` | 0.5일 |
 | A | 보관함 장소 상세 조회 | `GET /saved-places/{savedPlaceId}` | (#167, 러키 확인 중) 클라이언트 `PlaceDetailScreen`이 목록 항목을 props로 받아 쓰고 릴스만 따로 조회하므로 필요 없을 가능성이 크다. 확정되면 이 행을 뺀다 | 0.25일 |
 | A | 보관함 장소 삭제 | `DELETE /saved-places?savedPlaceIds=` | (#168 PR 중) `SavedPlaceDao.deleteByMemberAndIds`가 `member_id`와 `id IN (…)` 한 문장으로 지운다. 이미 지웠거나 남의 항목이 섞여 있어도 결과가 같아 멱등 204다(2026-09-22 결정). 연결 행(shared_media_saved_places)은 FK CASCADE로 함께 지워지고 후보, 공유 이력, 장소는 남는다 | 0.25일 |
-| A | 장소 관련 릴스 조회 | `GET /saved-places/{savedPlaceId}/media` | `SavedPlaceDao`에 조회 추가. "릴스당 최신 공유 한 건"은 서비스에서 groupingBy | 0.5일 |
+| A | 장소 관련 릴스 조회 | `GET /saved-places/{savedPlaceId}/media` | (#169 PR 중) `SavedPlaceDao.existsByMemberAndId`(아니면 404)와 `findMediaBySavedPlace`(연결 ⋈ shared_media ⋈ media). "릴스당 최신 공유 한 건"은 Projection 일급 컬렉션 `SavedPlaceMediaProjections.latestPerMedia()`가 맡고 DAO는 정렬 없이 읽는다. 필드는 sharedMediaId, sharedAt, thumbnailUrl, caption, author, sharedUrl | 0.5일 |
 | A | 앱 업데이트 | `GET /app-update-policies?platform&appVersion` | 설정값 4개를 읽는 엔드포인트. 인증 없음(`AuthenticationConfig` exclude 추가) | 0.2일 |
 | B | 대기함 목록 조회 | `GET /place-candidates` | UNDECIDED 후보가 하나 이상 있는 공유를 `shared_media.created_at DESC`, 동일 시각은 `shared_media.id DESC`로 읽고, `place_candidates ⋈ places`에서 UNDECIDED 후보만 `place_candidates.id ASC`로 조회해 서비스에서 묶는다. 장소 응답에는 `placeId`, `thumbnailUrl`, `name`, `category`, `landLotAddress`, `roadAddress`를 포함한다. 별도 장소 개수 필드와 COUNT 쿼리는 사용하지 않는다. `PlaceCandidateController` + `PlaceCandidateApiDocs`. 페이징은 백로그로 이동한다. | 0.75일 |
 | B | 히스토리 목록 조회 | `GET /shares` | `ShareDao`, `ShareService`, `ShareController`(GET만) + `ShareApiDocs`. 페이징은 API 구현 시 검토한다. | 0.5일 |
@@ -171,7 +171,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **4 대기함.** GET /place-candidates는 서비스 오케스트레이션의 대표 예다. 회원의 공유 중 UNDECIDED 후보가 하나라도 있는 것을 `shared_media.created_at DESC`, 동일 시각은 `shared_media.id DESC`로 읽고, 그 공유들의 후보(`place_candidates ⋈ places`)는 UNDECIDED만 조회해 서비스에서 묶는다. 응답의 `places[]`에는 `placeId`, `thumbnailUrl`, `name`, `category`, `address(landLotAddress, roadAddress)`를 포함하고 `place_candidates.id ASC`로 정렬하며 별도 장소 개수 필드와 COUNT 쿼리는 사용하지 않는다. 페이징은 백로그로 이동한다. 결정은 공유 건 단위(SharedInstagramMedia.decidePlaces)라 여러 릴스를 한 번에 고르면 클라이언트가 공유마다 호출한다(남은 결정 6).
 
-**5 보관함과 장소 상세.** 보관함 응답에 lastSavedAt을 넣어 정렬 근거를 준다(client-impact-report 남은 확인 2). 장소 상세는 목록 항목과 같은 모양이라 DTO를 공유한다. 관련 릴스 목록의 "릴스당 최신 공유 한 건" 규칙은 SQL 대신 서비스에서 groupingBy로 만든다.
+**5 보관함과 장소 상세.** 보관함 응답에 lastSavedAt을 넣어 정렬 근거를 준다(client-impact-report 남은 확인 2). 장소 상세는 목록 항목과 같은 모양이라 DTO를 공유한다. 관련 릴스 목록의 "릴스당 최신 공유 한 건" 규칙은 SQL 대신 Projection 일급 컬렉션 `SavedPlaceMediaProjections`가 맡는다(#169). 지도 시트는 장소를 고르면 P-4와 같은 `PlaceDetailContent`를 시트 안에 그리므로 같은 API를 쓴다.
 
 **6 지도와 검색.** 지도는 보관함 목록을 좌표까지 그대로 쓰고 범위 필터는 클라이언트가 한다(현행과 같고 사용자당 평균 100건). 검색도 같은 목록의 메모리 필터로 시작하고 페이징이 필요해질 때 ?query=를 붙인다.
 
@@ -199,6 +199,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 12. **카카오 매칭 수단.** 로컬 REST API(운영 검증 완료, 응답에 id, 좌표, place_url이 있어 Gemini 환각이 끼어들 자리가 없음, 무료 한도 하루 10만 건 수준)와 Playwright 웹 검색(브라우저 운영 비용, selector 변경, 약관 위험) 중 하나. 빈의 검토는 REST API 권장이다.
 13. **2단계 합치는 날과 방식.** 후보는 다음 주 목요일(09-24). 비교 기준은 4.3에 적었고, 구현 중 서로 코드를 볼지는 도메인 모델링 때 방식을 따른다.
 14. **시각 형식 통일.** (논의 예정, 이슈 초안 2건) 도메인 `SavedPlace`는 `LocalDateTime`이고 스키마에서 뺀 `firstSavedAt`도 아직 들고 있는데, `SavedPlaceProjection`과 응답은 `Instant`다. 어느 쪽으로 맞출지와 `TIMESTAMP`(초)를 유지할지 `TIMESTAMP(6)`로 갈지를 같이 정한다. 정하기 전에는 3절의 "시각은 ISO-8601 UTC(Instant)"와 2절 원칙 5를 따른다.
+15. **읽기 규칙의 자리.** (2단계 합칠 때 맞춘다) 지금 코드에 네 가지가 있다. SQL(#172의 UNDECIDED 필터, #166의 정렬), 응답 DTO(#172의 공유별 후보 묶기 `PlaceCandidateResponses`), 서비스 private 메서드(#169 첫 구현), Projection 일급 컬렉션(#169 최종 `SavedPlaceMediaProjections`). 빈의 제안은 걸러내기와 정렬은 SQL, 여러 행을 줄이거나 묶는 것은 일급 컬렉션, 한 항목의 표시값은 DTO 부생성자이고 도메인에는 두지 않는다(정책이 바뀌어도 저장 동작은 바뀌지 않으므로). 규칙 하나를 SQL 반, 자바 반으로 나누지 않는다.
 
 ## 7. 부록: 운영 Supabase 구조와의 대응 요점
 

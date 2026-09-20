@@ -1,6 +1,7 @@
 package com.yeogidam.place.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
+import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -51,6 +52,49 @@ public interface SavedPlaceApiDocs {
                                     }))
             })
     ResponseEntity<SavedPlaceResponses> readSavedPlaces(Long memberId);
+
+    @Operation(summary = "장소 관련 릴스 조회",
+            description = """
+                    그 장소를 저장하게 만든 릴스 목록입니다. 장소 상세의 게시물 탭과 지도 바텀시트의 이미지 띠에서 씁니다.
+
+                    - 정렬은 `sharedAt` 내림차순입니다.
+                    - 같은 릴스를 여러 번 공유해 여러 번 저장했으면 최신 공유 한 건만 냅니다.
+                    - 릴스 한 건의 필드 이름은 히스토리 목록과 같습니다.
+                    - `thumbnailUrl`은 게시물 썸네일이 없으면 null입니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "관련 릴스 목록",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = SavedPlaceMediaResponses.class),
+                                    examples = @ExampleObject(name = "성수 카페 릴스", value = """
+                                            {
+                                              "media": [
+                                                {
+                                                  "sharedMediaId": 102,
+                                                  "thumbnailUrl": "https://img.example.com/reel10.jpg",
+                                                  "author": "@seongsu_life",
+                                                  "caption": "성수 카페 투어",
+                                                  "sharedUrl": "https://www.instagram.com/reel/C1seongsu/",
+                                                  "sharedAt": "2026-09-12T10:00:00Z"
+                                                }
+                                              ]
+                                            }
+                                            """))),
+                    @ApiResponse(responseCode = "404", description = "내가 저장하지 않은 장소",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "PLACE404_001", description = "없는 장소, 저장하지 않은 장소, 남이 저장한 장소 모두",
+                                            value = """
+                                            {"message": "저장된 장소가 아닙니다.", "errorCode": "PLACE404_001"}
+                                            """))),
+                    @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<SavedPlaceMediaResponses> readSavedPlaceMedia(Long memberId,
+                                                                  @Parameter(description = "보관함 항목 id(saved_places.id)", example = "11")
+                                                                  Long savedPlaceId);
 
     @Operation(summary = "보관함 장소 삭제",
             description = """

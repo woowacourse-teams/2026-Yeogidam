@@ -23,7 +23,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 보관함 조회 쿼리의 조인, 정렬, 열 매핑과 삭제의 범위가 실제 MySQL에서 동작하는지 검증한다. 행은 SQL fixture로 given에서 직접 넣는다.
+ * 보관함 조회 쿼리의 조인, 정렬, 열 매핑과 삭제의 범위, 관련 릴스 조회의 조인과 열 매핑이 실제 MySQL에서 동작하는지 검증한다. 행은 SQL fixture로 given에서 직접 넣는다.
  */
 @Import(SavedPlaceDao.class)
 class SavedPlaceDaoTest extends JdbcTestSupport {
@@ -130,6 +130,84 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
         // when & then
         assertThat(savedPlaceDao.findAllByMember(1L)).isEmpty();
+    }
+
+    @Test
+    void 내_보관함_항목이면_존재한다() {
+        // given: 보관함 11(장소 1)은 회원 1의 것이다
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        assertThat(savedPlaceDao.existsByMemberAndId(1L, 11L)).isTrue();
+    }
+
+    @Test
+    void 없는_항목이거나_남의_항목이면_존재하지_않는다() {
+        // given: 보관함 11(장소 2)은 회원 1의 것이다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then: 없는 id, 장소 id를 넣은 경우, 남의 항목 모두 false다
+        assertAll(
+                () -> assertThat(savedPlaceDao.existsByMemberAndId(1L, 999L)).isFalse(),
+                () -> assertThat(savedPlaceDao.existsByMemberAndId(1L, 2L)).isFalse(),
+                () -> assertThat(savedPlaceDao.existsByMemberAndId(2L, 11L)).isFalse()
+        );
+    }
+
+    @Test
+    void 보관함_행에_연결된_공유를_전부_읽고_남의_공유는_섞이지_않는다() {
+        // given: 회원 1의 카페 온월(보관함 11)은 릴스 10의 공유 100과 102에서 저장했고, 회원 2는 같은 장소를 보관함 21로 공유 200에서 저장했다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-09-15T00:00:15Z"));
+        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 200L, 2L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-11T11:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 5L, 21L, 200L, Instant.parse("2026-09-11T13:00:00Z"));
+
+        // when
+        SavedPlaceMediaProjections media = savedPlaceDao.findMediaBySavedPlace(11L);
+
+        // then
+        assertThat(media.shares()).extracting(SavedPlaceMediaProjection::sharedMediaId)
+                .containsExactlyInAnyOrder(100L, 102L);
+    }
+
+    @Test
+    void 공유_열과_게시물_열이_모두_매핑된다() {
+        // given
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
+
+        // when
+        SavedPlaceMediaProjection media = savedPlaceDao.findMediaBySavedPlace(11L)
+                .shares()
+                .getFirst();
+
+        // then
+        assertAll(
+                () -> assertThat(media.sharedMediaId()).isEqualTo(102L),
+                () -> assertThat(media.mediaId()).isEqualTo(10L),
+                () -> assertThat(media.thumbnailUrl()).isEqualTo("https://img.example.com/reel10.jpg"),
+                () -> assertThat(media.author()).isEqualTo("@seongsu_life"),
+                () -> assertThat(media.caption()).isEqualTo("성수 카페 투어"),
+                () -> assertThat(media.sharedUrl()).isEqualTo("https://www.instagram.com/reel/C1seongsu/"),
+                () -> assertThat(media.sharedAt()).isEqualTo(Instant.parse("2026-09-12T10:00:00Z"))
+        );
     }
 
     @Test

@@ -33,6 +33,18 @@ public class SavedPlaceDao {
                             .toInstant(ZoneOffset.UTC)
             );
 
+    private static final RowMapper<SavedPlaceMediaProjection> MEDIA_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SavedPlaceMediaProjection(
+                    resultSet.getLong("shared_media_id"),
+                    resultSet.getLong("media_id"),
+                    resultSet.getString("thumbnail_url"),
+                    resultSet.getString("author"),
+                    resultSet.getString("caption"),
+                    resultSet.getString("shared_url"),
+                    resultSet.getObject("shared_at", LocalDateTime.class)
+                            .toInstant(ZoneOffset.UTC)
+            );
+
     private final JdbcTemplate jdbcTemplate;
 
     /**
@@ -60,6 +72,43 @@ public class SavedPlaceDao {
                 ORDER BY sp.last_saved_at DESC
                 """;
         return jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, memberId);
+    }
+
+    /**
+    /**
+     * 회원의 보관함 항목인지 본다. 없는 항목이거나 남의 항목이면 false다.
+     */
+    public boolean existsByMemberAndId(Long memberId, Long savedPlaceId) {
+        String sql = """
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM saved_places
+                    WHERE member_id = ?
+                      AND id = ?
+                )
+                """;
+        return jdbcTemplate.queryForObject(sql, Boolean.class, memberId, savedPlaceId);
+    }
+
+    /**
+     * 보관함 행 하나에 연결된 공유를 전부 읽는다. 연결 행 하나가 결과 한 행이라 행이 늘지 않는다.
+     * 릴스당 최신 공유 한 건만 남기는 규칙과 정렬은 SavedPlaceMediaProjections가 맡는다.
+     */
+    public SavedPlaceMediaProjections findMediaBySavedPlace(Long savedPlaceId) {
+        String sql = """
+                SELECT sm.id AS shared_media_id,
+                       sm.media_id,
+                       m.thumbnail_url,
+                       m.author,
+                       m.caption,
+                       sm.shared_url,
+                       sm.created_at AS shared_at
+                FROM shared_media_saved_places l
+                JOIN shared_media sm ON sm.id = l.shared_media_id
+                JOIN media m ON m.id = sm.media_id
+                WHERE l.saved_place_id = ?
+                """;
+        return new SavedPlaceMediaProjections(jdbcTemplate.query(sql, MEDIA_PROJECTION_ROW_MAPPER, savedPlaceId));
     }
 
     /**
