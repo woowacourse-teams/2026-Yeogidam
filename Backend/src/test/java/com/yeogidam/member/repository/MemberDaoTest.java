@@ -122,6 +122,18 @@ class MemberDaoTest extends JdbcTestSupport {
         );
     }
 
+    @Test
+    void 식별자로_삭제하면_회원이_삭제된다() {
+        // given
+        insertBean();
+
+        // when
+        memberDao.deleteById(1L);
+
+        // then
+        assertThat(memberDao.findById(1L)).isEmpty();
+    }
+
     /**
      * 회원 1(KAKAO kakao-1, 빈).
      */

@@ -50,6 +50,7 @@ class RefreshSessionDaoTest extends JdbcTestSupport {
         // given
         insertBeanWithSession();
         Instant expiresAt = Instant.parse("2026-11-01T12:34:56Z");
+
         // when
         refreshSessionDao.save(new RefreshSession("session-2", 1L, "hash-2", expiresAt, false));
 

@@ -110,4 +110,12 @@ public class MemberDao {
                 """;
         jdbcTemplate.update(sql, member.nickname(), member.profile().email(), member.profile().imageUrl(), member.id());
     }
+
+    public void deleteById(Long id) {
+        String sql = """
+                DELETE FROM members
+                WHERE id = ?
+                """;
+        jdbcTemplate.update(sql, id);
+    }
 }

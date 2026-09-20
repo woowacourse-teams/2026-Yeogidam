@@ -5,6 +5,7 @@ import com.yeogidam.auth.domain.oauth.OAuthIdentity;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.member.domain.OAuthProvider;
+import com.yeogidam.member.domain.OAuthAccount;
 
 /**
  * E2E에서 제공자를 대신하는 클라이언트. 인가 코드를 제공자 사용자 식별자로 그대로 받고,
@@ -36,6 +37,14 @@ public final class FakeOAuthClient implements OAuthClient {
         }
         return new OAuthIdentity(provider, authorizationCode, nicknameOf(authorizationCode),
                 authorizationCode + "@example.com", null);
+    }
+
+    @Override
+    public void deleteAccount(String authorizationCode, OAuthAccount expectedAccount) {
+        OAuthIdentity identity = readIdentity(authorizationCode);
+        if (!expectedAccount.equals(identity.getAccount())) {
+            throw new AuthException(AuthErrorCode.INVALID_CREDENTIAL);
+        }
     }
 
     private String nicknameOf(String authorizationCode) {

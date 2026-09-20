@@ -35,6 +35,7 @@ class KakaoClientTest {
 
     private static final String TOKEN_URI = "https://kauth.kakao.com/oauth/token";
     private static final String USER_INFO_URI = "https://kapi.kakao.com/v2/user/me";
+    private static final String UNLINK_URI = "https://kapi.kakao.com/v1/user/unlink";
     private static final String TOKEN_BODY = "{\"access_token\":\"kakao-access\",\"refresh_token\":\"kakao-refresh\"}";
     private static final KakaoProperties PROPERTIES = new KakaoProperties(
             "rest-api-key", "client-secret", "https://app.example.com/oauth/kakao");
@@ -90,6 +91,26 @@ class KakaoClientTest {
                 () -> assertThat(identity.getProfile().email()).isNull(),
                 () -> assertThat(identity.getProfile().nickname()).isNull()
         );
+    }
+
+    @Test
+    void 탈퇴하면_새로_받은_액세스_토큰으로_카카오_연결을_해제한다() {
+        // given
+        expectTokenExchange();
+        kakaoServer.expect(requestTo(USER_INFO_URI))
+                .andExpect(header("Authorization", "Bearer kakao-access"))
+                .andRespond(withSuccess("{\"id\":99}", MediaType.APPLICATION_JSON));
+        kakaoServer.expect(requestTo(UNLINK_URI))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer kakao-access"))
+                .andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                .andRespond(withSuccess());
+
+        // when
+        client.deleteAccount("code-1", new OAuthAccount(OAuthProvider.KAKAO, "99"));
+
+        // then
+        kakaoServer.verify();
     }
 
     @Test
