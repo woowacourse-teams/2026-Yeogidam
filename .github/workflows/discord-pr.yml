@@ -38,27 +38,38 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
           URL: ${{ github.event.pull_request.html_url }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          CREATED_AT: ${{ github.event.pull_request.created_at }}
+          UPDATED_AT: ${{ github.event.pull_request.updated_at }}
           REVIEW_STATE: ${{ github.event.review.state }}
           REVIEW_BY: ${{ github.event.review.user.login }}
         run: |
+          # 리뷰 마감은 위키 규칙대로 제출 다음날 23:59 KST. draft 해제는 그 시점이 제출이다.
+          deadline() {
+            TZ=Asia/Seoul date -d "$1 +1 day" '+%Y-%m-%d 23:59'
+          }
+          review_request() {
+            printf '💌 **%s** 리뷰 요청이 도착했어요\n요청자: %s\n리뷰 마감일: %s (KST)\n%s' \
+              "$TITLE" "$AUTHOR" "$(deadline "$1")" "$URL"
+          }
           case "$EVENT:$ACTION" in
-            pull_request:opened)           TEXT="📬 새 PR by $AUTHOR" ;;
-            pull_request:ready_for_review) TEXT="✅ 리뷰 준비됨 by $AUTHOR" ;;
-            pull_request:reopened)         TEXT="🔁 다시 열림 by $AUTHOR" ;;
+            pull_request:opened)           TEXT=$(review_request "$CREATED_AT") ;;
+            pull_request:ready_for_review) TEXT=$(review_request "$UPDATED_AT") ;;
+            pull_request:reopened)         TEXT="🔁 다시 열림 by $AUTHOR: **$TITLE**"$'\n'"$URL" ;;
             pull_request:closed)
-              if [ "$MERGED" = "true" ]; then TEXT="🎉 머지됨"; else TEXT="🗑️ 닫힘"; fi ;;
+              if [ "$MERGED" = "true" ]; then TEXT="🎉 머지됨: **$TITLE**"; else TEXT="🗑️ 닫힘: **$TITLE**"; fi
+              TEXT="$TEXT"$'\n'"$URL" ;;
             pull_request_review:submitted)
               case "$REVIEW_STATE" in
                 approved)          TEXT="👍 승인 by $REVIEW_BY" ;;
                 changes_requested) TEXT="🔧 수정 요청 by $REVIEW_BY" ;;
                 *)                 TEXT="📝 리뷰 코멘트 by $REVIEW_BY" ;;
-              esac ;;
-            *) TEXT="$EVENT/$ACTION" ;;
+              esac
+              TEXT="$TEXT: **$TITLE**"$'\n'"$URL" ;;
+            *) TEXT="$EVENT/$ACTION: **$TITLE**"$'\n'"$URL" ;;
           esac
           {
             echo "text<<EOF"
-            echo "$TEXT: **$TITLE**"
-            echo "$URL"
+            echo "$TEXT"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
