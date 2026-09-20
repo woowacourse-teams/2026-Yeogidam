@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 보관함 목록 조회를 실제 HTTP로 검증한다. 정렬과 열 매핑의 세부는 SavedPlaceDaoTest가 맡고, 여기서는 응답 모양(감싸는 키, 필드 이름, null)과 인가가 응답으로 드러나는지만
+ * 보관함 목록 조회와 삭제를 실제 HTTP로 검증한다. 정렬과 열 매핑의 세부는 SavedPlaceDaoTest가 맡고, 여기서는 응답 모양(감싸는 키, 필드 이름, null)과 인가가 응답으로 드러나는지만
  * 본다. 회원은 로그인이 만들고 나머지 행은 SQL fixture로 given에서 넣는다.
  */
 class SavedPlaceE2eTest extends E2eTestSupport {
@@ -75,6 +75,66 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     @Test
     void 토큰_없이_조회하면_401_예외를_던진다() {
         given().when().get(SAVED_PLACES_PATH)
+                .then().statusCode(401)
+                .body("errorCode", equalTo("AUTH401_004"));
+    }
+
+    @Test
+    void 보관함에서_장소를_삭제하면_목록에서_사라진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 2L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 3L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:10Z"));
+
+        // when
+        givenBearer(login.accessToken())
+                .when().delete(SAVED_PLACES_PATH + "/2")
+                .then().statusCode(204);
+
+        // then
+        givenBearer(login.accessToken())
+                .when().get(SAVED_PLACES_PATH)
+                .then().statusCode(200)
+                .body("savedPlaces.placeId", contains(3, 1));
+    }
+
+    @Test
+    void 이미_삭제한_장소를_다시_삭제하면_404_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        givenBearer(login.accessToken())
+                .when().delete(SAVED_PLACES_PATH + "/2")
+                .then().statusCode(204);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().delete(SAVED_PLACES_PATH + "/2")
+                .then().statusCode(404)
+                .body("errorCode", equalTo("PLACE404_001"));
+    }
+
+    @Test
+    void 남이_저장한_장소를_삭제하면_404_예외를_던진다() {
+        // given: 장소 2는 user-1이 저장했고 user-2가 지우려 한다
+        LoginResult owner = loginAsKakao("user-1");
+        LoginResult other = loginAsKakao("user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 1L, owner.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        givenBearer(other.accessToken())
+                .when().delete(SAVED_PLACES_PATH + "/2")
+                .then().statusCode(404)
+                .body("errorCode", equalTo("PLACE404_001"));
+    }
+
+    @Test
+    void 토큰_없이_삭제하면_401_예외를_던진다() {
+        given().when().delete(SAVED_PLACES_PATH + "/1")
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));
     }

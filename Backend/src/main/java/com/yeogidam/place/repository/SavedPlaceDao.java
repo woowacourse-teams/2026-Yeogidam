@@ -57,4 +57,17 @@ public class SavedPlaceDao {
                 """;
         return jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, memberId);
     }
+
+    /**
+     * 회원의 보관함에서 장소를 뺀다. 지운 행 수를 돌려주므로 0이면 저장한 적이 없는 장소다.
+     * 어느 공유에서 저장했는지 연결(shared_media_saved_places)은 FK의 ON DELETE CASCADE가 함께 지운다.
+     */
+    public int deleteByMemberAndPlace(Long memberId, Long placeId) {
+        String sql = """
+                DELETE FROM saved_places
+                WHERE member_id = ?
+                  AND place_id = ?
+                """;
+        return jdbcTemplate.update(sql, memberId, placeId);
+    }
 }

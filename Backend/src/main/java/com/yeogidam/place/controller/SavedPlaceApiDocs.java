@@ -3,6 +3,7 @@ package com.yeogidam.place.controller;
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -47,4 +48,28 @@ public interface SavedPlaceApiDocs {
                                     }))
             })
     ResponseEntity<SavedPlaceResponses> readSavedPlaces(Long memberId);
+
+    @Operation(summary = "보관함 장소 삭제",
+            description = """
+                    보관함에서 장소를 뺍니다. 보관함 편집과 장소 상세 더보기에서 씁니다.
+
+                    - 보관함 행과 어느 공유에서 저장했는지 연결만 지웁니다. 후보, 공유 이력, 장소는 남습니다.
+                    - 같은 장소를 다시 지우면 404입니다.
+                    - 여러 개를 지울 때는 장소마다 호출합니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "삭제 완료"),
+                    @ApiResponse(responseCode = "404", description = "내가 저장하지 않은 장소",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "PLACE404_001", description = "없는 장소, 저장하지 않은 장소, 남이 저장한 장소 모두",
+                                            value = """
+                                            {"message": "저장된 장소가 아닙니다.", "errorCode": "PLACE404_001"}
+                                            """))),
+                    @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<Void> deleteSavedPlace(Long memberId, @Parameter(description = "장소 id", example = "1") Long placeId);
 }
