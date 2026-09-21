@@ -24,13 +24,13 @@ public class ShareService {
 
     public ShareHistoryResponses readShareHistory(Long memberId) {
         List<ShareProjection> history = shareDao.findShares(memberId);
-        return new ShareHistoryResponses(history);
+        return ShareHistoryResponses.from(history);
     }
 
     public ShareHistoryDetailResponse readShareHistoryDetail(Long memberId, Long sharedMediaId) {
         ShareHistoryDetailProjection sharedMedia = shareDao.findShareHistoryDetail(memberId, sharedMediaId)
                 .orElseThrow(() -> new ShareException(ShareErrorCode.NOT_FOUND));
         List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(sharedMediaId);
-        return new ShareHistoryDetailResponse(sharedMedia, candidates);
+        return ShareHistoryDetailResponse.from(sharedMedia, candidates);
     }
 }

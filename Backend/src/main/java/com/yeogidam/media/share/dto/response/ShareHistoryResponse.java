@@ -12,9 +12,8 @@ public record ShareHistoryResponse(
         String extractionStatus,
         String sharedUrl
 ) {
-
-    public ShareHistoryResponse(ShareProjection projection) {
-        this(
+    public static ShareHistoryResponse from(ShareProjection projection) {
+        return new ShareHistoryResponse(
                 projection.sharedMediaId(),
                 projection.sharedAt(),
                 projection.thumbnailUrl(),

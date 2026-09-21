@@ -16,11 +16,11 @@ public record ShareHistoryDetailResponse(
         String sharedUrl,
         List<PlaceCandidateResponse> places
 ) {
-    public ShareHistoryDetailResponse(
+    public static ShareHistoryDetailResponse from(
             ShareHistoryDetailProjection projection,
             List<PlaceCandidateProjection> placeProjections
     ) {
-        this(
+        return new ShareHistoryDetailResponse(
                 projection.sharedMediaId(),
                 projection.sharedAt(),
                 projection.thumbnailUrl(),
