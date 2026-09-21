@@ -21,10 +21,10 @@ import org.springframework.test.context.jdbc.SqlMergeMode;
  * 인증이 필요한 API의 E2E는 loginAsKakao로 토큰을 받고 givenBearer로 요청을 시작한다.
  */
 @ActiveProfiles("test")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(FakeOAuthClientConfig.class)
-@Sql(scripts = "/cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @SqlMergeMode(SqlMergeMode.MergeMode.MERGE)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Sql(scripts = "/cleanup.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 public abstract class E2eTestSupport extends MySqlContainerSupport {
 
     @LocalServerPort
