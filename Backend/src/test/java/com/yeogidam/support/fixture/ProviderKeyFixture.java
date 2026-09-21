@@ -1,4 +1,4 @@
-package com.yeogidam.support;
+package com.yeogidam.support.fixture;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;

@@ -31,10 +31,6 @@ public class Place {
         }
     }
 
-    public String summaryAddress() {
-        return profile.address().summary();
-    }
-
     public Long id() {
         return id;
     }

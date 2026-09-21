@@ -1,0 +1,13 @@
+# 로컬 실행 전용. 기동 때 schema.sql(DROP 뒤 CREATE)로 테이블을 새로 만들고 로컬 실행용 데이터(data-local.sql)를 넣는다.
+# 프로필을 지정하지 않으면 이 프로필로 뜬다(application.yml의 spring.profiles.default).
+# 회원 행은 LocalMemberSeeder가 .env의 카카오 회원번호로 넣는다. docs/profiles.md 참고.
+spring:
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:data-local.sql
+
+seed:
+  kakao-user-id:
+    bean: ${SEED_KAKAO_USER_ID_BEAN:}
+    lucky: ${SEED_KAKAO_USER_ID_LUCKY:}

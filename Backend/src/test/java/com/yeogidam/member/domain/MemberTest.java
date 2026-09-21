@@ -1,7 +1,7 @@
 package com.yeogidam.member.domain;
 
-import static com.yeogidam.support.MemberFixture.kakaoAccount;
-import static com.yeogidam.support.MemberFixture.profile;
+import static com.yeogidam.support.fixture.MemberFixture.kakaoAccount;
+import static com.yeogidam.support.fixture.MemberFixture.profile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;

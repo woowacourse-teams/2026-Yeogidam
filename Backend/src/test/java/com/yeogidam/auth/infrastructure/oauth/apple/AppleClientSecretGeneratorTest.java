@@ -10,7 +10,7 @@ import com.nimbusds.jwt.SignedJWT;
 import com.yeogidam.auth.config.oauth.AppleProperties;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
-import com.yeogidam.support.AppleKeyFixture;
+import com.yeogidam.support.fixture.AppleKeyFixture;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;

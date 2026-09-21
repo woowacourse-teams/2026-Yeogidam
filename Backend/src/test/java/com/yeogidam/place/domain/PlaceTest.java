@@ -1,6 +1,6 @@
 package com.yeogidam.place.domain;
 
-import static com.yeogidam.support.PlaceFixture.place;
+import static com.yeogidam.support.fixture.PlaceFixture.place;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
@@ -18,8 +18,6 @@ class PlaceTest {
                 .isEqualTo(new PlaceName("경복궁"));
         assertThat(place.profile().category())
                 .isEqualTo("관광명소");
-        assertThat(place.summaryAddress())
-                .isEqualTo("서울 종로구");
     }
 
     @Test

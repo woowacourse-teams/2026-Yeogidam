@@ -1,6 +1,6 @@
 package com.yeogidam.auth.service;
 
-import static com.yeogidam.support.MemberFixture.kakaoMember;
+import static com.yeogidam.support.fixture.MemberFixture.kakaoMember;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;

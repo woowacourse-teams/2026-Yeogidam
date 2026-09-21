@@ -10,7 +10,7 @@ import com.yeogidam.auth.domain.token.RefreshTokenClaims;
 import com.yeogidam.auth.domain.token.Token;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
-import com.yeogidam.support.MutableClock;
+import com.yeogidam.support.fixture.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
 import javax.crypto.SecretKey;

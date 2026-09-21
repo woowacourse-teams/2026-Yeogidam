@@ -41,16 +41,4 @@ class AddressTest {
         assertThatThrownBy(() -> new Address(landLotAddress, "서울 성동구 성수이로 88"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
-
-    @Test
-    void 요약_주소는_도와_시군구까지만_남긴다() {
-        assertAll(
-                () -> assertThat(new Address("서울 성동구 성수동2가 289-10", null).summary())
-                        .isEqualTo("서울 성동구"),
-                () -> assertThat(new Address("경기도 성남시 분당구 판교역로 166", null).summary())
-                        .isEqualTo("경기도 성남시"),
-                () -> assertThat(new Address("세종특별자치시", null).summary())
-                        .isEqualTo("세종특별자치시")
-        );
-    }
 }

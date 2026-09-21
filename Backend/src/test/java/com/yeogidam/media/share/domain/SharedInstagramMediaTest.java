@@ -1,6 +1,6 @@
 package com.yeogidam.media.share.domain;
 
-import static com.yeogidam.support.PlaceFixture.place;
+import static com.yeogidam.support.fixture.PlaceFixture.place;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

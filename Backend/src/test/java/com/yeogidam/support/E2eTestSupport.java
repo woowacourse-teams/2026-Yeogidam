@@ -2,6 +2,7 @@ package com.yeogidam.support;
 
 import static io.restassured.RestAssured.given;
 
+import com.yeogidam.support.fake.FakeOAuthClientConfig;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
