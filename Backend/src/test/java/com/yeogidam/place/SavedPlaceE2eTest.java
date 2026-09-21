@@ -21,7 +21,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
 
     @Test
     @Sql({"/members.sql", "/places.sql", "/saved-places.sql"})
-    void 로그인한_회원은_보관함_목록을_최근_저장_순으로_조회한다() {
+    void 로그인하면_내_보관함을_최근에_저장한_순서로_조회한다() {
         // given
         LoginResult login = loginAsKakao("user-1");
 
@@ -35,7 +35,6 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces[0].category", equalTo("관광명소"))
                 .body("savedPlaces[0].landLotAddress", equalTo("서울 종로구 세종로 1-1"))
                 .body("savedPlaces[0].roadAddress", equalTo("서울 종로구 사직로 161"))
-                .body("savedPlaces[0].summaryAddress", equalTo("서울 종로구"))
                 .body("savedPlaces[0].latitude", equalTo(37.5796f))
                 .body("savedPlaces[0].longitude", equalTo(126.9770f))
                 .body("savedPlaces[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/3"))
@@ -44,7 +43,6 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces[0].thumbnailSource", equalTo("KAKAO"))
                 .body("savedPlaces[0].thumbnailAttribution", nullValue())
                 .body("savedPlaces[0].lastSavedAt", equalTo("2026-09-15T00:00:10Z"))
-                .body("savedPlaces[1].summaryAddress", equalTo("서울 광진구"))
                 .body("savedPlaces[1].roadAddress", nullValue())
                 .body("savedPlaces[2].thumbnailAttribution",
                         equalTo("<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>"));
@@ -63,7 +61,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 토큰_없이_조회하면_401이다() {
+    void 토큰_없이_조회하면_401_예외를_던진다() {
         given().when().get(SAVED_PLACES_PATH)
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));

@@ -37,14 +37,14 @@
 | P-6 실패 상세 C-1 | POST /shares/{shareId}/extraction-retries, POST /shares/{shareId}/reports | 202 / 201 | 이식 |
 | P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 있는 공유만, 최신순 | 신규(#172 PR 중) |
 | P-6 대기함 저장/삭제 | POST /shares/{shareId}/place-selections, POST /shares/{shareId}/place-discards {placeIds} | 201 | 이식 |
-| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{placeId, name, category, landLotAddress, roadAddress, summaryAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, thumbnailAttribution, lastSavedAt}]} lastSavedAt 내림차순. summaryAddress는 지번의 도/시 + 시/군/구 | 이식 + lastSavedAt 추가(#166 PR 중) |
+| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{placeId, name, category, landLotAddress, roadAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, thumbnailAttribution, lastSavedAt}]} lastSavedAt 내림차순. 카드용 짧은 주소는 클라이언트가 앞 두 마디로 줄인다(대기함과 같은 규칙) | 이식 + lastSavedAt 추가(#166 PR 중) |
 | P-2 보관함 편집 D-1 | DELETE /saved-places/{placeId} | 204. 다건은 클라이언트 반복 호출 | 이식 |
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
 | P-3 지도 전부 | GET /saved-places (좌표 포함 전량), GET /saved-places/{placeId}/media (시트의 이미지 띠) | 지도 범위와 검색어 필터는 클라이언트 | 이식 |
 | P-4 장소 상세 전부 | GET /saved-places/{placeId}, GET /saved-places/{placeId}/media, DELETE /saved-places/{placeId} | 장소 정보(목록 항목과 같은 모양) / 관련 공유 {media:[{shareId, thumbnailUrl, author, caption, originalUrl, sharedAt}]} | 상세만 신규 |
 | 강제 업데이트 모달 | GET /app-update-policies?platform&appVersion | {updateRequired, minimumSupportedVersion, storeUrl}, 인증 없음 | 신규 |
 
-공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 summaryAddress다. 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
+공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 서버가 내리지 않는다(2026-09-21, #179 리뷰. 클라이언트 inBoxScreen의 placeAddress가 이미 앞 두 마디로 줄이므로 같은 함수를 쓴다). 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
 
 ## 4. 두 단계 계획 (2026-09-16 팀 결정)
 
@@ -74,7 +74,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 | media_share_report | shared_media_reports | 제보. shared_media_id UNIQUE(공유 건당 한 번) |
 
 2. `cleanup.sql`에 위 8개 TRUNCATE를 추가했다.
-3. 남은 결정 1, 3, 4를 이 PR 설명에 적어 확정한다. 자원 이름은 `/shares`, 게시물 테이블은 `media`, 응답 DTO는 `new MemberResponse(member)`처럼 부생성자로 조립하고 정적 팩토리는 쓰지 않는다.
+3. 남은 결정 1, 3, 4를 이 PR 설명에 적어 확정한다. 자원 이름은 `/shares`, 게시물 테이블은 `media`, 응답 DTO는 정적 팩토리 `from`으로 조립한다(2026-09-21 변경, 아래 남은 결정 4).
 4. 회원 탈퇴가 1단계에 들어가므로 남은 결정 5도 여기서 정한다. 우리 DB 삭제만("전 세션 폐기 + members와 딸린 행 삭제")으로 갈지, 카카오 unlink(admin key와 저장된 provider id로 가능)까지 넣을지 둘 중 하나다. 구글과 애플 revoke는 제공자 토큰이 필요해 이번 3일에는 들어가지 않는다.
 5. A의 관련 릴스 응답과 B의 히스토리 목록 응답에 같이 들어가는 "공유 한 건"의 필드 이름을 PR 설명에 적어 맞춘다. shareId, sharedAt, thumbnailUrl, caption, author, originalUrl, extractionStatus다. 공용 DTO는 만들지 않으므로 클래스는 각자 두고 필드 이름만 같게 한다.
 
@@ -88,7 +88,7 @@ A와 B로 나눈다(2026-09-16 확정). A는 정콩(빈), B는 러키가 맡는�
 
 | 묶음 | task | API | 만드는 것 | 크기 |
 |---|---|---|---|---|
-| A | 보관함 전체 조회 | `GET /saved-places` | (#166 PR 중) `SavedPlaceDao.findAllByMember`(saved_places ⋈ places, last_saved_at 정렬)와 `SavedPlaceProjection`, `SavedPlaceResponse`(부생성자, summaryAddress 계산), `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs` | 0.5일 |
+| A | 보관함 전체 조회 | `GET /saved-places` | (#166 PR 중) `SavedPlaceDao.findAllByMember`(saved_places ⋈ places, last_saved_at 정렬)와 `SavedPlaceProjection`, `SavedPlaceResponse.from`, `SavedPlaceResponses.from`(정적 팩토리), `SavedPlaceService`, `SavedPlaceController` + `SavedPlaceApiDocs` | 0.5일 |
 | A | 보관함 장소 상세 조회 | `GET /saved-places/{placeId}` | 목록 항목과 같은 모양. 남의 장소는 404 | 0.25일 |
 | A | 보관함 장소 삭제 | `DELETE /saved-places/{placeId}` | `SavedPlaceDao.deleteByMemberAndPlace`. 후보와 이력은 남는다 | 0.25일 |
 | A | 장소 관련 릴스 조회 | `GET /saved-places/{placeId}/media` | `SavedPlaceDao`에 조회 추가. "릴스당 최신 공유 한 건"은 서비스에서 groupingBy | 0.5일 |
@@ -187,7 +187,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 1. **자원 이름.** (PR 0에서 확정) /shares. bean-fable의 /media는 {id}가 공유 id라 게시물(InstagramMedia)과 헷갈린다.
 2. **접수 멱등키.** 네이티브 공유 확장이 30초 타임아웃과 재시도를 하므로 clientRequestId(UUID)를 받아 (member_id, request_id) 유니크로 막는 쪽을 권한다. 안 받으면 재시도마다 공유 이력이 하나씩 더 생긴다.
 3. **테이블 이름.** (정함, 2026-09-16) media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports. 게시물은 `media`고 FK 컬럼은 `media_id`, `shared_media_id`다.
-4. **응답 DTO 조립.** (정함, 2026-09-16) 부생성자로 조립하고 정적 팩토리(from)는 쓰지 않는다. `MemberResponse(Member member)`가 본보기다. 예외 하나가 있다(2026-09-19). 항목 하나짜리 `XxxResponses(List<XxxResponse>)` 껍데기에는 `List<XxxProjection>` 부생성자를 둘 수 없어서(제네릭 소거로 정식 생성자와 시그니처가 겹침) 목록 변환은 서비스의 스트림 한 줄로 두고 항목 변환만 부생성자가 한다. 정적 팩토리를 허용할지는 PR 코멘트로 논의 중이다.
+4. **응답 DTO 조립.** (바뀜, 2026-09-21) 정적 팩토리 `from`을 기본으로 한다. 항목은 `SavedPlaceResponse.from(projection)`, 목록 껍데기는 `SavedPlaceResponses.from(List<SavedPlaceProjection>)`이 변환을 맡아 서비스는 조회 결과만 넘긴다. 2026-09-16의 부생성자 결정은 목록 껍데기에 `List<XxxProjection>` 부생성자를 둘 수 없어서(제네릭 소거로 정식 생성자와 시그니처가 겹침) 목록 변환이 서비스로 새는 문제가 있었고, #179 리뷰에서 러키가 정적 팩토리로 매핑 책임을 DTO에 모으자고 제안해 팀이 받아들였다. `MemberResponse(Member)` 부생성자 등 기존 DTO도 `from`으로 맞춘다.
 5. **탈퇴 시 제공자 연결 해제.** (미결, B의 탈퇴 착수 전에 정한다) 우리 DB 삭제만 할지, 카카오 unlink(admin key + 저장된 provider id)까지 1단계에 넣을지. 구글과 애플 revoke는 제공자 토큰이 필요해 탈퇴 화면의 재인증 코드를 그 자리에서 쓰는 방식으로 어댑터 시기에 붙인다. 애플은 계정 삭제 시 revoke를 요구하고 카카오는 로그인 검수 항목에 연결 끊기가 있어 컷오버 전에는 둘째 겹이 필요하다.
 6. **대기함 다건 결정.** 공유 건마다 호출(도메인 경계와 일치) 또는 배치 엔드포인트 하나.
 7. **공유 확장의 만료 토큰.** 401 저장 후 앱 재접수(권장), 또는 확장이 직접 갱신(리프레시 회전 때문에 앱 세션이 깨지므로 비권장).

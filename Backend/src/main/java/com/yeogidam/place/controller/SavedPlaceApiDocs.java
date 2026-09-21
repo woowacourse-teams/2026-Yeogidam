@@ -25,7 +25,6 @@ public interface SavedPlaceApiDocs {
 
                     - 보관함 화면, 지도 핀, 보관함 검색이 같은 응답을 씁니다.
                     - 정렬은 `lastSavedAt` 내림차순입니다.
-                    - `summaryAddress`는 지번 주소의 도/시와 시/군/구까지입니다. 예) 서울 성동구
                     - `thumbnailSource`가 GOOGLE이면 `thumbnailAttribution`을 화면에 표시해야 합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),

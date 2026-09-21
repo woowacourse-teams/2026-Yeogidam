@@ -1,6 +1,5 @@
 package com.yeogidam.place.dto.response;
 
-import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.repository.SavedPlaceProjection;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,7 +10,6 @@ public record SavedPlaceResponse(
         String category,
         String landLotAddress,
         String roadAddress,
-        String summaryAddress,
         BigDecimal latitude,
         BigDecimal longitude,
         String kakaoPlaceUrl,
@@ -21,14 +19,13 @@ public record SavedPlaceResponse(
         String thumbnailAttribution,
         Instant lastSavedAt
 ) {
-    public SavedPlaceResponse(SavedPlaceProjection projection) {
-        this(
+    public static SavedPlaceResponse from(SavedPlaceProjection projection) {
+        return new SavedPlaceResponse(
                 projection.placeId(),
                 projection.name(),
                 projection.category(),
                 projection.landLotAddress(),
                 projection.roadAddress(),
-                new Address(projection.landLotAddress(), projection.roadAddress()).summary(),
                 projection.latitude(),
                 projection.longitude(),
                 projection.kakaoPlaceUrl(),

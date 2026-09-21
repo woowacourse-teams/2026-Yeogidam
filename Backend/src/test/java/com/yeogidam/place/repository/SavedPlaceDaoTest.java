@@ -23,7 +23,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     private SavedPlaceDao savedPlaceDao;
 
     @Test
-    void 회원의_보관함을_최근_저장_순으로_읽는다() {
+    void 보관함을_최근에_저장한_순서로_읽는다() {
         // when
         List<SavedPlaceProjection> savedPlaces = savedPlaceDao.findAllByMember(1L);
 
@@ -33,7 +33,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 장소_열과_저장_시각이_모두_매핑된다() {
+    void 장소_정보와_저장_시각이_빠짐없이_매핑된다() {
         // when
         SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(1L).getLast();
 
@@ -57,7 +57,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 값이_없는_열은_null로_매핑된다() {
+    void 비어_있는_값은_null로_매핑된다() {
         // when
         SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(1L).get(1);
 
