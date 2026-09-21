@@ -1,9 +1,9 @@
 package com.yeogidam.media.share;
 
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertMedia;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlace;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlaceCandidate;
-import static com.yeogidam.support.PlaceCandidateSqlFixture.insertSharedMedia;
+import static com.yeogidam.support.fixture.sql.MediaFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateFixture.createPlaceCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceFixture.createPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaFixture.createSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,8 +39,11 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
         // given
         LoginResult memberA = loginAsKakao("place-candidate-user-a");
         LoginResult memberB = loginAsKakao("place-candidate-user-b");
-        insertWaitingMedia(memberA.memberId(), 101L, 201L, 301L, timestamp("2026-09-17 10:00:00"));
-        insertWaitingMedia(memberB.memberId(), 102L, 202L, 302L, timestamp("2026-09-17 11:00:00"));
+
+         createWaitingMedia(memberA.memberId(), 101L, 201L, 301L, 401L,
+                timestamp("2026-09-17 10:00:00"));
+        createWaitingMedia(memberB.memberId(), 102L, 202L, 302L, 402L,
+                timestamp("2026-09-17 11:00:00"));
 
         // when
         List<Integer> sharedMediaIds = givenBearer(memberA.accessToken())
@@ -56,18 +59,11 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 미결정_후보가_있는_공유와_장소_정보를_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
-        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
-        insertPlace(
-                jdbcTemplate,
-                301L,
-                "첫 번째 카페",
-                "https://img.example.com/place.jpg",
-                "카페",
-                "서울 성동구 성수동2가 315-11",
-                "서울 성동구 연무장9길 4"
-        );
-        insertPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "UNDECIDED");
+        createMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createPlace(jdbcTemplate, 301L, "첫 번째 카페", "https://img.example.com/place.jpg",
+                "카페", "서울 성동구 성수동2가 315-11", "서울 성동구 연무장9길 4");
+        createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "UNDECIDED");
 
         // when & then
         givenBearer(login.accessToken())
@@ -91,12 +87,19 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 여러_상태가_섞인_공유에서는_미결정_후보만_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertSharedMediaWithCandidates(login.memberId(), 101L, 201L, timestamp("2026-09-17 10:00:00"),
-                List.of(
-                        new CandidateData(401L, 301L, "SAVED"),
-                        new CandidateData(402L, 302L, "DISCARDED"),
-                        new CandidateData(403L, 303L, "UNDECIDED")
-                ));
+        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+
+        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
+                "서울 성동구 성수동");
+        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
+                "서울 성동구 성수동");
+        createPlace(jdbcTemplate, 303L, "장소 303", "https://img.example.com/place-303.jpg", "카페",
+                "서울 성동구 성수동");
+
+        createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "SAVED");
+        createPlaceCandidate(jdbcTemplate, 402L, 101L, 302L, "DISCARDED");
+        createPlaceCandidate(jdbcTemplate, 403L, 101L, 303L, "UNDECIDED");
 
         // when & then
         givenBearer(login.accessToken())
@@ -111,12 +114,19 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 미결정_후보가_없는_공유는_반환하지_않는다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertSharedMediaWithCandidates(login.memberId(), 101L, 201L, timestamp("2026-09-17 10:00:00"),
-                List.of(
-                        new CandidateData(401L, 301L, "SAVED"),
-                        new CandidateData(402L, 302L, "DISCARDED"),
-                        new CandidateData(403L, 303L, "SUPERSEDED")
-                ));
+        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+
+        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
+                "서울 성동구 성수동");
+        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
+                "서울 성동구 성수동");
+        createPlace(jdbcTemplate, 303L, "장소 303", "https://img.example.com/place-303.jpg", "카페",
+                "서울 성동구 성수동");
+
+        createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "SAVED");
+        createPlaceCandidate(jdbcTemplate, 402L, 101L, 302L, "DISCARDED");
+        createPlaceCandidate(jdbcTemplate, 403L, 101L, 303L, "SUPERSEDED");
 
         // when & then
         givenBearer(login.accessToken())
@@ -129,16 +139,20 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 재공유된_이전_공유는_제외하고_최신_공유를_상단에_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertSharedMediaWithCandidates(login.memberId(), 101L, 201L, timestamp("2026-09-17 10:00:00"),
-                List.of(
-                        new CandidateData(401L, 301L, "SAVED"),
-                        new CandidateData(402L, 302L, "SUPERSEDED")
-                ));
-        insertSharedMediaWithExistingPlaces(login.memberId(), 102L, 201L, timestamp("2026-09-17 11:00:00"),
-                List.of(
-                        new CandidateData(403L, 301L, "UNDECIDED"),
-                        new CandidateData(404L, 302L, "UNDECIDED")
-                ));
+        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+
+        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
+                "서울 성동구 성수동");
+        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
+                "서울 성동구 성수동");
+
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+        createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "SAVED");
+        createPlaceCandidate(jdbcTemplate, 402L, 101L, 302L, "SUPERSEDED");
+
+        createSharedMedia(jdbcTemplate, 102L, login.memberId(), 201L, timestamp("2026-09-17 11:00:00"));
+        createPlaceCandidate(jdbcTemplate, 403L, 102L, 301L, "UNDECIDED");
+        createPlaceCandidate(jdbcTemplate, 404L, 102L, 302L, "UNDECIDED");
 
         // when
         List<Integer> sharedMediaIds = givenBearer(login.accessToken())
@@ -154,9 +168,13 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 공유_시각_내림차순과_공유_식별자_내림차순으로_정렬한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertWaitingMedia(login.memberId(), 101L, 201L, 301L, timestamp("2026-09-17 10:00:00"));
-        insertWaitingMedia(login.memberId(), 102L, 202L, 302L, timestamp("2026-09-17 11:00:00"));
-        insertWaitingMedia(login.memberId(), 103L, 203L, 303L, timestamp("2026-09-17 11:00:00"));
+
+        createWaitingMedia(login.memberId(), 101L, 201L, 301L, 401L,
+                timestamp("2026-09-17 10:00:00"));
+        createWaitingMedia(login.memberId(), 102L, 202L, 302L, 402L,
+                timestamp("2026-09-17 11:00:00"));
+        createWaitingMedia(login.memberId(), 103L, 203L, 303L, 403L,
+                timestamp("2026-09-17 11:00:00"));
 
         // when
         List<Integer> sharedMediaIds = givenBearer(login.accessToken())
@@ -172,12 +190,19 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 장소_후보는_place_candidates_식별자_오름차순으로_정렬한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertSharedMediaWithCandidates(login.memberId(), 101L, 201L, timestamp("2026-09-17 10:00:00"),
-                List.of(
-                        new CandidateData(403L, 301L, "UNDECIDED"),
-                        new CandidateData(401L, 302L, "UNDECIDED"),
-                        new CandidateData(402L, 303L, "UNDECIDED")
-                ));
+        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
+
+        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
+                "서울 성동구 성수동");
+        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
+                "서울 성동구 성수동");
+        createPlace(jdbcTemplate, 303L, "장소 303", "https://img.example.com/place-303.jpg", "카페",
+                "서울 성동구 성수동");
+
+        createPlaceCandidate(jdbcTemplate, 403L, 101L, 301L, "UNDECIDED");
+        createPlaceCandidate(jdbcTemplate, 401L, 101L, 302L, "UNDECIDED");
+        createPlaceCandidate(jdbcTemplate, 402L, 101L, 303L, "UNDECIDED");
 
         // when
         List<Integer> placeIds = givenBearer(login.accessToken())
@@ -201,58 +226,24 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
                 .body("sharedMedias", hasSize(0));
     }
 
-    private void insertWaitingMedia(
+    private void createWaitingMedia(
             Long memberId,
             Long sharedMediaId,
             Long mediaId,
             Long placeId,
+            Long candidateId,
             Timestamp createdAt
     ) {
-        insertSharedMediaWithCandidates(memberId, sharedMediaId, mediaId, createdAt,
-                List.of(new CandidateData(sharedMediaId + 300L, placeId, "UNDECIDED")));
-    }
-
-    private void insertSharedMediaWithCandidates(
-            Long memberId,
-            Long sharedMediaId,
-            Long mediaId,
-            Timestamp createdAt,
-            List<CandidateData> candidates
-    ) {
-        insertMedia(jdbcTemplate, mediaId, DEFAULT_CAPTION,
+        createMedia(jdbcTemplate, mediaId, DEFAULT_CAPTION,
                 "https://img.example.com/media-" + mediaId + ".jpg", DEFAULT_AUTHOR);
-        insertSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
-        candidates.forEach(candidate -> insertPlace(jdbcTemplate, candidate.placeId(), "장소 " + candidate.placeId(),
-                "https://img.example.com/place-" + candidate.placeId() + ".jpg", "카페",
-                "서울 성동구 성수동"));
-        insertPlaceCandidates(sharedMediaId, candidates);
-    }
-
-    private void insertSharedMediaWithExistingPlaces(
-            Long memberId,
-            Long sharedMediaId,
-            Long mediaId,
-            Timestamp createdAt,
-            List<CandidateData> candidates
-    ) {
-        insertSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
-        insertPlaceCandidates(sharedMediaId, candidates);
-    }
-
-    private void insertPlaceCandidates(
-            Long sharedMediaId,
-            List<CandidateData> candidates
-    ) {
-        candidates.forEach(candidate -> {
-            insertPlaceCandidate(jdbcTemplate, candidate.candidateId(), sharedMediaId, candidate.placeId(),
-                    candidate.decisionStatus());
-        });
+        createSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
+        createPlace(jdbcTemplate, placeId, "장소 " + placeId,
+                "https://img.example.com/place-" + placeId + ".jpg", "카페",
+                "서울 성동구 성수동");
+        createPlaceCandidate(jdbcTemplate, candidateId, sharedMediaId, placeId, "UNDECIDED");
     }
 
     private static Timestamp timestamp(String value) {
         return Timestamp.valueOf(value);
-    }
-
-    private record CandidateData(Long candidateId, Long placeId, String decisionStatus) {
     }
 }
