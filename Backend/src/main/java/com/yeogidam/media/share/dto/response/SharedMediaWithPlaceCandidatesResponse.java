@@ -10,11 +10,11 @@ public record SharedMediaWithPlaceCandidatesResponse(
         String author,
         List<PlaceCandidateResponse> places
 ) {
-    public SharedMediaWithPlaceCandidatesResponse(
+    public static SharedMediaWithPlaceCandidatesResponse from(
             SharedMediaProjection projection,
             List<PlaceCandidateResponse> places
     ) {
-        this(
+        return new SharedMediaWithPlaceCandidatesResponse(
                 projection.sharedMediaId(),
                 projection.thumbnailUrl(),
                 projection.caption(),

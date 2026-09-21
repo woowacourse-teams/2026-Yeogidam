@@ -20,7 +20,7 @@ public class PlaceCandidateService {
         List<SharedMediaProjection> sharedMedias = placeCandidateDao.findSharedMedias(memberId);
         List<Long> sharedMediaIds = extractSharedMediaIds(sharedMedias);
         List<PlaceCandidateProjection> places = placeCandidateDao.findUndecidedCandidates(sharedMediaIds);
-        return new SharedMediaWithPlaceCandidatesResponses(sharedMedias, places);
+        return SharedMediaWithPlaceCandidatesResponses.from(sharedMedias, places);
     }
 
     private List<Long> extractSharedMediaIds(List<SharedMediaProjection> sharedMedias) {

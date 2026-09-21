@@ -10,11 +10,13 @@ import java.util.stream.Collectors;
 public record SharedMediaWithPlaceCandidatesResponses(
         List<SharedMediaWithPlaceCandidatesResponse> sharedMedias
 ) {
-    public SharedMediaWithPlaceCandidatesResponses(
+    public static SharedMediaWithPlaceCandidatesResponses from(
             List<SharedMediaProjection> sharedMediaProjections,
             List<PlaceCandidateProjection> placeProjections
     ) {
-        this(createSharedMediaResponses(sharedMediaProjections, placeProjections));
+        return new SharedMediaWithPlaceCandidatesResponses(
+                createSharedMediaResponses(sharedMediaProjections, placeProjections)
+        );
     }
 
     private static List<SharedMediaWithPlaceCandidatesResponse> createSharedMediaResponses(
@@ -44,8 +46,8 @@ public record SharedMediaWithPlaceCandidatesResponses(
         List<PlaceCandidateResponse> places = placesBySharedMediaId
                 .getOrDefault(projection.sharedMediaId(), List.of())
                 .stream()
-                .map(PlaceCandidateResponse::new)
+                .map(PlaceCandidateResponse::from)
                 .toList();
-        return new SharedMediaWithPlaceCandidatesResponse(projection, places);
+        return SharedMediaWithPlaceCandidatesResponse.from(projection, places);
     }
 }

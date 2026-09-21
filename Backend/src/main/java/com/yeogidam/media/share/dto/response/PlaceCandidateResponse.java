@@ -10,8 +10,8 @@ public record PlaceCandidateResponse(
         String landLotAddress,
         String roadAddress
 ) {
-    public PlaceCandidateResponse(PlaceCandidateProjection projection) {
-        this(
+    public static PlaceCandidateResponse from(PlaceCandidateProjection projection) {
+        return new PlaceCandidateResponse(
                 projection.placeId(),
                 projection.thumbnailUrl(),
                 projection.name(),
