@@ -1,5 +1,8 @@
 package com.yeogidam.place;
 
+import static com.yeogidam.support.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -8,22 +11,34 @@ import static org.hamcrest.Matchers.nullValue;
 
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import java.math.BigDecimal;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.jdbc.Sql;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 보관함 목록 조회를 실제 HTTP로 검증한다. 정렬과 열 매핑의 세부는 SavedPlaceDaoTest가 맡고, 여기서는 응답 모양(감싸는 키, 필드 이름, 계산값, null)과 인가가 응답으로 드러나는지만
- * 본다.
+ * 보관함 목록 조회를 실제 HTTP로 검증한다. 정렬과 열 매핑의 세부는 SavedPlaceDaoTest가 맡고, 여기서는 응답 모양(감싸는 키, 필드 이름, null)과 인가가 응답으로 드러나는지만
+ * 본다. 회원은 로그인이 만들고 나머지 행은 SQL fixture로 given에서 넣는다.
  */
 class SavedPlaceE2eTest extends E2eTestSupport {
 
     private static final String SAVED_PLACES_PATH = "/api/v1/saved-places";
+    private static final Long ONWOL_ID = 1L;
+    private static final Long YUNSUP_ID = 2L;
+    private static final Long PALACE_ID = 3L;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
-    @Sql({"/members.sql", "/places.sql", "/saved-places.sql"})
     void 로그인하면_내_보관함을_최근에_저장한_순서로_조회한다() {
         // given
         LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), ONWOL_ID, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 2L, login.memberId(), YUNSUP_ID, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 3L, login.memberId(), PALACE_ID, Instant.parse("2026-09-15T00:00:10Z"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -65,5 +80,20 @@ class SavedPlaceE2eTest extends E2eTestSupport {
         given().when().get(SAVED_PLACES_PATH)
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));
+    }
+
+    /**
+     * 카페 온월은 열 전부가 채워진 장소(구글 사진), 윤숲은 비어 있을 수 있는 열이 전부 NULL인 장소, 경복궁은 카카오 사진에 전화가 없는 장소다.
+     */
+    private void insertThreePlaces() {
+        insertPlace(jdbcTemplate, ONWOL_ID, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
+                "서울 성동구 성수이로 26 2층", new BigDecimal("37.5445"), new BigDecimal("127.0561"),
+                "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE",
+                "<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>");
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, YUNSUP_ID, "kakao-2", "윤숲 후르츠산도", "서울 광진구 화양동 1-1",
+                new BigDecimal("37.5400"), new BigDecimal("127.0700"));
+        insertPlace(jdbcTemplate, PALACE_ID, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
+                new BigDecimal("37.5796"), new BigDecimal("126.9770"), "https://place.map.kakao.com/3", null,
+                "https://img.example.com/3.jpg", "KAKAO", null);
     }
 }

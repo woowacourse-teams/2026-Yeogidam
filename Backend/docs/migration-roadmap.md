@@ -80,7 +80,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 ### 4.2 1단계: 읽기 API와 회원 탈퇴 (수 ~ 금, 3일)
 
-자원 단위로 task를 나눈다. 한 task를 맡은 사람이 그 자원의 조회 DAO, 서비스, 컨트롤러와 문서 인터페이스, 응답 DTO, 테스트(`@JdbcTest`, E2E)를 통째로 만든다. 읽기 task는 쓰기 API가 아직 없으므로 SQL 픽스처로 행을 심어 검증하고, 그 픽스처(`src/test/resources`의 `members.sql`, `places.sql`, `saved-places.sql` 같은 SQL 파일)는 2단계의 E2E가 다시 쓴다. 로그인은 `E2eTestSupport.loginAsKakao`를 그대로 쓴다.
+자원 단위로 task를 나눈다. 한 task를 맡은 사람이 그 자원의 조회 DAO, 서비스, 컨트롤러와 문서 인터페이스, 응답 DTO, 테스트(`@JdbcTest`, E2E)를 통째로 만든다. 읽기 task는 쓰기 API가 아직 없으므로 SQL fixture(`support/sql`의 `MemberSqlFixture`, `PlaceSqlFixture`, `SavedPlaceSqlFixture` 같은 정적 메서드)로 given에서 행을 넣어 검증하고, 같은 fixture를 2단계의 E2E가 다시 쓴다. 로그인은 `E2eTestSupport.loginAsKakao`를 그대로 쓴다.
 
 A와 B로 나눈다(2026-09-16 확정). A는 정콩(빈), B는 러키가 맡는다. 자원 기준으로 갈려 두 사람이 같은 파일을 만질 일이 없다.
 
@@ -107,7 +107,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | `schema.sql`, `cleanup.sql` | PR 0 이후의 스키마 변경은 다른 작업을 섞지 않은 단독 소형 PR로만 한다 |
 | 컨트롤러와 문서 인터페이스 | 자원마다 파일이 따로다. `/shares`의 GET은 1단계에서 B가 만들고 POST는 2단계에서 각자 추가한다 |
 | DTO | 응답 DTO는 만든 사람이 소유한다. 공용 DTO를 만들지 않는다. 장소 목록 항목과 장소 상세처럼 모양이 같은 곳은 같은 묶음 안에서만 공유하고, A와 B에 같이 나오는 "공유 한 건"은 PR 0에서 맞춘 필드 이름을 쓴다 |
-| `E2eTestSupport` | 건드리지 않는다. DB 행 픽스처는 `src/test/resources/*.sql` 파일로 두고 `@Sql`로 골라 심는다(2026-09-19 결정, 자바 상수와 JdbcTemplate 헬퍼는 쓰지 않음). A는 `members.sql`, `places.sql`, `saved-places.sql`(+관련 릴스용 media, shared_media 파일), B는 media, shared_media, place_candidates 파일을 각자 만들고 겹치는 테이블은 2단계 왕복 E2E를 쓸 때 하나로 합친다 |
+| `E2eTestSupport` | 건드리지 않는다. DB 행 픽스처는 `support/sql`의 `XxxSqlFixture`(final 클래스, `insertXxx(jdbcTemplate, id, …)` 정적 메서드, 텍스트 블록 INSERT)로 두고 DAO 테스트와 E2E가 given에서 필요한 행만 직접 넣는다(2026-09-21 결정, `src/test/resources`의 `*.sql` 픽스처 파일과 `@Sql` 심기는 폐기, `cleanup.sql`만 남김). 같은 given이 반복되면 테스트 클래스의 private 메서드로 뺀다. E2E의 회원은 `loginAsKakao`가 만들고 `LoginResult.memberId()`를 fixture에 넘긴다. A는 members, places, saved_places(+media, shared_media, shared_media_saved_places), B는 media, shared_media, place_candidates fixture를 각자 만들고 겹치면 2단계에서 하나로 합친다 |
 | 브랜치와 리뷰 | 이슈 번호별 `feat/#번호`(예: `feat/#141`)에서 작업하고 PR은 서로 교차 리뷰한다. 상대 PR이 머지되면 그날 퇴근 전에 be-dev에 rebase한다 |
 | 완료 조건 | 표의 API가 Swagger에 보이고 E2E가 통과하며 be-dev에 머지되어 있다 |
 
