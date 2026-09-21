@@ -2,7 +2,7 @@ package com.yeogidam.member.repository;
 
 import static com.yeogidam.support.fixture.MemberFixture.kakaoMember;
 import static com.yeogidam.support.fixture.MemberFixture.profile;
-import static com.yeogidam.support.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 

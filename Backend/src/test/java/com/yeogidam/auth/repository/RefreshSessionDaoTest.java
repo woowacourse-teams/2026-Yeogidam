@@ -1,7 +1,7 @@
 package com.yeogidam.auth.repository;
 
-import static com.yeogidam.support.sql.MemberSqlFixture.insertKakaoMember;
-import static com.yeogidam.support.sql.RefreshSessionSqlFixture.insertRefreshSession;
+import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.RefreshSessionSqlFixture.insertRefreshSession;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 

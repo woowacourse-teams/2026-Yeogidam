@@ -1,9 +1,9 @@
 package com.yeogidam.place.repository;
 
-import static com.yeogidam.support.sql.MemberSqlFixture.insertKakaoMember;
-import static com.yeogidam.support.sql.PlaceSqlFixture.insertPlace;
-import static com.yeogidam.support.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
-import static com.yeogidam.support.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 

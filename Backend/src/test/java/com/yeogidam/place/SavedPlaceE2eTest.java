@@ -1,8 +1,8 @@
 package com.yeogidam.place;
 
-import static com.yeogidam.support.sql.PlaceSqlFixture.insertPlace;
-import static com.yeogidam.support.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
-import static com.yeogidam.support.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;

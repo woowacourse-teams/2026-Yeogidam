@@ -1,4 +1,4 @@
-package com.yeogidam.support.sql;
+package com.yeogidam.support.fixture.sql;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
