@@ -2,9 +2,9 @@ package com.yeogidam.support.fixture.sql;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
-public final class MediaFixture {
+public final class MediaSqlFixture {
 
-    private MediaFixture() {
+    private MediaSqlFixture() {
     }
 
     public static void createMedia(

@@ -1,9 +1,9 @@
 package com.yeogidam.media.share;
 
-import static com.yeogidam.support.fixture.sql.MediaFixture.createMedia;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateFixture.createPlaceCandidate;
-import static com.yeogidam.support.fixture.sql.PlaceFixture.createPlace;
-import static com.yeogidam.support.fixture.sql.SharedMediaFixture.createSharedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.createPlaceCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,8 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     private static final String PATH = "/api/v1/place-candidates";
     private static final String DEFAULT_CAPTION = "대기함 테스트 미디어";
     private static final String DEFAULT_AUTHOR = "@fixture_author_jii";
+    private static final BigDecimal FIXTURE_LATITUDE = new BigDecimal("37.5796");
+    private static final BigDecimal FIXTURE_LONGITUDE = new BigDecimal("126.9770");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -61,8 +64,22 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
         LoginResult login = loginAsKakao("place-candidate-user");
         createMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
         createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
-        createPlace(jdbcTemplate, 301L, "첫 번째 카페", "https://img.example.com/place.jpg",
-                "카페", "서울 성동구 성수동2가 315-11", "서울 성동구 연무장9길 4");
+        insertPlace(
+                jdbcTemplate,
+                301L,
+                "kakao-fixture-301",
+                "첫 번째 카페",
+                "카페",
+                "서울 성동구 성수동2가 315-11",
+                "서울 성동구 연무장9길 4",
+                FIXTURE_LATITUDE,
+                FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/301",
+                null,
+                "https://img.example.com/place.jpg",
+                null,
+                null
+        );
         createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "UNDECIDED");
 
         // when & then
@@ -90,12 +107,15 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
         createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
         createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
 
-        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
-                "서울 성동구 성수동");
-        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
-                "서울 성동구 성수동");
-        createPlace(jdbcTemplate, 303L, "장소 303", "https://img.example.com/place-303.jpg", "카페",
-                "서울 성동구 성수동");
+        insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+        insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
+        insertPlace(jdbcTemplate, 303L, "kakao-fixture-303", "장소 303", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null, null);
 
         createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "SAVED");
         createPlaceCandidate(jdbcTemplate, 402L, 101L, 302L, "DISCARDED");
@@ -117,12 +137,15 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
         createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
         createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
 
-        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
-                "서울 성동구 성수동");
-        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
-                "서울 성동구 성수동");
-        createPlace(jdbcTemplate, 303L, "장소 303", "https://img.example.com/place-303.jpg", "카페",
-                "서울 성동구 성수동");
+        insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+        insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
+        insertPlace(jdbcTemplate, 303L, "kakao-fixture-303", "장소 303", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null, null);
 
         createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "SAVED");
         createPlaceCandidate(jdbcTemplate, 402L, 101L, 302L, "DISCARDED");
@@ -141,10 +164,12 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
         LoginResult login = loginAsKakao("place-candidate-user");
         createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
 
-        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
-                "서울 성동구 성수동");
-        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
-                "서울 성동구 성수동");
+        insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+        insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
 
         createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
         createPlaceCandidate(jdbcTemplate, 401L, 101L, 301L, "SAVED");
@@ -193,12 +218,15 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
         createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
         createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L, timestamp("2026-09-17 10:00:00"));
 
-        createPlace(jdbcTemplate, 301L, "장소 301", "https://img.example.com/place-301.jpg", "카페",
-                "서울 성동구 성수동");
-        createPlace(jdbcTemplate, 302L, "장소 302", "https://img.example.com/place-302.jpg", "카페",
-                "서울 성동구 성수동");
-        createPlace(jdbcTemplate, 303L, "장소 303", "https://img.example.com/place-303.jpg", "카페",
-                "서울 성동구 성수동");
+        insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+        insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
+        insertPlace(jdbcTemplate, 303L, "kakao-fixture-303", "장소 303", "카페", "서울 성동구 성수동",
+                "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null, null);
 
         createPlaceCandidate(jdbcTemplate, 403L, 101L, 301L, "UNDECIDED");
         createPlaceCandidate(jdbcTemplate, 401L, 101L, 302L, "UNDECIDED");
@@ -237,9 +265,10 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
         createMedia(jdbcTemplate, mediaId, DEFAULT_CAPTION,
                 "https://img.example.com/media-" + mediaId + ".jpg", DEFAULT_AUTHOR);
         createSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
-        createPlace(jdbcTemplate, placeId, "장소 " + placeId,
-                "https://img.example.com/place-" + placeId + ".jpg", "카페",
-                "서울 성동구 성수동");
+        insertPlace(jdbcTemplate, placeId, "kakao-fixture-" + placeId, "장소 " + placeId, "카페",
+                "서울 성동구 성수동", "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/" + placeId, null,
+                "https://img.example.com/place-" + placeId + ".jpg", null, null);
         createPlaceCandidate(jdbcTemplate, candidateId, sharedMediaId, placeId, "UNDECIDED");
     }
 

@@ -1,14 +1,15 @@
 package com.yeogidam.media.share.repository;
 
-import static com.yeogidam.support.fixture.sql.MediaFixture.createMedia;
-import static com.yeogidam.support.fixture.sql.MemberFixture.createMember;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateFixture.createPlaceCandidate;
-import static com.yeogidam.support.fixture.sql.PlaceFixture.createPlace;
-import static com.yeogidam.support.fixture.sql.SharedMediaFixture.createSharedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.createPlaceCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.support.JdbcTestSupport;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,8 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
     private static final long SECOND_SHARED_MEDIA_ID = 930002L;
     private static final long THIRD_SHARED_MEDIA_ID = 930003L;
     private static final long FOURTH_SHARED_MEDIA_ID = 930004L;
+    private static final BigDecimal FIXTURE_LATITUDE = new BigDecimal("37.5796");
+    private static final BigDecimal FIXTURE_LONGITUDE = new BigDecimal("126.9770");
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -41,8 +44,10 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
     @Test
     void 대기_중인_후보가_있는_내_공유만_최근순으로_조회하고_미디어를_매핑한다() {
         // given
-        createMember(jdbcTemplate, FIRST_MEMBER_ID, "lucky-1234453");
-        createMember(jdbcTemplate, SECOND_MEMBER_ID, "kong-1144254");
+        insertKakaoMember(jdbcTemplate, FIRST_MEMBER_ID, "lucky-1234453", "lucky-1234453",
+                "lucky-1234453@example.com", "https://img.example.com/lucky-1234453");
+        insertKakaoMember(jdbcTemplate, SECOND_MEMBER_ID, "kong-1144254", "kong-1144254",
+                "kong-1144254@example.com", "https://img.example.com/kong-1144254");
 
         createMedia(jdbcTemplate, FIRST_MEDIA_ID, "오래된 미디어", "https://img.example.com/old.jpg", "@old");
         createMedia(jdbcTemplate, SECOND_MEDIA_ID, "최신 미디어", "https://img.example.com/new.jpg", "@new");
@@ -61,14 +66,22 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         createSharedMedia(jdbcTemplate, FOURTH_SHARED_MEDIA_ID, FIRST_MEMBER_ID, FOURTH_MEDIA_ID,
                 timestamp("2026-09-17 13:00:00"));
 
-        createPlace(jdbcTemplate, 940001L, "오래된 장소", "https://img.example.com/place-old.jpg", "카페",
-                "서울 성동구");
-        createPlace(jdbcTemplate, 940002L, "최신 장소", "https://img.example.com/place-new.jpg", "카페",
-                "서울 종로구");
-        createPlace(jdbcTemplate, 940003L, "다른 회원 장소", "https://img.example.com/place-other.jpg", "카페",
-                "서울 마포구");
-        createPlace(jdbcTemplate, 940004L, "결정된 장소", "https://img.example.com/place-decided.jpg", "카페",
-                "서울 중구");
+        insertPlace(jdbcTemplate, 940001L, "kakao-fixture-940001", "오래된 장소", "카페", "서울 성동구",
+                "서울 성동구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/940001", null,
+                "https://img.example.com/place-old.jpg", null, null);
+        insertPlace(jdbcTemplate, 940002L, "kakao-fixture-940002", "최신 장소", "카페", "서울 종로구",
+                "서울 종로구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/940002", null,
+                "https://img.example.com/place-new.jpg", null, null);
+        insertPlace(jdbcTemplate, 940003L, "kakao-fixture-940003", "다른 회원 장소", "카페", "서울 마포구",
+                "서울 마포구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/940003", null,
+                "https://img.example.com/place-other.jpg", null, null);
+        insertPlace(jdbcTemplate, 940004L, "kakao-fixture-940004", "결정된 장소", "카페", "서울 중구",
+                "서울 중구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/940004", null,
+                "https://img.example.com/place-decided.jpg", null, null);
 
         createPlaceCandidate(jdbcTemplate, 950001L, FIRST_SHARED_MEDIA_ID, 940001L, "UNDECIDED");
         createPlaceCandidate(jdbcTemplate, 950002L, SECOND_SHARED_MEDIA_ID, 940002L, "UNDECIDED");
@@ -93,17 +106,25 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
     @Test
     void 여러_공유의_미결정_후보만_후보_ID_오름차순과_주소로_매핑한다() {
         // given
-        createMember(jdbcTemplate, 910003L, "place-candidate-candidate-user");
+        insertKakaoMember(jdbcTemplate, 910003L, "place-candidate-candidate-user",
+                "place-candidate-candidate-user", "place-candidate-candidate-user@example.com",
+                "https://img.example.com/place-candidate-candidate-user");
         createMedia(jdbcTemplate, 920005L, "미디어", "https://img.example.com/media.jpg", "@author");
         createSharedMedia(jdbcTemplate, 930005L, 910003L, 920005L,
                 timestamp("2026-09-17 10:00:00"));
 
-        createPlace(jdbcTemplate, 940005L, "첫 장소", "https://img.example.com/place-1.jpg", "카페",
-                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1");
-        createPlace(jdbcTemplate, 940006L, "두 번째 장소", "https://img.example.com/place-2.jpg", "식당",
-                "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1");
-        createPlace(jdbcTemplate, 940007L, "제외할 장소", "https://img.example.com/place-3.jpg", "카페",
-                "서울 중구");
+        insertPlace(jdbcTemplate, 940005L, "kakao-fixture-940005", "첫 장소", "카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", FIXTURE_LATITUDE,
+                FIXTURE_LONGITUDE, "https://place.map.kakao.com/940005", null,
+                "https://img.example.com/place-1.jpg", null, null);
+        insertPlace(jdbcTemplate, 940006L, "kakao-fixture-940006", "두 번째 장소", "식당",
+                "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", FIXTURE_LATITUDE,
+                FIXTURE_LONGITUDE, "https://place.map.kakao.com/940006", null,
+                "https://img.example.com/place-2.jpg", null, null);
+        insertPlace(jdbcTemplate, 940007L, "kakao-fixture-940007", "제외할 장소", "카페", "서울 중구",
+                "서울 중구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
+                "https://place.map.kakao.com/940007", null,
+                "https://img.example.com/place-3.jpg", null, null);
 
         createPlaceCandidate(jdbcTemplate, 950005L, 930005L, 940005L, "UNDECIDED");
         createPlaceCandidate(jdbcTemplate, 950006L, 930005L, 940006L, "SAVED");

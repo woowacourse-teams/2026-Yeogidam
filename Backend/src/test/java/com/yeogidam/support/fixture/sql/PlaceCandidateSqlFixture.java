@@ -2,9 +2,9 @@ package com.yeogidam.support.fixture.sql;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 
-public final class PlaceCandidateFixture {
+public final class PlaceCandidateSqlFixture {
 
-    private PlaceCandidateFixture() {
+    private PlaceCandidateSqlFixture() {
     }
 
     public static void createPlaceCandidate(

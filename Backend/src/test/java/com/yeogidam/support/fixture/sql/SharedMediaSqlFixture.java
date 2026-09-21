@@ -3,9 +3,9 @@ package com.yeogidam.support.fixture.sql;
 import java.sql.Timestamp;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-public final class SharedMediaFixture {
+public final class SharedMediaSqlFixture {
 
-    private SharedMediaFixture() {
+    private SharedMediaSqlFixture() {
     }
 
     public static void createSharedMedia(
