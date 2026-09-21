@@ -19,6 +19,7 @@
   },
   "scripts": {
     "android": "react-native run-android",
+    "generate:terms": "node scripts/generate-terms-content.mjs && prettier --write src/pages/my-page/terms-content.generated.ts",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
