@@ -168,7 +168,6 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **3 히스토리.** 목록은 현재 페이징 없이 제공하고, 페이징은 히스토리 API 구현 시 검토한다. 재시도는 FAILED에서만 도메인이 허용하고 DB 조건부 UPDATE가 경쟁을 막는다(bean-fable 그대로).
 
-**4 대기함.** GET /place-candidates는 서비스 오케스트레이션의 대표 예다. 회원의 공유 중 UNDECIDED 후보가 하나라도 있는 것을 `shared_media.created_at DESC`, 동일 시각은 `shared_media.id DESC`로 읽고, 그 공유들의 후보(`place_candidates ⋈ places`)는 UNDECIDED만 조회해 서비스에서 묶는다. 응답의 `places[]`에는 `placeId`, `thumbnailUrl`, `name`, `category`, `address(landLotAddress, roadAddress)`를 포함하고 `place_candidates.id ASC`로 정렬하며 별도 장소 개수 필드와 COUNT 쿼리는 사용하지 않는다. 커서는 `(sharedAt, sharedMediaId)`를 사용한다. 결정은 공유 건 단위(SharedInstagramMedia.decidePlaces)라 여러 릴스를 한 번에 고르면 클라이언트가 공유마다 호출한다(남은 결정 6).
 **4 대기함.** GET /place-candidates는 서비스 오케스트레이션의 대표 예다. 회원의 공유 중 UNDECIDED 후보가 하나라도 있는 것을 `shared_media.created_at DESC`, 동일 시각은 `shared_media.id DESC`로 읽고, 그 공유들의 후보(`place_candidates ⋈ places`)는 UNDECIDED만 조회해 서비스에서 묶는다. 응답의 `places[]`에는 `placeId`, `thumbnailUrl`, `name`, `category`, `address(landLotAddress, roadAddress)`를 포함하고 `place_candidates.id ASC`로 정렬하며 별도 장소 개수 필드와 COUNT 쿼리는 사용하지 않는다. 페이징은 백로그로 이동한다. 결정은 공유 건 단위(SharedInstagramMedia.decidePlaces)라 여러 릴스를 한 번에 고르면 클라이언트가 공유마다 호출한다(남은 결정 6).
 
 **5 보관함과 장소 상세.** 보관함 응답에 lastSavedAt을 넣어 정렬 근거를 준다(client-impact-report 남은 확인 2). 장소 상세는 목록 항목과 같은 모양이라 DTO를 공유한다. 관련 릴스 목록의 "릴스당 최신 공유 한 건" 규칙은 SQL 대신 서비스에서 groupingBy로 만든다.
