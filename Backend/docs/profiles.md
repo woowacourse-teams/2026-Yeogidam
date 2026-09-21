@@ -8,6 +8,7 @@
 |---|---|---|---|---|
 | 용도 | 개발자 노트북 | Gradle 테스트 | 개발 서버 | 운영 |
 | DB | 로컬 MySQL(`.env`) | Testcontainers MySQL 8.4 | 개발 서버 MySQL | 운영 MySQL |
+| 앱 업데이트 정책(`app-update.*`) | `application.yml` 기본값(최소 1.0.0, 최신 1.1.0) | `application-test.yml`(E2E용 구간) | 기본값 | `application-prod.yml`에서 실제 스토어 값으로 덮음 |
 | `schema.sql` 실행 | 기동마다 (DROP 뒤 CREATE) | 컨텍스트마다 | 안 함 | 안 함 |
 | 로컬 실행용 데이터 (`data-local.sql`) | 넣음 | 안 넣음 | 안 넣음 | 안 넣음 |
 | OAuth | 실제 키 | Fake | 실제 키 | 실제 키 |

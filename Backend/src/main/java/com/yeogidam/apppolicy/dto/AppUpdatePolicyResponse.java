@@ -9,8 +9,8 @@ public record AppUpdatePolicyResponse(
         String latestVersion,
         String storeUrl
 ) {
-    public AppUpdatePolicyResponse(UpdateDecision decision) {
-        this(
+    public static AppUpdatePolicyResponse from(UpdateDecision decision) {
+        return new AppUpdatePolicyResponse(
                 decision.required(),
                 decision.recommended(),
                 decision.policy().minimumSupportedVersion().value(),

@@ -11,8 +11,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.stereotype.Service;
 
 @Service
-@EnableConfigurationProperties(AppUpdatePolicyProperties.class)
 @RequiredArgsConstructor
+@EnableConfigurationProperties(AppUpdatePolicyProperties.class)
 public class AppUpdatePolicyService {
 
     private final AppUpdatePolicyProperties properties;
@@ -24,6 +24,6 @@ public class AppUpdatePolicyService {
         PlatformPolicy policy = properties.of(Platform.fromParameter(platform));
         AppVersion currentVersion = new AppVersion(appVersion);
         UpdateDecision decision = policy.decide(currentVersion);
-        return new AppUpdatePolicyResponse(decision);
+        return AppUpdatePolicyResponse.from(decision);
     }
 }
