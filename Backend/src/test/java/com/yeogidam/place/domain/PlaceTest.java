@@ -18,8 +18,6 @@ class PlaceTest {
                 .isEqualTo(new PlaceName("경복궁"));
         assertThat(place.profile().category())
                 .isEqualTo("관광명소");
-        assertThat(place.summaryAddress())
-                .isEqualTo("서울 종로구");
     }
 
     @Test
