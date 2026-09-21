@@ -1,4 +1,4 @@
-package com.yeogidam.media.share;
+package com.yeogidam.media.share.service;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponse;
 import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponses;
 import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponse;
-import com.yeogidam.media.share.service.PlaceCandidateService;
 import com.yeogidam.support.IntegrationTestSupport;
 import java.math.BigDecimal;
 import java.sql.Timestamp;

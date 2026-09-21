@@ -27,47 +27,47 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 본인_공유_결과를_모든_필드로_매핑한다() {
         // given
-        insertKakaoMember(jdbcTemplate, 910020L, "share-dao-user", "share-dao-user",
+        insertKakaoMember(jdbcTemplate, 1L, "share-dao-user", "share-dao-user",
                 "share-dao-user@example.com", "https://img.example.com/share-dao-user");
         insertMediaWithStatus(
-                920020L,
+                1L,
                 "성수동 카페 모음",
                 "https://img.example.com/media.jpg",
                 "@seongsu",
                 "SUCCEEDED",
                 null
         );
-        createSharedMedia(jdbcTemplate, 930020L, 910020L, 920020L,
+        createSharedMedia(jdbcTemplate, 1L, 1L, 1L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(910020L, 930020L).orElseThrow();
+        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(1L, 1L).orElseThrow();
 
         // then
         assertAll(
-                () -> assertThat(result.sharedMediaId()).isEqualTo(930020L),
+                () -> assertThat(result.sharedMediaId()).isEqualTo(1L),
                 () -> assertThat(result.thumbnailUrl()).isEqualTo("https://img.example.com/media.jpg"),
                 () -> assertThat(result.caption()).isEqualTo("성수동 카페 모음"),
                 () -> assertThat(result.author()).isEqualTo("@seongsu"),
                 () -> assertThat(result.extractionStatus()).isEqualTo("SUCCEEDED"),
                 () -> assertThat(result.failureReason()).isNull(),
                 () -> assertThat(result.sharedUrl())
-                        .isEqualTo("https://www.instagram.com/reel/fixture-930020/")
+                        .isEqualTo("https://www.instagram.com/reel/fixture-1/")
         );
     }
 
     @Test
     void 게시글_접근_실패_결과의_게시글_정보_null을_매핑한다() {
         // given
-        insertKakaoMember(jdbcTemplate, 910021L, "share-dao-content-unavailable-user",
+        insertKakaoMember(jdbcTemplate, 2L, "share-dao-content-unavailable-user",
                 "share-dao-content-unavailable-user", "share-dao-content-unavailable-user@example.com",
                 "https://img.example.com/share-dao-content-unavailable-user");
-        insertMediaWithStatus(920021L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        createSharedMedia(jdbcTemplate, 930021L, 910021L, 920021L,
+        insertMediaWithStatus(2L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
+        createSharedMedia(jdbcTemplate, 2L, 2L, 2L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(910021L, 930021L).orElseThrow();
+        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(2L, 2L).orElseThrow();
 
         // then
         assertAll(
@@ -82,17 +82,17 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 다른_회원의_공유_결과_또는_존재하지_않는_공유_결과는_빈_Optional을_반환한다() {
         // given
-        insertKakaoMember(jdbcTemplate, 910022L, "share-dao-owner", "share-dao-owner",
+        insertKakaoMember(jdbcTemplate, 3L, "share-dao-owner", "share-dao-owner",
                 "share-dao-owner@example.com", "https://img.example.com/share-dao-owner");
-        insertKakaoMember(jdbcTemplate, 910023L, "share-dao-other", "share-dao-other",
+        insertKakaoMember(jdbcTemplate, 4L, "share-dao-other", "share-dao-other",
                 "share-dao-other@example.com", "https://img.example.com/share-dao-other");
-        createMedia(jdbcTemplate, 920022L, "게시글", "https://img.example.com/media.jpg", "@author");
-        createSharedMedia(jdbcTemplate, 930022L, 910022L, 920022L,
+        createMedia(jdbcTemplate, 3L, "게시글", "https://img.example.com/media.jpg", "@author");
+        createSharedMedia(jdbcTemplate, 3L, 3L, 3L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        Optional<ShareHistoryDetailProjection> otherMemberResult = shareDao.findShareHistoryDetail(910023L, 930022L);
-        Optional<ShareHistoryDetailProjection> missingResult = shareDao.findShareHistoryDetail(910022L, 999999L);
+        Optional<ShareHistoryDetailProjection> otherMemberResult = shareDao.findShareHistoryDetail(4L, 3L);
+        Optional<ShareHistoryDetailProjection> missingResult = shareDao.findShareHistoryDetail(3L, 99L);
 
         // then
         assertThat(otherMemberResult).isEmpty();
@@ -102,29 +102,29 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 히스토리_목록을_회원별로_공유_시각과_ID_내림차순으로_조회하고_요약_필드를_매핑한다() {
         // given
-        insertKakaoMember(jdbcTemplate, 910024L, "share-dao-list-user", "share-dao-list-user",
+        insertKakaoMember(jdbcTemplate, 5L, "share-dao-list-user", "share-dao-list-user",
                 "share-dao-list-user@example.com", "https://img.example.com/share-dao-list-user");
-        insertKakaoMember(jdbcTemplate, 910025L, "share-dao-list-other", "share-dao-list-other",
+        insertKakaoMember(jdbcTemplate, 6L, "share-dao-list-other", "share-dao-list-other",
                 "share-dao-list-other@example.com", "https://img.example.com/share-dao-list-other");
 
-        createMedia(jdbcTemplate, 920024L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
-        insertMediaWithStatus(920025L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        createMedia(jdbcTemplate, 920026L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
+        createMedia(jdbcTemplate, 4L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        insertMediaWithStatus(5L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
+        createMedia(jdbcTemplate, 6L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
 
-        createSharedMedia(jdbcTemplate, 930024L, 910024L, 920024L,
+        createSharedMedia(jdbcTemplate, 4L, 5L, 4L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
-        createSharedMedia(jdbcTemplate, 930025L, 910024L, 920025L,
+        createSharedMedia(jdbcTemplate, 5L, 5L, 5L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
-        createSharedMedia(jdbcTemplate, 930026L, 910025L, 920026L,
+        createSharedMedia(jdbcTemplate, 6L, 6L, 6L,
                 Timestamp.valueOf("2026-09-17 11:00:00"));
 
         // when
-        List<ShareProjection> shares = shareDao.findShares(910024L);
+        List<ShareProjection> shares = shareDao.findShares(5L);
 
         // then
         assertThat(shares)
                 .extracting(ShareProjection::sharedMediaId)
-                .containsExactly(930025L, 930024L);
+                .containsExactly(5L, 4L);
 
         ShareProjection failed = shares.getFirst();
         ShareProjection succeeded = shares.getLast();
@@ -134,21 +134,21 @@ class ShareDaoTest extends JdbcTestSupport {
                 () -> assertThat(failed.author()).isNull(),
                 () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
                 () -> assertThat(failed.sharedUrl())
-                        .isEqualTo("https://www.instagram.com/reel/fixture-930025/"),
+                        .isEqualTo("https://www.instagram.com/reel/fixture-5/"),
                 () -> assertThat(succeeded.thumbnailUrl())
                         .isEqualTo("https://img.example.com/succeeded.jpg"),
                 () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
                 () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
                 () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
                 () -> assertThat(succeeded.sharedUrl())
-                        .isEqualTo("https://www.instagram.com/reel/fixture-930024/")
+                        .isEqualTo("https://www.instagram.com/reel/fixture-4/")
         );
     }
 
     @Test
     void 히스토리가_없으면_빈_목록을_반환한다() {
         // when
-        List<ShareProjection> shares = shareDao.findShares(910027L);
+        List<ShareProjection> shares = shareDao.findShares(7L);
 
         // then
         assertThat(shares).isEmpty();
