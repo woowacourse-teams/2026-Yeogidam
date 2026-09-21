@@ -2,7 +2,8 @@ package com.yeogidam.media.share.repository;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.createPlaceCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSavedCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,10 +84,11 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 "https://place.map.kakao.com/940004", null,
                 "https://img.example.com/place-decided.jpg", null, null);
 
-        createPlaceCandidate(jdbcTemplate, 950001L, FIRST_SHARED_MEDIA_ID, 940001L, "UNDECIDED");
-        createPlaceCandidate(jdbcTemplate, 950002L, SECOND_SHARED_MEDIA_ID, 940002L, "UNDECIDED");
-        createPlaceCandidate(jdbcTemplate, 950003L, THIRD_SHARED_MEDIA_ID, 940003L, "UNDECIDED");
-        createPlaceCandidate(jdbcTemplate, 950004L, FOURTH_SHARED_MEDIA_ID, 940004L, "SAVED");
+        insertUndecidedCandidate(jdbcTemplate, 950001L, FIRST_SHARED_MEDIA_ID, 940001L);
+        insertUndecidedCandidate(jdbcTemplate, 950002L, SECOND_SHARED_MEDIA_ID, 940002L);
+        insertUndecidedCandidate(jdbcTemplate, 950003L, THIRD_SHARED_MEDIA_ID, 940003L);
+        insertSavedCandidate(jdbcTemplate, 950004L, FOURTH_SHARED_MEDIA_ID, 940004L,
+                timestamp("2026-09-17 10:00:00"));
 
         // when
         List<SharedMediaProjection> sharedMedias = placeCandidateDao.findSharedMedias(FIRST_MEMBER_ID);
@@ -126,9 +128,10 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 "https://place.map.kakao.com/940007", null,
                 "https://img.example.com/place-3.jpg", null, null);
 
-        createPlaceCandidate(jdbcTemplate, 950005L, 930005L, 940005L, "UNDECIDED");
-        createPlaceCandidate(jdbcTemplate, 950006L, 930005L, 940006L, "SAVED");
-        createPlaceCandidate(jdbcTemplate, 950007L, 930005L, 940007L, "UNDECIDED");
+        insertUndecidedCandidate(jdbcTemplate, 950005L, 930005L, 940005L);
+        insertSavedCandidate(jdbcTemplate, 950006L, 930005L, 940006L,
+                timestamp("2026-09-17 10:00:00"));
+        insertUndecidedCandidate(jdbcTemplate, 950007L, 930005L, 940007L);
 
         // when
         List<PlaceCandidateProjection> candidates = placeCandidateDao.findUndecidedCandidates(List.of(930005L));

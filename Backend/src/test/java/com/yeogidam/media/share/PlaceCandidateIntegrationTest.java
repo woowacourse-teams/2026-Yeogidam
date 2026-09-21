@@ -2,7 +2,7 @@ package com.yeogidam.media.share;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.createPlaceCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,13 +28,13 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
     private PlaceCandidateService placeCandidateService;
 
     @Test
-    void 서비스는_공유_미디어와_장소_프로젝션을_중첩된_응답으로_조립한다() {
+    void 미결정_장소_후보가_있는_공유_미디어를_장소와_함께_조회한다() {
         // given
         insertKakaoMember(jdbcTemplate, 1L, "member-123ijfsa", "member-123ijfsa",
                 "member-123ijfsa@example.com", "https://img.example.com/member-123ijfsa");
         createMedia(jdbcTemplate, 1L, "성수 장소 모음", "https://img.example.com/media.jpg", "@seongsu");
         createSharedMedia(jdbcTemplate, 1L, 1L, 1L,
-                Timestamp.valueOf("2026-09-17 10:00:00"));
+                timestamp("2026-09-17 10:00:00"));
 
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 장소", "카페",
                 "서울 성동구", "서울 성동구", new BigDecimal("37.5796"), new BigDecimal("126.9770"),
@@ -45,10 +45,8 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
                 "https://place.map.kakao.com/2", null,
                 "https://img.example.com/place-2.jpg", null, null);
 
-        createPlaceCandidate(jdbcTemplate, 1L, 1L, 1L,
-                "UNDECIDED");
-        createPlaceCandidate(jdbcTemplate, 2L, 1L, 2L,
-                "UNDECIDED");
+        insertUndecidedCandidate(jdbcTemplate, 1L, 1L, 1L);
+        insertUndecidedCandidate(jdbcTemplate, 2L, 1L, 2L);
 
         // when
         SharedMediaWithPlaceCandidatesResponses response = placeCandidateService.readPlaceCandidates(1L);
@@ -67,5 +65,9 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(firstPlace.name()).isEqualTo("첫 장소"),
                 () -> assertThat(firstPlace.landLotAddress()).isEqualTo("서울 성동구")
         );
+    }
+
+    private static Timestamp timestamp(String value) {
+        return Timestamp.valueOf(value);
     }
 }
