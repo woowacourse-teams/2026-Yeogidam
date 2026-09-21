@@ -9,8 +9,8 @@ import static com.yeogidam.support.PlaceCandidateSqlFixture.insertPlaceCandidate
 import static com.yeogidam.support.PlaceCandidateSqlFixture.insertSharedMedia;
 
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponse;
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
-import com.yeogidam.media.share.dto.response.PlaceCandidateSharedMediaResponse;
+import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponses;
+import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponse;
 import com.yeogidam.media.share.service.PlaceCandidateService;
 import com.yeogidam.support.IntegrationTestSupport;
 import java.sql.Timestamp;
@@ -53,10 +53,10 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
         insertPlaceCandidate(jdbcTemplate, SECOND_CANDIDATE_ID, SHARED_MEDIA_ID, SECOND_PLACE_ID, "UNDECIDED");
 
         // when
-        PlaceCandidateResponses response = placeCandidateService.readPlaceCandidates(MEMBER_ID);
+        SharedMediaWithPlaceCandidatesResponses response = placeCandidateService.readPlaceCandidates(MEMBER_ID);
 
         // then
-        PlaceCandidateSharedMediaResponse sharedMedia = response.sharedMedias().getFirst();
+        SharedMediaWithPlaceCandidatesResponse sharedMedia = response.sharedMedias().getFirst();
         PlaceCandidateResponse firstPlace = sharedMedia.places().getFirst();
         assertAll(
                 () -> assertThat(response.sharedMedias()).hasSize(1),

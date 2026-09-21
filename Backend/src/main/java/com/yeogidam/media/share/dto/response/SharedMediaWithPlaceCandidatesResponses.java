@@ -7,17 +7,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public record PlaceCandidateResponses(
-        List<PlaceCandidateSharedMediaResponse> sharedMedias
+public record SharedMediaWithPlaceCandidatesResponses(
+        List<SharedMediaWithPlaceCandidatesResponse> sharedMedias
 ) {
-    public PlaceCandidateResponses(
+    public SharedMediaWithPlaceCandidatesResponses(
             List<SharedMediaProjection> sharedMediaProjections,
             List<PlaceCandidateProjection> placeProjections
     ) {
         this(createSharedMediaResponses(sharedMediaProjections, placeProjections));
     }
 
-    private static List<PlaceCandidateSharedMediaResponse> createSharedMediaResponses(
+    private static List<SharedMediaWithPlaceCandidatesResponse> createSharedMediaResponses(
             List<SharedMediaProjection> sharedMediaProjections,
             List<PlaceCandidateProjection> placeProjections
     ) {
@@ -37,7 +37,7 @@ public record PlaceCandidateResponses(
                 ));
     }
 
-    private static PlaceCandidateSharedMediaResponse createSharedMediaResponse(
+    private static SharedMediaWithPlaceCandidatesResponse createSharedMediaResponse(
             SharedMediaProjection projection,
             Map<Long, List<PlaceCandidateProjection>> placesBySharedMediaId
     ) {
@@ -46,6 +46,6 @@ public record PlaceCandidateResponses(
                 .stream()
                 .map(PlaceCandidateResponse::new)
                 .toList();
-        return new PlaceCandidateSharedMediaResponse(projection, places);
+        return new SharedMediaWithPlaceCandidatesResponse(projection, places);
     }
 }

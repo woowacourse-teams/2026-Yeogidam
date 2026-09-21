@@ -1,7 +1,7 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
+import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -28,7 +28,7 @@ public interface PlaceCandidateApiDocs {
             responses = {
                     @ApiResponse(responseCode = "200", description = "대기함 목록. 대기 중인 공유가 없으면 빈 배열",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = PlaceCandidateResponses.class))),
+                                    schema = @Schema(implementation = SharedMediaWithPlaceCandidatesResponses.class))),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -43,5 +43,5 @@ public interface PlaceCandidateApiDocs {
                                                             """)
                                     }))
             })
-    ResponseEntity<PlaceCandidateResponses> readPlaceCandidates(Long memberId);
+    ResponseEntity<SharedMediaWithPlaceCandidatesResponses> readPlaceCandidates(Long memberId);
 }

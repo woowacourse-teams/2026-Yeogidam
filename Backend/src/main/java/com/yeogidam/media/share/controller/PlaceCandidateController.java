@@ -1,7 +1,7 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
+import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponses;
 import com.yeogidam.media.share.service.PlaceCandidateService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,8 +18,8 @@ public class PlaceCandidateController implements PlaceCandidateApiDocs {
 
     @Override
     @GetMapping
-    public ResponseEntity<PlaceCandidateResponses> readPlaceCandidates(@LoginMember Long memberId) {
-        PlaceCandidateResponses response = placeCandidateService.readPlaceCandidates(memberId);
+    public ResponseEntity<SharedMediaWithPlaceCandidatesResponses> readPlaceCandidates(@LoginMember Long memberId) {
+        SharedMediaWithPlaceCandidatesResponses response = placeCandidateService.readPlaceCandidates(memberId);
         return ResponseEntity.ok()
                 .body(response);
     }

@@ -3,14 +3,14 @@ package com.yeogidam.media.share.dto.response;
 import com.yeogidam.media.share.repository.SharedMediaProjection;
 import java.util.List;
 
-public record PlaceCandidateSharedMediaResponse(
+public record SharedMediaWithPlaceCandidatesResponse(
         Long sharedMediaId,
         String thumbnailUrl,
         String caption,
         String author,
         List<PlaceCandidateResponse> places
 ) {
-    public PlaceCandidateSharedMediaResponse(
+    public SharedMediaWithPlaceCandidatesResponse(
             SharedMediaProjection projection,
             List<PlaceCandidateResponse> places
     ) {

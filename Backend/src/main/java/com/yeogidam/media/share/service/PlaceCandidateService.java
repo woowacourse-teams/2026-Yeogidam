@@ -1,6 +1,6 @@
 package com.yeogidam.media.share.service;
 
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
+import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponses;
 import com.yeogidam.media.share.repository.PlaceCandidateDao;
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
 import com.yeogidam.media.share.repository.SharedMediaProjection;
@@ -16,11 +16,11 @@ public class PlaceCandidateService {
 
     private final PlaceCandidateDao placeCandidateDao;
 
-    public PlaceCandidateResponses readPlaceCandidates(Long memberId) {
+    public SharedMediaWithPlaceCandidatesResponses readPlaceCandidates(Long memberId) {
         List<SharedMediaProjection> sharedMedias = placeCandidateDao.findSharedMedias(memberId);
         List<Long> sharedMediaIds = extractSharedMediaIds(sharedMedias);
         List<PlaceCandidateProjection> places = placeCandidateDao.findUndecidedCandidates(sharedMediaIds);
-        return new PlaceCandidateResponses(sharedMedias, places);
+        return new SharedMediaWithPlaceCandidatesResponses(sharedMedias, places);
     }
 
     private List<Long> extractSharedMediaIds(List<SharedMediaProjection> sharedMedias) {
