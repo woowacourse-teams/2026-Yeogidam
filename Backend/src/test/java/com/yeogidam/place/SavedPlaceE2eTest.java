@@ -24,9 +24,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class SavedPlaceE2eTest extends E2eTestSupport {
 
     private static final String SAVED_PLACES_PATH = "/api/v1/saved-places";
-    private static final Long ONWOL_ID = 1L;
-    private static final Long YUNSUP_ID = 2L;
-    private static final Long PALACE_ID = 3L;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -36,9 +33,9 @@ class SavedPlaceE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), ONWOL_ID, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 2L, login.memberId(), YUNSUP_ID, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 3L, login.memberId(), PALACE_ID, Instant.parse("2026-09-15T00:00:10Z"));
+        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 2L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 3L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:10Z"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -86,13 +83,13 @@ class SavedPlaceE2eTest extends E2eTestSupport {
      * 카페 온월은 열 전부가 채워진 장소(구글 사진), 윤숲은 비어 있을 수 있는 열이 전부 NULL인 장소, 경복궁은 카카오 사진에 전화가 없는 장소다.
      */
     private void insertThreePlaces() {
-        insertPlace(jdbcTemplate, ONWOL_ID, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
+        insertPlace(jdbcTemplate, 1L, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
                 "서울 성동구 성수이로 26 2층", new BigDecimal("37.5445"), new BigDecimal("127.0561"),
                 "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE",
                 "<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>");
-        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, YUNSUP_ID, "kakao-2", "윤숲 후르츠산도", "서울 광진구 화양동 1-1",
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 2L, "kakao-2", "윤숲 후르츠산도", "서울 광진구 화양동 1-1",
                 new BigDecimal("37.5400"), new BigDecimal("127.0700"));
-        insertPlace(jdbcTemplate, PALACE_ID, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
+        insertPlace(jdbcTemplate, 3L, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
                 new BigDecimal("37.5796"), new BigDecimal("126.9770"), "https://place.map.kakao.com/3", null,
                 "https://img.example.com/3.jpg", "KAKAO", null);
     }

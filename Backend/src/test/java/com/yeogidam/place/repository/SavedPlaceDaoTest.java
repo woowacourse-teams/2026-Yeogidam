@@ -22,11 +22,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(SavedPlaceDao.class)
 class SavedPlaceDaoTest extends JdbcTestSupport {
 
-    private static final Long MEMBER_ID = 1L;
-    private static final Long ONWOL_ID = 1L;
-    private static final Long YUNSUP_ID = 2L;
-    private static final Long PALACE_ID = 3L;
-
     @Autowired
     private SavedPlaceDao savedPlaceDao;
 
@@ -36,33 +31,33 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     @Test
     void 보관함을_최근에_저장한_순서로_읽는다() {
         // given
-        insertMember(MEMBER_ID, "user-1");
+        insertMember(1L, "user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, MEMBER_ID, ONWOL_ID, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 2L, MEMBER_ID, YUNSUP_ID, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 3L, MEMBER_ID, PALACE_ID, Instant.parse("2026-09-15T00:00:10Z"));
+        insertSavedPlace(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 2L, 1L, 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 3L, 1L, 3L, Instant.parse("2026-09-15T00:00:10Z"));
 
         // when
-        List<SavedPlaceProjection> savedPlaces = savedPlaceDao.findAllByMember(MEMBER_ID);
+        List<SavedPlaceProjection> savedPlaces = savedPlaceDao.findAllByMember(1L);
 
         // then
         assertThat(savedPlaces).extracting(SavedPlaceProjection::placeId)
-                .containsExactly(PALACE_ID, YUNSUP_ID, ONWOL_ID);
+                .containsExactly(3L, 2L, 1L);
     }
 
     @Test
     void 장소_정보와_저장_시각이_빠짐없이_매핑된다() {
         // given
-        insertMember(MEMBER_ID, "user-1");
+        insertMember(1L, "user-1");
         insertPlaceWithEveryColumnFilled();
-        insertSavedPlace(jdbcTemplate, 1L, MEMBER_ID, ONWOL_ID, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
 
         // when
-        SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(MEMBER_ID).getFirst();
+        SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(1L).getFirst();
 
         // then
         assertAll(
-                () -> assertThat(savedPlace.placeId()).isEqualTo(ONWOL_ID),
+                () -> assertThat(savedPlace.placeId()).isEqualTo(1L),
                 () -> assertThat(savedPlace.name()).isEqualTo("카페 온월"),
                 () -> assertThat(savedPlace.category()).isEqualTo("음식점 > 카페"),
                 () -> assertThat(savedPlace.landLotAddress()).isEqualTo("서울 성동구 성수동2가 289-10"),
@@ -82,16 +77,16 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     @Test
     void 비어_있는_값은_null로_매핑된다() {
         // given
-        insertMember(MEMBER_ID, "user-1");
+        insertMember(1L, "user-1");
         insertPlaceWithOptionalColumnsNull();
-        insertSavedPlace(jdbcTemplate, 1L, MEMBER_ID, YUNSUP_ID, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 1L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
 
         // when
-        SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(MEMBER_ID).getFirst();
+        SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(1L).getFirst();
 
         // then
         assertAll(
-                () -> assertThat(savedPlace.placeId()).isEqualTo(YUNSUP_ID),
+                () -> assertThat(savedPlace.placeId()).isEqualTo(2L),
                 () -> assertThat(savedPlace.category()).isNull(),
                 () -> assertThat(savedPlace.roadAddress()).isNull(),
                 () -> assertThat(savedPlace.kakaoPlaceUrl()).isNull(),
@@ -105,26 +100,25 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     @Test
     void 다른_회원의_보관함은_섞이지_않는다() {
         // given
-        Long otherMemberId = 2L;
-        insertMember(MEMBER_ID, "user-1");
-        insertMember(otherMemberId, "user-2");
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, MEMBER_ID, ONWOL_ID, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 2L, MEMBER_ID, YUNSUP_ID, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 3L, otherMemberId, PALACE_ID, Instant.parse("2026-09-15T00:00:10Z"));
+        insertSavedPlace(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 2L, 1L, 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 3L, 2L, 3L, Instant.parse("2026-09-15T00:00:10Z"));
 
         // when & then
-        assertThat(savedPlaceDao.findAllByMember(otherMemberId)).extracting(SavedPlaceProjection::placeId)
-                .containsExactly(PALACE_ID);
+        assertThat(savedPlaceDao.findAllByMember(2L)).extracting(SavedPlaceProjection::placeId)
+                .containsExactly(3L);
     }
 
     @Test
     void 저장한_장소가_없으면_빈_목록이다() {
         // given
-        insertMember(MEMBER_ID, "user-1");
+        insertMember(1L, "user-1");
 
         // when & then
-        assertThat(savedPlaceDao.findAllByMember(MEMBER_ID)).isEmpty();
+        assertThat(savedPlaceDao.findAllByMember(1L)).isEmpty();
     }
 
     private void insertMember(Long memberId, String providerUserId) {
@@ -135,7 +129,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     private void insertThreePlaces() {
         insertPlaceWithEveryColumnFilled();
         insertPlaceWithOptionalColumnsNull();
-        insertPlace(jdbcTemplate, PALACE_ID, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
+        insertPlace(jdbcTemplate, 3L, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
                 new BigDecimal("37.5796"), new BigDecimal("126.9770"), "https://place.map.kakao.com/3", null,
                 "https://img.example.com/3.jpg", "KAKAO", null);
     }
@@ -144,7 +138,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
      * 카페 온월. 열 전부가 채워진 장소이고 구글 사진이라 출처 표기가 있다.
      */
     private void insertPlaceWithEveryColumnFilled() {
-        insertPlace(jdbcTemplate, ONWOL_ID, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
+        insertPlace(jdbcTemplate, 1L, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
                 "서울 성동구 성수이로 26 2층", new BigDecimal("37.5445"), new BigDecimal("127.0561"),
                 "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE",
                 "<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>");
@@ -154,7 +148,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
      * 윤숲 후르츠산도. 비어 있을 수 있는 열이 전부 NULL인 장소다.
      */
     private void insertPlaceWithOptionalColumnsNull() {
-        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, YUNSUP_ID, "kakao-2", "윤숲 후르츠산도", "서울 광진구 화양동 1-1",
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 2L, "kakao-2", "윤숲 후르츠산도", "서울 광진구 화양동 1-1",
                 new BigDecimal("37.5400"), new BigDecimal("127.0700"));
     }
 }
