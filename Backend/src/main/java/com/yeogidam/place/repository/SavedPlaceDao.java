@@ -2,7 +2,9 @@ package com.yeogidam.place.repository;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -61,15 +63,21 @@ public class SavedPlaceDao {
     }
 
     /**
-     * 회원의 보관함에서 항목(saved_places.id)을 뺀다. 지운 행 수를 돌려주므로 0이면 없는 항목이거나 남의 항목이다.
+     * 회원의 보관함에서 고른 항목(saved_places.id)을 한 번에 뺀다. 없는 항목이나 남의 항목은 member_id 조건에 걸려 그냥 지워지지 않는다.
      * 어느 공유에서 저장했는지 연결(shared_media_saved_places)은 FK의 ON DELETE CASCADE가 함께 지운다.
      */
-    public int deleteByMemberAndId(Long memberId, Long savedPlaceId) {
+    public int deleteByMemberAndIds(Long memberId, List<Long> savedPlaceIds) {
+        String placeholders = savedPlaceIds.stream()
+                .map(savedPlaceId -> "?")
+                .collect(Collectors.joining(", "));
         String sql = """
                 DELETE FROM saved_places
                 WHERE member_id = ?
-                  AND id = ?
-                """;
-        return jdbcTemplate.update(sql, memberId, savedPlaceId);
+                  AND id IN (%s)
+                """.formatted(placeholders);
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(memberId);
+        arguments.addAll(savedPlaceIds);
+        return jdbcTemplate.update(sql, arguments.toArray());
     }
 }

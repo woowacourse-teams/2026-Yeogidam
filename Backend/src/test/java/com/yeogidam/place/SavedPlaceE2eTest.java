@@ -81,7 +81,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 보관함에서_장소를_삭제하면_목록에서_사라진다() {
+    void 고른_보관함_항목을_한_번에_삭제하면_목록에서_사라진다() {
         // given: 경로의 id는 saved_places의 id라서 장소 id(1, 2, 3)와 겹치지 않는 값(11, 12, 13)으로 넣는다
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
@@ -89,73 +89,60 @@ class SavedPlaceE2eTest extends E2eTestSupport {
         insertSavedPlace(jdbcTemplate, 12L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
         insertSavedPlace(jdbcTemplate, 13L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:10Z"));
 
-        // when: 보관함 12(장소 2)를 지운다
+        // when: 보관함 11(장소 1)과 12(장소 2)를 한 번에 지운다
         givenBearer(login.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/12")
+                .queryParam("savedPlaceIds", "11,12")
+                .when().delete(SAVED_PLACES_PATH)
                 .then().statusCode(204);
 
         // then
         givenBearer(login.accessToken())
                 .when().get(SAVED_PLACES_PATH)
                 .then().statusCode(200)
-                .body("savedPlaces.placeId", contains(3, 1));
+                .body("savedPlaces.placeId", contains(3));
     }
 
     @Test
-    void 장소_id로_삭제를_부르면_404_예외를_던진다() {
-        // given: 보관함 11에 장소 2가 있고, 장소 id 2를 보관함 id 자리에 잘못 보낸다
+    void 이미_삭제했거나_남의_보관함_항목이_섞여_있어도_204다() {
+        // given: 보관함 11은 user-1, 21은 user-2의 것이다
         LoginResult login = loginAsKakao("user-1");
-        insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
-
-        // when & then
-        givenBearer(login.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/2")
-                .then().statusCode(404)
-                .body("errorCode", equalTo("PLACE404_001"));
-    }
-
-    @Test
-    void 이미_삭제한_장소를_다시_삭제하면_404_예외를_던진다() {
-        // given
-        LoginResult login = loginAsKakao("user-1");
-        insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
-        givenBearer(login.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/11")
-                .then().statusCode(204);
-
-        // when & then
-        givenBearer(login.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/11")
-                .then().statusCode(404)
-                .body("errorCode", equalTo("PLACE404_001"));
-    }
-
-    @Test
-    void 남이_저장한_장소를_삭제하면_404_예외를_던진다() {
-        // given: 보관함 11(장소 2)은 user-1의 것이고 user-2가 그 id로 지우려 한다
-        LoginResult owner = loginAsKakao("user-1");
         LoginResult other = loginAsKakao("user-2");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 11L, owner.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 21L, other.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        givenBearer(login.accessToken())
+                .queryParam("savedPlaceIds", "11")
+                .when().delete(SAVED_PLACES_PATH)
+                .then().statusCode(204);
 
-        // when
+        // when: 이미 지운 11, 없는 99, 남의 항목 21을 함께 보낸다
+        givenBearer(login.accessToken())
+                .queryParam("savedPlaceIds", "11,99,21")
+                .when().delete(SAVED_PLACES_PATH)
+                .then().statusCode(204);
+
+        // then: 남의 보관함은 그대로다
         givenBearer(other.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/11")
-                .then().statusCode(404)
-                .body("errorCode", equalTo("PLACE404_001"));
-
-        // then: 주인의 보관함은 그대로다
-        givenBearer(owner.accessToken())
                 .when().get(SAVED_PLACES_PATH)
                 .then().statusCode(200)
                 .body("savedPlaces.placeId", contains(2));
     }
 
     @Test
+    void 삭제할_항목을_보내지_않으면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().delete(SAVED_PLACES_PATH)
+                .then().statusCode(400);
+    }
+
+    @Test
     void 토큰_없이_삭제하면_401_예외를_던진다() {
-        given().when().delete(SAVED_PLACES_PATH + "/1")
+        given().queryParam("savedPlaceIds", "11")
+                .when().delete(SAVED_PLACES_PATH)
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));
     }

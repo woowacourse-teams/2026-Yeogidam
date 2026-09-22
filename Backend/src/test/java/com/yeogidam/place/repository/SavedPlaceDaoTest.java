@@ -145,7 +145,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 
         // when: 보관함 id(11)로 지운다. 장소 id(1)를 넣으면 지워지지 않아야 한다
-        int deleted = savedPlaceDao.deleteByMemberAndId(1L, 11L);
+        int deleted = savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L));
 
         // then: saved_places를 지우면 shared_media_saved_places 행도 FK의 ON DELETE CASCADE로 사라진다
         assertAll(
@@ -173,7 +173,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 
         // when
-        savedPlaceDao.deleteByMemberAndId(1L, 11L);
+        savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L));
 
         // then: shared_media, place_candidates, places와 다른 회원의 보관함은 그대로다
         assertAll(
@@ -185,19 +185,24 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 없는_보관함이나_남의_보관함을_삭제하면_지운_행이_없다() {
-        // given: 보관함 11(장소 2)은 회원 1의 것이다
+    void 없는_보관함이나_남의_보관함은_섞여_있어도_내_항목만_지운다() {
+        // given: 보관함 11(장소 2), 12(장소 3)는 회원 1의 것이다
         insertMember(1L, "user-1");
         insertMember(2L, "user-2");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 3L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-09-15T00:00:10Z"));
 
-        // when & then: 없는 id, 장소 id를 넣은 경우, 남의 보관함 id 모두 지워지지 않고 원래 행은 남는다
+        // when: 내 항목 11, 없는 id 999, 장소 id 2, 남의 항목 21을 함께 보낸다
+        int deleted = savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L, 999L, 2L, 21L));
+
+        // then: 내 항목 하나만 지워지고 나머지는 남는다
         assertAll(
-                () -> assertThat(savedPlaceDao.deleteByMemberAndId(1L, 999L)).isZero(),
-                () -> assertThat(savedPlaceDao.deleteByMemberAndId(1L, 2L)).isZero(),
-                () -> assertThat(savedPlaceDao.deleteByMemberAndId(2L, 11L)).isZero(),
-                () -> assertThat(count("saved_places WHERE id = 11")).isEqualTo(1)
+                () -> assertThat(deleted).isEqualTo(1),
+                () -> assertThat(count("saved_places WHERE id = 11")).isZero(),
+                () -> assertThat(count("saved_places WHERE id = 12")).isEqualTo(1),
+                () -> assertThat(count("saved_places WHERE id = 21")).isEqualTo(1)
         );
     }
 

@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -52,25 +54,27 @@ public interface SavedPlaceApiDocs {
 
     @Operation(summary = "보관함 장소 삭제",
             description = """
-                    보관함에서 장소를 뺍니다. 보관함 편집과 장소 상세 더보기에서 씁니다.
+                    고른 보관함 항목을 한 번에 뺍니다. 보관함 편집(여러 개 선택)과 장소 상세 더보기(한 개)에서 씁니다.
 
                     - 보관함 행과 어느 공유에서 저장했는지 연결만 지웁니다. 후보, 공유 이력, 장소는 남습니다.
-                    - 같은 장소를 다시 지우면 404입니다.
-                    - 여러 개를 지울 때는 장소마다 호출합니다.
+                    - 한 트랜잭션이라 일부만 지워지는 일이 없습니다.
+                    - 멱등합니다. 이미 지웠거나 남의 항목이 섞여 있어도 "그 항목이 내 보관함에 없다"는 결과가 같아 204입니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
                     @ApiResponse(responseCode = "204", description = "삭제 완료"),
-                    @ApiResponse(responseCode = "404", description = "내가 저장하지 않은 장소",
+                    @ApiResponse(responseCode = "400", description = "savedPlaceIds가 없거나 비어 있음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
-                                    examples = @ExampleObject(name = "PLACE404_001", description = "없는 장소, 저장하지 않은 장소, 남이 저장한 장소 모두",
+                                    examples = @ExampleObject(name = "PLACE400_001",
                                             value = """
-                                            {"message": "저장된 장소가 아닙니다.", "errorCode": "PLACE404_001"}
+                                            {"message": "삭제할 보관함 항목이 없습니다.", "errorCode": "PLACE400_001"}
                                             """))),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class)))
             })
-    ResponseEntity<Void> deleteSavedPlace(Long memberId, @Parameter(description = "보관함 항목 id(saved_places.id)", example = "1") Long savedPlaceId);
+    ResponseEntity<Void> deleteSavedPlaces(Long memberId,
+                                           @Parameter(description = "보관함 항목 id(saved_places.id) 목록", example = "11,12")
+                                           Optional<List<Long>> savedPlaceIds);
 }

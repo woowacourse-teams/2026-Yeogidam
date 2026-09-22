@@ -5,7 +5,8 @@ import org.springframework.http.HttpStatus;
 
 public enum PlaceErrorCode implements ErrorCode {
 
-    SAVED_PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "PLACE404_001", "저장된 장소가 아닙니다.");
+    SAVED_PLACE_NOT_FOUND(HttpStatus.NOT_FOUND, "PLACE404_001", "저장된 장소가 아닙니다."),
+    EMPTY_SAVED_PLACE_IDS(HttpStatus.BAD_REQUEST, "PLACE400_001", "삭제할 보관함 항목이 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
