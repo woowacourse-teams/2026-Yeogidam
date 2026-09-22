@@ -20,8 +20,8 @@ public class SavedPlaceService {
     }
 
     @Transactional
-    public void deleteSavedPlace(Long memberId, Long placeId) {
-        int deleted = savedPlaceDao.deleteByMemberAndPlace(memberId, placeId);
+    public void deleteSavedPlace(Long memberId, Long savedPlaceId) {
+        int deleted = savedPlaceDao.deleteByMemberAndId(memberId, savedPlaceId);
         if (deleted == 0) {
             throw new PlaceException(PlaceErrorCode.SAVED_PLACE_NOT_FOUND);
         }

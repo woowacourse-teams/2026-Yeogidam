@@ -26,6 +26,7 @@ public interface SavedPlaceApiDocs {
 
                     - 보관함 화면, 지도 핀, 보관함 검색이 같은 응답을 씁니다.
                     - 정렬은 `lastSavedAt` 내림차순입니다.
+                    - 삭제와 관련 릴스 조회는 이 응답의 `savedPlaceId`(보관함 항목 id)를 경로 변수로 씁니다.
                     - `thumbnailSource`가 GOOGLE이면 `thumbnailAttribution`을 화면에 표시해야 합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
@@ -71,5 +72,5 @@ public interface SavedPlaceApiDocs {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class)))
             })
-    ResponseEntity<Void> deleteSavedPlace(Long memberId, @Parameter(description = "장소 id", example = "1") Long placeId);
+    ResponseEntity<Void> deleteSavedPlace(Long memberId, @Parameter(description = "보관함 항목 id(saved_places.id)", example = "1") Long savedPlaceId);
 }

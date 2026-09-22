@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 public record SavedPlaceResponse(
+        Long savedPlaceId,
         Long placeId,
         String name,
         String category,
@@ -21,6 +22,7 @@ public record SavedPlaceResponse(
 ) {
     public static SavedPlaceResponse from(SavedPlaceProjection projection) {
         return new SavedPlaceResponse(
+                projection.savedPlaceId(),
                 projection.placeId(),
                 projection.name(),
                 projection.category(),

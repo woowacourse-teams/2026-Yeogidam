@@ -39,16 +39,20 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         // given
         insertMember(1L, "user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 2L, 1L, 2L, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 3L, 1L, 3L, Instant.parse("2026-09-15T00:00:10Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 13L, 1L, 3L, Instant.parse("2026-09-15T00:00:10Z"));
 
         // when
         List<SavedPlaceProjection> savedPlaces = savedPlaceDao.findAllByMember(1L);
 
         // then
-        assertThat(savedPlaces).extracting(SavedPlaceProjection::placeId)
-                .containsExactly(3L, 2L, 1L);
+        assertAll(
+                () -> assertThat(savedPlaces).extracting(SavedPlaceProjection::savedPlaceId)
+                        .containsExactly(13L, 12L, 11L),
+                () -> assertThat(savedPlaces).extracting(SavedPlaceProjection::placeId)
+                        .containsExactly(3L, 2L, 1L)
+        );
     }
 
     @Test
@@ -56,13 +60,14 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         // given
         insertMember(1L, "user-1");
         insertPlaceWithEveryColumnFilled();
-        insertSavedPlace(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
 
         // when
         SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(1L).getFirst();
 
         // then
         assertAll(
+                () -> assertThat(savedPlace.savedPlaceId()).isEqualTo(11L),
                 () -> assertThat(savedPlace.placeId()).isEqualTo(1L),
                 () -> assertThat(savedPlace.name()).isEqualTo("카페 온월"),
                 () -> assertThat(savedPlace.category()).isEqualTo("음식점 > 카페"),
@@ -129,24 +134,24 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
     @Test
     void 보관함에서_삭제하면_어느_공유에서_저장했는지도_함께_삭제된다() {
-        // given: 회원 1이 릴스 10을 두 번(공유 100, 102) 공유해 카페 온월(보관함 1)을 두 공유에서 저장했다
+        // given: 회원 1이 릴스 10을 두 번(공유 100, 102) 공유해 카페 온월(장소 1)을 보관함 11로 두 공유에서 저장했다
         insertMember(1L, "user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
         createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
-        insertSavedPlaceShare(jdbcTemplate, 1L, 1L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
-        insertSavedPlaceShare(jdbcTemplate, 2L, 1L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 
-        // when
-        int deleted = savedPlaceDao.deleteByMemberAndPlace(1L, 1L);
+        // when: 보관함 id(11)로 지운다. 장소 id(1)를 넣으면 지워지지 않아야 한다
+        int deleted = savedPlaceDao.deleteByMemberAndId(1L, 11L);
 
         // then: saved_places를 지우면 shared_media_saved_places 행도 FK의 ON DELETE CASCADE로 사라진다
         assertAll(
                 () -> assertThat(deleted).isEqualTo(1),
                 () -> assertThat(savedPlaceDao.findAllByMember(1L)).isEmpty(),
-                () -> assertThat(count("shared_media_saved_places WHERE saved_place_id = 1")).isZero()
+                () -> assertThat(count("shared_media_saved_places WHERE saved_place_id = 11")).isZero()
         );
     }
 
@@ -156,19 +161,19 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMember(1L, "user-1");
         insertMember(2L, "user-2");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 4L, 2L, 1L, Instant.parse("2026-09-15T00:00:15Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 24L, 2L, 1L, Instant.parse("2026-09-15T00:00:15Z"));
         createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedCandidate(jdbcTemplate, 1000L, 100L, 1L, Timestamp.valueOf("2026-09-10 12:00:00"));
         insertSupersededCandidate(jdbcTemplate, 1001L, 100L, 2L);
         insertSavedCandidate(jdbcTemplate, 1003L, 102L, 1L, Timestamp.valueOf("2026-09-12 12:00:00"));
-        insertSavedPlaceShare(jdbcTemplate, 1L, 1L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
-        insertSavedPlaceShare(jdbcTemplate, 2L, 1L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 
         // when
-        savedPlaceDao.deleteByMemberAndPlace(1L, 1L);
+        savedPlaceDao.deleteByMemberAndId(1L, 11L);
 
         // then: shared_media, place_candidates, places와 다른 회원의 보관함은 그대로다
         assertAll(
@@ -180,17 +185,19 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 저장하지_않은_장소나_남의_장소를_삭제하면_지운_행이_없다() {
-        // given: 장소 2는 회원 1만 저장했다
+    void 없는_보관함이나_남의_보관함을_삭제하면_지운_행이_없다() {
+        // given: 보관함 11(장소 2)은 회원 1의 것이다
         insertMember(1L, "user-1");
         insertMember(2L, "user-2");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
 
-        // when & then
+        // when & then: 없는 id, 장소 id를 넣은 경우, 남의 보관함 id 모두 지워지지 않고 원래 행은 남는다
         assertAll(
-                () -> assertThat(savedPlaceDao.deleteByMemberAndPlace(1L, 999L)).isZero(),
-                () -> assertThat(savedPlaceDao.deleteByMemberAndPlace(2L, 2L)).isZero()
+                () -> assertThat(savedPlaceDao.deleteByMemberAndId(1L, 999L)).isZero(),
+                () -> assertThat(savedPlaceDao.deleteByMemberAndId(1L, 2L)).isZero(),
+                () -> assertThat(savedPlaceDao.deleteByMemberAndId(2L, 11L)).isZero(),
+                () -> assertThat(count("saved_places WHERE id = 11")).isEqualTo(1)
         );
     }
 

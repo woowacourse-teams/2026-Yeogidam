@@ -14,6 +14,7 @@ public class SavedPlaceDao {
 
     private static final RowMapper<SavedPlaceProjection> PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
             new SavedPlaceProjection(
+                    resultSet.getLong("saved_place_id"),
                     resultSet.getLong("place_id"),
                     resultSet.getString("name"),
                     resultSet.getString("category"),
@@ -37,7 +38,8 @@ public class SavedPlaceDao {
      */
     public List<SavedPlaceProjection> findAllByMember(Long memberId) {
         String sql = """
-                SELECT p.id AS place_id,
+                SELECT sp.id AS saved_place_id,
+                       p.id AS place_id,
                        p.name,
                        p.category,
                        p.land_lot_address,
@@ -59,15 +61,15 @@ public class SavedPlaceDao {
     }
 
     /**
-     * 회원의 보관함에서 장소를 뺀다. 지운 행 수를 돌려주므로 0이면 저장한 적이 없는 장소다.
+     * 회원의 보관함에서 항목(saved_places.id)을 뺀다. 지운 행 수를 돌려주므로 0이면 없는 항목이거나 남의 항목이다.
      * 어느 공유에서 저장했는지 연결(shared_media_saved_places)은 FK의 ON DELETE CASCADE가 함께 지운다.
      */
-    public int deleteByMemberAndPlace(Long memberId, Long placeId) {
+    public int deleteByMemberAndId(Long memberId, Long savedPlaceId) {
         String sql = """
                 DELETE FROM saved_places
                 WHERE member_id = ?
-                  AND place_id = ?
+                  AND id = ?
                 """;
-        return jdbcTemplate.update(sql, memberId, placeId);
+        return jdbcTemplate.update(sql, memberId, savedPlaceId);
     }
 }

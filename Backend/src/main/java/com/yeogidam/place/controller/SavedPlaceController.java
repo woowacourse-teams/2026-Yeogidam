@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/saved-places")
 @RequiredArgsConstructor
+@RequestMapping("/api/v1/saved-places")
 public class SavedPlaceController implements SavedPlaceApiDocs {
 
     private final SavedPlaceService savedPlaceService;
@@ -27,9 +27,9 @@ public class SavedPlaceController implements SavedPlaceApiDocs {
     }
 
     @Override
-    @DeleteMapping("/{placeId}")
-    public ResponseEntity<Void> deleteSavedPlace(@LoginMember Long memberId, @PathVariable Long placeId) {
-        savedPlaceService.deleteSavedPlace(memberId, placeId);
+    @DeleteMapping("/{savedPlaceId}")
+    public ResponseEntity<Void> deleteSavedPlace(@LoginMember Long memberId, @PathVariable Long savedPlaceId) {
+        savedPlaceService.deleteSavedPlace(memberId, savedPlaceId);
         return ResponseEntity.noContent()
                 .build();
     }

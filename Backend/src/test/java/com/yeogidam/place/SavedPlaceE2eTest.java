@@ -33,15 +33,16 @@ class SavedPlaceE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 2L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 3L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:10Z"));
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 13L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:10Z"));
 
         // when & then
         givenBearer(login.accessToken())
                 .when().get(SAVED_PLACES_PATH)
                 .then().statusCode(200)
                 .body("savedPlaces", hasSize(3))
+                .body("savedPlaces.savedPlaceId", contains(13, 12, 11))
                 .body("savedPlaces.placeId", contains(3, 2, 1))
                 .body("savedPlaces[0].name", equalTo("경복궁"))
                 .body("savedPlaces[0].category", equalTo("관광명소"))
@@ -81,16 +82,16 @@ class SavedPlaceE2eTest extends E2eTestSupport {
 
     @Test
     void 보관함에서_장소를_삭제하면_목록에서_사라진다() {
-        // given
+        // given: 경로의 id는 saved_places의 id라서 장소 id(1, 2, 3)와 겹치지 않는 값(11, 12, 13)으로 넣는다
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 2L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 3L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:10Z"));
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 13L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:10Z"));
 
-        // when
+        // when: 보관함 12(장소 2)를 지운다
         givenBearer(login.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/2")
+                .when().delete(SAVED_PLACES_PATH + "/12")
                 .then().statusCode(204);
 
         // then
@@ -101,14 +102,11 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 이미_삭제한_장소를_다시_삭제하면_404_예외를_던진다() {
-        // given
+    void 장소_id로_삭제를_부르면_404_예외를_던진다() {
+        // given: 보관함 11에 장소 2가 있고, 장소 id 2를 보관함 id 자리에 잘못 보낸다
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
-        givenBearer(login.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/2")
-                .then().statusCode(204);
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -118,18 +116,41 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
+    void 이미_삭제한_장소를_다시_삭제하면_404_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        givenBearer(login.accessToken())
+                .when().delete(SAVED_PLACES_PATH + "/11")
+                .then().statusCode(204);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().delete(SAVED_PLACES_PATH + "/11")
+                .then().statusCode(404)
+                .body("errorCode", equalTo("PLACE404_001"));
+    }
+
+    @Test
     void 남이_저장한_장소를_삭제하면_404_예외를_던진다() {
-        // given: 장소 2는 user-1이 저장했고 user-2가 지우려 한다
+        // given: 보관함 11(장소 2)은 user-1의 것이고 user-2가 그 id로 지우려 한다
         LoginResult owner = loginAsKakao("user-1");
         LoginResult other = loginAsKakao("user-2");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 1L, owner.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, owner.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
 
-        // when & then
+        // when
         givenBearer(other.accessToken())
-                .when().delete(SAVED_PLACES_PATH + "/2")
+                .when().delete(SAVED_PLACES_PATH + "/11")
                 .then().statusCode(404)
                 .body("errorCode", equalTo("PLACE404_001"));
+
+        // then: 주인의 보관함은 그대로다
+        givenBearer(owner.accessToken())
+                .when().get(SAVED_PLACES_PATH)
+                .then().statusCode(200)
+                .body("savedPlaces.placeId", contains(2));
     }
 
     @Test
