@@ -1,6 +1,8 @@
 package com.yeogidam.media.share;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -8,8 +10,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
+import com.yeogidam.media.share.exception.ShareErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -110,6 +114,71 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .when().get(PATH)
                 .then().statusCode(200)
                 .body("sharedMedias", hasSize(0));
+    }
+
+    @Test
+    void 히스토리_내_장소_목록을_후보_ID_오름차순으로_반환한다() {
+        // given
+        LoginResult login = loginAsKakao("share-history-places-user");
+        insertMedia(jdbcTemplate, 1L, "장소 모음", "https://img.example.com/media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 번째 카페", "카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new BigDecimal("37.5446"),
+                new BigDecimal("127.0559"), "https://place.map.kakao.com/1", null,
+                "https://img.example.com/place-1.jpg", null, null);
+        insertPlace(jdbcTemplate, 2L, "kakao-fixture-2", "두 번째 식당", "식당",
+                "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", new BigDecimal("37.5704"),
+                new BigDecimal("126.9921"), "https://place.map.kakao.com/2", null,
+                "https://img.example.com/place-2.jpg", null, null);
+        insertUndecidedCandidate(jdbcTemplate, 2L, 1L, 2L);
+        insertUndecidedCandidate(jdbcTemplate, 1L, 1L, 1L);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(PATH + "/1/places")
+                .then().statusCode(200)
+                .body("places", hasSize(2))
+                .body("places[0].placeId", equalTo(1))
+                .body("places[0].thumbnailUrl", equalTo("https://img.example.com/place-1.jpg"))
+                .body("places[0].name", equalTo("첫 번째 카페"))
+                .body("places[0].category", equalTo("카페"))
+                .body("places[0].landLotAddress", equalTo("서울 성동구 성수동2가 1-1"))
+                .body("places[0].roadAddress", equalTo("서울 성동구 연무장길 1"))
+                .body("places[1].placeId", equalTo(2))
+                .body("places[1].name", equalTo("두 번째 식당"));
+    }
+
+    @Test
+    void 토큰_없이_히스토리_내_장소_목록을_조회하면_401_예외를_던진다() {
+        // when & then
+        given().when().get(PATH + "/1/places")
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()));
+    }
+
+    @Test
+    void 다른_회원의_히스토리_내_장소_목록을_조회하면_404_예외를_던진다() {
+        // given
+        LoginResult owner = loginAsKakao("share-history-places-owner");
+        LoginResult other = loginAsKakao("share-history-places-other");
+        insertMedia(jdbcTemplate, 1L, "게시글", "https://img.example.com/media.jpg", "@owner");
+        insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+
+        // when & then
+        givenBearer(other.accessToken())
+                .when().get(PATH + "/1/places")
+                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
+    }
+
+    @Test
+    void 존재하지_않는_히스토리의_장소_목록을_조회하면_404_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("share-history-places-missing-user");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(PATH + "/99/places")
+                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
     }
 
     private void insertMediaWithStatus(

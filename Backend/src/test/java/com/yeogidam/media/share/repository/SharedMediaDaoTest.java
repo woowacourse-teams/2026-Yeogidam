@@ -100,6 +100,25 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 공유_미디어가_회원의_소유인지_확인한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 7L, "shared-media-owner", "shared-media-owner",
+                "shared-media-owner@example.com", "https://img.example.com/shared-media-owner");
+        insertKakaoMember(jdbcTemplate, 8L, "shared-media-other", "shared-media-other",
+                "shared-media-other@example.com", "https://img.example.com/shared-media-other");
+        insertMedia(jdbcTemplate, 7L, "게시글", "https://img.example.com/media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 7L, 7L, 7L,
+                Timestamp.valueOf("2026-09-17 10:00:00"));
+
+        // when & then
+        assertAll(
+                () -> assertThat(sharedMediaDao.existsByMemberIdAndSharedMediaId(7L, 7L)).isTrue(),
+                () -> assertThat(sharedMediaDao.existsByMemberIdAndSharedMediaId(8L, 7L)).isFalse(),
+                () -> assertThat(sharedMediaDao.existsByMemberIdAndSharedMediaId(7L, 99L)).isFalse()
+        );
+    }
+
+    @Test
     void 히스토리_목록을_회원별로_공유_시각과_ID_내림차순으로_조회하고_요약_필드를_매핑한다() {
         // given
         insertKakaoMember(jdbcTemplate, 5L, "share-dao-list-user", "share-dao-list-user",

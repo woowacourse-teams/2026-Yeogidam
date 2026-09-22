@@ -1,6 +1,7 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
+import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,7 +48,32 @@ public interface ShareApiDocs {
             })
     ResponseEntity<ShareHistoryResponses> readShareHistory(Long memberId);
 
-    @Operation(summary = "공유 결과 조회",
+    @Operation(summary = "히스토리 내 장소 목록 조회",
+            description = """
+                    로그인한 회원의 히스토리에서 선택한 항목의 장소 목록만 반환합니다.
+
+                    - 장소는 후보 식별자 오름차순으로 반환합니다.
+                    - 장소마다 `landLotAddress`와 `roadAddress`를 모두 제공합니다.
+                    - 다른 회원의 공유이거나 존재하지 않는 공유면 조회할 수 없습니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "히스토리 내 장소 목록 조회 성공. 장소가 없으면 빈 배열",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = PlaceCandidateResponses.class))),
+                    @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "404", description = "존재하지 않는 히스토리이거나 다른 회원의 히스토리",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(value = """
+                                            {"message": "존재하지 않는 공유입니다.", "errorCode": "SHARE404_001"}
+                                            """)))
+            })
+    ResponseEntity<PlaceCandidateResponses> readSharePlaces(Long memberId, Long sharedMediaId);
+
+    @Operation(summary = "히스토리 상세 조회",
             description = """
                     로그인한 회원의 공유 결과와 분석된 장소 정보를 돌려줍니다.
 

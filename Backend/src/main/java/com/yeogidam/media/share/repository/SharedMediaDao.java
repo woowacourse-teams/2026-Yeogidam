@@ -64,4 +64,16 @@ public class SharedMediaDao {
                 .stream()
                 .findFirst();
     }
+
+    public boolean existsByMemberIdAndSharedMediaId(Long memberId, Long sharedMediaId) {
+        String sql = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM shared_media
+                    WHERE member_id = ?
+                      AND id = ?
+                )
+                """;
+        return jdbcTemplate.queryForObject(sql, Boolean.class, memberId, sharedMediaId);
+    }
 }
