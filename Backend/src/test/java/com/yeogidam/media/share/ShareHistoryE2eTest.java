@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.sql.Timestamp;
@@ -26,8 +27,8 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     void 토큰_없이_히스토리를_조회하면_401_예외를_던진다() {
         // when & then
         given().when().get(PATH)
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_004"));
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()));
     }
 
     @Test

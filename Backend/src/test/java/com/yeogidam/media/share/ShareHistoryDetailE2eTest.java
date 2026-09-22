@@ -8,6 +8,8 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+import com.yeogidam.auth.exception.AuthErrorCode;
+import com.yeogidam.media.share.exception.ShareErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.math.BigDecimal;
@@ -27,8 +29,8 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
     void 토큰_없이_공유_결과를_조회하면_401_예외를_던진다() {
         // when & then
         given().when().get(PATH + 1)
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_004"));
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()));
     }
 
     @Test
@@ -184,7 +186,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
         // when & then
         givenBearer(other.accessToken())
                 .when().get(PATH + 1)
-                .then().statusCode(404);
+                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
     }
 
     @Test
@@ -195,7 +197,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
         // when & then
         givenBearer(login.accessToken())
                 .when().get(PATH + 99)
-                .then().statusCode(404);
+                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
     }
 
     private void insertMediaWithStatus(
