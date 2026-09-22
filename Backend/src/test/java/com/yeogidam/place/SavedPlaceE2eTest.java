@@ -1,8 +1,11 @@
 package com.yeogidam.place;
 
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -18,7 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 보관함 목록 조회와 삭제를 실제 HTTP로 검증한다. 정렬과 열 매핑의 세부는 SavedPlaceDaoTest가 맡고, 여기서는 응답 모양(감싸는 키, 필드 이름, null)과 인가가 응답으로 드러나는지만
+ * 보관함 목록 조회, 관련 릴스 조회, 삭제를 실제 HTTP로 검증한다. 정렬과 열 매핑의 세부는 SavedPlaceDaoTest가 맡고, 여기서는 응답 모양(감싸는 키, 필드 이름, null)과 인가가 응답으로 드러나는지만
  * 본다. 회원은 로그인이 만들고 나머지 행은 SQL fixture로 given에서 넣는다.
  */
 class SavedPlaceE2eTest extends E2eTestSupport {
@@ -76,6 +79,53 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     @Test
     void 토큰_없이_조회하면_401_예외를_던진다() {
         given().when().get(SAVED_PLACES_PATH)
+                .then().statusCode(401)
+                .body("errorCode", equalTo("AUTH401_004"));
+    }
+
+    @Test
+    void 저장한_장소의_관련_릴스를_조회한다() {
+        // given: 릴스 10을 두 번(공유 100, 102) 공유해 보관함 11(카페 온월)을 두 공유에서 저장했다. 같은 릴스라 최신 공유 102 한 건만 나와야 한다
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertSharedMedia(jdbcTemplate, 100L, login.memberId(), 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 102L, login.memberId(), 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(SAVED_PLACES_PATH + "/11/media")
+                .then().statusCode(200)
+                .body("media", hasSize(1))
+                .body("media[0].sharedMediaId", equalTo(102))
+                .body("media[0].thumbnailUrl", equalTo("https://img.example.com/reel10.jpg"))
+                .body("media[0].author", equalTo("@seongsu_life"))
+                .body("media[0].caption", equalTo("성수 카페 투어"))
+                .body("media[0].sharedUrl", equalTo("https://www.instagram.com/reel/C1seongsu/"))
+                .body("media[0].sharedAt", equalTo("2026-09-12T10:00:00Z"));
+    }
+
+    @Test
+    void 남의_보관함_항목의_관련_릴스를_조회하면_404_예외를_던진다() {
+        // given: 보관함 11은 user-1의 것이고 user-2가 그 id로 조회한다
+        LoginResult owner = loginAsKakao("user-1");
+        LoginResult other = loginAsKakao("user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, owner.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        givenBearer(other.accessToken())
+                .when().get(SAVED_PLACES_PATH + "/11/media")
+                .then().statusCode(404)
+                .body("errorCode", equalTo("PLACE404_001"));
+    }
+
+    @Test
+    void 토큰_없이_관련_릴스를_조회하면_401_예외를_던진다() {
+        given().when().get(SAVED_PLACES_PATH + "/11/media")
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));
     }

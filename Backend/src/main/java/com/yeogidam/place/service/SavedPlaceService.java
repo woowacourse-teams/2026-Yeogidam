@@ -1,9 +1,11 @@
 package com.yeogidam.place.service;
 
+import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.place.exception.PlaceException;
 import com.yeogidam.place.repository.SavedPlaceDao;
+import com.yeogidam.place.repository.SavedPlaceMediaProjections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,17 @@ public class SavedPlaceService {
 
     public SavedPlaceResponses readSavedPlaces(Long memberId) {
         return SavedPlaceResponses.from(savedPlaceDao.findAllByMember(memberId));
+    }
+
+    /**
+     * 그 장소를 저장하게 만든 릴스 목록. 같은 릴스를 여러 번 공유해 연결이 여럿이면 최신 공유 한 건만 낸다.
+     */
+    public SavedPlaceMediaResponses readSavedPlaceMedia(Long memberId, Long savedPlaceId) {
+        if (!savedPlaceDao.existsByMemberAndId(memberId, savedPlaceId)) {
+            throw new PlaceException(PlaceErrorCode.SAVED_PLACE_NOT_FOUND);
+        }
+        SavedPlaceMediaProjections shares = savedPlaceDao.findMediaBySavedPlace(savedPlaceId);
+        return SavedPlaceMediaResponses.from(shares.latestPerMedia());
     }
 
     /**
