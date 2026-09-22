@@ -1,6 +1,6 @@
 package com.yeogidam.place;
 
-import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
@@ -89,7 +89,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, login.memberId(), 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, login.memberId(), 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
