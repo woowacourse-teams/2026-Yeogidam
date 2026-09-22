@@ -24,7 +24,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void 토큰_없이_공유_결과를_조회하면_401이_발생한다() {
+    void 토큰_없이_공유_결과를_조회하면_401_예외를_던진다() {
         // when & then
         given().when().get(PATH + 1)
                 .then().statusCode(401)
@@ -174,7 +174,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 다른_회원의_공유_결과를_조회하면_404가_발생한다() {
+    void 다른_회원의_공유_결과를_조회하면_404_예외를_던진다() {
         // given
         LoginResult owner = loginAsKakao("share-result-owner");
         LoginResult other = loginAsKakao("share-result-other");
@@ -188,7 +188,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 존재하지_않는_공유_결과를_조회하면_404가_발생한다() {
+    void 존재하지_않는_공유_결과를_조회하면_404_예외를_던진다() {
         // given
         LoginResult login = loginAsKakao("share-result-missing-user");
 

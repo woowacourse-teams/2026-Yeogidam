@@ -23,7 +23,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void 토큰_없이_히스토리를_조회하면_401이_발생한다() {
+    void 토큰_없이_히스토리를_조회하면_401_예외를_던진다() {
         // when & then
         given().when().get(PATH)
                 .then().statusCode(401)
