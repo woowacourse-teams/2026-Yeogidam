@@ -32,7 +32,7 @@
 | P-5 마이 A, A-1 | GET /members/me | id, nickname, email, imageUrl, oauthProvider | 있음(사이클 1 완료) |
 | P-5 회원탈퇴 B | DELETE /members/me | 204. 전 세션 폐기 + 회원 데이터 삭제 | 신규 |
 | P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl, source, clientRequestId} | 202 {sharedMediaId, extractionStatus} / 400 미지원 링크 | 이식(POST /media) |
-| P-6 히스토리 B, B-1 | GET /shares | {sharedMedias:[{sharedMediaId, createdAt, thumbnailUrl, caption, author, extractionStatus, sharedUrl}]} | 이식. 페이징은 히스토리 API 구현 시 검토 |
+| P-6 히스토리 B, B-1 | GET /shares | {sharedMedias:[{sharedMediaId, createdAt, thumbnailUrl, caption, author, extractionStatus, failureReason, sharedUrl}]} | 이식. 페이징은 히스토리 API 구현 시 검토 |
 | P-6 성공/실패 상세 C, C-1, 접수 후 상태 폴링 | GET /shares/{sharedMediaId} | 상세 + failureReason + sharedUrl + places[{placeId, name, category, addressSummary, thumbnailUrl, decisionStatus}] | 이식 |
 | P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 이식 |
 | P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 하나 이상 있는 공유만 최근 공유순 DESC로 반환하고 places[]는 UNDECIDED만 포함 | 신규 |

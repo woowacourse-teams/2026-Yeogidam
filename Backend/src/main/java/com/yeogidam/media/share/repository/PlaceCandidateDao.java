@@ -9,8 +9,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class PlaceCandidateDao {
 
-    private static final RowMapper<SharedMediaProjection> SHARED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
-            new SharedMediaProjection(
+    private static final RowMapper<SharedMediaSummaryProjection> SHARED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SharedMediaSummaryProjection(
                     resultSet.getLong("shared_media_id"),
                     resultSet.getTimestamp("created_at").toInstant(),
                     resultSet.getString("thumbnail_url"),
@@ -36,7 +36,7 @@ public class PlaceCandidateDao {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<SharedMediaProjection> findSharedMedias(Long memberId) {
+    public List<SharedMediaSummaryProjection> findSharedMedias(Long memberId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.created_at,

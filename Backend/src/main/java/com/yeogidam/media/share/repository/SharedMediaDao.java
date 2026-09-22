@@ -7,21 +7,10 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public class ShareDao {
+public class SharedMediaDao {
 
-    private static final RowMapper<ShareProjection> SHARE_ROW_MAPPER = (resultSet, rowNumber) ->
-            new ShareProjection(
-                    resultSet.getLong("shared_media_id"),
-                    resultSet.getTimestamp("created_at").toInstant(),
-                    resultSet.getString("thumbnail_url"),
-                    resultSet.getString("caption"),
-                    resultSet.getString("author"),
-                    resultSet.getString("extraction_status"),
-                    resultSet.getString("shared_url")
-            );
-
-    private static final RowMapper<ShareHistoryDetailProjection> SHARE_HISTORY_DETAIL_ROW_MAPPER = (resultSet, rowNumber) ->
-            new ShareHistoryDetailProjection(
+    private static final RowMapper<ShareHistoryProjection> SHARE_ROW_MAPPER = (resultSet, rowNumber) ->
+            new ShareHistoryProjection(
                     resultSet.getLong("shared_media_id"),
                     resultSet.getTimestamp("created_at").toInstant(),
                     resultSet.getString("thumbnail_url"),
@@ -32,14 +21,13 @@ public class ShareDao {
                     resultSet.getString("shared_url")
             );
 
-
     private final JdbcTemplate jdbcTemplate;
 
-    public ShareDao(JdbcTemplate jdbcTemplate) {
+    public SharedMediaDao(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<ShareProjection> findShares(Long memberId) {
+    public List<ShareHistoryProjection> findShareHistory(Long memberId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.created_at,
@@ -47,6 +35,7 @@ public class ShareDao {
                        m.caption,
                        m.author,
                        m.extraction_status,
+                       m.failure_reason,
                        sm.shared_url
                 FROM shared_media sm
                 JOIN media m ON m.id = sm.media_id
@@ -56,7 +45,7 @@ public class ShareDao {
         return jdbcTemplate.query(sql, SHARE_ROW_MAPPER, memberId);
     }
 
-    public Optional<ShareHistoryDetailProjection> findShareHistoryDetail(Long memberId, Long sharedMediaId) {
+    public Optional<ShareHistoryProjection> findShareHistoryDetail(Long memberId, Long sharedMediaId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.created_at,
@@ -71,7 +60,7 @@ public class ShareDao {
                 WHERE sm.member_id = ?
                   AND sm.id = ?
                 """;
-        return jdbcTemplate.query(sql, SHARE_HISTORY_DETAIL_ROW_MAPPER, memberId, sharedMediaId)
+        return jdbcTemplate.query(sql, SHARE_ROW_MAPPER, memberId, sharedMediaId)
                 .stream()
                 .findFirst();
     }

@@ -80,13 +80,13 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 timestamp("2026-09-17 10:00:00"));
 
         // when
-        List<SharedMediaProjection> sharedMedias = placeCandidateDao.findSharedMedias(1L);
+        List<SharedMediaSummaryProjection> sharedMedias = placeCandidateDao.findSharedMedias(1L);
 
         // then
         assertThat(sharedMedias)
-                .extracting(SharedMediaProjection::sharedMediaId)
+                .extracting(SharedMediaSummaryProjection::sharedMediaId)
                 .containsExactly(2L, 1L);
-        SharedMediaProjection latest = sharedMedias.getFirst();
+        SharedMediaSummaryProjection latest = sharedMedias.getFirst();
         assertAll(
                 () -> assertThat(latest.thumbnailUrl()).isEqualTo("https://img.example.com/new.jpg"),
                 () -> assertThat(latest.caption()).isEqualTo("최신 미디어"),

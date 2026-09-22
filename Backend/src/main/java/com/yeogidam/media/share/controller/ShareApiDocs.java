@@ -21,7 +21,7 @@ public interface ShareApiDocs {
                     로그인한 회원의 공유 이력을 최근 공유 순서로 돌려줍니다.
 
                     - `createdAt` 내림차순으로 정렬하고, 같은 시각에는 `sharedMediaId` 내림차순으로 정렬합니다.
-                    - 장소 목록과 실패 사유는 포함하지 않으며, 상세 조회에서 확인합니다.
+                    - 장소 목록은 포함하지 않으며, 분석 실패 시 `failureReason`을 반환합니다.
                     - 게시글에 접근하지 못한 기록은 `thumbnailUrl`, `caption`, `author`가 null일 수 있습니다.
                     - `sharedUrl`은 게시글 접근 성공 여부와 관계없이 반환합니다.
                     - 공유 이력이 없으면 빈 `sharedMedias` 배열을 반환합니다.

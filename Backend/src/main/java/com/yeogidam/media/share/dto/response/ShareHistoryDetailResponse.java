@@ -1,7 +1,7 @@
 package com.yeogidam.media.share.dto.response;
 
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
-import com.yeogidam.media.share.repository.ShareHistoryDetailProjection;
+import com.yeogidam.media.share.repository.ShareHistoryProjection;
 import java.time.Instant;
 import java.util.List;
 
@@ -17,7 +17,7 @@ public record ShareHistoryDetailResponse(
         List<PlaceCandidateResponse> places
 ) {
     public static ShareHistoryDetailResponse from(
-            ShareHistoryDetailProjection projection,
+            ShareHistoryProjection projection,
             List<PlaceCandidateProjection> placeProjections
     ) {
         return new ShareHistoryDetailResponse(

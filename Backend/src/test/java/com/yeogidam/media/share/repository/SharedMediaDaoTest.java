@@ -15,14 +15,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Import(ShareDao.class)
-class ShareDaoTest extends JdbcTestSupport {
+@Import(SharedMediaDao.class)
+class SharedMediaDaoTest extends JdbcTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private ShareDao shareDao;
+    private SharedMediaDao sharedMediaDao;
 
     @Test
     void 본인_공유_결과를_모든_필드로_매핑한다() {
@@ -41,7 +41,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(1L, 1L).orElseThrow();
+        ShareHistoryProjection result = sharedMediaDao.findShareHistoryDetail(1L, 1L).orElseThrow();
 
         // then
         assertAll(
@@ -67,7 +67,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareHistoryDetailProjection result = shareDao.findShareHistoryDetail(2L, 2L).orElseThrow();
+        ShareHistoryProjection result = sharedMediaDao.findShareHistoryDetail(2L, 2L).orElseThrow();
 
         // then
         assertAll(
@@ -91,8 +91,8 @@ class ShareDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        Optional<ShareHistoryDetailProjection> otherMemberResult = shareDao.findShareHistoryDetail(4L, 3L);
-        Optional<ShareHistoryDetailProjection> missingResult = shareDao.findShareHistoryDetail(3L, 99L);
+        Optional<ShareHistoryProjection> otherMemberResult = sharedMediaDao.findShareHistoryDetail(4L, 3L);
+        Optional<ShareHistoryProjection> missingResult = sharedMediaDao.findShareHistoryDetail(3L, 99L);
 
         // then
         assertThat(otherMemberResult).isEmpty();
@@ -119,20 +119,21 @@ class ShareDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 11:00:00"));
 
         // when
-        List<ShareProjection> shares = shareDao.findShares(5L);
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(5L);
 
         // then
         assertThat(shares)
-                .extracting(ShareProjection::sharedMediaId)
+                .extracting(ShareHistoryProjection::sharedMediaId)
                 .containsExactly(5L, 4L);
 
-        ShareProjection failed = shares.getFirst();
-        ShareProjection succeeded = shares.getLast();
+        ShareHistoryProjection failed = shares.getFirst();
+        ShareHistoryProjection succeeded = shares.getLast();
         assertAll(
                 () -> assertThat(failed.thumbnailUrl()).isNull(),
                 () -> assertThat(failed.caption()).isNull(),
                 () -> assertThat(failed.author()).isNull(),
                 () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
+                () -> assertThat(failed.failureReason()).isEqualTo("CONTENT_UNAVAILABLE"),
                 () -> assertThat(failed.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-5/"),
                 () -> assertThat(succeeded.thumbnailUrl())
@@ -140,6 +141,7 @@ class ShareDaoTest extends JdbcTestSupport {
                 () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
                 () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
                 () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
+                () -> assertThat(succeeded.failureReason()).isNull(),
                 () -> assertThat(succeeded.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-4/")
         );
@@ -148,7 +150,7 @@ class ShareDaoTest extends JdbcTestSupport {
     @Test
     void 히스토리가_없으면_빈_목록을_반환한다() {
         // when
-        List<ShareProjection> shares = shareDao.findShares(7L);
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(7L);
 
         // then
         assertThat(shares).isEmpty();

@@ -6,9 +6,8 @@ import com.yeogidam.media.share.exception.ShareErrorCode;
 import com.yeogidam.media.share.exception.ShareException;
 import com.yeogidam.media.share.repository.PlaceCandidateDao;
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
-import com.yeogidam.media.share.repository.ShareDao;
-import com.yeogidam.media.share.repository.ShareProjection;
-import com.yeogidam.media.share.repository.ShareHistoryDetailProjection;
+import com.yeogidam.media.share.repository.SharedMediaDao;
+import com.yeogidam.media.share.repository.ShareHistoryProjection;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,16 +18,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ShareService {
 
-    private final ShareDao shareDao;
+    private final SharedMediaDao sharedMediaDao;
     private final PlaceCandidateDao placeCandidateDao;
 
     public ShareHistoryResponses readShareHistory(Long memberId) {
-        List<ShareProjection> history = shareDao.findShares(memberId);
+        List<ShareHistoryProjection> history = sharedMediaDao.findShareHistory(memberId);
         return ShareHistoryResponses.from(history);
     }
 
     public ShareHistoryDetailResponse readShareHistoryDetail(Long memberId, Long sharedMediaId) {
-        ShareHistoryDetailProjection sharedMedia = shareDao.findShareHistoryDetail(memberId, sharedMediaId)
+        ShareHistoryProjection sharedMedia = sharedMediaDao.findShareHistoryDetail(memberId, sharedMediaId)
                 .orElseThrow(() -> new ShareException(ShareErrorCode.NOT_FOUND));
         List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(sharedMediaId);
         return ShareHistoryDetailResponse.from(sharedMedia, candidates);

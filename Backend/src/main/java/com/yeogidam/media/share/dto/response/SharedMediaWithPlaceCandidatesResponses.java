@@ -1,7 +1,7 @@
 package com.yeogidam.media.share.dto.response;
 
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
-import com.yeogidam.media.share.repository.SharedMediaProjection;
+import com.yeogidam.media.share.repository.SharedMediaSummaryProjection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,21 +11,21 @@ public record SharedMediaWithPlaceCandidatesResponses(
         List<SharedMediaWithPlaceCandidatesResponse> sharedMedias
 ) {
     public static SharedMediaWithPlaceCandidatesResponses from(
-            List<SharedMediaProjection> sharedMediaProjections,
+            List<SharedMediaSummaryProjection> sharedMediaSummaryProjections,
             List<PlaceCandidateProjection> placeProjections
     ) {
         return new SharedMediaWithPlaceCandidatesResponses(
-                createSharedMediaResponses(sharedMediaProjections, placeProjections)
+                createSharedMediaResponses(sharedMediaSummaryProjections, placeProjections)
         );
     }
 
     private static List<SharedMediaWithPlaceCandidatesResponse> createSharedMediaResponses(
-            List<SharedMediaProjection> sharedMediaProjections,
+            List<SharedMediaSummaryProjection> sharedMediaSummaryProjections,
             List<PlaceCandidateProjection> placeProjections
     ) {
         Map<Long, List<PlaceCandidateProjection>> placesBySharedMediaId = groupPlacesBySharedMediaId(placeProjections);
 
-        return sharedMediaProjections.stream()
+        return sharedMediaSummaryProjections.stream()
                 .map(projection -> createSharedMediaResponse(projection, placesBySharedMediaId))
                 .toList();
     }
@@ -40,7 +40,7 @@ public record SharedMediaWithPlaceCandidatesResponses(
     }
 
     private static SharedMediaWithPlaceCandidatesResponse createSharedMediaResponse(
-            SharedMediaProjection projection,
+            SharedMediaSummaryProjection projection,
             Map<Long, List<PlaceCandidateProjection>> placesBySharedMediaId
     ) {
         List<PlaceCandidateResponse> places = placesBySharedMediaId

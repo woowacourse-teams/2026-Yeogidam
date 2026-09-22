@@ -89,12 +89,14 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .body("sharedMedias[0].caption", equalTo(null))
                 .body("sharedMedias[0].author", equalTo(null))
                 .body("sharedMedias[0].extractionStatus", equalTo("FAILED"))
+                .body("sharedMedias[0].failureReason", equalTo("CONTENT_UNAVAILABLE"))
                 .body("sharedMedias[0].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-2/"))
                 .body("sharedMedias[1].sharedMediaId", equalTo(1))
                 .body("sharedMedias[1].thumbnailUrl", equalTo("https://img.example.com/succeeded.jpg"))
                 .body("sharedMedias[1].caption", equalTo("성공 게시글"))
                 .body("sharedMedias[1].author", equalTo("@succeeded"))
                 .body("sharedMedias[1].extractionStatus", equalTo("SUCCEEDED"))
+                .body("sharedMedias[1].failureReason", equalTo(null))
                 .body("sharedMedias[1].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-1/"));
     }
 
