@@ -26,6 +26,7 @@ import type {
   HistoryReelDetail,
 } from '../../entities/content/types';
 import {normalizeReelTitle} from '../../entities/content/title';
+import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
 type HistoryScreenProps = { onBack: () => void };
 
@@ -424,6 +425,9 @@ function HistoryFailureDetail({
 }
 
 export function HistoryScreen({ onBack }: HistoryScreenProps) {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(0);
+  const shouldRestoreScrollRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>([]);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(true);
@@ -442,6 +446,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     else if (!silent) setLoading(true);
     try {
       const result = await getHistoryReels(nextCursor ?? undefined);
+      // This screen is visible while refreshing, so the newest status is
+      // already seen by the user and must not create a badge on exit.
+      if (!nextCursor && result.reels[0]) {
+        await setLastSeenHistorySnapshot({
+          id: result.reels[0].id,
+          status: result.reels[0].processing_status,
+        });
+      }
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         result.reels.forEach(reel => {
@@ -500,6 +512,11 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       created_at: new Date().toISOString(),
     };
 
+    // A retry adds a new item at the top, so the list should start at the top
+    // instead of restoring the position of the failed item's detail view.
+    scrollOffsetRef.current = 0;
+    shouldRestoreScrollRef.current = false;
+
     // Show the new attempt immediately while the retry request is in flight.
     setReels(current => [temporaryReel, ...current]);
     setRetrySkeletonIds(current => new Set(current).add(temporaryId));
@@ -510,6 +527,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       const response = await saveContent(reel.instagram_url, 'url_input');
       // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
       // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
+      // The newly created retry is already visible in this screen, so it
+      // should not appear as an unread history when returning to the inbox.
+      await setLastSeenHistorySnapshot({
+        id: response.reelId,
+        status: response.status,
+      });
+      // Retry creates a new history record on the backend. Keep the original
+      // failed record and add the new attempt to the top of the list.
       const retriedReel = await getHistoryReelDetail(response.reelId);
       if (!retriedReel) {
         setReels(current =>
@@ -632,6 +657,28 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     return () => clearInterval(poll);
   }, [reels]);
 
+  useEffect(() => {
+    if (
+      selectedSuccess ||
+      selectedFailure ||
+      loading ||
+      !shouldRestoreScrollRef.current ||
+      scrollOffsetRef.current <= 0
+    ) {
+      return;
+    }
+
+    const restoreScroll = requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({
+        y: scrollOffsetRef.current,
+        animated: false,
+      });
+      shouldRestoreScrollRef.current = false;
+    });
+
+    return () => cancelAnimationFrame(restoreScroll);
+  }, [loading, reels.length, selectedFailure, selectedSuccess]);
+
   const groupedReels = reels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
       const date = formatHistoryDate(reel.created_at);
@@ -645,6 +692,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     return (
       <HistorySuccessDetail
         onBack={() => {
+          shouldRestoreScrollRef.current = true;
           setSelectedSuccess(false);
           setSelectedReel(null);
         }}
@@ -656,6 +704,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     return (
       <HistoryFailureDetail
         onBack={() => {
+          shouldRestoreScrollRef.current = true;
           setSelectedFailure(false);
           setSelectedReel(null);
         }}
@@ -675,11 +724,13 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
         <View style={styles.headerSpacer} />
       </View>
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={[
           styles.content,
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
+          scrollOffsetRef.current = nativeEvent.contentOffset.y;
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;

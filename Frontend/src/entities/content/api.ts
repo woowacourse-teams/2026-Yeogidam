@@ -63,7 +63,7 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
 
     if (cursor) {
       query = query.or(
-        `created_at.lt.${encodeURIComponent(cursor.created_at)},and(created_at.eq.${encodeURIComponent(cursor.created_at)},id.lt.${cursor.id})`,
+        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`,
       );
     }
 
