@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Animated,
 } from 'react-native';
 import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
@@ -90,15 +91,45 @@ function HistoryItem({
     reel.processing_status === 'PENDING' ||
     reel.processing_status === 'PROCESSING';
   const title = getHistoryTitle(reel);
+  const metadataPending =
+    processing &&
+    (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel));
+  const showSkeleton = skeleton || metadataPending;
   const label = completed ? '성공' : processing ? '처리중' : '실패';
+  const pulse = useRef(new Animated.Value(0.45)).current;
+
+  useEffect(() => {
+    if (!processing || skeleton) {
+      pulse.stopAnimation();
+      pulse.setValue(1);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.45,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [processing, pulse, skeleton]);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={skeleton ? '새 히스토리를 불러오는 중' : undefined}
-      onPress={skeleton ? undefined : onPress}
+      accessibilityLabel={showSkeleton ? '새 히스토리를 불러오는 중' : undefined}
+      onPress={showSkeleton ? undefined : onPress}
       style={styles.item}
     >
-      {skeleton ? (
+      {showSkeleton ? (
         <View style={[styles.thumbnail, styles.skeletonBlock]} />
       ) : (
         <Image
@@ -108,13 +139,17 @@ function HistoryItem({
         />
       )}
       <View style={styles.itemText}>
-        {skeleton ? (
+        {showSkeleton ? (
           <>
             <View style={[styles.skeletonBadge, styles.skeletonBlock]} />
             <View style={[styles.skeletonTitle, styles.skeletonBlock]} />
           </>
         ) : (
           <>
+            <Animated.View
+              key={processing ? 'processing-badge' : 'static-badge'}
+              style={{opacity: processing ? pulse : 1}}
+            >
             <View
               style={[
                 styles.badge,
@@ -138,13 +173,23 @@ function HistoryItem({
                 {label}
               </Text>
             </View>
+            </Animated.View>
             <Text numberOfLines={1} style={styles.title}>
               {title}
             </Text>
           </>
         )}
       </View>
-      {!skeleton ? <Text style={styles.chevron}>›</Text> : null}
+      {!showSkeleton && !processing ? (
+        <Text style={styles.chevron}>›</Text>
+      ) : processing ? (
+        <Text
+          accessibilityElementsHidden
+          style={[styles.chevron, styles.hiddenChevron]}
+        >
+          ›
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -480,6 +525,8 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
 
     try {
       const response = await saveContent(reel.instagram_url, 'url_input');
+      // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
+      // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
       // The newly created retry is already visible in this screen, so it
       // should not appear as an unread history when returning to the inbox.
       await setLastSeenHistorySnapshot({
@@ -490,29 +537,45 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       // failed record and add the new attempt to the top of the list.
       const retriedReel = await getHistoryReelDetail(response.reelId);
       if (!retriedReel) {
+        setReels(current =>
+          current.map(item =>
+            item.id === temporaryId
+              ? {
+                  ...item,
+                  id: response.reelId,
+                  processing_status: response.status,
+                  failure_reason: response.failureReason ?? null,
+                }
+              : item,
+          ),
+        );
         setRetrySkeletonIds(current => {
           const next = new Set(current);
           next.delete(temporaryId);
-          next.add(response.reelId);
           return next;
         });
-        setReels(current => current.filter(item => item.id !== temporaryId));
-        await load(undefined, true);
         return;
       }
 
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         next.delete(temporaryId);
-        if (!hasResolvedHistoryTitle(retriedReel)) {
-          next.add(retriedReel.id);
-        }
         return next;
       });
 
       setReels(current => {
         const nextReel = {
           ...retriedReel,
+          instagram_title:
+            retriedReel.instagram_title ??
+            current.find(item => item.id === temporaryId)?.instagram_title,
+          instagram_description:
+            retriedReel.instagram_description ??
+            current.find(item => item.id === temporaryId)?.instagram_description,
+          instagram_thumbnail_url:
+            retriedReel.instagram_thumbnail_url ??
+            current.find(item => item.id === temporaryId)
+              ?.instagram_thumbnail_url,
           processing_status: response.status,
           failure_reason: response.failureReason ?? retriedReel.failure_reason,
         };
@@ -532,7 +595,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       });
       Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
     }
-  }, [load]);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -941,6 +1004,7 @@ const styles = StyleSheet.create({
   processingText: { color: '#8e8e93' },
   title: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
   chevron: { fontSize: 32, lineHeight: 32, color: '#1c1c1e', marginRight: 5 },
+  hiddenChevron: { opacity: 0 },
   homeIndicator: {
     position: 'absolute',
     bottom: 8,
