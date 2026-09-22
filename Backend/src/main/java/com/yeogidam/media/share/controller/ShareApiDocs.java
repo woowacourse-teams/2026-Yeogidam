@@ -71,7 +71,7 @@ public interface ShareApiDocs {
                                             {"message": "존재하지 않는 공유입니다.", "errorCode": "SHARE404_001"}
                                             """)))
             })
-    ResponseEntity<PlaceCandidateResponses> readSharePlaces(Long memberId, Long sharedMediaId);
+    ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(Long memberId, Long sharedMediaId);
 
     @Operation(summary = "히스토리 상세 조회",
             description = """

@@ -29,7 +29,7 @@ public class ShareController implements ShareApiDocs {
 
     @Override
     @GetMapping("/{sharedMediaId}/places")
-    public ResponseEntity<PlaceCandidateResponses> readSharePlaces(
+    public ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(
             @LoginMember Long memberId,
             @PathVariable Long sharedMediaId
     ) {
