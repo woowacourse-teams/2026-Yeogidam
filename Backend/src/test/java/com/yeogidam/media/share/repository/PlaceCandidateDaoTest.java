@@ -1,12 +1,12 @@
 package com.yeogidam.media.share.repository;
 
-import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertDiscardedCandidate;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSavedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
-import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -39,21 +39,21 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 2L, "kong-1144254", "kong-1144254",
                 "kong-1144254@example.com", "https://img.example.com/kong-1144254");
 
-        createMedia(jdbcTemplate, 1L, "오래된 미디어", "https://img.example.com/old.jpg", "@old");
-        createMedia(jdbcTemplate, 2L, "최신 미디어", "https://img.example.com/new.jpg", "@new");
-        createMedia(jdbcTemplate, 3L, "다른 회원 미디어", "https://img.example.com/other.jpg",
+        insertMedia(jdbcTemplate, 1L, "오래된 미디어", "https://img.example.com/old.jpg", "@old");
+        insertMedia(jdbcTemplate, 2L, "최신 미디어", "https://img.example.com/new.jpg", "@new");
+        insertMedia(jdbcTemplate, 3L, "다른 회원 미디어", "https://img.example.com/other.jpg",
                 "@other");
-        createMedia(jdbcTemplate, 4L, "결정된 미디어", "https://img.example.com/decided.jpg",
+        insertMedia(jdbcTemplate, 4L, "결정된 미디어", "https://img.example.com/decided.jpg",
                 "@decided");
 
-        createSharedMedia(jdbcTemplate, 1L, 1L, 1L,
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
                 timestamp("2026-09-17 10:00:00"));
-        createSharedMedia(jdbcTemplate, 2L, 1L, 2L,
+        insertSharedMedia(jdbcTemplate, 2L, 1L, 2L,
                 timestamp("2026-09-17 11:00:00"));
 
-        createSharedMedia(jdbcTemplate, 3L, 2L, 3L,
+        insertSharedMedia(jdbcTemplate, 3L, 2L, 3L,
                 timestamp("2026-09-17 12:00:00"));
-        createSharedMedia(jdbcTemplate, 4L, 1L, 4L,
+        insertSharedMedia(jdbcTemplate, 4L, 1L, 4L,
                 timestamp("2026-09-17 13:00:00"));
 
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "오래된 장소", "카페", "서울 성동구",
@@ -100,8 +100,8 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 3L, "place-candidate-candidate-user",
                 "place-candidate-candidate-user", "place-candidate-candidate-user@example.com",
                 "https://img.example.com/place-candidate-candidate-user");
-        createMedia(jdbcTemplate, 5L, "미디어", "https://img.example.com/media.jpg", "@author");
-        createSharedMedia(jdbcTemplate, 5L, 3L, 5L,
+        insertMedia(jdbcTemplate, 5L, "미디어", "https://img.example.com/media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 5L, 3L, 5L,
                 timestamp("2026-09-17 10:00:00"));
 
         insertPlace(jdbcTemplate, 5L, "kakao-fixture-5", "첫 장소", "카페",
@@ -154,8 +154,8 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 4L, "share-result-candidate-user",
                 "share-result-candidate-user", "share-result-candidate-user@example.com",
                 "https://img.example.com/share-result-candidate-user");
-        createMedia(jdbcTemplate, 8L, "장소 모음", "https://img.example.com/media.jpg", "@author");
-        createSharedMedia(jdbcTemplate, 8L, 4L, 8L,
+        insertMedia(jdbcTemplate, 8L, "장소 모음", "https://img.example.com/media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 8L, 4L, 8L,
                 timestamp("2026-09-17 10:00:00"));
 
         insertPlace(jdbcTemplate, 8L, "kakao-fixture-8", "첫 장소", "카페",

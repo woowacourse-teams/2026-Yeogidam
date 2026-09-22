@@ -1,12 +1,12 @@
 package com.yeogidam.media.share;
 
-import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertDiscardedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSavedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSupersededCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
-import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,8 +65,8 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 미결정_후보가_있는_공유와_장소_정보를_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        createMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
-        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
+        insertMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
+        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 timestamp("2026-09-17 10:00:00"));
         insertPlace(
                 jdbcTemplate,
@@ -108,8 +108,8 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 여러_상태가_섞인_공유에서는_미결정_후보만_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
-        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 timestamp("2026-09-17 10:00:00"));
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
@@ -141,8 +141,8 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 미결정_후보가_없는_공유는_반환하지_않는다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
-        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 timestamp("2026-09-17 10:00:00"));
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
@@ -172,7 +172,7 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 재공유된_이전_공유는_제외하고_최신_공유를_상단에_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
@@ -181,13 +181,13 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
 
-        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
+        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 timestamp("2026-09-17 10:00:00"));
         insertSavedCandidate(jdbcTemplate, 401L, 101L, 301L,
                 timestamp("2026-09-17 10:00:00"));
         insertSupersededCandidate(jdbcTemplate, 402L, 101L, 302L);
 
-        createSharedMedia(jdbcTemplate, 102L, login.memberId(), 201L,
+        insertSharedMedia(jdbcTemplate, 102L, login.memberId(), 201L,
                 timestamp("2026-09-17 11:00:00"));
         insertUndecidedCandidate(jdbcTemplate, 403L, 102L, 301L);
         insertUndecidedCandidate(jdbcTemplate, 404L, 102L, 302L);
@@ -228,8 +228,8 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 장소_후보는_place_candidates_식별자_오름차순으로_정렬한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        createMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
-        createSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 timestamp("2026-09-17 10:00:00"));
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
@@ -276,9 +276,9 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
             Long candidateId,
             Timestamp createdAt
     ) {
-        createMedia(jdbcTemplate, mediaId, DEFAULT_CAPTION,
+        insertMedia(jdbcTemplate, mediaId, DEFAULT_CAPTION,
                 "https://img.example.com/media-" + mediaId + ".jpg", DEFAULT_AUTHOR);
-        createSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
+        insertSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
         insertPlace(jdbcTemplate, placeId, "kakao-fixture-" + placeId, "장소 " + placeId, "카페",
                 "서울 성동구 성수동", "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/" + placeId, null,

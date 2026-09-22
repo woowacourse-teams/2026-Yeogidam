@@ -11,7 +11,7 @@ public final class SharedMediaSqlFixture {
     private SharedMediaSqlFixture() {
     }
 
-    public static void createSharedMedia(
+    public static void insertSharedMedia(
             JdbcTemplate jdbcTemplate,
             Long sharedMediaId,
             Long memberId,

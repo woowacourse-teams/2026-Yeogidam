@@ -1,9 +1,9 @@
 package com.yeogidam.media.share;
 
-import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
-import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -37,8 +37,8 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
     void 장소_분석_성공_결과와_장소_정보를_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-result-success-user");
-        createMedia(jdbcTemplate, 1L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
-        createSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertMedia(jdbcTemplate, 1L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
         insertPlace(
                 jdbcTemplate,
                 1L,
@@ -106,7 +106,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("share-result-extracting-user");
         insertMediaWithStatus(1L, null, null, null, "EXTRACTING", null);
-        createSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -133,7 +133,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 "FAILED",
                 "CONTENT_UNAVAILABLE"
         );
-        createSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -160,7 +160,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 "FAILED",
                 "PLACE_NOT_EXTRACTED"
         );
-        createSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -180,8 +180,8 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
         // given
         LoginResult owner = loginAsKakao("share-result-owner");
         LoginResult other = loginAsKakao("share-result-other");
-        createMedia(jdbcTemplate, 1L, "다른 회원 미디어", "https://img.example.com/media.jpg", "@owner");
-        createSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertMedia(jdbcTemplate, 1L, "다른 회원 미디어", "https://img.example.com/media.jpg", "@owner");
+        insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
 
         // when & then
         givenBearer(other.accessToken())

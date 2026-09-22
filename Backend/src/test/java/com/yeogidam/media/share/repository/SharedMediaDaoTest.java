@@ -1,8 +1,8 @@
 package com.yeogidam.media.share.repository;
 
-import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
-import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -37,7 +37,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "SUCCEEDED",
                 null
         );
-        createSharedMedia(jdbcTemplate, 1L, 1L, 1L,
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -63,7 +63,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "share-dao-content-unavailable-user", "share-dao-content-unavailable-user@example.com",
                 "https://img.example.com/share-dao-content-unavailable-user");
         insertMediaWithStatus(2L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        createSharedMedia(jdbcTemplate, 2L, 2L, 2L,
+        insertSharedMedia(jdbcTemplate, 2L, 2L, 2L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -86,8 +86,8 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "share-dao-owner@example.com", "https://img.example.com/share-dao-owner");
         insertKakaoMember(jdbcTemplate, 4L, "share-dao-other", "share-dao-other",
                 "share-dao-other@example.com", "https://img.example.com/share-dao-other");
-        createMedia(jdbcTemplate, 3L, "게시글", "https://img.example.com/media.jpg", "@author");
-        createSharedMedia(jdbcTemplate, 3L, 3L, 3L,
+        insertMedia(jdbcTemplate, 3L, "게시글", "https://img.example.com/media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 3L, 3L, 3L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
@@ -107,15 +107,15 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 6L, "share-dao-list-other", "share-dao-list-other",
                 "share-dao-list-other@example.com", "https://img.example.com/share-dao-list-other");
 
-        createMedia(jdbcTemplate, 4L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        insertMedia(jdbcTemplate, 4L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
         insertMediaWithStatus(5L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        createMedia(jdbcTemplate, 6L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
+        insertMedia(jdbcTemplate, 6L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
 
-        createSharedMedia(jdbcTemplate, 4L, 5L, 4L,
+        insertSharedMedia(jdbcTemplate, 4L, 5L, 4L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
-        createSharedMedia(jdbcTemplate, 5L, 5L, 5L,
+        insertSharedMedia(jdbcTemplate, 5L, 5L, 5L,
                 Timestamp.valueOf("2026-09-17 10:00:00"));
-        createSharedMedia(jdbcTemplate, 6L, 6L, 6L,
+        insertSharedMedia(jdbcTemplate, 6L, 6L, 6L,
                 Timestamp.valueOf("2026-09-17 11:00:00"));
 
         // when

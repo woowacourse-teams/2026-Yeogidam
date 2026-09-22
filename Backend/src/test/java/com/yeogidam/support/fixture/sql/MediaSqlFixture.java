@@ -7,7 +7,7 @@ public final class MediaSqlFixture {
     private MediaSqlFixture() {
     }
 
-    public static void createMedia(
+    public static void insertMedia(
             JdbcTemplate jdbcTemplate,
             Long mediaId,
             String caption,
