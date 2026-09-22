@@ -7,6 +7,7 @@ import React, {
 import {
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -215,6 +216,7 @@ export function SavedPlacesScreen({
   const [isLoading, setIsLoading] = useState(
     providedPlaces === undefined && cachedSavedPlaces === null,
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -231,6 +233,7 @@ export function SavedPlacesScreen({
     useState<ShareApiDiagnostics | null>(null);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const isRefreshingRef = useRef(false);
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
@@ -281,6 +284,22 @@ export function SavedPlacesScreen({
       setIsLoading(false);
     }
   }, [onAuthenticationRequired, providedPlaces]);
+
+  const refreshSavedPlaces = useCallback(async () => {
+    if (isRefreshingRef.current) {
+      return;
+    }
+
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
+
+    try {
+      await loadSavedPlaces();
+    } finally {
+      isRefreshingRef.current = false;
+      setIsRefreshing(false);
+    }
+  }, [loadSavedPlaces]);
 
   useEffect(() => {
     loadSavedPlaces();
@@ -1009,8 +1028,18 @@ export function SavedPlacesScreen({
             <>
               <ScrollView
                 ref={scrollViewRef}
+                alwaysBounceVertical
                 onScroll={event =>
                   onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
+                }
+                refreshControl={
+                  <RefreshControl
+                    colors={['#8FA2FF']}
+                    onRefresh={refreshSavedPlaces}
+                    progressBackgroundColor="#ffffff"
+                    refreshing={isRefreshing}
+                    tintColor="#8FA2FF"
+                  />
                 }
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
