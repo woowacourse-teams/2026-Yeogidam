@@ -508,27 +508,27 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
 
     try {
       const response = await saveContent(reel.instagram_url, 'url_input');
-      // 분석 시작 응답을 받는 즉시 스켈레톤을 해제한다. 상세 데이터가
-      // 아직 준비되지 않았으면 기존 릴스의 이미지와 제목을 임시로 사용한다.
-      const responseReel: HistoryReel = {
-        ...temporaryReel,
-        id: response.reelId,
-        processing_status: response.status,
-        failure_reason: response.failureReason ?? null,
-      };
-      setRetrySkeletonIds(current => {
-        const next = new Set(current);
-        next.delete(temporaryId);
-        return next;
-      });
-      setReels(current => [
-        responseReel,
-        ...current.filter(item => item.id !== temporaryId && item.id !== response.reelId),
-      ]);
-      // Retry creates a new history record on the backend. Keep the original
-      // failed record and add the new attempt to the top of the list.
+      // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
+      // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
       const retriedReel = await getHistoryReelDetail(response.reelId);
       if (!retriedReel) {
+        setReels(current =>
+          current.map(item =>
+            item.id === temporaryId
+              ? {
+                  ...item,
+                  id: response.reelId,
+                  processing_status: response.status,
+                  failure_reason: response.failureReason ?? null,
+                }
+              : item,
+          ),
+        );
+        setRetrySkeletonIds(current => {
+          const next = new Set(current);
+          next.delete(temporaryId);
+          return next;
+        });
         return;
       }
 
@@ -543,13 +543,13 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           ...retriedReel,
           instagram_title:
             retriedReel.instagram_title ??
-            current.find(item => item.id === response.reelId)?.instagram_title,
+            current.find(item => item.id === temporaryId)?.instagram_title,
           instagram_description:
             retriedReel.instagram_description ??
-            current.find(item => item.id === response.reelId)?.instagram_description,
+            current.find(item => item.id === temporaryId)?.instagram_description,
           instagram_thumbnail_url:
             retriedReel.instagram_thumbnail_url ??
-            current.find(item => item.id === response.reelId)
+            current.find(item => item.id === temporaryId)
               ?.instagram_thumbnail_url,
           processing_status: response.status,
           failure_reason: response.failureReason ?? retriedReel.failure_reason,
