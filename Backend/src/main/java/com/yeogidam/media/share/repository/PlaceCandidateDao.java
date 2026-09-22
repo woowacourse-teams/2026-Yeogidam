@@ -12,7 +12,7 @@ public class PlaceCandidateDao {
     private static final RowMapper<SharedMediaProjection> SHARED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
             new SharedMediaProjection(
                     resultSet.getLong("shared_media_id"),
-                    resultSet.getTimestamp("shared_at").toInstant(),
+                    resultSet.getTimestamp("created_at").toInstant(),
                     resultSet.getString("thumbnail_url"),
                     resultSet.getString("caption"),
                     resultSet.getString("author")
@@ -39,7 +39,7 @@ public class PlaceCandidateDao {
     public List<SharedMediaProjection> findSharedMedias(Long memberId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
-                       sm.created_at AS shared_at,
+                       sm.created_at,
                        m.thumbnail_url,
                        m.caption,
                        m.author

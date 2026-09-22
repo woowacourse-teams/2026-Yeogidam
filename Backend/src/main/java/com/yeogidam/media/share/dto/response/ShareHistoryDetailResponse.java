@@ -7,7 +7,7 @@ import java.util.List;
 
 public record ShareHistoryDetailResponse(
         Long sharedMediaId,
-        Instant sharedAt,
+        Instant createdAt,
         String thumbnailUrl,
         String caption,
         String author,
@@ -22,7 +22,7 @@ public record ShareHistoryDetailResponse(
     ) {
         return new ShareHistoryDetailResponse(
                 projection.sharedMediaId(),
-                projection.sharedAt(),
+                projection.createdAt(),
                 projection.thumbnailUrl(),
                 projection.caption(),
                 projection.author(),

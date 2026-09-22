@@ -4,7 +4,7 @@ import java.time.Instant;
 
 public record SharedMediaProjection(
         Long sharedMediaId,
-        Instant sharedAt,
+        Instant createdAt,
         String thumbnailUrl,
         String caption,
         String author

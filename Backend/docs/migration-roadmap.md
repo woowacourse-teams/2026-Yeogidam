@@ -32,7 +32,7 @@
 | P-5 마이 A, A-1 | GET /members/me | id, nickname, email, imageUrl, oauthProvider | 있음(사이클 1 완료) |
 | P-5 회원탈퇴 B | DELETE /members/me | 204. 전 세션 폐기 + 회원 데이터 삭제 | 신규 |
 | P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl, source, clientRequestId} | 202 {sharedMediaId, extractionStatus} / 400 미지원 링크 | 이식(POST /media) |
-| P-6 히스토리 B, B-1 | GET /shares | {sharedMedias:[{sharedMediaId, sharedAt, thumbnailUrl, caption, author, extractionStatus, sharedUrl}]} | 이식. 페이징은 히스토리 API 구현 시 검토 |
+| P-6 히스토리 B, B-1 | GET /shares | {sharedMedias:[{sharedMediaId, createdAt, thumbnailUrl, caption, author, extractionStatus, sharedUrl}]} | 이식. 페이징은 히스토리 API 구현 시 검토 |
 | P-6 성공/실패 상세 C, C-1, 접수 후 상태 폴링 | GET /shares/{sharedMediaId} | 상세 + failureReason + sharedUrl + places[{placeId, name, category, addressSummary, thumbnailUrl, decisionStatus}] | 이식 |
 | P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 이식 |
 | P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 하나 이상 있는 공유만 최근 공유순 DESC로 반환하고 places[]는 UNDECIDED만 포함 | 신규 |
@@ -41,7 +41,7 @@
 | P-2 보관함 편집 D-1 | DELETE /saved-places?savedPlaceIds=11,12 | 204. 한 트랜잭션으로 다건 삭제, 멱등 | 이식 |
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
 | P-3 지도 전부 | GET /saved-places (좌표 포함 전량), GET /saved-places/{savedPlaceId}/media (시트의 이미지 띠) | 지도 범위와 검색어 필터는 클라이언트 | 이식 |
-| P-4 장소 상세 전부 | GET /saved-places/{savedPlaceId}, GET /saved-places/{savedPlaceId}/media, DELETE /saved-places?savedPlaceIds= | 장소 정보(목록 항목과 같은 모양) / 관련 공유 {media:[{sharedMediaId, thumbnailUrl, author, caption, sharedUrl, sharedAt}]} | 상세만 신규 |
+| P-4 장소 상세 전부 | GET /saved-places/{savedPlaceId}, GET /saved-places/{savedPlaceId}/media, DELETE /saved-places?savedPlaceIds= | 장소 정보(목록 항목과 같은 모양) / 관련 공유 {media:[{sharedMediaId, thumbnailUrl, author, caption, sharedUrl, createdAt}]} | 상세만 신규 |
 | 강제 업데이트 모달 | GET /app-update-policies?platform&appVersion | {updateRequired, minimumSupportedVersion, storeUrl}, 인증 없음 | 신규 |
 
 공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 보관함 항목은 `savedPlaceId`(saved_places.id)로 가리킨다(2026-09-22 결정). 목록이 그 값을 내리고 삭제와 관련 릴스가 경로 변수로 받는다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 서버가 내리지 않는다(2026-09-21, #179 리뷰. 클라이언트 inBoxScreen의 placeAddress가 이미 앞 두 마디로 줄이므로 같은 함수를 쓴다). 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
@@ -76,7 +76,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 2. `cleanup.sql`에 위 8개 TRUNCATE를 추가했다.
 3. 남은 결정 1, 3, 4를 이 PR 설명에 적어 확정한다. 자원 이름은 `/shares`, 게시물 테이블은 `media`, 응답 DTO는 정적 팩토리 `from`으로 조립한다(2026-09-21 변경, 아래 남은 결정 4).
 4. 회원 탈퇴가 1단계에 들어가므로 남은 결정 5도 여기서 정한다. 우리 DB 삭제만("전 세션 폐기 + members와 딸린 행 삭제")으로 갈지, 카카오 unlink(admin key와 저장된 provider id로 가능)까지 넣을지 둘 중 하나다. 구글과 애플 revoke는 제공자 토큰이 필요해 이번 3일에는 들어가지 않는다.
-5. A의 관련 릴스 응답과 B의 히스토리 목록 응답에 같이 들어가는 "공유 한 건"의 필드 이름을 PR 설명에 적어 맞춘다. sharedMediaId, sharedAt, thumbnailUrl, caption, author, sharedUrl, extractionStatus다. 공용 DTO는 만들지 않으므로 클래스는 각자 두고 필드 이름만 같게 한다.
+5. A의 관련 릴스 응답과 B의 히스토리 목록 응답에 같이 들어가는 "공유 한 건"의 필드 이름을 PR 설명에 적어 맞춘다. sharedMediaId, createdAt, thumbnailUrl, caption, author, sharedUrl, extractionStatus다. 공용 DTO는 만들지 않으므로 클래스는 각자 두고 필드 이름만 같게 한다.
 
 ### 4.2 1단계: 읽기 API와 회원 탈퇴 (수 ~ 금, 3일)
 

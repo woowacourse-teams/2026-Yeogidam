@@ -79,7 +79,7 @@ class ShareHistoryDetailE2eTest extends E2eTestSupport {
                 .when().get(PATH + 1)
                 .then().statusCode(200)
                 .body("sharedMediaId", equalTo(1))
-                .body("sharedAt", equalTo("2026-09-17T01:00:00Z"))
+                .body("createdAt", equalTo("2026-09-17T01:00:00Z"))
                 .body("thumbnailUrl", equalTo("https://img.example.com/media.jpg"))
                 .body("caption", equalTo("성수동 카페 모음"))
                 .body("author", equalTo("@seongsu"))

@@ -84,7 +84,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .then().statusCode(200)
                 .body("sharedMedias", hasSize(2))
                 .body("sharedMedias[0].sharedMediaId", equalTo(2))
-                .body("sharedMedias[0].sharedAt", equalTo("2026-09-17T01:00:00Z"))
+                .body("sharedMedias[0].createdAt", equalTo("2026-09-17T01:00:00Z"))
                 .body("sharedMedias[0].thumbnailUrl", equalTo(null))
                 .body("sharedMedias[0].caption", equalTo(null))
                 .body("sharedMedias[0].author", equalTo(null))

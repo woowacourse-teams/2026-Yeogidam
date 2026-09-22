@@ -5,7 +5,7 @@ import java.time.Instant;
 
 public record ShareHistoryResponse(
         Long sharedMediaId,
-        Instant sharedAt,
+        Instant createdAt,
         String thumbnailUrl,
         String caption,
         String author,
@@ -15,7 +15,7 @@ public record ShareHistoryResponse(
     public static ShareHistoryResponse from(ShareProjection projection) {
         return new ShareHistoryResponse(
                 projection.sharedMediaId(),
-                projection.sharedAt(),
+                projection.createdAt(),
                 projection.thumbnailUrl(),
                 projection.caption(),
                 projection.author(),
