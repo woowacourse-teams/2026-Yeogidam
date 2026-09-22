@@ -30,6 +30,11 @@ import {
 import { normalizeReelError } from '../../entities/content/errors';
 import {normalizeReelTitle} from '../../entities/content/title';
 import { supabase } from '../../lib/auth/supabase';
+import { getHistoryReels } from '../../entities/content/api';
+import {
+  getLastSeenHistorySnapshot,
+  setLastSeenHistorySnapshot,
+} from '../../lib/history-notification-storage';
 
 function pendingPlaces(item: InboxReel) {
   return item.places.filter(place => place.reviewStatus === 'PENDING');
@@ -75,6 +80,30 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasUnreadHistory, setHasUnreadHistory] = useState(false);
+  const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
+  const [latestHistoryStatus, setLatestHistoryStatus] = useState<string | null>(null);
+
+  const syncHistoryNotification = useCallback(async () => {
+    try {
+      const result = await getHistoryReels();
+      const latest = result.reels[0]?.id;
+      if (!latest) return;
+      setLatestHistoryId(latest);
+      const latestStatus = result.reels[0].processing_status;
+      setLatestHistoryStatus(latestStatus);
+      const lastSeen = await getLastSeenHistorySnapshot();
+      if (lastSeen === null) {
+        await setLastSeenHistorySnapshot({id: latest, status: latestStatus});
+        return;
+      }
+      setHasUnreadHistory(
+        lastSeen.id !== latest || lastSeen.status !== latestStatus,
+      );
+    } catch {
+      // History loading is independent from the inbox list.
+    }
+  }, []);
 
   useEffect(() => {
     onSelectionChange(selectedPlaceIds.length > 0);
@@ -105,19 +134,37 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
 
   useEffect(() => {
     loadInbox();
+    syncHistoryNotification();
     const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') loadInbox(true);
+      if (state === 'active') {
+        loadInbox(true);
+        syncHistoryNotification();
+      }
     });
     return () => subscription.remove();
-  }, [loadInbox]);
+  }, [loadInbox, syncHistoryNotification]);
 
   useEffect(() => {
     const intervalId = setInterval(
-      () => loadInbox(true, true),
+      () => {
+        loadInbox(true, true);
+        syncHistoryNotification();
+      },
       ANALYSIS_POLL_INTERVAL_MS,
     );
     return () => clearInterval(intervalId);
-  }, [loadInbox]);
+  }, [loadInbox, syncHistoryNotification]);
+
+  const openHistory = async () => {
+    if (latestHistoryId && latestHistoryStatus) {
+      await setLastSeenHistorySnapshot({
+        id: latestHistoryId,
+        status: latestHistoryStatus,
+      });
+    }
+    setHasUnreadHistory(false);
+    onOpenHistory();
+  };
 
   const toggleSelectedPlace = (id: string) =>
     setSelectedPlaceIds(current =>
@@ -222,10 +269,11 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
           <Pressable
             accessibilityLabel="대기함 기록 보기"
             accessibilityRole="button"
-            onPress={onOpenHistory}
+            onPress={openHistory}
             style={styles.headerAction}
           >
             <InboxHeaderFrame height={41} width={41} />
+            {hasUnreadHistory ? <View style={styles.historyBadge} /> : null}
           </Pressable>
         </View>
       </View>
@@ -487,7 +535,22 @@ const styles = StyleSheet.create({
     gap: 8,
     marginLeft: 'auto',
   },
-  headerAction: { alignItems: 'center', justifyContent: 'center' },
+  headerAction: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  historyBadge: {
+    backgroundColor: '#E6002D',
+    borderColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 2,
+    height: 16,
+    position: 'absolute',
+    right: 1,
+    top: 1,
+    width: 16,
+  },
   errorBanner: {
     backgroundColor: '#FFF4F4',
     borderRadius: 12,
