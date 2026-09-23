@@ -8,7 +8,6 @@ import com.yeogidam.member.exception.MemberErrorCode;
 import com.yeogidam.member.exception.MemberException;
 import com.yeogidam.member.repository.MemberDao;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
