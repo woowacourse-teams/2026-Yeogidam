@@ -299,7 +299,7 @@ class KakaoMapView(
                     LabelOptions.from(
                         place.getString("id"),
                         LatLng.from(place.getDouble("latitude"), place.getDouble("longitude")),
-                    ).setStyles(createSavedPlaceMarker()),
+                    ).setStyles(createSavedPlaceMarker(place.optBoolean("selected", false))),
                 ).apply {
                     tag = place.getString("id")
                     isClickable = true
@@ -600,10 +600,11 @@ class KakaoMapView(
         return bitmap
     }
 
-    private fun createSavedPlaceMarker(): Bitmap {
+    private fun createSavedPlaceMarker(selected: Boolean): Bitmap {
         val density = resources.displayMetrics.density
         val size = (SAVED_PLACE_MARKER_SIZE_DP * density).roundToInt()
-        BitmapFactory.decodeResource(resources, R.drawable.map_marker)?.let { markerBitmap ->
+        val resourceId = if (selected) R.drawable.map_marker_selected else R.drawable.map_marker
+        BitmapFactory.decodeResource(resources, resourceId)?.let { markerBitmap ->
             return Bitmap.createScaledBitmap(markerBitmap, size, size, true)
         }
 
