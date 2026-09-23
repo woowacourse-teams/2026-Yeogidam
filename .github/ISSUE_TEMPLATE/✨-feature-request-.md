@@ -1,7 +1,7 @@
 ---
 name: "✨ Feature Request "
 about: 새로운 기능이나 개선 사항을 추가
-title: "[Feat] 제목"
+title: "[Feat] "
 labels: ["Feat"]
 assignees: ''
 
