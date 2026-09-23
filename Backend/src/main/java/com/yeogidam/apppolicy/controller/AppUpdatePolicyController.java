@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/app-update-policies")
 @RequiredArgsConstructor
+@RequestMapping("/api/v1/app-update-policies")
 public class AppUpdatePolicyController implements AppUpdatePolicyApiDocs {
 
     private final AppUpdatePolicyService appUpdatePolicyService;
@@ -19,8 +19,8 @@ public class AppUpdatePolicyController implements AppUpdatePolicyApiDocs {
     @Override
     @GetMapping
     public ResponseEntity<AppUpdatePolicyResponse> readPolicy(
-            @RequestParam(required = false) String platform,
-            @RequestParam(required = false) String appVersion
+            @RequestParam String platform,
+            @RequestParam String appVersion
     ) {
         AppUpdatePolicyResponse response = appUpdatePolicyService.readPolicy(platform, appVersion);
         return ResponseEntity.ok()

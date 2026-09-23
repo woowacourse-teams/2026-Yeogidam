@@ -42,10 +42,10 @@ jwt:
 # 앱 업데이트 정책. 최소 버전 아래는 강제, 최신 버전 아래는 권고. 바꿀 때 재배포한다. 운영 값은 application-prod.yml에서 덮는다.
 app-update:
   ios:
-    minimum-supported-version: 1.0.0
+    minimum-supported-version: 1.1.0
     latest-version: 1.1.0
-    store-url: https://apps.apple.com/kr/app/id0000000000
+    store-url: https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355
   android:
-    minimum-supported-version: 1.0.0
+    minimum-supported-version: 1.1.0
     latest-version: 1.1.0
-    store-url: https://play.google.com/store/apps/details?id=com.yeogidam.app
+    store-url: https://play.google.com/store/apps/details?id=com.yeogidamm.app&pcampaignid=web_share
