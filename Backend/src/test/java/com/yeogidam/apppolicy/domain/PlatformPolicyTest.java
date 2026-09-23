@@ -41,4 +41,28 @@ class PlatformPolicyTest {
         assertThatThrownBy(() -> new PlatformPolicy(new AppVersion("1.4.0"), new AppVersion("1.2.0"), "https://a.b"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 최소_지원_버전이_비어_있으면_예외가_발생한다() {
+        assertThatThrownBy(() -> new PlatformPolicy(null, new AppVersion("1.4.0"), "https://a.b"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 최신_버전이_비어_있으면_예외가_발생한다() {
+        assertThatThrownBy(() -> new PlatformPolicy(new AppVersion("1.2.0"), null, "https://a.b"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 스토어_주소가_비어_있으면_예외가_발생한다() {
+        assertThatThrownBy(() -> new PlatformPolicy(new AppVersion("1.2.0"), new AppVersion("1.4.0"), null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 스토어_주소가_https가_아니면_예외가_발생한다() {
+        assertThatThrownBy(() -> new PlatformPolicy(new AppVersion("1.2.0"), new AppVersion("1.4.0"), "http://a.b"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

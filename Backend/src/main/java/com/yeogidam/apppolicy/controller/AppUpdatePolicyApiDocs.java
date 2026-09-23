@@ -31,10 +31,14 @@ public interface AppUpdatePolicyApiDocs {
                     @ApiResponse(responseCode = "200", description = "정책과 판정",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = AppUpdatePolicyResponse.class))),
-                    @ApiResponse(responseCode = "400", description = "platform 또는 appVersion이 잘못됨",
+                    @ApiResponse(responseCode = "400", description = "platform 또는 appVersion이 없거나 잘못됨",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = {
+                                            @ExampleObject(name = "COMMON400_003", description = "platform이나 appVersion을 아예 보내지 않았을 때",
+                                                    value = """
+                                                    {"message": "필수 요청 파라미터가 누락되었습니다.", "errorCode": "COMMON400_003"}
+                                                    """),
                                             @ExampleObject(name = "APP400_001", description = "platform이 ios, android가 아닐 때",
                                                     value = """
                                                     {"message": "platform은 ios 또는 android여야 합니다.", "errorCode": "APP400_001"}
@@ -46,7 +50,7 @@ public interface AppUpdatePolicyApiDocs {
                                     }))
             })
     ResponseEntity<AppUpdatePolicyResponse> readPolicy(
-            @Parameter(description = "ios 또는 android", example = "ios") String platform,
-            @Parameter(description = "앱 버전(주.부.수정)", example = "1.1.0") String appVersion
+            @Parameter(description = "ios 또는 android. 필수", example = "ios") String platform,
+            @Parameter(description = "앱 버전(주.부.수정). 필수", example = "1.1.0") String appVersion
     );
 }

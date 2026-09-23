@@ -7,12 +7,10 @@ import com.yeogidam.apppolicy.domain.PlatformPolicy;
 import com.yeogidam.apppolicy.domain.UpdateDecision;
 import com.yeogidam.apppolicy.dto.AppUpdatePolicyResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-@EnableConfigurationProperties(AppUpdatePolicyProperties.class)
 public class AppUpdatePolicyService {
 
     private final AppUpdatePolicyProperties properties;
