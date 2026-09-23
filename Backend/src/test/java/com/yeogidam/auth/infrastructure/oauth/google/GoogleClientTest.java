@@ -34,6 +34,7 @@ class GoogleClientTest {
 
     private static final String TOKEN_URI = "https://oauth2.googleapis.com/token";
     private static final String USER_INFO_URI = "https://openidconnect.googleapis.com/v1/userinfo";
+    private static final String REVOKE_URI = "https://oauth2.googleapis.com/revoke";
     private static final String TOKEN_BODY = "{\"access_token\":\"google-access\",\"id_token\":\"id\"}";
     private static final GoogleProperties PROPERTIES = new GoogleProperties(
             "google-client", "google-secret", "https://app.example.com/oauth/google");
@@ -88,6 +89,29 @@ class GoogleClientTest {
     }
 
     @Test
+    void 탈퇴하면_새로_받은_리프레시_토큰을_폐기한다() {
+        // given
+        googleServer.expect(requestTo(TOKEN_URI))
+                .andRespond(withSuccess("""
+                        {"access_token":"google-access","refresh_token":"google-refresh"}
+                        """, MediaType.APPLICATION_JSON));
+        googleServer.expect(requestTo(USER_INFO_URI))
+                .andExpect(header("Authorization", "Bearer google-access"))
+                .andRespond(withSuccess("{\"sub\":\"google-user\"}", MediaType.APPLICATION_JSON));
+        googleServer.expect(requestTo(REVOKE_URI))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))
+                .andExpect(content().formData(expectedRevokeRequest("google-refresh")))
+                .andRespond(withSuccess());
+
+        // when
+        client.deleteAccount("code-1", new OAuthAccount(OAuthProvider.GOOGLE, "google-user"));
+
+        // then
+        googleServer.verify();
+    }
+
+    @Test
     void userinfo에_sub가_없으면_자격증명_예외가_발생한다() {
         // given
         googleServer.expect(requestTo(TOKEN_URI)).andRespond(withSuccess(TOKEN_BODY, MediaType.APPLICATION_JSON));
@@ -117,6 +141,12 @@ class GoogleClientTest {
         body.add("client_secret", "google-secret");
         body.add("redirect_uri", "https://app.example.com/oauth/google");
         body.add("code", code);
+        return body;
+    }
+
+    private static MultiValueMap<String, String> expectedRevokeRequest(String token) {
+        LinkedMultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("token", token);
         return body;
     }
 

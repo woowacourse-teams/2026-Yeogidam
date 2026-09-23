@@ -4,9 +4,6 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.servers.Server;
-import jakarta.servlet.ServletContext;
-import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,11 +13,9 @@ public class SwaggerConfig {
     private static final String ACCESS_TOKEN_SCHEME = "access-token";
 
     @Bean
-    public OpenAPI openAPI(ServletContext servletContext) {
-        Server server = new Server().url(servletContext.getContextPath());
+    public OpenAPI openAPI() {
 
         return new OpenAPI()
-                .servers(List.of(server))
                 .components(authSetting())
                 .info(swaggerInfo());
     }

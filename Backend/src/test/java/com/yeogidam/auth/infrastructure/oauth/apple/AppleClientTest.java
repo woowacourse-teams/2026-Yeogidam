@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.ExpectedCount.manyTimes;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -130,16 +131,25 @@ class AppleClientTest {
     }
 
     @Test
-    void 리프레시_토큰_취소는_token_type_hint를_싣고_빈_성공_응답을_받아들인다() {
+    void 탈퇴하면_새로_받은_리프레시_토큰을_폐기한다() {
         // given
+        String idToken = appleKey.sign(appleKey.appleClaims(CLIENT_ID, "001234.user", NOW).build());
+        appleServer.expect(requestTo(TOKEN_URI))
+                .andRespond(withSuccess("""
+                        {"access_token":"apple-access","refresh_token":"apple-refresh","id_token":"%s"}
+                        """.formatted(idToken), MediaType.APPLICATION_JSON));
         appleServer.expect(requestTo(REVOKE_URI))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(formFields(Map.of("client_id", CLIENT_ID, "token", "apple-refresh",
                         "token_type_hint", "refresh_token")))
                 .andRespond(withSuccess());
+        jwksServer.expect(manyTimes(), requestTo(JWKS_URI))
+                .andRespond(withSuccess(appleKey.jwksJson(), MediaType.APPLICATION_JSON));
 
-        // when & then
-        assertThatCode(() -> client.revokeToken("apple-refresh")).doesNotThrowAnyException();
+        // when
+        client.deleteAccount("code-1", new OAuthAccount(OAuthProvider.APPLE, "001234.user"));
+
+        // then
         appleServer.verify();
     }
 

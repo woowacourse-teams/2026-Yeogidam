@@ -6,9 +6,8 @@ import com.yeogidam.auth.domain.oauth.OAuthIdentity;
 import com.yeogidam.auth.dto.response.OAuthTokenResponse;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
-import com.yeogidam.auth.infrastructure.oauth.apple.AppleClientSecretGenerator;
-import com.yeogidam.auth.infrastructure.oauth.apple.AppleIdentityTokenVerifier;
 import com.yeogidam.auth.infrastructure.oauth.OAuthClientErrorHandler;
+import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -41,17 +40,24 @@ public class AppleClient implements OAuthClient {
     @Override
     public OAuthIdentity readIdentity(String authorizationCode) {
         OAuthTokenResponse token = requestToken(authorizationCode);
-        Jwt identity = tokenVerifier.verify(token.idToken());
-        String email = null;
-        Object emailVerified = identity.getClaims()
-                .get("email_verified");
-        if (Boolean.TRUE.equals(emailVerified) || "true".equals(emailVerified)) {
-            email = identity.getClaimAsString("email");
-        }
-        return new OAuthIdentity(getProvider(), identity.getSubject(), null, email, null);
+        return createIdentity(token);
     }
 
-    public OAuthTokenResponse requestToken(String authorizationCode) {
+    @Override
+    public void deleteAccount(String authorizationCode, OAuthAccount expectedAccount) {
+        OAuthTokenResponse token = requestToken(authorizationCode);
+        OAuthIdentity identity = createIdentity(token);
+        if (!expectedAccount.equals(identity.getAccount())) {
+            throw new AuthException(AuthErrorCode.INVALID_CREDENTIAL);
+        }
+        String refreshToken = token.refreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new AuthException(AuthErrorCode.INVALID_PROVIDER_RESPONSE);
+        }
+        revokeToken(refreshToken);
+    }
+
+    private OAuthTokenResponse requestToken(String authorizationCode) {
         String clientSecret = clientSecretGenerator.generate();
         try {
             OAuthTokenResponse response = restClient.post()
@@ -71,7 +77,18 @@ public class AppleClient implements OAuthClient {
         }
     }
 
-    public void revokeToken(String refreshToken) {
+    private OAuthIdentity createIdentity(OAuthTokenResponse token) {
+        Jwt identity = tokenVerifier.verify(token.idToken());
+        String email = null;
+        Boolean emailVerified = identity.getClaimAsBoolean("email_verified");
+
+        if (Boolean.TRUE.equals(emailVerified)) {
+            email = identity.getClaimAsString("email");
+        }
+        return new OAuthIdentity(getProvider(), identity.getSubject(), null, email, null);
+    }
+
+    private void revokeToken(String refreshToken) {
         String clientSecret = clientSecretGenerator.generate();
         try {
             restClient.post()
