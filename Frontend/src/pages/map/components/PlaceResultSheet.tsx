@@ -39,6 +39,7 @@ type PlaceResultSheetProps = {
   isSearchActive?: boolean;
   isVisibleAreaUpdating?: boolean;
   height: number;
+  translateY?: Animated.Value;
   topInset?: number;
   bottomTabOffset?: number;
   onExpandedChange?: (isExpanded: boolean) => void;
@@ -77,6 +78,7 @@ export function PlaceResultSheet({
   isSearchActive = false,
   isVisibleAreaUpdating = false,
   height,
+  translateY: sharedTranslateY,
   topInset = 0,
   bottomTabOffset = 0,
   onExpandedChange,
@@ -120,7 +122,15 @@ export function PlaceResultSheet({
     [collapsedOffset, detailMiddleOffset],
   );
   // Start compact so the sheet can be dragged both upward and downward.
-  const translateY = useRef(new Animated.Value(collapsedOffset)).current;
+  const internalTranslateY = useRef(
+    new Animated.Value(collapsedOffset),
+  ).current;
+  const translateY = sharedTranslateY ?? internalTranslateY;
+  const didInitializeSharedTranslateY = useRef(false);
+  if (sharedTranslateY && !didInitializeSharedTranslateY.current) {
+    sharedTranslateY.setValue(collapsedOffset);
+    didInitializeSharedTranslateY.current = true;
+  }
   const currentOffset = useRef(collapsedOffset);
   const dragStartOffset = useRef(collapsedOffset);
   const startedInPageMode = useRef(false);

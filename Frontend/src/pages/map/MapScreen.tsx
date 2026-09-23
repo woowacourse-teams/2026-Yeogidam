@@ -5,7 +5,14 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -64,6 +71,7 @@ export function MapScreen({
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
     COLLAPSED_SHEET_HEIGHT,
   );
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
   // Request the initial camera position from the user's location. The native
   // map waits for the permission/location callback before moving the camera.
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(1);
@@ -73,6 +81,10 @@ export function MapScreen({
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
 
   const sheetBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
+  const sheetHeight = Math.max(
+    COLLAPSED_SHEET_HEIGHT,
+    mapHeight - sheetBottomOffset,
+  );
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
     northLatitude: number;
@@ -151,7 +163,7 @@ export function MapScreen({
       // results during that short interval.
       setVisibleBounds(null);
     },
-    [searchedPlaces],
+    [],
   );
 
   const handleSearch = () => {
@@ -291,32 +303,10 @@ export function MapScreen({
             />
           ) : null}
         </View>
-        {!isSheetExpanded ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="내 위치로 이동"
-            hitSlop={8}
-            onPress={() =>
-              setCurrentLocationRequestId(requestId => requestId + 1)
-            }
-            style={({ pressed }) => [
-              styles.currentLocationButton,
-              { bottom: sheetVisibleHeight + 16 },
-              pressed && styles.currentLocationButtonPressed,
-            ]}
-          >
-            <View style={styles.currentLocationIcon}>
-              <View style={styles.currentLocationVerticalLine} />
-              <View style={styles.currentLocationHorizontalLine} />
-              <View style={styles.currentLocationRing}>
-                <View style={styles.currentLocationDot} />
-              </View>
-            </View>
-          </Pressable>
-        ) : null}
         {mapHeight > 0 ? (
           <PlaceResultSheet
-            height={mapHeight - sheetBottomOffset}
+            height={sheetHeight}
+            translateY={sheetTranslateY}
             topInset={topInset}
             bottomTabOffset={bottomNavigationOffset}
             places={resultPlaces}
@@ -339,6 +329,44 @@ export function MapScreen({
             onVisibleHeightChange={handleSheetVisibleHeightChange}
             isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
           />
+        ) : null}
+        {mapHeight > 0 ? (
+          <Animated.View
+            pointerEvents={isSheetExpanded ? 'none' : 'auto'}
+            style={[
+              styles.currentLocationButtonContainer,
+              {
+                bottom: sheetBottomOffset + sheetHeight + 16,
+                opacity: sheetTranslateY.interpolate({
+                  inputRange: [0, COLLAPSED_SHEET_HEIGHT],
+                  outputRange: [0, 1],
+                  extrapolate: 'clamp',
+                }),
+                transform: [{ translateY: sheetTranslateY }],
+              },
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="내 위치로 이동"
+              hitSlop={8}
+              onPress={() =>
+                setCurrentLocationRequestId(requestId => requestId + 1)
+              }
+              style={({ pressed }) => [
+                styles.currentLocationButton,
+                pressed && styles.currentLocationButtonPressed,
+              ]}
+            >
+              <View style={styles.currentLocationIcon}>
+                <View style={styles.currentLocationVerticalLine} />
+                <View style={styles.currentLocationHorizontalLine} />
+                <View style={styles.currentLocationRing}>
+                  <View style={styles.currentLocationDot} />
+                </View>
+              </View>
+            </Pressable>
+          </Animated.View>
         ) : null}
         {!isPlaceDetailVisible ? (
           <SearchBar
@@ -392,9 +420,15 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  currentLocationButton: {
+  currentLocationButtonContainer: {
     position: 'absolute',
     right: 18,
+    width: 44,
+    height: 44,
+    zIndex: 10,
+    elevation: 10,
+  },
+  currentLocationButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -405,7 +439,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.14,
     shadowOffset: { width: 0, height: 3 },
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 10,
   },
   currentLocationButtonPressed: {
     opacity: 0.7,
