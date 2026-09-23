@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MemberService {
 
     private final MemberDao memberDao;
@@ -33,7 +33,7 @@ public class MemberService {
         memberDao.deleteById(memberId); // media, places, media_places 제외 회원 소유 데이터 삭제
     }
 
-    private @NonNull Member getMember(Long memberId) {
+    private Member getMember(Long memberId) {
         return memberDao.findById(memberId)
                 .orElseThrow(() -> new MemberException(MemberErrorCode.NOT_FOUND));
     }
