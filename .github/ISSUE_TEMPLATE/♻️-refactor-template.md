@@ -1,7 +1,7 @@
 ---
 name: "♻️ Refactor Template"
 about: 기능은 유지되지만 코드 구조를 개선
-title: "[Refactor] 제목"
+title: "[Refactor] "
 labels: ["Refactor"]
 assignees: ''
 
