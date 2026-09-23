@@ -15,7 +15,7 @@ import {
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { getSavedPlaces } from '../../entities/info/api';
-import { MapSearchBar } from './components/MapSearchBar';
+import { SearchBar } from '../../components/SearchBar';
 import {
   COLLAPSED_SHEET_HEIGHT,
   PlaceResultSheet,
@@ -341,7 +341,7 @@ export function MapScreen({
           />
         ) : null}
         {!isPlaceDetailVisible ? (
-          <MapSearchBar
+          <SearchBar
             backButtonPosition={
               hasActiveSearch || isSearchFocused ? 'leading' : 'inside'
             }

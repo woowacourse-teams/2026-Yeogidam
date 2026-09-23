@@ -28,7 +28,7 @@ import type {
   SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
-import { MAP_SEARCH_BAR_HEIGHT, MAP_SEARCH_BAR_TOP_GAP } from './MapSearchBar';
+import { SEARCH_BAR_HEIGHT, SEARCH_BAR_TOP_GAP } from '../../../components/SearchBar';
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
 import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
@@ -147,8 +147,8 @@ export function PlaceResultSheet({
   );
   const expandedHeaderHeight =
     topInset +
-    MAP_SEARCH_BAR_TOP_GAP +
-    MAP_SEARCH_BAR_HEIGHT +
+    SEARCH_BAR_TOP_GAP +
+    SEARCH_BAR_HEIGHT +
     EXPANDED_RESULTS_TOP_GAP;
 
   const reportVisibleHeight = useCallback(
