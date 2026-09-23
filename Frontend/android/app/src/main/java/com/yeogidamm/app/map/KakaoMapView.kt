@@ -54,7 +54,6 @@ class KakaoMapView(
     private var currentLocationRequestId = 0
     private var cameraBottomInset = 0
     private var locationUpdatesStarted = false
-    private var hasCenteredOnCurrentLocation = false
     private var pendingCurrentLocationCameraMove = false
 
     private val locationListener =
@@ -231,8 +230,6 @@ class KakaoMapView(
         }
 
         showsCurrentLocation = value
-        hasCenteredOnCurrentLocation = false
-
         if (value) {
             startCurrentLocationIfNeeded()
         } else {
@@ -475,7 +472,6 @@ class KakaoMapView(
         val location = lastKnownLocation
 
         if (map == null || location == null) {
-            hasCenteredOnCurrentLocation = false
             startCurrentLocationIfNeeded()
             return
         }
@@ -490,11 +486,9 @@ class KakaoMapView(
         }
 
         pendingCurrentLocationCameraMove = false
-        hasCenteredOnCurrentLocation = true
         removeCallbacks(moveToDefaultPosition)
         post {
             if (!isAttachedToWindow || kakaoMap !== map) {
-                hasCenteredOnCurrentLocation = false
                 return@post
             }
 

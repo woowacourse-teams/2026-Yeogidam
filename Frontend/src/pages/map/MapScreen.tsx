@@ -7,7 +7,6 @@ import React, {
 } from 'react';
 import {
   Animated,
-  AppState,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -60,12 +59,8 @@ export function MapScreen({
       );
     };
     refresh();
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') refresh();
-    });
     return () => {
       unsubscribe();
-      subscription.remove();
     };
   }, []);
   const handleCurrentLocation = async () => {
