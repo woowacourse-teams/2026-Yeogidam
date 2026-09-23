@@ -49,7 +49,7 @@ type PlaceResultSheetProps = {
   openPlace?: Place | null;
   openPlaceId?: string;
   openPlaceSignal?: number;
-  onDetailViewChange?: (isDetailView: boolean) => void;
+  onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
 };
@@ -215,7 +215,7 @@ export function PlaceResultSheet({
     });
   }, []);
   useEffect(() => {
-    onDetailViewChange?.(selectedPlace !== null);
+    onDetailViewChange?.(selectedPlace !== null, selectedPlace?.id ?? null);
   }, [onDetailViewChange, selectedPlace]);
 
   const loadSelectedPlaceReels = useCallback(async () => {
