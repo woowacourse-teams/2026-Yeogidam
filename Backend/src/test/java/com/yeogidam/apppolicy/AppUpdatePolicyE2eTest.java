@@ -59,10 +59,19 @@ class AppUpdatePolicyE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 플랫폼과_앱_버전을_보내지_않으면_400_예외를_던진다() {
-        given().when().get(PATH)
+    void 플랫폼을_보내지_않으면_400_예외를_던진다() {
+        given().queryParam("appVersion", "1.1.0")
+                .when().get(PATH)
                 .then().statusCode(400)
-                .body("errorCode", equalTo("APP400_001"));
+                .body("errorCode", equalTo("COMMON400_003"));
+    }
+
+    @Test
+    void 앱_버전을_보내지_않으면_400_예외를_던진다() {
+        given().queryParam("platform", "ios")
+                .when().get(PATH)
+                .then().statusCode(400)
+                .body("errorCode", equalTo("COMMON400_003"));
     }
 
     private static ValidatableResponse askPolicy(String platform, String appVersion) {
