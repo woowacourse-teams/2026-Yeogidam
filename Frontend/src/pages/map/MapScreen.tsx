@@ -29,6 +29,12 @@ import {
 } from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
+import {
+  checkLocationPermission,
+  ensureLocationPermission,
+  subscribeLocationPermission,
+} from '../../lib/location-permission';
+
 type MapScreenProps = {
   onDetailViewChange?: (isDetailView: boolean) => void;
   onAuthenticationRequired?: () => void;
@@ -44,6 +50,27 @@ export function MapScreen({
   onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
+  const [locationGranted, setLocationGranted] = useState(false);
+  useEffect(() => {
+    const unsubscribe = subscribeLocationPermission(setLocationGranted);
+    const refresh = () => {
+      checkLocationPermission().catch(error =>
+        console.warn('위치 권한 확인 실패', error),
+      );
+    };
+    refresh();
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+  const handleCurrentLocation = async () => {
+    try {
+      if (await ensureLocationPermission())
+        setCurrentLocationRequestId(requestId => requestId + 1);
+    } catch {
+      setMapMessage('위치 권한을 확인하지 못했어요. 다시 시도해 주세요.');
+    }
+  };
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -252,7 +279,7 @@ export function MapScreen({
                   longitude,
                 })),
               )}
-              showsCurrentLocation
+              showsCurrentLocation={locationGranted}
               currentLocationRequestId={currentLocationRequestId}
               onMapReady={event => {
                 console.log('지도 준비:', event.nativeEvent.ready);
@@ -350,9 +377,7 @@ export function MapScreen({
               accessibilityRole="button"
               accessibilityLabel="내 위치로 이동"
               hitSlop={8}
-              onPress={() =>
-                setCurrentLocationRequestId(requestId => requestId + 1)
-              }
+              onPress={handleCurrentLocation}
               style={({ pressed }) => [
                 styles.currentLocationButton,
                 pressed && styles.currentLocationButtonPressed,

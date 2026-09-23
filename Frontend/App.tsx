@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+import { ensureLocationPermission } from './src/lib/location-permission';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
@@ -109,6 +110,30 @@ function App() {
       : flowState.detailSource
       ? 'detail'
       : flowState.activeTab;
+
+  const canRequestLocation =
+    isAuthReady &&
+    !isSplashVisible &&
+    hasCompletedGuide === true &&
+    flowState.kind === 'main' &&
+    !requiredUpdateStoreUrl;
+  useEffect(() => {
+    if (!canRequestLocation) return;
+    const request = () => {
+      if (AppState.currentState === 'active')
+        ensureLocationPermission(true).catch(error =>
+          console.warn('위치 권한 확인 실패', error),
+        );
+    };
+    const frame = requestAnimationFrame(request);
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') request();
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      subscription.remove();
+    };
+  }, [canRequestLocation]);
 
   const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
     setFlowState(current =>

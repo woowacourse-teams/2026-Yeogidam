@@ -18,7 +18,6 @@ import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.common.LifecycleState
-import com.facebook.react.modules.core.PermissionAwareActivity
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
@@ -55,9 +54,6 @@ class KakaoMapView(
     private var currentLocationRequestId = 0
     private var cameraBottomInset = 0
     private var locationUpdatesStarted = false
-    private var locationPermissionRequestInFlight = false
-    private var locationPermissionDenied = false
-    private var hasCenteredOnCurrentLocation = false
     private var pendingCurrentLocationCameraMove = false
 
     private val locationListener =
@@ -234,10 +230,7 @@ class KakaoMapView(
         }
 
         showsCurrentLocation = value
-        hasCenteredOnCurrentLocation = false
-
         if (value) {
-            locationPermissionDenied = false
             startCurrentLocationIfNeeded()
         } else {
             stopLocationUpdates()
@@ -372,10 +365,7 @@ class KakaoMapView(
         }
 
         if (hasLocationPermission()) {
-            locationPermissionDenied = false
             startLocationUpdates()
-        } else if (!locationPermissionDenied) {
-            requestLocationPermission()
         }
     }
 
@@ -384,44 +374,6 @@ class KakaoMapView(
             PackageManager.PERMISSION_GRANTED ||
             context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
-
-    private fun requestLocationPermission() {
-        if (locationPermissionRequestInFlight) {
-            return
-        }
-
-        val activity = reactContext.currentActivity as? PermissionAwareActivity
-
-        if (activity == null) {
-            Log.e("YeogidamKakaoMap", "위치 권한을 요청할 Activity가 없습니다.")
-            return
-        }
-
-        locationPermissionRequestInFlight = true
-        activity.requestPermissions(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-            ),
-            LOCATION_PERMISSION_REQUEST_CODE,
-        ) { requestCode, _, grantResults ->
-            if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
-                return@requestPermissions false
-            }
-
-            locationPermissionRequestInFlight = false
-
-            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
-                locationPermissionDenied = false
-                startCurrentLocationIfNeeded()
-            } else {
-                locationPermissionDenied = true
-                Log.w("YeogidamKakaoMap", "사용자가 위치 권한을 허용하지 않았습니다.")
-            }
-
-            true
-        }
-    }
 
     private fun startLocationUpdates() {
         if (locationUpdatesStarted || !hasLocationPermission()) {
@@ -520,7 +472,6 @@ class KakaoMapView(
         val location = lastKnownLocation
 
         if (map == null || location == null) {
-            hasCenteredOnCurrentLocation = false
             startCurrentLocationIfNeeded()
             return
         }
@@ -535,11 +486,9 @@ class KakaoMapView(
         }
 
         pendingCurrentLocationCameraMove = false
-        hasCenteredOnCurrentLocation = true
         removeCallbacks(moveToDefaultPosition)
         post {
             if (!isAttachedToWindow || kakaoMap !== map) {
-                hasCenteredOnCurrentLocation = false
                 return@post
             }
 
@@ -664,7 +613,6 @@ class KakaoMapView(
         const val SAVED_PLACE_MARKER_SIZE_DP = 36
         const val SEARCH_RESULT_CAMERA_PADDING = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
-        const val LOCATION_PERMISSION_REQUEST_CODE = 9417
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f
         const val KAKAO_MAP_MIN_LATITUDE = 32.0

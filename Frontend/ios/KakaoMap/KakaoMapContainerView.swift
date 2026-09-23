@@ -37,7 +37,6 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var enginePrepared = false
   private var mapAdded = false
   private var currentLocationStyleAdded = false
-  private var hasCenteredOnCurrentLocation = false
   private var needsDefaultCameraMove = false
   private var needsFitSearchResultsCameraMove = false
   private var needsCurrentLocationCameraMove = false
@@ -140,8 +139,6 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
 
     if self.showsCurrentLocation != showsCurrentLocation {
       self.showsCurrentLocation = showsCurrentLocation
-      hasCenteredOnCurrentLocation = false
-
       if showsCurrentLocation {
         requestCurrentLocationIfNeeded()
       } else {
@@ -391,7 +388,6 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
         mapView: kakaoMap
       )
 
-      hasCenteredOnCurrentLocation = true
       kakaoMap.moveCamera(cameraUpdate)
       return
     }
@@ -461,7 +457,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
 
     switch locationManager.authorizationStatus {
     case .notDetermined:
-      locationManager.requestWhenInUseAuthorization()
+      break
     case .authorizedAlways, .authorizedWhenInUse:
       locationManager.startUpdatingLocation()
     case .denied, .restricted:
