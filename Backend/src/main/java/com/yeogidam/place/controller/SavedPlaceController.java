@@ -5,7 +5,6 @@ import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.service.SavedPlaceService;
 import java.util.List;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -42,8 +41,8 @@ public class SavedPlaceController implements SavedPlaceApiDocs {
     @Override
     @DeleteMapping
     public ResponseEntity<Void> deleteSavedPlaces(@LoginMember Long memberId,
-                                                  @RequestParam Optional<List<Long>> savedPlaceIds) {
-        savedPlaceService.deleteSavedPlaces(memberId, savedPlaceIds.orElseGet(List::of));
+                                                  @RequestParam List<Long> savedPlaceIds) {
+        savedPlaceService.deleteSavedPlaces(memberId, savedPlaceIds);
         return ResponseEntity.noContent()
                 .build();
     }

@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -120,5 +119,5 @@ public interface SavedPlaceApiDocs {
             })
     ResponseEntity<Void> deleteSavedPlaces(Long memberId,
                                            @Parameter(description = "보관함 항목 id(saved_places.id) 목록", example = "11,12")
-                                           Optional<List<Long>> savedPlaceIds);
+                                           List<Long> savedPlaceIds);
 }

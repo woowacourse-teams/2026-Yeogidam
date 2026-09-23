@@ -179,14 +179,53 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 삭제할_항목을_보내지_않으면_400_예외를_던진다() {
+    void 삭제할_항목_파라미터가_아예_없으면_400_예외를_던진다() {
         // given
         LoginResult login = loginAsKakao("user-1");
 
         // when & then
         givenBearer(login.accessToken())
                 .when().delete(SAVED_PLACES_PATH)
-                .then().statusCode(400);
+                .then().statusCode(400)
+                .body("errorCode", equalTo("COMMON400_003"));
+    }
+
+    @Test
+    void 삭제할_항목_파라미터가_비어_있으면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .queryParam("savedPlaceIds", "")
+                .when().delete(SAVED_PLACES_PATH)
+                .then().statusCode(400)
+                .body("errorCode", equalTo("PLACE400_001"));
+    }
+
+    @Test
+    void 삭제할_항목이_숫자가_아니면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .queryParam("savedPlaceIds", "abc")
+                .when().delete(SAVED_PLACES_PATH)
+                .then().statusCode(400)
+                .body("errorCode", equalTo("COMMON400_004"));
+    }
+
+    @Test
+    void 보관함_항목_id가_숫자가_아니면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(SAVED_PLACES_PATH + "/abc/media")
+                .then().statusCode(400)
+                .body("errorCode", equalTo("COMMON400_004"));
     }
 
     @Test

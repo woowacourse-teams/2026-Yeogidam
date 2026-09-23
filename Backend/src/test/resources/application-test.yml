@@ -27,3 +27,14 @@ oauth:
       client-id: test-apple-client
       team-id: test-team-id
       key-id: test-apple-key
+
+# 앱 업데이트 정책 E2E용. 1.1.x는 강제, 1.2.x ~ 1.3.x는 권고, 1.4.0 이상은 없음
+app-update:
+  ios:
+    minimum-supported-version: 1.2.0
+    latest-version: 1.4.0
+    store-url: https://apps.apple.com/kr/app/id0000000000
+  android:
+    minimum-supported-version: 1.1.0
+    latest-version: 1.3.0
+    store-url: https://play.google.com/store/apps/details?id=com.yeogidam.app

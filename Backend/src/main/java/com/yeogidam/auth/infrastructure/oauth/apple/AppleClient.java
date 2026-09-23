@@ -10,7 +10,6 @@ import com.yeogidam.auth.infrastructure.oauth.OAuthClientErrorHandler;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -20,7 +19,6 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 @RequiredArgsConstructor
-@EnableConfigurationProperties(AppleProperties.class)
 public class AppleClient implements OAuthClient {
 
     private static final String TOKEN_URI = "https://appleid.apple.com/auth/token";
