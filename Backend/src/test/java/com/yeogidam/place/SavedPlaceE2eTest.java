@@ -105,7 +105,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("media[0].author", equalTo("@seongsu_life"))
                 .body("media[0].caption", equalTo("성수 카페 투어"))
                 .body("media[0].sharedUrl", equalTo("https://www.instagram.com/reel/C1seongsu/"))
-                .body("media[0].sharedAt", equalTo("2026-09-12T10:00:00Z"));
+                .body("media[0].createdAt", equalTo("2026-09-12T10:00:00Z"));
     }
 
     @Test

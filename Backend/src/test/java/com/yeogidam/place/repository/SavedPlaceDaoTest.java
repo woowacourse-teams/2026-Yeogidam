@@ -206,7 +206,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(media.author()).isEqualTo("@seongsu_life"),
                 () -> assertThat(media.caption()).isEqualTo("성수 카페 투어"),
                 () -> assertThat(media.sharedUrl()).isEqualTo("https://www.instagram.com/reel/C1seongsu/"),
-                () -> assertThat(media.sharedAt()).isEqualTo(Instant.parse("2026-09-12T10:00:00Z"))
+                () -> assertThat(media.createdAt()).isEqualTo(Instant.parse("2026-09-12T10:00:00Z"))
         );
     }
 

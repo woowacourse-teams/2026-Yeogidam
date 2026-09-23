@@ -12,7 +12,7 @@ public record SavedPlaceMediaResponse(
         String author,
         String caption,
         String sharedUrl,
-        Instant sharedAt
+        Instant createdAt
 ) {
     public static SavedPlaceMediaResponse from(SavedPlaceMediaProjection projection) {
         return new SavedPlaceMediaResponse(
@@ -21,7 +21,7 @@ public record SavedPlaceMediaResponse(
                 projection.author(),
                 projection.caption(),
                 projection.sharedUrl(),
-                projection.sharedAt()
+                projection.createdAt()
         );
     }
 }
