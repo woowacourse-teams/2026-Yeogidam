@@ -11,7 +11,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import type {Place} from '../../../entities/place/types';
-import {MapSearchBar} from '../../map/components/MapSearchBar';
+import {SearchBar} from '../../../components/SearchBar';
 
 type SavedPlacesSearchPanelProps = {
   places: Place[];
@@ -67,11 +67,11 @@ export function SavedPlacesSearchPanel({
 
   return (
     <View style={styles.container}>
-      <MapSearchBar
+      <SearchBar
         autoCorrect={false}
         autoFocus
         backButtonPosition="leading"
-        embedded
+        layout="embedded"
         onChangeText={value => {
           setQuery(value);
           setSubmittedQuery('');
