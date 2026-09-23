@@ -11,7 +11,6 @@ import com.yeogidam.auth.infrastructure.oauth.OAuthClientErrorHandler;
 import com.yeogidam.member.domain.OAuthProvider;
 import com.yeogidam.member.domain.OAuthAccount;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -20,7 +19,6 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 @RequiredArgsConstructor
-@EnableConfigurationProperties(KakaoProperties.class)
 public class KakaoClient implements OAuthClient {
 
     private static final String TOKEN_URI = "https://kauth.kakao.com/oauth/token";

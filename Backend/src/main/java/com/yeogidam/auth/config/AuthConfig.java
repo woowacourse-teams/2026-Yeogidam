@@ -1,6 +1,9 @@
 package com.yeogidam.auth.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.yeogidam.auth.config.oauth.AppleProperties;
+import com.yeogidam.auth.config.oauth.GoogleProperties;
+import com.yeogidam.auth.config.oauth.KakaoProperties;
 import com.yeogidam.auth.domain.oauth.OAuthClient;
 import com.yeogidam.auth.domain.oauth.OAuthClients;
 import java.net.http.HttpClient;
@@ -27,7 +30,12 @@ import org.springframework.web.client.RestOperations;
 import org.springframework.web.client.RestTemplate;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({
+        JwtProperties.class,
+        KakaoProperties.class,
+        GoogleProperties.class,
+        AppleProperties.class
+})
 public class AuthConfig {
 
     private static final int MINIMUM_KEY_BYTES = 32;

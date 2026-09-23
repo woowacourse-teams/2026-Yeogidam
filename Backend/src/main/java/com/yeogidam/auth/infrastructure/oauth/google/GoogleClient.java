@@ -11,7 +11,6 @@ import com.yeogidam.auth.infrastructure.oauth.OAuthClientErrorHandler;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -22,7 +21,6 @@ import org.springframework.web.client.RestClientException;
 
 @Component
 @RequiredArgsConstructor
-@EnableConfigurationProperties(GoogleProperties.class)
 public class GoogleClient implements OAuthClient {
 
     private static final String TOKEN_URI = "https://oauth2.googleapis.com/token";
