@@ -8,7 +8,6 @@ import React, {
 import {
   Animated,
   AppState,
-  Platform,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -52,9 +51,7 @@ export function MapScreen({
   onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
-  const [locationGranted, setLocationGranted] = useState(
-    Platform.OS !== 'android',
-  );
+  const [locationGranted, setLocationGranted] = useState(false);
   useEffect(() => {
     const unsubscribe = subscribeLocationPermission(setLocationGranted);
     const refresh = () => {

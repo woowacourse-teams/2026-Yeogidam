@@ -461,7 +461,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
 
     switch locationManager.authorizationStatus {
     case .notDetermined:
-      locationManager.requestWhenInUseAuthorization()
+      break
     case .authorizedAlways, .authorizedWhenInUse:
       locationManager.startUpdatingLocation()
     case .denied, .restricted:

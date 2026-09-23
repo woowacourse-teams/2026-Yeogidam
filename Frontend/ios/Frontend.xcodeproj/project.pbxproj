@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		ABCDEF0123456789ABCDEF02 /* LocationPermissionModule.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */; };
 		0C80B921A6F3F58F76C31292 /* libPods-Frontend.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */; };
@@ -48,6 +49,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LocationPermissionModule.m; path = Frontend/LocationPermissionModule.m; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* Frontend.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Frontend.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Frontend/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Frontend/Info.plist; sourceTree = "<group>"; };
@@ -106,6 +108,7 @@
 		13B07FAE1A68108700A75B9A /* Frontend */ = {
 			isa = PBXGroup;
 			children = (
+				ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
@@ -378,6 +381,7 @@
 				775ECDE24DBDFF754959223F /* ShareIntentStorage.swift in Sources */,
 				B4285DA2BB719CBECE7B841F /* ShareIntentModule.swift in Sources */,
 				19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */,
+				ABCDEF0123456789ABCDEF02 /* LocationPermissionModule.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
