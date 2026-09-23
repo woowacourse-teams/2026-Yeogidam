@@ -9,10 +9,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class PlaceCandidateDao {
 
-    private static final RowMapper<SharedMediaProjection> SHARED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
-            new SharedMediaProjection(
+    private static final RowMapper<SharedMediaSummaryProjection> SHARED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SharedMediaSummaryProjection(
                     resultSet.getLong("shared_media_id"),
-                    resultSet.getTimestamp("shared_at").toInstant(),
+                    resultSet.getTimestamp("created_at").toInstant(),
                     resultSet.getString("thumbnail_url"),
                     resultSet.getString("caption"),
                     resultSet.getString("author")
@@ -36,10 +36,10 @@ public class PlaceCandidateDao {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<SharedMediaProjection> findSharedMedias(Long memberId) {
+    public List<SharedMediaSummaryProjection> findSharedMedias(Long memberId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
-                       sm.created_at AS shared_at,
+                       sm.created_at,
                        m.thumbnail_url,
                        m.caption,
                        m.author
@@ -80,5 +80,23 @@ public class PlaceCandidateDao {
                 ORDER BY pc.shared_media_id ASC, pc.id ASC
                 """.formatted(placeholders);
         return jdbcTemplate.query(sql, PLACE_CANDIDATE_ROW_MAPPER, sharedMediaIds.toArray());
+    }
+
+    public List<PlaceCandidateProjection> findCandidates(Long sharedMediaId) {
+        String sql = """
+                SELECT pc.shared_media_id,
+                       pc.id AS candidate_id,
+                       p.id AS place_id,
+                       p.thumbnail_url,
+                       p.name,
+                       p.category,
+                       p.land_lot_address,
+                       p.road_address
+                FROM place_candidates pc
+                JOIN places p ON p.id = pc.place_id
+                WHERE pc.shared_media_id = ?
+                ORDER BY pc.id ASC
+                """;
+        return jdbcTemplate.query(sql, PLACE_CANDIDATE_ROW_MAPPER, sharedMediaId);
     }
 }

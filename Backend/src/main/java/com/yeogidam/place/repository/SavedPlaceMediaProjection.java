@@ -13,6 +13,6 @@ public record SavedPlaceMediaProjection(
         String author,
         String caption,
         String sharedUrl,
-        Instant sharedAt
+        Instant createdAt
 ) {
 }

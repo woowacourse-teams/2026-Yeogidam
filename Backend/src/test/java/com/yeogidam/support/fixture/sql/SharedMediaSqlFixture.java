@@ -11,7 +11,7 @@ public final class SharedMediaSqlFixture {
     private SharedMediaSqlFixture() {
     }
 
-    public static void createSharedMedia(
+    public static void insertSharedMedia(
             JdbcTemplate jdbcTemplate,
             Long sharedMediaId,
             Long memberId,
@@ -34,11 +34,11 @@ public final class SharedMediaSqlFixture {
             Long memberId,
             Long mediaId,
             String sharedUrl,
-            Instant sharedAt
+            Instant createdAt
     ) {
         jdbcTemplate.update("""
                 INSERT INTO shared_media (id, member_id, media_id, shared_url, created_at)
                 VALUES (?, ?, ?, ?, ?)
-                """, sharedMediaId, memberId, mediaId, sharedUrl, LocalDateTime.ofInstant(sharedAt, ZoneOffset.UTC));
+                """, sharedMediaId, memberId, mediaId, sharedUrl, LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC));
     }
 }

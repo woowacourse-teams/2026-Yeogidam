@@ -1,17 +1,16 @@
-package com.yeogidam.media.share;
+package com.yeogidam.media.share.service;
 
-import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
-import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.createSharedMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponse;
 import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponses;
 import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponse;
-import com.yeogidam.media.share.service.PlaceCandidateService;
 import com.yeogidam.support.IntegrationTestSupport;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -32,8 +31,8 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
         // given
         insertKakaoMember(jdbcTemplate, 1L, "member-123ijfsa", "member-123ijfsa",
                 "member-123ijfsa@example.com", "https://img.example.com/member-123ijfsa");
-        createMedia(jdbcTemplate, 1L, "성수 장소 모음", "https://img.example.com/media.jpg", "@seongsu");
-        createSharedMedia(jdbcTemplate, 1L, 1L, 1L,
+        insertMedia(jdbcTemplate, 1L, "성수 장소 모음", "https://img.example.com/media.jpg", "@seongsu");
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
                 timestamp("2026-09-17 10:00:00"));
 
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 장소", "카페",

@@ -14,8 +14,8 @@ public record SavedPlaceMediaProjections(
         List<SavedPlaceMediaProjection> shares
 ) {
 
-    private static final Comparator<SavedPlaceMediaProjection> BY_SHARED_AT =
-            Comparator.comparing(SavedPlaceMediaProjection::sharedAt)
+    private static final Comparator<SavedPlaceMediaProjection> BY_CREATED_AT =
+            Comparator.comparing(SavedPlaceMediaProjection::createdAt)
                     .thenComparing(SavedPlaceMediaProjection::sharedMediaId);
 
     /**
@@ -26,11 +26,11 @@ public record SavedPlaceMediaProjections(
                 .collect(Collectors.toMap(
                         SavedPlaceMediaProjection::mediaId,
                         share -> share,
-                        BinaryOperator.maxBy(BY_SHARED_AT)
+                        BinaryOperator.maxBy(BY_CREATED_AT)
                 ));
         return latestByMedia.values()
                 .stream()
-                .sorted(BY_SHARED_AT.reversed())
+                .sorted(BY_CREATED_AT.reversed())
                 .toList();
     }
 }

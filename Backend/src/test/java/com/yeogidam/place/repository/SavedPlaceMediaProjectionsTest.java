@@ -46,8 +46,8 @@ class SavedPlaceMediaProjectionsTest {
         assertThat(new SavedPlaceMediaProjections(List.of()).latestPerMedia()).isEmpty();
     }
 
-    private SavedPlaceMediaProjection share(Long sharedMediaId, Long mediaId, String sharedAt) {
+    private SavedPlaceMediaProjection share(Long sharedMediaId, Long mediaId, String createdAt) {
         return new SavedPlaceMediaProjection(sharedMediaId, mediaId, null, "@author", "caption",
-                "https://www.instagram.com/reel/x/", Instant.parse(sharedAt));
+                "https://www.instagram.com/reel/x/", Instant.parse(createdAt));
     }
 }

@@ -1,6 +1,6 @@
 package com.yeogidam.media.share.dto.response;
 
-import com.yeogidam.media.share.repository.SharedMediaProjection;
+import com.yeogidam.media.share.repository.SharedMediaSummaryProjection;
 import java.util.List;
 
 public record SharedMediaWithPlaceCandidatesResponse(
@@ -11,7 +11,7 @@ public record SharedMediaWithPlaceCandidatesResponse(
         List<PlaceCandidateResponse> places
 ) {
     public static SharedMediaWithPlaceCandidatesResponse from(
-            SharedMediaProjection projection,
+            SharedMediaSummaryProjection projection,
             List<PlaceCandidateResponse> places
     ) {
         return new SharedMediaWithPlaceCandidatesResponse(

@@ -19,13 +19,13 @@ public final class SavedPlaceShareSqlFixture {
             Long savedPlaceShareId,
             Long savedPlaceId,
             Long sharedMediaId,
-            Instant savedAt
+            Instant createdAt
     ) {
         jdbcTemplate.update("""
                 INSERT INTO shared_media_saved_places (id, saved_place_id, shared_media_id, created_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                savedPlaceShareId, savedPlaceId, sharedMediaId, LocalDateTime.ofInstant(savedAt, ZoneOffset.UTC)
+                savedPlaceShareId, savedPlaceId, sharedMediaId, LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC)
         );
     }
 }

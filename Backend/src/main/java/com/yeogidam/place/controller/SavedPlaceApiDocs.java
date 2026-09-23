@@ -57,7 +57,7 @@ public interface SavedPlaceApiDocs {
             description = """
                     그 장소를 저장하게 만든 릴스 목록입니다. 장소 상세의 게시물 탭과 지도 바텀시트의 이미지 띠에서 씁니다.
 
-                    - 정렬은 `sharedAt` 내림차순입니다.
+                    - 정렬은 `createdAt` 내림차순입니다.
                     - 같은 릴스를 여러 번 공유해 여러 번 저장했으면 최신 공유 한 건만 냅니다.
                     - 릴스 한 건의 필드 이름은 히스토리 목록과 같습니다.
                     - `thumbnailUrl`은 게시물 썸네일이 없으면 null입니다.
@@ -76,7 +76,7 @@ public interface SavedPlaceApiDocs {
                                                   "author": "@seongsu_life",
                                                   "caption": "성수 카페 투어",
                                                   "sharedUrl": "https://www.instagram.com/reel/C1seongsu/",
-                                                  "sharedAt": "2026-09-12T10:00:00Z"
+                                                  "createdAt": "2026-09-12T10:00:00Z"
                                                 }
                                               ]
                                             }

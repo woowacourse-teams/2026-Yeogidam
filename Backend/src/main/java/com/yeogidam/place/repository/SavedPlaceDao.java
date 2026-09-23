@@ -41,7 +41,7 @@ public class SavedPlaceDao {
                     resultSet.getString("author"),
                     resultSet.getString("caption"),
                     resultSet.getString("shared_url"),
-                    resultSet.getObject("shared_at", LocalDateTime.class)
+                    resultSet.getObject("created_at", LocalDateTime.class)
                             .toInstant(ZoneOffset.UTC)
             );
 
@@ -102,7 +102,7 @@ public class SavedPlaceDao {
                        m.author,
                        m.caption,
                        sm.shared_url,
-                       sm.created_at AS shared_at
+                       sm.created_at
                 FROM shared_media_saved_places l
                 JOIN shared_media sm ON sm.id = l.shared_media_id
                 JOIN media m ON m.id = sm.media_id

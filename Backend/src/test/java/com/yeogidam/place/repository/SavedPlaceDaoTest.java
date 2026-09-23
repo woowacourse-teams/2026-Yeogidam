@@ -1,6 +1,6 @@
 package com.yeogidam.place.repository;
 
-import static com.yeogidam.support.fixture.sql.MediaSqlFixture.createMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSavedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSupersededCandidate;
@@ -167,7 +167,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
         insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-09-15T00:00:15Z"));
-        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 200L, 2L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-11T11:00:00Z"));
@@ -189,7 +189,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMember(1L, "user-1");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 
@@ -206,7 +206,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(media.author()).isEqualTo("@seongsu_life"),
                 () -> assertThat(media.caption()).isEqualTo("성수 카페 투어"),
                 () -> assertThat(media.sharedUrl()).isEqualTo("https://www.instagram.com/reel/C1seongsu/"),
-                () -> assertThat(media.sharedAt()).isEqualTo(Instant.parse("2026-09-12T10:00:00Z"))
+                () -> assertThat(media.createdAt()).isEqualTo(Instant.parse("2026-09-12T10:00:00Z"))
         );
     }
 
@@ -216,7 +216,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMember(1L, "user-1");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
@@ -241,7 +241,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
         insertSavedPlace(jdbcTemplate, 24L, 2L, 1L, Instant.parse("2026-09-15T00:00:15Z"));
-        createMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedCandidate(jdbcTemplate, 1000L, 100L, 1L, Timestamp.valueOf("2026-09-10 12:00:00"));
