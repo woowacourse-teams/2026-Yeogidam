@@ -45,7 +45,7 @@ public class SharedMediaDao {
         return jdbcTemplate.query(sql, SHARE_ROW_MAPPER, memberId);
     }
 
-    public Optional<ShareHistoryProjection> findShareHistoryDetail(Long memberId, Long sharedMediaId) {
+    public Optional<ShareHistoryProjection> findShareHistoryItem(Long memberId, Long sharedMediaId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.created_at,

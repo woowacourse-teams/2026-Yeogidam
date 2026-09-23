@@ -1,6 +1,6 @@
 package com.yeogidam.media.share.service;
 
-import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.exception.ShareErrorCode;
@@ -35,10 +35,9 @@ public class ShareService {
         return PlaceCandidateResponses.from(candidates);
     }
 
-    public ShareHistoryDetailResponse readShareHistoryDetail(Long memberId, Long sharedMediaId) {
-        ShareHistoryProjection sharedMedia = sharedMediaDao.findShareHistoryDetail(memberId, sharedMediaId)
+    public ShareHistoryItemResponse readShareHistoryItem(Long memberId, Long sharedMediaId) {
+        ShareHistoryProjection sharedMedia = sharedMediaDao.findShareHistoryItem(memberId, sharedMediaId)
                 .orElseThrow(() -> new ShareException(ShareErrorCode.NOT_FOUND));
-        List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(sharedMediaId);
-        return ShareHistoryDetailResponse.from(sharedMedia, candidates);
+        return ShareHistoryItemResponse.from(sharedMedia);
     }
 }

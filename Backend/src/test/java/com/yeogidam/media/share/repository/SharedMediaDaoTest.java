@@ -41,7 +41,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareHistoryProjection result = sharedMediaDao.findShareHistoryDetail(1L, 1L).orElseThrow();
+        ShareHistoryProjection result = sharedMediaDao.findShareHistoryItem(1L, 1L).orElseThrow();
 
         // then
         assertAll(
@@ -67,7 +67,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        ShareHistoryProjection result = sharedMediaDao.findShareHistoryDetail(2L, 2L).orElseThrow();
+        ShareHistoryProjection result = sharedMediaDao.findShareHistoryItem(2L, 2L).orElseThrow();
 
         // then
         assertAll(
@@ -91,8 +91,8 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 Timestamp.valueOf("2026-09-17 10:00:00"));
 
         // when
-        Optional<ShareHistoryProjection> otherMemberResult = sharedMediaDao.findShareHistoryDetail(4L, 3L);
-        Optional<ShareHistoryProjection> missingResult = sharedMediaDao.findShareHistoryDetail(3L, 99L);
+        Optional<ShareHistoryProjection> otherMemberResult = sharedMediaDao.findShareHistoryItem(4L, 3L);
+        Optional<ShareHistoryProjection> missingResult = sharedMediaDao.findShareHistoryItem(3L, 99L);
 
         // then
         assertThat(otherMemberResult).isEmpty();

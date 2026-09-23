@@ -2,8 +2,8 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
+import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
-import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
-@Tag(name = "Share", description = "히스토리 목록과 결과 조회 API")
+@Tag(name = "Share", description = "히스토리 목록과 항목 조회 API")
 public interface ShareApiDocs {
 
     @Operation(summary = "히스토리 목록 조회",
@@ -73,21 +73,20 @@ public interface ShareApiDocs {
             })
     ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(Long memberId, Long sharedMediaId);
 
-    @Operation(summary = "히스토리 상세 조회",
+    @Operation(summary = "히스토리 항목 조회",
             description = """
-                    로그인한 회원의 공유 결과와 분석된 장소 정보를 돌려줍니다.
+                    로그인한 회원의 히스토리에서 선택한 공유 항목을 돌려줍니다.
 
                     - 다른 회원의 공유 결과는 조회할 수 없습니다.
-                    - `places`는 후보 식별자 오름차순으로 반환합니다.
-                    - 장소마다 `landLotAddress`와 `roadAddress`를 모두 제공합니다.
                     - 게시글에 접근하지 못한 결과는 `thumbnailUrl`, `caption`, `author`가 null일 수 있습니다.
-                    - 분석 실패 시 `failureReason`을 반환하고 `places`는 빈 배열입니다.
+                    - `sharedUrl`은 게시글 접근 성공 여부와 관계없이 반환합니다.
+                    - 분석 실패 시 `failureReason`을 반환합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
-                    @ApiResponse(responseCode = "200", description = "공유 결과 조회 성공",
+                    @ApiResponse(responseCode = "200", description = "히스토리 항목 조회 성공",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ShareHistoryDetailResponse.class))),
+                                    schema = @Schema(implementation = ShareHistoryItemResponse.class))),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -108,5 +107,5 @@ public interface ShareApiDocs {
                                             {"message": "존재하지 않는 공유입니다.", "errorCode": "SHARE404_001"}
                                             """)))
             })
-    ResponseEntity<ShareHistoryDetailResponse> readShareHistoryDetail(Long memberId, Long sharedMediaId);
+    ResponseEntity<ShareHistoryItemResponse> readShareHistoryItem(Long memberId, Long sharedMediaId);
 }

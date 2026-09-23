@@ -1,7 +1,7 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
-import com.yeogidam.media.share.dto.response.ShareHistoryDetailResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.service.ShareService;
@@ -39,20 +39,17 @@ public class ShareController implements ShareApiDocs {
     }
 
     /*
-    [사용처]
-
-    1. 공유 미디어 접수 직후 상태 폴링: 링크를 넣고 나면 "이 공유가 분석 끝났나"를 3초마다 물어야 하는데,
-    그건 한 건짜리 질문이라 목록 전체를 다시 읽는 것보다 한 건 조회가 맞다.
-
-    2. 재시도 직후. 재시도하면 서버에 새 공유가 하나 생기는데, 그 건은 목록에 아직 없다.
+    TODO
+    [프론트엔드와 협의 후 안 써도 된다면 삭제할 예정]
+    사용처: 장소 분석에 실패한 미디어를 재시도한 직후, 해당 히스토리의 처리 결과를 확인하기 위해 3초마다 호출하기 위함
      */
     @Override
     @GetMapping("/{sharedMediaId}")
-    public ResponseEntity<ShareHistoryDetailResponse> readShareHistoryDetail(
+    public ResponseEntity<ShareHistoryItemResponse> readShareHistoryItem(
             @LoginMember Long memberId,
             @PathVariable Long sharedMediaId
     ) {
-        ShareHistoryDetailResponse response = shareService.readShareHistoryDetail(memberId, sharedMediaId);
+        ShareHistoryItemResponse response = shareService.readShareHistoryItem(memberId, sharedMediaId);
         return ResponseEntity.ok()
                 .body(response);
     }

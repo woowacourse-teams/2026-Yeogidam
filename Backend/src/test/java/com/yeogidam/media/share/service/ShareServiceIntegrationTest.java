@@ -23,7 +23,7 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
         insertMember(6L, "share-service-missing-user");
 
         // when & then
-        assertThatThrownBy(() -> shareService.readShareHistoryDetail(6L, 99L))
+        assertThatThrownBy(() -> shareService.readShareHistoryItem(6L, 99L))
                 .isInstanceOf(ShareException.class)
                 .hasMessage(ShareErrorCode.NOT_FOUND.getMessage());
     }
