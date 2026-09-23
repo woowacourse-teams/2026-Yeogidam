@@ -134,6 +134,17 @@ export function SearchBar({
             value={value}
           />
         )}
+        {!onPress && Platform.OS !== 'ios' && value ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="검색어 지우기"
+            hitSlop={10}
+            onPress={() => onChangeText?.('')}
+            style={styles.clearButton}
+          >
+            <Text style={styles.clearIcon}>×</Text>
+          </Pressable>
+        ) : null}
         <SearchAction
           {...(handleSearchAction && !onPress
             ? {
@@ -147,17 +158,6 @@ export function SearchBar({
         >
           <MaterialIcons color="#d8dffe" name="search" size={18} />
         </SearchAction>
-        {!onPress && Platform.OS !== 'ios' && value ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="검색어 지우기"
-            hitSlop={10}
-            onPress={() => onChangeText?.('')}
-            style={styles.clearButton}
-          >
-            <Text style={styles.clearIcon}>×</Text>
-          </Pressable>
-        ) : null}
       </SearchContainer>
     </View>
   );
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     left: undefined,
     right: undefined,
-    height: 84,
+    height: SEARCH_BAR_HEIGHT + SEARCH_BAR_TOP_GAP * 2,
     paddingHorizontal: 24,
   },
   savedIconButton: {
@@ -274,17 +274,17 @@ const styles = StyleSheet.create({
     color: '#202124',
   },
   clearButton: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     marginLeft: 8,
-    borderRadius: 12,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#c6c6ca',
   },
   clearIcon: {
     color: '#ffffff',
-    fontSize: 18,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 18,
   },
 });
