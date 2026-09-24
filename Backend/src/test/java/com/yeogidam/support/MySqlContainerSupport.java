@@ -18,6 +18,8 @@ public abstract class MySqlContainerSupport {
 
     private static final String MYSQL_IMAGE = "mysql:8.4";
     private static final String SCHEMA_SCRIPT = "schema.sql";
+    private static final String TIME_ZONE_PARAMS =
+            "connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true";
 
     protected static final MySQLContainer MYSQL_CONTAINER = new MySQLContainer(MYSQL_IMAGE)
             .withDatabaseName("yeogidam_test")
@@ -31,7 +33,7 @@ public abstract class MySqlContainerSupport {
 
     private static void createSchema() {
         try (Connection connection = DriverManager.getConnection(
-                MYSQL_CONTAINER.getJdbcUrl(), MYSQL_CONTAINER.getUsername(), MYSQL_CONTAINER.getPassword())) {
+                jdbcUrlWithUtcTimeZone(), MYSQL_CONTAINER.getUsername(), MYSQL_CONTAINER.getPassword())) {
             ScriptUtils.executeSqlScript(connection, new ClassPathResource(SCHEMA_SCRIPT));
         } catch (SQLException exception) {
             throw new IllegalStateException("테스트 DB에 스키마를 만들 수 없습니다.", exception);
@@ -40,8 +42,16 @@ public abstract class MySqlContainerSupport {
 
     @DynamicPropertySource
     static void registerMySqlProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", MYSQL_CONTAINER::getJdbcUrl);
+        registry.add("spring.datasource.url", MySqlContainerSupport::jdbcUrlWithUtcTimeZone);
         registry.add("spring.datasource.username", MYSQL_CONTAINER::getUsername);
         registry.add("spring.datasource.password", MYSQL_CONTAINER::getPassword);
+    }
+
+    private static String jdbcUrlWithUtcTimeZone() {
+        String jdbcUrl = MYSQL_CONTAINER.getJdbcUrl();
+        if (jdbcUrl.contains("?")) {
+            return jdbcUrl + "&" + TIME_ZONE_PARAMS;
+        }
+        return jdbcUrl + "?" + TIME_ZONE_PARAMS;
     }
 }
