@@ -11,36 +11,32 @@ public class SavedPlace {
     private final Long id;
     private final Long memberId;
     private final Long placeId;
-    private final LocalDateTime firstSavedAt;
     private LocalDateTime lastSavedAt;
 
     public SavedPlace(
             Long memberId,
             Long placeId,
-            LocalDateTime savedAt
+            LocalDateTime lastSavedAt
     ) {
-        this(null, memberId, placeId, savedAt, savedAt);
+        this(null, memberId, placeId, lastSavedAt);
     }
 
     public SavedPlace(
             Long id,
             Long memberId,
             Long placeId,
-            LocalDateTime firstSavedAt,
             LocalDateTime lastSavedAt
     ) {
-        validate(memberId, placeId, firstSavedAt, lastSavedAt);
+        validate(memberId, placeId, lastSavedAt);
         this.id = id;
         this.memberId = memberId;
         this.placeId = placeId;
-        this.firstSavedAt = firstSavedAt;
         this.lastSavedAt = lastSavedAt;
     }
 
     private void validate(
             Long memberId,
             Long placeId,
-            LocalDateTime firstSavedAt,
             LocalDateTime lastSavedAt
     ) {
         if (memberId == null) {
@@ -49,7 +45,7 @@ public class SavedPlace {
         if (placeId == null) {
             throw new IllegalArgumentException("저장할 장소가 비어 있습니다.");
         }
-        if (firstSavedAt == null || lastSavedAt == null) {
+        if (lastSavedAt == null) {
             throw new IllegalArgumentException("저장 시각이 비어 있습니다.");
         }
     }
@@ -71,10 +67,6 @@ public class SavedPlace {
 
     public Long placeId() {
         return placeId;
-    }
-
-    public LocalDateTime firstSavedAt() {
-        return firstSavedAt;
     }
 
     public LocalDateTime lastSavedAt() {

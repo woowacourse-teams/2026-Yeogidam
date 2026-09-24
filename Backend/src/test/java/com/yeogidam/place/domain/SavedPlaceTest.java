@@ -13,7 +13,7 @@ class SavedPlaceTest {
     private static final LocalDateTime LATER = LocalDateTime.of(2026, 9, 16, 9, 30);
 
     @Test
-    void 처음_저장하면_처음과_마지막_저장_시각이_같다() {
+    void 처음_저장하면_식별자가_비어_있고_저장_시각이_들어간다() {
         // when
         SavedPlace savedPlace = new SavedPlace(1L, 10L, FIRST);
 
@@ -22,13 +22,24 @@ class SavedPlaceTest {
                 () -> assertThat(savedPlace.id()).isNull(),
                 () -> assertThat(savedPlace.memberId()).isEqualTo(1L),
                 () -> assertThat(savedPlace.placeId()).isEqualTo(10L),
-                () -> assertThat(savedPlace.firstSavedAt()).isEqualTo(FIRST),
                 () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(FIRST)
         );
     }
 
     @Test
-    void 다시_저장하면_마지막_저장_시각만_바뀌고_처음_저장_시각은_그대로다() {
+    void 저장된_행을_읽으면_식별자를_함께_가진다() {
+        // when
+        SavedPlace savedPlace = new SavedPlace(5L, 1L, 10L, FIRST);
+
+        // then
+        assertAll(
+                () -> assertThat(savedPlace.id()).isEqualTo(5L),
+                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(FIRST)
+        );
+    }
+
+    @Test
+    void 다시_저장하면_마지막_저장_시각이_바뀐다() {
         // given
         SavedPlace savedPlace = new SavedPlace(1L, 10L, FIRST);
 
@@ -36,10 +47,7 @@ class SavedPlaceTest {
         savedPlace.saveAgain(LATER);
 
         // then
-        assertAll(
-                () -> assertThat(savedPlace.firstSavedAt()).isEqualTo(FIRST),
-                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(LATER)
-        );
+        assertThat(savedPlace.lastSavedAt()).isEqualTo(LATER);
     }
 
     @Test
@@ -51,7 +59,7 @@ class SavedPlaceTest {
                         .isInstanceOf(IllegalArgumentException.class),
                 () -> assertThatThrownBy(() -> new SavedPlace(1L, 10L, null))
                         .isInstanceOf(IllegalArgumentException.class),
-                () -> assertThatThrownBy(() -> new SavedPlace(5L, 1L, 10L, FIRST, null))
+                () -> assertThatThrownBy(() -> new SavedPlace(5L, 1L, 10L, null))
                         .isInstanceOf(IllegalArgumentException.class)
         );
     }
