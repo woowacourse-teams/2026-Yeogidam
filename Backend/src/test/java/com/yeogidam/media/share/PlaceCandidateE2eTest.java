@@ -33,7 +33,7 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void 토큰_없이_대기함을_조회하면_401이_발생한다() {
+    void 토큰_없이_대기함을_조회하면_401_예외를_던진다() {
         // when & then
         given().when().get(PATH)
                 .then().statusCode(401)
@@ -138,7 +138,7 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 미결정_후보가_없는_공유는_반환하지_않는다() {
+    void 미결정_후보가_없는_공유를_조회하면_빈_목록을_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
         insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);

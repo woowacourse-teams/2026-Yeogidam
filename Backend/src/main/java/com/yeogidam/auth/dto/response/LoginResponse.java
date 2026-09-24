@@ -19,8 +19,8 @@ public record LoginResponse(
         MemberResponse member
 ) {
 
-    public LoginResponse(Member member, TokenResponse tokens) {
-        this(tokens.accessToken(), tokens.refreshToken(), tokens.tokenType(), tokens.expiresAt(),
-                tokens.refreshTokenExpiresAt(), new MemberResponse(member));
+    public static LoginResponse from(Member member, TokenResponse tokens) {
+        return new LoginResponse(tokens.accessToken(), tokens.refreshToken(), tokens.tokenType(), tokens.expiresAt(),
+                tokens.refreshTokenExpiresAt(), MemberResponse.from(member));
     }
 }

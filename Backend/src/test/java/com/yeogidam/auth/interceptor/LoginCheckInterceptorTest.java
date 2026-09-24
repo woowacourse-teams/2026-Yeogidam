@@ -9,7 +9,6 @@ import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
 import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.support.fixture.JwtFixture;
 import com.yeogidam.support.fixture.MutableClock;
-import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;

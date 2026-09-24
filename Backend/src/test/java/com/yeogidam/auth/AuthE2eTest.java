@@ -48,21 +48,21 @@ class AuthE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 제공자가_인가_코드를_거부하면_401이다() {
+    void 제공자가_인가_코드를_거부하면_401_예외를_던진다() {
         login("kakao", FakeOAuthClient.REJECTED_CODE)
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_002"));
     }
 
     @Test
-    void 제공자에_연결하지_못하면_502다() {
+    void 제공자에_연결하지_못하면_502_예외를_던진다() {
         login("google", FakeOAuthClient.UNAVAILABLE_CODE)
                 .then().statusCode(502)
                 .body("errorCode", equalTo("AUTH502_001"));
     }
 
     @Test
-    void 인가_코드가_비면_400이다() {
+    void 인가_코드가_비면_400_예외를_던진다() {
         given().contentType(ContentType.JSON)
                 .body("{\"authorizationCode\":\" \"}")
                 .when().post("/api/v1/auth/logins/kakao")
@@ -71,7 +71,7 @@ class AuthE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 재발급하면_새_쌍이_나오고_이전_토큰을_다시_쓰면_401이며_새_토큰도_함께_막힌다() {
+    void 재발급하면_200_응답하고_이전_토큰을_재사용하면_401_예외를_던진다() {
         // given
         String refreshToken = login("kakao", "user-1").then().extract().jsonPath().getString("refreshToken");
 
@@ -91,7 +91,7 @@ class AuthE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 로그아웃하면_그_토큰으로_재발급하지_못하고_다시_로그아웃해도_204다() {
+    void 로그아웃하면_204_응답하고_해지된_토큰으로_재발급하면_401_예외를_던진다() {
         // given
         String refreshToken = login("kakao", "user-1").then().extract().jsonPath().getString("refreshToken");
 
@@ -106,7 +106,7 @@ class AuthE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 액세스_토큰으로_재발급하거나_로그아웃하면_401이다() {
+    void 액세스_토큰으로_재발급하거나_로그아웃하면_401_예외를_던진다() {
         // given
         String accessToken = login("kakao", "user-1").then().extract().jsonPath().getString("accessToken");
 
@@ -120,7 +120,7 @@ class AuthE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 없는_경로는_404이고_지원하지_않는_메서드는_405다() {
+    void 없는_경로는_404_예외를_던지고_지원하지_않는_메서드는_405_예외를_던진다() {
         given().when().get("/nothing")
                 .then().statusCode(404)
                 .body("errorCode", equalTo("COMMON404_001"));

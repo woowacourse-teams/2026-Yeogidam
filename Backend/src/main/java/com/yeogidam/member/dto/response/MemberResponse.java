@@ -10,8 +10,8 @@ public record MemberResponse(
         String imageUrl,
         OAuthProvider oauthProvider
 ) {
-    public MemberResponse(Member member) {
-        this(
+    public static MemberResponse from(Member member) {
+        return new MemberResponse(
                 member.id(),
                 member.nickname(),
                 member.profile().email(),

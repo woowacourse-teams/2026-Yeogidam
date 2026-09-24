@@ -153,7 +153,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 이미_삭제했거나_남의_보관함_항목이_섞여_있어도_204다() {
+    void 이미_삭제했거나_남의_보관함_항목이_섞여_있어도_204_응답한다() {
         // given: 보관함 11은 user-1, 21은 user-2의 것이다
         LoginResult login = loginAsKakao("user-1");
         LoginResult other = loginAsKakao("user-2");
