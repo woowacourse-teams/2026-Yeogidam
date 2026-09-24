@@ -23,7 +23,7 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void 분석_중인_공유를_조회하면_200_응답한다() {
+    void 분석_중인_공유는_원본_주소와_진행_상태를_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-result-extracting-user");
         insertMediaWithStatus(1L, null, null, null, "EXTRACTING", null);
@@ -43,7 +43,7 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 장소를_추출하지_못한_공유를_조회하면_200_응답한다() {
+    void 장소를_추출하지_못한_실패_결과는_게시글_정보와_실패_사유를_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-result-place-not-extracted-user");
         insertMediaWithStatus(
