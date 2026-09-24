@@ -21,7 +21,7 @@ public class MemberService {
 
     public MemberResponse readMember(Long memberId) {
         Member member = getMember(memberId);
-        return new MemberResponse(member);
+        return MemberResponse.from(member);
     }
 
     @Transactional

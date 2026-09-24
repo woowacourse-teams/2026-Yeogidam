@@ -36,7 +36,7 @@ public class TokenManager {
         Token refreshToken = tokenProvider.createRefreshToken(memberId, sessionId);
         refreshSessionDao.save(new RefreshSession(sessionId, memberId, hashToken(refreshToken.value()),
                 refreshToken.expiresAt(), false));
-        return new TokenResponse(accessToken, refreshToken);
+        return TokenResponse.from(accessToken, refreshToken);
     }
 
     @Transactional(noRollbackFor = RefreshTokenMismatchException.class)
@@ -50,7 +50,7 @@ public class TokenManager {
         }
         Token refreshToken = tokenProvider.reissueRefreshToken(
                 session.getMemberId(), session.getSessionId(), session.getExpiresAt());
-        TokenResponse tokens = new TokenResponse(tokenProvider.createAccessToken(session.getMemberId()), refreshToken);
+        TokenResponse tokens = TokenResponse.from(tokenProvider.createAccessToken(session.getMemberId()), refreshToken);
         refreshSessionDao.update(session.rotate(hashToken(tokens.refreshToken())));
         return tokens;
     }

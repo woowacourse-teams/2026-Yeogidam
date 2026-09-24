@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/place-candidates")
 @RequiredArgsConstructor
+@RequestMapping("/api/v1/place-candidates")
 public class PlaceCandidateController implements PlaceCandidateApiDocs {
 
     private final PlaceCandidateService placeCandidateService;

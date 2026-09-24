@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class MemberProfileTest {
 
     @Test
-    void 앞뒤_공백을_지워_담는다() {
+    void 앞뒤_공백은_잘라내고_값만_담는다() {
         // when
         MemberProfile profile = new MemberProfile(" 빈 ", " bean@example.com ", " https://img.example.com/1 ");
 

@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1/shares")
 @RequiredArgsConstructor
+@RequestMapping("/api/v1/shares")
 public class ShareController implements ShareApiDocs {
 
     private final ShareService shareService;

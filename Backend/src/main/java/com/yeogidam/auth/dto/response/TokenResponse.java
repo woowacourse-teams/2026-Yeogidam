@@ -15,8 +15,8 @@ public record TokenResponse(
 
         Instant refreshTokenExpiresAt
 ) {
-    public TokenResponse(Token accessToken, Token refreshToken) {
-        this(accessToken.value(), refreshToken.value(), "Bearer",
+    public static TokenResponse from(Token accessToken, Token refreshToken) {
+        return new TokenResponse(accessToken.value(), refreshToken.value(), "Bearer",
                 accessToken.expiresAt(), refreshToken.expiresAt());
     }
 }

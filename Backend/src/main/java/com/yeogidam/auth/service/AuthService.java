@@ -18,8 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AuthService {
 
     private final OAuthClients clients;
@@ -31,7 +31,7 @@ public class AuthService {
         OAuthIdentity identity = readIdentity(provider, request);
         Member member = memberAuthenticator.authenticate(identity.getAccount(), identity.getProfile());
         TokenResponse tokens = tokenManager.createTokens(member.id());
-        return new LoginResponse(member, tokens);
+        return LoginResponse.from(member, tokens);
     }
 
     private OAuthIdentity readIdentity(OAuthProvider provider, LoginRequest request) {
