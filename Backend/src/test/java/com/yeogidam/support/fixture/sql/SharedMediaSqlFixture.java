@@ -2,8 +2,6 @@ package com.yeogidam.support.fixture.sql;
 
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class SharedMediaSqlFixture {
@@ -26,7 +24,7 @@ public final class SharedMediaSqlFixture {
     }
 
     /**
-     * 공유 URL과 시각을 직접 정하는 판. 시각은 DAO와 같은 규칙(UTC LocalDateTime)으로 넣어 읽은 값과 같아진다.
+     * 공유 URL과 시각을 직접 정하는 판. 시각은 Instant로 넣어 읽은 값과 같아진다.
      */
     public static void insertSharedMedia(
             JdbcTemplate jdbcTemplate,
@@ -39,6 +37,6 @@ public final class SharedMediaSqlFixture {
         jdbcTemplate.update("""
                 INSERT INTO shared_media (id, member_id, media_id, shared_url, created_at)
                 VALUES (?, ?, ?, ?, ?)
-                """, sharedMediaId, memberId, mediaId, sharedUrl, LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC));
+                """, sharedMediaId, memberId, mediaId, sharedUrl, Timestamp.from(createdAt));
     }
 }

@@ -19,7 +19,7 @@
 2. **화면 사이클의 순서는 데이터가 만들어지는 순서다.** 접수(공유) → 히스토리 → 대기함(결정) → 보관함 → 상세 → 지도 → 마이. 앞 화면이 만든 행을 뒤 화면이 읽으므로 E2E 픽스처가 자연스럽게 쌓인다. 둘이 나눠 할 때는 읽기 쪽이 SQL 픽스처로 행을 심어 쓰기 쪽을 기다리지 않는다(4절).
 3. **파이프라인 실체화는 화면이 다 돈 뒤에 어댑터 하나씩 한다.** 인스타그램 조회, AI 추출, 카카오 매칭, 구글 사진은 각각 포트 하나를 교체하는 일이고 스키마와 화면을 건드리지 않는다.
 4. **여러 테이블을 읽을 때는 서비스가 조립한다.** DAO는 한 테이블 또는 단순 조인까지만 맡고 "릴스당 최신 공유 한 건", "회원별 최신 공유에만 후보 발급" 같은 규칙은 서비스나 도메인에 둔다. DAO 조인과 서비스 조립은 행이 늘어나는지로 나눈다(2026-09-19). 보관함 목록의 saved_places ⋈ places처럼 행이 늘지 않는 1:1 조인은 DAO에서 하고, 대기함의 공유와 후보처럼 1:N이면 쿼리 둘로 읽어 자바에서 묶는다. 여러 행을 줄이거나 묶는 읽기 규칙은 Projection을 감싼 일급 컬렉션(예: `SavedPlaceMediaProjections.latestPerMedia()`)에 두어 DB 없이 단위 테스트하고, 한 항목의 표시값은 응답 DTO의 정적 팩토리 `from`이 계산한다(2026-09-21). 다만 줄이는 것과 붙이는 것을 나눈다(2026-09-23). 같은 릴스면 최신 공유 한 건만 남기는 `latestPerMedia()`처럼 행이 줄고 규칙이 바뀌면 화면이 달라지는 것은 일급 컬렉션에 이름을 붙여 두고, 대기함처럼 1:N을 쿼리 둘로 읽어 `sharedMediaId`로 다시 붙이기만 하는 것은 행이 줄지 않고 바꿀 여지도 없으므로 응답 DTO의 `from`에 둔다. bean-fable의 DAO 감사(dao-subquery-audit.md)가 SQL에 들어간 규칙 두 건(#5, #6)을 이미 지적했으니 옮길 때 그 권고대로 한다.
-5. **be-dev에서 합의된 것은 be-dev 방식으로 통일한다.** 테이블 복수형과 TIMESTAMP(2026-09-16 팀 결정, 초 단위), Instant와 주입된 Clock, 도메인당 XxxException 하나 + XxxErrorCode(noRollbackFor용 하위 예외만 예외), Fake는 test와 fake 프로필에서 @Primary, 테스트 4계층(Testcontainers MySQL). bean-fable 코드를 옮길 때 위 다섯 가지를 맞춘다.
+5. **be-dev에서 합의된 것은 be-dev 방식으로 통일한다.** 테이블 복수형과 TIMESTAMP(6)(2026-09-24 팀 결정, 마이크로초 단위), Instant와 주입된 Clock, 도메인당 XxxException 하나 + XxxErrorCode(noRollbackFor용 하위 예외만 예외), Fake는 test와 fake 프로필에서 @Primary, 테스트 4계층(Testcontainers MySQL). bean-fable 코드를 옮길 때 위 다섯 가지를 맞춘다.
 
 ## 3. 화면별 필요 API (v1 제안)
 
@@ -60,7 +60,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 정오 전에 머지한다. 내용은 스키마와 결정뿐이며 코드는 넣지 않는다.
 
-1. (2026-09-16 작성, 커밋 4df7ec9, be-dev 머지) `schema.sql`에 테이블 8개를 추가했다. 파일은 `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들고(로컬 실행용 데이터는 `data-local.sql`로), 시각은 `TIMESTAMP`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 상태 어휘(`extraction_status`, `source_type`, `failure_reason`, `decision_status`)는 CHECK로 막고, `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 그 아래 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. `application.yml`의 기본은 `spring.sql.init.mode: never`이고 `local`, `test` 프로필만 `always`다(2026-09-19 프로필 분리, docs/profiles.md). 로컬 실행용 데이터는 `data-local.sql`에 두어 `local` 프로필의 `data-locations`에서만 읽고, 회원 행은 `LocalMemberSeeder`가 `.env`의 카카오 id로 넣는다. bean-fable의 이름은 이렇게 옮겼다.
+1. (2026-09-16 작성, 커밋 4df7ec9, be-dev 머지) `schema.sql`에 테이블 8개를 추가했다. 파일은 `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들고(로컬 실행용 데이터는 `data-local.sql`로), 시각은 `TIMESTAMP(6)`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 상태 어휘(`extraction_status`, `source_type`, `failure_reason`, `decision_status`)는 CHECK로 막고, `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 그 아래 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. `application.yml`의 기본은 `spring.sql.init.mode: never`이고 `local`, `test` 프로필만 `always`다(2026-09-19 프로필 분리, docs/profiles.md). 로컬 실행용 데이터는 `data-local.sql`에 두어 `local` 프로필의 `data-locations`에서만 읽고, 회원 행은 `LocalMemberSeeder`가 `.env`의 카카오 id로 넣는다. bean-fable의 이름은 이렇게 옮겼다.
 
 | bean-fable | be-dev | 비고 |
 |---|---|---|
@@ -165,7 +165,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **1 인가 기초 작업.** (2026-09-16 완료) 구조는 spring-roomescape-waiting의 auth 패키지를 따랐다. LoginCheckInterceptor가 /api/** 중 /api/v1/auth/**를 뺀 경로에서 Bearer 토큰을 검증하고, LoginMemberArgumentResolver가 @LoginMember Long에 회원 식별자를 넣으며, 토큰 없음은 AUTH401_004, 깨지거나 만료된 토큰은 AUTH401_001이다. E2eTestSupport에 "로그인해서 액세스 토큰을 얻는" 헬퍼를 두면 이후 모든 화면 E2E가 같은 헬퍼를 쓴다. 액세스 토큰 만료 30분은 공유 확장이 같은 토큰을 쓰므로 사이클 13에서 다시 본다.
 
-**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 여기서 정하는 것이 이후 전부의 계약이다. bean-fable schema.sql의 instagram_media, media_share, media_place, share_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP, 기동마다 DROP 뒤 CREATE다. 접수 서비스(`ShareService.createShare`, 4.3)는 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 SUPERSEDED 닫기, 공유 삽입, 후보 발급 또는 재추출 선점, 커밋 후 디스패치까지 하나의 트랜잭션이다. 멱등키 clientRequestId를 받을지는 남은 결정 2다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기) 네 겹이다.
+**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 여기서 정하는 것이 이후 전부의 계약이다. bean-fable schema.sql의 instagram_media, media_share, media_place, share_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP(6), 기동마다 DROP 뒤 CREATE다. 접수 서비스(`ShareService.createShare`, 4.3)는 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 SUPERSEDED 닫기, 공유 삽입, 후보 발급 또는 재추출 선점, 커밋 후 디스패치까지 하나의 트랜잭션이다. 멱등키 clientRequestId를 받을지는 남은 결정 2다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기) 네 겹이다.
 
 **3 히스토리.** 목록은 현재 페이징 없이 제공하고, 페이징은 히스토리 API 구현 시 검토한다. 재시도는 FAILED에서만 도메인이 허용하고 DB 조건부 UPDATE가 경쟁을 막는다(bean-fable 그대로).
 
@@ -200,7 +200,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 11. **DAO 분리.** (철회, 2026-09-16) 조회 전용 `XxxQueryDao`와 명령 `XxxDao`의 파일 분리는 두 사람이 같은 주에 같은 테이블을 만질 때의 충돌 회피 규칙이었다. 1단계는 자원별로 한 사람이 맡고 2단계는 각자 브랜치에서 전부 만드니 이유가 사라졌다. 조회 DAO가 Projection을 돌려주고 명령 DAO가 도메인 객체를 다루는 설계는 컨벤션 문제로 2단계를 합칠 때 본다.
 12. **카카오 매칭 수단.** 로컬 REST API(운영 검증 완료, 응답에 id, 좌표, place_url이 있어 Gemini 환각이 끼어들 자리가 없음, 무료 한도 하루 10만 건 수준)와 Playwright 웹 검색(브라우저 운영 비용, selector 변경, 약관 위험) 중 하나. 빈의 검토는 REST API 권장이다.
 13. **2단계 합치는 날과 방식.** 후보는 다음 주 목요일(09-24). 비교 기준은 4.3에 적었고, 구현 중 서로 코드를 볼지는 도메인 모델링 때 방식을 따른다.
-14. **시각 형식 통일.** (논의 예정, 이슈 초안 2건) 도메인 `SavedPlace`는 `LocalDateTime`이고 스키마에서 뺀 `firstSavedAt`도 아직 들고 있는데, `SavedPlaceProjection`과 응답은 `Instant`다. 어느 쪽으로 맞출지와 `TIMESTAMP`(초)를 유지할지 `TIMESTAMP(6)`로 갈지를 같이 정한다. 정하기 전에는 3절의 "시각은 ISO-8601 UTC(Instant)"와 2절 원칙 5를 따른다.
+14. **시각 형식 통일.** (완료, 2026-09-24) 도메인과 애플리케이션의 시각 타입은 `Instant`로 통일하고, DB의 `TIMESTAMP(6)`(마이크로초 단위)를 사용한다. JDBC 경계에서만 `Timestamp`로 변환하며, API 응답과 projection은 ISO-8601 UTC(`Instant`)를 사용한다.
 15. **읽기 규칙의 자리.** (2단계 합칠 때 맞춘다) 지금 코드에 네 가지가 있다. SQL(#172의 UNDECIDED 필터, #166의 정렬), 응답 DTO(#172의 공유별 후보 묶기 `PlaceCandidateResponses`), 서비스 private 메서드(#169 첫 구현), Projection 일급 컬렉션(#169 최종 `SavedPlaceMediaProjections`). 빈의 제안은 걸러내기와 정렬은 SQL, 여러 행을 줄이거나 묶는 것은 일급 컬렉션, 한 항목의 표시값은 DTO 부생성자이고 도메인에는 두지 않는다(정책이 바뀌어도 저장 동작은 바뀌지 않으므로). 규칙 하나를 SQL 반, 자바 반으로 나누지 않는다.
 
 ## 7. 부록: 운영 Supabase 구조와의 대응 요점

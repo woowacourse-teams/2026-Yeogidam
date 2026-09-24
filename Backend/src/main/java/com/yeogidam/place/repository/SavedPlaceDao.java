@@ -1,7 +1,5 @@
 package com.yeogidam.place.repository;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -29,8 +27,7 @@ public class SavedPlaceDao {
                     resultSet.getString("thumbnail_url"),
                     resultSet.getString("thumbnail_source"),
                     resultSet.getString("thumbnail_attribution"),
-                    resultSet.getObject("last_saved_at", LocalDateTime.class)
-                            .toInstant(ZoneOffset.UTC)
+                    resultSet.getTimestamp("last_saved_at").toInstant()
             );
 
     private static final RowMapper<SavedPlaceMediaProjection> MEDIA_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -41,8 +38,7 @@ public class SavedPlaceDao {
                     resultSet.getString("author"),
                     resultSet.getString("caption"),
                     resultSet.getString("shared_url"),
-                    resultSet.getObject("created_at", LocalDateTime.class)
-                            .toInstant(ZoneOffset.UTC)
+                    resultSet.getTimestamp("created_at").toInstant()
             );
 
     private final JdbcTemplate jdbcTemplate;

@@ -91,5 +91,5 @@ Docker가 켜져 있어야 한다. `MySqlContainerSupport`가 `mysql:8.4` 컨테
 - `application-dev.yml`, `application-prod.yml`. `spring.sql.init.mode`는 공통값 `never`. prod는 `springdoc.api-docs.enabled: false`, `springdoc.swagger-ui.enabled: false`.
 - 스키마 변경은 dev에 손으로 적용한다. 운영은 컷오버 전에 Flyway를 넣는다.
 - Dockerfile이 `SPRING_PROFILES_ACTIVE`를 받고, CD가 GitHub secrets를 `.env`와 같은 이름의 환경변수로 넣는다.
-- DB URL의 `serverTimezone=Asia/Seoul`을 `connectionTimeZone=UTC`로 바꾸고 MySQL `time_zone`도 UTC로 맞춘다. DAO가 UTC로 읽고 쓴다.
+- DB URL의 `serverTimezone=Asia/Seoul`을 `connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true`로 바꾸고 MySQL `time_zone`도 UTC로 맞춘다. DAO가 UTC로 읽고 쓴다.
 - 카카오 콘솔에 dev와 prod 리다이렉트 URI를 등록한다.

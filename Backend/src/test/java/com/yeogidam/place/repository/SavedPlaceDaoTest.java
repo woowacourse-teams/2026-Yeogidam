@@ -60,7 +60,8 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         // given
         insertMember(1L, "user-1");
         insertPlaceWithEveryColumnFilled();
-        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        Instant lastSavedAt = Instant.parse("2026-09-15T00:00:00.123456Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, lastSavedAt);
 
         // when
         SavedPlaceProjection savedPlace = savedPlaceDao.findAllByMember(1L).getFirst();
@@ -81,7 +82,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(savedPlace.thumbnailSource()).isEqualTo("GOOGLE"),
                 () -> assertThat(savedPlace.thumbnailAttribution())
                         .isEqualTo("<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>"),
-                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(Instant.parse("2026-09-15T00:00:00Z"))
+                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(lastSavedAt)
         );
     }
 
