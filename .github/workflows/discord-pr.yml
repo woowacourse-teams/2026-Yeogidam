@@ -4,9 +4,12 @@ name: Discord PR notification
 
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened, closed]
+    types: [opened, ready_for_review, reopened, closed, review_requested]
   pull_request_review:
     types: [submitted]
+  # 코드 라인에 달리는 리뷰 코멘트다. PR 대화창 댓글인 issue_comment와 대상이 겹치지 않는다.
+  pull_request_review_comment:
+    types: [created]
   # PR 아래 대화창 댓글. issue_comment는 이슈 댓글에도 오므로 PR 댓글인지 job에서 거른다.
   issue_comment:
     types: [created]
@@ -16,13 +19,28 @@ permissions:
   pull-requests: read
   issues: read
 
+# 같은 PR의 알림이 겹쳐 돌지 않게 줄 세운다. 이벤트를 흘리면 안 되므로 앞선 실행을 취소하지는 않는다.
+concurrency:
+  group: discord-pr-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
   notify:
-    # draft PR은 리뷰 준비가 되면(ready_for_review) 알린다. 댓글은 PR 댓글이고 사람이 쓴 것만 알린다.
+    # draft PR은 리뷰 준비가 되면(ready_for_review) 알린다. 댓글과 리뷰는 사람이 쓴 것만 알린다.
     if: >-
-      (github.event_name != 'issue_comment' && (github.event.pull_request.draft == false || github.event.action == 'ready_for_review'))
-      || (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && github.event.comment.user.type != 'Bot')
+      (github.event_name == 'pull_request'
+        && (github.event.pull_request.draft == false || github.event.action == 'ready_for_review'))
+      || (github.event_name == 'pull_request_review'
+        && github.event.pull_request.draft == false
+        && github.event.review.user.type != 'Bot')
+      || (github.event_name == 'pull_request_review_comment'
+        && github.event.pull_request.draft == false
+        && github.event.comment.user.type != 'Bot')
+      || (github.event_name == 'issue_comment'
+        && github.event.issue.pull_request != null
+        && github.event.comment.user.type != 'Bot')
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Detect area from changed files
         id: area
@@ -45,13 +63,24 @@ jobs:
           TITLE: ${{ github.event.pull_request.title || github.event.issue.title }}
           URL: ${{ github.event.pull_request.html_url || github.event.issue.pull_request.html_url }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          SENDER: ${{ github.event.sender.login }}
           CREATED_AT: ${{ github.event.pull_request.created_at }}
           UPDATED_AT: ${{ github.event.pull_request.updated_at }}
+          REQUESTED_REVIEWER: ${{ github.event.requested_reviewer.login }}
+          REQUESTED_TEAM: ${{ github.event.requested_team.name }}
           REVIEW_STATE: ${{ github.event.review.state }}
           REVIEW_BY: ${{ github.event.review.user.login }}
+          REVIEW_BODY: ${{ github.event.review.body }}
+          REVIEW_URL: ${{ github.event.review.html_url }}
           COMMENT_BY: ${{ github.event.comment.user.login }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_URL: ${{ github.event.comment.html_url }}
+          COMMENT_PATH: ${{ github.event.comment.path }}
+          COMMENT_LINE: ${{ github.event.comment.line }}
         run: |
+          # 디스코드 메시지 상한이 2000자라 본문은 잘라서 싣는다.
+          BODY_LIMIT=1200
+
           # 리뷰 마감은 위키 규칙대로 제출 다음날 23:59 KST. draft 해제는 그 시점이 제출이다.
           deadline() {
             TZ=Asia/Seoul date -d "$1 +1 day" '+%Y-%m-%d 23:59'
@@ -60,43 +89,94 @@ jobs:
             printf '💌 **%s** 리뷰 요청이 도착했어요\n요청자: %s\n리뷰 마감일: %s (KST)\n%s' \
               "$TITLE" "$AUTHOR" "$(deadline "$1")" "$URL"
           }
+          # 본문은 사람이 쓴 임의 문자열이라 셸을 거치지 않고 jq로만 다룬다. 길면 잘라 내고 인용 블록으로 감싼다.
+          quote() {
+            [ -z "$1" ] && return 0
+            jq -rn --arg body "$1" --argjson limit "$BODY_LIMIT" '
+              (if ($body | length) > $limit then ($body[0:$limit] + " …(줄임)") else $body end)
+              | split("\n")
+              | map("> " + .)
+              | join("\n")
+            '
+          }
+          append_body() {
+            [ -n "$1" ] && TEXT="$TEXT"$'\n'"$1"
+            return 0
+          }
+
+          SKIP=false
           case "$EVENT:$ACTION" in
             pull_request:opened)           TEXT=$(review_request "$CREATED_AT") ;;
             pull_request:ready_for_review) TEXT=$(review_request "$UPDATED_AT") ;;
+            pull_request:review_requested)
+              # 리뷰어를 새로 지정하거나 재요청했을 때다. 팀에 요청하면 requested_reviewer가 비어 있다.
+              if [ -n "$REQUESTED_REVIEWER" ]; then
+                TARGET="@$REQUESTED_REVIEWER 님에게"
+              elif [ -n "$REQUESTED_TEAM" ]; then
+                TARGET="$REQUESTED_TEAM 팀에"
+              else
+                TARGET="리뷰어에게"
+              fi
+              TEXT=$(printf '🔔 **%s** %s 리뷰를 요청했어요\n요청자: %s\n리뷰 마감일: %s (KST)\n%s' \
+                "$TITLE" "$TARGET" "$SENDER" "$(deadline "$UPDATED_AT")" "$URL") ;;
             pull_request:reopened)         TEXT="🔁 다시 열림 by $AUTHOR: **$TITLE**"$'\n'"$URL" ;;
             pull_request:closed)
               if [ "$MERGED" = "true" ]; then TEXT="🎉 머지됨: **$TITLE**"; else TEXT="🗑️ 닫힘: **$TITLE**"; fi
               TEXT="$TEXT"$'\n'"$URL" ;;
             pull_request_review:submitted)
+              LINK="${REVIEW_URL:-$URL}"
               case "$REVIEW_STATE" in
                 approved)          TEXT="👍 승인 by $REVIEW_BY" ;;
                 changes_requested) TEXT="🔧 수정 요청 by $REVIEW_BY" ;;
-                *)                 TEXT="📝 리뷰 코멘트 by $REVIEW_BY" ;;
+                *)
+                  # 본문 없는 commented는 코드 코멘트만 남긴 경우다. 그쪽 이벤트가 따로 오므로 건너뛴다.
+                  if [ -z "$REVIEW_BODY" ]; then SKIP=true; fi
+                  TEXT="📝 리뷰 코멘트 by $REVIEW_BY" ;;
               esac
-              TEXT="$TEXT: **$TITLE**"$'\n'"$URL" ;;
-            issue_comment:created)         TEXT="💬 댓글 by $COMMENT_BY: **$TITLE**"$'\n'"$COMMENT_URL" ;;
+              TEXT="$TEXT: **$TITLE**"$'\n'"$LINK"
+              append_body "$(quote "$REVIEW_BODY")" ;;
+            pull_request_review_comment:created)
+              LOCATION="$COMMENT_PATH"
+              [ -n "$COMMENT_LINE" ] && LOCATION="$COMMENT_PATH:$COMMENT_LINE"
+              TEXT="💬 코드 코멘트 by $COMMENT_BY: **$TITLE**"
+              [ -n "$LOCATION" ] && TEXT="$TEXT"$'\n'"\`$LOCATION\`"
+              TEXT="$TEXT"$'\n'"$COMMENT_URL"
+              append_body "$(quote "$COMMENT_BODY")" ;;
+            issue_comment:created)
+              TEXT="💬 댓글 by $COMMENT_BY: **$TITLE**"$'\n'"$COMMENT_URL"
+              append_body "$(quote "$COMMENT_BODY")" ;;
             *) TEXT="$EVENT/$ACTION: **$TITLE**"$'\n'"$URL" ;;
           esac
+
+          # 인용 접두어가 줄마다 붙어 본문 상한과 별개로 길어질 수 있으므로 보낼 메시지 전체를 한 번 더 자른다.
+          TEXT=$(jq -rn --arg text "$TEXT" '
+            if ($text | length) > 1980 then ($text[0:1975] + "\n> …(줄임)") else $text end
+          ')
+
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
           {
-            echo "text<<EOF"
+            echo "text<<DISCORD_MESSAGE_EOF"
             echo "$TEXT"
-            echo "EOF"
+            echo "DISCORD_MESSAGE_EOF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Notify BE channel
-        if: steps.area.outputs.be == 'true'
+        if: steps.area.outputs.be == 'true' && steps.msg.outputs.skip != 'true'
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_BE }}
           TEXT: ${{ steps.msg.outputs.text }}
         run: |
-          jq -n --arg content "$TEXT" '{content: $content}' \
-            | curl -sS --fail -H "Content-Type: application/json" -d @- "$WEBHOOK"
+          # allowed_mentions를 비워 본문에 든 @everyone, @here, 역할 멘션이 실제 알림으로 터지지 않게 막는다.
+          jq -n --arg content "$TEXT" '{content: $content, allowed_mentions: {parse: []}}' \
+            | curl -sS --fail --retry 3 --retry-delay 2 --retry-all-errors \
+                -H "Content-Type: application/json" -d @- "$WEBHOOK"
 
       - name: Notify FE channel
-        if: steps.area.outputs.fe == 'true'
+        if: steps.area.outputs.fe == 'true' && steps.msg.outputs.skip != 'true'
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_FE }}
           TEXT: ${{ steps.msg.outputs.text }}
         run: |
-          jq -n --arg content "$TEXT" '{content: $content}' \
-            | curl -sS --fail -H "Content-Type: application/json" -d @- "$WEBHOOK"
+          jq -n --arg content "$TEXT" '{content: $content, allowed_mentions: {parse: []}}' \
+            | curl -sS --fail --retry 3 --retry-delay 2 --retry-all-errors \
+                -H "Content-Type: application/json" -d @- "$WEBHOOK"
