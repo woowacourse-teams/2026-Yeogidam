@@ -1,12 +1,11 @@
 package com.yeogidam.support.fixture.sql;
 
+import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * refresh_sessions 행을 DAO를 거치지 않고 직접 넣는다. 만료 시각은 DAO와 같은 규칙(UTC LocalDateTime)으로 쓴다.
+ * refresh_sessions 행을 DAO를 거치지 않고 직접 넣는다. 만료 시각은 Instant로 쓴다.
  */
 public final class RefreshSessionSqlFixture {
 
@@ -27,7 +26,7 @@ public final class RefreshSessionSqlFixture {
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 refreshSessionId, sessionId, memberId, tokenHash,
-                LocalDateTime.ofInstant(expiresAt, ZoneOffset.UTC), revoked
+                Timestamp.from(expiresAt), revoked
         );
     }
 }

@@ -1,8 +1,7 @@
 package com.yeogidam.auth.repository;
 
 import com.yeogidam.auth.domain.session.RefreshSession;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.sql.Timestamp;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,8 +17,7 @@ public class RefreshSessionDao {
             resultSet.getString("session_id"),
             resultSet.getLong("member_id"),
             resultSet.getString("token_hash"),
-            resultSet.getObject("expires_at", LocalDateTime.class)
-                    .toInstant(ZoneOffset.UTC),
+            resultSet.getTimestamp("expires_at").toInstant(),
             resultSet.getBoolean("revoked")
     );
 
@@ -31,7 +29,7 @@ public class RefreshSessionDao {
                 VALUES (?, ?, ?, ?, ?)
                 """;
         jdbcTemplate.update(sql, session.getSessionId(), session.getMemberId(), session.getTokenHash(),
-                LocalDateTime.ofInstant(session.getExpiresAt(), ZoneOffset.UTC), session.isRevoked());
+                Timestamp.from(session.getExpiresAt()), session.isRevoked());
     }
 
     public Optional<RefreshSession> findBySessionId(String sessionId) {

@@ -1,8 +1,11 @@
 -- 로컬 실행용 데이터. 기동마다 schema.sql이 테이블을 새로 만든 뒤 실행된다.
--- 회원 행은 여기 없다. 카카오 회원번호는 환경변수라 LocalMemberSeeder가 .env의
--- SEED_KAKAO_USER_ID_BEAN(회원 1 정콩), SEED_KAKAO_USER_ID_LUCKY(회원 2 러키)로 넣는다.
+-- 회원 행은 여기 없다. 카카오 회원번호는 환경변수라 LocalMemberSeeder가 .env의 SEED_KAKAO_USER_ID_BEAN(회원 1 정콩), SEED_KAKAO_USER_ID_LUCKY(회원 2 러키)로 넣는다.
 -- 이 파일이 먼저 실행되고 회원은 그 뒤에 들어가므로 FK 검사를 잠시 끄고 넣는다.
---
+
+-- 시각 리터럴은 UTC 기준이다. 애플리케이션은 connectionTimeZone=UTC와 forceConnectionTimeZoneToSession=true로 연결된다.
+-- 화면에 KST 기준 시각을 보여주려면, sql에 값 작성 시 KST 시간에서 9시간을 빼서 작성한다. (예: 12:00 KST -> 03:00 UTC)
+-- CLI에서 직접 INSERT할 때도 먼저 SET SESSION time_zone = '+00:00'을 실행한다.
+
 -- 시나리오
 --   정콩(1): 릴스 5개 공유(공유 6건). 성수 카페 릴스(10)는 두 번 공유해 첫 공유(100)의 후보가 SUPERSEDED.
 --            경복궁은 버렸고, 추출 실패 릴스(13)와 추출 중 릴스(16)도 있다.

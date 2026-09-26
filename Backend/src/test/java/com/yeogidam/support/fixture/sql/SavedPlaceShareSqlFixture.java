@@ -1,8 +1,7 @@
 package com.yeogidam.support.fixture.sql;
 
+import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -25,7 +24,7 @@ public final class SavedPlaceShareSqlFixture {
                 INSERT INTO shared_media_saved_places (id, saved_place_id, shared_media_id, created_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                savedPlaceShareId, savedPlaceId, sharedMediaId, LocalDateTime.ofInstant(createdAt, ZoneOffset.UTC)
+                savedPlaceShareId, savedPlaceId, sharedMediaId, Timestamp.from(createdAt)
         );
     }
 }

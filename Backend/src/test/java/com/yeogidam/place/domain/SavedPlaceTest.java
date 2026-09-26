@@ -4,13 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class SavedPlaceTest {
 
-    private static final LocalDateTime FIRST = LocalDateTime.of(2026, 9, 1, 12, 0);
-    private static final LocalDateTime LATER = LocalDateTime.of(2026, 9, 16, 9, 30);
+    private static final Instant FIRST = Instant.parse("2026-09-01T12:00:00Z");
+    private static final Instant LATER = Instant.parse("2026-09-16T09:30:00Z");
 
     @Test
     void 처음_저장하면_식별자가_비어_있고_저장_시각이_들어간다() {

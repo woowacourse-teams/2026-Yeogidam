@@ -17,7 +17,7 @@ CREATE TABLE members
     nickname         VARCHAR(255),
     email            VARCHAR(320),
     image_url        VARCHAR(512),
-    created_at       TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at       TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_members_oauth_account UNIQUE (oauth_provider, provider_user_id)
 );
@@ -28,7 +28,7 @@ CREATE TABLE refresh_sessions
     session_id CHAR(36)  NOT NULL,
     member_id  BIGINT    NOT NULL,
     token_hash CHAR(64)  NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP(6) NOT NULL,
     revoked    BOOLEAN   NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id),
     CONSTRAINT uk_refresh_sessions_session_id UNIQUE (session_id),
@@ -48,7 +48,7 @@ CREATE TABLE media
     extraction_status  VARCHAR(20) NOT NULL,
     failure_reason     VARCHAR(40),
     extraction_version INT         NOT NULL,
-    created_at         TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at         TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     source_type        VARCHAR(20) NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT uk_media_shortcode UNIQUE (media_shortcode),
@@ -73,7 +73,7 @@ CREATE TABLE shared_media
     member_id  BIGINT       NOT NULL,
     media_id   BIGINT       NOT NULL,
     shared_url VARCHAR(512) NOT NULL,
-    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT fk_shared_media_member FOREIGN KEY (member_id)
         REFERENCES members (id)
@@ -97,7 +97,7 @@ CREATE TABLE places
     thumbnail_url         VARCHAR(2048),
     thumbnail_source      VARCHAR(30),
     thumbnail_attribution VARCHAR(255),
-    created_at            TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at            TIMESTAMP(6)    NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_places_kakao_place_id UNIQUE (kakao_place_id)
 );
@@ -123,7 +123,7 @@ CREATE TABLE place_candidates
     shared_media_id BIGINT      NOT NULL,
     place_id        BIGINT      NOT NULL,
     decision_status VARCHAR(20) NOT NULL DEFAULT 'UNDECIDED',
-    decided_at      TIMESTAMP,
+    decided_at      TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_place_candidates_shared_media_place UNIQUE (shared_media_id, place_id),
     CONSTRAINT chk_place_candidates_decision_status
@@ -141,7 +141,7 @@ CREATE TABLE saved_places
     id            BIGINT    NOT NULL AUTO_INCREMENT,
     member_id     BIGINT    NOT NULL,
     place_id      BIGINT    NOT NULL,
-    last_saved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_saved_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_saved_places_member_place UNIQUE (member_id, place_id),
     CONSTRAINT fk_saved_places_member FOREIGN KEY (member_id)
@@ -157,7 +157,7 @@ CREATE TABLE shared_media_saved_places
     id              BIGINT    NOT NULL AUTO_INCREMENT,
     saved_place_id  BIGINT    NOT NULL,
     shared_media_id BIGINT    NOT NULL,
-    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at      TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_shared_media_saved_places_saved_place_shared_media UNIQUE (saved_place_id, shared_media_id),
     CONSTRAINT fk_shared_media_saved_places_saved_place FOREIGN KEY (saved_place_id)
@@ -173,7 +173,7 @@ CREATE TABLE shared_media_reports
 (
     id              BIGINT    NOT NULL AUTO_INCREMENT,
     shared_media_id BIGINT    NOT NULL,
-    created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at      TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_shared_media_reports_shared_media UNIQUE (shared_media_id),
     CONSTRAINT fk_shared_media_reports_shared_media FOREIGN KEY (shared_media_id)

@@ -1,6 +1,6 @@
 package com.yeogidam.place.domain;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 /**
  * 보관함의 장소 하나. 회원과 장소당 하나만 존재한다(DB UNIQUE가 보장).
@@ -11,12 +11,12 @@ public class SavedPlace {
     private final Long id;
     private final Long memberId;
     private final Long placeId;
-    private LocalDateTime lastSavedAt;
+    private Instant lastSavedAt;
 
     public SavedPlace(
             Long memberId,
             Long placeId,
-            LocalDateTime lastSavedAt
+            Instant lastSavedAt
     ) {
         this(null, memberId, placeId, lastSavedAt);
     }
@@ -25,7 +25,7 @@ public class SavedPlace {
             Long id,
             Long memberId,
             Long placeId,
-            LocalDateTime lastSavedAt
+            Instant lastSavedAt
     ) {
         validate(memberId, placeId, lastSavedAt);
         this.id = id;
@@ -37,7 +37,7 @@ public class SavedPlace {
     private void validate(
             Long memberId,
             Long placeId,
-            LocalDateTime lastSavedAt
+            Instant lastSavedAt
     ) {
         if (memberId == null) {
             throw new IllegalArgumentException("저장한 회원이 비어 있습니다.");
@@ -50,7 +50,7 @@ public class SavedPlace {
         }
     }
 
-    public void saveAgain(LocalDateTime savedAt) {
+    public void saveAgain(Instant savedAt) {
         if (savedAt == null) {
             throw new IllegalArgumentException("저장 시각이 비어 있습니다.");
         }
@@ -69,7 +69,7 @@ public class SavedPlace {
         return placeId;
     }
 
-    public LocalDateTime lastSavedAt() {
+    public Instant lastSavedAt() {
         return lastSavedAt;
     }
 }

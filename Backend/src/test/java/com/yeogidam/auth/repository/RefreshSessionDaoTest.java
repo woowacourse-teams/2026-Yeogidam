@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Import(RefreshSessionDao.class)
 class RefreshSessionDaoTest extends JdbcTestSupport {
 
-    private static final Instant EXPIRES_AT = Instant.parse("2026-10-15T00:00:00Z");
+    private static final Instant EXPIRES_AT = Instant.parse("2026-10-15T00:00:00.123456Z");
 
     @Autowired
     private RefreshSessionDao refreshSessionDao;
