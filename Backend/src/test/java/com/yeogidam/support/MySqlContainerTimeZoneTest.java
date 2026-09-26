@@ -1,11 +1,10 @@
-package com.yeogidam.global.config;
+package com.yeogidam.support;
 
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -18,7 +17,14 @@ class MySqlContainerTimeZoneTest extends JdbcTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void 저장한_시각이_UTC로_DB에_저장된다() {
+    void 테스트_커넥션의_세션_시간대가_UTC다() {
+        String timeZone = jdbcTemplate.queryForObject("SELECT @@session.time_zone", String.class);
+
+        assertThat(timeZone).isEqualTo("+00:00");
+    }
+
+    @Test
+    void 저장한_TIMESTAMP를_DB에서_UTC_기준으로_조회한다() {
         // given
         insertKakaoMember(jdbcTemplate, 1L, "user-1", "user-1", "user-1@example.com", null);
         insertPlaceWithRequiredColumnsOnly(
@@ -35,10 +41,10 @@ class MySqlContainerTimeZoneTest extends JdbcTestSupport {
         // when: DB가 문자열을 만들어 반환해 JDBC의 Timestamp 변환을 거치지 않는다.
         String stored = jdbcTemplate.queryForObject(
                 """
-                SELECT DATE_FORMAT(last_saved_at, '%Y-%m-%d %H:%i:%s.%f')
-                FROM saved_places
-                WHERE id = 11
-                """,
+                        SELECT DATE_FORMAT(last_saved_at, '%Y-%m-%d %H:%i:%s.%f')
+                        FROM saved_places
+                        WHERE id = 11
+                        """,
                 String.class
         );
 
