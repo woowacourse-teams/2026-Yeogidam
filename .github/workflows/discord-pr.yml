@@ -4,7 +4,7 @@ name: Discord PR notification
 
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened, closed, review_requested]
+    types: [ready_for_review, reopened, closed, review_requested]
   pull_request_review:
     types: [submitted]
   # 코드 라인에 달리는 리뷰 코멘트다. PR 대화창 댓글인 issue_comment와 대상이 겹치지 않는다.
@@ -64,7 +64,6 @@ jobs:
           URL: ${{ github.event.pull_request.html_url || github.event.issue.pull_request.html_url }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
           SENDER: ${{ github.event.sender.login }}
-          CREATED_AT: ${{ github.event.pull_request.created_at }}
           UPDATED_AT: ${{ github.event.pull_request.updated_at }}
           REQUESTED_REVIEWER: ${{ github.event.requested_reviewer.login }}
           REQUESTED_TEAM: ${{ github.event.requested_team.name }}
@@ -85,9 +84,11 @@ jobs:
           deadline() {
             TZ=Asia/Seoul date -d "$1 +1 day" '+%Y-%m-%d 23:59'
           }
+          # PR을 여는 것과 리뷰를 부탁하는 것은 다른 일이라 opened는 알리지 않는다.
+          # 리뷰어를 지정한 시각을 제출로 보고 마감일을 그때부터 센다.
           review_request() {
-            printf '💌 **%s** 리뷰 요청이 도착했어요\n요청자: %s\n리뷰 마감일: %s (KST)\n%s' \
-              "$TITLE" "$AUTHOR" "$(deadline "$1")" "$URL"
+            printf '💌 **%s** %s 리뷰 요청이 도착했어요\n요청자: %s\n리뷰 마감일: %s (KST)\n%s' \
+              "$TITLE" "$1" "$SENDER" "$(deadline "$2")" "$URL"
           }
           # 본문은 사람이 쓴 임의 문자열이라 셸을 거치지 않고 jq로만 다룬다. 길면 잘라 내고 인용 블록으로 감싼다.
           quote() {
@@ -106,8 +107,8 @@ jobs:
 
           SKIP=false
           case "$EVENT:$ACTION" in
-            pull_request:opened)           TEXT=$(review_request "$CREATED_AT") ;;
-            pull_request:ready_for_review) TEXT=$(review_request "$UPDATED_AT") ;;
+            # 초안을 준비 완료로 바꾼 순간이 제출이다. 초안일 때 지정한 리뷰어는 draft 조건에 걸려 알리지 않았다.
+            pull_request:ready_for_review) TEXT=$(review_request "리뷰어에게" "$UPDATED_AT") ;;
             pull_request:review_requested)
               # 리뷰어를 새로 지정하거나 재요청했을 때다. 팀에 요청하면 requested_reviewer가 비어 있다.
               if [ -n "$REQUESTED_REVIEWER" ]; then
@@ -117,8 +118,7 @@ jobs:
               else
                 TARGET="리뷰어에게"
               fi
-              TEXT=$(printf '🔔 **%s** %s 리뷰를 요청했어요\n요청자: %s\n리뷰 마감일: %s (KST)\n%s' \
-                "$TITLE" "$TARGET" "$SENDER" "$(deadline "$UPDATED_AT")" "$URL") ;;
+              TEXT=$(review_request "$TARGET" "$UPDATED_AT") ;;
             pull_request:reopened)         TEXT="🔁 다시 열림 by $AUTHOR: **$TITLE**"$'\n'"$URL" ;;
             pull_request:closed)
               if [ "$MERGED" = "true" ]; then TEXT="🎉 머지됨: **$TITLE**"; else TEXT="🗑️ 닫힘: **$TITLE**"; fi
