@@ -1,6 +1,7 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
+import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
@@ -13,9 +14,24 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.Valid;
 
 @Tag(name = "Share", description = "히스토리 목록과 항목 조회 API")
 public interface ShareApiDocs {
+
+    @Operation(summary = "인스타그램 미디어 공유",
+            description = "미디어를 공유 이력에 등록하고, 처음 보거나 파이프라인 버전이 바뀐 경우 비동기로 분석합니다.",
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "202", description = "공유 접수 성공"),
+                    @ApiResponse(responseCode = "400", description = "지원하지 않는 인스타그램 링크",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "401", description = "로그인하지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<Void> createShare(Long memberId, @Valid ShareRequest request);
 
     @Operation(summary = "히스토리 목록 조회",
             description = """

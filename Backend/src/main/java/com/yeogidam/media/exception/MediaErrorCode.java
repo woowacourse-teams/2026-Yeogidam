@@ -14,6 +14,10 @@ public enum MediaErrorCode implements ErrorCode {
     EXTRACTION_NOT_FINISHED(HttpStatus.BAD_REQUEST, "MEDIA400_007", "추출이 끝나지 않은 게시물에는 선택할 장소가 없습니다."),
     FAILED_EXTRACTION_HAS_NO_PLACES(HttpStatus.BAD_REQUEST, "MEDIA400_008", "추출에 실패한 게시물에는 장소가 없습니다."),
     EMPTY_PLACE_SELECTION(HttpStatus.BAD_REQUEST, "MEDIA400_009", "결정할 장소를 한 개 이상 선택해야 합니다."),
+    INVALID_LINK(HttpStatus.BAD_REQUEST, "MEDIA400_010", "올바른 인스타그램 링크 형식이 아닙니다."),
+    MISSING_MEDIA_SHORTCODE(HttpStatus.BAD_REQUEST, "MEDIA400_011", "게시물 식별자가 비어 있습니다."),
+    MISSING_EXTRACTION_STATE(HttpStatus.BAD_REQUEST, "MEDIA400_012", "추출 상태가 비어 있습니다."),
+
     NOT_FOUND(HttpStatus.NOT_FOUND, "MEDIA404_001", "존재하지 않는 릴스입니다.");
 
     private final HttpStatus httpStatus;

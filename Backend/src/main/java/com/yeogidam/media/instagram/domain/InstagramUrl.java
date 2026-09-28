@@ -1,5 +1,7 @@
 package com.yeogidam.media.instagram.domain;
 
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import java.net.URI;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,7 +34,7 @@ public class InstagramUrl {
 
     private void validateNotBlank(String value) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("인스타그램 URL이 비어 있습니다.");
+            throw new MediaException(MediaErrorCode.INVALID_LINK);
         }
     }
 
@@ -40,18 +42,24 @@ public class InstagramUrl {
         try {
             return URI.create(value.trim());
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException("올바른 URL 형식이 아닙니다: " + value, exception);
+            throw new MediaException(MediaErrorCode.INVALID_LINK);
         }
     }
 
     private void validateScheme(URI uri) {
+        if (uri.getScheme() == null) {
+            throw new MediaException(MediaErrorCode.INVALID_LINK);
+        }
         if (!"https".equalsIgnoreCase(uri.getScheme())) {
-            throw new IllegalArgumentException("HTTPS 인스타그램 URL만 지원합니다: " + uri);
+            throw new MediaException(MediaErrorCode.UNSUPPORTED_LINK);
         }
     }
 
     private void validateHost(URI uri) {
         String host = uri.getHost();
+        if (host == null) {
+            throw new MediaException(MediaErrorCode.INVALID_LINK);
+        }
         if (INSTAGRAM_HOST.equalsIgnoreCase(host)) {
             return;
         }
@@ -60,13 +68,17 @@ public class InstagramUrl {
             return;
         }
 
-        throw new IllegalArgumentException("인스타그램 URL만 지원합니다: " + uri);
+        throw new MediaException(MediaErrorCode.UNSUPPORTED_LINK);
     }
 
     private MediaShortcode extractMediaShortcode(URI uri) {
-        Matcher matcher = MEDIA_PATH_PATTERN.matcher(uri.getPath());
+        String path = uri.getPath();
+        if (path == null) {
+            throw new MediaException(MediaErrorCode.INVALID_LINK);
+        }
+        Matcher matcher = MEDIA_PATH_PATTERN.matcher(path);
         if (!matcher.matches()) {
-            throw new IllegalArgumentException("인스타그램 게시글과 릴스 URL만 지원합니다: " + uri);
+            throw new MediaException(MediaErrorCode.UNSUPPORTED_LINK);
         }
         return new MediaShortcode(matcher.group(1));
     }

@@ -1,12 +1,16 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
+import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.service.ShareService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +22,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class ShareController implements ShareApiDocs {
 
     private final ShareService shareService;
+
+    @Override
+    @PostMapping
+    public ResponseEntity<Void> createShare(
+            @LoginMember Long memberId,
+            @Valid @RequestBody ShareRequest request
+    ) {
+        shareService.createShare(memberId, request);
+        return ResponseEntity.accepted()
+                .build();
+    }
 
     @Override
     @GetMapping

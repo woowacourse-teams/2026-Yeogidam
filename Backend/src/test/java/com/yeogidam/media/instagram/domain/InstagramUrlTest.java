@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import org.junit.jupiter.api.Test;
-import com.yeogidam.media.instagram.domain.MediaShortcode;
 
 class InstagramUrlTest {
 
@@ -62,8 +63,8 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("인스타그램 URL이 비어 있습니다.");
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.INVALID_LINK.getMessage());
     }
 
     @Test
@@ -73,8 +74,8 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("인스타그램 URL이 비어 있습니다.");
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.INVALID_LINK.getMessage());
     }
 
     @Test
@@ -84,8 +85,8 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("인스타그램 URL만 지원합니다");
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.UNSUPPORTED_LINK.getMessage());
     }
 
     @Test
@@ -95,8 +96,8 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("HTTPS 인스타그램 URL만 지원합니다");
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.UNSUPPORTED_LINK.getMessage());
     }
 
     @Test
@@ -106,7 +107,19 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.INVALID_LINK.getMessage());
+    }
+
+    @Test
+    void 게시물_식별자_형식이_틀리면_예외가_발생한다() {
+        // given
+        String url = "https://www.instagram.com/reel/invalid.shortcode/";
+
+        // when & then
+        assertThatThrownBy(() -> new InstagramUrl(url))
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.INVALID_LINK.getMessage());
     }
 
     @Test
@@ -116,8 +129,8 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("인스타그램 게시글과 릴스 URL만 지원합니다");
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.UNSUPPORTED_LINK.getMessage());
     }
 
     @Test
@@ -127,8 +140,8 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("인스타그램 게시글과 릴스 URL만 지원합니다");
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.UNSUPPORTED_LINK.getMessage());
     }
 
     @Test
@@ -138,8 +151,8 @@ class InstagramUrlTest {
 
         // when & then
         assertThatThrownBy(() -> new InstagramUrl(url))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("인스타그램 게시글과 릴스 URL만 지원합니다");
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.UNSUPPORTED_LINK.getMessage());
     }
 
     @Test
