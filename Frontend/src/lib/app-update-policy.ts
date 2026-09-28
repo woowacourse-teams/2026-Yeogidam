@@ -1,12 +1,12 @@
 import { Platform } from 'react-native';
+import Config from 'react-native-config';
 
 import { SUPABASE_URL } from './auth/supabase';
 
 const REQUEST_TIMEOUT_MS = 5000;
 
-// Keep this value aligned with MARKETING_VERSION (iOS) and versionName (Android).
-// Both native targets are currently released as 1.1.0.
-const APP_VERSION = '1.1.0';
+// Beta builds inject the manually entered app version through .env.
+const APP_VERSION = Config.APP_VERSION || '1.1.0';
 
 export type AppUpdatePolicy = {
   minimumSupportedVersion: string;

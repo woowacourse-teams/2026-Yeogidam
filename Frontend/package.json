@@ -24,7 +24,8 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "test:ci": "jest --runInBand --no-watchman"
+    "test:ci": "jest --runInBand --no-watchman",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@invertase/react-native-apple-authentication": "^2.5.1",
@@ -68,6 +69,6 @@
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">= 22.11.0"
+    "node": ">=24.3.0 <25"
   }
 }
