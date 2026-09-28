@@ -1,0 +1,13 @@
+# 운영 전용. 스키마는 컷오버 전에 Flyway로 옮기기 전까지 손으로 적용한다(docs/profiles.md 6절).
+# DB, JWT, OAuth 값은 /opt/yeogidam/backend.env가 환경변수로 넣는다.
+spring:
+  sql:
+    init:
+      mode: never
+
+# 운영에서는 API 문서를 열지 않는다.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

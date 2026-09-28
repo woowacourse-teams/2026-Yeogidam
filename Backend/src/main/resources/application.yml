@@ -39,7 +39,8 @@ jwt:
   access-token-ttl: 30m
   refresh-token-ttl: 30d
 
-# 앱 업데이트 정책. 최소 버전 아래는 강제, 최신 버전 아래는 권고. 바꿀 때 재배포한다. 운영 값은 application-prod.yml에서 덮는다.
+# 앱 업데이트 정책. 최소 버전 아래는 강제, 최신 버전 아래는 권고다.
+# 프로필로 나누지 않고 여기 한 곳에 둔다. 값을 바꿀 때는 커밋하고 배포한다(docs/profiles.md 6절).
 app-update:
   ios:
     minimum-supported-version: 1.1.0
@@ -49,3 +50,28 @@ app-update:
     minimum-supported-version: 1.1.0
     latest-version: 1.1.0
     store-url: https://play.google.com/store/apps/details?id=com.yeogidamm.app&pcampaignid=web_share
+
+# 배포 헬스체크용. 기동 여부만 보고 세부는 감춘다. 지표 수집은 관찰 도구를 붙일 때 더한다.
+management:
+  health:
+    defaults:
+      enabled: false
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      probes:
+        enabled: false
+      group:
+        liveness:
+          include: livenessState
+      show-components: never
+      show-details: never

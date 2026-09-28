@@ -1,0 +1,19 @@
+# 개발 서버 전용. 스키마는 손으로 적용하므로 기동 때 건드리지 않는다(docs/profiles.md 6절).
+# DB, JWT, OAuth 값은 /opt/yeogidam/backend.env가 환경변수로 넣는다.
+#
+# 앱 업데이트 정책은 값을 적지 않아 application.yml 기본값을 그대로 쓴다. 운영과 같은 값이다.
+# dev에서만 다르게 시험하려면 아래 블록을 살린다. 적은 키만 덮이고 나머지는 기본값이 남는다.
+# 최소 버전만 올리면 최신 버전이 기본값이라 최소보다 낮아지고, PlatformPolicy 생성자 검증이
+# 예외를 던져 앱이 아예 뜨지 못한다. 최소를 올릴 때는 최신도 같이 올린다.
+#
+# app-update:
+#   ios:
+#     minimum-supported-version: 1.2.0
+#     latest-version: 1.3.0
+#   android:
+#     minimum-supported-version: 1.2.0
+#     latest-version: 1.3.0
+spring:
+  sql:
+    init:
+      mode: never
