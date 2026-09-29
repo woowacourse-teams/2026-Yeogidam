@@ -6,23 +6,60 @@
 
 ## 서버
 
-| | 운영 | 개발 |
-| --- | --- | --- |
-| 이름 | `yeogidam-prod` | `yeogidam-dev` |
-| 인스턴스 | t4g.micro | t4g.micro |
-| 메모리 | 1GiB | 1GiB |
-| 디스크 | 8GB | 8GB |
-| OS와 아키텍처 | AL2023, arm64 | AL2023, arm64 |
-| 탄력적 IP | <운영 EIP> | <개발 EIP> |
-| DDNS | `yeogidam` | `yeogidam-dev` |
-| 러너 라벨 | `backend-production` | `backend-development` |
-| 러너 계정 | `github-runner` (docker 그룹) | `github-runner` (docker 그룹) |
-| 올라간 것 | 앱 컨테이너 | 앱 컨테이너 |
-| DB | RDS 예정, 아직 없음 | EC2 Docker MySQL 예정, 아직 없음 |
+| | 운영 | 개발 | 개발 DB |
+| --- | --- | --- | --- |
+| 이름 | `yeogidam-prod` | `yeogidam-dev` | 아직 없음 |
+| 인스턴스 | t4g.micro | t4g.micro | 만들 예정 |
+| 메모리 | 1GiB (실측 910Mi) | 1GiB (실측 910Mi) | |
+| 디스크 | 8GB | 8GB | |
+| 스왑 | `/swapfile` 2GB, swappiness 60 | `/swapfile` 2GB, swappiness 60 | |
+| OS와 아키텍처 | AL2023, arm64 | AL2023, arm64 | |
+| cgroup | v2 | v2 | |
+| DDNS | `yeogidam` | `yeogidam-dev` | |
+| 러너 라벨 | `backend-production` | `backend-development` | 없음 |
+| 러너 계정 | `github-runner` (docker 그룹) | `github-runner` (docker 그룹) | |
+| 올라가는 것 | 앱 컨테이너만 | 앱 컨테이너만 | MySQL 컨테이너 |
+| DB | RDS 예정, 아직 없음 | 오른쪽 인스턴스를 본다 | Docker MySQL 예정 |
 
-[인프라 ADR-03](adr-03-ec2-architecture.md)이 적은 t4g.small과 gp3 20GB와 다르다. 아래 「확인이 필요한 것」 참고.
+**개발용 MySQL은 `yeogidam-dev`가 아니라 새 EC2에 띄운다(2026-09-29 확정).** 910Mi짜리 한 대에 JVM과 MySQL을 같이 올리면 모자란다. 앱과 DB를 나누면 개발 서버는 앱만 돌리므로 운영과 구성이 같아진다. 비비디 팀도 앱과 DB를 다른 인스턴스로 나눴다.
+
+[인프라 ADR-03](adr-03-ec2-architecture.md)이 적은 t4g.small과 gp3 20GB와 다르다. 실물은 t4g.micro에 8GB이고, ADR-03이 기각한 선택지 C(`t4g.micro` + 스왑 2GB)가 그대로 돌고 있다. 아래 「확인이 필요한 것」 참고.
 
 보안 그룹은 `project-public`이고 SSH(22번)는 우테코 캠퍼스와 VPN 회선에서만 열린다. 밖에서는 AWS Session Manager로 붙는다.
+
+### 메모리 실측 (2026-09-29)
+
+양쪽 서버가 거의 같다.
+
+```
+total 910Mi   used 275Mi   available 525Mi   swap 2.0Gi (거의 안 씀)
+
+Runner.Listener   146MB
+dockerd            33MB   (개발은 55MB)
+containerd         22MB   (개발은 34MB)
+systemd-journal    25MB
+ssm-agent          37MB
+systemd            14MB
+                  ─────
+                  ~280MB 고정
+```
+
+앱 컨테이너에 줄 수 있는 것이 500MB 남짓이다. `cgroup2fs`라 `--memory-swap`이 기대대로 동작한다.
+
+### 디스크 실측 (2026-09-29)
+
+**도커 이미지가 하나도 없는데 운영이 이미 72% 찼다.**
+
+| | 운영 | 개발 |
+| --- | --- | --- |
+| 사용 | 5.7G / 8.0G (72%) | 4.9G / 8.0G (61%) |
+| `/usr` | 1.8G | 1.8G |
+| `/home` | **1.7G** | 449M |
+| `/var` | 508M | 429M |
+| journal | 256M | 185M |
+| 도커 이미지 | 0개 | 0개 |
+
+`current`, `previous`, `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. 운영에 2.3GB밖에 없어 빠듯하다. journal에 상한이 없어 계속 자라고, 운영의 `/home`이 개발보다 1.25GB 큰 이유는 아직 확인하지 않았다.
 
 ## 배포 경로
 
@@ -131,9 +168,13 @@ ARM64(Graviton)를 쓴다는 결정은 맞고 구현도 따라왔다. CI 러너�
 | 결정 요약 | t4g.small |
 | 결정 첫 줄 | t4g.micro |
 | 결정 둘째 줄 | 유형 t4g.small, 스토리지 gp3 20GB |
-| **실물** | **t4g.micro 두 대, 디스크 각 8GB** |
+| **실물** | **t4g.micro 두 대, 디스크 각 8GB, 스왑 2GB** |
 
 「결정」의 첫 줄에 적힌 `ARM 아키텍처의 t4g.micro 인스턴스를 채택한다`가 실물과 맞는 줄이다.
+
+**ADR-03이 기각한 선택지 C가 실제로 돌고 있다.** 선택지 C는 `t4g.micro`에 스왑 2GB를 붙이는 안이었고, "배포 시점마다 응답이 느려진다"는 이유로 채택하지 않았다. 그런데 실물은 t4g.micro이고 양쪽 서버에 `/swapfile` 2GB가 붙어 있다. 910Mi밖에 없는 기계에서는 스왑이 안전망이므로 되돌릴 이유는 없고, 기록만 어긋나 있다.
+
+**개발 서버 사양은 정해졌다(2026-09-29).** 세 후보 중 **DB 인스턴스를 따로 띄우는 안**으로 간다. 앱 서버를 키우지 않고 `yeogidam-dev`는 앱만 돌린다. 새 ADR로 남겨야 한다.
 
 ### 인프라 ADR-04 모노레포 브랜치 전략
 
@@ -193,10 +234,11 @@ git rev-list -1 "$SECOND_PARENT" -- 'Backend' ':(exclude)Backend/docs' ':(exclud
 7. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
 8. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
 9. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다.
-10. **MySQL이 없다.** 개발은 EC2 Docker MySQL, 운영은 RDS로 가기로 했고 둘 다 아직 만들지 않았다. 개발 서버 사양 결정이 먼저다.
-11. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다.
-12. **CODEOWNERS와 dependabot이 없다.**
-13. **`backend-cd.yml`이 한 파일에 환경 둘을 담고 있다.** 307줄이고 `github.ref_name == 'be-release'` 삼항이 네 줄에 흩어져 있다(러너 라벨, concurrency group, 표시 이름, Spring 프로필). 환경이 늘면 네 줄을 다 고쳐야 하고 하나만 빠뜨리면 개발 브랜치가 운영 러너로 간다. `deploy.sh`의 프로필 대조가 그걸 잡으려고 있는 장치다. 아래 「나눌 때 참고」 참고.
+10. **MySQL이 없다.** 개발은 새 EC2에 Docker MySQL, 운영은 RDS로 가기로 했고 둘 다 아직 만들지 않았다. 개발용 DB 인스턴스를 먼저 띄워야 한다.
+11. **디스크가 이미 72% 찼다.** 도커 이미지가 하나도 없는데 운영이 5.7G를 쓴다. 이미지 세 개를 보존하려면 1GB 가까이 필요한데 2.3GB밖에 없다. journal에 상한이 없어 256MB까지 자랐고, 운영의 `/home`이 개발보다 1.25GB 크다. 첫 배포 전에 정리해야 한다.
+12. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다.
+13. **CODEOWNERS와 dependabot이 없다.**
+14. **`backend-cd.yml`이 한 파일에 환경 둘을 담고 있다.** 307줄이고 `github.ref_name == 'be-release'` 삼항이 네 줄에 흩어져 있다(러너 라벨, concurrency group, 표시 이름, Spring 프로필). 환경이 늘면 네 줄을 다 고쳐야 하고 하나만 빠뜨리면 개발 브랜치가 운영 러너로 간다. `deploy.sh`의 프로필 대조가 그걸 잡으려고 있는 장치다. 아래 「나눌 때 참고」 참고.
 
 ## `backend-cd.yml`을 나눌 때 참고
 
@@ -223,9 +265,14 @@ backend-common-cd.yml  on: workflow_call, 실제 일을 전부 여기서 한다
 ADR을 고치거나 새로 쓰려면 이유를 알아야 하는데 어디에도 기록이 없다. 빈에게 물어서 채운다.
 
 1. **왜 t4g.small이 아니라 t4g.micro로 만들었나.** 비용 때문이면 새 ADR로 남길 결정이고, 문서를 t4g.small로 적어 놓고 콘솔에서 micro를 고른 것이면 문서 오기다.
-2. **디스크를 왜 8GB로 했나.** ADR-03은 gp3 20GB로 적었다. 생성 화면 기본값을 그대로 둔 것인지 확인한다.
-3. **운영 서버에 스왑을 넣었나.** ADR-03은 선택지 C(`t4g.micro` + 스왑 2GB)를 "배포 중 강제 종료 위험" 때문에 채택하지 않았는데 실물이 t4g.micro다. 스왑이 없으면 그 위험을 그대로 안고 있다.
-4. **개발 서버를 언제 왜 만들었나.** ADR-03은 운영 인스턴스 한 대만 다룬다. 개발 서버는 결정 기록이 없는 리소스다.
-5. **개발은 Docker MySQL, 운영은 RDS로 가른 이유가 무엇인가.** 운영만 관리형으로 두어 백업과 시점 복원 부담을 더는 것이 맞는지 확인한다.
+2. **디스크를 왜 8GB로 했나.** ADR-03은 gp3 20GB로 적었다. 생성 화면 기본값을 그대로 둔 것인지 확인한다. 지금 운영이 72% 찬 상태라 이미지 세 개를 보존하기에 빠듯하다.
+3. **개발 서버를 언제 왜 만들었나.** ADR-03은 운영 인스턴스 한 대만 다룬다. 개발 서버는 결정 기록이 없는 리소스다.
+4. **개발은 Docker MySQL, 운영은 RDS로 가른 이유가 무엇인가.** 운영만 관리형으로 두어 백업과 시점 복원 부담을 더는 것이 맞는지 확인한다.
+5. **운영의 `/home`이 개발보다 1.25GB 큰 이유가 무엇인가.** 러너 작업 디렉터리나 `_diag` 로그가 쌓였을 가능성이 있다.
 
-답이 모이면 **인프라 ADR-06 「서버 구성과 DB 배치」**를 써서 지금 실물을 결정으로 남기고, ADR-03의 사양 부분을 그 문서가 대신하게 한다. 개발 서버 사양(DB 인스턴스를 따로 띄울지, t4g.small로 키울지, 메모리 상한으로 버틸지)도 같이 담는다.
+### 답이 나온 것
+
+- **스왑.** 양쪽 서버에 `/swapfile` 2GB가 붙어 있고 swappiness는 60이다(2026-09-29 실측). ADR-03이 기각한 선택지 C가 그대로 돌고 있다.
+- **개발 서버 사양.** DB 인스턴스를 따로 띄우기로 했다(2026-09-29). `yeogidam-dev`는 앱만 돌린다.
+
+답이 모이면 **인프라 ADR-06 「서버 구성과 DB 배치」**를 써서 지금 실물을 결정으로 남기고, ADR-03의 사양 부분을 그 문서가 대신하게 한다. 개발용 DB를 별도 인스턴스에 두는 결정과 스왑을 쓰는 상태도 같이 담는다.
