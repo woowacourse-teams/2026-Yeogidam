@@ -56,6 +56,13 @@ wait_for_healthy() {
   return 1
 }
 
+# 상한이 없으면 메모리가 모자랄 때 커널이 점수를 매겨 희생자를 고르므로 앱이 아니라
+# 러너가 죽을 수 있고, 러너가 죽으면 재배포도 롤백도 못 한다. 상한을 걸면 한도를 넘은
+# 컨테이너가 먼저 죽으므로 러너는 살아남는다.
+#
+# BACKEND_MEMORY_SWAP_LIMIT은 스왑만의 값이 아니라 메모리와 스왑을 합친 총량이다.
+# 비워 두면 도커가 상한의 두 배를 잡아 스왑 몫이 언제나 상한과 같아지므로, 나중에
+# 메모리만 올리려 해도 스왑이 따라 올라간다. 그래서 두 값을 따로 받는다.
 start_container() {
   local image="$1"
 
@@ -64,6 +71,11 @@ start_container() {
     --restart unless-stopped \
     --env-file "$BACKEND_ENV_FILE" \
     --publish "${BACKEND_BIND_ADDRESS}:${BACKEND_HOST_PORT}:${CONTAINER_PORT}" \
+    --memory "$BACKEND_MEMORY_LIMIT" \
+    --memory-swap "$BACKEND_MEMORY_SWAP_LIMIT" \
+    --log-driver json-file \
+    --log-opt "max-size=${BACKEND_LOG_MAX_SIZE}" \
+    --log-opt "max-file=${BACKEND_LOG_MAX_FILE}" \
     --pull never \
     "$image" >/dev/null
 }
@@ -255,6 +267,23 @@ require_value "BACKEND_CONTAINER_NAME" "${BACKEND_CONTAINER_NAME:-}"
 require_value "BACKEND_BIND_ADDRESS" "${BACKEND_BIND_ADDRESS:-}"
 require_value "BACKEND_HEALTH_TIMEOUT_SECONDS" "${BACKEND_HEALTH_TIMEOUT_SECONDS:-}"
 require_value "EXPECTED_SPRING_PROFILE" "${EXPECTED_SPRING_PROFILE:-}"
+require_value "BACKEND_MEMORY_LIMIT" "${BACKEND_MEMORY_LIMIT:-}"
+require_value "BACKEND_MEMORY_SWAP_LIMIT" "${BACKEND_MEMORY_SWAP_LIMIT:-}"
+require_value "BACKEND_LOG_MAX_SIZE" "${BACKEND_LOG_MAX_SIZE:-}"
+require_value "BACKEND_LOG_MAX_FILE" "${BACKEND_LOG_MAX_FILE:-}"
+
+# 값이 도커 표기가 아니면 docker run이 컨테이너를 만들기 직전에 실패한다. 그때는 이미
+# 기존 컨테이너를 rename한 뒤라 롤백 경로를 타므로, 오타 하나가 배포 실패로 기록된다.
+# 그래서 시작하기 전에 형식을 본다.
+for name in BACKEND_MEMORY_LIMIT BACKEND_MEMORY_SWAP_LIMIT BACKEND_LOG_MAX_SIZE; do
+  if [[ ! "${!name}" =~ ^[0-9]+[bkmgBKMG]$ ]]; then
+    fail "${name}이 도커 크기 표기가 아닙니다. 512m처럼 숫자와 단위로 적어 주세요. 지금 값은 ${!name}입니다."
+  fi
+done
+
+if [[ ! "$BACKEND_LOG_MAX_FILE" =~ ^[1-9][0-9]*$ ]]; then
+  fail "BACKEND_LOG_MAX_FILE은 1 이상의 정수여야 합니다. 지금 값은 ${BACKEND_LOG_MAX_FILE}입니다."
+fi
 
 ROLLBACK_CONTAINER_NAME="${BACKEND_CONTAINER_NAME}-rollback"
 

@@ -252,6 +252,12 @@ jobs:
       BACKEND_CONTAINER_NAME: ${{ vars.BACKEND_CONTAINER_NAME || 'yeogidam-backend' }}
       BACKEND_BIND_ADDRESS: ${{ vars.BACKEND_BIND_ADDRESS || '127.0.0.1' }}
       BACKEND_HEALTH_TIMEOUT_SECONDS: ${{ vars.BACKEND_HEALTH_TIMEOUT_SECONDS || '150' }}
+      # t4g.micro 910Mi에서 러너와 dockerd 등이 고정으로 280MB를 쓰므로 앱에 512MB를 준다.
+      # SWAP_LIMIT은 메모리와 스왑의 합계라서 768m이면 스왑 몫이 256MB다.
+      BACKEND_MEMORY_LIMIT: ${{ vars.BACKEND_MEMORY_LIMIT || '512m' }}
+      BACKEND_MEMORY_SWAP_LIMIT: ${{ vars.BACKEND_MEMORY_SWAP_LIMIT || '768m' }}
+      BACKEND_LOG_MAX_SIZE: ${{ vars.BACKEND_LOG_MAX_SIZE || '10m' }}
+      BACKEND_LOG_MAX_FILE: ${{ vars.BACKEND_LOG_MAX_FILE || '3' }}
 
     steps:
       - name: Checkout Deployment Script
