@@ -111,8 +111,10 @@ android {
         applicationId "com.yeogidamm.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "1.1.0"
+        // Beta Actions 실행에서 배정한 번호를 versionCode에 사용하고, 로컬 빌드는 프로젝트 기본값을 유지한다.
+        versionCode = System.getenv("APP_BUILD_NUMBER") ? Integer.parseInt(System.getenv("APP_BUILD_NUMBER")) : 2
+        // Beta builds receive the manually entered app version; local builds keep their default.
+        versionName = System.getenv("APP_VERSION") ?: "1.1.0"
         buildConfigField "String", "KAKAO_NATIVE_APP_KEY", "\"${escapedKakaoNativeAppKey}\""
         buildConfigField "String", "SUPABASE_URL", "\"${escapedSupabaseUrl}\""
         buildConfigField "String", "SUPABASE_PUBLISHABLE_KEY", "\"${escapedSupabasePublishableKey}\""
@@ -124,15 +126,23 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // The beta workflow creates this keystore in the runner from a GitHub Secret.
+            def uploadKeystore = System.getenv("ANDROID_UPLOAD_KEYSTORE_PATH")
+            if (uploadKeystore) {
+                storeFile file(uploadKeystore)
+                storePassword System.getenv("ANDROID_UPLOAD_STORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_UPLOAD_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
