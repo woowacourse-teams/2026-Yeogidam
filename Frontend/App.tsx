@@ -654,7 +654,6 @@ function App() {
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
           onOpenInbox={() => openMainScreen('inBox')}
           onSharedResultConsumed={clearShareResult}
-          onSharedResultDismissed={clearShareResult}
         />
       );
     }
