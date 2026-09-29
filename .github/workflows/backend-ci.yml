@@ -1,26 +1,23 @@
 name: Backend CI
 
+# PR 검증만 맡는다. be-dev에 머지된 뒤의 검증은 backend-cd.yml의 verify 잡이 한다.
+# 여기에 push 트리거를 두면 머지 한 번에 같은 테스트가 두 번 돈다.
+#
+# paths를 걸지 않는다. 이 잡(Build Pull Request)을 be-dev의 필수 체크로 잡으면,
+# paths에 안 걸린 PR은 워크플로가 돌지 않아 체크가 생기지 않고 깃허브가 계속 기다린다.
+# 문서만 고친 PR이 영원히 머지되지 않는다.
 on:
   pull_request:
     branches:
       - be-dev
-    paths:
-      - Backend/**
-      - .github/workflows/backend-ci.yml
-      - .github/workflows/backend-cd.yml
-  push:
-    branches:
-      - be-dev
-    paths:
-      - Backend/**
-      - .github/workflows/backend-ci.yml
-      - .github/workflows/backend-cd.yml
 
 permissions:
   contents: read
 
+# pull_request는 synchronize에도 반응하므로 PR에 커밋을 올릴 때마다 돈다.
+# 연달아 푸시하면 앞 실행을 취소하고 마지막 것만 끝까지 간다.
 concurrency:
-  group: backend-ci-${{ github.event.pull_request.number || github.ref }}
+  group: backend-ci-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:

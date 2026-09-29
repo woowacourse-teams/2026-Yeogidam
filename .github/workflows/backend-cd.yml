@@ -3,14 +3,14 @@ name: Backend CD
 # be-dev에 들어가면 개발 서버로, be-release에 들어가면 운영으로 배포한다.
 # 같은 이미지를 두 환경이 쓰고 환경 차이는 각 서버의 /opt/yeogidam/backend.env가 낸다.
 on:
+  # PR 쪽에는 paths를 걸지 않는다. be-release의 필수 체크가 Backend Verification인데,
+  # paths에 안 걸리면 워크플로가 아예 돌지 않아 체크가 생기지 않는다. 그러면 깃허브는
+  # 체크를 기다리는 상태로 두어 문서만 고친 PR이 영원히 머지되지 않는다.
+  # be-release로 가는 PR은 출시 때만 생기므로 매번 검증해도 부담이 없다.
   pull_request:
     branches:
       - be-release
-    paths:
-      - Backend/**
-      - "!Backend/docs/**"
-      - "!Backend/README.md"
-      - .github/workflows/backend-cd.yml
+  # 배포를 거는 push 쪽은 그대로 둔다. 문서만 고쳤을 때 배포가 나가지 않게 한다.
   push:
     branches:
       - be-dev
@@ -61,10 +61,15 @@ jobs:
     if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
+    # hotfix 판정에서 커밋에 연결된 PR의 라벨과 head 브랜치를 읽어야 한다.
+    permissions:
+      contents: read
+      pull-requests: read
     env:
       IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE }}
       IMAGE_PLATFORM: linux/arm64
-      IMAGE_TAG: ${{ vars.DOCKERHUB_IMAGE }}:${{ github.sha }}
+      # IMAGE_TAG는 Resolve Source Commit 스텝이 정해 GITHUB_ENV로 넘긴다.
+      # be-dev면 자기 SHA, be-release면 승격 대상 SHA다.
 
     outputs:
       image_reference: ${{ steps.result.outputs.image_reference }}
@@ -96,10 +101,18 @@ jobs:
             exit 1
           fi
 
+      # 승격 판정이 머지 커밋의 부모를 읽고 be-dev와 조상 관계를 따지므로 이력이 다 필요하다.
       - name: Checkout Repository
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve Source Commit
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash Backend/scripts/resolve-source-commit.sh
 
       - name: Log In to Docker Hub
         uses: docker/login-action@v4
@@ -112,6 +125,8 @@ jobs:
 
       - name: Check Existing SHA Image
         id: existing
+        env:
+          DEPLOY_MODE: ${{ steps.source.outputs.mode }}
         run: |
           set +e
           INSPECT_RESULT="$(docker buildx imagetools inspect --format '{{json .Manifest}}' "$IMAGE_TAG" 2>&1)"
@@ -132,6 +147,14 @@ jobs:
           fi
 
           if [[ "$INSPECT_RESULT" == *": not found"* || "$INSPECT_RESULT" == *"manifest unknown"* ]]; then
+            # 승격 모드에서는 be-dev가 만들어 둔 이미지가 반드시 있어야 한다.
+            # 없다는 것은 그 커밋의 be-dev 배포가 실패했거나 아직 안 끝났다는 뜻이다.
+            # 여기서 빌드로 흘러가면 검증하지 않은 이미지가 운영에 올라간다.
+            if [ "$DEPLOY_MODE" = "promote" ]; then
+              echo "::error::승격할 이미지 ${IMAGE_TAG}를 찾지 못했습니다. be-dev에서 그 커밋의 배포가 끝났는지 확인해 주세요."
+              exit 1
+            fi
+
             printf 'exists=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -180,10 +203,14 @@ jobs:
         env:
           IMAGE_DIGEST: ${{ steps.digest.outputs.value }}
           EXISTING_IMAGE: ${{ steps.existing.outputs.exists }}
+          DEPLOY_MODE: ${{ steps.source.outputs.mode }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
         run: |
           IMAGE_REFERENCE="${IMAGE_NAME}@${IMAGE_DIGEST}"
 
-          if [ "$EXISTING_IMAGE" = "true" ]; then
+          if [ "$DEPLOY_MODE" = "promote" ]; then
+            RESULT="be-dev 이미지 승격"
+          elif [ "$EXISTING_IMAGE" = "true" ]; then
             RESULT="기존 이미지 재사용"
           else
             RESULT="신규 이미지 발행"
@@ -194,6 +221,7 @@ jobs:
           {
             printf '## Backend Docker 이미지 발행\n\n'
             printf -- '- Git SHA: `%s`\n' "$GITHUB_SHA"
+            printf -- '- 이미지 기준 커밋: `%s`\n' "$SOURCE_SHA"
             printf -- '- 태그: `%s`\n' "$IMAGE_TAG"
             printf -- '- 배포 참조: `%s`\n' "$IMAGE_REFERENCE"
             printf -- '- 플랫폼: `%s`\n' "$IMAGE_PLATFORM"
