@@ -568,14 +568,17 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           ...retriedReel,
           instagram_title:
             retriedReel.instagram_title ??
-            current.find(item => item.id === temporaryId)?.instagram_title,
+            current.find(item => item.id === temporaryId)?.instagram_title ??
+            null,
           instagram_description:
             retriedReel.instagram_description ??
-            current.find(item => item.id === temporaryId)?.instagram_description,
+            current.find(item => item.id === temporaryId)?.instagram_description ??
+            null,
           instagram_thumbnail_url:
             retriedReel.instagram_thumbnail_url ??
             current.find(item => item.id === temporaryId)
-              ?.instagram_thumbnail_url,
+              ?.instagram_thumbnail_url ??
+            null,
           processing_status: response.status,
           failure_reason: response.failureReason ?? retriedReel.failure_reason,
         };
