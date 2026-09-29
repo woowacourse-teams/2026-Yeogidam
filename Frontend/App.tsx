@@ -1,11 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { usePostHog } from 'posthog-react-native';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import { configureDataSources } from './src/app/configureDataSources';
-import { PostHogRoot } from './src/app/PostHogRoot';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
@@ -71,9 +69,7 @@ type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
 
 configureDataSources();
 
-function AppContent() {
-  const posthog = usePostHog();
-  const posthogLogger = posthog.logger;
+function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
@@ -460,15 +456,8 @@ function AppContent() {
           return;
         }
 
-        const profileLoadError = error as ProfileApiError;
-
-        posthogLogger.warn('profile load failed', {
-          error_code: profileLoadError.errorCode,
-          http_status: profileLoadError.status,
-          source: 'initial_load',
-        });
         setCurrentProfile(null);
-        setProfileError(profileLoadError);
+        setProfileError(error as ProfileApiError);
       })
       .finally(() => {
         if (!isMounted) {
@@ -481,7 +470,7 @@ function AppContent() {
     return () => {
       isMounted = false;
     };
-  }, [flowState.kind, posthogLogger]);
+  }, [flowState.kind]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider) {
@@ -510,10 +499,6 @@ function AppContent() {
   };
 
   const handleCompleteGuide = () => {
-    posthog.capture('app_guide_completed');
-    posthogLogger.info('onboarding guide completed', {
-      flow: 'onboarding',
-    });
     setHasCompletedGuide(true);
     completeAppGuide();
   };
@@ -562,7 +547,6 @@ function AppContent() {
 
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
     await deleteAccount(payload);
-    posthog.capture('account_deleted');
 
     setCurrentProfile(null);
     setProfileError(null);
@@ -581,15 +565,8 @@ function AppContent() {
 
       setCurrentProfile(profile);
     } catch (error) {
-      const profileLoadError = error as ProfileApiError;
-
-      posthogLogger.warn('profile load failed', {
-        error_code: profileLoadError.errorCode,
-        http_status: profileLoadError.status,
-        source: 'retry',
-      });
       setCurrentProfile(null);
-      setProfileError(profileLoadError);
+      setProfileError(error as ProfileApiError);
     } finally {
       setIsProfileLoading(false);
     }
@@ -801,10 +778,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function App() {
-  return (
-    <PostHogRoot>
-      <AppContent />
-    </PostHogRoot>
-  );
-}
+export default App;

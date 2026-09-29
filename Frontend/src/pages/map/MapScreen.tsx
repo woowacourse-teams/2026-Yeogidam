@@ -14,7 +14,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usePostHog } from 'posthog-react-native';
 
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
@@ -51,7 +50,6 @@ export function MapScreen({
   onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
-  const posthog = usePostHog();
   const [locationGranted, setLocationGranted] = useState(false);
   useEffect(() => {
     const unsubscribe = subscribeLocationPermission(setLocationGranted);
@@ -213,9 +211,6 @@ export function MapScreen({
         ),
     );
 
-    posthog.capture('map_search_performed', {
-      result_count: places.length,
-    });
     setSearchedPlaces(places);
     setSearchResultSignal(signal => signal + 1);
     if (places.length >= 2) {

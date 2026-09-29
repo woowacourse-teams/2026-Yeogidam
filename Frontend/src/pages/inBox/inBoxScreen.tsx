@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import { usePostHog } from 'posthog-react-native';
 
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
@@ -72,7 +71,6 @@ type InBoxScreenProps = {
 };
 
 export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps) {
-  const posthog = usePostHog();
   const {bottom: bottomInset} = useSafeAreaInsets();
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
   const [items, setItems] = useState<InboxReel[]>([]);
@@ -221,10 +219,6 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
     setIsResolving(true);
     try {
       await resolveQueueItems(queueItemIds, action);
-      posthog.capture('queue_items_resolved', {
-        action: action.toLowerCase(),
-        item_count: queueItemIds.length,
-      });
       setSelectedPlaceIds([]);
       await loadInbox(true);
     } catch (error) {
