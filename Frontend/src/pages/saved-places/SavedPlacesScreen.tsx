@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePostHog } from 'posthog-react-native';
 import {v4 as uuidv4} from 'uuid';
 import { supabase } from '../../lib/auth/supabase';
 
@@ -199,6 +200,7 @@ export function SavedPlacesScreen({
   places: providedPlaces,
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
+  const posthog = usePostHog();
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -577,6 +579,12 @@ export function SavedPlacesScreen({
     setLinkError(null);
     try {
       const response = await saveContent(linkValue, 'url_input', clientRequestId);
+      posthog.capture('content_save_requested', {
+        processing_status: response.status,
+        reused: response.reused,
+        save_mode: response.saveMode.toLowerCase(),
+        source: 'url_input',
+      });
       const nextReel: ReelProcessingStatus = {
         id: response.reelId,
         processing_status: response.status,
@@ -909,6 +917,9 @@ export function SavedPlacesScreen({
     setDeleteError(null);
     try {
       await deleteSavedPlaces(savedPlaceIds);
+      posthog.capture('saved_places_deleted', {
+        place_count: savedPlaceIds.length,
+      });
       const deletedIds = new Set(savedPlaceIds);
       setPlaces(current =>
         current.filter(place => !deletedIds.has(place.savedPlaceId ?? '')),
@@ -926,6 +937,9 @@ export function SavedPlacesScreen({
           refreshedPlaces.every(place => !deletedIds.has(place.savedPlaceId ?? ''));
 
         if (isDeletionConfirmed) {
+          posthog.capture('saved_places_deleted', {
+            place_count: savedPlaceIds.length,
+          });
           setSelectedPlaceIds(new Set());
           setIsEditing(false);
           onEditModeChange?.(false);
@@ -946,6 +960,7 @@ export function SavedPlacesScreen({
     onAuthenticationRequired,
     onEditModeChange,
     places,
+    posthog,
     selectedPlaceIds,
   ]);
 

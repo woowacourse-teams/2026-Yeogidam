@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
+import { usePostHog } from 'posthog-react-native';
 
 import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
 import type {
@@ -24,6 +25,7 @@ export function PlaceDetailScreen({
   place,
   onAuthenticationRequired,
 }: PlaceDetailScreenProps) {
+  const posthog = usePostHog();
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
@@ -69,6 +71,7 @@ export function PlaceDetailScreen({
     setDeleteError(null);
     try {
       await deleteSavedPlaces([place.savedPlaceId]);
+      posthog.capture('place_deleted');
       setIsActionSheetVisible(false);
       onBack();
     } catch (nextError) {
@@ -77,6 +80,7 @@ export function PlaceDetailScreen({
         try {
           const savedPlaces = await getSavedPlaces();
           if (!savedPlaces.some(savedPlace => savedPlace.id === place.savedPlaceId)) {
+            posthog.capture('place_deleted');
             setIsActionSheetVisible(false);
             onBack();
             return;
@@ -93,7 +97,7 @@ export function PlaceDetailScreen({
     } finally {
       setIsDeleting(false);
     }
-  }, [isDeleting, onAuthenticationRequired, onBack, place.savedPlaceId]);
+  }, [isDeleting, onAuthenticationRequired, onBack, place.savedPlaceId, posthog]);
 
   const confirmDelete = useCallback(() => {
     if (isDeleting) {

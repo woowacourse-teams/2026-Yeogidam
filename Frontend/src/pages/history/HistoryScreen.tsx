@@ -10,6 +10,7 @@ import {
   View,
   Animated,
 } from 'react-native';
+import { usePostHog } from 'posthog-react-native';
 import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
 import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
@@ -326,6 +327,7 @@ function HistoryFailureDetail({
   reel: HistoryReel;
   onRetry: () => Promise<void>;
 }) {
+  const posthog = usePostHog();
   const [reported, setReported] = useState(false);
   const { detail } = useHistoryReelDetail(reel.id);
   const displayReel = detail ?? reel;
@@ -399,6 +401,9 @@ function HistoryFailureDetail({
                 onPress: () => {
                   setReported(true);
                   reportHistoryReel(reel.id)
+                    .then(() => {
+                      posthog.capture('history_failure_reported');
+                    })
                     .catch(() => {
                       setReported(false);
                       Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
@@ -425,6 +430,7 @@ function HistoryFailureDetail({
 }
 
 export function HistoryScreen({ onBack }: HistoryScreenProps) {
+  const posthog = usePostHog();
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
   const shouldRestoreScrollRef = useRef(false);
@@ -525,6 +531,9 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
 
     try {
       const response = await saveContent(reel.instagram_url, 'url_input');
+      posthog.capture('history_retry_requested', {
+        processing_status: response.status,
+      });
       // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
       // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
       // The newly created retry is already visible in this screen, so it
@@ -595,7 +604,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       });
       Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
     }
-  }, []);
+  }, [posthog]);
 
   useEffect(() => {
     void load();
