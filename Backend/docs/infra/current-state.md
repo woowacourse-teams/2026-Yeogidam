@@ -4,63 +4,6 @@
 
 마지막 갱신 2026-09-29.
 
-## 서버
-
-| | 운영 | 개발 | 개발 DB |
-| --- | --- | --- | --- |
-| 이름 | `yeogidam-prod` | `yeogidam-dev` | 아직 없음 |
-| 인스턴스 | t4g.micro | t4g.micro | 만들 예정 |
-| 메모리 | 1GiB (실측 910Mi) | 1GiB (실측 910Mi) | |
-| 디스크 | 8GB | 8GB | |
-| 스왑 | `/swapfile` 2GB, swappiness 60 | `/swapfile` 2GB, swappiness 60 | |
-| OS와 아키텍처 | AL2023, arm64 | AL2023, arm64 | |
-| cgroup | v2 | v2 | |
-| DDNS | `yeogidam` | `yeogidam-dev` | |
-| 러너 라벨 | `backend-production` | `backend-development` | 없음 |
-| 러너 계정 | `github-runner` (docker 그룹) | `github-runner` (docker 그룹) | |
-| 올라가는 것 | 앱 컨테이너만 | 앱 컨테이너만 | MySQL 컨테이너 |
-| DB | RDS 예정, 아직 없음 | 오른쪽 인스턴스를 본다 | Docker MySQL 예정 |
-
-**개발용 MySQL은 `yeogidam-dev`가 아니라 새 EC2에 띄운다(2026-09-29 확정).** 910Mi짜리 한 대에 JVM과 MySQL을 같이 올리면 모자란다. 앱과 DB를 나누면 개발 서버는 앱만 돌리므로 운영과 구성이 같아진다. 비비디 팀도 앱과 DB를 다른 인스턴스로 나눴다.
-
-[인프라 ADR-03](adr-03-ec2-architecture.md)이 적은 t4g.small과 gp3 20GB와 다르다. 실물은 t4g.micro에 8GB이고, ADR-03이 기각한 선택지 C(`t4g.micro` + 스왑 2GB)가 그대로 돌고 있다. 아래 「확인이 필요한 것」 참고.
-
-보안 그룹은 `project-public`이고 SSH(22번)는 우테코 캠퍼스와 VPN 회선에서만 열린다. 밖에서는 AWS Session Manager로 붙는다.
-
-### 메모리 실측 (2026-09-29)
-
-양쪽 서버가 거의 같다.
-
-```
-total 910Mi   used 275Mi   available 525Mi   swap 2.0Gi (거의 안 씀)
-
-Runner.Listener   146MB
-dockerd            33MB   (개발은 55MB)
-containerd         22MB   (개발은 34MB)
-systemd-journal    25MB
-ssm-agent          37MB
-systemd            14MB
-                  ─────
-                  ~280MB 고정
-```
-
-앱 컨테이너에 줄 수 있는 것이 500MB 남짓이다. `cgroup2fs`라 `--memory-swap`이 기대대로 동작한다.
-
-### 디스크 실측 (2026-09-29)
-
-**도커 이미지가 하나도 없는데 운영이 이미 72% 찼다.**
-
-| | 운영 | 개발 |
-| --- | --- | --- |
-| 사용 | 5.7G / 8.0G (72%) | 4.9G / 8.0G (61%) |
-| `/usr` | 1.8G | 1.8G |
-| `/home` | **1.7G** | 449M |
-| `/var` | 508M | 429M |
-| journal | 256M | 185M |
-| 도커 이미지 | 0개 | 0개 |
-
-`current`, `previous`, `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. 운영에 2.3GB밖에 없어 빠듯하다. journal에 상한이 없어 계속 자라고, 운영의 `/home`이 개발보다 1.25GB 큰 이유는 아직 확인하지 않았다.
-
 ## 배포 경로
 
 ```
@@ -124,17 +67,19 @@ JWT_SECRET
 | 삭제 금지 목록 먼저 만들고 정리 | 됨. `prune_backend_images`가 보존 대상을 못 찾으면 정리를 건너뛴다 |
 | `docker image prune` 금지 | 됨. `yeogidam/backend` 저장소만 지운다 |
 | 헬스 실패 시 직전 이미지로 롤백 | 됨. `rollback_and_fail`이 `previous`로 복구한다 |
-| **Build Once, Promote** | **안 됨.** 아래 참고 |
+| **Build Once, Promote** | **됨(2026-09-29).** `resolve-source-commit.sh`가 승격을 판정한다. 아래 참고 |
 | 배포 이력을 서버 외부에 기록 | 안 됨. `GITHUB_STEP_SUMMARY`까지다 |
 | 동일 Git SHA 태그 재push 차단 | 부분. `Check Existing SHA Image`가 있으면 재사용하고 덮어쓰지는 않는다 |
 | 레지스트리 보존 정책 | 안 됨 |
 | DB 마이그레이션 호환성 정책 | 안 됨. 스키마는 dev에 손으로 적용한다 |
 
-#### Build Once, Promote를 못 지키는 이유
+#### Build Once, Promote를 지키는 방법
 
-`publish` 잡이 이미지 태그를 `${{ vars.DOCKERHUB_IMAGE }}:${{ github.sha }}`로 만들고, 그 태그가 레지스트리에 이미 있으면 재사용한다. 그런데 `be-dev`에서 `be-release`로 머지하면 머지 커밋이든 squash든 rebase든 **새 커밋 SHA가 생긴다.** 그래서 운영 배포 때 태그를 찾지 못하고 새로 빌드한다. 도커 빌드는 재현 가능하지 않으므로 digest가 달라지고, 개발에서 검증한 그 이미지가 운영에 가지 않는다. ADR-01이 막으려던 상황이 그대로 일어난다.
+**원래 문제는 이랬다.** `publish` 잡이 이미지 태그를 `${{ vars.DOCKERHUB_IMAGE }}:${{ github.sha }}`로 만들고 그 태그가 레지스트리에 있으면 재사용하는데, `be-dev`에서 `be-release`로 머지하면 **새 커밋 SHA가 생긴다.** 그래서 운영 배포 때 태그를 못 찾고 새로 빌드했다. 도커 빌드는 재현 가능하지 않으므로 digest가 달라지고, 개발에서 검증한 그 이미지가 운영에 가지 않는다.
 
-고치려면 승격 판정을 넣어야 한다. `be-release`에 들어온 커밋이 부모 두 개인 머지 커밋이면 두 번째 부모를 승격 대상으로 잡고, 그 커밋이 정말 `be-dev`의 조상인지 `git merge-base --is-ancestor`로 확인한 뒤 재빌드 없이 그 이미지를 배포한다. 부모가 하나이면 hotfix 경로인지 확인한 뒤에만 새로 빌드하고, 둘 다 아니면 배포를 거부한다. 별도 ADR로 다룬다.
+**2026-09-29에 `Backend/scripts/resolve-source-commit.sh`로 해결했다.** `be-release`에 들어온 커밋의 두 번째 부모를 승격 대상으로 잡고, 그 커밋이 정말 `be-dev`의 조상인지 `git merge-base --is-ancestor`로 확인한 뒤 재빌드 없이 그 이미지를 배포한다. 조상 관계를 부모 수보다 **먼저** 보기 때문에, hotfix를 머지 커밋으로 넣어도 승격으로 새어 나가지 않는다. 결정은 [인프라 ADR-05](adr-05-branch-strategy.md)에 있고 판정표는 아래 「승격 판정」에 있다.
+
+**아직 한 번도 돌지 않았다.** `be-release`에 머지 커밋이 한 번 생겨야 확인된다.
 
 ### 인프라 ADR-02 CI/CD 실행 전략
 
@@ -150,11 +95,11 @@ JWT_SECRET
 | 배포 전 프로필 대조 | 됨(문서에 없던 추가). env 파일의 `SPRING_PROFILES_ACTIVE`를 기대값과 맞춰 본다 |
 | **Production Environment 승인** | **안 됨.** `deploy` 잡에 `environment:`가 없다 |
 | **외부 Action을 commit SHA로 고정** | **안 됨.** `actions/checkout@v7`처럼 태그로 고정되어 있다 |
-| **`GITHUB_TOKEN`을 Job별 최소 범위로** | **안 됨.** `permissions`가 워크플로 레벨 한 곳뿐이다 |
-| CODEOWNERS와 필수 리뷰 | 안 됨. CODEOWNERS 파일이 없다 |
+| `GITHUB_TOKEN`을 Job별 최소 범위로 | 부분(2026-09-29). `publish` 잡만 `contents: read`와 `pull-requests: read`로 좁혔다. `verify`와 `deploy`는 워크플로 레벨을 따른다 |
+| CODEOWNERS와 필수 리뷰 | 부분. 필수 리뷰는 ruleset으로 강제된다(be-dev와 be-release 승인 1개, main 2개). CODEOWNERS 파일은 없다 |
 | 배포 이력을 서버 외부에 기록 | 안 됨(ADR-01과 같은 항목) |
 | Runner 복구 Runbook | 안 됨 |
-| 자원과 OOM 모니터링 | 안 됨. 컨테이너에 메모리 상한도 로그 로테이션도 없다 |
+| 자원과 OOM 모니터링 | 부분(2026-09-29). 상한과 로그 로테이션은 코드에 넣었다(512m / 768m / 10m 3개). 모니터링은 없고 배포도 아직 안 돌았다 |
 
 ### 인프라 ADR-03 EC2 인스턴스 아키텍처
 
@@ -174,7 +119,7 @@ ARM64(Graviton)를 쓴다는 결정은 맞고 구현도 따라왔다. CI 러너�
 
 **ADR-03이 기각한 선택지 C가 실제로 돌고 있다.** 선택지 C는 `t4g.micro`에 스왑 2GB를 붙이는 안이었고, "배포 시점마다 응답이 느려진다"는 이유로 채택하지 않았다. 그런데 실물은 t4g.micro이고 양쪽 서버에 `/swapfile` 2GB가 붙어 있다. 910Mi밖에 없는 기계에서는 스왑이 안전망이므로 되돌릴 이유는 없고, 기록만 어긋나 있다.
 
-**개발 서버 사양은 정해졌다(2026-09-29).** 세 후보 중 **DB 인스턴스를 따로 띄우는 안**으로 간다. 앱 서버를 키우지 않고 `yeogidam-dev`는 앱만 돌린다. 새 ADR로 남겨야 한다.
+**개발 서버 사양은 정해졌고 구축까지 끝났다(2026-09-29).** 세 후보 중 **DB 인스턴스를 따로 띄우는 안**으로 갔다. 앱 서버를 키우지 않고 `yeogidam-dev`는 앱만 돌리며, `yeogidam-dev-db`가 MySQL을 맡는다. 새 ADR로 남겨야 한다.
 
 ### 인프라 ADR-04 모노레포 브랜치 전략
 
@@ -191,7 +136,10 @@ Superseded다. [인프라 ADR-05](adr-05-branch-strategy.md)가 대신한다.
 | 머지 방식 강제 | 됨(2026-09-29). ruleset `Backend Release Protection`의 `allowed_merge_methods`가 `["merge"]`다 |
 | `hotfix` 라벨 | 됨(2026-09-29) |
 | `be-release` 필수 체크 | 됨(2026-09-29). `Backend Verification`과 `Require branches to be up to date` |
-| `be-dev` 브랜치 보호 | 안 됨. 보호가 아예 없다 |
+| `be-dev` 브랜치 보호 | 됨(2026-09-29). ruleset `Backend Development Protection`. 삭제와 강제 푸시와 재생성 금지, PR 필수에 승인 1개, 머지 방식은 **squash만**, 필수 체크 `Build Pull Request`에 최신 base 요구 |
+| `main` 브랜치 보호 | 됨(2026-09-29). ruleset `Protect main`. 삭제와 강제 푸시 금지, PR 필수에 승인 2개, 머지 방식은 **merge만**, 필수 체크 `Require develop source branch` |
+
+세 브랜치의 머지 방식이 서로 다른 것은 실수가 아니라 승격 때문이다. `be-dev`가 squash여야 `rev-list`가 이미지 있는 커밋을 돌려주고, `be-release`가 merge여야 두 번째 부모를 읽을 수 있다. `main`이 merge인 것은 이력을 잇기 위해서다. squash로 넣으면 공통 조상이 움직이지 않아 다음 출시 PR마다 이전 커밋이 전부 다시 올라온다.
 
 ### 승격 판정
 
@@ -222,22 +170,23 @@ git rev-list -1 "$SECOND_PARENT" -- 'Backend' ':(exclude)Backend/docs' ':(exclud
 
 급한 순서다.
 
-1. **컨테이너 자원 상한과 로그 로테이션이 없다.** t4g.micro 1GiB에 디스크 8GiB라 배포하면 OOM으로 죽거나 로그가 디스크를 채운다. `deploy.sh`의 `docker run`에 `--memory`와 `--log-opt`를 붙이면 된다.
-2. **앞단이 없다.** 컨테이너가 `127.0.0.1`에 묶여 밖에서 닿지 않는다. nginx와 TLS를 올리거나 바인드 주소를 바꿔야 클라이언트가 QA를 할 수 있다. 안드로이드와 iOS가 평문 HTTP를 기본으로 막으므로 클라이언트 설정 확인이 먼저다.
-3. **배포가 한 번도 돌지 않았다.** `backend-cd.yml`이 아직 `be-dev`에도 `be-release`에도 없어서 `Backend CD` 워크플로에 실행 이력이 없다. 그래서 아래 셋은 코드만 있고 실제로 동작하는지 모른다.
+1. **앞단이 없다.** 컨테이너가 `127.0.0.1`에 묶여 밖에서 닿지 않아, 지금 배포해도 클라이언트가 QA를 할 수 없다. 안드로이드와 iOS가 평문 HTTP를 기본으로 막으므로 nginx와 TLS가 한 묶음이다. 2026-09-29에 `project-public`의 80과 443이 열려 있고 DNS가 dev EIP를 가리키는 것까지 확인했으니, 남은 것은 서버에 nginx와 certbot을 올리는 일이다.
+2. **배포가 한 번도 돌지 않았다.** `backend-cd.yml`이 아직 `be-dev`에도 `be-release`에도 없어서 `Backend CD` 워크플로에 실행 이력이 없다. 그래서 아래 넷은 코드만 있고 실제로 동작하는지 모른다.
+   - **컨테이너 자원 상한과 로그 로테이션.** 2026-09-29에 `deploy.sh`와 `backend-cd.yml`과 `Dockerfile`에 넣었다(상한 512m, 스왑 몫 256MB, 로그 10m 3개, `MaxRAMPercentage=50`). 같은 방식이 `yeogidam-dev-db`에서는 실제로 걸리는 것을 확인했다.
    - **롤백.** 첫 배포에는 되돌릴 이전 컨테이너가 없으므로 두 번째 배포부터 확인된다.
    - **`be-release` 승격.** 머지 커밋이 한 번 생겨야 판정이 돈다.
    - **이미지 정리.** 보존 대상이 셋 다 생긴 뒤에야 지울 것이 남는다.
-4. **관측이 없다.** actuator가 liveness만 열고 metrics는 닫혀 있다. 로그 보존, 대시보드 지표, 실패 알림이 스프린트 1 조건인데 셋 다 없다.
-5. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다.
-6. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
-7. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
-8. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
-9. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다.
-10. **MySQL이 없다.** 개발은 새 EC2에 Docker MySQL, 운영은 RDS로 가기로 했고 둘 다 아직 만들지 않았다. 개발용 DB 인스턴스를 먼저 띄워야 한다.
-11. **디스크가 이미 72% 찼다.** 도커 이미지가 하나도 없는데 운영이 5.7G를 쓴다. 이미지 세 개를 보존하려면 1GB 가까이 필요한데 2.3GB밖에 없다. journal에 상한이 없어 256MB까지 자랐고, 운영의 `/home`이 개발보다 1.25GB 크다. 첫 배포 전에 정리해야 한다.
-12. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다.
-13. **CODEOWNERS와 dependabot이 없다.**
+3. **관측이 없다.** actuator가 liveness만 열고 metrics는 닫혀 있다. 로그 보존, 대시보드 지표, 실패 알림이 스프린트 1 조건인데 셋 다 없다.
+4. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
+5. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
+6. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
+7. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
+8. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 깃허브 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
+9. **운영 DB가 없다.** 개발 DB는 2026-09-29에 `yeogidam-dev-db`에 Docker MySQL로 띄웠고 스키마까지 넣었다. 운영은 RDS로 가기로 했는데 아직 만들지 않았다. 마이그레이션 도구가 없어 스키마 변경을 개발과 운영 양쪽에 손으로 적용해야 하는 것도 그대로다.
+10. **운영 디스크가 빠듯하다.** 2026-09-29에 러너 옛 버전 448MB를 지워 여유가 2.3G에서 2.7G로 늘었다. 그래도 8GB 중 2GB를 `/swapfile`이 가져가 실제로 쓸 수 있는 것은 6GB다. `current`와 `previous`와 `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. journal은 상한이 없어 운영 256MB, 개발 185MB까지 자랐다. `ec2-user`의 `~/.warp` 196MB도 지울 수 있는데 아직 안 지웠다.
+11. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
+12. **CODEOWNERS와 dependabot이 없다.**
+13. **`project-public`에 8080이 `0.0.0.0/0`으로 열려 있다.** 지금은 `BACKEND_BIND_ADDRESS`가 `127.0.0.1`이라 앱이 로컬에만 귀를 열어 밖에서 닿을 것이 없다. 그런데 repository variable로 `BACKEND_BIND_ADDRESS=0.0.0.0`을 만드는 순간 다음 배포부터 앱이 TLS 없이 인터넷에 그대로 노출되고, `deploy.sh`가 `0.0.0.0`도 허용하므로 막히지 않는다. `project-public`은 공용 보안 그룹이라 우리가 8080을 닫을 수 없으므로 **그 변수를 만들지 않는 것이 유일한 방어다.** nginx를 올린 뒤에는 `deploy.sh`에서 `0.0.0.0`을 아예 빼는 것도 선택지다.
 14. **`backend-cd.yml`이 한 파일에 환경 둘을 담고 있다.** 307줄이고 `github.ref_name == 'be-release'` 삼항이 네 줄에 흩어져 있다(러너 라벨, concurrency group, 표시 이름, Spring 프로필). 환경이 늘면 네 줄을 다 고쳐야 하고 하나만 빠뜨리면 개발 브랜치가 운영 러너로 간다. `deploy.sh`의 프로필 대조가 그걸 잡으려고 있는 장치다. 아래 「나눌 때 참고」 참고.
 
 ## `backend-cd.yml`을 나눌 때 참고
@@ -268,11 +217,11 @@ ADR을 고치거나 새로 쓰려면 이유를 알아야 하는데 어디에도 
 2. **디스크를 왜 8GB로 했나.** ADR-03은 gp3 20GB로 적었다. 생성 화면 기본값을 그대로 둔 것인지 확인한다. 지금 운영이 72% 찬 상태라 이미지 세 개를 보존하기에 빠듯하다.
 3. **개발 서버를 언제 왜 만들었나.** ADR-03은 운영 인스턴스 한 대만 다룬다. 개발 서버는 결정 기록이 없는 리소스다.
 4. **개발은 Docker MySQL, 운영은 RDS로 가른 이유가 무엇인가.** 운영만 관리형으로 두어 백업과 시점 복원 부담을 더는 것이 맞는지 확인한다.
-5. **운영의 `/home`이 개발보다 1.25GB 큰 이유가 무엇인가.** 러너 작업 디렉터리나 `_diag` 로그가 쌓였을 가능성이 있다.
+5. **운영의 `/home`이 개발보다 1.25GB 큰 이유 중 절반이 아직 안 밝혀졌다.** 2026-09-29에 러너 옛 버전 디렉터리 448MB를 찾아 지웠고, `ec2-user`의 `~/.warp`가 196MB를 쓰는 것도 확인했지만 아직 안 지웠다. 둘을 합쳐 644MB라 나머지 600MB 남짓이 어디에 있는지 모른다. `sudo du -h --max-depth=2 /home | sort -rh | head -20`으로 끝내면 된다.
 
 ### 답이 나온 것
 
 - **스왑.** 양쪽 서버에 `/swapfile` 2GB가 붙어 있고 swappiness는 60이다(2026-09-29 실측). ADR-03이 기각한 선택지 C가 그대로 돌고 있다.
-- **개발 서버 사양.** DB 인스턴스를 따로 띄우기로 했다(2026-09-29). `yeogidam-dev`는 앱만 돌린다.
+- **개발 서버 사양.** DB 인스턴스를 따로 띄우기로 했고 `yeogidam-dev-db`를 만들었다(2026-09-29). `yeogidam-dev`는 앱만 돌린다.
 
 답이 모이면 **인프라 ADR-06 「서버 구성과 DB 배치」**를 써서 지금 실물을 결정으로 남기고, ADR-03의 사양 부분을 그 문서가 대신하게 한다. 개발용 DB를 별도 인스턴스에 두는 결정과 스왑을 쓰는 상태도 같이 담는다.

@@ -32,7 +32,3 @@ ADR을 읽다가 "그래서 지금은 어떤데"가 궁금하면 `current-state.
 - 구현이 ADR과 어긋나면 `current-state.md`에 적는다. ADR 본문은 건드리지 않는다.
 - 아직 안 정한 것은 ADR의 「남은 결정」절에 남긴다.
 - ADR-01부터 04까지의 본문은 노션 원문 그대로다. 원문 안에서 값이 갈리는 곳도 고치지 않았고, 어떻게 갈리는지는 `current-state.md`에 적었다.
-
-## 참고
-
-같은 기수 비비디 팀(`woowacourse-teams/2026-bibbidi`)의 CI/CD와 견준 조사는 팀 노션 「비비디 팀 CI/CD 비교 조사」에 있다. nginx와 TLS 자동화, Grafana Cloud와 Alloy 구성, 자원 상한, env 시크릿 관리, 승격 판정을 그쪽에서 가져올 수 있다.
