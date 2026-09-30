@@ -25,17 +25,32 @@ internal class ShareSaveWorker(
         val requestId = inputData.getString(KEY_REQUEST_ID) ?: return Result.failure()
         val instagramUrl = inputData.getString(KEY_INSTAGRAM_URL) ?: return Result.failure()
         val rawSharedText = inputData.getString(KEY_RAW_SHARED_TEXT)
-        val token = ShareResultStore.accessToken(applicationContext)
-
-        if (token.isNullOrBlank()) {
-            saveFailure(
-                requestId = requestId,
-                instagramUrl = instagramUrl,
-                rawSharedText = rawSharedText,
-                reason = "AUTH401_001",
-                retryable = false,
-            )
-            return Result.success()
+        val auth = ShareAuth.ensureAccessToken(applicationContext)
+        val token = when (auth) {
+            is ShareAuthResult.Ready -> auth.token
+            is ShareAuthResult.LoginRequired -> {
+                ShareResultStore.saveResult(
+                    applicationContext,
+                    ShareReelResult(
+                        requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
+                        status = "PENDING", transferStatus = "LOGIN_REQUIRED",
+                        authReason = auth.reason, retryable = false,
+                    ),
+                )
+                return Result.success()
+            }
+            ShareAuthResult.WaitingForNetwork, ShareAuthResult.WaitingForAuth -> {
+                ShareResultStore.saveResult(
+                    applicationContext,
+                    ShareReelResult(
+                        requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
+                        status = "PENDING",
+                        transferStatus = if (auth is ShareAuthResult.WaitingForNetwork) "WAITING_FOR_NETWORK" else "WAITING_FOR_AUTH",
+                        retryable = true,
+                    ),
+                )
+                return Result.retry()
+            }
         }
 
         val requestSentAt = System.currentTimeMillis()
@@ -47,6 +62,7 @@ internal class ShareSaveWorker(
                 url = instagramUrl,
                 rawSharedText = rawSharedText,
                 status = "PENDING",
+                transferStatus = "REQUESTING",
                 retryable = true,
                 updatedAt = requestSentAt,
             ),
@@ -77,6 +93,36 @@ internal class ShareSaveWorker(
             val nestedError = response.optJSONObject("error")
 
             if (responseCode !in 200..299) {
+                val errorCode = response.optNullableString("errorCode")
+                    ?: nestedError?.optNullableString("errorCode")
+                if (errorCode == "AUTH401_002" && runAttemptCount == 0) {
+                    when (val refreshed = ShareAuth.ensureAccessToken(applicationContext, forceRefresh = true)) {
+                        is ShareAuthResult.Ready -> return Result.retry()
+                        is ShareAuthResult.LoginRequired -> {
+                            ShareResultStore.saveResult(
+                                applicationContext,
+                                ShareReelResult(
+                                    requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
+                                    status = "PENDING", transferStatus = "LOGIN_REQUIRED",
+                                    authReason = refreshed.reason, retryable = false,
+                                ),
+                            )
+                            return Result.success()
+                        }
+                        ShareAuthResult.WaitingForNetwork, ShareAuthResult.WaitingForAuth -> {
+                            ShareResultStore.saveResult(
+                                applicationContext,
+                                ShareReelResult(
+                                    requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
+                                    status = "PENDING",
+                                    transferStatus = if (refreshed is ShareAuthResult.WaitingForNetwork) "WAITING_FOR_NETWORK" else "WAITING_FOR_AUTH",
+                                    retryable = true,
+                                ),
+                            )
+                            return Result.retry()
+                        }
+                    }
+                }
                 val retryable = response.optBoolean(
                     "retryable",
                     nestedError?.optBoolean("retryable", responseCode >= 500) ?: (responseCode >= 500),
@@ -85,8 +131,6 @@ internal class ShareSaveWorker(
                     return Result.retry()
                 }
 
-                val errorCode = response.optNullableString("errorCode")
-                    ?: nestedError?.optNullableString("errorCode")
                 val message = response.optNullableString("message")
                     ?: nestedError?.optNullableString("message")
                 saveFailure(
@@ -110,6 +154,7 @@ internal class ShareSaveWorker(
                     url = instagramUrl,
                     rawSharedText = rawSharedText,
                     status = response.optString("status", "FAILED"),
+                    transferStatus = "API_SUCCEEDED",
                     reelId = response.optNullableString("reelId"),
                     failureReason = response.optNullableString("failureReason"),
                     retryable = response.optBoolean("retryable", false),
@@ -158,6 +203,7 @@ internal class ShareSaveWorker(
                 url = instagramUrl,
                 rawSharedText = rawSharedText,
                 status = "FAILED",
+                transferStatus = "API_FAILED",
                 reelId = reelId,
                 failureReason = reason,
                 retryable = retryable,
@@ -176,7 +222,8 @@ internal class ShareSaveWorker(
             requestId: String,
             instagramUrl: String,
             rawSharedText: String,
-        ) {
+        ): Boolean {
+            val queuedAt = System.currentTimeMillis()
             val input = Data.Builder()
                 .putString(KEY_REQUEST_ID, requestId)
                 .putString(KEY_INSTAGRAM_URL, instagramUrl)
@@ -196,7 +243,9 @@ internal class ShareSaveWorker(
                 "share-save-$requestId",
                 ExistingWorkPolicy.KEEP,
                 request,
-            )
+            ).result.get()
+            ShareResultStore.markQueued(context, requestId, queuedAt)
+            return true
         }
     }
 }
