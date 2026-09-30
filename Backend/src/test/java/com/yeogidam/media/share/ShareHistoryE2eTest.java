@@ -14,7 +14,7 @@ import com.yeogidam.media.share.exception.ShareErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,8 +42,8 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         LoginResult memberB = loginAsKakao("share-list-user-b");
         insertMedia(jdbcTemplate, 1L, "회원 A 게시글", "https://img.example.com/a.jpg", "@member-a");
         insertMedia(jdbcTemplate, 2L, "회원 B 게시글", "https://img.example.com/b.jpg", "@member-b");
-        insertSharedMedia(jdbcTemplate, 1L, memberA.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 2L, memberB.memberId(), 2L, timestamp("2026-09-17 11:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, memberA.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 2L, memberB.memberId(), 2L, Instant.parse("2026-09-17T11:00:00Z"));
 
         // when
         List<Integer> sharedMediaIds = givenBearer(memberA.accessToken())
@@ -60,8 +60,8 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("share-list-reshares-user");
         insertMedia(jdbcTemplate, 1L, "같은 릴스", "https://img.example.com/media.jpg", "@author");
-        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 1L, timestamp("2026-09-17 11:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 1L, Instant.parse("2026-09-17T11:00:00Z"));
 
         // when
         List<Integer> sharedMediaIds = givenBearer(login.accessToken())
@@ -79,8 +79,8 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         LoginResult login = loginAsKakao("share-list-summary-user");
         insertMedia(jdbcTemplate, 1L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
         insertMediaWithStatus(2L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
-        insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 2L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 2L, Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -88,7 +88,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .then().statusCode(200)
                 .body("sharedMedias", hasSize(2))
                 .body("sharedMedias[0].sharedMediaId", equalTo(2))
-                .body("sharedMedias[0].createdAt", equalTo("2026-09-17T01:00:00Z"))
+                .body("sharedMedias[0].createdAt", equalTo("2026-09-17T10:00:00Z"))
                 .body("sharedMedias[0].thumbnailUrl", equalTo(null))
                 .body("sharedMedias[0].caption", equalTo(null))
                 .body("sharedMedias[0].author", equalTo(null))
@@ -121,7 +121,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("share-history-places-user");
         insertMedia(jdbcTemplate, 1L, "장소 모음", "https://img.example.com/media.jpg", "@author");
-        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 번째 카페", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new BigDecimal("37.5446"),
                 new BigDecimal("127.0559"), "https://place.map.kakao.com/1", null,
@@ -162,7 +162,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         LoginResult owner = loginAsKakao("share-history-places-owner");
         LoginResult other = loginAsKakao("share-history-places-other");
         insertMedia(jdbcTemplate, 1L, "게시글", "https://img.example.com/media.jpg", "@owner");
-        insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         givenBearer(other.accessToken())
@@ -197,9 +197,5 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SEEDED')
                 """, mediaId, "fixture-media-" + mediaId, caption, thumbnailUrl, author,
                 extractionStatus, failureReason);
-    }
-
-    private static Timestamp timestamp(String value) {
-        return Timestamp.valueOf(value);
     }
 }

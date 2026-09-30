@@ -1,6 +1,7 @@
 package com.yeogidam.support.fixture.sql;
 
 import java.sql.Timestamp;
+import java.time.Instant;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 public final class PlaceCandidateSqlFixture {
@@ -22,7 +23,7 @@ public final class PlaceCandidateSqlFixture {
             Long placeCandidateId,
             Long sharedMediaId,
             Long placeId,
-            Timestamp decidedAt
+            Instant decidedAt
     ) {
         insertCandidate(jdbcTemplate, placeCandidateId, sharedMediaId, placeId, "SAVED", decidedAt);
     }
@@ -32,7 +33,7 @@ public final class PlaceCandidateSqlFixture {
             Long placeCandidateId,
             Long sharedMediaId,
             Long placeId,
-            Timestamp decidedAt
+            Instant decidedAt
     ) {
         insertCandidate(jdbcTemplate, placeCandidateId, sharedMediaId, placeId, "DISCARDED", decidedAt);
     }
@@ -52,11 +53,19 @@ public final class PlaceCandidateSqlFixture {
             Long sharedMediaId,
             Long placeId,
             String decisionStatus,
-            Timestamp decidedAt
+            Instant decidedAt
     ) {
         jdbcTemplate.update("""
                 INSERT INTO place_candidates (id, shared_media_id, place_id, decision_status, decided_at)
                 VALUES (?, ?, ?, ?, ?)
-                """, placeCandidateId, sharedMediaId, placeId, decisionStatus, decidedAt);
+                """, placeCandidateId, sharedMediaId, placeId, decisionStatus, toTimestamp(decidedAt));
+    }
+
+    // UNDECIDED와 SUPERSEDED는 결정 시각이 없어 null로 들어온다.
+    private static Timestamp toTimestamp(Instant decidedAt) {
+        if (decidedAt == null) {
+            return null;
+        }
+        return Timestamp.from(decidedAt);
     }
 }

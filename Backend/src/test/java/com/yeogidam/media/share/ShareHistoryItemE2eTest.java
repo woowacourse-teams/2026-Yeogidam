@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.not;
 import com.yeogidam.media.share.exception.ShareErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
-import java.sql.Timestamp;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -27,7 +27,7 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("share-result-extracting-user");
         insertMediaWithStatus(1L, null, null, null, "EXTRACTING", null);
-        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -54,7 +54,7 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
                 "FAILED",
                 "PLACE_NOT_EXTRACTED"
         );
-        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         givenBearer(login.accessToken())
@@ -74,7 +74,7 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
         LoginResult owner = loginAsKakao("share-result-owner");
         LoginResult other = loginAsKakao("share-result-other");
         insertMedia(jdbcTemplate, 1L, "다른 회원 미디어", "https://img.example.com/media.jpg", "@owner");
-        insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, timestamp("2026-09-17 10:00:00"));
+        insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         givenBearer(other.accessToken())
@@ -109,9 +109,5 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SEEDED')
                 """, mediaId, "fixture-media-" + mediaId, caption, thumbnailUrl, author,
                 extractionStatus, failureReason);
-    }
-
-    private static Timestamp timestamp(String value) {
-        return Timestamp.valueOf(value);
     }
 }

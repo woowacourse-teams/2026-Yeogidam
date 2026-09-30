@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,14 +47,14 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 "@decided");
 
         insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 2L, 1L, 2L,
-                timestamp("2026-09-17 11:00:00"));
+                Instant.parse("2026-09-17T11:00:00Z"));
 
         insertSharedMedia(jdbcTemplate, 3L, 2L, 3L,
-                timestamp("2026-09-17 12:00:00"));
+                Instant.parse("2026-09-17T12:00:00Z"));
         insertSharedMedia(jdbcTemplate, 4L, 1L, 4L,
-                timestamp("2026-09-17 13:00:00"));
+                Instant.parse("2026-09-17T13:00:00Z"));
 
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "오래된 장소", "카페", "서울 성동구",
                 "서울 성동구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
@@ -77,7 +77,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertUndecidedCandidate(jdbcTemplate, 2L, 2L, 2L);
         insertUndecidedCandidate(jdbcTemplate, 3L, 3L, 3L);
         insertSavedCandidate(jdbcTemplate, 4L, 4L, 4L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         // when
         List<SharedMediaSummaryProjection> sharedMedias = placeCandidateDao.findSharedMedias(1L);
@@ -102,7 +102,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 "https://img.example.com/place-candidate-candidate-user");
         insertMedia(jdbcTemplate, 5L, "미디어", "https://img.example.com/media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 5L, 3L, 5L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 5L, "kakao-fixture-5", "첫 장소", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", FIXTURE_LATITUDE,
@@ -119,7 +119,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
 
         insertUndecidedCandidate(jdbcTemplate, 5L, 5L, 5L);
         insertSavedCandidate(jdbcTemplate, 6L, 5L, 6L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
         insertUndecidedCandidate(jdbcTemplate, 7L, 5L, 7L);
 
         // when
@@ -156,7 +156,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 "https://img.example.com/share-result-candidate-user");
         insertMedia(jdbcTemplate, 8L, "장소 모음", "https://img.example.com/media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 8L, 4L, 8L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 8L, "kakao-fixture-8", "첫 장소", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", FIXTURE_LATITUDE,
@@ -172,10 +172,10 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 "https://img.example.com/place-3.jpg", null, null);
 
         insertDiscardedCandidate(jdbcTemplate, 8L, 8L, 9L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
         insertUndecidedCandidate(jdbcTemplate, 9L, 8L, 8L);
         insertSavedCandidate(jdbcTemplate, 10L, 8L, 10L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         // when
         List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(8L);
@@ -193,9 +193,5 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 () -> assertThat(first.landLotAddress()).isEqualTo("서울 종로구 관철동 1-1"),
                 () -> assertThat(first.roadAddress()).isEqualTo("서울 종로구 삼일대로 1")
         );
-    }
-
-    private static Timestamp timestamp(String value) {
-        return Timestamp.valueOf(value);
     }
 }

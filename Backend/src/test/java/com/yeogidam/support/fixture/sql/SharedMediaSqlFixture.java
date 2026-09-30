@@ -14,17 +14,17 @@ public final class SharedMediaSqlFixture {
             Long sharedMediaId,
             Long memberId,
             Long mediaId,
-            Timestamp createdAt
+            Instant createdAt
     ) {
         jdbcTemplate.update("""
                 INSERT INTO shared_media (id, member_id, media_id, shared_url, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """, sharedMediaId, memberId, mediaId,
-                "https://www.instagram.com/reel/fixture-" + sharedMediaId + "/", createdAt);
+                "https://www.instagram.com/reel/fixture-" + sharedMediaId + "/", Timestamp.from(createdAt));
     }
 
     /**
-     * 공유 URL과 시각을 직접 정하는 판. 시각은 Instant로 넣어 읽은 값과 같아진다.
+     * 공유 URL을 직접 정하는 판. 위 판은 식별자로 URL을 만든다.
      */
     public static void insertSharedMedia(
             JdbcTemplate jdbcTemplate,
