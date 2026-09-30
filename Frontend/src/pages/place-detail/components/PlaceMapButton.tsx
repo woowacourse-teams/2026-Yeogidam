@@ -1,14 +1,42 @@
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text } from 'react-native';
+import {usePostHog} from 'posthog-react-native';
+
+import {
+  capturePlaceMapViewed,
+  type SavedPlaceViewContext,
+} from '../../../analytics/savedPlaceEvents';
 
 type PlaceMapButtonProps = {
   url: string;
+  savedAt?: string;
+  viewContext?: SavedPlaceViewContext;
 };
 
-export function PlaceMapButton({ url }: PlaceMapButtonProps) {
+export function PlaceMapButton({
+  url,
+  savedAt,
+  viewContext,
+}: PlaceMapButtonProps) {
+  const posthog = usePostHog();
+
+  const openMap = async () => {
+    try {
+      await Linking.openURL(url);
+      if (savedAt && viewContext) {
+        capturePlaceMapViewed(posthog, {
+          ...viewContext,
+          savedAt,
+        });
+      }
+    } catch {
+      // 지도 앱을 열지 못한 경우 활용 이벤트를 기록하지 않습니다.
+    }
+  };
+
   return (
     <Pressable
-      onPress={() => Linking.openURL(url)}
+      onPress={openMap}
       style={({ pressed }) => [styles.button, pressed && styles.pressed]}
       accessibilityRole="link"
       accessibilityLabel="카카오맵으로 바로가기"

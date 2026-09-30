@@ -652,7 +652,11 @@ export function PlaceResultSheet({
               }
             />
             {selectedPlace.placeUrl ? (
-              <PlaceMapButton url={selectedPlace.placeUrl} />
+              <PlaceMapButton
+                savedAt={selectedPlace.savedAt}
+                url={selectedPlace.placeUrl}
+                viewContext={selectedPlaceViewContext ?? undefined}
+              />
             ) : null}
             <PlaceDetailActionSheet
               visible={isActionSheetVisible}

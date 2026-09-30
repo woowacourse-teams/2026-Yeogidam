@@ -151,7 +151,13 @@ export function PlaceDetailScreen({
           setIsActionSheetVisible(true);
         }}
       />
-      {place.placeUrl ? <PlaceMapButton url={place.placeUrl} /> : null}
+      {place.placeUrl ? (
+        <PlaceMapButton
+          savedAt={place.savedAt}
+          url={place.placeUrl}
+          viewContext={viewContext}
+        />
+      ) : null}
       <PlaceDetailActionSheet
         visible={isActionSheetVisible}
         onClose={() => {
