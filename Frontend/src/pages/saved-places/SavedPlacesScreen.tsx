@@ -14,10 +14,12 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
+import {usePostHog} from 'posthog-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {v4 as uuidv4} from 'uuid';
 import { supabase } from '../../lib/auth/supabase';
 
+import {captureSavedPlacesViewed} from '../../analytics/savedPlaceEvents';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   bottomNavigationBarContainerStyle,
@@ -123,6 +125,7 @@ export function SavedPlacesScreen({
   places: providedPlaces,
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
+  const posthog = usePostHog();
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -157,12 +160,25 @@ export function SavedPlacesScreen({
     useState<ShareApiDiagnostics | null>(null);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const hasCapturedViewRef = useRef(false);
   const isRefreshingRef = useRef(false);
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
+
+  useEffect(() => {
+    if (isLoading || error || hasCapturedViewRef.current) {
+      return;
+    }
+
+    hasCapturedViewRef.current = true;
+    captureSavedPlacesViewed(posthog, {
+      placeCount: places.length,
+      entryType: 'direct',
+    });
+  }, [error, isLoading, places.length, posthog]);
 
   useEffect(() => {
     if (isLoading || !hasSavedPlaces || initialScrollOffset <= 0) {
