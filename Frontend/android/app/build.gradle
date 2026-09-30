@@ -139,6 +139,9 @@ android {
     }
     buildTypes {
         debug {
+            // Keep the store-installed production app and the local development app installable together.
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
             signingConfig signingConfigs.debug
         }
         release {
