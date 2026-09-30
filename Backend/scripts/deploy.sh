@@ -40,7 +40,8 @@ container_health() {
 
 wait_for_healthy() {
   local container_name="$1"
-  local deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS))
+  local timeout_seconds="${2:-$HEALTH_TIMEOUT_SECONDS}"
+  local deadline=$((SECONDS + timeout_seconds))
   local status
 
   while ((SECONDS < deadline)); do
@@ -206,6 +207,7 @@ write_summary() {
     printf -- "- 이미지: \`%s\`\n" "$IMAGE_REFERENCE"
     printf -- "- 컨테이너: \`%s\`\n" "$BACKEND_CONTAINER_NAME"
     printf -- "- 포트: \`%s:%s\`\n" "$BIND_ADDRESS" "$BACKEND_HOST_PORT"
+    printf -- "- 자원: \`--memory %s\`, \`--memory-swap %s\`, 헬스 대기 %s초\n" "$BACKEND_MEMORY_LIMIT" "$BACKEND_MEMORY_SWAP_LIMIT" "$HEALTH_TIMEOUT_SECONDS"
     printf -- "- 현재 이미지: \`%s\`\n" "${current_digest:-없음}"
     printf -- "- 직전 이미지: \`%s\`\n" "${previous_digest:-없음}"
     printf -- "- 결과: \`%s\`\n" "$result"
@@ -241,7 +243,10 @@ restore_rollback_container() {
     return 1
   fi
 
-  wait_for_healthy "$BACKEND_CONTAINER_NAME"
+  # 방금 전까지 건강하던 컨테이너라 뜨는 것은 시간문제다. 새 컨테이너를 빨리 포기하려고
+  # BACKEND_HEALTH_TIMEOUT_SECONDS를 짧게 잡았더라도 여기서는 최소 60초를 준다. 아니면
+  # 복구가 되는데도 복구 실패로 기록된다. 2026-09-30 롤백 시험에서 확인한 것이다.
+  wait_for_healthy "$BACKEND_CONTAINER_NAME" "$(( HEALTH_TIMEOUT_SECONDS < 60 ? 60 : HEALTH_TIMEOUT_SECONDS ))"
 }
 
 rollback_and_fail() {
