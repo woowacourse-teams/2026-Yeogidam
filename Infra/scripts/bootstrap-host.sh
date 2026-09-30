@@ -32,8 +32,9 @@ fail() { printf '[bootstrap-host] 오류: %s\n' "$*" >&2; exit 1; }
 [ -f "$TEMPLATE" ] || fail "템플릿이 없습니다: $TEMPLATE"
 
 install_packages() {
-  # gettext는 envsubst 때문에, python3는 certbot 때문에 필요하다.
-  dnf install -y -q nginx gettext python3 python3-pip
+  # gettext는 envsubst 때문에, python3는 certbot 때문에, git은 배포 잡이 원격 HEAD를
+  # git ls-remote로 대조하기 때문에 필요하다. git이 없으면 첫 배포가 그 단계에서 멈춘다.
+  dnf install -y -q nginx gettext python3 python3-pip git
   # 배포판이 준 원본 설정은 한 번만 보관해 둔다. 되돌릴 때 쓴다.
   [ -f "$NGINX_CONF.dist" ] || cp "$NGINX_CONF" "$NGINX_CONF.dist"
   # SELinux가 켜져 있으면 nginx가 127.0.0.1:8080으로 붙는 것을 막는다. 꺼져 있으면 무시된다.

@@ -172,11 +172,10 @@ git rev-list -1 "$SECOND_PARENT" -- 'Backend' ':(exclude)Backend/docs' ':(exclud
 
 급한 순서다.
 
-1. **배포가 한 번도 돌지 않았다.** `backend-cd.yml`이 아직 `be-dev`에도 `be-release`에도 없어서 `Backend CD` 워크플로에 실행 이력이 없다. 그래서 아래 넷은 코드만 있고 실제로 동작하는지 모른다.
-   - **컨테이너 자원 상한과 로그 로테이션.** 2026-09-29에 `deploy.sh`와 `backend-cd.yml`과 `Dockerfile`에 넣었다(상한 512m, 스왑 몫 256MB, 로그 10m 3개, `MaxRAMPercentage=50`). 같은 방식이 `yeogidam-dev-db`에서는 실제로 걸리는 것을 확인했다.
-   - **롤백.** 첫 배포에는 되돌릴 이전 컨테이너가 없으므로 두 번째 배포부터 확인된다.
-   - **`be-release` 승격.** 머지 커밋이 한 번 생겨야 판정이 돈다.
-   - **이미지 정리.** 보존 대상이 셋 다 생긴 뒤에야 지울 것이 남는다.
+1. **배포가 개발 서버에서 한 번만 돌았다.** 2026-09-30에 PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았다. 이미지 push, digest 고정, 헬스 판정, 프로필 대조, 자원 상한(상한 512m과 스왑 몫 256MB와 로그 10m 3개가 컨테이너에 걸렸고 실사용 197MiB, 힙 256MB)은 서버에서 실측으로 확인했다. 카카오 로그인으로 `members`에 행이 생겨 앱이 DB에 쓰는 것까지 봤다. 첫 실행은 러너 서버에 `git`이 없어 「Validate Deployment Target」에서 멈췄고 `dnf install git` 뒤 재실행해서 통과했으며, 그래서 `bootstrap-host.sh`의 패키지에 `git`을 넣었다. 아래 셋은 아직 코드만 있다.
+   - **롤백.** 지금 도는 것과 다른 이미지로 시작했다가 실패해야 돈다. 같은 이미지로 재실행하면 「이미 배포된 정상 이미지 유지」로 끝나 실패 자체가 안 난다. `BACKEND_HEALTH_TIMEOUT_SECONDS=1`을 두고 새 이미지를 배포해 일부러 실패시켜 확인할 계획이다.
+   - **`be-release` 승격과 운영 배포.** 운영 서버에 nginx가 아직 없고, 머지 커밋이 한 번 생겨야 판정이 돈다.
+   - **이미지 정리.** `current`와 `previous` 밖의 이미지가 생기는 세 번째 배포 뒤에야 지울 것이 남는다.
 2. **관측이 없다.** actuator가 liveness만 열고 metrics는 닫혀 있다. 로그 보존, 대시보드 지표, 실패 알림이 스프린트 1 조건인데 셋 다 없다.
 3. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
 4. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
