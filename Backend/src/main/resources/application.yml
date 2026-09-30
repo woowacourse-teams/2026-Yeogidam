@@ -17,6 +17,12 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+# 서버에서는 nginx 뒤에서 돈다. 이 값이 없으면 앱이 자기를 http://127.0.0.1:8080으로 알아서
+# 리다이렉트와 생성 URL이 http로 나간다. native는 톰캣이 X-Forwarded-*를 읽되 사설 대역과
+# 루프백에서 온 것만 믿으므로, 127.0.0.1의 nginx는 통과하고 그 밖은 무시한다.
+server:
+  forward-headers-strategy: native
+
 oauth:
   providers:
     kakao:
