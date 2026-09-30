@@ -9,8 +9,12 @@ RCT_EXTERN_METHOD(getPendingShare:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(clearPendingShare:(NSString * _Nullable)shareId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
-RCT_EXTERN_METHOD(setAccessToken:(NSString * _Nullable)token
+RCT_EXTERN_METHOD(setShareSession:(NSDictionary * _Nullable)session
                   resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getShareSession:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(resumeWaitingShares:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(setSupabaseConfiguration:(NSString *)url
                   publishableKey:(NSString *)publishableKey

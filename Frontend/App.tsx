@@ -52,7 +52,10 @@ import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   clearShareResult,
   getShareResults,
-  syncShareAccessToken,
+  getShareSession,
+  reconcileShareSession,
+  resumeWaitingShares,
+  syncShareSession,
 } from './src/lib/share-intent';
 import type {
   AppFlowState,
@@ -232,6 +235,7 @@ function App() {
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
     const syncFlowState = async () => {
+      await reconcileShareSession().catch(() => undefined);
       const { data, error } = await supabase.auth.getSession();
 
       if (!isMounted) {
@@ -243,15 +247,21 @@ function App() {
           trackAppOpened(posthog, false);
           hasTrackedAppOpenedRef.current = true;
         }
-        await syncShareAccessToken(null);
-        setFlowState(INITIAL_FLOW_STATE);
+
+        if (!error) {
+          const sharedSession = await getShareSession().catch(() => null);
+          if (!sharedSession?.refreshToken) await syncShareSession(null);
+        }
+
+        setFlowState(INITIAL_FLOW_STATE); 
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
         setIsAuthReady(true);
         return;
       }
 
-      await syncShareAccessToken(data.session.access_token);
+      await syncShareSession(data.session);
+      void resumeWaitingShares();
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -301,8 +311,14 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      syncShareAccessToken(session?.access_token ?? null).catch(() => undefined);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session || event === 'SIGNED_OUT') {
+        void syncShareSession(session)
+          .then(() => {
+            if (session) return resumeWaitingShares();
+          })
+          .catch(() => undefined);
+      }
       if (!isMounted) {
         return;
       }
@@ -374,8 +390,8 @@ function App() {
               : undefined;
           const result = activeRequestId
             ? results.find(item => item.requestId === activeRequestId) ??
-              results[0]
-            : results[0];
+              results[results.length - 1]
+            : results[results.length - 1];
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
@@ -424,6 +440,19 @@ function App() {
               saveMode: result.saveMode ?? null,
             });
           }
+          if (result.transferStatus === 'LOGIN_REQUIRED') {
+            supabase.auth.getSession().then(({data}) => {
+              if (data.session) {
+                resumeWaitingShares().catch(() => undefined);
+                return;
+              }
+              setFlowState(INITIAL_FLOW_STATE);
+            }).catch(() => undefined);
+            return;
+          }
+          if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
+            return;
+          }
           setSharedSaveState({
             shareResultId: result.requestId,
             url: result.url,
@@ -455,7 +484,10 @@ function App() {
       'change',
       nextState => {
         if (nextState === 'active') {
-          consumePendingSharedContent();
+          void reconcileShareSession()
+            .then(resumeWaitingShares)
+            .then(consumePendingSharedContent)
+            .catch(consumePendingSharedContent);
         }
       },
     );
