@@ -184,6 +184,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 | 이미지 정리 | 두 번째 배포에서 롤백 시험이 남긴 이미지가 지워지고 `current`와 `previous`만 남았다 |
 | `be-release` 승격 | 머지 커밋의 두 번째 부모를 잡아 `mode=promote`로 갔다. publish의 빌드 스텝이 스킵되고 운영이 개발과 같은 digest `f1815ebe`를 받았다 |
 | 앱→DB | 카카오 로그인으로 `members`에 행이 생겼다. 앱 서버에서 앱 계정으로 `SELECT 1`도 확인했다 |
+| 재부팅 복구 | 개발 앱 서버를 `sudo reboot`했더니 ssh 25초, 앱 healthy 53초 만에 돌아왔고 러너와 `certbot-renew.timer`도 저절로 올라왔다. nginx와 도커는 systemd enable, 앱은 `--restart unless-stopped`, 러너는 `svc.sh` 서비스라서다. 개발 DB 서버는 재부팅하지 않고 조건만 봤는데 도커 enable, `yeogidam-mysql`이 `unless-stopped`, 데이터는 이름 있는 볼륨 `yeogidam-mysql-data`라 같은 방식으로 돌아온다. 운영 앱 서버는 같은 스크립트로 올렸지만 재부팅은 아직 안 해 봤다 |
 
 알게 된 것.
 
@@ -210,7 +211,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 10. **CODEOWNERS와 dependabot이 없다.**
 11. **`project-public`에 8080이 `0.0.0.0/0`으로 열려 있다.** 공용 보안 그룹이라 우리가 닫을 수 없다. 2026-09-30에 `deploy.sh`의 바인딩 주소를 `127.0.0.1` 상수로 박고 `backend-cd.yml`에서 `BACKEND_BIND_ADDRESS` 변수를 지웠다. 그 전에는 repository variable 하나로 앱이 TLS 없이 인터넷에 노출될 수 있었는데, 이제 앱은 언제나 로컬에만 귀를 열고 밖으로 가는 길은 nginx 443뿐이다. 8080이 열려 있다는 사실은 그대로라서, 서버에서 다른 프로세스가 8080을 `0.0.0.0`으로 열면 여전히 노출된다.
 12. **`backend-cd.yml`이 한 파일에 환경 둘을 담고 있다.** 307줄이고 `github.ref_name == 'be-release'` 삼항이 네 줄에 흩어져 있다(러너 라벨, concurrency group, 표시 이름, Spring 프로필). 환경이 늘면 네 줄을 다 고쳐야 하고 하나만 빠뜨리면 개발 브랜치가 운영 러너로 간다. `deploy.sh`의 프로필 대조가 그걸 잡으려고 있는 장치다. 아래 「나눌 때 참고」 참고.
-13. **nginx 설정의 도메인이 어디에도 관리되지 않는다.** `bootstrap-host.sh`는 사람이 서버에서 `SERVER_NAME`을 명령줄에 쳐서 돌리고, 값은 렌더된 `/etc/nginx/nginx.conf`와 `/etc/letsencrypt/live/<도메인>/`에만 남는다. 서버가 날아가면 값을 알아야 하고 재실행 때마다 다시 쳐야 한다. 도메인은 DNS로 누구나 조회할 수 있어 비밀이 아니고, 저장소에 안 적는 이유는 우테코 공개 저장소 규칙이므로 팀 노션에는 적어도 된다. 최종 모습은 깃허브 Environments(`development`, `production`)에 `BACKEND_DOMAIN`을 두고, deploy 잡이 브랜치에 따라 환경을 골라 템플릿을 렌더해 서버에 반영하고 nginx를 reload하는 것이며, 3번(`environment:` 도입)과 같은 작업이다. 다만 스크립트는 사람이 sudo로 돌리는 것이라 깃허브 변수를 읽을 수 없고, CD가 nginx 설정을 쓰고 reload하려면 러너에 sudo가 필요하다. 비비디는 러너에 `NOPASSWD: ALL`을 줬는데 그러면 `be-release`에 머지할 수 있는 사람이 서버 root를 갖는 것이라 그렇게 하지 않는다. 두 단계로 간다.
+13. **nginx 설정의 도메인이 어디에도 관리되지 않는다.** `bootstrap-host.sh`는 사람이 서버에서 `SERVER_NAME`을 명령줄에 쳐서 돌리고, 값은 렌더된 `/etc/nginx/nginx.conf`와 `/etc/letsencrypt/live/<도메인>/`에만 남는다. 서버가 날아가면 값을 알아야 하고 재실행 때마다 다시 쳐야 한다. 도메인은 DNS로 누구나 조회할 수 있어 비밀이 아니고, 저장소에 안 적는 이유는 우테코 공개 저장소 규칙이므로 팀 노션에는 적어도 된다. 최종 모습은 깃허브 Environments(`development`, `production`)에 `BACKEND_DOMAIN`을 두고, deploy 잡이 브랜치에 따라 환경을 골라 템플릿을 렌더해 서버에 반영하고 nginx를 reload하는 것이며, 2번(`environment:` 도입)과 같은 작업이다. 다만 스크립트는 사람이 sudo로 돌리는 것이라 깃허브 변수를 읽을 수 없고, CD가 nginx 설정을 쓰고 reload하려면 러너에 sudo가 필요하다. 비비디는 러너에 `NOPASSWD: ALL`을 줬는데 그러면 `be-release`에 머지할 수 있는 사람이 서버 root를 갖는 것이라 그렇게 하지 않는다. 두 단계로 간다.
     - **지금.** 첫 설치는 사람이 값을 쳐서 돌리고, 스크립트가 `/opt/yeogidam/host.env`(root 600)에 저장해 재실행 때는 안 쳐도 되게 한다. 러너 권한은 필요 없다. 아직 안 했다.
     - **다음 PR.** `environment:` 도입, `BACKEND_DOMAIN` 변수, CD가 템플릿을 렌더해 서버에 반영. sudoers에는 `nginx -t`, `systemctl reload nginx`, 설정 파일 복사 세 명령만 허용한다. 여기까지 가면 사람이 도메인을 치는 일은 서버를 처음 만들 때 인증서 발급 한 번뿐이고, 그 뒤로는 깃허브 변수가 유일한 원본이 된다.
 
