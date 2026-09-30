@@ -13,7 +13,7 @@ import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesRespo
 import com.yeogidam.media.share.dto.response.SharedMediaWithPlaceCandidatesResponse;
 import com.yeogidam.support.IntegrationTestSupport;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,7 +33,7 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
                 "member-123ijfsa@example.com", "https://img.example.com/member-123ijfsa");
         insertMedia(jdbcTemplate, 1L, "성수 장소 모음", "https://img.example.com/media.jpg", "@seongsu");
         insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
-                timestamp("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 장소", "카페",
                 "서울 성동구", "서울 성동구", new BigDecimal("37.5796"), new BigDecimal("126.9770"),
@@ -64,9 +64,5 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(firstPlace.name()).isEqualTo("첫 장소"),
                 () -> assertThat(firstPlace.landLotAddress()).isEqualTo("서울 성동구")
         );
-    }
-
-    private static Timestamp timestamp(String value) {
-        return Timestamp.valueOf(value);
     }
 }

@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -245,9 +244,9 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
-        insertSavedCandidate(jdbcTemplate, 1000L, 100L, 1L, Timestamp.valueOf("2026-09-10 12:00:00"));
+        insertSavedCandidate(jdbcTemplate, 1000L, 100L, 1L, Instant.parse("2026-09-10T12:00:00Z"));
         insertSupersededCandidate(jdbcTemplate, 1001L, 100L, 2L);
-        insertSavedCandidate(jdbcTemplate, 1003L, 102L, 1L, Timestamp.valueOf("2026-09-12 12:00:00"));
+        insertSavedCandidate(jdbcTemplate, 1003L, 102L, 1L, Instant.parse("2026-09-12T12:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 

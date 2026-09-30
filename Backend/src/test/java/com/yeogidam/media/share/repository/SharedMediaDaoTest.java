@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.support.JdbcTestSupport;
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 null
         );
         insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
-                Timestamp.valueOf("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         // when
         ShareHistoryProjection result = sharedMediaDao.findShareHistoryItem(1L, 1L).orElseThrow();
@@ -64,7 +64,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "https://img.example.com/share-dao-content-unavailable-user");
         insertMediaWithStatus(2L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
         insertSharedMedia(jdbcTemplate, 2L, 2L, 2L,
-                Timestamp.valueOf("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         // when
         ShareHistoryProjection result = sharedMediaDao.findShareHistoryItem(2L, 2L).orElseThrow();
@@ -88,7 +88,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "share-dao-other@example.com", "https://img.example.com/share-dao-other");
         insertMedia(jdbcTemplate, 3L, "게시글", "https://img.example.com/media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 3L, 3L, 3L,
-                Timestamp.valueOf("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         // when
         Optional<ShareHistoryProjection> otherMemberResult = sharedMediaDao.findShareHistoryItem(4L, 3L);
@@ -108,7 +108,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "shared-media-other@example.com", "https://img.example.com/shared-media-other");
         insertMedia(jdbcTemplate, 7L, "게시글", "https://img.example.com/media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 7L, 7L, 7L,
-                Timestamp.valueOf("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         assertAll(
@@ -131,11 +131,11 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         insertMedia(jdbcTemplate, 6L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
 
         insertSharedMedia(jdbcTemplate, 4L, 5L, 4L,
-                Timestamp.valueOf("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 5L, 5L, 5L,
-                Timestamp.valueOf("2026-09-17 10:00:00"));
+                Instant.parse("2026-09-17T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 6L, 6L, 6L,
-                Timestamp.valueOf("2026-09-17 11:00:00"));
+                Instant.parse("2026-09-17T11:00:00Z"));
 
         // when
         List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(5L);

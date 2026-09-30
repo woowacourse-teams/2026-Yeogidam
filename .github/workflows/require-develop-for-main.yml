@@ -11,19 +11,22 @@ permissions:
 jobs:
   require-allowed-source:
     # Keep this name until the required-status-check rule is updated in GitHub.
+    # The workflow file name and this job name still say "develop" for the same reason.
     name: Require develop source branch
     runs-on: ubuntu-latest
     steps:
-      - name: Allow only fe-dev and be-dev
+      # main is a snapshot of what is deployed, so only release branches may enter it.
+      # Agreed with the frontend crew on 2026-09-28.
+      - name: Allow only be-release and fe-release/*
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           case "$HEAD_BRANCH" in
-            fe-dev|be-dev)
+            be-release|fe-release/*)
               exit 0
               ;;
             *)
-              echo "::error::Pull requests into main must originate from fe-dev or be-dev. Current source: $HEAD_BRANCH"
+              echo "::error::Pull requests into main must originate from be-release or fe-release/*. Current source: $HEAD_BRANCH"
               exit 1
               ;;
           esac

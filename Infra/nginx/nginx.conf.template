@@ -1,0 +1,99 @@
+# 여기담 서버의 nginx 설정 원본이다. 서버의 /etc/nginx/nginx.conf는 이 파일에서
+# ${SERVER_NAME}만 채워 만든 사본이므로, 고칠 일이 있으면 여기를 고치고
+# Infra/scripts/bootstrap-host.sh를 다시 돌린다.
+#
+# 도메인은 공개 저장소에 적지 않는다. bootstrap-host.sh가 SERVER_NAME 환경변수로 받아
+# envsubst로 넣고, 값이 비어 있으면 설정을 만들지 않고 멈춘다.
+#
+# 앱은 도커 컨테이너로 127.0.0.1:8080에만 귀를 연다(Backend/scripts/deploy.sh). nginx가
+# 443에서 인증서를 들고 받아서 그쪽으로 넘긴다. 인증서는 /etc/letsencrypt에 있고
+# certbot이 갱신하면 nginx만 reload한다. 앱은 인증서를 모른다.
+
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    # mime.types 항목 수에 비해 기본 해시가 작아 nginx -t마다 경고가 나온다. 넉넉히 준다.
+    types_hash_max_size 4096;
+
+    log_format main '$remote_addr [$time_local] "$request" $status $body_bytes_sent '
+                    '$request_time "$http_user_agent"';
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    keepalive_timeout 65;
+    server_tokens off;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # 이름 없이 IP로 들어오는 요청은 받지 않는다. 80은 연결을 끊고, 443은 핸드셰이크를 거절한다.
+    server {
+        listen 80 default_server;
+        server_name _;
+        return 444;
+    }
+
+    server {
+        listen 443 ssl default_server;
+        server_name _;
+        ssl_reject_handshake on;
+    }
+
+    # 80은 인증서 발급 검증 경로만 열고 나머지는 443으로 보낸다.
+    server {
+        listen 80;
+        server_name ${SERVER_NAME};
+
+        location ^~ /.well-known/acme-challenge/ {
+            root /var/www/certbot;
+        }
+
+        location / {
+            return 301 https://${SERVER_NAME}$request_uri;
+        }
+    }
+
+    # 443이 앱으로 가는 유일한 길이다.
+    server {
+        listen 443 ssl;
+        server_name ${SERVER_NAME};
+
+        ssl_certificate /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
+
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
+
+        # 헬스체크는 배포 스크립트가 컨테이너 안에서 직접 보므로 밖에는 열지 않는다.
+        location ^~ /actuator {
+            return 404;
+        }
+
+        location / {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
