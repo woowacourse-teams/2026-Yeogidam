@@ -20,7 +20,10 @@ type SavedPlacesSearchPanelProps = {
   places: Place[];
   recentSearches: string[];
   onCloseSearch: () => void;
-  onPressPlace: (place: Place) => void;
+  onPressPlace: (
+    place: Place,
+    selection: {searchId: string; position: number},
+  ) => void;
   onSaveSearchTerm: (value: string) => void;
 };
 
@@ -116,10 +119,18 @@ export function SavedPlacesSearchPanel({
           showsVerticalScrollIndicator={false}>
           {filteredPlaces.length > 0 ? (
             <View style={styles.resultsGrid}>
-              {filteredPlaces.map(place => (
+              {filteredPlaces.map((place, index) => (
                 <View key={place.id} style={styles.resultCard}>
                   <Pressable
-                    onPress={() => onPressPlace(place)}
+                    onPress={() => {
+                      const searchId = activeSearchIdRef.current;
+                      if (searchId) {
+                        onPressPlace(place, {
+                          searchId,
+                          position: index + 1,
+                        });
+                      }
+                    }}
                     style={styles.resultCardBody}>
                     {place.image ? (
                       <Image source={place.image} style={styles.resultImage} />

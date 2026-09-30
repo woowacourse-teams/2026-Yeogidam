@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
+import type {SavedPlaceViewContext} from '../../analytics/savedPlaceEvents';
 import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
 import type {
   PlaceReel,
@@ -16,6 +17,7 @@ import { PlaceMapButton } from './components/PlaceMapButton';
 type PlaceDetailScreenProps = {
   onBack: () => void;
   place: Place;
+  viewContext?: SavedPlaceViewContext;
   onAuthenticationRequired?: () => void;
 };
 

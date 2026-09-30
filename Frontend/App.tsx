@@ -3,6 +3,7 @@ import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
+import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
@@ -73,6 +74,8 @@ function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
+    useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
@@ -171,8 +174,13 @@ function App() {
     });
   };
 
-  const openDetailFrom = (sourceScreen: 'saved' | 'map', place: Place) => {
+  const openDetailFrom = (
+    sourceScreen: 'saved' | 'map',
+    place: Place,
+    context?: SavedPlaceViewContext,
+  ) => {
     setSelectedPlace(place);
+    setSelectedPlaceViewContext(context ?? null);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -186,6 +194,7 @@ function App() {
 
   const closeDetail = () => {
     setSelectedPlace(null);
+    setSelectedPlaceViewContext(null);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -647,7 +656,9 @@ function App() {
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           onEditModeChange={setIsSavedPlacesEditing}
-          onOpenDetail={place => openDetailFrom('saved', place)}
+          onOpenDetail={(place, context) =>
+            openDetailFrom('saved', place, context)
+          }
           onScrollOffsetChange={offset => {
             savedPlacesScrollOffsetRef.current = offset;
           }}
@@ -682,6 +693,7 @@ function App() {
           onBack={closeDetail}
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           place={selectedPlace}
+          viewContext={selectedPlaceViewContext ?? undefined}
         />
       );
     }

@@ -16,7 +16,13 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import {usePostHog} from 'posthog-react-native';
+import {v4 as uuidv4} from 'uuid';
 
+import {
+  captureSavedPlaceSelected,
+  type SavedPlaceViewContext,
+} from '../../../analytics/savedPlaceEvents';
 import {
   deleteSavedPlaces,
   getPlaceReels,
@@ -47,6 +53,7 @@ type PlaceResultSheetProps = {
   collapseSignal?: number;
   expandSignal?: number;
   openPlace?: Place | null;
+  openPlaceContext?: SavedPlaceViewContext | null;
   openPlaceId?: string;
   openPlaceSignal?: number;
   onDetailViewChange?: (isDetailView: boolean) => void;
@@ -86,12 +93,14 @@ export function PlaceResultSheet({
   collapseSignal = 0,
   expandSignal = 0,
   openPlace,
+  openPlaceContext,
   openPlaceId,
   openPlaceSignal = 0,
   onDetailViewChange,
   onAuthenticationRequired,
   onSavedPlaceDeleted,
 }: PlaceResultSheetProps) {
+  const posthog = usePostHog();
   const { width: windowWidth } = useWindowDimensions();
   const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
   const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
@@ -138,6 +147,7 @@ export function PlaceResultSheet({
   const handledCollapseSignal = useRef(collapseSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
+  const selectedPlaceViewContextRef = useRef<SavedPlaceViewContext | null>(null);
   const isPageModeRef = useRef(false);
   const resultsScrollOffsetRef = useRef(0);
   const resultsListRef = useRef<FlatList<Place>>(null);
@@ -347,6 +357,7 @@ export function PlaceResultSheet({
 
     handledExpandSignal.current = expandSignal;
     setSelectedPlace(null);
+    selectedPlaceViewContextRef.current = null;
     // 검색 결과는 바로 확인할 수 있도록 목록 높이까지 시트를 엽니다.
     snapTo(snapOffsets[1]);
   }, [expandSignal, snapOffsets, snapTo]);
@@ -370,8 +381,17 @@ export function PlaceResultSheet({
     handledOpenPlaceSignal.current = openPlaceSignal;
     detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
+    selectedPlaceViewContextRef.current = openPlaceContext ?? null;
     snapTo(snapOffsets[1]);
-  }, [openPlace, openPlaceId, openPlaceSignal, places, snapOffsets, snapTo]);
+  }, [
+    openPlace,
+    openPlaceContext,
+    openPlaceId,
+    openPlaceSignal,
+    places,
+    snapOffsets,
+    snapTo,
+  ]);
 
   const panResponder = useMemo(
     () =>
@@ -461,12 +481,24 @@ export function PlaceResultSheet({
     snapTo(tapDirection === 'up' ? snapOffsets[0] : snapOffsets[2]);
   };
 
-  const selectPlace = (place: Place) => {
+  const selectPlace = (place: Place, position: number) => {
     pendingResultsScrollOffsetRef.current = resultsScrollOffsetRef.current;
     restoringResultsScrollOffsetRef.current = null;
     isResultsUserScrollingRef.current = false;
     detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
+    if (place.savedPlaceId) {
+      const viewContext: SavedPlaceViewContext = {
+        placeId: place.id,
+        savedPlaceId: place.savedPlaceId,
+        placeViewId: uuidv4(),
+        source: 'map_search_result',
+      };
+      captureSavedPlaceSelected(posthog, {...viewContext, position});
+      selectedPlaceViewContextRef.current = viewContext;
+    } else {
+      selectedPlaceViewContextRef.current = null;
+    }
 
     if (activeSnapIndex === 2) {
       snapTo(snapOffsets[1]);
@@ -477,6 +509,7 @@ export function PlaceResultSheet({
     setIsActionSheetVisible(false);
     detailEntryOffsetRef.current = null;
     setSelectedPlace(null);
+    selectedPlaceViewContextRef.current = null;
   }, []);
 
   const handleDelete = useCallback(async () => {
@@ -651,12 +684,12 @@ export function PlaceResultSheet({
             isResultsUserScrollingRef.current = false;
           }}
           onContentSizeChange={restoreResultsScroll}
-          renderItem={({ item: place }) => (
+          renderItem={({item: place, index}) => (
             <View style={styles.result}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${place.name} 상세 보기`}
-                onPress={() => selectPlace(place)}
+                onPress={() => selectPlace(place, index + 1)}
                 style={styles.resultCard}
               >
                 {place.image ? (

@@ -23,7 +23,6 @@ type SavedPlaceIdentity = {
 export type SavedPlaceViewContext = SavedPlaceIdentity & {
   placeViewId: string;
   source: SavedPlaceSource;
-  savedAt: string;
 };
 
 export function getSavedPlaceRevisit(
@@ -109,6 +108,7 @@ export function captureSavedPlaceSelected(
 export function captureSavedPlaceOpened(
   client: AnalyticsClient | null | undefined,
   properties: SavedPlaceViewContext & {
+    savedAt: string;
     viewedAt?: Date;
   },
 ) {
@@ -130,6 +130,7 @@ export function captureSavedPlaceOpened(
 export function capturePlaceMapViewed(
   client: AnalyticsClient | null | undefined,
   properties: SavedPlaceViewContext & {
+    savedAt: string;
     viewedAt?: Date;
   },
 ) {

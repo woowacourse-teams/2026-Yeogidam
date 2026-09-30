@@ -19,7 +19,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {v4 as uuidv4} from 'uuid';
 import { supabase } from '../../lib/auth/supabase';
 
-import {captureSavedPlacesViewed} from '../../analytics/savedPlaceEvents';
+import {
+  captureSavedPlaceSelected,
+  captureSavedPlacesViewed,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   bottomNavigationBarContainerStyle,
@@ -78,7 +82,7 @@ type ShareApiDiagnostics = {
 };
 
 type SavedPlacesScreenProps = {
-  onOpenDetail: (place: Place) => void;
+  onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
@@ -923,6 +927,34 @@ export function SavedPlacesScreen({
     });
   }, []);
 
+  const openPlaceDetail = useCallback(
+    (
+      place: Place,
+      source: SavedPlaceViewContext['source'],
+      position: number,
+      searchId?: string,
+    ) => {
+      if (!place.savedPlaceId) {
+        onOpenDetail(place);
+        return;
+      }
+
+      const context: SavedPlaceViewContext = {
+        placeId: place.id,
+        savedPlaceId: place.savedPlaceId,
+        placeViewId: uuidv4(),
+        source,
+      };
+      captureSavedPlaceSelected(posthog, {
+        ...context,
+        searchId,
+        position,
+      });
+      onOpenDetail(place, context);
+    },
+    [onOpenDetail, posthog],
+  );
+
   return (
     <View style={styles.container}>
       {isSearchOpen ? (
@@ -931,7 +963,14 @@ export function SavedPlacesScreen({
             places={places}
             recentSearches={recentSearches}
             onCloseSearch={() => setIsSearchOpen(false)}
-            onPressPlace={onOpenDetail}
+            onPressPlace={(place, selection) =>
+              openPlaceDetail(
+                place,
+                'saved_places_search',
+                selection.position,
+                selection.searchId,
+              )
+            }
             onSaveSearchTerm={saveRecentSearch}
           />
         </>
@@ -992,7 +1031,9 @@ export function SavedPlacesScreen({
                   isEditing={isEditing}
                   places={places}
                   onLongPressPlace={enterEditMode}
-                  onPressPlace={onOpenDetail}
+                  onPressPlace={(place, position) =>
+                    openPlaceDetail(place, 'saved_places_grid', position)
+                  }
                   onTogglePlaceSelection={togglePlaceSelection}
                   selectedPlaceIds={selectedPlaceIds}
                 />
