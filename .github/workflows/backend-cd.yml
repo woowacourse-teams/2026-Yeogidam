@@ -250,7 +250,8 @@ jobs:
       BACKEND_ENV_FILE: ${{ vars.BACKEND_ENV_FILE }}
       BACKEND_HOST_PORT: ${{ vars.BACKEND_HOST_PORT }}
       BACKEND_CONTAINER_NAME: ${{ vars.BACKEND_CONTAINER_NAME || 'yeogidam-backend' }}
-      BACKEND_BIND_ADDRESS: ${{ vars.BACKEND_BIND_ADDRESS || '127.0.0.1' }}
+      # 바인딩 주소는 deploy.sh의 상수(127.0.0.1)다. 변수로 두면 0.0.0.0을 넣는 순간
+      # 앱이 TLS 없이 인터넷에 노출되므로 여기서 받지 않는다.
       BACKEND_HEALTH_TIMEOUT_SECONDS: ${{ vars.BACKEND_HEALTH_TIMEOUT_SECONDS || '150' }}
       # t4g.micro 910Mi에서 러너와 dockerd 등이 고정으로 280MB를 쓰므로 앱에 512MB를 준다.
       # SWAP_LIMIT은 메모리와 스왑의 합계라서 768m이면 스왑 몫이 256MB다.

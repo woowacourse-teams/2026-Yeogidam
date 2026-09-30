@@ -3,6 +3,12 @@
 set -Eeuo pipefail
 
 readonly CONTAINER_PORT="8080"
+
+# 앱은 서버 안에서만 듣는다. 밖에서 오는 요청은 nginx가 443에서 받아 여기로 넘긴다.
+# project-public이 8080을 0.0.0.0/0으로 열어 두고 있어서(공용 보안 그룹이라 못 닫는다)
+# 0.0.0.0을 허용하면 앱이 TLS 없이 인터넷에 그대로 노출된다. 변수로 두면 repository
+# variable 하나로 그 상태가 되므로 상수로 박는다.
+readonly BIND_ADDRESS="127.0.0.1"
 readonly DEPLOY_LOCK_DIR="/tmp/yeogidam-deploy-${UID}"
 readonly DEPLOY_LOCK_FILE="${DEPLOY_LOCK_DIR}/backend.lock"
 
@@ -70,7 +76,7 @@ start_container() {
     --name "$BACKEND_CONTAINER_NAME" \
     --restart unless-stopped \
     --env-file "$BACKEND_ENV_FILE" \
-    --publish "${BACKEND_BIND_ADDRESS}:${BACKEND_HOST_PORT}:${CONTAINER_PORT}" \
+    --publish "${BIND_ADDRESS}:${BACKEND_HOST_PORT}:${CONTAINER_PORT}" \
     --memory "$BACKEND_MEMORY_LIMIT" \
     --memory-swap "$BACKEND_MEMORY_SWAP_LIMIT" \
     --log-driver json-file \
@@ -199,7 +205,7 @@ write_summary() {
     printf -- "- Git SHA: \`%s\`\n" "${GITHUB_SHA:-unknown}"
     printf -- "- 이미지: \`%s\`\n" "$IMAGE_REFERENCE"
     printf -- "- 컨테이너: \`%s\`\n" "$BACKEND_CONTAINER_NAME"
-    printf -- "- 포트: \`%s:%s\`\n" "$BACKEND_BIND_ADDRESS" "$BACKEND_HOST_PORT"
+    printf -- "- 포트: \`%s:%s\`\n" "$BIND_ADDRESS" "$BACKEND_HOST_PORT"
     printf -- "- 현재 이미지: \`%s\`\n" "${current_digest:-없음}"
     printf -- "- 직전 이미지: \`%s\`\n" "${previous_digest:-없음}"
     printf -- "- 결과: \`%s\`\n" "$result"
@@ -264,7 +270,6 @@ require_value "EXPECTED_IMAGE_NAME" "${EXPECTED_IMAGE_NAME:-}"
 require_value "BACKEND_ENV_FILE" "${BACKEND_ENV_FILE:-}"
 require_value "BACKEND_HOST_PORT" "${BACKEND_HOST_PORT:-}"
 require_value "BACKEND_CONTAINER_NAME" "${BACKEND_CONTAINER_NAME:-}"
-require_value "BACKEND_BIND_ADDRESS" "${BACKEND_BIND_ADDRESS:-}"
 require_value "BACKEND_HEALTH_TIMEOUT_SECONDS" "${BACKEND_HEALTH_TIMEOUT_SECONDS:-}"
 require_value "EXPECTED_SPRING_PROFILE" "${EXPECTED_SPRING_PROFILE:-}"
 require_value "BACKEND_MEMORY_LIMIT" "${BACKEND_MEMORY_LIMIT:-}"
@@ -321,11 +326,6 @@ fi
 if [[ ! "$BACKEND_CONTAINER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
   fail "BACKEND_CONTAINER_NAME 형식이 올바르지 않습니다."
 fi
-
-case "$BACKEND_BIND_ADDRESS" in
-  127.0.0.1|0.0.0.0) ;;
-  *) fail "BACKEND_BIND_ADDRESS는 127.0.0.1 또는 0.0.0.0이어야 합니다." ;;
-esac
 
 if [[ ! "$BACKEND_HOST_PORT" =~ ^[0-9]{1,5}$ ]]; then
   fail "BACKEND_HOST_PORT는 1자리부터 5자리까지의 숫자여야 합니다."
