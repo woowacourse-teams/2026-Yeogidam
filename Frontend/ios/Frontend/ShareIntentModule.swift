@@ -45,10 +45,44 @@ final class ShareIntentModule: RCTEventEmitter {
     resolve(nil)
   }
 
-  @objc(setAccessToken:resolver:rejecter:)
-  func setAccessToken(_ token: String?, resolver resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
-    ShareIntentStorage.saveAccessToken(token)
-    resolve(nil)
+  @objc(setShareSession:resolver:rejecter:)
+  func setShareSession(_ raw: [String: Any]?, resolver resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    do {
+      let session: ShareAuthSession? = raw.flatMap {
+        guard let access = $0["accessToken"] as? String,
+              let refresh = $0["refreshToken"] as? String,
+              let expiresAt = $0["expiresAt"] as? Double,
+              let userId = $0["userId"] as? String else { return nil }
+        return ShareAuthSession(accessToken: access, refreshToken: refresh, expiresAt: expiresAt, userId: userId)
+      }
+      try ShareIntentStorage.saveSession(session)
+      resolve(nil)
+    } catch {
+      reject("SHARE_AUTH_STORE", "공유 세션을 저장하지 못했습니다.", error)
+    }
+  }
+
+  @objc(getShareSession:rejecter:)
+  func getShareSession(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    do {
+      guard let session = try ShareIntentStorage.loadSession(),
+            let data = try? JSONEncoder().encode(session),
+            let object = try? JSONSerialization.jsonObject(with: data) else {
+        resolve(nil)
+        return
+      }
+      resolve(object)
+    } catch {
+      reject("SHARE_AUTH_STORE", "공유 세션을 읽지 못했습니다.", error)
+    }
+  }
+
+  @objc(resumeWaitingShares:rejecter:)
+  func resumeWaitingShares(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    Task {
+      await ShareBackgroundTransfer.shared.resumeWaitingShares()
+      resolve(nil)
+    }
   }
 
   @objc(setSupabaseConfiguration:publishableKey:resolver:rejecter:)

@@ -39,6 +39,10 @@ jest.mock('react-native-config', () => ({
   },
 }));
 
+jest.mock('react-native-device-info', () =>
+  require('react-native-device-info/jest/react-native-device-info-mock'),
+);
+
 jest.mock('./src/lib/app-update-policy', () => ({
   getAppUpdatePolicy: jest.fn(() => Promise.resolve(null)),
 }));

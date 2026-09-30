@@ -67,6 +67,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     )
   }
 
+  func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    guard identifier == ShareBackgroundTransfer.identifier else {
+      completionHandler()
+      return
+    }
+    ShareBackgroundTransfer.shared.handleEvents(completion: completionHandler)
+  }
+
   private func handleShareExtensionURL(_ url: URL) -> Bool {
     guard
       url.scheme == "com.yeogidamm.app",

@@ -148,6 +148,7 @@ function HistoryItem({
           <>
             <Animated.View
               key={processing ? 'processing-badge' : 'static-badge'}
+              // eslint-disable-next-line react-native/no-inline-styles
               style={{opacity: processing ? pulse : 1}}
             >
             <View
@@ -273,7 +274,7 @@ function HistorySuccessDetail({
           disabled={!originalUrl}
           onPress={() => {
             if (originalUrl) {
-              void Linking.openURL(originalUrl);
+              Linking.openURL(originalUrl).catch(() => undefined);
             }
           }}
           style={[styles.originalButton, !originalUrl && styles.disabledButton]}
@@ -362,7 +363,7 @@ function HistoryFailureDetail({
           disabled={!originalUrl}
           onPress={() => {
             if (originalUrl) {
-              void Linking.openURL(originalUrl);
+              Linking.openURL(originalUrl).catch(() => undefined);
             }
           }}
           style={[styles.originalButton, !originalUrl && styles.disabledButton]}
@@ -379,7 +380,7 @@ function HistoryFailureDetail({
               {
                 text: '확인',
                 onPress: () => {
-                  void onRetry().catch(() => undefined);
+                  onRetry().catch(() => undefined);
                 },
               },
             ]);
@@ -601,12 +602,12 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   }, []);
 
   useEffect(() => {
-    void load();
+    load().catch(() => undefined);
   }, [load]);
 
   useEffect(() => {
     const refresh = setInterval(() => {
-      void load(undefined, true);
+      load(undefined, true).catch(() => undefined);
     }, 5000);
 
     return () => clearInterval(refresh);
@@ -738,7 +739,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
           if (reachedBottom && cursor && !loadingMore) {
-            void load(cursor);
+            load(cursor).catch(() => undefined);
           }
         }}
         scrollEventThrottle={200}

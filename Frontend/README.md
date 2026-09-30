@@ -1,5 +1,18 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+## Environment variables
+
+Create `Frontend/.env` and add the environment variables required by the app.
+
+```dotenv
+POSTHOG_PROJECT_TOKEN=<PostHog project token>
+POSTHOG_HOST=<PostHog ingestion host>
+```
+
+PostHog is disabled when either value is missing. The current integration only
+captures app lifecycle events used to measure DAU and MAU. Screen and touch
+autocapture, surveys, and session replay are disabled.
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
