@@ -86,8 +86,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
 
     /**
      * X-Request-Id 헤더가 허용 형식이면 그 값을 쓰고, 없거나 형식에 어긋나면 새로 만든다.
-     * 지금 nginx 설정(Infra/nginx/nginx.conf.template)은 이 헤더를 넣지 않으므로 값은 클라이언트가 정하며,
-     * 여기서는 형식만 검사한다. nginx가 $request_id를 이 헤더로 넘기도록 바꾸면 access 로그와 대조할 수 있다.
+     * 서버에서는 nginx(Infra/nginx/nginx.conf.template)가 요청마다 만든 $request_id(32자 16진수)를 이 헤더로
+     * 넘기고 access 로그에도 같은 값을 남기므로, 값은 nginx가 정하고 클라이언트가 보낸 값은 nginx에서 덮인다.
+     * 로컬 실행처럼 nginx가 없으면 클라이언트 값이나 여기서 만든 값이 쓰이므로 형식 검사는 그대로 둔다.
      */
     private String resolveRequestId(HttpServletRequest request) {
         String header = request.getHeader(HEADER_NAME);

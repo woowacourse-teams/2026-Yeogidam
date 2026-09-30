@@ -18,6 +18,13 @@ readonly ROLE_CURRENT="current"
 readonly ROLE_PREVIOUS="previous"
 readonly ROLE_CANDIDATE="candidate"
 
+# 컨테이너 로그는 awslogs 드라이버가 CloudWatch로 보낸다. 우테코 공용 계정은 리전이
+# ap-northeast-2 하나뿐이라 상수로 박는다. 로그 그룹 이름은 이 접두사 뒤에 환경과 backend를
+# 붙여 만들고(LOG_GROUP), 스트림은 서버마다 앱 컨테이너가 하나라 이름을 고정한다.
+readonly AWS_REGION="ap-northeast-2"
+readonly LOG_GROUP_PREFIX="/yeogidam"
+readonly LOG_STREAM="backend"
+
 fail() {
   printf '::error::%s\n' "$1"
   exit 1
@@ -70,6 +77,13 @@ wait_for_healthy() {
 # BACKEND_MEMORY_SWAP_LIMIT은 스왑만의 값이 아니라 메모리와 스왑을 합친 총량이다.
 # 비워 두면 도커가 상한의 두 배를 잡아 스왑 몫이 언제나 상한과 같아지므로, 나중에
 # 메모리만 올리려 해도 스왑이 따라 올라간다. 그래서 두 값을 따로 받는다.
+#
+# 로그는 awslogs 드라이버가 CloudWatch 로그 그룹으로 바로 보낸다. 도커는 이중 로깅이
+# 기본이라 서버에도 사본을 남겨 docker logs가 계속 되고, BACKEND_LOG_MAX_SIZE와
+# BACKEND_LOG_MAX_FILE은 그 로컬 사본의 상한이지 CloudWatch 보존과는 무관하다.
+# awslogs-create-group은 넣지 않는다. 우테코 계정은 태그 없는 리소스를 관리자가 지우므로
+# 로그 그룹은 콘솔에서 태그를 달아 미리 만들어 두고, 그룹이 없으면 docker run이 실패해
+# 롤백 경로를 탄다.
 start_container() {
   local image="$1"
 
@@ -80,9 +94,12 @@ start_container() {
     --publish "${BIND_ADDRESS}:${BACKEND_HOST_PORT}:${CONTAINER_PORT}" \
     --memory "$BACKEND_MEMORY_LIMIT" \
     --memory-swap "$BACKEND_MEMORY_SWAP_LIMIT" \
-    --log-driver json-file \
-    --log-opt "max-size=${BACKEND_LOG_MAX_SIZE}" \
-    --log-opt "max-file=${BACKEND_LOG_MAX_FILE}" \
+    --log-driver awslogs \
+    --log-opt "awslogs-region=${AWS_REGION}" \
+    --log-opt "awslogs-group=${LOG_GROUP}" \
+    --log-opt "awslogs-stream=${LOG_STREAM}" \
+    --log-opt "cache-max-size=${BACKEND_LOG_MAX_SIZE}" \
+    --log-opt "cache-max-file=${BACKEND_LOG_MAX_FILE}" \
     --pull never \
     "$image" >/dev/null
 }
@@ -208,6 +225,7 @@ write_summary() {
     printf -- "- 컨테이너: \`%s\`\n" "$BACKEND_CONTAINER_NAME"
     printf -- "- 포트: \`%s:%s\`\n" "$BIND_ADDRESS" "$BACKEND_HOST_PORT"
     printf -- "- 자원: \`--memory %s\`, \`--memory-swap %s\`, 헬스 대기 %s초\n" "$BACKEND_MEMORY_LIMIT" "$BACKEND_MEMORY_SWAP_LIMIT" "$HEALTH_TIMEOUT_SECONDS"
+    printf -- "- 로그: CloudWatch \`%s\` 스트림 \`%s\`, 로컬 캐시 \`cache-max-size %s\`, \`cache-max-file %s\`\n" "$LOG_GROUP" "$LOG_STREAM" "$BACKEND_LOG_MAX_SIZE" "$BACKEND_LOG_MAX_FILE"
     printf -- "- 현재 이미지: \`%s\`\n" "${current_digest:-없음}"
     printf -- "- 직전 이미지: \`%s\`\n" "${previous_digest:-없음}"
     printf -- "- 결과: \`%s\`\n" "$result"
@@ -284,7 +302,9 @@ require_value "BACKEND_LOG_MAX_FILE" "${BACKEND_LOG_MAX_FILE:-}"
 
 # 값이 도커 표기가 아니면 docker run이 컨테이너를 만들기 직전에 실패한다. 그때는 이미
 # 기존 컨테이너를 rename한 뒤라 롤백 경로를 타므로, 오타 하나가 배포 실패로 기록된다.
-# 그래서 시작하기 전에 형식을 본다.
+# 그래서 시작하기 전에 형식을 본다. BACKEND_LOG_MAX_SIZE와 BACKEND_LOG_MAX_FILE은 awslogs
+# 드라이버의 로컬 캐시(cache-max-size, cache-max-file) 상한인데, 이 캐시도 json-file과 같은
+# 크기 표기를 받는다.
 for name in BACKEND_MEMORY_LIMIT BACKEND_MEMORY_SWAP_LIMIT BACKEND_LOG_MAX_SIZE; do
   if [[ ! "${!name}" =~ ^[0-9]+[bkmgBKMG]$ ]]; then
     fail "${name}이 도커 크기 표기가 아닙니다. 512m처럼 숫자와 단위로 적어 주세요. 지금 값은 ${!name}입니다."
@@ -327,6 +347,12 @@ ACTIVE_PROFILE_LINE="$(grep -E '^SPRING_PROFILES_ACTIVE=' "$BACKEND_ENV_FILE" | 
 if [[ "$ACTIVE_PROFILE_LINE" != "SPRING_PROFILES_ACTIVE=${EXPECTED_SPRING_PROFILE}" ]]; then
   fail "${BACKEND_ENV_FILE}의 SPRING_PROFILES_ACTIVE가 ${EXPECTED_SPRING_PROFILE}가 아닙니다. 따옴표와 공백 없이 SPRING_PROFILES_ACTIVE=${EXPECTED_SPRING_PROFILE} 한 줄로 적어 주세요."
 fi
+
+# CloudWatch 로그 그룹은 /yeogidam/dev/backend, /yeogidam/prod/backend처럼 환경 이름을 품는데,
+# 그 환경 이름이 스프링 프로필 이름(dev, prod)과 같다. 그래서 환경용 변수를 따로 받지 않고
+# 위에서 검증을 마친 EXPECTED_SPRING_PROFILE로 그룹 이름을 만든다. 변수를 하나 더 두면
+# 두 값이 어긋났을 때 로그가 엉뚱한 환경의 그룹으로 간다.
+LOG_GROUP="${LOG_GROUP_PREFIX}/${EXPECTED_SPRING_PROFILE}/backend"
 
 if [[ ! "$BACKEND_CONTAINER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
   fail "BACKEND_CONTAINER_NAME 형식이 올바르지 않습니다."

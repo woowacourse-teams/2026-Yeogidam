@@ -260,6 +260,8 @@ jobs:
       # SWAP_LIMIT은 메모리와 스왑의 합계라서 768m이면 스왑 몫이 256MB다.
       BACKEND_MEMORY_LIMIT: ${{ vars.BACKEND_MEMORY_LIMIT || '512m' }}
       BACKEND_MEMORY_SWAP_LIMIT: ${{ vars.BACKEND_MEMORY_SWAP_LIMIT || '768m' }}
+      # 컨테이너 로그는 awslogs 드라이버가 CloudWatch 로그 그룹 /yeogidam/<프로필>/backend로 보낸다.
+      # 아래 두 값은 docker logs용으로 서버에 남기는 로컬 캐시의 상한이라 CloudWatch 보존 기간과는 무관하다.
       BACKEND_LOG_MAX_SIZE: ${{ vars.BACKEND_LOG_MAX_SIZE || '10m' }}
       BACKEND_LOG_MAX_FILE: ${{ vars.BACKEND_LOG_MAX_FILE || '3' }}
 
