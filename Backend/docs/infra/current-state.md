@@ -2,7 +2,7 @@
 
 지금 실제로 돌아가는 것과 ADR이 정했는데 아직 못 한 것을 적는다. **ADR은 결정 기록이라 함부로 고치지 않지만 이 문서는 바뀔 때마다 고친다.** 인프라를 건드리는 PR은 이 문서도 같이 고친다.
 
-마지막 갱신 2026-09-29.
+마지막 갱신 2026-10-01.
 
 ## 배포 경로
 
@@ -99,7 +99,7 @@ JWT_SECRET
 | CODEOWNERS와 필수 리뷰 | 부분. 필수 리뷰는 ruleset으로 강제된다(be-dev와 be-release 승인 1개, main 2개). CODEOWNERS 파일은 없다 |
 | 배포 이력을 서버 외부에 기록 | 안 됨(ADR-01과 같은 항목) |
 | Runner 복구 Runbook | 안 됨 |
-| 자원과 OOM 모니터링 | 부분(2026-09-29). 상한과 로그 로테이션은 코드에 넣었다(512m / 768m / 10m 3개). 모니터링은 없고 배포도 아직 안 돌았다 |
+| 자원과 OOM 모니터링 | 부분(2026-10-01). 상한은 코드에 있다(512m / 768m). 서버 쪽 수집은 됐다. 앱 컨테이너는 `awslogs` 드라이버로, nginx와 MySQL 로그와 메모리, 디스크 지표는 CloudWatch 에이전트로 보낸다(#251). 지표 필터와 알람과 대시보드는 콘솔에서 만들어야 하고 절차는 [observability.md](observability.md)에 있다 |
 
 ### 인프라 ADR-03 EC2 인스턴스 아키텍처
 
@@ -178,7 +178,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 | digest 고정 배포 | 컨테이너 이미지와 `current` 태그의 RepoDigest가 Summary의 digest와 같다 |
 | 헬스 판정 | healthy 뒤 성공으로 끝나고, unhealthy면 롤백으로 간다 |
 | 프로필 대조 | env 대조를 지나 컨테이너 단계로 간다 |
-| 자원 상한과 로그 | `--memory` 512MiB, `--memory-swap` 768MiB, 로그 10m 3개가 컨테이너에 걸렸다. 힙 256MB, 실사용 197MiB |
+| 자원 상한과 로그 | `--memory` 512MiB, `--memory-swap` 768MiB, 로그 10m 3개가 컨테이너에 걸렸다. 힙 256MB, 실사용 197MiB. (2026-10-01부터 로그는 `awslogs`로 CloudWatch에 가고 10m 3개는 `docker logs`용 로컬 캐시 상한이다) |
 | 롤백 | `BACKEND_MEMORY_LIMIT=64m`으로 새 컨테이너만 OOM으로 죽게 해서 두 번 돌렸고, 두 번 다 옛 컨테이너가 원래 상한으로 복구됐다 |
 | 역할 태그 | 두 번째 배포 뒤 `current`는 새 ID, `previous`는 옛 ID다. `candidate`는 배포 중에만 있다 |
 | 이미지 정리 | 두 번째 배포에서 롤백 시험이 남긴 이미지가 지워지고 `current`와 `previous`만 남았다 |
@@ -199,13 +199,13 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 
 급한 순서다.
 
-1. **관측이 없다.** actuator가 liveness만 열고 metrics는 닫혀 있다. 로그 보존, 대시보드 지표, 실패 알림이 스프린트 1 조건인데 셋 다 없다.
+1. **관측의 콘솔 쪽과 사고 기록이 남았다.** 서버 쪽은 2026-10-01에 끝났다(#251). 앱 로그가 dev와 prod에서 JSON이 되고 요청마다 한 줄이 남으며, 앱과 nginx와 개발 MySQL 로그와 메모리, 디스크 지표가 CloudWatch로 간다. actuator `metrics`도 서버 안에서만 열었다. 남은 것은 콘솔에서 만드는 지표 필터 4개, 알람 6개, 대시보드 1개, SNS 토픽, Lambda와 태그 일괄 작업이고, 그 뒤 개발에서 OOM 롤백을 일부러 일으켜 알림이 Discord에 닿는지 보고 사고 기록 1건을 `incidents/`에 남기면 스프린트 1 조건이 찬다. 절차는 [observability.md](observability.md)에 있다. 로그 보존은 다섯 그룹 모두 1개월인데 출시 뒤 `prod` 두 그룹은 3개월로 늘린다.
 2. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
 3. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
 4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
 5. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
 6. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 깃허브 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
-7. **운영 DB가 없다.** 개발 DB는 2026-09-29에 `yeogidam-dev-db`에 Docker MySQL로 띄웠고 스키마까지 넣었다. 운영은 RDS로 가기로 했는데 아직 만들지 않았다. 마이그레이션 도구가 없어 스키마 변경을 개발과 운영 양쪽에 손으로 적용해야 하는 것도 그대로다.
+7. **운영 DB가 없다.** 개발 DB는 2026-09-29에 `yeogidam-dev-db`에 Docker MySQL로 띄웠고 스키마까지 넣었다. 운영은 RDS로 가기로 했는데 아직 만들지 않았다. 만들 때 「로그 내보내기」에서 error와 slowquery를 켜고 파라미터 그룹에 `long_query_time=0.5`를 주면 개발 DB와 같은 로그가 CloudWatch로 간다(RDS가 만드는 그룹에는 태그를 따로 단다). 마이그레이션 도구가 없어 스키마 변경을 개발과 운영 양쪽에 손으로 적용해야 하는 것도 그대로다.
 8. **운영 디스크가 빠듯하다.** 2026-09-29에 러너 옛 버전 448MB를 지워 여유가 2.3G에서 2.7G로 늘었다. 그래도 8GB 중 2GB를 `/swapfile`이 가져가 실제로 쓸 수 있는 것은 6GB다. `current`와 `previous`와 `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. journal은 상한이 없어 운영 256MB, 개발 185MB까지 자랐다. `ec2-user`의 `~/.warp` 196MB도 지울 수 있는데 아직 안 지웠다.
 9. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
 10. **CODEOWNERS와 dependabot이 없다.**
