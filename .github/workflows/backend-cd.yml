@@ -173,6 +173,9 @@ jobs:
           platforms: ${{ env.IMAGE_PLATFORM }}
           push: true
           tags: ${{ env.IMAGE_TAG }}
+          # 기본값이면 provenance 증명서가 붙어 태그 하나가 목록, 이미지, 증명서 세 조각이 되고
+          # 고정하는 digest도 목록의 것이 된다. 읽는 곳이 없으므로 이미지 한 장에 digest 하나로 둔다.
+          provenance: false
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
