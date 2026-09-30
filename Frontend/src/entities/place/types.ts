@@ -3,6 +3,7 @@ import type { ImageSourcePropType } from 'react-native';
 export type Place = {
   id: string;
   savedPlaceId?: string;
+  savedAt?: string;
   kakaoPlaceId?: string;
   name: string;
   category?: string;

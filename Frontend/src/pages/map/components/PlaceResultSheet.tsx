@@ -20,6 +20,7 @@ import {usePostHog} from 'posthog-react-native';
 import {v4 as uuidv4} from 'uuid';
 
 import {
+  captureSavedPlaceOpened,
   captureSavedPlaceSelected,
   type SavedPlaceViewContext,
 } from '../../../analytics/savedPlaceEvents';
@@ -105,6 +106,8 @@ export function PlaceResultSheet({
   const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
   const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
+    useState<SavedPlaceViewContext | null>(null);
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(false);
@@ -147,7 +150,7 @@ export function PlaceResultSheet({
   const handledCollapseSignal = useRef(collapseSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
-  const selectedPlaceViewContextRef = useRef<SavedPlaceViewContext | null>(null);
+  const capturedPlaceViewIdRef = useRef<string | null>(null);
   const isPageModeRef = useRef(false);
   const resultsScrollOffsetRef = useRef(0);
   const resultsListRef = useRef<FlatList<Place>>(null);
@@ -227,6 +230,22 @@ export function PlaceResultSheet({
   useEffect(() => {
     onDetailViewChange?.(selectedPlace !== null);
   }, [onDetailViewChange, selectedPlace]);
+
+  useEffect(() => {
+    if (
+      !selectedPlaceViewContext ||
+      !selectedPlace?.savedAt ||
+      capturedPlaceViewIdRef.current === selectedPlaceViewContext.placeViewId
+    ) {
+      return;
+    }
+
+    capturedPlaceViewIdRef.current = selectedPlaceViewContext.placeViewId;
+    captureSavedPlaceOpened(posthog, {
+      ...selectedPlaceViewContext,
+      savedAt: selectedPlace.savedAt,
+    });
+  }, [posthog, selectedPlace, selectedPlaceViewContext]);
 
   const loadSelectedPlaceReels = useCallback(async () => {
     if (!selectedPlace) {
@@ -357,7 +376,7 @@ export function PlaceResultSheet({
 
     handledExpandSignal.current = expandSignal;
     setSelectedPlace(null);
-    selectedPlaceViewContextRef.current = null;
+    setSelectedPlaceViewContext(null);
     // 검색 결과는 바로 확인할 수 있도록 목록 높이까지 시트를 엽니다.
     snapTo(snapOffsets[1]);
   }, [expandSignal, snapOffsets, snapTo]);
@@ -381,7 +400,7 @@ export function PlaceResultSheet({
     handledOpenPlaceSignal.current = openPlaceSignal;
     detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
-    selectedPlaceViewContextRef.current = openPlaceContext ?? null;
+    setSelectedPlaceViewContext(openPlaceContext ?? null);
     snapTo(snapOffsets[1]);
   }, [
     openPlace,
@@ -495,9 +514,9 @@ export function PlaceResultSheet({
         source: 'map_search_result',
       };
       captureSavedPlaceSelected(posthog, {...viewContext, position});
-      selectedPlaceViewContextRef.current = viewContext;
+      setSelectedPlaceViewContext(viewContext);
     } else {
-      selectedPlaceViewContextRef.current = null;
+      setSelectedPlaceViewContext(null);
     }
 
     if (activeSnapIndex === 2) {
@@ -509,7 +528,7 @@ export function PlaceResultSheet({
     setIsActionSheetVisible(false);
     detailEntryOffsetRef.current = null;
     setSelectedPlace(null);
-    selectedPlaceViewContextRef.current = null;
+    setSelectedPlaceViewContext(null);
   }, []);
 
   const handleDelete = useCallback(async () => {

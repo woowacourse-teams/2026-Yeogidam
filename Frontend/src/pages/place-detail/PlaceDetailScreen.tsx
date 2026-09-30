@@ -1,7 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
+import {usePostHog} from 'posthog-react-native';
 
-import type {SavedPlaceViewContext} from '../../analytics/savedPlaceEvents';
+import {
+  captureSavedPlaceOpened,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
 import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
 import type {
   PlaceReel,
@@ -24,14 +28,33 @@ type PlaceDetailScreenProps = {
 export function PlaceDetailScreen({
   onBack,
   place,
+  viewContext,
   onAuthenticationRequired,
 }: PlaceDetailScreenProps) {
+  const posthog = usePostHog();
+  const capturedPlaceViewIdRef = useRef<string | null>(null);
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
   const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
+
+  useEffect(() => {
+    if (
+      !viewContext ||
+      !place.savedAt ||
+      capturedPlaceViewIdRef.current === viewContext.placeViewId
+    ) {
+      return;
+    }
+
+    capturedPlaceViewIdRef.current = viewContext.placeViewId;
+    captureSavedPlaceOpened(posthog, {
+      ...viewContext,
+      savedAt: place.savedAt,
+    });
+  }, [place.savedAt, posthog, viewContext]);
 
   const loadPosts = useCallback(async () => {
     setIsReelsLoading(true);

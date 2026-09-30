@@ -10,6 +10,7 @@ export function toSavedPlaceDisplayPlace(savedPlace: SavedPlaceListItem): Place 
   return {
     id: place.id,
     savedPlaceId: savedPlace.id,
+    savedAt: savedPlace.lastSavedAt ?? savedPlace.createdAt,
     name: place.name,
     category: place.category ?? undefined,
     address,
