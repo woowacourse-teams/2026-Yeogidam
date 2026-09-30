@@ -302,7 +302,7 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      void syncShareAccessToken(session?.access_token ?? null);
+      syncShareAccessToken(session?.access_token ?? null).catch(() => undefined);
       if (!isMounted) {
         return;
       }
@@ -336,7 +336,7 @@ function App() {
       }
       subscription.unsubscribe();
     };
-  }, []);
+  }, [posthog]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
