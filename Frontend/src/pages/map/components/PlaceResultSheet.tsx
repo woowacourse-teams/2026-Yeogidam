@@ -540,6 +540,7 @@ export function PlaceResultSheet({
       style={[
         styles.sheet,
         isPageMode && styles.pageSheet,
+        // eslint-disable-next-line react-native/no-inline-styles
         {
           height: sheetHeight,
           bottom: selectedPlace ? 0 : bottomTabOffset,
