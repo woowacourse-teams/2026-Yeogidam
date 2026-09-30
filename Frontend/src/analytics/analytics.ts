@@ -1,5 +1,6 @@
 import {Platform} from 'react-native';
 import Config from 'react-native-config';
+import DeviceInfo from 'react-native-device-info';
 
 /** 모든 분석 이벤트에서 사용하는 JSON 속성 타입입니다. */
 export type AnalyticsValue =
@@ -30,6 +31,7 @@ export function capture(
 export function getCommonAnalyticsProperties() {
   return {
     platform: Platform.OS,
-    release: Config.APP_VERSION?.trim() || 'unknown',
+    release: DeviceInfo.getVersion(),
+    environment: Config.APP_ENV?.trim() || 'development',
   };
 }
