@@ -1,8 +1,16 @@
 import {Platform} from 'react-native';
 import Config from 'react-native-config';
 
-/** 모든 분석 이벤트에서 사용하는 속성 타입입니다. */
-export type AnalyticsProperties = Record<string, unknown>;
+/** 모든 분석 이벤트에서 사용하는 JSON 속성 타입입니다. */
+export type AnalyticsValue =
+  | string
+  | number
+  | boolean
+  | null
+  | AnalyticsValue[]
+  | {[key: string]: AnalyticsValue};
+
+export type AnalyticsProperties = Record<string, AnalyticsValue>;
 
 /** 이벤트 전송에 필요한 PostHog 최소 인터페이스입니다. */
 export type AnalyticsClient = {

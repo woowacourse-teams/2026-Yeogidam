@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { usePostHog } from 'posthog-react-native';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import { configureDataSources } from './src/app/configureDataSources';
@@ -25,6 +26,12 @@ import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { getAppUpdatePolicy } from './src/lib/app-update-policy';
+import {
+  trackAppOpened,
+  trackLoginFinished,
+  trackLoginStarted,
+  type LoginFailureType,
+} from './src/analytics/userEntryEvents';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -67,9 +74,32 @@ const SPLASH_MIN_DURATION_MS = 2000;
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
 
+function toLoginFailureType(error: NormalizedAuthError): LoginFailureType {
+  if (error.errorCode === 'AUTH000_001') {
+    return 'user_cancelled';
+  }
+
+  if (
+    error.errorCode === 'CLIENT000_001' ||
+    error.errorCode === 'CLIENT000_002'
+  ) {
+    return 'network_error';
+  }
+
+  if (
+    error.errorCode === 'AUTH400_001' ||
+    error.errorCode === 'AUTH502_001'
+  ) {
+    return 'auth_failed';
+  }
+
+  return 'unknown';
+}
+
 configureDataSources();
 
 function App() {
+  const posthog = usePostHog();
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
@@ -103,6 +133,7 @@ function App() {
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
+  const hasTrackedAppOpenedRef = useRef(false);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -208,6 +239,10 @@ function App() {
       }
 
       if (error || !data.session) {
+        if (!hasTrackedAppOpenedRef.current) {
+          trackAppOpened(posthog, false);
+          hasTrackedAppOpenedRef.current = true;
+        }
         await syncShareAccessToken(null);
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
@@ -217,6 +252,11 @@ function App() {
       }
 
       await syncShareAccessToken(data.session.access_token);
+
+      if (!hasTrackedAppOpenedRef.current) {
+        trackAppOpened(posthog, true);
+        hasTrackedAppOpenedRef.current = true;
+      }
 
       setFlowState({
         kind: 'main',
@@ -479,21 +519,31 @@ function App() {
 
     setSocialLoginError(null);
     setPendingSocialProvider(provider);
+    trackLoginStarted(posthog, provider);
 
     try {
       if (provider === 'apple') {
         await signInWithApple();
+        trackLoginFinished(posthog, {provider, outcome: 'success'});
         return;
       }
 
       if (provider === 'kakao') {
         await signInWithKakao();
+        trackLoginFinished(posthog, {provider, outcome: 'success'});
         return;
       }
 
       await signInWithGoogle();
+      trackLoginFinished(posthog, {provider, outcome: 'success'});
     } catch (error) {
-      setSocialLoginError(error as NormalizedAuthError);
+      const normalizedError = error as NormalizedAuthError;
+      trackLoginFinished(posthog, {
+        provider,
+        outcome: 'failure',
+        failureType: toLoginFailureType(normalizedError),
+      });
+      setSocialLoginError(normalizedError);
       setPendingSocialProvider(null);
     }
   };
