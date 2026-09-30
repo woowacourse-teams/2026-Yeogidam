@@ -67,7 +67,7 @@ JWT_SECRET
 | 삭제 금지 목록 먼저 만들고 정리 | 됨. `prune_backend_images`가 보존 대상을 못 찾으면 정리를 건너뛴다 |
 | `docker image prune` 금지 | 됨. `yeogidam/backend` 저장소만 지운다 |
 | 헬스 실패 시 직전 이미지로 롤백 | 됨. `rollback_and_fail`이 `previous`로 복구한다 |
-| **Build Once, Promote** | **됨(2026-09-29).** `resolve-source-commit.sh`가 승격을 판정한다. 아래 참고 |
+| **Build Once, Promote** | **됨(2026-09-29), 실측 2026-09-30.** `resolve-source-commit.sh`가 승격을 판정한다. 운영 첫 배포에서 publish의 빌드 스텝이 스킵되고 개발과 같은 digest가 운영에 갔다. 아래 참고 |
 | 배포 이력을 서버 외부에 기록 | 안 됨. `GITHUB_STEP_SUMMARY`까지다 |
 | 동일 Git SHA 태그 재push 차단 | 부분. `Check Existing SHA Image`가 있으면 재사용하고 덮어쓰지는 않는다 |
 | 레지스트리 보존 정책 | 안 됨 |
@@ -121,7 +121,7 @@ ARM64(Graviton)를 쓴다는 결정은 맞고 구현도 따라왔다. CI 러너�
 
 **개발 서버 사양은 정해졌고 구축까지 끝났다(2026-09-29).** 세 후보 중 **DB 인스턴스를 따로 띄우는 안**으로 갔다. 앱 서버를 키우지 않고 `yeogidam-dev`는 앱만 돌리며, `yeogidam-dev-db`가 MySQL을 맡는다. 새 ADR로 남겨야 한다.
 
-**개발 서버 앞단은 2026-09-30에 올렸다.** nginx 1.30이 호스트에 systemd 서비스로 돌고 443에서 Let's Encrypt 인증서(2026-12-29 만료)를 들고 `127.0.0.1:8080`으로 넘긴다. 80은 인증서 검증 경로만 열고 나머지는 443으로 보내며, 이름 없이 IP로 오는 요청은 거절하고 `/actuator`는 밖에서 404다. certbot은 dnf에 없어 `/opt/certbot` venv에 깔았고 `certbot-renew.timer`가 하루 두 번 확인해 갱신되면 nginx만 reload한다. 설정 원본은 `Infra/nginx/nginx.conf.template`이고 도메인은 `${SERVER_NAME}` 자리표라 저장소에 남지 않으며, 설치 절차는 `Infra/scripts/bootstrap-host.sh` 한 파일이라 서버가 늘면 그것만 다시 돌린다. 앱 쪽은 `application.yml`에 `server.forward-headers-strategy: native`를 더해 톰캣이 루프백에서 온 `X-Forwarded-*`만 믿게 했다. nginx를 컨테이너로 두지 않은 이유는 910Mi에서 컨테이너를 더 늘릴 여유가 없고 인증서 갱신이 앱과 분리되기 때문이다. 운영 서버에는 아직 안 올렸다.
+**개발 서버 앞단은 2026-09-30에 올렸다.** nginx 1.30이 호스트에 systemd 서비스로 돌고 443에서 Let's Encrypt 인증서(2026-12-29 만료)를 들고 `127.0.0.1:8080`으로 넘긴다. 80은 인증서 검증 경로만 열고 나머지는 443으로 보내며, 이름 없이 IP로 오는 요청은 거절하고 `/actuator`는 밖에서 404다. certbot은 dnf에 없어 `/opt/certbot` venv에 깔았고 `certbot-renew.timer`가 하루 두 번 확인해 갱신되면 nginx만 reload한다. 설정 원본은 `Infra/nginx/nginx.conf.template`이고 도메인은 `${SERVER_NAME}` 자리표라 저장소에 남지 않으며, 설치 절차는 `Infra/scripts/bootstrap-host.sh` 한 파일이라 서버가 늘면 그것만 다시 돌린다. 앱 쪽은 `application.yml`에 `server.forward-headers-strategy: native`를 더해 톰캣이 루프백에서 온 `X-Forwarded-*`만 믿게 했다. nginx를 컨테이너로 두지 않은 이유는 910Mi에서 컨테이너를 더 늘릴 여유가 없고 인증서 갱신이 앱과 분리되기 때문이다. 운영 서버에도 같은 날 같은 스크립트로 올렸고, 밖에서 같은 다섯 가지(502, 인증서, http→https, `/actuator` 404, IP 직접 접속 거절)를 확인했다.
 
 ### 인프라 ADR-04 모노레포 브랜치 전략
 
@@ -168,27 +168,50 @@ git rev-list -1 "$SECOND_PARENT" -- 'Backend' ':(exclude)Backend/docs' ':(exclud
 
 배포를 거는 `push` 트리거에는 `paths`가 그대로 있다. 문서만 고쳤을 때 배포가 나가지 않게 한다.
 
+### 첫 배포 실측 (2026-09-30)
+
+PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날 롤백 시험 두 번, 두 번째 정상 배포, `be-release` 승격으로 운영 첫 배포까지 갔다. 상황판의 여덟 항목을 서버에서 실측으로 확인했다.
+
+| 항목 | 확인한 것 |
+| --- | --- |
+| 이미지 빌드와 push | arm64 이미지가 Docker Hub에 올라갔고 digest가 서버와 일치한다 |
+| digest 고정 배포 | 컨테이너 이미지와 `current` 태그의 RepoDigest가 Summary의 digest와 같다 |
+| 헬스 판정 | healthy 뒤 성공으로 끝나고, unhealthy면 롤백으로 간다 |
+| 프로필 대조 | env 대조를 지나 컨테이너 단계로 간다 |
+| 자원 상한과 로그 | `--memory` 512MiB, `--memory-swap` 768MiB, 로그 10m 3개가 컨테이너에 걸렸다. 힙 256MB, 실사용 197MiB |
+| 롤백 | `BACKEND_MEMORY_LIMIT=64m`으로 새 컨테이너만 OOM으로 죽게 해서 두 번 돌렸고, 두 번 다 옛 컨테이너가 원래 상한으로 복구됐다 |
+| 역할 태그 | 두 번째 배포 뒤 `current`는 새 ID, `previous`는 옛 ID다. `candidate`는 배포 중에만 있다 |
+| 이미지 정리 | 두 번째 배포에서 롤백 시험이 남긴 이미지가 지워지고 `current`와 `previous`만 남았다 |
+| `be-release` 승격 | 머지 커밋의 두 번째 부모를 잡아 `mode=promote`로 갔다. publish의 빌드 스텝이 스킵되고 운영이 개발과 같은 digest `f1815ebe`를 받았다 |
+| 앱→DB | 카카오 로그인으로 `members`에 행이 생겼다. 앱 서버에서 앱 계정으로 `SELECT 1`도 확인했다 |
+| 재부팅 복구 | 개발 앱 서버를 `sudo reboot`했더니 ssh 25초, 앱 healthy 53초 만에 돌아왔고 러너와 `certbot-renew.timer`도 저절로 올라왔다. nginx와 도커는 systemd enable, 앱은 `--restart unless-stopped`, 러너는 `svc.sh` 서비스라서다. 개발 DB 서버는 재부팅하지 않고 조건만 봤는데 도커 enable, `yeogidam-mysql`이 `unless-stopped`, 데이터는 이름 있는 볼륨 `yeogidam-mysql-data`라 같은 방식으로 돌아온다. 운영 앱 서버는 같은 스크립트로 올렸지만 재부팅은 아직 안 해 봤다 |
+
+알게 된 것.
+
+- 첫 실행은 러너 서버에 `git`이 없어 「Validate Deployment Target」에서 멈췄다. `dnf install git` 뒤 재실행해서 통과했고, `bootstrap-host.sh`의 패키지에 `git`을 넣었다(#240).
+- 깃허브의 Re-run은 repository variable을 원래 실행 시점 값으로 다시 쓴다. 변수를 바꾼 뒤에는 새 실행을 만들어야 한다.
+- 포트가 하나라 옛 컨테이너를 먼저 멈추고 새 것을 띄우므로 배포마다 502가 난다. 정상 배포 10초, 롤백 시험 40초를 쟀다. 무중단이 필요해지면 두 포트를 번갈아 쓰고 nginx upstream을 바꾸는 방식이 필요하다.
+- 롤백한 옛 컨테이너를 기다릴 때도 `BACKEND_HEALTH_TIMEOUT_SECONDS`를 그대로 썼다. 짧게 두면 복구가 되는데도 실패로 기록되므로 롤백 쪽은 최소 60초를 주도록 고쳤다(#242).
+- `build-push-action`의 provenance 증명서 때문에 태그 하나가 세 조각으로 올라갔다. 읽는 곳이 없어 껐다(#240).
+- 운영 DB가 없어 운영 앱은 떠 있지만 DB를 쓰는 요청은 실패한다. RDS를 만들고 env를 채워야 서비스가 된다.
+
 ## 안 한 것
 
 급한 순서다.
 
-1. **배포가 개발 서버에서 한 번만 돌았다.** 2026-09-30에 PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았다. 이미지 push, digest 고정, 헬스 판정, 프로필 대조, 자원 상한(상한 512m과 스왑 몫 256MB와 로그 10m 3개가 컨테이너에 걸렸고 실사용 197MiB, 힙 256MB)은 서버에서 실측으로 확인했다. 카카오 로그인으로 `members`에 행이 생겨 앱이 DB에 쓰는 것까지 봤다. 첫 실행은 러너 서버에 `git`이 없어 「Validate Deployment Target」에서 멈췄고 `dnf install git` 뒤 재실행해서 통과했으며, 그래서 `bootstrap-host.sh`의 패키지에 `git`을 넣었다. **롤백은 같은 날 확인했다.** `BACKEND_MEMORY_LIMIT=64m`으로 새 컨테이너만 OOM으로 죽게 해서 두 번 돌렸고, 두 번 다 옛 컨테이너가 원래 상한 그대로 복구되어 healthy가 됐다. 밖에서 재면 502가 40초 이어지다 돌아왔다. 이때 알게 된 것이 둘 있다. 깃허브의 Re-run은 repository variable을 원래 실행 시점 값으로 다시 쓰므로 변수를 바꾼 뒤에는 새 실행을 만들어야 한다. 그리고 포트가 하나라 옛 컨테이너를 먼저 멈추고 새 것을 띄우므로 정상 배포도 20~30초 502가 나며, 무중단이 필요해지면 두 포트를 번갈아 쓰고 nginx upstream을 바꾸는 방식이 필요하다. 아래 셋은 아직 확인하지 못했다.
-   - **역할 태그 `previous`.** 두 번째 정상 배포가 끝나야 생긴다. 롤백 시험은 실패 배포라 만들지 못했다.
-   - **`be-release` 승격과 운영 배포.** 운영 서버에 nginx가 아직 없고, 머지 커밋이 한 번 생겨야 판정이 돈다.
-   - **이미지 정리.** `current`와 `previous` 밖의 이미지가 생기는 세 번째 배포 뒤에야 지울 것이 남는다.
-2. **관측이 없다.** actuator가 liveness만 열고 metrics는 닫혀 있다. 로그 보존, 대시보드 지표, 실패 알림이 스프린트 1 조건인데 셋 다 없다.
-3. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
-4. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
-5. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
-6. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
-7. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 깃허브 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
-8. **운영 DB가 없다.** 개발 DB는 2026-09-29에 `yeogidam-dev-db`에 Docker MySQL로 띄웠고 스키마까지 넣었다. 운영은 RDS로 가기로 했는데 아직 만들지 않았다. 마이그레이션 도구가 없어 스키마 변경을 개발과 운영 양쪽에 손으로 적용해야 하는 것도 그대로다.
-9. **운영 디스크가 빠듯하다.** 2026-09-29에 러너 옛 버전 448MB를 지워 여유가 2.3G에서 2.7G로 늘었다. 그래도 8GB 중 2GB를 `/swapfile`이 가져가 실제로 쓸 수 있는 것은 6GB다. `current`와 `previous`와 `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. journal은 상한이 없어 운영 256MB, 개발 185MB까지 자랐다. `ec2-user`의 `~/.warp` 196MB도 지울 수 있는데 아직 안 지웠다.
-10. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
-11. **CODEOWNERS와 dependabot이 없다.**
-12. **`project-public`에 8080이 `0.0.0.0/0`으로 열려 있다.** 공용 보안 그룹이라 우리가 닫을 수 없다. 2026-09-30에 `deploy.sh`의 바인딩 주소를 `127.0.0.1` 상수로 박고 `backend-cd.yml`에서 `BACKEND_BIND_ADDRESS` 변수를 지웠다. 그 전에는 repository variable 하나로 앱이 TLS 없이 인터넷에 노출될 수 있었는데, 이제 앱은 언제나 로컬에만 귀를 열고 밖으로 가는 길은 nginx 443뿐이다. 8080이 열려 있다는 사실은 그대로라서, 서버에서 다른 프로세스가 8080을 `0.0.0.0`으로 열면 여전히 노출된다.
-13. **`backend-cd.yml`이 한 파일에 환경 둘을 담고 있다.** 307줄이고 `github.ref_name == 'be-release'` 삼항이 네 줄에 흩어져 있다(러너 라벨, concurrency group, 표시 이름, Spring 프로필). 환경이 늘면 네 줄을 다 고쳐야 하고 하나만 빠뜨리면 개발 브랜치가 운영 러너로 간다. `deploy.sh`의 프로필 대조가 그걸 잡으려고 있는 장치다. 아래 「나눌 때 참고」 참고.
-14. **nginx 설정의 도메인이 어디에도 관리되지 않는다.** `bootstrap-host.sh`는 사람이 서버에서 `SERVER_NAME`을 명령줄에 쳐서 돌리고, 값은 렌더된 `/etc/nginx/nginx.conf`와 `/etc/letsencrypt/live/<도메인>/`에만 남는다. 서버가 날아가면 값을 알아야 하고 재실행 때마다 다시 쳐야 한다. 도메인은 DNS로 누구나 조회할 수 있어 비밀이 아니고, 저장소에 안 적는 이유는 우테코 공개 저장소 규칙이므로 팀 노션에는 적어도 된다. 최종 모습은 깃허브 Environments(`development`, `production`)에 `BACKEND_DOMAIN`을 두고, deploy 잡이 브랜치에 따라 환경을 골라 템플릿을 렌더해 서버에 반영하고 nginx를 reload하는 것이며, 3번(`environment:` 도입)과 같은 작업이다. 다만 스크립트는 사람이 sudo로 돌리는 것이라 깃허브 변수를 읽을 수 없고, CD가 nginx 설정을 쓰고 reload하려면 러너에 sudo가 필요하다. 비비디는 러너에 `NOPASSWD: ALL`을 줬는데 그러면 `be-release`에 머지할 수 있는 사람이 서버 root를 갖는 것이라 그렇게 하지 않는다. 두 단계로 간다.
+1. **관측이 없다.** actuator가 liveness만 열고 metrics는 닫혀 있다. 로그 보존, 대시보드 지표, 실패 알림이 스프린트 1 조건인데 셋 다 없다.
+2. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
+3. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
+4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
+5. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
+6. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 깃허브 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
+7. **운영 DB가 없다.** 개발 DB는 2026-09-29에 `yeogidam-dev-db`에 Docker MySQL로 띄웠고 스키마까지 넣었다. 운영은 RDS로 가기로 했는데 아직 만들지 않았다. 마이그레이션 도구가 없어 스키마 변경을 개발과 운영 양쪽에 손으로 적용해야 하는 것도 그대로다.
+8. **운영 디스크가 빠듯하다.** 2026-09-29에 러너 옛 버전 448MB를 지워 여유가 2.3G에서 2.7G로 늘었다. 그래도 8GB 중 2GB를 `/swapfile`이 가져가 실제로 쓸 수 있는 것은 6GB다. `current`와 `previous`와 `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. journal은 상한이 없어 운영 256MB, 개발 185MB까지 자랐다. `ec2-user`의 `~/.warp` 196MB도 지울 수 있는데 아직 안 지웠다.
+9. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
+10. **CODEOWNERS와 dependabot이 없다.**
+11. **`project-public`에 8080이 `0.0.0.0/0`으로 열려 있다.** 공용 보안 그룹이라 우리가 닫을 수 없다. 2026-09-30에 `deploy.sh`의 바인딩 주소를 `127.0.0.1` 상수로 박고 `backend-cd.yml`에서 `BACKEND_BIND_ADDRESS` 변수를 지웠다. 그 전에는 repository variable 하나로 앱이 TLS 없이 인터넷에 노출될 수 있었는데, 이제 앱은 언제나 로컬에만 귀를 열고 밖으로 가는 길은 nginx 443뿐이다. 8080이 열려 있다는 사실은 그대로라서, 서버에서 다른 프로세스가 8080을 `0.0.0.0`으로 열면 여전히 노출된다.
+12. **`backend-cd.yml`이 한 파일에 환경 둘을 담고 있다.** 307줄이고 `github.ref_name == 'be-release'` 삼항이 네 줄에 흩어져 있다(러너 라벨, concurrency group, 표시 이름, Spring 프로필). 환경이 늘면 네 줄을 다 고쳐야 하고 하나만 빠뜨리면 개발 브랜치가 운영 러너로 간다. `deploy.sh`의 프로필 대조가 그걸 잡으려고 있는 장치다. 아래 「나눌 때 참고」 참고.
+13. **nginx 설정의 도메인이 어디에도 관리되지 않는다.** `bootstrap-host.sh`는 사람이 서버에서 `SERVER_NAME`을 명령줄에 쳐서 돌리고, 값은 렌더된 `/etc/nginx/nginx.conf`와 `/etc/letsencrypt/live/<도메인>/`에만 남는다. 서버가 날아가면 값을 알아야 하고 재실행 때마다 다시 쳐야 한다. 도메인은 DNS로 누구나 조회할 수 있어 비밀이 아니고, 저장소에 안 적는 이유는 우테코 공개 저장소 규칙이므로 팀 노션에는 적어도 된다. 최종 모습은 깃허브 Environments(`development`, `production`)에 `BACKEND_DOMAIN`을 두고, deploy 잡이 브랜치에 따라 환경을 골라 템플릿을 렌더해 서버에 반영하고 nginx를 reload하는 것이며, 2번(`environment:` 도입)과 같은 작업이다. 다만 스크립트는 사람이 sudo로 돌리는 것이라 깃허브 변수를 읽을 수 없고, CD가 nginx 설정을 쓰고 reload하려면 러너에 sudo가 필요하다. 비비디는 러너에 `NOPASSWD: ALL`을 줬는데 그러면 `be-release`에 머지할 수 있는 사람이 서버 root를 갖는 것이라 그렇게 하지 않는다. 두 단계로 간다.
     - **지금.** 첫 설치는 사람이 값을 쳐서 돌리고, 스크립트가 `/opt/yeogidam/host.env`(root 600)에 저장해 재실행 때는 안 쳐도 되게 한다. 러너 권한은 필요 없다. 아직 안 했다.
     - **다음 PR.** `environment:` 도입, `BACKEND_DOMAIN` 변수, CD가 템플릿을 렌더해 서버에 반영. sudoers에는 `nginx -t`, `systemctl reload nginx`, 설정 파일 복사 세 명령만 허용한다. 여기까지 가면 사람이 도메인을 치는 일은 서버를 처음 만들 때 인증서 발급 한 번뿐이고, 그 뒤로는 깃허브 변수가 유일한 원본이 된다.
 
