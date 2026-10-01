@@ -16,6 +16,7 @@ ADR을 읽다가 "그래서 지금은 어떤데"가 궁금하면 `current-state.
 | 파일 | 제목 | Status |
 | --- | --- | --- |
 | [current-state.md](current-state.md) | 인프라 현재 상태 | 계속 갱신 |
+| [observability.md](observability.md) | 운영 관찰과 대응 (CloudWatch 로그, 지표, 알람 절차) | 계속 갱신 |
 | [adr-01-docker-image-identity.md](adr-01-docker-image-identity.md) | Docker 이미지 식별 및 롤백 보존 전략 | Accepted |
 | [adr-02-cicd-execution.md](adr-02-cicd-execution.md) | CI/CD 실행 전략 | Accepted |
 | [adr-03-ec2-architecture.md](adr-03-ec2-architecture.md) | EC2 인스턴스 아키텍처와 유형 선정 | Accepted (아키텍처만. 사양 재결정 필요) |

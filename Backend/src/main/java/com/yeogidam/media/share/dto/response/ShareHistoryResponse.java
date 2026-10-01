@@ -13,11 +13,14 @@ public record ShareHistoryResponse(
         String failureReason,
         String sharedUrl
 ) {
-    public static ShareHistoryResponse from(ShareHistoryProjection projection) {
+    public static ShareHistoryResponse from(
+            ShareHistoryProjection projection,
+            String instagramThumbnailUrl
+    ) {
         return new ShareHistoryResponse(
                 projection.sharedMediaId(),
                 projection.createdAt(),
-                projection.thumbnailUrl(),
+                instagramThumbnailUrl,
                 projection.caption(),
                 projection.author(),
                 projection.extractionStatus(),

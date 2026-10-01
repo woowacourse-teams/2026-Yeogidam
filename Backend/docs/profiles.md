@@ -13,6 +13,7 @@
 | 로컬 실행용 데이터 (`data-local.sql`) | 넣음 | 안 넣음 | 안 넣음 | 안 넣음 |
 | OAuth | 실제 키 | Fake | 실제 키 | 실제 키 |
 | Swagger | 켬 (springdoc 기본값) | 켬 (기본값) | 켬 (기본값) | 끔 (`springdoc.*.enabled: false`) |
+| 로그 형식 | 텍스트 (기본값) | 텍스트 (기본값) | JSON (`logging.structured.format.console: logstash`) | JSON (dev와 같음) |
 | 설정 파일 | `application-local.yml` | `src/test/resources/application-test.yml` | `application-dev.yml` | `application-prod.yml` |
 
 `application.yml`의 `spring.sql.init.mode`는 `never`다. `schema.sql`이 `DROP TABLE`로 시작하므로 프로필 없이 서버에 올려도 테이블이 지워지지 않게 했다. local과 test만 `always`로 켠다.
@@ -88,7 +89,7 @@ Docker가 켜져 있어야 한다. `MySqlContainerSupport`가 `mysql:8.4` 컨테
 
 ## 6. dev와 prod
 
-- `application-dev.yml`과 `application-prod.yml`을 만들었다(2026-09-28). 둘 다 `spring.sql.init.mode: never`를 명시해 공통값이 바뀌어도 서버에서 테이블이 지워지지 않게 한다. prod는 `springdoc.api-docs.enabled: false`, `springdoc.swagger-ui.enabled: false`로 문서를 닫는다.
+- `application-dev.yml`과 `application-prod.yml`을 만들었다(2026-09-28). 둘 다 `spring.sql.init.mode: never`를 명시해 공통값이 바뀌어도 서버에서 테이블이 지워지지 않게 한다. prod는 `springdoc.api-docs.enabled: false`, `springdoc.swagger-ui.enabled: false`로 문서를 닫는다. 둘 다 `logging.structured.format.console: logstash`로 로그를 JSON 한 줄로 찍는다. CloudWatch 지표 필터가 level 키로 ERROR를 세기 위해서다.
 - 배포 산출물은 태그가 아니라 Docker digest(`yeogidam/backend@sha256:...`)로 고정한다. digest로만 pull하면 로컬에서 태그가 없어 dangling으로 분류되므로, `deploy.sh`가 pull 직후 커밋 SHA 태그와 역할 태그(`candidate`)를 붙이고 배포가 성공하면 역할 태그를 `current`로 옮기며 기존 `current`를 `previous`로 내린다. 롤백 대상은 `previous` 태그로 찾는다(ADR-01).
 - 이미지 정리는 `current`, `previous`, `candidate`가 가리키는 digest와 실행 중인 컨테이너의 이미지를 먼저 삭제 금지 목록으로 만든 뒤, `yeogidam/backend` 저장소의 나머지 이미지만 지운다. 서버 전체를 대상으로 하는 `docker image prune`은 쓰지 않는다. 보존 대상을 찾지 못하면 정리를 건너뛴다.
 - 배포는 GitHub Actions self-hosted 러너가 EC2에서 직접 한다. 러너 계정은 `github-runner`이고 `docker` 그룹에 속한다. 환경변수는 저장소에 두지 않고 각 서버의 `/opt/yeogidam/backend.env`가 들고 있으며 `deploy.sh`가 `--env-file`로 넘긴다.

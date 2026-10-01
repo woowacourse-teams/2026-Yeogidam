@@ -24,9 +24,8 @@ public class SavedPlaceDao {
                     resultSet.getBigDecimal("longitude"),
                     resultSet.getString("kakao_place_url"),
                     resultSet.getString("telephone"),
-                    resultSet.getString("thumbnail_url"),
+                    resultSet.getString("thumbnail_key"),
                     resultSet.getString("thumbnail_source"),
-                    resultSet.getString("thumbnail_attribution"),
                     resultSet.getTimestamp("last_saved_at").toInstant()
             );
 
@@ -34,7 +33,7 @@ public class SavedPlaceDao {
             new SavedPlaceMediaProjection(
                     resultSet.getLong("shared_media_id"),
                     resultSet.getLong("media_id"),
-                    resultSet.getString("thumbnail_url"),
+                    resultSet.getString("thumbnail_key"),
                     resultSet.getString("author"),
                     resultSet.getString("caption"),
                     resultSet.getString("shared_url"),
@@ -58,9 +57,8 @@ public class SavedPlaceDao {
                        p.longitude,
                        p.kakao_place_url,
                        p.telephone,
-                       p.thumbnail_url,
+                       p.thumbnail_key,
                        p.thumbnail_source,
-                       p.thumbnail_attribution,
                        sp.last_saved_at
                 FROM saved_places sp
                 JOIN places p ON p.id = sp.place_id
@@ -94,7 +92,7 @@ public class SavedPlaceDao {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.media_id,
-                       m.thumbnail_url,
+                       m.thumbnail_key,
                        m.author,
                        m.caption,
                        sm.shared_url,

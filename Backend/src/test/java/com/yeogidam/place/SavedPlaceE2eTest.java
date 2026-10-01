@@ -57,11 +57,8 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces[0].telephone", nullValue())
                 .body("savedPlaces[0].thumbnailUrl", equalTo("https://img.example.com/3.jpg"))
                 .body("savedPlaces[0].thumbnailSource", equalTo("KAKAO"))
-                .body("savedPlaces[0].thumbnailAttribution", nullValue())
                 .body("savedPlaces[0].lastSavedAt", equalTo("2026-09-15T00:00:10Z"))
-                .body("savedPlaces[1].roadAddress", nullValue())
-                .body("savedPlaces[2].thumbnailAttribution",
-                        equalTo("<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>"));
+                .body("savedPlaces[1].roadAddress", nullValue());
     }
 
     @Test
@@ -89,7 +86,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, login.memberId(), 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, login.memberId(), 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
@@ -242,12 +239,11 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     private void insertThreePlaces() {
         insertPlace(jdbcTemplate, 1L, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
                 "서울 성동구 성수이로 26 2층", new BigDecimal("37.5445"), new BigDecimal("127.0561"),
-                "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE",
-                "<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>");
+                "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE");
         insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 2L, "kakao-2", "윤숲 후르츠산도", "서울 광진구 화양동 1-1",
                 new BigDecimal("37.5400"), new BigDecimal("127.0700"));
         insertPlace(jdbcTemplate, 3L, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
                 new BigDecimal("37.5796"), new BigDecimal("126.9770"), "https://place.map.kakao.com/3", null,
-                "https://img.example.com/3.jpg", "KAKAO", null);
+                "https://img.example.com/3.jpg", "KAKAO");
     }
 }

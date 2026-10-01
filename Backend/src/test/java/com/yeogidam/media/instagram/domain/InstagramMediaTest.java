@@ -79,7 +79,15 @@ class InstagramMediaTest {
     @Test
     void 게시물_식별자가_없으면_생성할_수_없다() {
         assertThatThrownBy(() -> new InstagramMedia(null))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.MISSING_MEDIA_SHORTCODE.getMessage());
+    }
+
+    @Test
+    void 추출_상태가_없으면_생성할_수_없다() {
+        assertThatThrownBy(() -> new InstagramMedia(1L, SHORTCODE, new MediaMetadata(null, null, null), null))
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.MISSING_EXTRACTION_STATE.getMessage());
     }
 
     @Test

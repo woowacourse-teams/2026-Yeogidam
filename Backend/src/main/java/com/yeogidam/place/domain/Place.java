@@ -42,4 +42,8 @@ public class Place {
     public PlaceProfile profile() {
         return profile;
     }
+
+    public Place withThumbnail(PlaceThumbnail thumbnail) {
+        return new Place(id, externalSource, profile.withThumbnail(thumbnail));
+    }
 }

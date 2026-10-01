@@ -16,17 +16,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # main is a snapshot of what is deployed, so only release branches may enter it.
-      # Agreed with the frontend crew on 2026-09-28.
-      - name: Allow only be-release and fe-release/*
+      # Agreed with the frontend crew on 2026-09-28; fe-release/* dropped on 2026-09-30
+      # because the frontend uses a single fe-release branch. The same file lives on
+      # be-dev, be-release, fe-dev, fe-release and main so every side sees one rule.
+      - name: Allow only be-release and fe-release
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           case "$HEAD_BRANCH" in
-            be-release|fe-release/*)
+            be-release|fe-release)
               exit 0
               ;;
             *)
-              echo "::error::Pull requests into main must originate from be-release or fe-release/*. Current source: $HEAD_BRANCH"
+              echo "::error::Pull requests into main must originate from be-release or fe-release. Current source: $HEAD_BRANCH"
               exit 1
               ;;
           esac

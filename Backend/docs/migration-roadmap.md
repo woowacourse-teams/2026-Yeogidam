@@ -37,7 +37,7 @@
 | P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 이식 |
 | P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 하나 이상 있는 공유만 최근 공유순 DESC로 반환하고 places[]는 UNDECIDED만 포함 | 신규 |
 | P-6 대기함 저장/삭제 | POST /shares/{sharedMediaId}/place-selections, POST /shares/{sharedMediaId}/place-discards {placeIds} | 201 | 이식 |
-| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{savedPlaceId, placeId, name, category, landLotAddress, roadAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, thumbnailAttribution, lastSavedAt}]} lastSavedAt 내림차순. 카드용 짧은 주소는 클라이언트가 앞 두 마디로 줄인다(대기함과 같은 규칙) | 이식 + lastSavedAt 추가(#166 PR 중) |
+| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{savedPlaceId, placeId, name, category, landLotAddress, roadAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, lastSavedAt}]} lastSavedAt 내림차순. 카드용 짧은 주소는 클라이언트가 앞 두 마디로 줄인다(대기함과 같은 규칙) | 이식 + lastSavedAt 추가(#166 PR 중) |
 | P-2 보관함 편집 D-1 | DELETE /saved-places?savedPlaceIds=11,12 | 204. 한 트랜잭션으로 다건 삭제, 멱등 | 이식 |
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
 | P-3 지도 전부 | GET /saved-places (좌표 포함 전량), GET /saved-places/{savedPlaceId}/media (시트의 이미지 띠) | 지도 범위와 검색어 필터는 클라이언트 | 이식 |
@@ -64,7 +64,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 | bean-fable | be-dev | 비고 |
 |---|---|---|
-| instagram_media | media | 게시물. media_shortcode UNIQUE, caption(TEXT), thumbnail_url(2048), author, extraction_status, failure_reason, extraction_version, source_type(EXTRACTED, SEEDED) |
+| instagram_media | media | 게시물. media_shortcode UNIQUE, caption(TEXT), thumbnail_key(2048), author, extraction_status, failure_reason, extraction_version, source_type(EXTRACTED, SEEDED) |
 | media_share | shared_media | 공유 사건. member_id, media_id, shared_url, created_at |
 | media_place | media_places | 추출 사실. media_id, place_id. position은 뺐다 |
 | share_place | place_candidates | 후보와 결정. shared_media_id, place_id, decision_status(UNDECIDED, SAVED, DISCARDED, SUPERSEDED), decided_at. position은 뺐다 |
@@ -151,10 +151,10 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | 6 | 지도와 검색 | 화면 | 지도 전부, 검색 C | 좌표 포함 확인, 시트 이미지 띠(/media 재사용), 검색은 클라이언트 필터로 결정 | 핀 = saved_places 행 |
 | 7 | 회원 탈퇴와 앱 정책 | 화면 | 회원탈퇴 B, 강제 업데이트 모달 | DELETE /members/me, GET /app-update-policies(설정값, 강제 + 권고 두 단계) | 탈퇴 후 토큰 전부 401 |
 | 8 | 인스타그램 조회 어댑터 | 어댑터 | (없음) | HTML meta 파싱(Edge Function instagram.ts 이식), 실패 사유 CONTENT_UNAVAILABLE, 썸네일 저장소 포트(S3)와 재호스팅 | 실제 릴스 링크로 캡션과 썸네일이 들어온다 |
-| 9 | AI 추출 어댑터 | 어댑터 | (없음) | Gemini 호출, 프롬프트와 JSON 스키마 이식, 타임아웃과 키 폴백 | 캡션에서 장소 후보 배열이 나온다 |
+| 9 | AI 추출 어댑터 | 어댑터 | (없음) | Gemini 호출, 프롬프트와 JSON 스키마 이식, 타임아웃과 키 폴백(구현 백로그 3) | 캡션에서 장소 후보 배열이 나온다 |
 | 10 | 카카오 매칭 어댑터 | 어댑터 | (없음) | 키워드 검색 + 주소 좌표 + AI 판정 루프(place_resolution.ts 이식), 매칭 실패 진단은 로그 | 후보가 places 행으로 저장된다 |
-| 11 | 사진 폴백과 사용량 상한 | 어댑터 | (없음) | Google Places 사진, 카카오 og:image 폴백, 월 900회 상한 | 썸네일 없는 장소가 사라진다 |
-| 12 | 운영 장애 대비 | 공통 | (없음) | 처리 중 고착 인수(stale 15분), 기동 복구(있음), 관측 로그, 알림(선택) | 비정상 종료 뒤에도 EXTRACTING이 남지 않는다 |
+| 11 | 장소 사진 저장 | 어댑터 | (없음) | 카카오 장소 페이지 `og:image`를 S3에 저장하고 객체 키를 보관. 없거나 해상도가 낮으면 해당 인스타그램 썸네일 키를 폴백으로 사용. Google Places API와 월 사용량 상한은 사용하지 않음 | 장소와 함께 S3 썸네일 키가 저장된다 |
+| 12 | 운영 장애 대비 | 공통 | (없음) | 처리 중 고착 인수(stale 15분), 기동 복구(있음), 관측 로그, 알림(선택). 구현 백로그 2 | 비정상 종료 뒤에도 EXTRACTING이 남지 않는다 |
 | 13 | 클라이언트 전환 | 전환 | 전부 | 인증 SDK(제공자 인가 코드 → /auth/logins), 데이터 어댑터 교체, 네이티브 공유 2벌, 토큰 저장 | Supabase 호출 0건 |
 | 14 | 데이터 이관 | 전환 | (없음) | supabase-migration-parity.md 매핑으로 1회 이관 스크립트, 검증 쿼리 | 사용자 35명 보관함 개수 일치 |
 | 15 | 컷오버 | 전환 | (없음) | 운영 배포, 1.2.0 앱 점진적 출시 100% 확인, Supabase 환경변수의 최소 버전을 올려 1.1.0 차단, Supabase 읽기 전용 → 종료 | 앱스토어 새 버전 |
@@ -165,7 +165,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **1 인가 기초 작업.** (2026-09-16 완료) 구조는 spring-roomescape-waiting의 auth 패키지를 따랐다. LoginCheckInterceptor가 /api/** 중 /api/v1/auth/**를 뺀 경로에서 Bearer 토큰을 검증하고, LoginMemberArgumentResolver가 @LoginMember Long에 회원 식별자를 넣으며, 토큰 없음은 AUTH401_004, 깨지거나 만료된 토큰은 AUTH401_001이다. E2eTestSupport에 "로그인해서 액세스 토큰을 얻는" 헬퍼를 두면 이후 모든 화면 E2E가 같은 헬퍼를 쓴다. 액세스 토큰 만료 30분은 공유 확장이 같은 토큰을 쓰므로 사이클 13에서 다시 본다.
 
-**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 여기서 정하는 것이 이후 전부의 계약이다. bean-fable schema.sql의 instagram_media, media_share, media_place, share_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP(6), 기동마다 DROP 뒤 CREATE다. 접수 서비스(`ShareService.createShare`, 4.3)는 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 SUPERSEDED 닫기, 공유 삽입, 후보 발급 또는 재추출 선점, 커밋 후 디스패치까지 하나의 트랜잭션이다. 멱등키 clientRequestId를 받을지는 남은 결정 2다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기) 네 겹이다.
+**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 여기서 정하는 것이 이후 전부의 계약이다. bean-fable schema.sql의 instagram_media, media_share, media_place, share_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP(6), 기동마다 DROP 뒤 CREATE다. 접수 서비스(`ShareService.createShare`, 4.3)는 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 SUPERSEDED 닫기, 공유 삽입, 후보 발급 또는 재추출 선점, 커밋 후 디스패치까지 하나의 트랜잭션이다. 접수 멱등성 구현은 6.1 백로그 1에 둔다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기) 네 겹이다.
 
 **3 히스토리.** 목록은 현재 페이징 없이 제공하고, 페이징은 히스토리 API 구현 시 검토한다. 재시도는 FAILED에서만 도메인이 허용하고 DB 조건부 UPDATE가 경쟁을 막는다(bean-fable 그대로).
 
@@ -181,14 +181,35 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **8~11 어댑터.** Edge Function 저장소의 instagram.ts, ai/*, kakao.ts, matching.ts, place_resolution.ts, google.ts, thumbnail.ts가 그대로 사양서다. 포트는 bean-fable의 InstagramContentReader, PlaceNameExtractor, PlaceSearcher 셋이고 썸네일 재호스팅만 포트를 하나 더 둔다(ThumbnailStore, S3). Fake는 fake 프로필에 남겨 E2E가 계속 쓴다.
 
-**9, 10 장소 매칭 설계 (2026-09-16 빈 제안, 검토 중).** 운영의 "장소마다 검색 + AI 판정 루프"를 두 단계 Gemini로 바꾼다. 1차는 캡션 전체(해시태그와 멘션 포함)를 Gemini Flash에 한 번 보내 장소마다 originalName, normalizedSearchName, searchQueries(최대 3개, 정리된 이름 → 원문 이름 → 이름 + 캡션에 있는 지역이나 주소 순), address와 addressType(ROAD, JIBUN, PARTIAL, NONE), region을 JSON으로 받는다. 캡션에 없는 지점명, 주소, URL, ID는 만들지 않게 하고 응답 형식은 구조화 출력(responseSchema)으로 강제한 뒤 서버에서 다시 검증한다. 장소마다 검색어를 순서대로 카카오에 넣어 결과가 하나이고 이름이 충분히 일치하며 주소나 지역이 충돌하지 않으면 바로 확정하고, 여러 개면 서버 규칙(이름 일치, 주소 일치, 지역 일치, 지점명 일치)으로 줄이고, 그래도 남는 후보는 게시물당 한 번 Gemini 2차에 보내 selectedCandidateIndex만 받는다(URL은 서버가 원래 후보 배열에서 꺼낸다). 이관해 온 places를 정규화 이름과 지역으로 먼저 찍어 보는 캐시는 1차 뒤, 카카오 검색 앞에 둔다. 장소별 상태는 VERIFIED, UNVERIFIED, SEARCH_FAILED, AMBIGUOUS로 기록하고 하나라도 VERIFIED면 Extraction은 SUCCEEDED, 하나도 없으면 FAILED(PLACE_NOT_MATCHED)다. 검증되지 않은 이름은 places에 넣지 않고 매칭 실패 기록으로 남긴다. 카카오 검색 수단(로컬 REST API 또는 Playwright 웹 검색)은 남은 결정 12다.
+**9, 10 장소 추출·매칭 설계 (2026-09-29).** Gemini 1차 응답 계약은 아래 JSON으로 고정한다. `nameInCaption`은 캡션 원문, `nameSearchHint`는 오타나 표기 교정을 확신할 때만 내는 검색용 대체 이름이며, null이면 원문 이름을 검색한다. 이 값은 Gemini의 검색 제안이고 카카오맵 등록명으로 확인된 값은 아니다. `accountHints`는 장소 계정으로 보이는 @멘션, `locationHints`는 `{type: ADDRESS|REGION, value, basis: CAPTION|INFERRED}` 배열, `categoryHint`는 분명할 때만 넣는 업종이다. 한 캡션의 여러 장소를 처음 등장한 순서대로 내며, 장소가 없으면 빈 배열이다. Gemini는 전체 캡션의 본문·해시태그·계정 멘션을 읽고 주소나 지역을 추론할 수 있다. 원문에 없는 위치는 `INFERRED`로 표시하며 검색 단서로만 사용한다. 캡션 안의 지시문은 따르지 않고 구조화 응답을 서버에서 다시 검증한다. 실체가 확인된 장소명·주소·좌표·ID는 Gemini 응답으로 확정하지 않고 다음 사이클의 카카오 검색 결과에서 얻는다. 운영 `ai/*` 원본은 이 저장소에 없어 프롬프트 세부사항과 키 폴백 동작은 추가 대조가 남아 있다. 카카오 검색에는 로컬 REST API를 사용한다(결정 12).
+
+**비동기 파이프라인 연결 (2026-09-29).** 공유 커밋 후 Instagram 메타데이터와 썸네일을 저장하고, Gemini 장소 단서를 카카오 로컬 REST API로 검색한다. 이름과 주소가 충돌하거나 같은 점수의 장소가 여럿이면 임의로 선택하지 않는다. 확인된 장소는 `places`와 `media_places`에 저장하고, 각 회원의 가장 최근 공유에는 `place_candidates`를 발급한다. 이 기록과 `SUCCEEDED` 전이는 하나의 트랜잭션으로 묶는다. 여러 장소 중 일부만 확인되면 확인된 장소만 발급하고, 하나도 확인되지 않으면 `PLACE_NOT_MATCHED`로 실패한다. Gemini와 카카오 요청 오류는 현재 `UNEXPECTED`로 기록한다. 운영의 AI 판정 루프와 15분 처리 중 고착 인수는 별도 작업으로 남는다. 고착 인수 구현은 6.1 백로그 2에 둔다.
+
+성공한 추출은 `SUCCEEDED`로 저장하며 파이프라인 버전이 바뀌어도 기존 결과를 재사용한다. 같은 미디어가 다시 공유되었을 때 실패 상태이고 저장된 파이프라인 버전이 현재 버전보다 낮으면 재추출을 예약하고 버전을 갱신한다. 버전이 같거나 높으면 기존 실패 결과를 유지한다. 조건부 UPDATE가 재추출 예약을 한 번만 허용한다. 이후 수동 재시도 기능도 같은 버전 조건을 사용한다.
+
+```json
+{
+  "places": [
+    {
+      "nameInCaption": "송화산시도삭면",
+      "nameSearchHint": null,
+      "accountHints": [],
+      "locationHints": [
+        {"type": "ADDRESS", "value": "서울 광진구 뚝섬로27길 48", "basis": "CAPTION"},
+        {"type": "REGION", "value": "건대입구", "basis": "CAPTION"}
+      ],
+      "categoryHint": "중식당"
+    }
+  ]
+}
+```
 
 **13 클라이언트 전환.** 바뀌는 곳은 JS 데이터 계층 10~14파일과 App.tsx의 supabase.auth 의존 5곳, 네이티브 공유 2벌이다. 로그인은 Supabase OAuth(PKCE 브라우저 세션) 대신 제공자 SDK 또는 인가 코드 콜백으로 코드를 받아 /auth/logins에 보내는 구조로 바뀐다. 공유 확장은 액세스 토큰이 만료돼 401을 받으면 결과를 PENDING_AUTH로 저장하고 앱이 포그라운드에서 갱신 후 재접수한다(남은 결정 7).
 
 ## 6. 남은 결정
 
 1. **자원 이름.** (PR 0에서 확정) /shares. bean-fable의 /media는 {id}가 공유 id라 게시물(InstagramMedia)과 헷갈린다.
-2. **접수 멱등키.** 네이티브 공유 확장이 30초 타임아웃과 재시도를 하므로 clientRequestId(UUID)를 받아 (member_id, request_id) 유니크로 막는 쪽을 권한다. 안 받으면 재시도마다 공유 이력이 하나씩 더 생긴다.
+2. **접수 멱등키.** 네이티브 공유 확장이 30초 타임아웃과 재시도를 하므로 clientRequestId(UUID)를 받아 (member_id, request_id) 유니크로 막는 쪽을 권한다. 구현은 6.1 백로그 1에 둔다. 안 받으면 재시도마다 공유 이력이 하나씩 더 생긴다.
 3. **테이블 이름.** (정함, 2026-09-16) media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports. 게시물은 `media`고 FK 컬럼은 `media_id`, `shared_media_id`다.
 4. **응답 DTO 조립.** (바뀜, 2026-09-21) 정적 팩토리 `from`을 기본으로 한다. 항목은 `SavedPlaceResponse.from(projection)`, 목록 껍데기는 `SavedPlaceResponses.from(List<SavedPlaceProjection>)`이 변환을 맡아 서비스는 조회 결과만 넘긴다. 2026-09-16의 부생성자 결정은 목록 껍데기에 `List<XxxProjection>` 부생성자를 둘 수 없어서(제네릭 소거로 정식 생성자와 시그니처가 겹침) 목록 변환이 서비스로 새는 문제가 있었고, #179 리뷰에서 러키가 정적 팩토리로 매핑 책임을 DTO에 모으자고 제안해 팀이 받아들였다. `MemberResponse(Member)` 부생성자 등 기존 DTO도 `from`으로 맞춘다.
 5. **탈퇴 시 제공자 연결 해제.** (미결, B의 탈퇴 착수 전에 정한다) 우리 DB 삭제만 할지, 카카오 unlink(admin key + 저장된 provider id)까지 1단계에 넣을지. 구글과 애플 revoke는 제공자 토큰이 필요해 탈퇴 화면의 재인증 코드를 그 자리에서 쓰는 방식으로 어댑터 시기에 붙인다. 애플은 계정 삭제 시 revoke를 요구하고 카카오는 로그인 검수 항목에 연결 끊기가 있어 컷오버 전에는 둘째 겹이 필요하다.
@@ -198,10 +219,16 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 9. **보관함 검색.** 클라이언트 메모리 필터로 시작(권장), 페이징 도입 시 서버 ?query=.
 10. **Fake 어댑터 배치.** be-dev 방식(test, fake 프로필에서 @Primary)으로 통일하고 bean-fable의 상시 @Component Fake는 버린다.
 11. **DAO 분리.** (철회, 2026-09-16) 조회 전용 `XxxQueryDao`와 명령 `XxxDao`의 파일 분리는 두 사람이 같은 주에 같은 테이블을 만질 때의 충돌 회피 규칙이었다. 1단계는 자원별로 한 사람이 맡고 2단계는 각자 브랜치에서 전부 만드니 이유가 사라졌다. 조회 DAO가 Projection을 돌려주고 명령 DAO가 도메인 객체를 다루는 설계는 컨벤션 문제로 2단계를 합칠 때 본다.
-12. **카카오 매칭 수단.** 로컬 REST API(운영 검증 완료, 응답에 id, 좌표, place_url이 있어 Gemini 환각이 끼어들 자리가 없음, 무료 한도 하루 10만 건 수준)와 Playwright 웹 검색(브라우저 운영 비용, selector 변경, 약관 위험) 중 하나. 빈의 검토는 REST API 권장이다.
+12. **카카오 매칭 수단.** (정함, 2026-09-29) 카카오 로컬 REST API를 사용한다. 응답의 장소 ID, 이름, 주소, 좌표를 확인해 저장하며 이름이 모호하면 선택하지 않는다. 운영의 AI 판정 루프를 추가할지는 별도로 검토한다.
 13. **2단계 합치는 날과 방식.** 후보는 다음 주 목요일(09-24). 비교 기준은 4.3에 적었고, 구현 중 서로 코드를 볼지는 도메인 모델링 때 방식을 따른다.
 14. **시각 형식 통일.** (완료, 2026-09-24) 도메인과 애플리케이션의 시각 타입은 `Instant`로 통일하고, DB의 `TIMESTAMP(6)`(마이크로초 단위)를 사용한다. JDBC 경계에서만 `Timestamp`로 변환하며, API 응답과 projection은 ISO-8601 UTC(`Instant`)를 사용한다.
 15. **읽기 규칙의 자리.** (2단계 합칠 때 맞춘다) 지금 코드에 네 가지가 있다. SQL(#172의 UNDECIDED 필터, #166의 정렬), 응답 DTO(#172의 공유별 후보 묶기 `PlaceCandidateResponses`), 서비스 private 메서드(#169 첫 구현), Projection 일급 컬렉션(#169 최종 `SavedPlaceMediaProjections`). 빈의 제안은 걸러내기와 정렬은 SQL, 여러 행을 줄이거나 묶는 것은 일급 컬렉션, 한 항목의 표시값은 DTO 부생성자이고 도메인에는 두지 않는다(정책이 바뀌어도 저장 동작은 바뀌지 않으므로). 규칙 하나를 SQL 반, 자바 반으로 나누지 않는다.
+
+### 6.1 구현 백로그
+
+1. **접수 멱등성.** 네트워크 재시도로 같은 공유 요청이 여러 번 도착해도 공유 이력과 추출 작업을 중복 생성하지 않는다. `clientRequestId`를 요청 ID로 받아 회원별 유일하게 저장하고, 같은 ID·같은 URL은 기존 요청 결과로 수렴시킨다. 같은 ID에 다른 URL이 오면 입력 오류로 거절한다. 사용자가 나중에 의도적으로 다시 공유할 때는 새 ID를 사용한다.
+2. **중단된 추출 복구(stale).** 서버 종료 등으로 `EXTRACTING`에서 15분 이상 멈춘 작업을 기동 시 확인하고 다음 공유 요청에서 다시 선점할 수 있게 한다. 조건부 갱신과 작업 토큰으로 같은 미디어를 두 worker가 동시에 처리하지 않게 한다. 재분석 중에도 이미 성공한 장소와 히스토리의 성공 표시는 유지한다.
+3. **Gemini 키 fallback.** 현재는 `GEMINI_API_KEY` 하나만 사용한다. 재시도 가능한 요청 실패에서 대체 키를 순서대로 시도하되 전체 시간 제한과 최대 시도 횟수를 두고, 키 값은 로그에 남기지 않는다.
 
 ## 7. 부록: 운영 Supabase 구조와의 대응 요점
 
@@ -221,7 +248,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 ## 8. 부록: 운영 Supabase에서 추가로 확인한 사실 (2026-09-16, 마이그레이션 22개와 DB 덤프 대조)
 
 1. **대기함은 한 번 롤백된 적이 있다.** 2026-08-27에 큐(review_status)를 도입했다가 08-28에 "대기함/히스토리 기능이 운영 앱보다 먼저 배포되어 기존 saved_places 계약이 깨진 상태"를 복구하려고 전부 되돌렸고 08-30에 v1(AUTO_SAVE)과 v2(REVIEW_QUEUE)가 같은 스키마에서 병행되도록 재도입했다. 서버 동작을 앱보다 먼저 바꾸면 깨진다는 교훈이라 컷오버(사이클 15)는 app-update-policies로 구버전을 막은 뒤에 한다.
-2. **반복 요청 처리(09-01)가 지금 구조의 기본이다.** (user_id, request_id) 멱등키, shortcode + pipeline_version 단위의 추출 캐시(reel_extractions, cacheable 플래그), 15분 stale 인수, 대기함 카드의 세대 watermark가 이때 들어왔다. 남은 결정 2(멱등키)와 사이클 12(stale 인수)의 근거다.
+2. **반복 요청 처리(09-01)가 지금 구조의 기본이다.** (user_id, request_id) 멱등키, shortcode + pipeline_version 단위의 추출 캐시(reel_extractions, cacheable 플래그), 15분 stale 인수, 대기함 카드의 세대 watermark가 이때 들어왔다. 구현 백로그 1(멱등키)과 2(stale 복구)의 근거다.
 3. **운영 DB에 마이그레이션에 없는 `reset_test_data()` 함수가 남아 있다.** `delete from auth.users; delete from public.places;`를 실행하는 SECURITY DEFINER 함수이고 service_role만 부를 수 있지만 운영 프로젝트에 두기에는 위험하므로 Supabase를 닫기 전이라도 지우는 편이 안전하다(이관 작업과는 별개).
 4. **접근 통제가 RLS 한 겹뿐이다.** Supabase 클라우드 기본값(ALTER DEFAULT PRIVILEGES)으로 anon과 authenticated에 테이블 GRANT ALL이 걸려 있고 실제 접근은 RLS 정책(전부 TO authenticated)만이 막는다. Spring으로 오면 인가 인터셉터와 서비스의 소유 검증(남의 공유는 404)이 그 역할을 대신한다.
 5. **공유 확장의 토큰 갱신 부재는 원 개발자의 기술 부채 목록(docs/architecture.md)에도 적혀 있다.** 남은 결정 7이 새 문제가 아니라 이어받는 문제라는 뜻이다. 같은 목록에 Google 사진 재호스팅 정책 충돌, Kakao ID가 오탐을 막지 못함, 장소 수 상한 없음, 실패 attempt가 공용 데이터를 남길 수 있음이 있어 사이클 10과 11에서 다시 본다.

@@ -77,10 +77,8 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(savedPlace.longitude()).isEqualByComparingTo(new BigDecimal("127.0561")),
                 () -> assertThat(savedPlace.kakaoPlaceUrl()).isEqualTo("https://place.map.kakao.com/1"),
                 () -> assertThat(savedPlace.telephone()).isEqualTo("02-1234-5678"),
-                () -> assertThat(savedPlace.thumbnailUrl()).isEqualTo("https://img.example.com/1.jpg"),
+                () -> assertThat(savedPlace.thumbnailKey()).isEqualTo("https://img.example.com/1.jpg"),
                 () -> assertThat(savedPlace.thumbnailSource()).isEqualTo("GOOGLE"),
-                () -> assertThat(savedPlace.thumbnailAttribution())
-                        .isEqualTo("<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>"),
                 () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(lastSavedAt)
         );
     }
@@ -102,9 +100,8 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(savedPlace.roadAddress()).isNull(),
                 () -> assertThat(savedPlace.kakaoPlaceUrl()).isNull(),
                 () -> assertThat(savedPlace.telephone()).isNull(),
-                () -> assertThat(savedPlace.thumbnailUrl()).isNull(),
-                () -> assertThat(savedPlace.thumbnailSource()).isNull(),
-                () -> assertThat(savedPlace.thumbnailAttribution()).isNull()
+                () -> assertThat(savedPlace.thumbnailKey()).isNull(),
+                () -> assertThat(savedPlace.thumbnailSource()).isNull()
         );
     }
 
@@ -167,7 +164,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
         insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-09-15T00:00:15Z"));
-        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 200L, 2L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-11T11:00:00Z"));
@@ -189,7 +186,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMember(1L, "user-1");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 
@@ -202,7 +199,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         assertAll(
                 () -> assertThat(media.sharedMediaId()).isEqualTo(102L),
                 () -> assertThat(media.mediaId()).isEqualTo(10L),
-                () -> assertThat(media.thumbnailUrl()).isEqualTo("https://img.example.com/reel10.jpg"),
+                () -> assertThat(media.thumbnailKey()).isEqualTo("reel10.jpg"),
                 () -> assertThat(media.author()).isEqualTo("@seongsu_life"),
                 () -> assertThat(media.caption()).isEqualTo("성수 카페 투어"),
                 () -> assertThat(media.sharedUrl()).isEqualTo("https://www.instagram.com/reel/C1seongsu/"),
@@ -216,7 +213,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMember(1L, "user-1");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
@@ -241,7 +238,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
         insertSavedPlace(jdbcTemplate, 24L, 2L, 1L, Instant.parse("2026-09-15T00:00:15Z"));
-        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "https://img.example.com/reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
         insertSavedCandidate(jdbcTemplate, 1000L, 100L, 1L, Instant.parse("2026-09-10T12:00:00Z"));
@@ -298,17 +295,16 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertPlaceWithOptionalColumnsNull();
         insertPlace(jdbcTemplate, 3L, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
                 new BigDecimal("37.5796"), new BigDecimal("126.9770"), "https://place.map.kakao.com/3", null,
-                "https://img.example.com/3.jpg", "KAKAO", null);
+                "https://img.example.com/3.jpg", "KAKAO");
     }
 
     /**
-     * 카페 온월. 열 전부가 채워진 장소이고 구글 사진이라 출처 표기가 있다.
+     * 카페 온월. 열 전부가 채워진 장소이고 구글 사진이다.
      */
     private void insertPlaceWithEveryColumnFilled() {
         insertPlace(jdbcTemplate, 1L, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
                 "서울 성동구 성수이로 26 2층", new BigDecimal("37.5445"), new BigDecimal("127.0561"),
-                "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE",
-                "<a href=\"https://maps.google.com/maps/contrib/1\">작성자</a>");
+                "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE");
     }
 
     /**

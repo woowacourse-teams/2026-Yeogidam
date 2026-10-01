@@ -23,19 +23,18 @@ public final class PlaceSqlFixture {
             BigDecimal longitude,
             String kakaoPlaceUrl,
             String telephone,
-            String thumbnailUrl,
-            String thumbnailSource,
-            String thumbnailAttribution
+            String thumbnailKey,
+            String thumbnailSource
     ) {
         jdbcTemplate.update("""
                 INSERT INTO places (id, kakao_place_id, name, category, land_lot_address, road_address,
                                     latitude, longitude, kakao_place_url, telephone,
-                                    thumbnail_url, thumbnail_source, thumbnail_attribution)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    thumbnail_key, thumbnail_source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 placeId, kakaoPlaceId, name, category, landLotAddress, roadAddress,
                 latitude, longitude, kakaoPlaceUrl, telephone,
-                thumbnailUrl, thumbnailSource, thumbnailAttribution
+                thumbnailKey, thumbnailSource
         );
     }
 
@@ -52,6 +51,6 @@ public final class PlaceSqlFixture {
             BigDecimal longitude
     ) {
         insertPlace(jdbcTemplate, placeId, kakaoPlaceId, name, null, landLotAddress, null,
-                latitude, longitude, null, null, null, null, null);
+                latitude, longitude, null, null, null, null);
     }
 }

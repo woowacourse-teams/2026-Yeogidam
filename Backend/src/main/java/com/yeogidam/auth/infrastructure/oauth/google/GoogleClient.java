@@ -10,7 +10,7 @@ import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.infrastructure.oauth.OAuthClientErrorHandler;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -20,7 +20,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
-@RequiredArgsConstructor
 public class GoogleClient implements OAuthClient {
 
     private static final String TOKEN_URI = "https://oauth2.googleapis.com/token";
@@ -30,6 +29,16 @@ public class GoogleClient implements OAuthClient {
     private final RestClient restClient;
     private final GoogleProperties properties;
     private final OAuthClientErrorHandler errorHandler;
+
+    public GoogleClient(
+            @Qualifier("oauthRestClient") RestClient restClient,
+            GoogleProperties properties,
+            OAuthClientErrorHandler errorHandler
+    ) {
+        this.restClient = restClient;
+        this.properties = properties;
+        this.errorHandler = errorHandler;
+    }
 
     @Override
     public OAuthProvider getProvider() {

@@ -26,18 +26,18 @@ server:
 oauth:
   providers:
     kakao:
-      client-id: ${KAKAO_CLIENT_ID:}
-      client-secret: ${KAKAO_CLIENT_SECRET:}
-      redirect-uri: ${KAKAO_REDIRECT_URI:}
+      client-id: ${KAKAO_CLIENT_ID}
+      client-secret: ${KAKAO_CLIENT_SECRET}
+      redirect-uri: ${KAKAO_REDIRECT_URI}
     google:
-      client-id: ${GOOGLE_CLIENT_ID:}
-      client-secret: ${GOOGLE_CLIENT_SECRET:}
-      redirect-uri: ${GOOGLE_REDIRECT_URI:}
+      client-id: ${GOOGLE_CLIENT_ID}
+      client-secret: ${GOOGLE_CLIENT_SECRET}
+      redirect-uri: ${GOOGLE_REDIRECT_URI}
     apple:
-      client-id: ${APPLE_CLIENT_ID:}
-      team-id: ${APPLE_TEAM_ID:}
-      key-id: ${APPLE_KEY_ID:}
-      private-key: ${APPLE_PRIVATE_KEY:}
+      client-id: ${APPLE_CLIENT_ID}
+      team-id: ${APPLE_TEAM_ID}
+      key-id: ${APPLE_KEY_ID}
+      private-key: ${APPLE_PRIVATE_KEY}
 
 jwt:
   secret: ${JWT_SECRET}
@@ -45,6 +45,21 @@ jwt:
   access-token-ttl: 30m
   refresh-token-ttl: 30d
 
+media:
+  extraction:
+    pipeline-version: 1
+    gemini:
+      api-key: ${GEMINI_API_KEY}
+      model: ${GEMINI_MODEL}
+    kakao:
+      api-key: ${KAKAO_CLIENT_ID}
+
+  thumbnail:
+    public-base-url: ${MEDIA_THUMBNAIL_PUBLIC_BASE_URL}
+    bucket: ${S3_THUMBNAIL_BUCKET}
+    region: ${AWS_REGION}
+    instagram-key-prefix: yeogidam/instagram-thumbnails
+    place-key-prefix: yeogidam/place-thumbnails
 # 앱 업데이트 정책. 최소 버전 아래는 강제, 최신 버전 아래는 권고다.
 # 프로필로 나누지 않고 여기 한 곳에 둔다. 값을 바꿀 때는 커밋하고 배포한다(docs/profiles.md 6절).
 app-update:
@@ -57,7 +72,9 @@ app-update:
     latest-version: 1.1.0
     store-url: https://play.google.com/store/apps/details?id=com.yeogidamm.app&pcampaignid=web_share
 
-# 배포 헬스체크용. 기동 여부만 보고 세부는 감춘다. 지표 수집은 관찰 도구를 붙일 때 더한다.
+# health는 배포 헬스체크용이라 기동 여부만 보고 세부는 감춘다. metrics는 부하를 걸 때 서버 안에서
+# 커넥션 풀(hikaricp.connections.*)과 힙, 톰캣 스레드를 보기 위한 것이다. 앱이 127.0.0.1에만 열려 있고
+# nginx가 /actuator를 404로 막으므로 둘 다 밖에서는 보이지 않는다. CloudWatch로 보내지는 않는다(지표당 과금).
 management:
   health:
     defaults:
@@ -69,7 +86,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,metrics
       discovery:
         enabled: false
   endpoint:

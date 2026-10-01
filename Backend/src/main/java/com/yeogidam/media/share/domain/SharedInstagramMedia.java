@@ -20,11 +20,8 @@ public class SharedInstagramMedia {
     private final InstagramUrl instagramUrl;
     private final PlaceCandidates candidates;
 
-    public SharedInstagramMedia(
-            Long memberId,
-            InstagramUrl instagramUrl
-    ) {
-        this(null, memberId, null, instagramUrl, null);
+    public SharedInstagramMedia(Long memberId, Long mediaId, InstagramUrl instagramUrl) {
+        this(null, memberId, mediaId, instagramUrl, null);
     }
 
     public SharedInstagramMedia(

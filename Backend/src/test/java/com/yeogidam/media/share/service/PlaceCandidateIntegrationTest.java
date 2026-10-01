@@ -31,18 +31,18 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
         // given
         insertKakaoMember(jdbcTemplate, 1L, "member-123ijfsa", "member-123ijfsa",
                 "member-123ijfsa@example.com", "https://img.example.com/member-123ijfsa");
-        insertMedia(jdbcTemplate, 1L, "성수 장소 모음", "https://img.example.com/media.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 1L, "성수 장소 모음", "media.jpg", "@seongsu");
         insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 장소", "카페",
                 "서울 성동구", "서울 성동구", new BigDecimal("37.5796"), new BigDecimal("126.9770"),
                 "https://place.map.kakao.com/1", null,
-                "https://img.example.com/place-1.jpg", null, null);
+                "https://img.example.com/place-1.jpg", null);
         insertPlace(jdbcTemplate, 2L, "kakao-fixture-2", "두 번째 장소", "식당",
                 "서울 종로구", "서울 종로구", new BigDecimal("37.5796"), new BigDecimal("126.9770"),
                 "https://place.map.kakao.com/2", null,
-                "https://img.example.com/place-2.jpg", null, null);
+                "https://img.example.com/place-2.jpg", null);
 
         insertUndecidedCandidate(jdbcTemplate, 1L, 1L, 1L);
         insertUndecidedCandidate(jdbcTemplate, 2L, 1L, 2L);

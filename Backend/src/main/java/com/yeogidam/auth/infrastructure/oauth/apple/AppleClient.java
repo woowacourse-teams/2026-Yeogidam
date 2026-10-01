@@ -9,7 +9,7 @@ import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.infrastructure.oauth.OAuthClientErrorHandler;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -18,7 +18,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 @Component
-@RequiredArgsConstructor
 public class AppleClient implements OAuthClient {
 
     private static final String TOKEN_URI = "https://appleid.apple.com/auth/token";
@@ -29,6 +28,20 @@ public class AppleClient implements OAuthClient {
     private final AppleIdentityTokenVerifier tokenVerifier;
     private final AppleClientSecretGenerator clientSecretGenerator;
     private final OAuthClientErrorHandler errorHandler;
+
+    public AppleClient(
+            @Qualifier("oauthRestClient") RestClient restClient,
+            AppleProperties properties,
+            AppleIdentityTokenVerifier tokenVerifier,
+            AppleClientSecretGenerator clientSecretGenerator,
+            OAuthClientErrorHandler errorHandler
+    ) {
+        this.restClient = restClient;
+        this.properties = properties;
+        this.tokenVerifier = tokenVerifier;
+        this.clientSecretGenerator = clientSecretGenerator;
+        this.errorHandler = errorHandler;
+    }
 
     @Override
     public OAuthProvider getProvider() {

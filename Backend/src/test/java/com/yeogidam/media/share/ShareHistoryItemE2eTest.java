@@ -7,7 +7,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
-import com.yeogidam.media.share.exception.ShareErrorCode;
+import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.time.Instant;
@@ -49,7 +49,7 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
         insertMediaWithStatus(
                 1L,
                 "장소가 없는 게시글",
-                "https://img.example.com/media.jpg",
+                "media.jpg",
                 "@author",
                 "FAILED",
                 "PLACE_NOT_EXTRACTED"
@@ -73,13 +73,15 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
         // given
         LoginResult owner = loginAsKakao("share-result-owner");
         LoginResult other = loginAsKakao("share-result-other");
-        insertMedia(jdbcTemplate, 1L, "다른 회원 미디어", "https://img.example.com/media.jpg", "@owner");
+        insertMedia(jdbcTemplate, 1L, "다른 회원 미디어", "media.jpg", "@owner");
         insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         givenBearer(other.accessToken())
                 .when().get(PATH + 1)
-                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
+                .then().statusCode(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getCode()))
+                .body("message", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getMessage()));
     }
 
     @Test
@@ -90,24 +92,26 @@ class ShareHistoryItemE2eTest extends E2eTestSupport {
         // when & then
         givenBearer(login.accessToken())
                 .when().get(PATH + 99)
-                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
+                .then().statusCode(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getCode()))
+                .body("message", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getMessage()));
     }
 
     private void insertMediaWithStatus(
             Long mediaId,
             String caption,
-            String thumbnailUrl,
+            String thumbnailKey,
             String author,
             String extractionStatus,
             String failureReason
     ) {
         jdbcTemplate.update("""
                 INSERT INTO media (
-                    id, media_shortcode, caption, thumbnail_url, author,
+                    id, media_shortcode, caption, thumbnail_key, author,
                     extraction_status, failure_reason, extraction_version, source_type
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SEEDED')
-                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailUrl, author,
+                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailKey, author,
                 extractionStatus, failureReason);
     }
 }

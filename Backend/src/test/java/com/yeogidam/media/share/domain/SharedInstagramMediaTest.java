@@ -51,7 +51,7 @@ class SharedInstagramMediaTest {
 
     @Test
     void 후보가_발급되기_전에는_장소를_결정할_수_없다() {
-        SharedInstagramMedia share = new SharedInstagramMedia(1L, URL);
+        SharedInstagramMedia share = new SharedInstagramMedia(1L, 10L, URL);
 
         assertThatThrownBy(() -> share.decidePlaces(List.of(1L), PlaceDecisionStatus.SAVED))
                 .isInstanceOfSatisfying(MediaException.class, exception ->

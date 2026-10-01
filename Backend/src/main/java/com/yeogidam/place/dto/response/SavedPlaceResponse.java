@@ -17,10 +17,9 @@ public record SavedPlaceResponse(
         String telephone,
         String thumbnailUrl,
         String thumbnailSource,
-        String thumbnailAttribution,
         Instant lastSavedAt
 ) {
-    public static SavedPlaceResponse from(SavedPlaceProjection projection) {
+    public static SavedPlaceResponse from(SavedPlaceProjection projection, String placeThumbnailUrl) {
         return new SavedPlaceResponse(
                 projection.savedPlaceId(),
                 projection.placeId(),
@@ -32,9 +31,8 @@ public record SavedPlaceResponse(
                 projection.longitude(),
                 projection.kakaoPlaceUrl(),
                 projection.telephone(),
-                projection.thumbnailUrl(),
+                placeThumbnailUrl,
                 projection.thumbnailSource(),
-                projection.thumbnailAttribution(),
                 projection.lastSavedAt()
         );
     }
