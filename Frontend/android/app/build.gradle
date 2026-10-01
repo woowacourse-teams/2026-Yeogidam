@@ -98,6 +98,7 @@ def escapedKakaoNativeAppKey = kakaoNativeAppKey
 def escapedSupabaseUrl = supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 def escapedSupabasePublishableKey = supabasePublishableKey.replace("\\", "\\\\").replace("\"", "\\\"")
 
+apply from: new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim(), "../sentry.gradle")
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
