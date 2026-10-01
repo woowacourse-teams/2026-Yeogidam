@@ -61,10 +61,11 @@ jobs:
     needs: version-check
     uses: ./.github/workflows/frontend-ci.yml
 
-  # CI가 성공하면 플랫폼별 고정 오프셋과 Actions 실행 번호를 합쳐 빌드 번호를 정한다.
+  # CI가 성공하면 fe-beta 환경의 플랫폼별 고정 오프셋과 Actions 실행 번호를 합쳐 빌드 번호를 정한다.
   assign-build:
     needs: [version-check, ci]
     runs-on: ubuntu-latest
+    environment: fe-beta
     outputs:
       build_number: ${{ steps.assign.outputs.build_number }}
     steps:
@@ -94,7 +95,7 @@ jobs:
     if: needs.version-check.outputs.platform == 'android'
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    # 이 환경에 등록된 배포 비밀값은 이 job에서만 접근한다.
+    # 배포에 필요한 비밀값은 fe-beta 환경에서 읽는다.
     environment: fe-beta
     env:
       APP_VERSION: ${{ needs.version-check.outputs.app_version }}

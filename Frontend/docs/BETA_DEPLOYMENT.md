@@ -15,7 +15,7 @@
 
 빌드 번호는 `플랫폼별 고정 오프셋 + GITHUB_RUN_NUMBER`로 계산한다. `GITHUB_RUN_NUMBER`는 이 워크플로의 새 실행마다 증가하며, 같은 실행을 재시도할 때는 유지된다. Android와 iOS가 서로 다른 실행 번호를 사용해도 된다. 예를 들어 Android 오프셋이 `42`이고 Actions 실행 번호가 `7`이면 Android 빌드 번호는 `49`다.
 
-처음 사용하기 전에 Play Console과 App Store Connect에서 각 플랫폼의 가장 큰 기존 빌드 번호를 확인하고 저장소 변수 `ANDROID_BETA_BUILD_NUMBER_OFFSET`와 `IOS_BETA_BUILD_NUMBER_OFFSET`에 설정한다. 기존 빌드가 없다면 `0`으로 설정한다. 오프셋은 설정 후 고정하고, 이후 업로드를 이 워크플로로만 진행한다. 스토어에 더 높은 번호를 수동 업로드하거나 워크플로의 실행 번호가 초기화될 수 있는 변경을 한다면, 번호 정책을 다시 검토해야 한다. 변수가 비어 있으면 업로드 전에 실패한다.
+처음 사용하기 전에 Play Console과 App Store Connect에서 각 플랫폼의 가장 큰 기존 빌드 번호를 확인하고 `fe-beta` Environment 변수 `ANDROID_BETA_BUILD_NUMBER_OFFSET`와 `IOS_BETA_BUILD_NUMBER_OFFSET`에 설정한다. 기존 빌드가 없다면 `0`으로 설정한다. 오프셋은 설정 후 고정하고, 이후 업로드를 이 워크플로로만 진행한다. 스토어에 더 높은 번호를 수동 업로드하거나 워크플로의 실행 번호가 초기화될 수 있는 변경을 한다면, 번호 정책을 다시 검토해야 한다. 변수가 비어 있으면 업로드 전에 실패한다.
 
 같은 Actions 실행을 다시 돌리면 같은 빌드 번호가 나온다. 스토어 업로드까지 성공한 실행을 다시 업로드하면 중복 번호로 거절될 수 있으므로 새 수동 실행을 시작한다. CI 단계에서 실패한 실행 번호는 건너뛰어도 된다. Android 빌드 번호는 Google Play의 최대 `2100000000`을 넘지 않게 검사한다.
 
@@ -26,7 +26,7 @@
 - 단일 `fe-release` 브랜치에 PR 검토 및 필수 CI 규칙을 적용한다.
 - `workflow_dispatch`가 선언된 `frontend-beta.yml`을 저장소의 기본 브랜치에도 반영해야 **Run workflow** 버튼이 표시된다. 실행할 때 브랜치 선택 메뉴에서 `fe-release`를 고른다. 다른 브랜치를 선택하면 워크플로가 실패한다.
 - `fe-beta` Environment의 배포 브랜치 패턴에 `fe-release`를 허용한다.
-- **저장소 수준** Actions 변수 `ANDROID_BETA_BUILD_NUMBER_OFFSET`와 `IOS_BETA_BUILD_NUMBER_OFFSET`를 등록한다. 번호 계산 job은 `fe-beta` Environment를 사용하지 않으므로 이 두 값을 Environment 변수에만 넣으면 읽지 못한다. 빌드 번호 계산에 사용하는 값이므로 변경 이력을 관리한다.
+- `fe-beta` Environment 변수 `ANDROID_BETA_BUILD_NUMBER_OFFSET`와 `IOS_BETA_BUILD_NUMBER_OFFSET`를 등록한다. 번호 계산 job도 이 Environment를 지정해 두 값을 읽는다. 빌드 번호 계산에 사용하는 값이므로 변경 이력을 관리한다.
 
 `fe-beta` Environment Secrets:
 
