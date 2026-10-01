@@ -4,7 +4,7 @@
 
 1. `fe-dev`에서 구현과 QA를 마치면 `fe-release` 브랜치로 PR을 보내 병합한다. QA 수정 PR도 같은 브랜치로 보낸다.
 2. GitHub의 **Actions → Frontend Beta → Run workflow**에서 브랜치로 정확히 `fe-release`, 플랫폼으로 `android` 또는 `ios`를 선택하고 앱 버전(예: `1.1.0`)을 직접 입력한다.
-3. 워크플로가 `fe-release`의 HEAD를 검증하고 Frontend CI를 실행한다. CI가 성공하면 앱 버전과 빌드 번호를 네이티브 빌드에 전달한다. Android는 Play `internal`, iOS는 TestFlight에 업로드한다.
+3. 워크플로가 `fe-release`의 HEAD를 검증하고 앱 버전과 빌드 번호를 정한 다음 Frontend CI를 실행한다. CI는 검사와 테스트를 수행하고 선택한 플랫폼의 배포용 Release 빌드를 한 번 만들어 artifact로 저장한다. beta 업로드 job은 이 결과물을 받아 Android는 Play `internal`, iOS는 TestFlight에 업로드한다.
 4. beta 배포 과정에서는 Git 태그를 만들거나 요구하지 않는다. QA가 끝나면 `fe-release`에서 `fe-main`으로 PR을 보낸다. QA 수정사항은 `fe-dev`에도 반영한다.
 
 태그 없이 배포 이력을 찾을 때에는 Actions 실행 번호, 실행 커밋, 플랫폼, 업로드된 AAB 또는 TestFlight 빌드 번호를 확인한다. 빌드 번호 배정 전에 브랜치가 전진하면 검증이 실패한다. 두 플랫폼의 beta 실행이 끝날 때까지 `fe-release`에 새 커밋을 넣지 않는다.
@@ -35,6 +35,8 @@
 | `KAKAO_NATIVE_APP_KEY` | Kakao 네이티브 앱 키 |
 | `SUPABASE_URL` | beta 앱의 Supabase URL |
 | `SUPABASE_PUBLISHABLE_KEY` | beta 앱의 Supabase publishable key |
+| `POSTHOG_PROJECT_TOKEN` | beta 앱의 PostHog 프로젝트 토큰 |
+| `POSTHOG_HOST` | beta 앱의 PostHog 이벤트 수집 호스트 |
 | `ANDROID_UPLOAD_KEYSTORE_BASE64` | Play App Signing 업로드 keystore 파일의 Base64 |
 | `ANDROID_UPLOAD_STORE_PASSWORD` | keystore 비밀번호 |
 | `ANDROID_UPLOAD_KEY_ALIAS` | 업로드 키 alias |
@@ -44,7 +46,9 @@
 | `APP_STORE_CONNECT_KEY_ID` | API 키 ID |
 | `APP_STORE_CONNECT_ISSUER_ID` | API issuer ID |
 
-파일을 Base64로 만들 때 macOS에서 `base64 -i <파일> | tr -d '\n'`을 사용할 수 있다. `Frontend/.env` 파일은 저장소에 커밋하지 않는다.
+Frontend CI의 beta 빌드 job은 위 Environment Secrets로 runner 임시 설정 파일을 만들고 `ENVFILE`로 Android와 iOS 빌드에 전달한다. 저장소의 `Frontend/.env`는 beta 빌드에 사용하지 않는다. PR의 Frontend CI는 임시 설정과 개발용 Android 키로 Release 컴파일만 확인하며, 배포용 artifact를 만들지 않는다.
+
+파일을 Base64로 만들 때 macOS에서 `base64 -i <파일> | tr -d '\n'`을 사용할 수 있다. 로컬 개발용 `Frontend/.env`는 저장소에 커밋하지 않는다.
 
 ## 스토어 선행 설정
 
