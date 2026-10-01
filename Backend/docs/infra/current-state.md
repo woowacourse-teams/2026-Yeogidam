@@ -199,7 +199,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 
 급한 순서다.
 
-1. **관측의 콘솔 쪽과 사고 기록이 남았다.** 서버 쪽은 2026-10-01에 끝났다(#251). 앱 로그가 dev와 prod에서 JSON이 되고 요청마다 한 줄이 남으며, 앱과 nginx와 개발 MySQL 로그와 메모리, 디스크 지표가 CloudWatch로 간다. actuator `metrics`도 서버 안에서만 열었다. 남은 것은 콘솔에서 만드는 지표 필터 4개, 알람 6개, 대시보드 1개, SNS 토픽, Lambda와 태그 일괄 작업이고, 그 뒤 개발에서 OOM 롤백을 일부러 일으켜 알림이 Discord에 닿는지 보고 사고 기록 1건을 `incidents/`에 남기면 스프린트 1 조건이 찬다. 절차는 [observability.md](observability.md)에 있다. 로그 보존은 다섯 그룹 모두 1개월인데 출시 뒤 `prod` 두 그룹은 3개월로 늘린다.
+1. **관측의 콘솔 쪽과 사고 기록이 남았다.** 서버 쪽은 2026-10-01에 끝났다(#251). 앱 로그가 dev와 prod에서 JSON이 되고 요청마다 한 줄이 남으며, 앱과 nginx와 개발 MySQL 로그와 메모리, 디스크 지표가 CloudWatch로 간다. actuator `metrics`도 서버 안에서만 열었다. 개발 환경의 콘솔 쪽도 같은 날 끝났다. 지표 필터 2개, SNS 토픽과 메일 구독, Discord Lambda, 알람 4개(5xx, ERROR, 디스크는 앱 서버와 DB 서버 하나씩), 대시보드 1개(위젯 6개), 태그 일괄까지 했고 개발 서버와 DB 서버 로그와 지표가 콘솔에 보인다. 남은 것은 운영 반복(`be-release` 머지, 운영 서버 `ENV_NAME=prod` 부트스트랩, prod 지표 필터 2개와 알람 3개, 대시보드에 prod 줄, 태그)과, 개발에서 OOM 롤백을 일부러 일으켜 알림이 Discord에 닿는지 보고 사고 기록 1건을 `incidents/`에 남기는 일이다. 그 둘이 끝나면 스프린트 1 조건이 찬다. 절차는 [observability.md](observability.md)에 있다. 로그 보존은 다섯 그룹 모두 1개월인데 출시 뒤 `prod` 두 그룹은 3개월로 늘린다.
 2. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
 3. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
 4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.

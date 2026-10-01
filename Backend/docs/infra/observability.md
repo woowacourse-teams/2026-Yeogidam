@@ -53,10 +53,10 @@ fields @timestamp, level, message, httpMethod, path, status, durationMs
 | 로그 그룹 | `/yeogidam/dev/backend`, `/yeogidam/dev/nginx`, `/yeogidam/dev/mysql`, `/yeogidam/prod/backend`, `/yeogidam/prod/nginx` | 2026-10-01 콘솔에서 만듦, 보존 1개월 |
 | 지표 네임스페이스 | `Yeogidam/dev`, `Yeogidam/prod` | 에이전트와 지표 필터가 쓴다. 네임스페이스는 리소스가 아니라 따로 만들지 않는다 |
 | 지표 필터가 만드는 지표 | `Nginx5xx`, `AppError` | 환경마다 하나씩 |
-| 알람 | `yeogidam-dev-nginx-5xx`, `yeogidam-dev-app-error`, `yeogidam-dev-disk`, `yeogidam-prod-nginx-5xx`, `yeogidam-prod-app-error`, `yeogidam-prod-disk` | 6개 |
-| SNS 토픽 | `yeogidam-alerts` | 표준 토픽 하나를 두 환경이 같이 쓴다 |
-| Lambda | `yeogidam-alerts-to-discord` | Python 3.13, 실행 역할 `techcourse-lambda-execution-role` |
-| 대시보드 | `yeogidam-observability` | 하나에 두 환경을 담는다 |
+| 알람 | dev: `yeogidam-dev-nginx-5xx`, `yeogidam-dev-app-error`, `yeogidam-dev-disk-app`, `yeogidam-dev-disk-db`. prod: `yeogidam-prod-nginx-5xx`, `yeogidam-prod-app-error`, `yeogidam-prod-disk` | 7개. dev 4개는 2026-10-01 만듦. 디스크는 서버마다 하나씩이라 dev가 둘이다 |
+| SNS 토픽 | `yeogidam-alerts` | 표준 토픽 하나를 두 환경이 같이 쓴다. 2026-10-01 만들고 팀 메일 1건 구독 |
+| Lambda | `yeogidam-alerts-to-discord` | Python 3.13, 실행 역할 `techcourse-lambda-execution-role`. 2026-10-01 등록, Discord 도착 확인 |
+| 대시보드 | `yeogidam-observability` | 하나에 두 환경을 담는다. 2026-10-01 dev 위젯 6개로 만듦 |
 
 ## 서버 절차
 
@@ -113,7 +113,7 @@ sudo ls -l /var/lib/docker/volumes/yeogidam-mysql-data/_data/slow.log /var/lib/d
 
 ### 1. 지표 필터
 
-로그 그룹 > 지표 필터 탭 > 지표 필터 생성. 환경마다 두 개, 모두 네 개다.
+로그 그룹 > 지표 필터 탭 > 지표 필터 생성. 환경마다 두 개, 모두 네 개다. dev 두 개는 2026-10-01에 만들었다(필터 이름 `nginx-5xx`, `app-error`).
 
 | 로그 그룹 | 필터 패턴 | 네임스페이스 | 지표 이름 | 지표 값 | 기본값 |
 | --- | --- | --- | --- | --- | --- |
@@ -128,13 +128,17 @@ nginx 패턴은 `nginx.conf.template`의 `log_format main`을 공백으로 나�
 
 ### 2. 알람
 
-CloudWatch > 알람 > 알람 생성. 환경마다 세 개, 모두 여섯 개다.
+CloudWatch > 알람 > 알람 생성. 로그 지표 둘은 환경마다 하나씩이고, 디스크는 서버마다 하나씩이라 dev 4개, prod 3개로 모두 일곱 개다. dev 4개는 2026-10-01에 만들었다.
 
 | 알람 | 지표 | 통계 | 기간 | 조건 |
 | --- | --- | --- | --- | --- |
 | `yeogidam-<env>-nginx-5xx` | `Yeogidam/<env>` `Nginx5xx` | Sum | 5분 | 5 이상 |
 | `yeogidam-<env>-app-error` | `Yeogidam/<env>` `AppError` | Sum | 5분 | 5 이상 |
-| `yeogidam-<env>-disk` | `Yeogidam/<env>` `disk_used_percent` | Maximum | 5분 | 85 이상 |
+| `yeogidam-dev-disk-app` | `Yeogidam/dev` `disk_used_percent`, InstanceId = 앱 서버 | Maximum | 5분 | 85 이상 |
+| `yeogidam-dev-disk-db` | `Yeogidam/dev` `disk_used_percent`, InstanceId = DB 서버 | Maximum | 5분 | 85 이상 |
+| `yeogidam-prod-disk` | `Yeogidam/prod` `disk_used_percent`, InstanceId = 운영 앱 서버 | Maximum | 5분 | 85 이상 |
+
+통계를 가르는 기준은 지표의 성질이다. `Nginx5xx`와 `AppError`는 줄마다 1을 찍는 건수 지표라 Sum이어야 5분 안의 건수가 되고(Average면 언제나 1이라 알람에 안 걸린다), `disk_used_percent`는 비율이라 Maximum으로 5분 안의 최고치를 본다.
 
 공통으로 다음과 같이 둔다.
 
@@ -143,20 +147,22 @@ CloudWatch > 알람 > 알람 생성. 환경마다 세 개, 모두 여섯 개다.
 - 알림은 ALARM과 OK 두 상태 모두 SNS 토픽 `yeogidam-alerts`로 보낸다. OK도 보내야 Discord에서 초록색으로 회복을 볼 수 있다.
 - 알람 설명에 대응 방법 한 줄을 적는다. Lambda가 `AlarmDescription`을 Discord 메시지의 「설명」 필드로 같이 보여 주므로, 예를 들어 `yeogidam-prod-disk`에는 「`docker system df`와 `journalctl --disk-usage`로 큰 것을 찾는다」처럼 적으면 알림을 받은 사람이 바로 시작할 수 있다.
 
-디스크 알람은 `dev` 네임스페이스에 앱 서버와 DB 서버 두 `InstanceId`가 있어 지표 하나를 고르면 한 대만 본다. 알람 생성 화면에서 「Metrics Insights 쿼리」를 골라 `SELECT MAX(disk_used_percent) FROM "Yeogidam/dev"`처럼 네임스페이스 전체의 최댓값을 보면 알람 하나로 두 대를 덮는다. 울렸을 때 어느 서버인지는 대시보드의 디스크 위젯에서 본다. `prod`는 앱 서버 한 대라 어느 쪽으로 만들어도 같다.
+디스크 알람을 서버마다 따로 둔 이유는 `dev` 네임스페이스에 앱 서버와 DB 서버 두 `InstanceId`가 있어 지표 하나를 고르면 한 대만 보기 때문이다. 알람 이름에 서버가 들어가므로 울렸을 때 어디인지 바로 안다. 서버가 더 늘면 알람을 하나씩 더하는 대신 「Metrics Insights 쿼리」로 `SELECT MAX(disk_used_percent) FROM "Yeogidam/dev"`를 지표로 삼아 알람 하나로 덮는 방법도 있는데, 그때는 어느 서버인지를 대시보드 디스크 위젯에서 봐야 한다.
 
 ### 3. 대시보드
 
-CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 위젯을 둔다. 대시보드는 개당 월 3달러라 환경별로 나누지 않는다.
+CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 위젯을 둔다. 대시보드는 개당 월 3달러라 환경별로 나누지 않는다. 2026-10-01에 dev 기준으로 여섯 개를 만들었고, 운영이 올라오면 같은 위젯에 `Yeogidam/prod` 지표와 prod 알람과 prod 로그 그룹을 더한다.
 
 | 위젯 | 종류 | 내용 |
 | --- | --- | --- |
-| 메모리 사용률 | 선 그래프 | `Yeogidam/dev`와 `Yeogidam/prod`의 `mem_used_percent`, `InstanceId`별로 세 줄 |
-| 디스크 사용률 | 선 그래프 | 같은 방식으로 `disk_used_percent`, 85에 수평 주석선 |
-| nginx 5xx 건수 | 선 그래프 | `Nginx5xx` Sum, dev와 prod 두 줄, 기간 5분 |
-| 앱 ERROR 건수 | 선 그래프 | `AppError` Sum, dev와 prod 두 줄, 기간 5분 |
-| 알람 상태 | 알람 상태 위젯 | 알람 여섯 개 |
-| 최근 앱 ERROR | 로그 위젯 | 두 backend 그룹, `fields @timestamp, @log, message, path, requestId \| filter level = "ERROR" \| sort @timestamp desc \| limit 20` |
+| 메모리 사용률 | 선 그래프 | `Yeogidam/dev`의 `mem_used_percent`, `InstanceId`별로 두 줄(앱, DB). prod가 생기면 한 줄 더 |
+| 디스크 사용률 | 선 그래프 | 같은 방식으로 `disk_used_percent`. 85에 수평 주석선을 두면 알람선이 보인다 |
+| nginx 5xx 건수 | 선 그래프 | `Nginx5xx` Sum, 기간 5분 |
+| 앱 ERROR 건수 | 선 그래프 | `AppError` Sum, 기간 5분 |
+| 알람 상태 | 알람 상태 위젯 | dev 알람 네 개. prod 알람은 만든 뒤 위젯 편집으로 더한다 |
+| 최근 앱 ERROR | 로그 테이블 | `/yeogidam/dev/backend`, `fields @timestamp, message, path, status, requestId \| filter level = "ERROR" \| sort @timestamp desc \| limit 20`. ERROR가 없으면 「No data found」가 정상이다 |
+
+저장은 오른쪽 위 「Save dashboard」를 눌러야 되고, 부하 시험 때는 시간 범위 1h에 자동 새로고침 1분으로 두고 본다.
 
 ### 4. SNS와 Lambda
 
@@ -164,10 +170,11 @@ CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 
 2. Lambda 함수 등록은 `Infra/lambda/alerts_to_discord.py` 머리 docstring의 여섯 단계를 따른다. 함수 이름 `yeogidam-alerts-to-discord`, 런타임 Python 3.13, 실행 역할 `techcourse-lambda-execution-role`, 코드는 파일 내용을 콘솔 편집기에 붙여 넣고, 환경 변수 `DISCORD_WEBHOOK_URL`에 Discord 채널의 웹훅 URL을 넣고, 트리거로 SNS `yeogidam-alerts`를 건다. 핸들러 이름은 콘솔 기본값 `lambda_function.lambda_handler` 그대로 두면 되고 표준 라이브러리만 쓰므로 배포 패키지가 필요 없다.
 3. 연결 확인은 SNS 콘솔에서 `yeogidam-alerts`에 아무 문장이나 게시한다. 본문이 그대로 Discord에 오면 된 것이고, 실제 알람은 색 있는 embed(ALARM 빨강, OK 초록)로 오며 시각은 KST로 바꿔 보여 준다.
 4. 알람을 만들 때 알림 대상으로 이 토픽을 고른다. 알람보다 토픽을 먼저 만드는 이유는 알람 생성 화면이 기존 토픽만 고를 수 있기 때문이다.
+5. 2026-10-01에 토픽과 메일 구독(팀 공용 주소 1건, 확인 완료)과 Lambda를 만들었고, 토픽에 시험 메시지를 게시해 메일과 Discord 양쪽에 도착하는 것을 확인했다. Discord 채널은 지금 하나를 두 환경이 같이 쓰고, 출시 뒤 개발 알람이 운영 알람을 묻으면 토픽 `yeogidam-alerts-prod`와 Lambda 하나를 더 만들어 다른 웹훅을 넣는다.
 
 ### 5. 태그를 한 번에 단다
 
-Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소스 유형에 `CloudWatch::Alarm`, `SNS::Topic`, `Lambda::Function`, `Logs::LogGroup`을 고르고 검색한 뒤, 이름이 `yeogidam`으로 시작하는 것을 모두 선택해 「선택한 리소스의 태그 관리」에서 세 태그를 한 번에 단다. 만들 때 하나씩 달아도 되지만 빠뜨린 것이 없는지 마지막에 여기서 한 번 훑는 편이 안전하다. 대시보드와 지표 필터는 태그 항목이 없다.
+Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소스 유형에 `CloudWatch::Alarm`, `SNS::Topic`, `Lambda::Function`, `Logs::LogGroup`을 고르고 검색한 뒤, 이름이 `yeogidam`으로 시작하는 것을 모두 선택해 「선택한 리소스의 태그 관리」에서 세 태그를 한 번에 단다. 만들 때 하나씩 달아도 되지만 빠뜨린 것이 없는지 마지막에 여기서 한 번 훑는 편이 안전하다. 대시보드와 지표 필터는 태그 항목이 없다. 2026-10-01에 dev 리소스 11개(알람 4, 토픽 1, Lambda 1, 로그 그룹 5)에 달았고, `ProjectTeam = yeogidam`으로 다시 검색해 11개가 나오는 것을 확인했다.
 
 ## 알아 둘 제약
 
@@ -185,7 +192,7 @@ Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소�
 | --- | --- | --- |
 | 대시보드 | 개당 월 3달러 | 1개, 3달러 |
 | 커스텀 지표 | 개당 월 0.3달러 | 에이전트 서버 3대 × 2개와 지표 필터 4개로 10개, 3달러 |
-| 알람 | 개당 월 0.1달러 | 6개, 0.6달러 |
+| 알람 | 개당 월 0.1달러 | 7개, 0.7달러 |
 | 로그 수집 | GB당 0.76달러 | 월 1GB 안팎, 0.76달러 |
 
 합쳐서 월 7달러 안팎이다. 지표와 알람을 하나 더할 때마다 각각 0.3달러와 0.1달러가 붙으므로, 보고 싶은 것이 생기면 지표를 새로 보내기보다 있는 로그를 Logs Insights로 조회하는 쪽을 먼저 본다. 조회는 스캔한 데이터 GB당 과금이라 이 로그 양에서는 무시할 만하다.
