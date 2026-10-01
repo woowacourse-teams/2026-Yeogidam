@@ -428,7 +428,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app.dev;
 				PRODUCT_NAME = Frontend;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -488,7 +488,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app.Share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app.dev.Share;
 				PRODUCT_NAME = FrontendShareExtension;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
