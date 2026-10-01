@@ -127,12 +127,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
       # 필수 비밀값이 없으면 빌드 전에 실패시킨다. 값 자체는 로그에 출력하지 않는다.
-      # 앱 설정은 runner의 .env에 쓰고, 서명 keystore는 임시 폴더에 복원한다.
+      # fe-beta Environment 값을 runner 임시 설정 파일에 쓰고, 서명 keystore도 임시 폴더에 복원한다.
       - name: Prepare Android release secrets
         env:
           KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
           ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
           ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
@@ -140,6 +142,7 @@ jobs:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
           for key in KAKAO_NATIVE_APP_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY \
+            POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
             ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD \
             GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
@@ -148,8 +151,11 @@ jobs:
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nAPP_VERSION=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" "$APP_VERSION" > .env
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
+            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
+          chmod 600 "$RUNNER_TEMP/frontend-beta-config"
+          echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
           printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-upload.jks"
           # 다음 Gradle 단계가 서명 파일 위치를 읽도록 job 환경에 경로만 전달한다.
           echo "ANDROID_UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/android-upload.jks" >> "$GITHUB_ENV"
@@ -213,17 +219,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
       # 필수 설정과 App Store Connect 인증값을 먼저 검사한다.
-      # .env는 빌드용 설정이며, API 키 파일은 runner의 임시 폴더에만 복원한다.
+      # fe-beta Environment 값은 runner 임시 설정 파일로 전달하고, API 키도 임시 폴더에 복원한다.
       - name: Prepare iOS release secrets
         env:
           KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           for key in KAKAO_NATIVE_APP_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY \
+            POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
             APP_STORE_CONNECT_ISSUER_ID; do
             if [[ -z "${!key}" ]]; then
@@ -231,8 +240,11 @@ jobs:
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nAPP_VERSION=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" "$APP_VERSION" > .env
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
+            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
+          chmod 600 "$RUNNER_TEMP/frontend-beta-config"
+          echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
           printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
           # API 키 파일은 현재 사용자만 읽을 수 있게 제한한다.
           chmod 600 "$RUNNER_TEMP/AuthKey.p8"
@@ -262,6 +274,7 @@ jobs:
             "MARKETING_VERSION=$APP_VERSION" \
             "CURRENT_PROJECT_VERSION=$APP_BUILD_NUMBER" \
             "KAKAO_NATIVE_APP_KEY=$KAKAO_NATIVE_APP_KEY" \
+            "ENVFILE=$ENVFILE" \
             archive
       # BetaExportOptions.plist의 app-store-connect/upload 설정으로 아카이브를 내보낸다.
       # Xcode가 배포 서명 후 App Store Connect에 직접 업로드한다.

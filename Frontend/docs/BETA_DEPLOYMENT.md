@@ -35,6 +35,8 @@
 | `KAKAO_NATIVE_APP_KEY` | Kakao 네이티브 앱 키 |
 | `SUPABASE_URL` | beta 앱의 Supabase URL |
 | `SUPABASE_PUBLISHABLE_KEY` | beta 앱의 Supabase publishable key |
+| `POSTHOG_PROJECT_TOKEN` | beta 앱의 PostHog 프로젝트 토큰 |
+| `POSTHOG_HOST` | beta 앱의 PostHog 이벤트 수집 호스트 |
 | `ANDROID_UPLOAD_KEYSTORE_BASE64` | Play App Signing 업로드 keystore 파일의 Base64 |
 | `ANDROID_UPLOAD_STORE_PASSWORD` | keystore 비밀번호 |
 | `ANDROID_UPLOAD_KEY_ALIAS` | 업로드 키 alias |
@@ -44,7 +46,9 @@
 | `APP_STORE_CONNECT_KEY_ID` | API 키 ID |
 | `APP_STORE_CONNECT_ISSUER_ID` | API issuer ID |
 
-파일을 Base64로 만들 때 macOS에서 `base64 -i <파일> | tr -d '\n'`을 사용할 수 있다. `Frontend/.env` 파일은 저장소에 커밋하지 않는다.
+beta 빌드는 위 Environment Secrets로 runner 임시 설정 파일을 만들고 `ENVFILE`로 Android와 iOS 빌드에 전달한다. 저장소의 `Frontend/.env`는 beta 빌드에 사용하지 않는다.
+
+파일을 Base64로 만들 때 macOS에서 `base64 -i <파일> | tr -d '\n'`을 사용할 수 있다. 로컬 개발용 `Frontend/.env`는 저장소에 커밋하지 않는다.
 
 ## 스토어 선행 설정
 
