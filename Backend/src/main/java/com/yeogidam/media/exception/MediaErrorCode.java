@@ -5,7 +5,7 @@ import org.springframework.http.HttpStatus;
 
 public enum MediaErrorCode implements ErrorCode {
 
-    UNSUPPORTED_LINK(HttpStatus.BAD_REQUEST, "MEDIA400_001", "지원하지 않는 인스타그램 링크입니다."),
+    UNSUPPORTED_LINK(HttpStatus.BAD_REQUEST, "MEDIA400_001", "지원하지 않는 링크입니다."),
     RETRY_ON_SUCCEEDED(HttpStatus.BAD_REQUEST, "MEDIA400_002", "추출에 성공한 게시물은 다시 시도할 수 없습니다."),
     EXTRACTION_ALREADY_FINISHED(HttpStatus.BAD_REQUEST, "MEDIA400_003", "이미 추출이 끝난 게시물입니다."),
     NOT_A_CANDIDATE(HttpStatus.BAD_REQUEST, "MEDIA400_004", "이 공유 건의 후보가 아닌 장소는 결정할 수 없습니다."),
@@ -18,7 +18,7 @@ public enum MediaErrorCode implements ErrorCode {
     MISSING_MEDIA_SHORTCODE(HttpStatus.BAD_REQUEST, "MEDIA400_011", "게시물 식별자가 비어 있습니다."),
     MISSING_EXTRACTION_STATE(HttpStatus.BAD_REQUEST, "MEDIA400_012", "추출 상태가 비어 있습니다."),
 
-    NOT_FOUND(HttpStatus.NOT_FOUND, "MEDIA404_001", "존재하지 않는 릴스입니다.");
+    SHARED_MEDIA_NOT_FOUND(HttpStatus.NOT_FOUND, "MEDIA404_002", "존재하지 않는 공유입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

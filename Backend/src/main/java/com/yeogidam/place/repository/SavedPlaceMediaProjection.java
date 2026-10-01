@@ -9,7 +9,7 @@ import java.time.Instant;
 public record SavedPlaceMediaProjection(
         Long sharedMediaId,
         Long mediaId,
-        String thumbnailUrl,
+        String thumbnailKey,
         String author,
         String caption,
         String sharedUrl,

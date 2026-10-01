@@ -39,11 +39,11 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 2L, "kong-1144254", "kong-1144254",
                 "kong-1144254@example.com", "https://img.example.com/kong-1144254");
 
-        insertMedia(jdbcTemplate, 1L, "오래된 미디어", "https://img.example.com/old.jpg", "@old");
-        insertMedia(jdbcTemplate, 2L, "최신 미디어", "https://img.example.com/new.jpg", "@new");
-        insertMedia(jdbcTemplate, 3L, "다른 회원 미디어", "https://img.example.com/other.jpg",
+        insertMedia(jdbcTemplate, 1L, "오래된 미디어", "old.jpg", "@old");
+        insertMedia(jdbcTemplate, 2L, "최신 미디어", "new.jpg", "@new");
+        insertMedia(jdbcTemplate, 3L, "다른 회원 미디어", "other.jpg",
                 "@other");
-        insertMedia(jdbcTemplate, 4L, "결정된 미디어", "https://img.example.com/decided.jpg",
+        insertMedia(jdbcTemplate, 4L, "결정된 미디어", "decided.jpg",
                 "@decided");
 
         insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
@@ -59,19 +59,19 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "오래된 장소", "카페", "서울 성동구",
                 "서울 성동구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/1", null,
-                "https://img.example.com/place-old.jpg", null, null);
+                "https://img.example.com/place-old.jpg", null);
         insertPlace(jdbcTemplate, 2L, "kakao-fixture-2", "최신 장소", "카페", "서울 종로구",
                 "서울 종로구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/2", null,
-                "https://img.example.com/place-new.jpg", null, null);
+                "https://img.example.com/place-new.jpg", null);
         insertPlace(jdbcTemplate, 3L, "kakao-fixture-3", "다른 회원 장소", "카페", "서울 마포구",
                 "서울 마포구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/3", null,
-                "https://img.example.com/place-other.jpg", null, null);
+                "https://img.example.com/place-other.jpg", null);
         insertPlace(jdbcTemplate, 4L, "kakao-fixture-4", "결정된 장소", "카페", "서울 중구",
                 "서울 중구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/4", null,
-                "https://img.example.com/place-decided.jpg", null, null);
+                "https://img.example.com/place-decided.jpg", null);
 
         insertUndecidedCandidate(jdbcTemplate, 1L, 1L, 1L);
         insertUndecidedCandidate(jdbcTemplate, 2L, 2L, 2L);
@@ -88,7 +88,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
                 .containsExactly(2L, 1L);
         SharedMediaSummaryProjection latest = sharedMedias.getFirst();
         assertAll(
-                () -> assertThat(latest.thumbnailUrl()).isEqualTo("https://img.example.com/new.jpg"),
+                () -> assertThat(latest.thumbnailKey()).isEqualTo("new.jpg"),
                 () -> assertThat(latest.caption()).isEqualTo("최신 미디어"),
                 () -> assertThat(latest.author()).isEqualTo("@new")
         );
@@ -100,22 +100,22 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 3L, "place-candidate-candidate-user",
                 "place-candidate-candidate-user", "place-candidate-candidate-user@example.com",
                 "https://img.example.com/place-candidate-candidate-user");
-        insertMedia(jdbcTemplate, 5L, "미디어", "https://img.example.com/media.jpg", "@author");
+        insertMedia(jdbcTemplate, 5L, "미디어", "media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 5L, 3L, 5L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 5L, "kakao-fixture-5", "첫 장소", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", FIXTURE_LATITUDE,
                 FIXTURE_LONGITUDE, "https://place.map.kakao.com/5", null,
-                "https://img.example.com/place-1.jpg", null, null);
+                "https://img.example.com/place-1.jpg", null);
         insertPlace(jdbcTemplate, 6L, "kakao-fixture-6", "두 번째 장소", "식당",
                 "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", FIXTURE_LATITUDE,
                 FIXTURE_LONGITUDE, "https://place.map.kakao.com/6", null,
-                "https://img.example.com/place-2.jpg", null, null);
+                "https://img.example.com/place-2.jpg", null);
         insertPlace(jdbcTemplate, 7L, "kakao-fixture-7", "제외할 장소", "카페", "서울 중구",
                 "서울 중구", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/7", null,
-                "https://img.example.com/place-3.jpg", null, null);
+                "https://img.example.com/place-3.jpg", null);
 
         insertUndecidedCandidate(jdbcTemplate, 5L, 5L, 5L);
         insertSavedCandidate(jdbcTemplate, 6L, 5L, 6L,
@@ -154,22 +154,22 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 4L, "share-result-candidate-user",
                 "share-result-candidate-user", "share-result-candidate-user@example.com",
                 "https://img.example.com/share-result-candidate-user");
-        insertMedia(jdbcTemplate, 8L, "장소 모음", "https://img.example.com/media.jpg", "@author");
+        insertMedia(jdbcTemplate, 8L, "장소 모음", "media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 8L, 4L, 8L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 8L, "kakao-fixture-8", "첫 장소", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", FIXTURE_LATITUDE,
                 FIXTURE_LONGITUDE, "https://place.map.kakao.com/8", null,
-                "https://img.example.com/place-1.jpg", null, null);
+                "https://img.example.com/place-1.jpg", null);
         insertPlace(jdbcTemplate, 9L, "kakao-fixture-9", "두 번째 장소", "식당",
                 "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", FIXTURE_LATITUDE,
                 FIXTURE_LONGITUDE, "https://place.map.kakao.com/9", null,
-                "https://img.example.com/place-2.jpg", null, null);
+                "https://img.example.com/place-2.jpg", null);
         insertPlace(jdbcTemplate, 10L, "kakao-fixture-10", "세 번째 장소", "카페",
                 "서울 중구 명동 1-1", "서울 중구 남대문로 1", FIXTURE_LATITUDE,
                 FIXTURE_LONGITUDE, "https://place.map.kakao.com/10", null,
-                "https://img.example.com/place-3.jpg", null, null);
+                "https://img.example.com/place-3.jpg", null);
 
         insertDiscardedCandidate(jdbcTemplate, 8L, 8L, 9L,
                 Instant.parse("2026-09-17T10:00:00Z"));
@@ -187,7 +187,7 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
 
         PlaceCandidateProjection first = candidates.getFirst();
         assertAll(
-                () -> assertThat(first.thumbnailUrl()).isEqualTo("https://img.example.com/place-2.jpg"),
+                () -> assertThat(first.thumbnailKey()).isEqualTo("https://img.example.com/place-2.jpg"),
                 () -> assertThat(first.name()).isEqualTo("두 번째 장소"),
                 () -> assertThat(first.category()).isEqualTo("식당"),
                 () -> assertThat(first.landLotAddress()).isEqualTo("서울 종로구 관철동 1-1"),

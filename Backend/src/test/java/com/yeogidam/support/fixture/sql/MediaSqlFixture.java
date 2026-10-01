@@ -11,15 +11,15 @@ public final class MediaSqlFixture {
             JdbcTemplate jdbcTemplate,
             Long mediaId,
             String caption,
-            String thumbnailUrl,
+            String thumbnailKey,
             String author
     ) {
         jdbcTemplate.update("""
                 INSERT INTO media (
-                    id, media_shortcode, caption, thumbnail_url, author,
+                    id, media_shortcode, caption, thumbnail_key, author,
                     extraction_status, extraction_version, source_type
                 )
                 VALUES (?, ?, ?, ?, ?, 'SUCCEEDED', 1, 'SEEDED')
-                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailUrl, author);
+                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailKey, author);
     }
 }

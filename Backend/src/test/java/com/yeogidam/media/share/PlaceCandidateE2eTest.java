@@ -65,7 +65,7 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 미결정_후보가_있는_공유와_장소_정보를_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertMedia(jdbcTemplate, 201L, "성수동 카페 모음", "https://img.example.com/media.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 201L, "성수동 카페 모음", "media.jpg", "@seongsu");
         insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 Instant.parse("2026-09-17T10:00:00Z"));
         insertPlace(
@@ -81,7 +81,6 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
                 "https://place.map.kakao.com/301",
                 null,
                 "https://img.example.com/place.jpg",
-                null,
                 null
         );
         insertUndecidedCandidate(jdbcTemplate, 401L, 101L, 301L);
@@ -108,19 +107,19 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 여러_상태가_섞인_공유에서는_미결정_후보만_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "media-201.jpg", DEFAULT_AUTHOR);
         insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null);
         insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null);
         insertPlace(jdbcTemplate, 303L, "kakao-fixture-303", "장소 303", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null, null);
+                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null);
 
         insertSavedCandidate(jdbcTemplate, 401L, 101L, 301L,
                 Instant.parse("2026-09-17T10:00:00Z"));
@@ -141,19 +140,19 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 미결정_후보가_없는_공유를_조회하면_빈_목록을_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "media-201.jpg", DEFAULT_AUTHOR);
         insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null);
         insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null);
         insertPlace(jdbcTemplate, 303L, "kakao-fixture-303", "장소 303", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null, null);
+                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null);
 
         insertSavedCandidate(jdbcTemplate, 401L, 101L, 301L,
                 Instant.parse("2026-09-17T10:00:00Z"));
@@ -172,14 +171,14 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 재공유된_이전_공유는_제외하고_최신_공유를_상단에_반환한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "media-201.jpg", DEFAULT_AUTHOR);
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null);
         insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null);
 
         insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 Instant.parse("2026-09-17T10:00:00Z"));
@@ -228,19 +227,19 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
     void 장소_후보는_place_candidates_식별자_오름차순으로_정렬한다() {
         // given
         LoginResult login = loginAsKakao("place-candidate-user");
-        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "https://img.example.com/media-201.jpg", DEFAULT_AUTHOR);
+        insertMedia(jdbcTemplate, 201L, DEFAULT_CAPTION, "media-201.jpg", DEFAULT_AUTHOR);
         insertSharedMedia(jdbcTemplate, 101L, login.memberId(), 201L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
         insertPlace(jdbcTemplate, 301L, "kakao-fixture-301", "장소 301", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null, null);
+                "https://place.map.kakao.com/301", null, "https://img.example.com/place-301.jpg", null);
         insertPlace(jdbcTemplate, 302L, "kakao-fixture-302", "장소 302", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null, null);
+                "https://place.map.kakao.com/302", null, "https://img.example.com/place-302.jpg", null);
         insertPlace(jdbcTemplate, 303L, "kakao-fixture-303", "장소 303", "카페", "서울 성동구 성수동",
                 "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
-                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null, null);
+                "https://place.map.kakao.com/303", null, "https://img.example.com/place-303.jpg", null);
 
         insertUndecidedCandidate(jdbcTemplate, 403L, 101L, 301L);
         insertUndecidedCandidate(jdbcTemplate, 401L, 101L, 302L);
@@ -277,12 +276,12 @@ class PlaceCandidateE2eTest extends E2eTestSupport {
             Instant createdAt
     ) {
         insertMedia(jdbcTemplate, mediaId, DEFAULT_CAPTION,
-                "https://img.example.com/media-" + mediaId + ".jpg", DEFAULT_AUTHOR);
+                "media-" + mediaId + ".jpg", DEFAULT_AUTHOR);
         insertSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
         insertPlace(jdbcTemplate, placeId, "kakao-fixture-" + placeId, "장소 " + placeId, "카페",
                 "서울 성동구 성수동", "서울 성동구 성수동", FIXTURE_LATITUDE, FIXTURE_LONGITUDE,
                 "https://place.map.kakao.com/" + placeId, null,
-                "https://img.example.com/place-" + placeId + ".jpg", null, null);
+                "https://img.example.com/place-" + placeId + ".jpg", null);
         insertUndecidedCandidate(jdbcTemplate, candidateId, sharedMediaId, placeId);
     }
 }

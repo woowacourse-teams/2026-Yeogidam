@@ -14,10 +14,13 @@ public record SavedPlaceMediaResponse(
         String sharedUrl,
         Instant createdAt
 ) {
-    public static SavedPlaceMediaResponse from(SavedPlaceMediaProjection projection) {
+    public static SavedPlaceMediaResponse from(
+            SavedPlaceMediaProjection projection,
+            String instagramThumbnailUrl
+    ) {
         return new SavedPlaceMediaResponse(
                 projection.sharedMediaId(),
-                projection.thumbnailUrl(),
+                instagramThumbnailUrl,
                 projection.author(),
                 projection.caption(),
                 projection.sharedUrl(),

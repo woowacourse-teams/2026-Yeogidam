@@ -12,11 +12,12 @@ public record SharedMediaWithPlaceCandidatesResponse(
 ) {
     public static SharedMediaWithPlaceCandidatesResponse from(
             SharedMediaSummaryProjection projection,
+            String instagramThumbnailUrl,
             List<PlaceCandidateResponse> places
     ) {
         return new SharedMediaWithPlaceCandidatesResponse(
                 projection.sharedMediaId(),
-                projection.thumbnailUrl(),
+                instagramThumbnailUrl,
                 projection.caption(),
                 projection.author(),
                 places

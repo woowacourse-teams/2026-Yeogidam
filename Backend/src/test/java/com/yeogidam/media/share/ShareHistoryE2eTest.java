@@ -10,7 +10,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
-import com.yeogidam.media.share.exception.ShareErrorCode;
+import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.math.BigDecimal;
@@ -40,8 +40,8 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         // given
         LoginResult memberA = loginAsKakao("share-list-user-a");
         LoginResult memberB = loginAsKakao("share-list-user-b");
-        insertMedia(jdbcTemplate, 1L, "회원 A 게시글", "https://img.example.com/a.jpg", "@member-a");
-        insertMedia(jdbcTemplate, 2L, "회원 B 게시글", "https://img.example.com/b.jpg", "@member-b");
+        insertMedia(jdbcTemplate, 1L, "회원 A 게시글", "a.jpg", "@member-a");
+        insertMedia(jdbcTemplate, 2L, "회원 B 게시글", "b.jpg", "@member-b");
         insertSharedMedia(jdbcTemplate, 1L, memberA.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 2L, memberB.memberId(), 2L, Instant.parse("2026-09-17T11:00:00Z"));
 
@@ -59,7 +59,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     void 같은_릴스를_다시_공유한_기록은_서로_다른_히스토리로_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-list-reshares-user");
-        insertMedia(jdbcTemplate, 1L, "같은 릴스", "https://img.example.com/media.jpg", "@author");
+        insertMedia(jdbcTemplate, 1L, "같은 릴스", "media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 1L, Instant.parse("2026-09-17T11:00:00Z"));
 
@@ -77,7 +77,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     void 공유_시각과_공유_ID_내림차순으로_정렬하고_공유_요약_정보를_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-list-summary-user");
-        insertMedia(jdbcTemplate, 1L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        insertMedia(jdbcTemplate, 1L, "성공 게시글", "succeeded.jpg", "@succeeded");
         insertMediaWithStatus(2L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
         insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 2L, Instant.parse("2026-09-17T10:00:00Z"));
@@ -120,16 +120,16 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     void 히스토리_내_장소_목록을_후보_ID_오름차순으로_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-history-places-user");
-        insertMedia(jdbcTemplate, 1L, "장소 모음", "https://img.example.com/media.jpg", "@author");
+        insertMedia(jdbcTemplate, 1L, "장소 모음", "media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
         insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 번째 카페", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new BigDecimal("37.5446"),
                 new BigDecimal("127.0559"), "https://place.map.kakao.com/1", null,
-                "https://img.example.com/place-1.jpg", null, null);
+                "https://img.example.com/place-1.jpg", null);
         insertPlace(jdbcTemplate, 2L, "kakao-fixture-2", "두 번째 식당", "식당",
                 "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", new BigDecimal("37.5704"),
                 new BigDecimal("126.9921"), "https://place.map.kakao.com/2", null,
-                "https://img.example.com/place-2.jpg", null, null);
+                "https://img.example.com/place-2.jpg", null);
         insertUndecidedCandidate(jdbcTemplate, 2L, 1L, 2L);
         insertUndecidedCandidate(jdbcTemplate, 1L, 1L, 1L);
 
@@ -161,13 +161,15 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         // given
         LoginResult owner = loginAsKakao("share-history-places-owner");
         LoginResult other = loginAsKakao("share-history-places-other");
-        insertMedia(jdbcTemplate, 1L, "게시글", "https://img.example.com/media.jpg", "@owner");
+        insertMedia(jdbcTemplate, 1L, "게시글", "media.jpg", "@owner");
         insertSharedMedia(jdbcTemplate, 1L, owner.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
 
         // when & then
         givenBearer(other.accessToken())
                 .when().get(PATH + "/1/places")
-                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
+                .then().statusCode(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getCode()))
+                .body("message", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getMessage()));
     }
 
     @Test
@@ -178,24 +180,26 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         // when & then
         givenBearer(login.accessToken())
                 .when().get(PATH + "/99/places")
-                .then().statusCode(ShareErrorCode.NOT_FOUND.getHttpStatus().value());
+                .then().statusCode(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getCode()))
+                .body("message", equalTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND.getMessage()));
     }
 
     private void insertMediaWithStatus(
             Long mediaId,
             String caption,
-            String thumbnailUrl,
+            String thumbnailKey,
             String author,
             String extractionStatus,
             String failureReason
     ) {
         jdbcTemplate.update("""
                 INSERT INTO media (
-                    id, media_shortcode, caption, thumbnail_url, author,
+                    id, media_shortcode, caption, thumbnail_key, author,
                     extraction_status, failure_reason, extraction_version, source_type
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SEEDED')
-                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailUrl, author,
+                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailKey, author,
                 extractionStatus, failureReason);
     }
 }

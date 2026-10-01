@@ -17,9 +17,8 @@ public record SavedPlaceProjection(
         BigDecimal longitude,
         String kakaoPlaceUrl,
         String telephone,
-        String thumbnailUrl,
+        String thumbnailKey,
         String thumbnailSource,
-        String thumbnailAttribution,
         Instant lastSavedAt
 ) {
 }
