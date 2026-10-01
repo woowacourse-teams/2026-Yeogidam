@@ -1,4 +1,5 @@
-# PR에서 코드 품질을 검사하고 Android/iOS Debug 앱이 컴파일되는지 확인한다.
+# PR에서는 코드 품질과 Android/iOS Release 컴파일을 검사한다.
+# Beta 호출에서는 선택한 플랫폼의 배포용 Release 결과물을 만들어 artifact로 전달한다.
 name: Frontend CI
 
 on:
@@ -6,14 +7,23 @@ on:
     branches: # branches는 PR의 대상 브랜치다.
       - fe-dev
       - fe-release
-  # 테스터 배포 워크플로에서도 이 CI 전체를 재사용할 수 있다.
   workflow_call:
+    inputs:
+      beta_platform:
+        type: string
+        default: ''
+      app_version:
+        type: string
+        default: ''
+      build_number:
+        type: string
+        default: ''
 
 # 소스 체크아웃에 필요한 읽기 권한만 허용한다.
 permissions:
   contents: read
 
-# 세 job은 서로 독립적이므로 검증과 두 플랫폼 빌드가 병렬로 실행된다.
+# PR 검증은 병렬로 실행하고, beta 호출에서는 선택한 플랫폼만 빌드한다.
 jobs:
   # JavaScript/TypeScript 정적 검사와 Jest 테스트를 수행한다.
   verify:
@@ -47,8 +57,9 @@ jobs:
       - name: Test
         run: npm run test:ci
 
-  # 스토어 서명 없이 Android Debug APK가 컴파일되는지 확인한다.
+  # PR에서는 스토어 서명 없이 Android Release APK가 컴파일되는지 확인한다.
   android-build:
+    if: inputs.beta_platform == ''
     runs-on: ubuntu-latest
     # 네이티브 빌드가 멈추면 60분 후 종료한다.
     timeout-minutes: 60
@@ -83,13 +94,19 @@ jobs:
             'KAKAO_NATIVE_APP_KEY=ci-placeholder' \
             'SUPABASE_URL=https://ci.example.invalid' \
             'SUPABASE_PUBLISHABLE_KEY=ci-placeholder' > .env
-      # Gradle wrapper로 Debug APK를 컴파일한다. 이 단계는 Play 업로드용 AAB를 만들지 않는다.
-      - name: Build Android debug app
-        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Build Android release app
+        # PR에서는 저장소의 개발용 키로 Release 변형을 서명한다. 배포용 AAB는 만들지 않는다.
+        env:
+          ANDROID_UPLOAD_KEYSTORE_PATH: ${{ github.workspace }}/Frontend/android/app/debug.keystore
+          ANDROID_UPLOAD_STORE_PASSWORD: android
+          ANDROID_UPLOAD_KEY_ALIAS: androiddebugkey
+          ANDROID_UPLOAD_KEY_PASSWORD: android
+        run: ./gradlew :app:assembleRelease --no-daemon
         working-directory: Frontend/android
 
-  # Apple 배포 서명 없이 iOS 시뮬레이터용 Debug 앱이 컴파일되는지 확인한다.
+  # PR에서는 Apple 배포 서명 없이 iOS 시뮬레이터용 Release 앱을 컴파일한다.
   ios-build:
+    if: inputs.beta_platform == ''
     # Xcode와 iOS Simulator SDK가 있는 macOS runner가 필요하다.
     runs-on: macos-26
     # CocoaPods 설치와 네이티브 컴파일 시간을 고려해 120분으로 제한한다.
@@ -123,22 +140,186 @@ jobs:
       # Podfile에 선언된 iOS 네이티브 라이브러리를 설치해 .xcworkspace를 준비한다.
       - name: Install CocoaPods
         run: bundle exec pod install --project-directory=ios
-      # Debug 설정을 iOS Simulator SDK로 빌드한다. 특정 시뮬레이터를 실행하지는 않는다.
+      # Release 설정을 iOS Simulator SDK로 빌드한다. 특정 시뮬레이터를 실행하지는 않는다.
       # 중간 결과물은 runner 임시 폴더에 두고, 시뮬레이터 빌드의 코드 서명은 끈다.
-      - name: Build iOS debug simulator app
+      - name: Build iOS release simulator app
         run: |
           xcodebuild \
             -workspace ios/Frontend.xcworkspace \
             -scheme Frontend \
-            -configuration Debug \
+            -configuration Release \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/FrontendDerivedData" \
             CODE_SIGNING_ALLOWED=NO \
             build
         # workspace/scheme: CocoaPods가 연결된 Frontend 앱을 선택한다.
-        # configuration: Debug 설정을 사용한다.
+        # configuration: Release 설정을 사용한다.
         # sdk/destination: 실제 기기가 아닌 범용 iOS 시뮬레이터를 대상으로 한다.
         # derivedDataPath: 빌드 결과를 runner의 임시 폴더에 저장한다.
         # CODE_SIGNING_ALLOWED=NO: 시뮬레이터 빌드에는 배포 서명을 요구하지 않는다.
         # build: 앱을 컴파일하며 실행하거나 스토어에 업로드하지는 않는다.
+
+  # Beta 호출에서는 배포 설정과 서명 키를 사용해 Android AAB를 한 번만 만든다.
+  android-beta-build:
+    if: inputs.beta_platform == 'android'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: fe-beta
+    env:
+      APP_VERSION: ${{ inputs.app_version }}
+      APP_BUILD_NUMBER: ${{ inputs.build_number }}
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            Frontend/android/*.gradle
+            Frontend/android/gradle.properties
+            Frontend/android/gradle/wrapper/gradle-wrapper.properties
+      - name: Install dependencies
+        run: npm ci
+      - name: Prepare Android release secrets
+        env:
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          for key in APP_VERSION APP_BUILD_NUMBER KAKAO_NATIVE_APP_KEY SUPABASE_URL \
+            SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
+            ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
+            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD; do
+            if [[ -z "${!key}" ]]; then
+              echo "Missing beta build setting: $key" >&2
+              exit 1
+            fi
+          done
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
+            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
+          chmod 600 "$RUNNER_TEMP/frontend-beta-config"
+          echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-upload.jks"
+          echo "ANDROID_UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/android-upload.jks" >> "$GITHUB_ENV"
+      - name: Build signed Android AAB
+        env:
+          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: ./gradlew :app:bundleRelease --no-daemon
+        working-directory: Frontend/android
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-beta-android-${{ github.run_number }}-${{ github.run_attempt }}
+          path: Frontend/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          compression-level: 0
+
+  # Beta 호출에서는 실제 기기용 iOS Release 아카이브를 한 번만 만든다.
+  ios-beta-build:
+    if: inputs.beta_platform == 'ios'
+    runs-on: macos-26
+    timeout-minutes: 180
+    environment: fe-beta
+    env:
+      APP_VERSION: ${{ inputs.app_version }}
+      APP_BUILD_NUMBER: ${{ inputs.build_number }}
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0.1'
+          bundler-cache: true
+          working-directory: Frontend
+      - name: Install dependencies
+        run: npm ci
+      - name: Prepare iOS release secrets
+        env:
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          for key in APP_VERSION APP_BUILD_NUMBER KAKAO_NATIVE_APP_KEY SUPABASE_URL \
+            SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
+            APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID; do
+            if [[ -z "${!key}" ]]; then
+              echo "Missing beta build setting: $key" >&2
+              exit 1
+            fi
+          done
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
+            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
+          chmod 600 "$RUNNER_TEMP/frontend-beta-config"
+          echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+      - name: Install CocoaPods
+        run: bundle exec pod install --project-directory=ios
+      - name: Archive signed iOS app
+        env:
+          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild \
+            -workspace ios/Frontend.xcworkspace \
+            -scheme Frontend \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Frontend.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
+            "MARKETING_VERSION=$APP_VERSION" \
+            "CURRENT_PROJECT_VERSION=$APP_BUILD_NUMBER" \
+            "KAKAO_NATIVE_APP_KEY=$KAKAO_NATIVE_APP_KEY" \
+            "ENVFILE=$ENVFILE" \
+            archive
+      # 아카이브의 심볼릭 링크와 파일 권한을 보존해 업로드 job으로 전달한다.
+      - name: Package iOS archive
+        run: ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/Frontend.xcarchive" "$RUNNER_TEMP/Frontend.xcarchive.zip"
+      - name: Upload iOS archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-beta-ios-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/Frontend.xcarchive.zip
+          if-no-files-found: error
+          compression-level: 0
