@@ -31,7 +31,7 @@ class PlaceCandidateIntegrationTest extends IntegrationTestSupport {
         // given
         insertKakaoMember(jdbcTemplate, 1L, "member-123ijfsa", "member-123ijfsa",
                 "member-123ijfsa@example.com", "https://img.example.com/member-123ijfsa");
-        insertMedia(jdbcTemplate, 1L, "성수 장소 모음", "https://img.example.com/media.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 1L, "성수 장소 모음", "media.jpg", "@seongsu");
         insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 

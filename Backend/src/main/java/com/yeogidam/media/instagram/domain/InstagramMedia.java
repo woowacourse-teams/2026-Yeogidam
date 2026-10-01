@@ -57,10 +57,6 @@ public class InstagramMedia {
         this.extraction = extraction.retry();
     }
 
-    public void fillMetadata(MediaMetadata metadata) {
-        this.metadata = metadata;
-    }
-
     public Long id() {
         return id;
     }

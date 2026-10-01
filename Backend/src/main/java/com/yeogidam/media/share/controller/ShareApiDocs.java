@@ -6,30 +6,65 @@ import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import jakarta.validation.Valid;
 
-@Tag(name = "Share", description = "히스토리 목록과 항목 조회 API")
+/**
+ * ShareController의 Swagger 문서. 문서 어노테이션만 두고, 요청 매핑과 인증 파라미터는 구현체가 맡는다.
+ */
+@Tag(name = "Share", description = "공유 API")
 public interface ShareApiDocs {
 
     @Operation(summary = "인스타그램 미디어 공유",
-            description = "미디어를 공유 이력에 등록하고, 처음 보거나 파이프라인 버전이 바뀐 경우 비동기로 분석합니다.",
+            description = """
+                    미디어를 공유 이력에 등록하고, 처음 보거나 파이프라인 버전이 바뀐 경우 비동기로 분석합니다.
+                    """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
                     @ApiResponse(responseCode = "202", description = "공유 접수 성공"),
-                    @ApiResponse(responseCode = "400", description = "지원하지 않는 인스타그램 링크",
+                    @ApiResponse(responseCode = "400", description = "요청 필드 또는 인스타그램 링크가 올바르지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ErrorResponse.class))),
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "COMMON400_001",
+                                                    description = "instagramUrl이 비어 있을 때",
+                                                    value = """
+                                                            {"message": "유효하지 않은 요청 필드입니다.", "errorCode": "COMMON400_001"}
+                                                            """),
+                                            @ExampleObject(name = "MEDIA400_001",
+                                                    description = "지원하지 않는 링크일 때",
+                                                    value = """
+                                                            {"message": "지원하지 않는 링크입니다.", "errorCode": "MEDIA400_001"}
+                                                            """),
+                                            @ExampleObject(name = "MEDIA400_010",
+                                                    description = "올바르지 않은 형식의 인스타그램 링크일 때",
+                                                    value = """
+                                                            {"message": "올바른 인스타그램 링크 형식이 아닙니다.", "errorCode": "MEDIA400_010"}
+                                                            """)
+                                    })),
                     @ApiResponse(responseCode = "401", description = "로그인하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ErrorResponse.class)))
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
+                                                    value = """
+                                                            {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
+                                                            """),
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
+                                                    value = """
+                                                            {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
+                                                            """)
+                                    }))
             })
     ResponseEntity<Void> createShare(Long memberId, @Valid ShareRequest request);
 
@@ -39,6 +74,8 @@ public interface ShareApiDocs {
 
                     - `createdAt` 내림차순으로 정렬하고, 같은 시각에는 `sharedMediaId` 내림차순으로 정렬합니다.
                     - 장소 목록은 포함하지 않으며, 분석 실패 시 `failureReason`을 반환합니다.
+                    - `failureReason`은 `CONTENT_UNAVAILABLE`, `PLACE_NOT_EXTRACTED`, `PLACE_NOT_MATCHED`,
+                      `PROCESSING_FAILED`, `UNEXPECTED` 중 하나입니다.
                     - 게시글에 접근하지 못한 기록은 `thumbnailUrl`, `caption`, `author`가 null일 수 있습니다.
                     - `sharedUrl`은 게시글 접근 성공 여부와 관계없이 반환합니다.
                     - 공유 이력이 없으면 빈 `sharedMedias` 배열을 반환합니다.
@@ -52,11 +89,13 @@ public interface ShareApiDocs {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = {
-                                            @ExampleObject(name = "AUTH401_004", description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
                                                     value = """
                                                             {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
                                                             """),
-                                            @ExampleObject(name = "AUTH401_001", description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
                                                     value = """
                                                             {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
                                                             """)
@@ -79,15 +118,32 @@ public interface ShareApiDocs {
                                     schema = @Schema(implementation = PlaceCandidateResponses.class))),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ErrorResponse.class))),
-                    @ApiResponse(responseCode = "404", description = "존재하지 않는 히스토리이거나 다른 회원의 히스토리",
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
+                                                    value = """
+                                                            {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
+                                                            """),
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
+                                                    value = """
+                                                            {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
+                                                            """)
+                                    })),
+                    @ApiResponse(responseCode = "404", description = "존재하지 않는 공유이거나 다른 회원의 공유",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
-                                    examples = @ExampleObject(value = """
-                                            {"message": "존재하지 않는 공유입니다.", "errorCode": "SHARE404_001"}
+                                    examples = @ExampleObject(name = "MEDIA404_002",
+                                            description = "존재하지 않거나 다른 회원의 공유일 때",
+                                            value = """
+                                            {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
                                             """)))
             })
-    ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(Long memberId, Long sharedMediaId);
+    ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(
+            Long memberId,
+            @Parameter(description = "공유 이력 id(shared_media.id)", example = "102") Long sharedMediaId
+    );
 
     @Operation(summary = "히스토리 항목 조회",
             description = """
@@ -97,6 +153,7 @@ public interface ShareApiDocs {
                     - 게시글에 접근하지 못한 결과는 `thumbnailUrl`, `caption`, `author`가 null일 수 있습니다.
                     - `sharedUrl`은 게시글 접근 성공 여부와 관계없이 반환합니다.
                     - 분석 실패 시 `failureReason`을 반환합니다.
+                    - `failureReason` 값은 공유 이력 목록 조회와 같습니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
@@ -107,11 +164,13 @@ public interface ShareApiDocs {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = {
-                                            @ExampleObject(name = "AUTH401_004", description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
                                                     value = """
                                                             {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
                                                             """),
-                                            @ExampleObject(name = "AUTH401_001", description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
                                                     value = """
                                                             {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
                                                             """)
@@ -119,9 +178,14 @@ public interface ShareApiDocs {
                     @ApiResponse(responseCode = "404", description = "존재하지 않는 공유이거나 다른 회원의 공유",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
-                                    examples = @ExampleObject(value = """
-                                            {"message": "존재하지 않는 공유입니다.", "errorCode": "SHARE404_001"}
+                                    examples = @ExampleObject(name = "MEDIA404_002",
+                                            description = "존재하지 않거나 다른 회원의 공유일 때",
+                                            value = """
+                                            {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
                                             """)))
             })
-    ResponseEntity<ShareHistoryItemResponse> readShareHistoryItem(Long memberId, Long sharedMediaId);
+    ResponseEntity<ShareHistoryItemResponse> readShareHistoryItem(
+            Long memberId,
+            @Parameter(description = "공유 이력 id(shared_media.id)", example = "102") Long sharedMediaId
+    );
 }
