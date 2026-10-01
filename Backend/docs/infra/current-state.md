@@ -184,7 +184,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 | 이미지 정리 | 두 번째 배포에서 롤백 시험이 남긴 이미지가 지워지고 `current`와 `previous`만 남았다 |
 | `be-release` 승격 | 머지 커밋의 두 번째 부모를 잡아 `mode=promote`로 갔다. publish의 빌드 스텝이 스킵되고 운영이 개발과 같은 digest `f1815ebe`를 받았다 |
 | 앱→DB | 카카오 로그인으로 `members`에 행이 생겼다. 앱 서버에서 앱 계정으로 `SELECT 1`도 확인했다 |
-| 재부팅 복구 | 개발 앱 서버를 `sudo reboot`했더니 ssh 25초, 앱 healthy 53초 만에 돌아왔고 러너와 `certbot-renew.timer`도 저절로 올라왔다. nginx와 도커는 systemd enable, 앱은 `--restart unless-stopped`, 러너는 `svc.sh` 서비스라서다. 개발 DB 서버는 재부팅하지 않고 조건만 봤는데 도커 enable, `yeogidam-mysql`이 `unless-stopped`, 데이터는 이름 있는 볼륨 `yeogidam-mysql-data`라 같은 방식으로 돌아온다. 운영 앱 서버는 같은 스크립트로 올렸지만 재부팅은 아직 안 해 봤다 |
+| 재부팅 복구 | 개발 앱 서버를 `sudo reboot`했더니 ssh 25초, 앱 healthy 53초 만에 돌아왔고 러너와 `certbot-renew.timer`도 저절로 올라왔다. nginx와 도커는 systemd enable, 앱은 `--restart unless-stopped`, 러너는 `svc.sh` 서비스라서다. 개발 DB 서버는 재부팅하지 않고 조건만 봤는데 도커 enable, `yeogidam-mysql`이 `unless-stopped`, 데이터는 이름 있는 볼륨 `yeogidam-mysql-data`라 같은 방식으로 돌아온다. 운영 앱 서버도 2026-10-01에 재부팅했고(5주 만의 첫 재부팅) ssh 22초, 앱 healthy 50초, nginx와 러너와 타이머가 저절로 올라왔으며 깃허브에서 러너가 online으로 돌아왔다 |
 
 알게 된 것.
 
