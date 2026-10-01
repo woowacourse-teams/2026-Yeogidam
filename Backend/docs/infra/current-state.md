@@ -2,7 +2,7 @@
 
 지금 실제로 돌아가는 것과 ADR이 정했는데 아직 못 한 것을 적는다. **ADR은 결정 기록이라 함부로 고치지 않지만 이 문서는 바뀔 때마다 고친다.** 인프라를 건드리는 PR은 이 문서도 같이 고친다.
 
-마지막 갱신 2026-09-29.
+마지막 갱신 2026-10-01.
 
 ## 배포 경로
 
@@ -99,7 +99,7 @@ JWT_SECRET
 | CODEOWNERS와 필수 리뷰 | 부분. 필수 리뷰는 ruleset으로 강제된다(be-dev와 be-release 승인 1개, main 2개). CODEOWNERS 파일은 없다 |
 | 배포 이력을 서버 외부에 기록 | 안 됨(ADR-01과 같은 항목) |
 | Runner 복구 Runbook | 안 됨 |
-| 자원과 OOM 모니터링 | 부분(2026-09-29). 상한과 로그 로테이션은 코드에 넣었다(512m / 768m / 10m 3개). 모니터링은 없고 배포도 아직 안 돌았다 |
+| 자원과 OOM 모니터링 | 부분(2026-10-01). 상한은 코드에 있다(512m / 768m). 서버 쪽 수집은 됐다. 앱 컨테이너는 `awslogs` 드라이버로, nginx와 MySQL 로그와 메모리, 디스크 지표는 CloudWatch 에이전트로 보낸다(#251). 지표 필터와 알람과 대시보드는 콘솔에서 만들어야 하고 절차는 [observability.md](observability.md)에 있다 |
 
 ### 인프라 ADR-03 EC2 인스턴스 아키텍처
 
@@ -121,7 +121,7 @@ ARM64(Graviton)를 쓴다는 결정은 맞고 구현도 따라왔다. CI 러너�
 
 **개발 서버 사양은 정해졌고 구축까지 끝났다(2026-09-29).** 세 후보 중 **DB 인스턴스를 따로 띄우는 안**으로 갔다. 앱 서버를 키우지 않고 `yeogidam-dev`는 앱만 돌리며, `yeogidam-dev-db`가 MySQL을 맡는다. 새 ADR로 남겨야 한다.
 
-**개발 서버 앞단은 2026-09-30에 올렸다.** nginx 1.30이 호스트에 systemd 서비스로 돌고 443에서 Let's Encrypt 인증서(2026-12-29 만료)를 들고 `127.0.0.1:8080`으로 넘긴다. 80은 인증서 검증 경로만 열고 나머지는 443으로 보내며, 이름 없이 IP로 오는 요청은 거절하고 `/actuator`는 밖에서 404다. certbot은 dnf에 없어 `/opt/certbot` venv에 깔았고 `certbot-renew.timer`가 하루 두 번 확인해 갱신되면 nginx만 reload한다. 설정 원본은 `Infra/nginx/nginx.conf.template`이고 도메인은 `${SERVER_NAME}` 자리표라 저장소에 남지 않으며, 설치 절차는 `Infra/scripts/bootstrap-host.sh` 한 파일이라 서버가 늘면 그것만 다시 돌린다. 앱 쪽은 `application.yml`에 `server.forward-headers-strategy: native`를 더해 톰캣이 루프백에서 온 `X-Forwarded-*`만 믿게 했다. nginx를 컨테이너로 두지 않은 이유는 910Mi에서 컨테이너를 더 늘릴 여유가 없고 인증서 갱신이 앱과 분리되기 때문이다. 운영 서버에도 같은 날 같은 스크립트로 올렸고, 밖에서 같은 다섯 가지(502, 인증서, http→https, `/actuator` 404, IP 직접 접속 거절)를 확인했다.
+**개발 서버 앞단은 2026-09-30에 올렸다.** nginx 1.30이 호스트에 systemd 서비스로 돌고 443에서 Let's Encrypt 인증서(2026-12-29 만료)를 들고 `127.0.0.1:8080`으로 넘긴다. 80은 인증서 검증 경로만 열고 나머지는 443으로 보내며, 이름 없이 IP로 오는 요청은 거절하고 `/actuator`는 밖에서 404다. certbot은 dnf에 없어 `/opt/certbot` venv에 깔았고 `certbot-renew.timer`가 하루 두 번 확인해 갱신되면 nginx만 reload한다. 설정 원본은 `Infra/nginx/nginx.conf.template`이고 도메인은 `${SERVER_NAME}` 자리표라 저장소에 남지 않으며, 설치 절차는 `Infra/scripts/bootstrap-host.sh` 한 파일이라 서버가 늘면 그것만 다시 돌린다. 앱 쪽은 `application.yml`에 `server.forward-headers-strategy: native`를 더해 톰캣이 루프백에서 온 `X-Forwarded-*`만 믿게 했다. nginx를 컨테이너로 두지 않은 이유는 910Mi에서 컨테이너를 더 늘릴 여유가 없고 인증서 갱신이 앱과 분리되기 때문이다. 운영 서버에도 같은 날 같은 스크립트로 올렸고, 밖에서 같은 다섯 가지(502, 인증서, http→https, `/actuator` 404, IP 직접 접속 거절)를 확인했다. 2026-10-01에 요청 제한을 더했다(#251). IP당 초당 10회(순간 30회), 로그인과 재발급 경로(`/api/v1/auth/`)는 분당 10회(순간 20회), 동시 연결 20개, 본문 16KB, 헤더와 본문 타임아웃 10초이고 넘치면 429를 돌려준다. 거절된 요청은 앱까지 가지 않아 제공자 호출과 톰캣 스레드와 앱 로그가 생기지 않으며, 429는 access 로그에도 남기지 않아 폭주가 CloudWatch 요금이 되지 않는다. 템플릿을 바꾼 것이라 서버에서 `bootstrap-host.sh`를 다시 돌려야 반영된다.
 
 ### 인프라 ADR-04 모노레포 브랜치 전략
 
@@ -178,13 +178,13 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 | digest 고정 배포 | 컨테이너 이미지와 `current` 태그의 RepoDigest가 Summary의 digest와 같다 |
 | 헬스 판정 | healthy 뒤 성공으로 끝나고, unhealthy면 롤백으로 간다 |
 | 프로필 대조 | env 대조를 지나 컨테이너 단계로 간다 |
-| 자원 상한과 로그 | `--memory` 512MiB, `--memory-swap` 768MiB, 로그 10m 3개가 컨테이너에 걸렸다. 힙 256MB, 실사용 197MiB |
+| 자원 상한과 로그 | `--memory` 512MiB, `--memory-swap` 768MiB, 로그 10m 3개가 컨테이너에 걸렸다. 힙 256MB, 실사용 197MiB. (2026-10-01부터 로그는 `awslogs`로 CloudWatch에 가고 10m 3개는 `docker logs`용 로컬 캐시 상한이다) |
 | 롤백 | `BACKEND_MEMORY_LIMIT=64m`으로 새 컨테이너만 OOM으로 죽게 해서 두 번 돌렸고, 두 번 다 옛 컨테이너가 원래 상한으로 복구됐다 |
 | 역할 태그 | 두 번째 배포 뒤 `current`는 새 ID, `previous`는 옛 ID다. `candidate`는 배포 중에만 있다 |
 | 이미지 정리 | 두 번째 배포에서 롤백 시험이 남긴 이미지가 지워지고 `current`와 `previous`만 남았다 |
 | `be-release` 승격 | 머지 커밋의 두 번째 부모를 잡아 `mode=promote`로 갔다. publish의 빌드 스텝이 스킵되고 운영이 개발과 같은 digest `f1815ebe`를 받았다 |
 | 앱→DB | 카카오 로그인으로 `members`에 행이 생겼다. 앱 서버에서 앱 계정으로 `SELECT 1`도 확인했다 |
-| 재부팅 복구 | 개발 앱 서버를 `sudo reboot`했더니 ssh 25초, 앱 healthy 53초 만에 돌아왔고 러너와 `certbot-renew.timer`도 저절로 올라왔다. nginx와 도커는 systemd enable, 앱은 `--restart unless-stopped`, 러너는 `svc.sh` 서비스라서다. 개발 DB 서버는 재부팅하지 않고 조건만 봤는데 도커 enable, `yeogidam-mysql`이 `unless-stopped`, 데이터는 이름 있는 볼륨 `yeogidam-mysql-data`라 같은 방식으로 돌아온다. 운영 앱 서버는 같은 스크립트로 올렸지만 재부팅은 아직 안 해 봤다 |
+| 재부팅 복구 | 개발 앱 서버를 `sudo reboot`했더니 ssh 25초, 앱 healthy 53초 만에 돌아왔고 러너와 `certbot-renew.timer`도 저절로 올라왔다. nginx와 도커는 systemd enable, 앱은 `--restart unless-stopped`, 러너는 `svc.sh` 서비스라서다. 개발 DB 서버는 재부팅하지 않고 조건만 봤는데 도커 enable, `yeogidam-mysql`이 `unless-stopped`, 데이터는 이름 있는 볼륨 `yeogidam-mysql-data`라 같은 방식으로 돌아온다. 운영 앱 서버도 2026-10-01에 재부팅했고(5주 만의 첫 재부팅) ssh 22초, 앱 healthy 50초, nginx와 러너와 타이머가 저절로 올라왔으며 깃허브에서 러너가 online으로 돌아왔다 |
 
 알게 된 것.
 
@@ -199,13 +199,13 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 
 급한 순서다.
 
-1. **관측이 없다.** actuator가 liveness만 열고 metrics는 닫혀 있다. 로그 보존, 대시보드 지표, 실패 알림이 스프린트 1 조건인데 셋 다 없다.
+1. **관측의 콘솔 쪽과 사고 기록이 남았다.** 서버 쪽은 2026-10-01에 끝났다(#251). 앱 로그가 dev와 prod에서 JSON이 되고 요청마다 한 줄이 남으며, 앱과 nginx와 개발 MySQL 로그와 메모리, 디스크 지표가 CloudWatch로 간다. actuator `metrics`도 서버 안에서만 열었다. 남은 것은 콘솔에서 만드는 지표 필터 4개, 알람 6개, 대시보드 1개, SNS 토픽, Lambda와 태그 일괄 작업이고, 그 뒤 개발에서 OOM 롤백을 일부러 일으켜 알림이 Discord에 닿는지 보고 사고 기록 1건을 `incidents/`에 남기면 스프린트 1 조건이 찬다. 절차는 [observability.md](observability.md)에 있다. 로그 보존은 다섯 그룹 모두 1개월인데 출시 뒤 `prod` 두 그룹은 3개월로 늘린다.
 2. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
 3. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
 4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
 5. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
 6. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 깃허브 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
-7. **운영 DB가 없다.** 개발 DB는 2026-09-29에 `yeogidam-dev-db`에 Docker MySQL로 띄웠고 스키마까지 넣었다. 운영은 RDS로 가기로 했는데 아직 만들지 않았다. 마이그레이션 도구가 없어 스키마 변경을 개발과 운영 양쪽에 손으로 적용해야 하는 것도 그대로다.
+7. **운영 DB가 없다.** 개발 DB는 2026-09-29에 `yeogidam-dev-db`에 Docker MySQL로 띄웠고 스키마까지 넣었다. 운영은 RDS로 가기로 했는데 아직 만들지 않았다. 만들 때 「로그 내보내기」에서 error와 slowquery를 켜고 파라미터 그룹에 `long_query_time=0.5`를 주면 개발 DB와 같은 로그가 CloudWatch로 간다(RDS가 만드는 그룹에는 태그를 따로 단다). 마이그레이션 도구가 없어 스키마 변경을 개발과 운영 양쪽에 손으로 적용해야 하는 것도 그대로다.
 8. **운영 디스크가 빠듯하다.** 2026-09-29에 러너 옛 버전 448MB를 지워 여유가 2.3G에서 2.7G로 늘었다. 그래도 8GB 중 2GB를 `/swapfile`이 가져가 실제로 쓸 수 있는 것은 6GB다. `current`와 `previous`와 `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. journal은 상한이 없어 운영 256MB, 개발 185MB까지 자랐다. `ec2-user`의 `~/.warp` 196MB도 지울 수 있는데 아직 안 지웠다.
 9. **린터와 커버리지가 없다.** Gradle에 checkstyle도 spotless도 jacoco도 없다. IDEA checkstyle 설정만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
 10. **CODEOWNERS와 dependabot이 없다.**

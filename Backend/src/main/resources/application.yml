@@ -57,7 +57,9 @@ app-update:
     latest-version: 1.1.0
     store-url: https://play.google.com/store/apps/details?id=com.yeogidamm.app&pcampaignid=web_share
 
-# 배포 헬스체크용. 기동 여부만 보고 세부는 감춘다. 지표 수집은 관찰 도구를 붙일 때 더한다.
+# health는 배포 헬스체크용이라 기동 여부만 보고 세부는 감춘다. metrics는 부하를 걸 때 서버 안에서
+# 커넥션 풀(hikaricp.connections.*)과 힙, 톰캣 스레드를 보기 위한 것이다. 앱이 127.0.0.1에만 열려 있고
+# nginx가 /actuator를 404로 막으므로 둘 다 밖에서는 보이지 않는다. CloudWatch로 보내지는 않는다(지표당 과금).
 management:
   health:
     defaults:
@@ -69,7 +71,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,metrics
       discovery:
         enabled: false
   endpoint:

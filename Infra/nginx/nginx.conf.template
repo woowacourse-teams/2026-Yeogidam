@@ -25,12 +25,38 @@ http {
     types_hash_max_size 4096;
 
     log_format main '$remote_addr [$time_local] "$request" $status $body_bytes_sent '
-                    '$request_time "$http_user_agent"';
-    access_log /var/log/nginx/access.log main;
+                    '$request_time "$http_user_agent" $request_id';
+    # 요청 제한에 걸린 429는 access 로그에 남기지 않는다. 남기면 거절된 요청도 한 줄씩 CloudWatch로
+    # 올라가서 폭주 공격이 그대로 수집 요금이 된다. 폭주 여부는 EC2 기본 지표(NetworkIn, CPU)로 본다.
+    map $status $loggable {
+        429 0;
+        default 1;
+    }
+    access_log /var/log/nginx/access.log main if=$loggable;
 
     sendfile on;
     keepalive_timeout 65;
     server_tokens off;
+
+    # 요청 제한. IP마다 물통을 두고 요청이 올 때마다 한 방울 넣으며 rate만큼 비운다. 넘치는 요청은
+    # 앱까지 가지 않고 429로 끝나므로 제공자 호출도 톰캣 스레드도 앱 로그도 생기지 않는다.
+    # 10m은 IP 약 16만 개를 기억할 크기다. 같은 공유기의 여러 사용자가 한 IP로 묶이므로 값은
+    # 사람이 낼 수 없는 속도로만 잡는다. 걸린 요청마다 error.log에 한 줄 남기는 기본 동작도
+    # 같은 이유로 끈다(notice는 error_log의 warn 아래라 기록되지 않는다).
+    limit_req_zone $binary_remote_addr zone=perip:10m rate=10r/s;
+    # 로그인과 토큰 재발급은 요청마다 카카오 같은 제공자 호출이 나가는 경로라 따로 더 조인다.
+    limit_req_zone $binary_remote_addr zone=auth:10m rate=10r/m;
+    # 한 IP가 동시에 열어 둘 수 있는 연결 수. 느린 연결로 슬롯(워커 2개 × 1024)을 채우는 공격을 막는다.
+    limit_conn_zone $binary_remote_addr zone=perip_conn:10m;
+    limit_req_status 429;
+    limit_conn_status 429;
+    limit_req_log_level notice;
+    limit_conn_log_level notice;
+
+    # 헤더나 본문을 보내다 멈춘 연결을 오래 붙들지 않는다. 기본값 60초는 느린 연결 공격에 너무 길다.
+    client_header_timeout 10s;
+    client_body_timeout 10s;
+    send_timeout 10s;
 
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
@@ -82,18 +108,38 @@ http {
         proxy_read_timeout 30s;
         proxy_send_timeout 30s;
 
+        # IP당 초당 10회, 순간 30회까지 봐준다(nodelay는 넘치기 전까지 줄 세우지 않는다는 뜻).
+        # 동시 연결은 20개. 본문은 16KB면 지금 API(인가 코드, 토큰)에 충분하고 업로드가 생기면 올린다.
+        limit_req zone=perip burst=30 nodelay;
+        limit_conn perip_conn 20;
+        client_max_body_size 16k;
+
+        # 두 location이 같은 헤더를 넘기므로 여기 한 번만 적는다. location에서 proxy_set_header를
+        # 하나라도 다시 적으면 여기 것이 전부 무시되므로 헤더는 여기서만 고친다.
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # 앱 로그의 requestId와 access 로그를 같은 값으로 잇는다. nginx가 요청마다 만드는
+        # $request_id를 넘기므로 클라이언트가 보낸 X-Request-Id는 여기서 덮인다.
+        proxy_set_header X-Request-Id $request_id;
+
         # 헬스체크는 배포 스크립트가 컨테이너 안에서 직접 보므로 밖에는 열지 않는다.
         location ^~ /actuator {
             return 404;
         }
 
+        # 로그인과 재발급은 인증 없이 열려 있고 요청마다 제공자 호출이 나가므로 분당 10회로 더 조인다.
+        # limit_req는 상위 블록 값을 물려받지 않고 통째로 덮어쓰므로 perip도 같이 적는다.
+        location ^~ /api/v1/auth/ {
+            limit_req zone=auth burst=20 nodelay;
+            limit_req zone=perip burst=30 nodelay;
+            proxy_pass http://127.0.0.1:8080;
+        }
+
         location / {
             proxy_pass http://127.0.0.1:8080;
-            proxy_http_version 1.1;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
         }
     }
 }

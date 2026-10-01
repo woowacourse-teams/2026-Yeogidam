@@ -1,0 +1,25 @@
+# 여기담 개발 DB(yeogidam-dev-db의 yeogidam-mysql 컨테이너)가 느린 쿼리와 에러를 파일로 남기게
+# 하는 설정이다. 호스트의 /opt/yeogidam/mysql-conf에 두면 컨테이너의 /etc/mysql/conf.d로
+# 바인드되어 mysqld가 시작할 때 읽는다. 서버에 반영하는 절차는 Infra/scripts/bootstrap-db-host.sh에
+# 있고, 이 파일이 바뀌었을 때만 컨테이너를 재시작한다.
+#
+# 운영 DB는 RDS로 갈 예정이라 이 파일은 개발 DB만 대상으로 한다. RDS는 파라미터 그룹으로 같은
+# 값을 준다.
+
+[mysqld]
+# 0.5초를 넘긴 쿼리를 문장째 남긴다. 스프린트 2 부하 테스트에서 어느 쿼리가 느린지 SQL 원문으로
+# 보려는 것이다. 기본값 10초로는 웬만한 느린 쿼리가 하나도 안 걸리고, 개발 DB라 로그 양은
+# 걱정하지 않는다.
+slow_query_log=ON
+long_query_time=0.5
+
+# 두 로그 파일을 데이터 디렉터리(/var/lib/mysql) 안에 둔다. 호스트에 깔린 CloudWatch 에이전트가
+# 컨테이너 안을 볼 수 없으므로, 데이터 볼륨의 호스트 경로
+# /var/lib/docker/volumes/yeogidam-mysql-data/_data/ 로 읽어 간다(Infra/cloudwatch/agent-db.json.template).
+# 컨테이너 안 다른 경로에 두면 호스트에서 보이지 않는다.
+slow_query_log_file=/var/lib/mysql/slow.log
+
+# log_error를 파일로 돌리면 mysqld가 stderr로 내던 에러가 전부 이 파일로 가므로 docker logs에는
+# 에러가 더 이상 안 나온다. 서버에서 에러를 볼 때는 docker logs 대신 이 파일이나 CloudWatch의
+# mysql/error 스트림을 본다.
+log_error=/var/lib/mysql/error.log
