@@ -203,11 +203,12 @@ jobs:
           ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
           ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           for key in APP_VERSION APP_BUILD_NUMBER KAKAO_NATIVE_APP_KEY SUPABASE_URL \
             SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
-            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD; do
+            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD SENTRY_AUTH_TOKEN; do
             if [[ -z "${!key}" ]]; then
               echo "Missing beta build setting: $key" >&2
               exit 1
@@ -218,6 +219,10 @@ jobs:
             "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
+          echo "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN" >> "$GITHUB_ENV"
+          echo "SENTRY_ORG=yeogidam" >> "$GITHUB_ENV"
+          echo "SENTRY_PROJECT=react-native" >> "$GITHUB_ENV"
+          echo "SENTRY_URL=https://sentry.io/" >> "$GITHUB_ENV"
           printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-upload.jks"
           echo "ANDROID_UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/android-upload.jks" >> "$GITHUB_ENV"
       - name: Build signed Android AAB
@@ -273,11 +278,12 @@ jobs:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           for key in APP_VERSION APP_BUILD_NUMBER KAKAO_NATIVE_APP_KEY SUPABASE_URL \
             SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
-            APP_STORE_CONNECT_ISSUER_ID; do
+            APP_STORE_CONNECT_ISSUER_ID SENTRY_AUTH_TOKEN; do
             if [[ -z "${!key}" ]]; then
               echo "Missing beta build setting: $key" >&2
               exit 1
@@ -288,6 +294,10 @@ jobs:
             "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
+          echo "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN" >> "$GITHUB_ENV"
+          echo "SENTRY_ORG=yeogidam" >> "$GITHUB_ENV"
+          echo "SENTRY_PROJECT=react-native" >> "$GITHUB_ENV"
+          echo "SENTRY_URL=https://sentry.io/" >> "$GITHUB_ENV"
           printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/AuthKey.p8"
       - name: Install CocoaPods
