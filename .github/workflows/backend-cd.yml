@@ -10,6 +10,17 @@ on:
   pull_request:
     branches:
       - be-release
+  # 서버의 /opt/yeogidam/backend.env만 고쳤을 때 코드 변경 없이 지금 HEAD로 다시 배포하는 길이다.
+  # deploy.sh가 env 해시 라벨을 보고 컨테이너를 교체하므로 손으로 docker rm -f 할 일이 없어진다.
+  # Re-run은 「Validate Deployment Target」이 GITHUB_SHA와 원격 브랜치 HEAD를 대조해 거부하므로
+  # 그 뒤에 커밋이 하나라도 들어가면 쓸 수 없다. 입력은 두지 않고 브랜치만 골라 부른다.
+  # 호출은 `gh workflow run backend-cd.yml --ref be-dev`다. 깃허브는 dispatch 가능 여부를 기본
+  # 브랜치(main)에 있는 파일에서 읽으므로, 이 트리거가 main에 올라간 뒤부터 부를 수 있다.
+  # dispatch는 아무 브랜치나 고를 수 있어서, publish와 deploy 잡의 if에서 be-dev와 be-release만
+  # 통과시킨다. 그래야 승인 없는 작업 브랜치가 개발 서버에 배포되거나 Docker Hub에 올라가지 않는다.
+  # be-dev의 HEAD가 문서만 고친 커밋이면 그 SHA의 이미지가 없어 publish가 새로 빌드한다. digest가
+  # 달라져 컨테이너가 한 번 교체되지만 내용은 같은 코드라 해는 없다.
+  workflow_dispatch:
   # 배포를 거는 push 쪽은 그대로 둔다. 문서만 고쳤을 때 배포가 나가지 않게 한다.
   push:
     branches:
@@ -58,7 +69,9 @@ jobs:
   publish:
     name: Publish Docker Hub Image
     needs: verify
-    if: ${{ github.event_name == 'push' }}
+    # PR은 검증까지만 하고 발행과 배포로 넘기지 않는다. 트리거를 하나씩 적어 두면 나중에
+    # 트리거가 늘어도 그 이벤트가 저절로 배포로 흘러가지 않는다.
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && contains(fromJSON('["be-dev", "be-release"]'), github.ref_name) }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     # hotfix 판정에서 커밋에 연결된 PR의 라벨과 head 브랜치를 읽어야 한다.
@@ -232,10 +245,11 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # 배포 대상은 브랜치가 정한다. be-release면 운영 러너, 그 밖(be-dev)이면 개발 러너다.
+  # workflow_dispatch의 ref_name은 고른 브랜치 이름이라 아래 삼항이 push와 같은 값을 낸다.
   deploy:
     name: Deploy Backend
     needs: publish
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && contains(fromJSON('["be-dev", "be-release"]'), github.ref_name) }}
     runs-on:
       - self-hosted
       - linux
@@ -271,6 +285,8 @@ jobs:
         with:
           persist-credentials: false
 
+      # workflow_dispatch로 불렀을 때는 GITHUB_SHA가 고른 브랜치의 HEAD라 이 대조를 통과한다.
+      # 거부되는 쪽은 그 뒤에 커밋이 들어간 오래된 실행의 Re-run이다.
       - name: Validate Deployment Target
         run: |
           CURRENT_BRANCH_SHA="$(git ls-remote origin "refs/heads/$GITHUB_REF_NAME" | awk 'NR == 1 { print $1 }')"

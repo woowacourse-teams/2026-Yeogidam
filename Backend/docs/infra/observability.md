@@ -76,7 +76,7 @@ sudo SERVER_NAME=<도메인> CERT_EMAIL=<메일> ENV_NAME=dev bash Infra/scripts
 
 이 PR을 머지하면 nginx 설정도 바뀐다(`log_format`에 `$request_id`가 붙고 `X-Request-Id` 헤더를 넘긴다). `bootstrap-host.sh`가 템플릿을 다시 렌더해 `nginx -t` 뒤 reload하므로 따로 할 일은 없다.
 
-**앱 컨테이너의 로그 드라이버는 다음 배포 때 바뀐다.** `deploy.sh`는 `docker run` 옵션으로 드라이버를 정하므로 이미 떠 있는 컨테이너는 그대로 `json-file`이고, 새 이미지가 배포되어 컨테이너가 교체될 때 `awslogs`가 된다. 같은 이미지면 컨테이너를 교체하지 않으니 코드 변경 없이 드라이버만 바꾸고 싶으면 서버에서 `docker rm -f yeogidam-backend`를 한 뒤 워크플로를 새로 돌린다.
+**앱 컨테이너의 로그 드라이버는 다음 배포 때 바뀐다.** `deploy.sh`는 `docker run` 옵션으로 드라이버를 정하므로 이미 떠 있는 컨테이너는 그대로이고, 다음 배포가 컨테이너를 만들 때 `awslogs`가 된다. 드라이버 변경은 `deploy.sh`를 고치는 푸시와 함께 오므로 새 이미지가 빌드되어 어차피 교체된다. env 파일만 바뀐 경우도 `deploy.sh`가 env 해시 라벨(`yeogidam.env-sha256`)을 보고 같은 이미지라도 교체하므로(#267), 서버에서 `docker rm -f`를 할 일은 없다.
 
 ### 개발 DB 서버 (`yeogidam-dev-db`)
 

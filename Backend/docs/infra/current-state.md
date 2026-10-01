@@ -42,7 +42,7 @@ JWT_SECRET
 
 비밀값은 각 서버에서 `openssl`로 만들어 넣었다. `DB_URL`은 시간대 파라미터(`connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true`)까지 갖춘 자리표이고, **운영은 RDS를 만든 뒤 주소와 비밀번호를 갈아끼워야 한다.**
 
-값만 고치면 반영되지 않는다. `--env-file`은 컨테이너를 만들 때만 읽히고 `deploy.sh`는 같은 이미지면 컨테이너를 교체하지 않으므로, 서버에서 `docker rm -f yeogidam-backend`를 한 뒤 워크플로를 다시 돌려야 한다.
+값을 고친 뒤 배포를 한 번 돌리면 반영된다. `--env-file`은 여전히 컨테이너를 만들 때만 읽히지만, `deploy.sh`가 그때 쓴 env 파일의 sha256을 컨테이너 라벨 `yeogidam.env-sha256`에 적어 두고 다음 배포에서 지금 파일의 해시와 견주므로, 이미지가 같아도 env가 바뀌면 컨테이너를 교체한다. 서버에서 `docker rm -f yeogidam-backend`를 할 일은 없어졌다. 워크플로를 못 돌리는 급한 상황에는 `Infra/scripts/restart-backend.sh`를 서버에 복사해 `sudo bash`로 돌리면 같은 옵션으로 `current` 이미지를 다시 띄우는데, 헬스 체크만 하고 롤백은 없으니 비상용으로만 쓴다. 라벨이 없는 옛 컨테이너는 이 변경 뒤 첫 배포에서 한 번 교체된다. 코드 변경이 없으면 `gh workflow run backend-cd.yml --ref be-dev`로 워크플로를 부르고(이 트리거는 파일이 `main`에 올라간 뒤부터 부를 수 있어서, 다음 백엔드 출시 전까지는 Backend 코드를 고치는 다음 배포가 라벨을 보고 교체한다), 지난 실행의 Re-run은 그 뒤에 커밋이 하나라도 들어가면 「Validate Deployment Target」이 거부하므로 쓰지 않는다(2026-10-01, #267).
 
 손으로 고칠 때는 `sudo -u github-runner vi`로 연다. 소유권이 바뀌면 배포가 env 파일을 못 읽는다. 따옴표와 끝 공백과 CRLF를 넣으면 `deploy.sh`의 프로필 대조가 막는다.
 
@@ -137,7 +137,7 @@ Superseded다. [인프라 ADR-05](adr-05-branch-strategy.md)가 대신한다.
 | `be-release` 승격 | 됨(2026-09-29). `Backend/scripts/resolve-source-commit.sh`가 판정한다. **아직 한 번도 돌지 않았다** |
 | 머지 방식 강제 | 됨(2026-09-29). ruleset `Backend Release Protection`의 `allowed_merge_methods`가 `["merge"]`다 |
 | `hotfix` 라벨 | 됨(2026-09-29) |
-| `be-release` 필수 체크 | 됨(2026-09-29). `Backend Verification`과 `Require branches to be up to date` |
+| `be-release` 필수 체크 | 됨(2026-09-29). `Backend Verification`만 남았다. `Require branches to be up to date`는 2026-10-01에 껐다. 출시 PR의 head는 `be-dev`인데 base의 최신 커밋은 지난 출시의 merge 커밋이고 `be-dev`가 그 커밋을 품을 수 없어, 두 번째 출시(#266)부터 이 요구가 항상 막았다 |
 | `be-dev` 브랜치 보호 | 됨(2026-09-29). ruleset `Backend Development Protection`. 삭제와 강제 푸시와 재생성 금지, PR 필수에 승인 1개, 머지 방식은 **squash만**, 필수 체크 `Build Pull Request`에 최신 base 요구 |
 | `main` 브랜치 보호 | 됨(2026-09-29). ruleset `Protect main`. 삭제와 강제 푸시 금지, PR 필수에 승인 2개, 머지 방식은 **merge만**, 필수 체크 `Require develop source branch` |
 

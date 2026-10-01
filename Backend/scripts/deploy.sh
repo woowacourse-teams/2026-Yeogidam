@@ -18,6 +18,14 @@ readonly ROLE_CURRENT="current"
 readonly ROLE_PREVIOUS="previous"
 readonly ROLE_CANDIDATE="candidate"
 
+# 컨테이너를 만들 때 쓴 env 파일의 sha256을 이 라벨에 적어 두고, 다음 배포에서 그 라벨과
+# 지금 파일의 해시를 견주어 교체할지 정한다. --env-file은 컨테이너를 만들 때 한 번만 읽히므로
+# 파일을 고쳐도 이미 도는 컨테이너에는 닿지 않는데, inspect의 Config.Env는 만들 때 들어간
+# 값이라 파일이 그 뒤에 바뀌었는지는 값끼리 맞춰 봐야만 알 수 있고 그러면 DB_PASSWORD와
+# JWT_SECRET을 셸과 로그로 끌고 오게 된다. 그래서 값이 아니라 파일 전체의 해시만 남긴다.
+# docker run --label과 docker container inspect가 같은 키를 써야 하므로 상수로 둔다.
+readonly ENV_LABEL_KEY="yeogidam.env-sha256"
+
 # 컨테이너 로그는 awslogs 드라이버가 CloudWatch로 보낸다. 우테코 공용 계정은 리전이
 # ap-northeast-2 하나뿐이라 상수로 박는다. 로그 그룹 이름은 이 접두사 뒤에 환경과 backend를
 # 붙여 만들고(LOG_GROUP), 스트림은 서버마다 앱 컨테이너가 하나라 이름을 고정한다.
@@ -43,6 +51,33 @@ container_health() {
   docker container inspect \
     --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
     "$1" 2>/dev/null || printf 'missing'
+}
+
+# 컨테이너에 적힌 env 해시를 돌려준다. ENV_LABEL_KEY를 붙이기 전에 만든 컨테이너는
+# 라벨이 없어 빈 값이 나온다.
+container_env_sha256() {
+  docker container inspect \
+    --format "{{ index .Config.Labels \"${ENV_LABEL_KEY}\" }}" \
+    "$1" 2>/dev/null || true
+}
+
+# 도는 컨테이너를 교체해야 하는 사유를 돌려준다. 바꿀 것이 없으면 아무것도 내지 않는다.
+# 이미지가 같아도 env 파일이 바뀌면 교체해야 하고, 라벨이 없는 옛 컨테이너는 어느 env로 떴는지
+# 알 수 없으므로 한 번 교체해 라벨을 심는다. TARGET_IMAGE_ID와 ENV_FILE_SHA256을 읽는다.
+replace_reason_for() {
+  local container_name="$1"
+  local current_image_id current_env_sha256
+
+  current_image_id="$(docker container inspect --format '{{.Image}}' "$container_name" 2>/dev/null || true)"
+  current_env_sha256="$(container_env_sha256 "$container_name")"
+
+  if [[ "$current_image_id" != "$TARGET_IMAGE_ID" ]]; then
+    printf '이미지 변경'
+  elif [[ -z "$current_env_sha256" ]]; then
+    printf '라벨 없음(첫 적용)'
+  elif [[ "$current_env_sha256" != "$ENV_FILE_SHA256" ]]; then
+    printf 'env 변경'
+  fi
 }
 
 wait_for_healthy() {
@@ -91,6 +126,7 @@ start_container() {
     --name "$BACKEND_CONTAINER_NAME" \
     --restart unless-stopped \
     --env-file "$BACKEND_ENV_FILE" \
+    --label "${ENV_LABEL_KEY}=${ENV_FILE_SHA256}" \
     --publish "${BIND_ADDRESS}:${BACKEND_HOST_PORT}:${CONTAINER_PORT}" \
     --memory "$BACKEND_MEMORY_LIMIT" \
     --memory-swap "$BACKEND_MEMORY_SWAP_LIMIT" \
@@ -226,6 +262,7 @@ write_summary() {
     printf -- "- 포트: \`%s:%s\`\n" "$BIND_ADDRESS" "$BACKEND_HOST_PORT"
     printf -- "- 자원: \`--memory %s\`, \`--memory-swap %s\`, 헬스 대기 %s초\n" "$BACKEND_MEMORY_LIMIT" "$BACKEND_MEMORY_SWAP_LIMIT" "$HEALTH_TIMEOUT_SECONDS"
     printf -- "- 로그: CloudWatch \`%s\` 스트림 \`%s\`, 로컬 캐시 \`cache-max-size %s\`, \`cache-max-file %s\`\n" "$LOG_GROUP" "$LOG_STREAM" "$BACKEND_LOG_MAX_SIZE" "$BACKEND_LOG_MAX_FILE"
+    printf -- "- env: sha256 \`%s\`, %s\n" "${ENV_FILE_SHA256_SHORT:-알 수 없음}" "${REPLACE_REASON:-변경 없음}"
     printf -- "- 현재 이미지: \`%s\`\n" "${current_digest:-없음}"
     printf -- "- 직전 이미지: \`%s\`\n" "${previous_digest:-없음}"
     printf -- "- 결과: \`%s\`\n" "$result"
@@ -348,6 +385,17 @@ if [[ "$ACTIVE_PROFILE_LINE" != "SPRING_PROFILES_ACTIVE=${EXPECTED_SPRING_PROFIL
   fail "${BACKEND_ENV_FILE}의 SPRING_PROFILES_ACTIVE가 ${EXPECTED_SPRING_PROFILE}가 아닙니다. 따옴표와 공백 없이 SPRING_PROFILES_ACTIVE=${EXPECTED_SPRING_PROFILE} 한 줄로 적어 주세요."
 fi
 
+# 검증을 마친 env 파일의 해시다. 새 컨테이너의 ENV_LABEL_KEY 라벨에 적고, 다음 배포에서
+# 그 라벨과 견주어 교체 여부를 정한다. 해시는 비밀값이 아니지만 64자라 로그와 요약에는
+# 앞 8자만 쓴다. 파일이 조금만 달라져도 해시가 달라지므로 주석과 줄 순서만 바꿔도 교체된다.
+ENV_FILE_SHA256="$(sha256sum "$BACKEND_ENV_FILE" | awk '{ print $1 }')" \
+  || fail "${BACKEND_ENV_FILE}의 sha256을 계산하지 못했습니다."
+ENV_FILE_SHA256_SHORT="${ENV_FILE_SHA256:0:8}"
+
+# 컨테이너를 교체한 사유다. 로그 한 줄과 요약에 쓰고, 교체하지 않는 경로에서는 그 경로가
+# 한 일을 그대로 적는다.
+REPLACE_REASON="새 컨테이너"
+
 # CloudWatch 로그 그룹은 /yeogidam/dev/backend, /yeogidam/prod/backend처럼 환경 이름을 품는데,
 # 그 환경 이름이 스프링 프로필 이름(dev, prod)과 같다. 그래서 환경용 변수를 따로 받지 않고
 # 위에서 검증을 마친 EXPECTED_SPRING_PROFILE로 그룹 이름을 만든다. 변수를 하나 더 두면
@@ -395,52 +443,95 @@ docker pull "$IMAGE_REFERENCE"
 TARGET_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$IMAGE_REFERENCE")"
 tag_candidate_image
 
+LEFTOVER_ROLLBACK_REMOVED=0
+
 if docker container inspect "$ROLLBACK_CONTAINER_NAME" >/dev/null 2>&1; then
+  CURRENT_IS_HEALTHY_SAME_IMAGE=0
+
   if docker container inspect "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1; then
     CURRENT_IMAGE_ID="$(docker container inspect --format '{{.Image}}' "$BACKEND_CONTAINER_NAME")"
     CURRENT_HEALTH="$(container_health "$BACKEND_CONTAINER_NAME")"
 
     if [[ "$CURRENT_IMAGE_ID" == "$TARGET_IMAGE_ID" && "$CURRENT_HEALTH" == "healthy" ]]; then
-      if ! docker rm "$ROLLBACK_CONTAINER_NAME" >/dev/null; then
-        fail "현재 배포는 정상이지만 남아 있는 롤백 컨테이너를 정리하지 못했습니다."
-      fi
-
-      finish_success "이미 배포된 정상 이미지 유지" "남은 롤백 컨테이너 정리"
+      CURRENT_IS_HEALTHY_SAME_IMAGE=1
     fi
   fi
 
-  if restore_rollback_container; then
-    write_summary "중단된 이전 배포 복구 후 실패" "직전 컨테이너 복구 성공"
+  if (( CURRENT_IS_HEALTHY_SAME_IMAGE )); then
+    # 현재 컨테이너가 같은 이미지로 정상이면 남은 롤백 컨테이너는 지난 배포의 잔재일 뿐이다.
+    # 여기서 치우고 아래 교체 판정으로 흘러가야 env가 바뀐 경우도 이 실행에서 교체된다.
+    # 치우기 전에 교체하려 들면 롤백 이름이 차 있어 rename이 실패한다.
+    if ! docker rm "$ROLLBACK_CONTAINER_NAME" >/dev/null; then
+      fail "현재 배포는 정상이지만 남아 있는 롤백 컨테이너를 정리하지 못했습니다."
+    fi
+    LEFTOVER_ROLLBACK_REMOVED=1
   else
-    write_summary "중단된 이전 배포 복구 실패" "수동 확인 필요"
-  fi
+    # 아래는 복구만 하고 끝나는 경로라 컨테이너를 교체하지 않는다.
+    REPLACE_REASON="해당 없음"
 
-  fail "중단된 이전 배포 흔적을 발견했습니다. 복구 결과를 확인한 뒤 다시 실행해 주세요."
+    if restore_rollback_container; then
+      write_summary "중단된 이전 배포 복구 후 실패" "직전 컨테이너 복구 성공"
+    else
+      write_summary "중단된 이전 배포 복구 실패" "수동 확인 필요"
+    fi
+
+    fail "중단된 이전 배포 흔적을 발견했습니다. 복구 결과를 확인한 뒤 다시 실행해 주세요."
+  fi
 fi
 
 if docker container inspect "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1; then
-  CURRENT_IMAGE_ID="$(docker container inspect --format '{{.Image}}' "$BACKEND_CONTAINER_NAME")"
   CURRENT_HEALTH="$(container_health "$BACKEND_CONTAINER_NAME")"
+  REPLACE_REASON="$(replace_reason_for "$BACKEND_CONTAINER_NAME")"
 
-  if [[ "$CURRENT_IMAGE_ID" == "$TARGET_IMAGE_ID" ]]; then
+  if [[ -z "$REPLACE_REASON" ]]; then
+    REPLACE_REASON="변경 없음"
+
     if [[ "$CURRENT_HEALTH" == "healthy" ]] || wait_for_healthy "$BACKEND_CONTAINER_NAME"; then
+      if (( LEFTOVER_ROLLBACK_REMOVED )); then
+        finish_success "이미 배포된 정상 이미지 유지" "남은 롤백 컨테이너 정리"
+      fi
       finish_success "이미 배포된 정상 이미지 유지"
     fi
 
+    # 같은 이미지에 같은 env인데 정상이 아니면 되살릴 가치가 없다. 지우고 새로 띄운다.
+    REPLACE_REASON="비정상 컨테이너 재생성"
     docker rm --force "$BACKEND_CONTAINER_NAME"
   else
+    printf '::notice::컨테이너를 교체합니다. 사유: %s, env sha256 %s\n' "$REPLACE_REASON" "$ENV_FILE_SHA256_SHORT"
+
+    # 재부팅 직후처럼 아직 starting이면 판정하기 전에 한 번 기다린다. 기다리지 않으면
+    # 멀쩡히 뜨는 중인 컨테이너를 비정상으로 보고 아래 분기를 탄다.
+    if [[ "$CURRENT_HEALTH" == "starting" ]]; then
+      if wait_for_healthy "$BACKEND_CONTAINER_NAME"; then
+        CURRENT_HEALTH="healthy"
+      else
+        CURRENT_HEALTH="$(container_health "$BACKEND_CONTAINER_NAME")"
+      fi
+    fi
+
     if [[ "$CURRENT_HEALTH" != "healthy" ]]; then
-      fail "현재 운영 컨테이너가 정상 상태가 아니므로 자동 교체하지 않습니다. EC2 상태를 먼저 확인해 주세요."
-    fi
+      if [[ "$REPLACE_REASON" == "이미지 변경" ]]; then
+        # 이미지를 바꾸는 배포인데 현재 컨테이너가 비정상이면 롤백할 곳이 없어지므로 사람이
+        # 먼저 본다. 지금까지의 동작과 같다.
+        fail "현재 운영 컨테이너가 정상 상태가 아니므로 자동 교체하지 않습니다. EC2 상태를 먼저 확인해 주세요."
+      fi
 
-    if ! docker rename "$BACKEND_CONTAINER_NAME" "$ROLLBACK_CONTAINER_NAME"; then
-      fail "기존 Backend 컨테이너를 롤백용으로 보관하지 못했습니다."
-    fi
+      # 이미지는 그대로인데 env가 바뀌었거나 라벨이 없는 비정상 컨테이너는 롤백 대상으로서
+      # 가치가 없다. env를 고쳐 고장을 되살리려는 바로 그 상황이므로 막지 않고 지운 뒤 새 env로
+      # 띄운다. 같은 이미지에 같은 env인 비정상 컨테이너를 위에서 지우고 새로 띄우는 것과 같은 처리다.
+      printf '::notice::현재 컨테이너가 정상이 아니라 롤백용으로 보관하지 않고 지운 뒤 새로 띄웁니다.\n'
+      REPLACE_REASON="${REPLACE_REASON}, 비정상 컨테이너 재생성"
+      docker rm --force "$BACKEND_CONTAINER_NAME"
+    else
+      if ! docker rename "$BACKEND_CONTAINER_NAME" "$ROLLBACK_CONTAINER_NAME"; then
+        fail "기존 Backend 컨테이너를 롤백용으로 보관하지 못했습니다."
+      fi
 
-    if ! docker stop --time 30 "$ROLLBACK_CONTAINER_NAME" >/dev/null; then
-      docker rename "$ROLLBACK_CONTAINER_NAME" "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1 || true
-      docker start "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1 || true
-      fail "기존 Backend 컨테이너를 중지하지 못했습니다."
+      if ! docker stop --time 30 "$ROLLBACK_CONTAINER_NAME" >/dev/null; then
+        docker rename "$ROLLBACK_CONTAINER_NAME" "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1 || true
+        docker start "$BACKEND_CONTAINER_NAME" >/dev/null 2>&1 || true
+        fail "기존 Backend 컨테이너를 중지하지 못했습니다."
+      fi
     fi
   fi
 fi
