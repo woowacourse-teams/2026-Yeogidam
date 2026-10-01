@@ -1,6 +1,7 @@
 import {NativeEventEmitter, NativeModules} from 'react-native';
+import type {Session} from '@supabase/supabase-js';
 
-import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL} from '../auth/supabase';
+import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase} from '../auth/supabase';
 
 export type SharedContent = {
   type: 'url' | 'text';
@@ -16,7 +17,9 @@ type NativeShareIntentPayload = {
 type NativeShareIntentModule = {
   getPendingShare(): Promise<NativeShareIntentPayload | null>;
   clearPendingShare(shareId: string | null): Promise<void>;
-  setAccessToken?(token: string | null): Promise<void>;
+  setShareSession?(session: NativeShareSession | null): Promise<void>;
+  getShareSession?(): Promise<NativeShareSession | null>;
+  resumeWaitingShares?(): Promise<void>;
   setSupabaseConfiguration?(
     url: string,
     publishableKey: string,
@@ -26,7 +29,9 @@ type NativeShareIntentModule = {
   clearShareResult?(requestId: string | null): Promise<void>;
 };
 
-export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; reelId?: string; failureReason?: string; retryable?: boolean; updatedAt: number; reused?: boolean; saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE'};
+export type NativeShareSession = {accessToken: string; refreshToken: string; expiresAt: number; userId: string};
+export type ShareTransferStatus = 'SAVED' | 'WAITING_FOR_AUTH' | 'WAITING_FOR_NETWORK' | 'LOGIN_REQUIRED' | 'QUEUED' | 'REQUESTING' | 'API_SUCCEEDED' | 'API_FAILED';
+export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; transferStatus?: ShareTransferStatus; authReason?: string; reelId?: string; failureReason?: string; retryable?: boolean; updatedAt: number; receivedAt?: number; queuedAt?: number; apiAcceptedAt?: number; transferFinishedAt?: number; reused?: boolean; saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE'};
 
 export type SharedContentSubscription = {
   remove: () => void;
@@ -84,12 +89,47 @@ export async function getInitialSharedContent(): Promise<SharedContent | null> {
   return normalizeSharedContent(payload);
 }
 
-export async function syncShareAccessToken(token: string | null) {
+export async function syncShareSession(session: Session | null) {
   await nativeShareIntentModule?.setSupabaseConfiguration?.(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY,
   );
-  await nativeShareIntentModule?.setAccessToken?.(token);
+  await nativeShareIntentModule?.setShareSession?.(session ? {
+    accessToken: session.access_token,
+    refreshToken: session.refresh_token,
+    expiresAt: session.expires_at ?? 0,
+    userId: session.user.id,
+  } : null);
+}
+export async function getShareSession(): Promise<NativeShareSession | null> {
+  return nativeShareIntentModule?.getShareSession?.() ?? null;
+}
+export async function reconcileShareSession(): Promise<void> {
+  const shared = await getShareSession();
+  if (!shared) return;
+  const {data: {session}} = await supabase.auth.getSession();
+  if (session && session.user.id !== shared.userId) return;
+  if (!shared.accessToken && shared.refreshToken) {
+    if (session?.access_token && (session.expires_at ?? 0) > Date.now() / 1000 + 60) {
+      await syncShareSession(session);
+      return;
+    }
+    const {error} = await supabase.auth.refreshSession({
+      refresh_token: shared.refreshToken,
+    });
+    if (error) throw error;
+    return;
+  }
+  if (!session || shared.expiresAt > (session.expires_at ?? 0)) {
+    const {error} = await supabase.auth.setSession({
+      access_token: shared.accessToken,
+      refresh_token: shared.refreshToken,
+    });
+    if (error) throw error;
+  }
+}
+export async function resumeWaitingShares(): Promise<void> {
+  await nativeShareIntentModule?.resumeWaitingShares?.();
 }
 export async function getShareResult() { return nativeShareIntentModule?.getShareResult?.() ?? null; }
 export async function getShareResults(): Promise<NativeShareResult[]> {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { usePostHog } from 'posthog-react-native';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
@@ -27,6 +28,12 @@ import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { getAppUpdatePolicy } from './src/lib/app-update-policy';
 import {
+  trackAppOpened,
+  trackLoginFinished,
+  trackLoginStarted,
+  type LoginFailureType,
+} from './src/analytics/userEntryEvents';
+import {
   completeAppGuide,
   hasCompletedAppGuide,
 } from './src/lib/app-guide-storage';
@@ -46,7 +53,10 @@ import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   clearShareResult,
   getShareResults,
-  syncShareAccessToken,
+  getShareSession,
+  reconcileShareSession,
+  resumeWaitingShares,
+  syncShareSession,
 } from './src/lib/share-intent';
 import type {
   AppFlowState,
@@ -68,9 +78,32 @@ const SPLASH_MIN_DURATION_MS = 2000;
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
 
+function toLoginFailureType(error: NormalizedAuthError): LoginFailureType {
+  if (error.errorCode === 'AUTH000_001') {
+    return 'user_cancelled';
+  }
+
+  if (
+    error.errorCode === 'CLIENT000_001' ||
+    error.errorCode === 'CLIENT000_002'
+  ) {
+    return 'network_error';
+  }
+
+  if (
+    error.errorCode === 'AUTH400_001' ||
+    error.errorCode === 'AUTH502_001'
+  ) {
+    return 'auth_failed';
+  }
+
+  return 'unknown';
+}
+
 configureDataSources();
 
 function App() {
+  const posthog = usePostHog();
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
@@ -106,6 +139,7 @@ function App() {
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
+  const hasTrackedAppOpenedRef = useRef(false);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -210,6 +244,7 @@ function App() {
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
     const syncFlowState = async () => {
+      await reconcileShareSession().catch(() => undefined);
       const { data, error } = await supabase.auth.getSession();
 
       if (!isMounted) {
@@ -217,15 +252,30 @@ function App() {
       }
 
       if (error || !data.session) {
-        await syncShareAccessToken(null);
-        setFlowState(INITIAL_FLOW_STATE);
+        if (!hasTrackedAppOpenedRef.current) {
+          trackAppOpened(posthog, false);
+          hasTrackedAppOpenedRef.current = true;
+        }
+
+        if (!error) {
+          const sharedSession = await getShareSession().catch(() => null);
+          if (!sharedSession?.refreshToken) await syncShareSession(null);
+        }
+
+        setFlowState(INITIAL_FLOW_STATE); 
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
         setIsAuthReady(true);
         return;
       }
 
-      await syncShareAccessToken(data.session.access_token);
+      await syncShareSession(data.session);
+      void resumeWaitingShares();
+
+      if (!hasTrackedAppOpenedRef.current) {
+        trackAppOpened(posthog, true);
+        hasTrackedAppOpenedRef.current = true;
+      }
 
       setFlowState({
         kind: 'main',
@@ -270,8 +320,14 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      void syncShareAccessToken(session?.access_token ?? null);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session || event === 'SIGNED_OUT') {
+        void syncShareSession(session)
+          .then(() => {
+            if (session) return resumeWaitingShares();
+          })
+          .catch(() => undefined);
+      }
       if (!isMounted) {
         return;
       }
@@ -305,7 +361,7 @@ function App() {
       }
       subscription.unsubscribe();
     };
-  }, []);
+  }, [posthog]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
@@ -343,8 +399,8 @@ function App() {
               : undefined;
           const result = activeRequestId
             ? results.find(item => item.requestId === activeRequestId) ??
-              results[0]
-            : results[0];
+              results[results.length - 1]
+            : results[results.length - 1];
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
@@ -393,6 +449,19 @@ function App() {
               saveMode: result.saveMode ?? null,
             });
           }
+          if (result.transferStatus === 'LOGIN_REQUIRED') {
+            supabase.auth.getSession().then(({data}) => {
+              if (data.session) {
+                resumeWaitingShares().catch(() => undefined);
+                return;
+              }
+              setFlowState(INITIAL_FLOW_STATE);
+            }).catch(() => undefined);
+            return;
+          }
+          if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
+            return;
+          }
           setSharedSaveState({
             shareResultId: result.requestId,
             url: result.url,
@@ -424,7 +493,10 @@ function App() {
       'change',
       nextState => {
         if (nextState === 'active') {
-          consumePendingSharedContent();
+          void reconcileShareSession()
+            .then(resumeWaitingShares)
+            .then(consumePendingSharedContent)
+            .catch(consumePendingSharedContent);
         }
       },
     );
@@ -488,21 +560,31 @@ function App() {
 
     setSocialLoginError(null);
     setPendingSocialProvider(provider);
+    trackLoginStarted(posthog, provider);
 
     try {
       if (provider === 'apple') {
         await signInWithApple();
+        trackLoginFinished(posthog, {provider, outcome: 'success'});
         return;
       }
 
       if (provider === 'kakao') {
         await signInWithKakao();
+        trackLoginFinished(posthog, {provider, outcome: 'success'});
         return;
       }
 
       await signInWithGoogle();
+      trackLoginFinished(posthog, {provider, outcome: 'success'});
     } catch (error) {
-      setSocialLoginError(error as NormalizedAuthError);
+      const normalizedError = error as NormalizedAuthError;
+      trackLoginFinished(posthog, {
+        provider,
+        outcome: 'failure',
+        failureType: toLoginFailureType(normalizedError),
+      });
+      setSocialLoginError(normalizedError);
       setPendingSocialProvider(null);
     }
   };

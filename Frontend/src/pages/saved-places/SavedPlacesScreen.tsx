@@ -302,8 +302,8 @@ export function SavedPlacesScreen({
         let currentStatus: ReelProcessingStatus | null;
         try {
           currentStatus = await getReelProcessingStatus(state.reel.id);
-        } catch (error) {
-          const normalized = normalizeReelError(error);
+        } catch (statusError) {
+          const normalized = normalizeReelError(statusError);
           if (normalized.errorCode !== 'AUTH401_002') throw normalized;
 
           const {error: refreshError} = await supabase.auth.refreshSession();
@@ -352,8 +352,8 @@ export function SavedPlacesScreen({
           status: currentStatus.processing_status,
           reel: currentStatus,
         });
-      } catch (error) {
-        const normalized = normalizeReelError(error);
+      } catch (pollError) {
+        const normalized = normalizeReelError(pollError);
         if (__DEV__) {
           console.warn('[InstagramShare][status-error]', {
             requestId: state.shareResultId ?? null,
@@ -440,7 +440,9 @@ export function SavedPlacesScreen({
         setProcessingReel(null);
         setStatusQueryError(null);
         if (!verificationInFlight.has(verificationKey)) {
-          void verifySharedReelBeforeShowing(state, verificationKey);
+          verifySharedReelBeforeShowing(state, verificationKey).catch(
+            () => undefined,
+          );
         }
         return;
       }
@@ -458,7 +460,9 @@ export function SavedPlacesScreen({
       );
       if (state.status === 'COMPLETED') {
         if (state.source === 'instagram_share') {
-          void refreshAfterExternalShare(state.shareResultId);
+          refreshAfterExternalShare(state.shareResultId).catch(
+            () => undefined,
+          );
         }
         setSharedSaveState(null);
       }
@@ -542,8 +546,8 @@ export function SavedPlacesScreen({
       if (response.saveMode === 'REVIEW_QUEUE') {
         onOpenInbox?.();
       }
-    } catch (error) {
-      const normalizedError = normalizeReelError(error);
+      } catch (submitError) {
+        const normalizedError = normalizeReelError(submitError);
       setLastRequestId(normalizedError.requestId ?? null);
       const failedReel: ReelProcessingStatus = {
         id: `manual-failed-${Date.now()}`,
@@ -670,8 +674,8 @@ export function SavedPlacesScreen({
         let nextStatus: ReelProcessingStatus | null;
         try {
           nextStatus = await getReelProcessingStatus(processingReelId);
-        } catch (error) {
-          const firstError = normalizeReelError(error);
+        } catch (statusError) {
+          const firstError = normalizeReelError(statusError);
           if (firstError.errorCode !== 'AUTH401_002') {
             throw firstError;
           }
@@ -740,10 +744,10 @@ export function SavedPlacesScreen({
             setShowSaveSuccess(sharedState?.source === 'url_input');
           }
         }
-      } catch (error) {
+      } catch (pollError) {
         if (isActive) {
           reelPollFailureCountRef.current += 1;
-          const normalizedError = normalizeReelError(error);
+          const normalizedError = normalizeReelError(pollError);
           if (__DEV__) {
             console.warn('[InstagramShare][status-error]', {
               reelId: processingReelId,
@@ -785,6 +789,7 @@ export function SavedPlacesScreen({
     processingReel?.id,
     processingReel?.processing_status,
     processingReelId,
+    error,
   ]);
 
   useEffect(() => {
@@ -794,7 +799,7 @@ export function SavedPlacesScreen({
 
     // 저장 API의 즉시 완료 응답, 상태 폴링 완료, 공유 상태 복원 중 어느
     // 경로로 완료되더라도 최신 저장 장소를 보관함에 바로 반영합니다.
-    void loadSavedPlaces();
+    loadSavedPlaces().catch(() => undefined);
 
     const timeoutId = setTimeout(() => setShowSaveSuccess(false), 1800);
     return () => clearTimeout(timeoutId);

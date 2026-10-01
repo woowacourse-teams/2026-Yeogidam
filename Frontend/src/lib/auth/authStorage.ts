@@ -1,8 +1,12 @@
 import * as Keychain from 'react-native-keychain';
 import type {SupportedStorage} from '@supabase/supabase-js';
-import {NativeModules, Platform} from 'react-native';
+import {NativeModules} from 'react-native';
 
-const shareModule = NativeModules.ShareIntentModule as {setAccessToken?: (token: string | null) => Promise<void>} | undefined;
+type SharedSession = {accessToken: string; refreshToken: string; expiresAt: number; userId: string};
+const shareModule = NativeModules.ShareIntentModule as {
+  setShareSession?: (session: SharedSession | null) => Promise<void>;
+  getShareSession?: () => Promise<SharedSession | null>;
+} | undefined;
 
 const STORAGE_USERNAME = 'supabase';
 const STORAGE_SERVICE_PREFIX = 'com.yeogidamm.app.supabase';
@@ -30,13 +34,30 @@ export const secureAuthStorage: SupportedStorage = {
     }
 
     const value = credentials.password;
-    if (Platform.OS === 'ios' && key === SUPABASE_AUTH_STORAGE_KEY) {
-      try {
-        const parsed = JSON.parse(value);
-        await shareModule?.setAccessToken?.(parsed?.access_token ?? null);
-      } catch {
-        await shareModule?.setAccessToken?.(null);
+    if (key !== SUPABASE_AUTH_STORAGE_KEY) return value;
+    try {
+      const parsed = JSON.parse(value);
+      const shared = await shareModule?.getShareSession?.();
+      if (
+        shared != null &&
+        shared.accessToken.length > 0 &&
+        shared.userId === parsed?.user?.id &&
+        shared.expiresAt > (parsed?.expires_at ?? 0)
+      ) {
+        const updated = JSON.stringify({
+          ...parsed,
+          access_token: shared.accessToken,
+          refresh_token: shared.refreshToken,
+          expires_at: shared.expiresAt,
+          expires_in: Math.max(0, shared.expiresAt - Math.floor(Date.now() / 1000)),
+        });
+        await Keychain.setGenericPassword(STORAGE_USERNAME, updated, {
+          service: getServiceName(key),
+        });
+        return updated;
       }
+    } catch {
+      // Keep the SDK's persisted session when the native share store is unavailable.
     }
     return value;
   },
@@ -44,15 +65,27 @@ export const secureAuthStorage: SupportedStorage = {
     await Keychain.setGenericPassword(STORAGE_USERNAME, value, {
       service: getServiceName(key),
     });
-    if (Platform.OS === 'ios' && key === SUPABASE_AUTH_STORAGE_KEY) {
-      try { const parsed = JSON.parse(value); await shareModule?.setAccessToken?.(parsed?.access_token ?? null); } catch {}
+    if (key === SUPABASE_AUTH_STORAGE_KEY) {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed?.refresh_token && parsed?.user?.id) {
+          await shareModule?.setShareSession?.({
+            accessToken: typeof parsed.access_token === 'string' ? parsed.access_token : '',
+            refreshToken: parsed.refresh_token,
+            expiresAt: parsed.expires_at ?? 0,
+            userId: parsed.user.id,
+          });
+        }
+      } catch {
+        // The app session remains available even if share session sync fails.
+      }
     }
   },
   async removeItem(key: string) {
     await Keychain.resetGenericPassword({
       service: getServiceName(key),
     });
-    if (Platform.OS === 'ios' && key === SUPABASE_AUTH_STORAGE_KEY) await shareModule?.setAccessToken?.(null);
+    if (key === SUPABASE_AUTH_STORAGE_KEY) await shareModule?.setShareSession?.(null);
   },
 };
 

@@ -28,9 +28,11 @@ class ShareActivity : AppCompatActivity() {
             setBackgroundColor(Color.argb(80, 0, 0, 0))
         }
         statusLabel = TextView(this).apply {
-            text = "릴스 링크를 전달하고 있어요."
+            text = "공유한 내용을 확인하고 있어요."
             textSize = 17f
             gravity = Gravity.CENTER
+            isSingleLine = false
+            ellipsize = null
             setTextColor(Color.rgb(30, 30, 30))
             setPadding((24 * density).toInt(), (20 * density).toInt(), (24 * density).toInt(), (20 * density).toInt())
             background = GradientDrawable().apply {
@@ -56,12 +58,13 @@ class ShareActivity : AppCompatActivity() {
         val rawText = intent?.sharedText()
         val normalizedUrl = rawText?.let(::extractInstagramUrl)
         if (normalizedUrl == null) {
-            showResultAndFinish("Instagram 게시물 링크를 확인하지 못했어요.")
+            showResultAndFinish("공유한 인스타그램 게시물을 확인하지 못했어요. 다시 공유해 주세요.")
             return
         }
 
+        val isPost = normalizedUrl.contains("/p/")
         val requestId = UUID.randomUUID().toString()
-        ShareResultStore.saveResult(
+        val saved = ShareResultStore.saveResult(
             this,
             ShareReelResult(
                 requestId = requestId,
@@ -71,14 +74,43 @@ class ShareActivity : AppCompatActivity() {
                 retryable = true,
             ),
         )
+        if (!saved) {
+            showResultAndFinish("${if (isPost) "게시물을" else "릴스를"} 전달하지 못했어요. 다시 공유해 주세요.")
+            return
+        }
 
-        ShareSaveWorker.enqueue(this, requestId, normalizedUrl, rawText)
-        showResultAndFinish("릴스 링크가 전달됐어요.")
+        Thread {
+            val auth = ShareAuth.ensureAccessToken(this)
+            val transferStatus = when (auth) {
+                is ShareAuthResult.LoginRequired -> "LOGIN_REQUIRED"
+                ShareAuthResult.WaitingForNetwork -> "WAITING_FOR_NETWORK"
+                ShareAuthResult.WaitingForAuth -> "WAITING_FOR_AUTH"
+                is ShareAuthResult.Ready -> "SAVED"
+            }
+            val updated = ShareResultStore.saveResult(
+                this,
+                ShareReelResult(
+                    requestId = requestId,
+                    url = normalizedUrl,
+                    rawSharedText = rawText,
+                    status = "PENDING",
+                    transferStatus = transferStatus,
+                    authReason = (auth as? ShareAuthResult.LoginRequired)?.reason,
+                    retryable = auth !is ShareAuthResult.LoginRequired,
+                ),
+            )
+            if (updated && auth !is ShareAuthResult.LoginRequired) {
+                runCatching { ShareSaveWorker.enqueue(this, requestId, normalizedUrl, rawText) }
+            }
+            runOnUiThread {
+                showResultAndFinish("${if (isPost) "게시물이" else "릴스가"} 잘 전달됐어요! 장소를 찾아볼게요.")
+            }
+        }.start()
     }
 
     private fun showResultAndFinish(message: String) {
         statusLabel.text = message
-        statusLabel.postDelayed({ finish() }, 1_000)
+        statusLabel.postDelayed({ finish() }, 2_000L)
     }
 }
 

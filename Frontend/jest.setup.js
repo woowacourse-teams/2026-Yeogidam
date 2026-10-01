@@ -39,9 +39,20 @@ jest.mock('react-native-config', () => ({
   },
 }));
 
-jest.mock('react-native-device-info', () => ({
-  getVersion: jest.fn(() => '1.2.3'),
-}));
+jest.mock('react-native-device-info', () => {
+  const deviceInfoMock = require('react-native-device-info/jest/react-native-device-info-mock');
+  const getVersion = jest.fn(() => '1.2.3');
+
+  return {
+    __esModule: true,
+    ...deviceInfoMock,
+    getVersion,
+    default: {
+      ...deviceInfoMock,
+      getVersion,
+    },
+  };
+});
 
 jest.mock('./src/lib/app-update-policy', () => ({
   getAppUpdatePolicy: jest.fn(() => Promise.resolve(null)),

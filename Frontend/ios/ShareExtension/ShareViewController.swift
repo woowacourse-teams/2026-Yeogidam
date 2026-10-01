@@ -33,97 +33,67 @@ final class ShareViewController: UIViewController {
         return
       }
 
+      var extractedPayload: ShareIntentPayload?
       do {
         let payload = try await self.extractPayload()
-        try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, url: payload.text, rawSharedText: payload.rawText, status: "PENDING", reelId: nil, failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000))
-        try await self.submit(payload)
+        extractedPayload = payload
+        try ShareIntentStorage.saveResult(ShareReelResult(
+          requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
+          status: "PENDING", transferStatus: "SAVED", reelId: nil,
+          failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000
+        ))
+        self.statusLabel.text = await self.prepareTransfer(payload)
         self.showStatusLabel()
-        try await Task.sleep(nanoseconds: 1_000_000_000)
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       } catch {
-        let requestId = UUID().uuidString
-        try? ShareIntentStorage.saveResult(
-          ShareReelResult(
-            requestId: requestId,
-            url: "",
-            rawSharedText: nil,
-            status: "FAILED",
-            reelId: nil,
-            failureReason: "REEL400_001",
-            retryable: false,
-            updatedAt: Date().timeIntervalSince1970 * 1000
-          )
-        )
-        self.statusLabel.text = "Instagram 게시물 링크를 확인하지 못했어요."
+        if let payload = extractedPayload {
+          let object = payload.text.contains("/p/") ? "게시물을" : "릴스를"
+          self.statusLabel.text = "\(object) 전달하지 못했어요. 다시 공유해 주세요."
+        } else {
+          self.statusLabel.text = "공유한 인스타그램 게시물을 확인하지 못했어요. 다시 공유해 주세요."
+        }
         self.showStatusLabel()
-        try? await Task.sleep(nanoseconds: 1_000_000_000)
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       }
     }
   }
 
-  private func submit(_ payload: ShareIntentPayload) async throws {
-    guard let configuration = ShareIntentStorage.supabaseConfiguration() else {
-      throw ShareIntentStorageError.missingConfiguration
+  private func prepareTransfer(_ payload: ShareIntentPayload) async -> String {
+    let auth = await ShareAuth.ensureAccessToken()
+    guard var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == payload.id }) else {
+      return "공유를 마무리하지 못했어요. 여기담 앱에서 확인해 주세요."
     }
-    let urlString = configuration.url
-    let publishableKey = configuration.publishableKey
-    guard let endpoint = URL(string: "\(urlString)/functions/v1/save-instagram-reel-v2") else { throw ShareIntentStorageError.appGroupUnavailable }
-    guard let token = ShareIntentStorage.accessToken(), !token.isEmpty else {
-      logAPI("auth-missing", "requestId=\(payload.id) url=\(payload.text) tokenPresent=false")
-      try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, url: payload.text, rawSharedText: payload.rawText, status: "FAILED", reelId: nil, failureReason: "AUTH401_001", retryable: false, updatedAt: Date().timeIntervalSince1970 * 1000))
-      return
-    }
-    var request = URLRequest(url: endpoint, timeoutInterval: 30)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(publishableKey, forHTTPHeaderField: "apikey")
-    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    request.httpBody = try JSONSerialization.data(withJSONObject: [
-      "instagramUrl": payload.text,
-      "source": "instagram_share",
-      "clientRequestId": payload.id,
-    ])
-    let requestSentAt = Date().timeIntervalSince1970 * 1000
-    logAPI(
-      "request",
-      "requestId=\(payload.id) method=POST endpoint=\(endpoint.absoluteString) body={instagramUrl: \(payload.text), source: instagram_share, clientRequestId: \(payload.id)}"
-    )
-    try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: "PENDING", reelId: nil, failureReason: nil, retryable: true, updatedAt: requestSentAt))
-    do {
-      let (data, response) = try await URLSession.shared.data(for: request)
-      guard let http = response as? HTTPURLResponse else {
-        throw ShareIntentStorageError.appGroupUnavailable
+    let receivedMessage = "\(payload.text.contains("/p/") ? "게시물이" : "릴스가") 잘 전달됐어요! 장소를 찾아볼게요."
+    switch auth {
+    case .ready(let token):
+      do {
+        try ShareBackgroundTransfer.shared.enqueue(
+          requestId: payload.id, url: payload.text, rawText: payload.rawText, token: token
+        )
+      } catch {
+        // The link remains saved and the containing app can register the transfer later.
       }
-      let responseBody = String(data: data, encoding: .utf8) ?? "<non-utf8 response>"
-      logAPI(
-        "response",
-        "requestId=\(payload.id) httpStatus=\(http.statusCode) body=\(responseBody)"
-      )
-      let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-      if !(200..<300).contains(http.statusCode) {
-        let nested = json?["error"] as? [String: Any]
-        let errorCode = json?["errorCode"] as? String ?? nested?["errorCode"] as? String
-        let message = json?["message"] as? String ?? nested?["message"] as? String
-        let reason = [errorCode, message, "HTTP_\(http.statusCode)"].compactMap { $0 }.joined(separator: " | ")
-        let retryable: Bool = json?["retryable"] as? Bool ?? nested?["retryable"] as? Bool ?? (http.statusCode >= 500)
-        try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: "FAILED", reelId: json?["reelId"] as? String ?? nested?["reelId"] as? String, failureReason: reason.isEmpty ? "HTTP_\(http.statusCode)" : reason, retryable: retryable, updatedAt: Date().timeIntervalSince1970 * 1000))
-        return
-      }
-      let status = json?["status"] as? String ?? "FAILED"
-      try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: status, reelId: json?["reelId"] as? String, failureReason: json?["failureReason"] as? String, retryable: json?["retryable"] as? Bool ?? false, updatedAt: Date().timeIntervalSince1970 * 1000, reused: json?["reused"] as? Bool, saveMode: json?["saveMode"] as? String))
-    } catch {
-      let nsError = error as NSError
-      logAPI(
-        "error",
-        "requestId=\(payload.id) domain=\(nsError.domain) code=\(nsError.code) message=\(nsError.localizedDescription)"
-      )
-      try ShareIntentStorage.saveResult(ShareReelResult(requestId: payload.id, requestSentAt: requestSentAt, url: payload.text, rawSharedText: payload.rawText, status: "FAILED", reelId: nil, failureReason: "CLIENT000_002 | \(nsError.domain):\(nsError.code) | \(nsError.localizedDescription)", retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000))
+      return receivedMessage
+    case .loginRequired(let reason):
+      result.transferStatus = "LOGIN_REQUIRED"
+      result.authReason = reason
+      result.retryable = false
+      result.updatedAt = Date().timeIntervalSince1970 * 1000
+      try? ShareIntentStorage.saveResult(result)
+      return receivedMessage
+    case .waitingForNetwork:
+      result.transferStatus = "WAITING_FOR_NETWORK"
+      result.updatedAt = Date().timeIntervalSince1970 * 1000
+      try? ShareIntentStorage.saveResult(result)
+      return receivedMessage
+    case .waitingForAuth:
+      result.transferStatus = "WAITING_FOR_AUTH"
+      result.updatedAt = Date().timeIntervalSince1970 * 1000
+      try? ShareIntentStorage.saveResult(result)
+      return receivedMessage
     }
-  }
-
-  private func logAPI(_ event: String, _ message: String) {
-    NSLog("%@", "[InstagramShareExtension][api-\(event)] \(message)")
   }
 
   private func configureStatusLabel() {
@@ -133,10 +103,12 @@ final class ShareViewController: UIViewController {
     statusContainerView.layer.cornerCurve = .continuous
 
     statusLabel.translatesAutoresizingMaskIntoConstraints = false
-    statusLabel.text = "릴스 링크가 전달됐어요."
+    statusLabel.text = "공유한 내용을 확인하고 있어요."
     statusLabel.textColor = .label
     statusLabel.font = .systemFont(ofSize: 17, weight: .semibold)
     statusLabel.textAlignment = .center
+    statusLabel.numberOfLines = 0
+    statusLabel.lineBreakMode = .byWordWrapping
     statusLabel.alpha = 0
 
     statusContainerView.addSubview(statusLabel)
@@ -153,6 +125,7 @@ final class ShareViewController: UIViewController {
       statusLabel.bottomAnchor.constraint(equalTo: statusContainerView.bottomAnchor, constant: -20),
       statusLabel.leadingAnchor.constraint(equalTo: statusContainerView.leadingAnchor, constant: 24),
       statusLabel.trailingAnchor.constraint(equalTo: statusContainerView.trailingAnchor, constant: -24),
+      statusLabel.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -96),
     ])
   }
 

@@ -1,19 +1,35 @@
 import {Platform} from 'react-native';
-import {getVersion} from 'react-native-device-info';
-import type {PostHog} from 'posthog-react-native';
+import Config from 'react-native-config';
+import DeviceInfo from 'react-native-device-info';
 
-export type AnalyticsClient = Pick<PostHog, 'capture'>;
-type AnalyticsProperties = NonNullable<Parameters<PostHog['capture']>[1]>;
+/** 모든 분석 이벤트에서 사용하는 JSON 속성 타입입니다. */
+export type AnalyticsValue =
+  | string
+  | number
+  | boolean
+  | null
+  | AnalyticsValue[]
+  | {[key: string]: AnalyticsValue};
+
+export type AnalyticsProperties = Record<string, AnalyticsValue>;
+
+/** 이벤트 전송에 필요한 PostHog 최소 인터페이스입니다. */
+export type AnalyticsClient = {
+  capture: (eventName: string, properties?: AnalyticsProperties) => void;
+};
 
 export type CommonAnalyticsProperties = {
   platform: 'android' | 'ios';
   release: string;
+  environment: string;
 };
 
-function getCommonProperties(): CommonAnalyticsProperties {
+/** 모든 이벤트에 공통으로 포함할 속성입니다. */
+export function getCommonAnalyticsProperties(): CommonAnalyticsProperties {
   return {
     platform: Platform.OS === 'ios' ? 'ios' : 'android',
-    release: getVersion(),
+    release: DeviceInfo.getVersion(),
+    environment: Config.APP_ENV?.trim() || 'development',
   };
 }
 
@@ -25,6 +41,6 @@ export function capture(
 ) {
   client?.capture(eventName, {
     ...properties,
-    ...getCommonProperties(),
+    ...getCommonAnalyticsProperties(),
   });
 }

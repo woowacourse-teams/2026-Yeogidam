@@ -3098,7 +3098,7 @@ SPEC CHECKSUMS:
   FBLazyVector: d153c0a7ab3a2c865dd311cb3a5418cd66b658e6
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   glog: 9c7bd858f1402a8e680d1637276210773c093b76
-  hermes-engine: 80bcdb07d911f7507219dad9d63a8a4c7298a76f
+  hermes-engine: 24427aaeeed69e5e7e7ccaec98f2847839d6e538
   KakaoMapsSDK: 9becfe30f42630df1a0437ad2fcf2478ff8b56db
   RCT-Folly: 36c4f904fb6cd0219dcb76b94e9502d2a72fab0b
   RCTDeprecation: debcd5d989dc39edd50d61566b56e96da1c167b0
