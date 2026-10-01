@@ -1,9 +1,12 @@
 package com.yeogidam.media.share.repository;
 
-import java.util.Optional;
+import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -19,12 +22,24 @@ public class SharedMediaDao {
                     resultSet.getString("extraction_status"),
                     resultSet.getString("failure_reason"),
                     resultSet.getString("shared_url")
-            );
+    );
 
     private final JdbcTemplate jdbcTemplate;
+    private final SimpleJdbcInsert jdbcInsert;
 
     public SharedMediaDao(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+        this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
+                .withTableName("shared_media")
+                .usingColumns("member_id", "media_id", "shared_url");
+    }
+
+    public void save(SharedInstagramMedia sharedInstagramMedia) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("member_id", sharedInstagramMedia.memberId())
+                .addValue("media_id", sharedInstagramMedia.mediaId())
+                .addValue("shared_url", sharedInstagramMedia.instagramUrl().getSharedUrl());
+        jdbcInsert.execute(parameters);
     }
 
     public List<ShareHistoryProjection> findShareHistory(Long memberId) {

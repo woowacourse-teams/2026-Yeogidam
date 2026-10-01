@@ -96,7 +96,7 @@ CREATE TABLE places
     telephone             VARCHAR(30),
     thumbnail_url         VARCHAR(2048),
     thumbnail_source      VARCHAR(30),
-    thumbnail_attribution VARCHAR(255),
+    thumbnail_attribution VARCHAR(2048),
     created_at            TIMESTAMP(6)    NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_places_kakao_place_id UNIQUE (kakao_place_id)

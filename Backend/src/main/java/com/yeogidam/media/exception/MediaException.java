@@ -10,5 +10,4 @@ public class MediaException extends YeogidamException {
     public MediaException(MediaErrorCode errorCode) {
         super(errorCode);
     }
-
 }

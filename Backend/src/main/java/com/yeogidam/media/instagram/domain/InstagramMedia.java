@@ -4,6 +4,8 @@ import com.yeogidam.media.extraction.domain.InProgressExtraction;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.Extraction;
 import com.yeogidam.media.extraction.domain.ExtractedPlaces;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 
 /**
  * 인스타그램 게시물 하나.
@@ -36,10 +38,10 @@ public class InstagramMedia {
 
     private void validate(MediaShortcode shortcode, Extraction extraction) {
         if (shortcode == null) {
-            throw new IllegalArgumentException("게시물 식별자가 비어 있습니다.");
+            throw new MediaException(MediaErrorCode.MISSING_MEDIA_SHORTCODE);
         }
         if (extraction == null) {
-            throw new IllegalArgumentException("추출 상태가 비어 있습니다.");
+            throw new MediaException(MediaErrorCode.MISSING_EXTRACTION_STATE);
         }
     }
 
@@ -63,8 +65,8 @@ public class InstagramMedia {
         return id;
     }
 
-    public MediaShortcode shortcode() {
-        return shortcode;
+    public String getShortcode() {
+        return shortcode.value();
     }
 
     public MediaMetadata metadata() {

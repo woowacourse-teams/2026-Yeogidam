@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import org.junit.jupiter.api.Test;
 
 class MediaShortcodeTest {
@@ -48,7 +50,8 @@ class MediaShortcodeTest {
 
         // when & then
         assertThatThrownBy(() -> new MediaShortcode(value))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.MISSING_MEDIA_SHORTCODE.getMessage());
     }
 
     @Test
@@ -58,7 +61,8 @@ class MediaShortcodeTest {
 
         // when & then
         assertThatThrownBy(() -> new MediaShortcode(value))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.MISSING_MEDIA_SHORTCODE.getMessage());
     }
 
     @Test
@@ -68,7 +72,8 @@ class MediaShortcodeTest {
 
         // when & then
         assertThatThrownBy(() -> new MediaShortcode(value))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.INVALID_LINK.getMessage());
     }
 
     @Test
@@ -78,6 +83,7 @@ class MediaShortcodeTest {
 
         // when & then
         assertThatThrownBy(() -> new MediaShortcode(value))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(MediaException.class)
+                .hasMessage(MediaErrorCode.INVALID_LINK.getMessage());
     }
 }

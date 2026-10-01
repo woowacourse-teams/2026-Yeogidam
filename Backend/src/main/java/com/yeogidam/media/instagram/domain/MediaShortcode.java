@@ -1,5 +1,7 @@
 package com.yeogidam.media.instagram.domain;
 
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import java.util.regex.Pattern;
 
 public record MediaShortcode(String value) {
@@ -12,10 +14,10 @@ public record MediaShortcode(String value) {
 
     private void validate(String value) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("게시물 식별자가 비어 있습니다");
+            throw new MediaException(MediaErrorCode.MISSING_MEDIA_SHORTCODE);
         }
         if (!ALLOWED.matcher(value).matches()) {
-            throw new IllegalArgumentException("게시물 식별자 형식이 올바르지 않습니다: " + value);
+            throw new MediaException(MediaErrorCode.INVALID_LINK);
         }
     }
 }
