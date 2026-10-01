@@ -55,15 +55,9 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: node .github/scripts/frontend-release-policy.mjs validate-branch "$PLATFORM" "$RELEASE_BRANCH" "$REQUESTED_VERSION"
 
-  # 릴리스 소스에 대해 정적 검사, 테스트, Android/iOS Debug 컴파일을 모두 통과시킨다.
-  # 재사용 워크플로가 실패하면 아래 스토어 업로드 job은 시작되지 않는다.
-  ci:
-    needs: version-check
-    uses: ./.github/workflows/frontend-ci.yml
-
-  # CI가 성공하면 fe-beta 환경의 플랫폼별 고정 오프셋과 Actions 실행 번호를 합쳐 빌드 번호를 정한다.
+  # fe-beta 환경의 플랫폼별 고정 오프셋과 Actions 실행 번호를 합쳐 빌드 번호를 정한다.
   assign-build:
-    needs: [version-check, ci]
+    needs: version-check
     runs-on: ubuntu-latest
     environment: fe-beta
     outputs:
@@ -89,92 +83,32 @@ jobs:
             node .github/scripts/frontend-release-policy.mjs assign-build "$PLATFORM" "$APP_VERSION" "$IOS_BUILD_NUMBER_OFFSET"
           fi
 
-  # Android를 선택했을 때만 서명된 AAB를 만들고 Google Play internal 트랙에 올린다.
+  # 검증과 선택한 플랫폼의 배포용 Release 빌드를 CI에서 한 번 실행한다.
+  ci:
+    needs: [version-check, assign-build]
+    uses: ./.github/workflows/frontend-ci.yml
+    with:
+      beta_platform: ${{ needs.version-check.outputs.platform }}
+      app_version: ${{ needs.version-check.outputs.app_version }}
+      build_number: ${{ needs.assign-build.outputs.build_number }}
+    secrets: inherit
+
+  # Android를 선택했을 때만 CI에서 만든 AAB를 Google Play internal 트랙에 올린다.
   android-beta:
     needs: [version-check, ci, assign-build]
     if: needs.version-check.outputs.platform == 'android'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    # 배포에 필요한 비밀값은 fe-beta 환경에서 읽는다.
     environment: fe-beta
-    env:
-      APP_VERSION: ${{ needs.version-check.outputs.app_version }}
-      APP_BUILD_NUMBER: ${{ needs.assign-build.outputs.build_number }}
-    defaults:
-      run:
-        # run 단계는 기본적으로 React Native 프로젝트 루트에서 실행한다.
-        working-directory: Frontend
     steps:
-      - uses: actions/checkout@v6
-        with:
-          # 검증된 실행 커밋을 빌드한다. 릴리스 브랜치가 이동해도 다른 커밋을 받지 않는다.
-          ref: ${{ github.sha }}
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: Frontend/.nvmrc
-          cache: npm
-          cache-dependency-path: Frontend/package-lock.json
-      - uses: actions/setup-java@v6
-        with:
-          # Android Gradle 빌드에 필요한 JDK와 Gradle 의존성 캐시를 준비한다.
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-          cache-dependency-path: |
-            Frontend/android/*.gradle
-            Frontend/android/gradle.properties
-            Frontend/android/gradle/wrapper/gradle-wrapper.properties
-      - name: Install dependencies
-        run: npm ci
-      # 필수 비밀값이 없으면 빌드 전에 실패시킨다. 값 자체는 로그에 출력하지 않는다.
-      # fe-beta Environment 값을 runner 임시 설정 파일에 쓰고, 서명 keystore도 임시 폴더에 복원한다.
-      - name: Prepare Android release secrets
-        env:
-          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
-          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
-          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
-          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
-          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
-          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-        run: |
-          for key in KAKAO_NATIVE_APP_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY \
-            POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
-            ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
-            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD \
-            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
-            if [[ -z "${!key}" ]]; then
-              echo "Missing beta secret: $key" >&2
-              exit 1
-            fi
-          done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
-            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
-          chmod 600 "$RUNNER_TEMP/frontend-beta-config"
-          echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
-          printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-upload.jks"
-          # 다음 Gradle 단계가 서명 파일 위치를 읽도록 job 환경에 경로만 전달한다.
-          echo "ANDROID_UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/android-upload.jks" >> "$GITHUB_ENV"
-      # APP_VERSION/APP_BUILD_NUMBER를 versionName/versionCode로 적용해 AAB를 만든다.
-      - name: Build signed Android AAB
-        env:
-          ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
-          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
-          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
-        run: ./gradlew :app:bundleRelease --no-daemon
-        working-directory: Frontend/android
-      # 스토어 업로드와 별개로 생성된 AAB를 Actions 실행 결과에 보관한다.
-      # 파일이 없으면 성공으로 넘기지 않고 즉시 실패시킨다.
-      - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+      - name: Download CI Android AAB
+        uses: actions/download-artifact@v4
         with:
           name: frontend-beta-android-${{ github.run_number }}-${{ github.run_attempt }}
-          path: Frontend/android/app/build/outputs/bundle/release/app-release.aab
-          if-no-files-found: error
+          path: ${{ runner.temp }}/frontend-beta-android
+      - name: Check Play upload secret
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: test -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"
       # Play Console에 앱이 미리 등록되고 서비스 계정에 앱 배포 권한이 있어야 한다.
       # internal 트랙에 completed 상태로 올린다. 같은 versionCode 재업로드는 거절될 수 있다.
       - name: Upload to Play internal testing
@@ -182,100 +116,41 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.yeogidamm.app
-          releaseFiles: Frontend/android/app/build/outputs/bundle/release/app-release.aab
+          releaseFiles: ${{ runner.temp }}/frontend-beta-android/app-release.aab
           tracks: internal
           status: completed
 
-  # iOS를 선택했을 때만 앱을 아카이브하고 App Store Connect의 TestFlight로 업로드한다.
+  # iOS를 선택했을 때만 CI에서 만든 아카이브를 TestFlight로 업로드한다.
   ios-beta:
     needs: [version-check, ci, assign-build]
     if: needs.version-check.outputs.platform == 'ios'
     runs-on: macos-26
-    timeout-minutes: 180
-    # iOS 업로드에도 동일한 fe-beta Environment의 비밀값을 사용한다.
+    timeout-minutes: 60
     environment: fe-beta
-    env:
-      APP_VERSION: ${{ needs.version-check.outputs.app_version }}
-      APP_BUILD_NUMBER: ${{ needs.assign-build.outputs.build_number }}
-    defaults:
-      run:
-        working-directory: Frontend
     steps:
       - uses: actions/checkout@v6
+      - name: Download CI iOS archive
+        uses: actions/download-artifact@v4
         with:
-          # version-check에서 확인한 릴리스 커밋을 그대로 빌드한다.
-          ref: ${{ github.sha }}
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: Frontend/.nvmrc
-          cache: npm
-          cache-dependency-path: Frontend/package-lock.json
-      - uses: ruby/setup-ruby@v1
-        with:
-          # Gemfile.lock에 맞춰 CocoaPods를 포함한 Ruby 의존성을 준비한다.
-          ruby-version: '4.0.1'
-          bundler-cache: true
-          working-directory: Frontend
-      - name: Install dependencies
-        run: npm ci
-      # 필수 설정과 App Store Connect 인증값을 먼저 검사한다.
-      # fe-beta Environment 값은 runner 임시 설정 파일로 전달하고, API 키도 임시 폴더에 복원한다.
-      - name: Prepare iOS release secrets
+          name: frontend-beta-ios-${{ github.run_number }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/frontend-beta-ios
+      - name: Restore iOS archive and API key
         env:
-          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
-          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
-          for key in KAKAO_NATIVE_APP_KEY SUPABASE_URL SUPABASE_PUBLISHABLE_KEY \
-            POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
-            APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
+          for key in APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
             APP_STORE_CONNECT_ISSUER_ID; do
             if [[ -z "${!key}" ]]; then
-              echo "Missing beta secret: $key" >&2
+              echo "Missing beta upload secret: $key" >&2
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
-            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
-          chmod 600 "$RUNNER_TEMP/frontend-beta-config"
-          echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
+          ditto -x -k "$RUNNER_TEMP/frontend-beta-ios/Frontend.xcarchive.zip" "$RUNNER_TEMP"
+          test -d "$RUNNER_TEMP/Frontend.xcarchive"
           printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
-          # API 키 파일은 현재 사용자만 읽을 수 있게 제한한다.
           chmod 600 "$RUNNER_TEMP/AuthKey.p8"
-      # Podfile의 네이티브 의존성을 설치해 Xcode workspace를 준비한다.
-      - name: Install CocoaPods
-        run: bundle exec pod install --project-directory=ios
-      # 앱과 Share Extension은 프로젝트의 자동 서명 설정을 사용한다.
-      # 수동 입력한 버전과 배정된 빌드 번호를 MARKETING_VERSION/CURRENT_PROJECT_VERSION에 주입한다.
-      # 앱과 Share Extension에 같은 값을 적용하고, App Store Connect 키로
-      # 프로비저닝 갱신을 허용해 실제 기기용 Release 아카이브를 만든다.
-      - name: Archive signed iOS app
-        env:
-          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-        run: |
-          xcodebuild \
-            -workspace ios/Frontend.xcworkspace \
-            -scheme Frontend \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/Frontend.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
-            "MARKETING_VERSION=$APP_VERSION" \
-            "CURRENT_PROJECT_VERSION=$APP_BUILD_NUMBER" \
-            "KAKAO_NATIVE_APP_KEY=$KAKAO_NATIVE_APP_KEY" \
-            "ENVFILE=$ENVFILE" \
-            archive
       # BetaExportOptions.plist의 app-store-connect/upload 설정으로 아카이브를 내보낸다.
       # Xcode가 배포 서명 후 App Store Connect에 직접 업로드한다.
       # TestFlight 처리와 테스터 그룹 배포는 App Store Connect에서 이어진다.
@@ -287,7 +162,7 @@ jobs:
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Frontend.xcarchive" \
             -exportPath "$RUNNER_TEMP/FrontendExport" \
-            -exportOptionsPlist ios/BetaExportOptions.plist \
+            -exportOptionsPlist Frontend/ios/BetaExportOptions.plist \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
