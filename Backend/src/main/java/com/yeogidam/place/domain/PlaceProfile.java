@@ -24,4 +24,8 @@ public record PlaceProfile(
             throw new IllegalArgumentException("좌표가 비어 있습니다.");
         }
     }
+
+    public PlaceProfile withThumbnail(PlaceThumbnail thumbnail) {
+        return new PlaceProfile(name, address, coordinate, category, telephone, thumbnail);
+    }
 }

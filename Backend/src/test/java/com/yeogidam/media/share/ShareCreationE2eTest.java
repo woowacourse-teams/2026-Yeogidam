@@ -8,6 +8,7 @@ import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.service.MediaExtractionPipeline;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
@@ -15,9 +16,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+@Import(ShareCreationE2eTest.FakeMetadataServiceConfiguration.class)
 class ShareCreationE2eTest extends E2eTestSupport {
 
     private static final String PATH = "/api/v1/shares";
@@ -26,6 +32,20 @@ class ShareCreationE2eTest extends E2eTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @TestConfiguration
+    static class FakeMetadataServiceConfiguration {
+
+        @Bean
+        @Primary
+        MediaExtractionPipeline fakeMediaExtractionPipeline() {
+            return new MediaExtractionPipeline(null, null, null, null, null) {
+                @Override
+                public void extract(Long mediaId, InstagramUrl instagramUrl) {
+                }
+            };
+        }
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {REEL_URL, CARESEL_URL})
