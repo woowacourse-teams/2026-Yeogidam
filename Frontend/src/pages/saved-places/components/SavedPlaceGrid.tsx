@@ -8,7 +8,7 @@ type SavedPlaceGridProps = {
   isEditing?: boolean;
   places: Place[];
   onLongPressPlace?: () => void;
-  onPressPlace: (place: Place) => void;
+  onPressPlace: (place: Place, position: number) => void;
   onTogglePlaceSelection?: (placeId: string) => void;
   selectedPlaceIds?: ReadonlySet<string>;
 };
@@ -51,7 +51,7 @@ export function SavedPlaceGrid({
                 return;
               }
 
-              onPressPlace(place);
+              onPressPlace(place, index + 1);
             }}
             onPressIn={() => {
               didLongPressRef.current = false;

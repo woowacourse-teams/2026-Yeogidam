@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useMemo, useRef, useState} from 'react';
 import {
   Image,
   Pressable,
@@ -9,7 +9,10 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+import {usePostHog} from 'posthog-react-native';
+import {v4 as uuidv4} from 'uuid';
 
+import {captureSavedPlacesSearchSubmitted} from '../../../analytics/savedPlaceEvents';
 import type {Place} from '../../../entities/place/types';
 import {SearchBar} from '../../../components/SearchBar';
 
@@ -17,9 +20,27 @@ type SavedPlacesSearchPanelProps = {
   places: Place[];
   recentSearches: string[];
   onCloseSearch: () => void;
-  onPressPlace: (place: Place) => void;
+  onPressPlace: (
+    place: Place,
+    selection: {searchId: string; position: number},
+  ) => void;
   onSaveSearchTerm: (value: string) => void;
 };
+
+function filterPlaces(places: Place[], query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return [];
+  }
+
+  return places.filter(place => {
+    const fields = [place.name, place.address, place.fullAddress].map(value =>
+      value.toLowerCase(),
+    );
+
+    return fields.some(value => value.includes(normalizedQuery));
+  });
+}
 
 export function SavedPlacesSearchPanel({
   places,
@@ -28,23 +49,15 @@ export function SavedPlacesSearchPanel({
   onPressPlace,
   onSaveSearchTerm,
 }: SavedPlacesSearchPanelProps) {
+  const posthog = usePostHog();
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
+  const activeSearchIdRef = useRef<string | null>(null);
 
-  const normalizedQuery = submittedQuery.trim().toLowerCase();
-  const filteredPlaces = useMemo(() => {
-    if (!normalizedQuery) {
-      return [];
-    }
-
-    return places.filter(place => {
-      const fields = [place.name, place.address, place.fullAddress].map(value =>
-        value.toLowerCase(),
-      );
-
-      return fields.some(value => value.includes(normalizedQuery));
-    });
-  }, [normalizedQuery, places]);
+  const filteredPlaces = useMemo(
+    () => filterPlaces(places, submittedQuery),
+    [places, submittedQuery],
+  );
 
   const submitSearch = () => {
     const nextQuery = query.trim();
@@ -53,14 +66,30 @@ export function SavedPlacesSearchPanel({
       return;
     }
 
+    const searchId = uuidv4();
+    const resultCount = filterPlaces(places, nextQuery).length;
+    activeSearchIdRef.current = searchId;
     setSubmittedQuery(nextQuery);
     onSaveSearchTerm(nextQuery);
+    captureSavedPlacesSearchSubmitted(posthog, {
+      searchId,
+      searchMethod: 'keyboard',
+      resultCount,
+    });
   };
 
   const selectRecentSearch = (value: string) => {
+    const searchId = uuidv4();
+    const resultCount = filterPlaces(places, value).length;
+    activeSearchIdRef.current = searchId;
     setQuery(value);
     setSubmittedQuery(value);
     onSaveSearchTerm(value);
+    captureSavedPlacesSearchSubmitted(posthog, {
+      searchId,
+      searchMethod: 'recent_search',
+      resultCount,
+    });
   };
 
   const showResults = submittedQuery.trim().length > 0;
@@ -73,6 +102,7 @@ export function SavedPlacesSearchPanel({
         backButtonPosition="leading"
         layout="embedded"
         onChangeText={value => {
+          activeSearchIdRef.current = null;
           setQuery(value);
           setSubmittedQuery('');
         }}
@@ -89,10 +119,18 @@ export function SavedPlacesSearchPanel({
           showsVerticalScrollIndicator={false}>
           {filteredPlaces.length > 0 ? (
             <View style={styles.resultsGrid}>
-              {filteredPlaces.map(place => (
+              {filteredPlaces.map((place, index) => (
                 <View key={place.id} style={styles.resultCard}>
                   <Pressable
-                    onPress={() => onPressPlace(place)}
+                    onPress={() => {
+                      const searchId = activeSearchIdRef.current;
+                      if (searchId) {
+                        onPressPlace(place, {
+                          searchId,
+                          position: index + 1,
+                        });
+                      }
+                    }}
                     style={styles.resultCardBody}>
                     {place.image ? (
                       <Image source={place.image} style={styles.resultImage} />

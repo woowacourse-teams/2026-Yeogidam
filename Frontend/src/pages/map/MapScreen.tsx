@@ -14,7 +14,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {usePostHog} from 'posthog-react-native';
+import {v4 as uuidv4} from 'uuid';
 
+import {
+  captureSavedPlaceSelected,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   getBottomNavigationBarOffset,
@@ -50,6 +56,7 @@ export function MapScreen({
   onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
+  const posthog = usePostHog();
   const [locationGranted, setLocationGranted] = useState(false);
   useEffect(() => {
     const unsubscribe = subscribeLocationPermission(setLocationGranted);
@@ -91,8 +98,9 @@ export function MapScreen({
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
+    viewContext: SavedPlaceViewContext | null;
     signal: number;
-  }>({ place: null, signal: 0 });
+  }>({place: null, viewContext: null, signal: 0});
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
@@ -293,8 +301,21 @@ export function MapScreen({
                 );
                 if (!place) return;
 
+                const viewContext = place.savedPlaceId
+                  ? {
+                      placeId: place.id,
+                      savedPlaceId: place.savedPlaceId,
+                      placeViewId: uuidv4(),
+                      source: 'map_marker' as const,
+                    }
+                  : null;
+                if (viewContext) {
+                  captureSavedPlaceSelected(posthog, viewContext);
+                }
+
                 setOpenedMarker(current => ({
                   place,
+                  viewContext,
                   signal: current.signal + 1,
                 }));
               }}
@@ -340,6 +361,7 @@ export function MapScreen({
             isSearchActive={hasActiveSearch}
             expandSignal={searchResultSignal}
             openPlace={openedMarker.place}
+            openPlaceContext={openedMarker.viewContext}
             openPlaceSignal={openedMarker.signal}
             collapseSignal={collapseSignal}
             onDetailViewChange={isDetailView => {

@@ -18,20 +18,29 @@ export type AnalyticsClient = {
   capture: (eventName: string, properties?: AnalyticsProperties) => void;
 };
 
-/** 모든 기능별 이벤트에서 사용하는 공통 전송 함수입니다. */
-export function capture(
-  client: AnalyticsClient | null | undefined,
-  eventName: string,
-  properties?: AnalyticsProperties,
-) {
-  client?.capture(eventName, properties);
-}
+export type CommonAnalyticsProperties = {
+  platform: 'android' | 'ios';
+  release: string;
+  environment: string;
+};
 
 /** 모든 이벤트에 공통으로 포함할 속성입니다. */
-export function getCommonAnalyticsProperties() {
+export function getCommonAnalyticsProperties(): CommonAnalyticsProperties {
   return {
-    platform: Platform.OS,
+    platform: Platform.OS === 'ios' ? 'ios' : 'android',
     release: DeviceInfo.getVersion(),
     environment: Config.APP_ENV?.trim() || 'development',
   };
+}
+
+/** PostHog가 설정되지 않은 개발·테스트 환경에서는 이벤트를 조용히 건너뜁니다. */
+export function capture(
+  client: AnalyticsClient | null | undefined,
+  eventName: string,
+  properties: AnalyticsProperties = {},
+) {
+  client?.capture(eventName, {
+    ...properties,
+    ...getCommonAnalyticsProperties(),
+  });
 }

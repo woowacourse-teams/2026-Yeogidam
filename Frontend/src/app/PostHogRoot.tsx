@@ -54,6 +54,7 @@ export function PostHogRoot({ children }: PostHogRootProps) {
       }}
       options={{
         captureAppLifecycleEvents: true,
+        disableGeoip: true,
         disableSurveys: true,
         enableSessionReplay: false,
         host,
