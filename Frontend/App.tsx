@@ -32,6 +32,7 @@ import {
   trackLoginStarted,
   type LoginFailureType,
 } from './src/analytics/userEntryEvents';
+import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -136,6 +137,7 @@ function App() {
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
+  const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
   const currentScreen: Screen =
@@ -193,7 +195,10 @@ function App() {
     });
   };
 
-  const openMainScreen = (nextScreen: MainScreen) => {
+  const openMainScreen = (
+    nextScreen: MainScreen,
+    entryType: InboxEntryType = 'direct',
+  ) => {
     if (nextScreen !== 'map') {
       setIsMapPlaceDetailVisible(false);
     }
@@ -203,6 +208,9 @@ function App() {
       activeTab: nextScreen,
       detailSource: null,
     });
+    if (nextScreen === 'inBox') {
+      setInBoxEntryType(entryType);
+    }
   };
 
   const openDetailFrom = (sourceScreen: 'saved' | 'map', place: Place) => {
@@ -469,7 +477,10 @@ function App() {
               created_at: new Date(result.updatedAt).toISOString(),
             },
           });
-          openMainScreen(result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox');
+          openMainScreen(
+            result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox',
+            'auto',
+          );
         })
         .catch(error => {
           if (__DEV__) {
@@ -743,6 +754,7 @@ function App() {
     if (currentScreen === 'inBox') {
       return (
         <InBoxScreen
+          entryType={inBoxEntryType}
           onOpenHistory={() => setIsHistoryVisible(true)}
           onSelectionChange={setIsInBoxSelecting}
         />
