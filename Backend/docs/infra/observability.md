@@ -122,7 +122,7 @@ sudo ls -l /var/lib/docker/volumes/yeogidam-mysql-data/_data/slow.log /var/lib/d
 | `/yeogidam/prod/nginx` | 위와 같음 | `Yeogidam/prod` | `Nginx5xx` | 1 | 0 |
 | `/yeogidam/prod/backend` | 위와 같음 | `Yeogidam/prod` | `AppError` | 1 | 0 |
 
-nginx 패턴은 `nginx.conf.template`의 `log_format main`을 공백으로 나눈 것이다. `[$time_local]`과 `"$request"`, `"$http_user_agent"`는 대괄호와 따옴표 안이 통째로 한 필드로 잡혀 정확히 여덟 필드가 된다. 필드 수가 맞아야 매칭되므로 `log_format`을 고치면 이 패턴도 같이 고친다. 같은 그룹의 `error` 스트림 줄은 모양이 달라 여덟 필드에 안 맞으니 5xx로 세지지 않는다. 기본값 0을 두는 이유는 로그가 들어왔는데 매칭이 없을 때도 0을 찍어 그래프가 끊기지 않게 하려는 것이다.
+nginx 패턴은 `nginx.conf.template`의 `log_format main`을 공백으로 나눈 것이다. `[$time_local]`과 `"$request"`, `"$http_user_agent"`는 대괄호와 따옴표 안이 통째로 한 필드로 잡혀 정확히 여덟 필드가 된다. 필드 수가 맞아야 매칭되므로 `log_format`을 고치면 이 패턴도 같이 고친다. 같은 그룹의 `error` 스트림 줄은 모양이 달라 여덟 필드에 안 맞으니 5xx로 세지지 않는다. 기본값 0을 두는 이유는 로그가 들어왔는데 매칭이 없을 때도 0을 찍어 그래프가 끊기지 않게 하려는 것이다. nginx 요청 제한(IP당 초당 10회, 로그인 경로 분당 10회)에 걸린 429는 access 로그에 아예 남기지 않으므로 이 필터에도 대시보드에도 보이지 않는다. 남기면 거절된 요청 한 줄이 그대로 수집 요금이 되기 때문이고, 폭주가 있었는지는 EC2 기본 지표 `NetworkIn`과 `CPUUtilization`이 치솟는 것으로 본다.
 
 앱 패턴은 logstash JSON의 최상위 키 `level`을 본다. 필터 생성 화면의 「패턴 테스트」에 실제 로그 줄을 넣어 매칭 여부를 보고 저장한다.
 
