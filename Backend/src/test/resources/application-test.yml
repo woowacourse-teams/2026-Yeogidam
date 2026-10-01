@@ -12,6 +12,16 @@ jwt:
   access-token-ttl: 30m
   refresh-token-ttl: 30d
 
+media:
+  thumbnail:
+    public-base-url: https://img.example.com
+    bucket: test-thumbnails
+    region: ap-northeast-2
+    instagram-key-prefix: yeogidam/instagram-thumbnails
+    place-key-prefix: yeogidam/place-thumbnails
+  place-thumbnail:
+    timeout: 1s
+
 # 제공자 클라이언트 빈을 만들기 위한 자리값. E2E는 FakeOAuthClientConfig가 제공자를 대신한다.
 oauth:
   providers:

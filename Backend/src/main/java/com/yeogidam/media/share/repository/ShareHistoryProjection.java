@@ -5,7 +5,7 @@ import java.time.Instant;
 public record ShareHistoryProjection(
         Long sharedMediaId,
         Instant createdAt,
-        String thumbnailUrl,
+        String thumbnailKey,
         String caption,
         String author,
         String extractionStatus,

@@ -1,9 +1,10 @@
 package com.yeogidam.media.share.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.yeogidam.media.share.exception.ShareErrorCode;
-import com.yeogidam.media.share.exception.ShareException;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,8 +25,8 @@ class ShareServiceIntegrationTest extends IntegrationTestSupport {
 
         // when & then
         assertThatThrownBy(() -> shareService.readShareHistoryItem(6L, 99L))
-                .isInstanceOf(ShareException.class)
-                .hasMessage(ShareErrorCode.NOT_FOUND.getMessage());
+                .isInstanceOfSatisfying(MediaException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.SHARED_MEDIA_NOT_FOUND));
     }
 
     private void insertMember(Long memberId, String providerUserId) {

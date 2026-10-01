@@ -16,13 +16,13 @@ public class SharedMediaDao {
             new ShareHistoryProjection(
                     resultSet.getLong("shared_media_id"),
                     resultSet.getTimestamp("created_at").toInstant(),
-                    resultSet.getString("thumbnail_url"),
+                    resultSet.getString("thumbnail_key"),
                     resultSet.getString("caption"),
                     resultSet.getString("author"),
                     resultSet.getString("extraction_status"),
                     resultSet.getString("failure_reason"),
                     resultSet.getString("shared_url")
-    );
+            );
 
     private final JdbcTemplate jdbcTemplate;
     private final SimpleJdbcInsert jdbcInsert;
@@ -31,22 +31,23 @@ public class SharedMediaDao {
         this.jdbcTemplate = jdbcTemplate;
         this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
                 .withTableName("shared_media")
-                .usingColumns("member_id", "media_id", "shared_url");
+                .usingColumns("member_id", "media_id", "shared_url")
+                .usingGeneratedKeyColumns("id");
     }
 
-    public void save(SharedInstagramMedia sharedInstagramMedia) {
+    public Long save(SharedInstagramMedia sharedInstagramMedia) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("member_id", sharedInstagramMedia.memberId())
                 .addValue("media_id", sharedInstagramMedia.mediaId())
                 .addValue("shared_url", sharedInstagramMedia.instagramUrl().getSharedUrl());
-        jdbcInsert.execute(parameters);
+        return jdbcInsert.executeAndReturnKey(parameters).longValue();
     }
 
     public List<ShareHistoryProjection> findShareHistory(Long memberId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.created_at,
-                       m.thumbnail_url,
+                       m.thumbnail_key,
                        m.caption,
                        m.author,
                        m.extraction_status,
@@ -64,7 +65,7 @@ public class SharedMediaDao {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.created_at,
-                       m.thumbnail_url,
+                       m.thumbnail_key,
                        m.caption,
                        m.author,
                        m.extraction_status,

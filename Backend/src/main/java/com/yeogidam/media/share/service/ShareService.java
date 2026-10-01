@@ -1,22 +1,26 @@
 package com.yeogidam.media.share.service;
 
 import com.yeogidam.media.extraction.config.ExtractionProperties;
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.instagram.domain.InstagramMedia;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
+import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
+import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
-import com.yeogidam.media.share.exception.ShareErrorCode;
-import com.yeogidam.media.share.exception.ShareException;
 import com.yeogidam.media.share.repository.PlaceCandidateDao;
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
 import com.yeogidam.media.share.repository.ShareHistoryProjection;
 import com.yeogidam.media.share.repository.SharedMediaDao;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -32,6 +36,7 @@ public class ShareService {
     private final PlaceCandidateDao placeCandidateDao;
     private final InstagramMediaDao instagramMediaDao;
     private final ExtractionProperties extractionProperties;
+    private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
 
     @Transactional
     public void createShare(Long memberId, ShareRequest rawInstagramUrl) {
@@ -45,6 +50,7 @@ public class ShareService {
         if (existingMediaId.isPresent()) {
             return existingMediaId.get();
         }
+
         InstagramMedia instagramMedia = new InstagramMedia(shortcode);
         try {
             return instagramMediaDao.save(instagramMedia, extractionProperties.pipelineVersion());
@@ -61,20 +67,37 @@ public class ShareService {
 
     public ShareHistoryResponses readShareHistory(Long memberId) {
         List<ShareHistoryProjection> history = sharedMediaDao.findShareHistory(memberId);
-        return ShareHistoryResponses.from(history);
+        List<ShareHistoryResponse> responses = history.stream()
+                .map(projection -> {
+                    String instagramThumbnailUrl = mediaThumbnailUrlResolver.resolve(projection.thumbnailKey());
+                    return ShareHistoryResponse.from(projection, instagramThumbnailUrl);
+                })
+                .toList();
+        return ShareHistoryResponses.from(responses);
     }
 
     public PlaceCandidateResponses readShareHistoryPlaces(Long memberId, Long sharedMediaId) {
         if (!sharedMediaDao.existsByMemberIdAndSharedMediaId(memberId, sharedMediaId)) {
-            throw new ShareException(ShareErrorCode.NOT_FOUND);
+            throw new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND);
         }
         List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(sharedMediaId);
-        return PlaceCandidateResponses.from(candidates);
+        Map<Long, String> placeThumbnailUrls = resolvePlaceThumbnailUrls(candidates);
+        return PlaceCandidateResponses.from(candidates, placeThumbnailUrls);
+    }
+
+    private Map<Long, String> resolvePlaceThumbnailUrls(List<PlaceCandidateProjection> candidates) {
+        Map<Long, String> placeThumbnailUrls = new HashMap<>();
+        for (PlaceCandidateProjection candidate : candidates) {
+            String placeThumbnailUrl = mediaThumbnailUrlResolver.resolve(candidate.thumbnailKey());
+            placeThumbnailUrls.put(candidate.placeId(), placeThumbnailUrl);
+        }
+        return placeThumbnailUrls;
     }
 
     public ShareHistoryItemResponse readShareHistoryItem(Long memberId, Long sharedMediaId) {
         ShareHistoryProjection sharedMedia = sharedMediaDao.findShareHistoryItem(memberId, sharedMediaId)
-                .orElseThrow(() -> new ShareException(ShareErrorCode.NOT_FOUND));
-        return ShareHistoryItemResponse.from(sharedMedia);
+                .orElseThrow(() -> new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND));
+        String instagramThumbnailUrl = mediaThumbnailUrlResolver.resolve(sharedMedia.thumbnailKey());
+        return ShareHistoryItemResponse.from(sharedMedia, instagramThumbnailUrl);
     }
 }

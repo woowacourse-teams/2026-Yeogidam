@@ -43,9 +43,9 @@ CREATE TABLE media
     id                 BIGINT      NOT NULL AUTO_INCREMENT,
     media_shortcode    VARCHAR(64) NOT NULL,
     caption            TEXT,
-    thumbnail_url      VARCHAR(2048),
+    thumbnail_key      VARCHAR(255),
     author             VARCHAR(100),
-    extraction_status  VARCHAR(20) NOT NULL,
+    extraction_status       VARCHAR(20) NOT NULL,
     failure_reason     VARCHAR(40),
     extraction_version INT         NOT NULL,
     created_at         TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -57,7 +57,9 @@ CREATE TABLE media
     CONSTRAINT chk_media_source_type
         CHECK (source_type IN ('EXTRACTED', 'SEEDED')),
     CONSTRAINT chk_media_failure_reason
-        CHECK (failure_reason IN ('CONTENT_UNAVAILABLE', 'PLACE_NOT_EXTRACTED', 'PLACE_NOT_MATCHED', 'UNEXPECTED')),
+        CHECK (failure_reason IN (
+            'CONTENT_UNAVAILABLE', 'PLACE_NOT_EXTRACTED', 'PLACE_NOT_MATCHED', 'PROCESSING_FAILED', 'UNEXPECTED'
+        )),
     -- failure_reason은 extraction_status가 FAILED일 때만 들어가고, 재시도로 EXTRACTING이 되면 같은 UPDATE에서 비운다.
     CONSTRAINT chk_media_failure_reason_only_when_failed CHECK (
         (extraction_status = 'FAILED' AND failure_reason IS NOT NULL)
@@ -94,9 +96,8 @@ CREATE TABLE places
     longitude             DECIMAL(13, 10) NOT NULL,
     kakao_place_url       VARCHAR(512),
     telephone             VARCHAR(30),
-    thumbnail_url         VARCHAR(2048),
+    thumbnail_key         VARCHAR(255),
     thumbnail_source      VARCHAR(30),
-    thumbnail_attribution VARCHAR(2048),
     created_at            TIMESTAMP(6)    NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     CONSTRAINT uk_places_kakao_place_id UNIQUE (kakao_place_id)

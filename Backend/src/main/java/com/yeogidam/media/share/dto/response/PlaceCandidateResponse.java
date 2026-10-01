@@ -10,10 +10,13 @@ public record PlaceCandidateResponse(
         String landLotAddress,
         String roadAddress
 ) {
-    public static PlaceCandidateResponse from(PlaceCandidateProjection projection) {
+    public static PlaceCandidateResponse from(
+            PlaceCandidateProjection projection,
+            String placeThumbnailUrl
+    ) {
         return new PlaceCandidateResponse(
                 projection.placeId(),
-                projection.thumbnailUrl(),
+                placeThumbnailUrl,
                 projection.name(),
                 projection.category(),
                 projection.landLotAddress(),

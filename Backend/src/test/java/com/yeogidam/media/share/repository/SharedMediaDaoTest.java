@@ -32,7 +32,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         insertMediaWithStatus(
                 1L,
                 "성수동 카페 모음",
-                "https://img.example.com/media.jpg",
+                "media.jpg",
                 "@seongsu",
                 "SUCCEEDED",
                 null
@@ -46,7 +46,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         // then
         assertAll(
                 () -> assertThat(result.sharedMediaId()).isEqualTo(1L),
-                () -> assertThat(result.thumbnailUrl()).isEqualTo("https://img.example.com/media.jpg"),
+                () -> assertThat(result.thumbnailKey()).isEqualTo("media.jpg"),
                 () -> assertThat(result.caption()).isEqualTo("성수동 카페 모음"),
                 () -> assertThat(result.author()).isEqualTo("@seongsu"),
                 () -> assertThat(result.extractionStatus()).isEqualTo("SUCCEEDED"),
@@ -71,7 +71,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
         // then
         assertAll(
-                () -> assertThat(result.thumbnailUrl()).isNull(),
+                () -> assertThat(result.thumbnailKey()).isNull(),
                 () -> assertThat(result.caption()).isNull(),
                 () -> assertThat(result.author()).isNull(),
                 () -> assertThat(result.extractionStatus()).isEqualTo("FAILED"),
@@ -86,7 +86,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "share-dao-owner@example.com", "https://img.example.com/share-dao-owner");
         insertKakaoMember(jdbcTemplate, 4L, "share-dao-other", "share-dao-other",
                 "share-dao-other@example.com", "https://img.example.com/share-dao-other");
-        insertMedia(jdbcTemplate, 3L, "게시글", "https://img.example.com/media.jpg", "@author");
+        insertMedia(jdbcTemplate, 3L, "게시글", "media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 3L, 3L, 3L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
@@ -106,7 +106,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "shared-media-owner@example.com", "https://img.example.com/shared-media-owner");
         insertKakaoMember(jdbcTemplate, 8L, "shared-media-other", "shared-media-other",
                 "shared-media-other@example.com", "https://img.example.com/shared-media-other");
-        insertMedia(jdbcTemplate, 7L, "게시글", "https://img.example.com/media.jpg", "@author");
+        insertMedia(jdbcTemplate, 7L, "게시글", "media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 7L, 7L, 7L,
                 Instant.parse("2026-09-17T10:00:00Z"));
 
@@ -126,9 +126,9 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         insertKakaoMember(jdbcTemplate, 6L, "share-dao-list-other", "share-dao-list-other",
                 "share-dao-list-other@example.com", "https://img.example.com/share-dao-list-other");
 
-        insertMedia(jdbcTemplate, 4L, "성공 게시글", "https://img.example.com/succeeded.jpg", "@succeeded");
+        insertMedia(jdbcTemplate, 4L, "성공 게시글", "succeeded.jpg", "@succeeded");
         insertMediaWithStatus(5L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        insertMedia(jdbcTemplate, 6L, "다른 회원 게시글", "https://img.example.com/other.jpg", "@other");
+        insertMedia(jdbcTemplate, 6L, "다른 회원 게시글", "other.jpg", "@other");
 
         insertSharedMedia(jdbcTemplate, 4L, 5L, 4L,
                 Instant.parse("2026-09-17T10:00:00Z"));
@@ -148,15 +148,14 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         ShareHistoryProjection failed = shares.getFirst();
         ShareHistoryProjection succeeded = shares.getLast();
         assertAll(
-                () -> assertThat(failed.thumbnailUrl()).isNull(),
+                () -> assertThat(failed.thumbnailKey()).isNull(),
                 () -> assertThat(failed.caption()).isNull(),
                 () -> assertThat(failed.author()).isNull(),
                 () -> assertThat(failed.extractionStatus()).isEqualTo("FAILED"),
                 () -> assertThat(failed.failureReason()).isEqualTo("CONTENT_UNAVAILABLE"),
                 () -> assertThat(failed.sharedUrl())
                         .isEqualTo("https://www.instagram.com/reel/fixture-5/"),
-                () -> assertThat(succeeded.thumbnailUrl())
-                        .isEqualTo("https://img.example.com/succeeded.jpg"),
+                () -> assertThat(succeeded.thumbnailKey()).isEqualTo("succeeded.jpg"),
                 () -> assertThat(succeeded.caption()).isEqualTo("성공 게시글"),
                 () -> assertThat(succeeded.author()).isEqualTo("@succeeded"),
                 () -> assertThat(succeeded.extractionStatus()).isEqualTo("SUCCEEDED"),
@@ -178,18 +177,18 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     private void insertMediaWithStatus(
             Long mediaId,
             String caption,
-            String thumbnailUrl,
+            String thumbnailKey,
             String author,
             String extractionStatus,
             String failureReason
     ) {
         jdbcTemplate.update("""
                 INSERT INTO media (
-                    id, media_shortcode, caption, thumbnail_url, author,
+                    id, media_shortcode, caption, thumbnail_key, author,
                     extraction_status, failure_reason, extraction_version, source_type
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SEEDED')
-                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailUrl, author,
+                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailKey, author,
                 extractionStatus, failureReason);
     }
 }

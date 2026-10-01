@@ -1,6 +1,9 @@
 package com.yeogidam.place.service;
 
+import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
+import com.yeogidam.place.dto.response.SavedPlaceMediaResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
+import com.yeogidam.place.dto.response.SavedPlaceResponse;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.place.exception.PlaceException;
@@ -17,9 +20,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class SavedPlaceService {
 
     private final SavedPlaceDao savedPlaceDao;
+    private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
 
     public SavedPlaceResponses readSavedPlaces(Long memberId) {
-        return SavedPlaceResponses.from(savedPlaceDao.findAllByMember(memberId));
+        List<SavedPlaceResponse> responses = savedPlaceDao.findAllByMember(memberId).stream()
+                .map(projection -> {
+                    String placeThumbnailUrl = mediaThumbnailUrlResolver.resolve(projection.thumbnailKey());
+                    return SavedPlaceResponse.from(projection, placeThumbnailUrl);
+                })
+                .toList();
+        return SavedPlaceResponses.fromResponses(responses);
     }
 
     /**
@@ -30,7 +40,14 @@ public class SavedPlaceService {
             throw new PlaceException(PlaceErrorCode.SAVED_PLACE_NOT_FOUND);
         }
         SavedPlaceMediaProjections shares = savedPlaceDao.findMediaBySavedPlace(savedPlaceId);
-        return SavedPlaceMediaResponses.from(shares.latestPerMedia());
+        List<SavedPlaceMediaResponse> responses = shares.latestPerMedia()
+                .stream()
+                .map(projection -> {
+                    String instagramThumbnailUrl = mediaThumbnailUrlResolver.resolve(projection.thumbnailKey());
+                    return SavedPlaceMediaResponse.from(projection, instagramThumbnailUrl);
+                })
+                .toList();
+        return SavedPlaceMediaResponses.from(responses);
     }
 
     /**

@@ -4,7 +4,7 @@ public record PlaceCandidateProjection(
         Long sharedMediaId,
         Long candidateId,
         Long placeId,
-        String thumbnailUrl,
+        String thumbnailKey,
         String name,
         String category,
         String landLotAddress,
