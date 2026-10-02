@@ -2,7 +2,7 @@
 
 스프린트 1 요구사항 「운영 관찰과 대응」을 CloudWatch로 채운다. 서버가 무엇을 어디로 보내는지, 서버와 콘솔에서 각각 무엇을 해야 하는지, 알람이 울리면 무엇을 남기는지 적는다. 서버 쪽 스크립트와 설정은 저장소에 있고, 콘솔에서 만드는 것(지표 필터, 알람, 대시보드, SNS, Lambda)은 사람이 손으로 만든다. 콘솔 절차를 여기에 적는 이유는 우테코 공용 계정이라 IaC 도구를 붙일 권한이 없고, 누가 어떤 이름으로 무엇을 만들었는지 저장소에 남겨야 다음 사람이 같은 것을 또 만들지 않기 때문이다.
 
-마지막 갱신 2026-10-01.
+마지막 갱신 2026-10-02.
 
 ## 무엇을 어디로 보내는가
 
@@ -12,6 +12,8 @@
 | nginx access, error | CloudWatch 에이전트 (`Infra/cloudwatch/agent-app.json.template`) | `/yeogidam/<env>/nginx` | `access`, `error` |
 | MySQL slow, error (dev만) | CloudWatch 에이전트 (`Infra/cloudwatch/agent-db.json.template`) | `/yeogidam/dev/mysql` | `slow`, `error` |
 | 메모리, 디스크 사용률 (서버 3대) | CloudWatch 에이전트 | `Yeogidam/<env>` | `mem_used_percent`(차원 `InstanceId`), `disk_used_percent`(차원 `InstanceId`, `path`, `fstype`) |
+| RDS error, slowquery (prod) | RDS 로그 내보내기 (인스턴스 설정, 2026-10-02) | `/aws/rds/instance/yeogidam-prod-db/error`, `/aws/rds/instance/yeogidam-prod-db/slowquery` | `yeogidam-prod-db` |
+| RDS CPU, 연결 수, 남은 저장 공간, 남은 메모리 | RDS 기본 지표 (무료, 1분) | `AWS/RDS` | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `FreeableMemory` (차원 `DBInstanceIdentifier`) |
 
 `<env>`는 `dev` 또는 `prod`다. 앱은 `SPRING_PROFILES_ACTIVE`의 프로필 이름이, 에이전트는 부트스트랩 스크립트에 넘기는 `ENV_NAME`이 이 자리에 들어간다. 두 이름이 같아서 `deploy.sh`는 환경 변수를 따로 받지 않고 검증을 마친 `EXPECTED_SPRING_PROFILE`로 그룹 이름을 만든다. 변수를 하나 더 두면 두 값이 어긋났을 때 로그가 엉뚱한 환경의 그룹으로 간다.
 
@@ -51,12 +53,14 @@ fields @timestamp, level, message, httpMethod, path, status, durationMs
 | 종류 | 이름 | 비고 |
 | --- | --- | --- |
 | 로그 그룹 | `/yeogidam/dev/backend`, `/yeogidam/dev/nginx`, `/yeogidam/dev/mysql`, `/yeogidam/prod/backend`, `/yeogidam/prod/nginx` | 2026-10-01 콘솔에서 만듦, 보존 1개월 |
+| 로그 그룹 | `/aws/rds/instance/yeogidam-prod-db/error`, `/aws/rds/instance/yeogidam-prod-db/slowquery` | 2026-10-02 RDS를 만들기 전에 콘솔에서 태그와 함께 만듦, 보존 1개월. RDS가 스스로 만들면 태그가 없다 |
+| RDS 파라미터 그룹 | `yeogidam-prod-mysql84` | mysql8.4 패밀리. `slow_query_log=1`, `long_query_time=0.5`. 2026-10-02 |
 | 지표 네임스페이스 | `Yeogidam/dev`, `Yeogidam/prod` | 에이전트와 지표 필터가 쓴다. 네임스페이스는 리소스가 아니라 따로 만들지 않는다 |
 | 지표 필터가 만드는 지표 | `Nginx5xx`, `AppError` | 환경마다 하나씩 |
-| 알람 | dev: `yeogidam-dev-nginx-5xx`, `yeogidam-dev-app-error`, `yeogidam-dev-disk-app`, `yeogidam-dev-disk-db`. prod: `yeogidam-prod-nginx-5xx`, `yeogidam-prod-app-error`, `yeogidam-prod-disk` | 7개. dev 4개는 2026-10-01 만듦. 디스크는 서버마다 하나씩이라 dev가 둘이다 |
+| 알람 | dev: `yeogidam-dev-nginx-5xx`, `yeogidam-dev-app-error`, `yeogidam-dev-disk-app`, `yeogidam-dev-disk-db`. prod: `yeogidam-prod-nginx-5xx`, `yeogidam-prod-app-error`, `yeogidam-prod-disk`, `yeogidam-prod-rds-storage` | 8개. 일곱 개는 2026-10-01, RDS 저장 공간은 2026-10-02 만듦. 디스크는 서버마다 하나씩이라 dev가 둘이다 |
 | SNS 토픽 | `yeogidam-alerts` | 표준 토픽 하나를 두 환경이 같이 쓴다. 2026-10-01 만들고 팀 메일 1건 구독 |
 | Lambda | `yeogidam-alerts-to-discord` | Python 3.13, 실행 역할 `techcourse-lambda-execution-role`. 2026-10-01 등록, Discord 도착 확인 |
-| 대시보드 | `yeogidam-observability` | 하나에 두 환경을 담는다. 2026-10-01 dev 위젯 6개로 만듦 |
+| 대시보드 | `yeogidam-observability` | 하나에 두 환경을 담는다. 2026-10-01 dev 위젯 6개로 만들고 같은 날 prod 줄을 더함. 2026-10-02 RDS 위젯 3개를 더해 9개 |
 
 ## 서버 절차
 
@@ -128,7 +132,7 @@ nginx 패턴은 `nginx.conf.template`의 `log_format main`을 공백으로 나�
 
 ### 2. 알람
 
-CloudWatch > 알람 > 알람 생성. 로그 지표 둘은 환경마다 하나씩이고, 디스크는 서버마다 하나씩이라 dev 4개, prod 3개로 모두 일곱 개다. dev 4개는 2026-10-01에 만들었다.
+CloudWatch > 알람 > 알람 생성. 로그 지표 둘은 환경마다 하나씩이고, 디스크는 서버마다 하나씩이라 dev 4개, prod 3개이며, 여기에 RDS 저장 공간 하나를 더해 모두 여덟 개다. 일곱 개는 2026-10-01에, RDS 것은 2026-10-02에 만들었다.
 
 | 알람 | 지표 | 통계 | 기간 | 조건 |
 | --- | --- | --- | --- | --- |
@@ -137,8 +141,9 @@ CloudWatch > 알람 > 알람 생성. 로그 지표 둘은 환경마다 하나씩
 | `yeogidam-dev-disk-app` | `Yeogidam/dev` `disk_used_percent`, InstanceId = 앱 서버 | Maximum | 5분 | 85 이상 |
 | `yeogidam-dev-disk-db` | `Yeogidam/dev` `disk_used_percent`, InstanceId = DB 서버 | Maximum | 5분 | 85 이상 |
 | `yeogidam-prod-disk` | `Yeogidam/prod` `disk_used_percent`, InstanceId = 운영 앱 서버 | Maximum | 5분 | 85 이상 |
+| `yeogidam-prod-rds-storage` | `AWS/RDS` `FreeStorageSpace`, DBInstanceIdentifier = `yeogidam-prod-db` | Minimum | 5분 | 2GiB(2147483648 바이트) 미만 |
 
-통계를 가르는 기준은 지표의 성질이다. `Nginx5xx`와 `AppError`는 줄마다 1을 찍는 건수 지표라 Sum이어야 5분 안의 건수가 되고(Average면 언제나 1이라 알람에 안 걸린다), `disk_used_percent`는 비율이라 Maximum으로 5분 안의 최고치를 본다.
+통계를 가르는 기준은 지표의 성질이다. `Nginx5xx`와 `AppError`는 줄마다 1을 찍는 건수 지표라 Sum이어야 5분 안의 건수가 되고(Average면 언제나 1이라 알람에 안 걸린다), `disk_used_percent`는 비율이라 Maximum으로 5분 안의 최고치를 본다. `FreeStorageSpace`는 남은 양이라 Minimum으로 5분 안의 최저치를 보고, 단위가 바이트라 임계값도 바이트로 적는다. RDS는 저장 공간 자동 확장을 꺼 두어 차면 쓰기가 멈추므로 이 알람이 유일한 안전망이다.
 
 공통으로 다음과 같이 둔다.
 
@@ -151,16 +156,19 @@ CloudWatch > 알람 > 알람 생성. 로그 지표 둘은 환경마다 하나씩
 
 ### 3. 대시보드
 
-CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 위젯을 둔다. 대시보드는 개당 월 3달러라 환경별로 나누지 않는다. 2026-10-01에 dev 기준으로 여섯 개를 만들었고, 운영이 올라오면 같은 위젯에 `Yeogidam/prod` 지표와 prod 알람과 prod 로그 그룹을 더한다.
+CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 위젯을 둔다. 대시보드는 개당 월 3달러라 환경별로 나누지 않는다. 2026-10-01에 dev 기준으로 여섯 개를 만들고 같은 날 운영이 올라와 같은 위젯에 `Yeogidam/prod` 지표와 prod 알람과 prod 로그 그룹을 더했다. 2026-10-02에 RDS 위젯 세 개를 더해 아홉 개다.
 
 | 위젯 | 종류 | 내용 |
 | --- | --- | --- |
-| 메모리 사용률 | 선 그래프 | `Yeogidam/dev`의 `mem_used_percent`, `InstanceId`별로 두 줄(앱, DB). prod가 생기면 한 줄 더 |
+| 메모리 사용률 | 선 그래프 | `Yeogidam/dev`와 `Yeogidam/prod`의 `mem_used_percent`, `InstanceId`별로 세 줄(개발 앱, 개발 DB, 운영 앱) |
 | 디스크 사용률 | 선 그래프 | 같은 방식으로 `disk_used_percent`. 85에 수평 주석선을 두면 알람선이 보인다 |
-| nginx 5xx 건수 | 선 그래프 | `Nginx5xx` Sum, 기간 5분 |
-| 앱 ERROR 건수 | 선 그래프 | `AppError` Sum, 기간 5분 |
-| 알람 상태 | 알람 상태 위젯 | dev 알람 네 개. prod 알람은 만든 뒤 위젯 편집으로 더한다 |
-| 최근 앱 ERROR | 로그 테이블 | `/yeogidam/dev/backend`, `fields @timestamp, message, path, status, requestId \| filter level = "ERROR" \| sort @timestamp desc \| limit 20`. ERROR가 없으면 「No data found」가 정상이다 |
+| nginx 5xx 건수 | 선 그래프 | 두 환경의 `Nginx5xx` Sum, 기간 5분 |
+| 앱 ERROR 건수 | 선 그래프 | 두 환경의 `AppError` Sum, 기간 5분 |
+| 알람 상태 | 알람 상태 위젯 | 알람 여덟 개 전부 |
+| 최근 앱 ERROR | 로그 테이블 | `/yeogidam/dev/backend`와 `/yeogidam/prod/backend`, `fields @timestamp, @log, message, path, status, requestId \| filter level = "ERROR" \| sort @timestamp desc \| limit 20`. ERROR가 없으면 「No data found」가 정상이다 |
+| RDS CPU와 연결 수 | 선 그래프 | `AWS/RDS` `CPUUtilization`(Average, 1분)과 `DatabaseConnections`(Maximum, 1분, 오른쪽 축). 단위가 달라 축을 나눈다 |
+| RDS 남은 저장 공간과 메모리 | 선 그래프 | `FreeStorageSpace`와 `FreeableMemory`(Minimum, 5분). 둘 다 바이트라 한 축 |
+| RDS 느린 쿼리 | 로그 테이블 | `/aws/rds/instance/yeogidam-prod-db/slowquery`, `fields @timestamp, @message \| sort @timestamp desc \| limit 20`. 0.5초를 넘긴 쿼리가 SQL 원문째 보인다. 부하 시험 때 병목 쿼리를 여기서 찾는다 |
 
 저장은 오른쪽 위 「Save dashboard」를 눌러야 되고, 부하 시험 때는 시간 범위 1h에 자동 새로고침 1분으로 두고 본다.
 
@@ -174,7 +182,7 @@ CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 
 
 ### 5. 태그를 한 번에 단다
 
-Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소스 유형에 `CloudWatch::Alarm`, `SNS::Topic`, `Lambda::Function`, `Logs::LogGroup`을 고르고 검색한 뒤, 이름이 `yeogidam`으로 시작하는 것을 모두 선택해 「선택한 리소스의 태그 관리」에서 세 태그를 한 번에 단다. 만들 때 하나씩 달아도 되지만 빠뜨린 것이 없는지 마지막에 여기서 한 번 훑는 편이 안전하다. 대시보드와 지표 필터는 태그 항목이 없다. 2026-10-01에 dev 리소스 11개(알람 4, 토픽 1, Lambda 1, 로그 그룹 5)에 달았고, `ProjectTeam = yeogidam`으로 다시 검색해 11개가 나오는 것을 확인했다.
+Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소스 유형에 `CloudWatch::Alarm`, `SNS::Topic`, `Lambda::Function`, `Logs::LogGroup`을 고르고 검색한 뒤, 이름이 `yeogidam`으로 시작하는 것을 모두 선택해 「선택한 리소스의 태그 관리」에서 세 태그를 한 번에 단다. 만들 때 하나씩 달아도 되지만 빠뜨린 것이 없는지 마지막에 여기서 한 번 훑는 편이 안전하다. 대시보드와 지표 필터는 태그 항목이 없다. 2026-10-01에 dev 리소스 11개(알람 4, 토픽 1, Lambda 1, 로그 그룹 5)에 달았고, `ProjectTeam = yeogidam`으로 다시 검색해 11개가 나오는 것을 확인했다. 같은 날 저녁 prod 알람 3개까지 14개가 됐다. 2026-10-02 RDS 쪽은 인스턴스와 파라미터 그룹과 로그 그룹 2개는 만들 때 달았고 알람 `yeogidam-prod-rds-storage`만 Tag Editor로 달았다. Lambda가 첫 실행 때 스스로 만드는 `/aws/lambda/yeogidam-alerts-to-discord` 로그 그룹은 태그 없이 생기므로 `AWS::Logs::LogGroup`으로 검색해 태그가 있는지 보고 없으면 단다. 팀이 만든 리소스 전체 목록은 [current-state.md](current-state.md) 「AWS 리소스 목록」에 있다.
 
 ## 알아 둘 제약
 
@@ -182,7 +190,7 @@ Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소�
 - **에이전트가 보내는 로그의 이벤트 시각은 줄을 읽은 시각이다.** 템플릿의 `collect_list`에 `timestamp_format`을 주지 않았으므로 nginx와 MySQL 로그의 `@timestamp`는 로그 줄에 적힌 시각이 아니라 에이전트가 읽은 시각이다(`timezone` 키는 `timestamp_format`이 있을 때만 뜻이 있어 넣지 않았다). 실시간으로는 몇 초 차이라 상관없지만, 에이전트가 멈췄다가 밀린 줄을 한꺼번에 올리면 그 줄들이 전부 올린 시각으로 찍히므로 requestId로 시간순 대조할 때는 줄 안의 시각을 같이 본다. 앱 로그도 도커가 줄을 받은 시각이 실리므로 두 쪽 기준이 같다.
 - **개발 DB의 `docker logs`에 MySQL 에러가 더 이상 안 나온다.** `observability.cnf`가 `log_error`를 파일로 돌렸기 때문이다. 서버에서 볼 때는 `/var/lib/docker/volumes/yeogidam-mysql-data/_data/error.log`를, 콘솔에서는 `/yeogidam/dev/mysql`의 `error` 스트림을 본다. 설정이 틀려 mysqld가 못 뜰 때도 이유는 이 파일에 남는다.
 - **보존 기간은 콘솔에서 바꾼다.** 지금은 다섯 그룹 모두 1개월이다. 출시 뒤 `prod` 두 그룹은 3개월로 늘린다. 템플릿에 `retention_in_days`가 없으므로 콘솔 값이 그대로 남는다.
-- **운영 DB 로그는 RDS가 대신한다.** `/yeogidam/prod/mysql` 그룹을 만들지 않았고 `bootstrap-db-host.sh`는 개발 서버 전용이다. RDS를 만들 때 「로그 내보내기」에서 error와 slowquery를 켜고, 파라미터 그룹에 `slow_query_log=1`, `long_query_time=0.5`를 준다. RDS는 `/aws/rds/instance/<DB 식별자>/error`, `/aws/rds/instance/<DB 식별자>/slowquery` 이름으로 그룹을 스스로 만들며 태그를 달지 않으므로, 그 이름으로 그룹을 태그와 함께 먼저 만들어 두거나 만들어진 직후 태그를 단다.
+- **운영 DB 로그는 RDS 로그 내보내기가 보낸다(2026-10-02).** `/yeogidam/prod/mysql` 그룹은 없고 `bootstrap-db-host.sh`는 개발 서버 전용이다. RDS `yeogidam-prod-db`는 파라미터 그룹 `yeogidam-prod-mysql84`(`slow_query_log=1`, `long_query_time=0.5`)로 개발 DB와 같은 기준이고, 로그 내보내기는 error와 slowquery만 켰다. general은 들어온 쿼리를 전부 남겨 부하 시험 때 요금이 바로 늘고, audit는 옵션 그룹에 플러그인을 더 넣어야 하는데 감사 요건이 없다. 그룹은 `/aws/rds/instance/yeogidam-prod-db/error`와 `/slowquery`이고 RDS가 스스로 만들면 태그가 없어 지워지므로 인스턴스보다 먼저 콘솔에서 태그와 함께 만들었다. 스트림 이름은 `yeogidam-prod-db`다. 느린 쿼리 경로는 앱 서버에서 `SELECT SLEEP(1)`을 보내 slowquery 그룹에 그 문장이 오는 것으로 확인했다. Performance Insights는 micro 클래스에서 지원되지 않고 Enhanced Monitoring은 IAM 역할(`rds-monitoring-role`)을 만들 수 없어 켤 수 없다. RDS 기본 지표(`AWS/RDS`)는 1분 간격으로 무료라 대시보드와 알람에 그대로 쓴다.
 - **`awslogs` 드라이버는 기본 blocking 모드다.** CloudWatch API가 오래 멈추면 앱의 stdout 쓰기가 막힐 수 있다. 같은 리전이고 IAM 역할로 붙으므로 우선 그대로 두고, 응답이 이유 없이 느려지는 일이 보이면 `--log-opt mode=non-blocking`을 검토한다.
 - **`awslogs` 드라이버가 실패하면 배포가 롤백된다.** 그룹이 없거나 역할에 권한이 없으면 `docker run`이 컨테이너를 만들지 못하고, 그때는 이미 기존 컨테이너를 rename한 뒤라 `deploy.sh`의 롤백 경로를 타서 배포 실패로 기록된다. 그룹 이름을 바꿀 때는 콘솔에 새 그룹을 먼저 만든다.
 
@@ -191,9 +199,9 @@ Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소�
 | 항목 | 단가 | 이 구성 |
 | --- | --- | --- |
 | 대시보드 | 개당 월 3달러 | 1개, 3달러 |
-| 커스텀 지표 | 개당 월 0.3달러 | 에이전트 서버 3대 × 2개와 지표 필터 4개로 10개, 3달러 |
-| 알람 | 개당 월 0.1달러 | 7개, 0.7달러 |
-| 로그 수집 | GB당 0.76달러 | 월 1GB 안팎, 0.76달러 |
+| 커스텀 지표 | 개당 월 0.3달러 | 에이전트 서버 3대 × 2개와 지표 필터 4개로 10개, 3달러. RDS 기본 지표(`AWS/RDS`)는 무료라 세지 않는다 |
+| 알람 | 개당 월 0.1달러 | 8개, 0.8달러 |
+| 로그 수집 | GB당 0.76달러 | 월 1GB 안팎, 0.76달러. RDS error와 slowquery는 양이 적다 |
 
 합쳐서 월 7달러 안팎이다. 지표와 알람을 하나 더할 때마다 각각 0.3달러와 0.1달러가 붙으므로, 보고 싶은 것이 생기면 지표를 새로 보내기보다 있는 로그를 Logs Insights로 조회하는 쪽을 먼저 본다. 조회는 스캔한 데이터 GB당 과금이라 이 로그 양에서는 무시할 만하다.
 
