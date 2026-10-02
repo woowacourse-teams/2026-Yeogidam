@@ -39,6 +39,11 @@ jest.mock('react-native-config', () => ({
   },
 }));
 
+jest.mock('@sentry/react-native', () => ({
+  init: jest.fn(),
+  wrap: component => component,
+}));
+
 jest.mock('react-native-device-info', () =>
   require('react-native-device-info/jest/react-native-device-info-mock'),
 );
