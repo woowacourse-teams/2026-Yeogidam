@@ -202,24 +202,24 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 
 ## AWS 리소스 목록
 
-우테코 공용 계정(서울 리전)에 팀이 만든 것이다. 모두 태그 `Service=techcourse`, `Role=techcourse-etc`, `ProjectTeam=yeogidam`가 있어야 하고, 태그 칸이 없는 종류는 비고에 적었다. 삭제 권한이 없으므로 이름을 바꾸거나 지우려면 관리자에게 부탁한다. IP와 도메인은 공개 저장소 규칙에 따라 적지 않는다.
+우테코 공용 계정(서울 리전)에 팀이 만든 것이다. 모두 태그 `Service=techcourse`, `Role=techcourse-etc`, `ProjectTeam=yeogidam`가 있어야 하고, 2026-10-02에 전부 확인했다. 태그 칸이 없는 종류는 비고에 적었다. 리소스를 만들거나 지우면 이 표와 팀 노션 Infra 페이지의 같은 표를 함께 고친다. 삭제 권한이 없으므로 이름을 바꾸거나 지우려면 관리자에게 부탁한다. IP와 도메인은 공개 저장소 규칙에 따라 적지 않는다.
 
 | 종류 | 이름 | 만든 날 | 비고 |
 | --- | --- | --- | --- |
 | EC2 | `yeogidam-prod` | 2026-08 | t4g.micro, 운영 앱, EIP |
 | EC2 | `yeogidam-dev` | 2026-09-29 | t4g.micro, 개발 앱, EIP |
 | EC2 | `yeogidam-dev-db` | 2026-09-29 | t4g.micro, 개발 DB, 공인 IP 없음 |
-| EBS | 위 세 대의 루트 볼륨 | 인스턴스와 같이 | 8GB, 8GB, 15GB. 인스턴스와 별개 리소스라 볼륨에도 태그가 있는지 본다 |
-| EIP | 운영, 개발 각 1개 | 인스턴스와 같이 | 태그 칸이 있다 |
-| 키 페어 | 서버 접속용 | 인스턴스와 같이 | 태그 칸이 있다 |
+| EBS | 위 세 대의 루트 볼륨 | 인스턴스와 같이 | 8GB, 8GB, 15GB. 인스턴스와 별개 리소스라 볼륨에도 태그를 달았다(2026-10-02 확인) |
+| EIP | 운영, 개발 각 1개 | 인스턴스와 같이 | 태그 있음(2026-10-02 확인) |
+| 키 페어 | 서버 접속용 | 인스턴스와 같이 | 태그 있음(2026-10-02 확인) |
 | RDS 인스턴스 | `yeogidam-prod-db` | 2026-10-02 | db.t4g.micro, gp3 20GB. 자동 백업과 스냅샷에 태그 복사 |
 | RDS 파라미터 그룹 | `yeogidam-prod-mysql84` | 2026-10-02 | mysql8.4 패밀리 |
 | 로그 그룹 | `/yeogidam/dev/backend`, `/yeogidam/dev/nginx`, `/yeogidam/dev/mysql`, `/yeogidam/prod/backend`, `/yeogidam/prod/nginx` | 2026-10-01 | 보존 1개월 |
 | 로그 그룹 | `/aws/rds/instance/yeogidam-prod-db/error`, `/aws/rds/instance/yeogidam-prod-db/slowquery` | 2026-10-02 | 보존 1개월. RDS보다 먼저 태그와 함께 만들었다 |
-| 로그 그룹 | `/aws/lambda/yeogidam-alerts-to-discord` | Lambda 첫 실행 때 자동 | **Lambda가 태그 없이 만든다.** 태그가 있는지 확인하고 없으면 단다 |
+| 로그 그룹 | `/aws/lambda/yeogidam-alerts-to-discord` | Lambda 첫 실행 때 자동 | Lambda가 태그 없이 만든 것이라 2026-10-02에 태그를 달았다 |
 | 지표 필터 | `nginx-5xx`, `app-error` × dev, prod | 2026-10-01 | 태그 칸 없음. 로그 그룹에 속한다 |
 | 알람 | `yeogidam-dev-nginx-5xx`, `yeogidam-dev-app-error`, `yeogidam-dev-disk-app`, `yeogidam-dev-disk-db`, `yeogidam-prod-nginx-5xx`, `yeogidam-prod-app-error`, `yeogidam-prod-disk` | 2026-10-01 | Tag Editor로 태그 |
-| 알람 | `yeogidam-prod-rds-storage` | 2026-10-02 | Tag Editor로 태그 |
+| 알람 | `yeogidam-prod-rds-storage` | 2026-10-02 | Tag Editor로 태그(2026-10-02 확인) |
 | 대시보드 | `yeogidam-observability` | 2026-10-01 | 태그 칸 없음. 이름에 팀 이름이 들어가면 된다 |
 | SNS 토픽 | `yeogidam-alerts` | 2026-10-01 | 구독 2건(메일, Lambda)은 토픽에 속한다 |
 | Lambda | `yeogidam-alerts-to-discord` | 2026-10-01 | Python 3.13, 실행 역할 `techcourse-lambda-execution-role` |
@@ -230,7 +230,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고, 같은 날
 
 급한 순서다.
 
-1. **관측에서 남은 것.** 스프린트 1 조건(로그 보존, 대시보드 지표, 팀에 닿는 알림, 두 환경, 사고 기록 1건)은 2026-10-01에 찼고 운영 RDS도 2026-10-02에 관측 범위에 들어왔다. 이름과 절차는 [observability.md](observability.md), 사고 기록은 [incidents/](incidents/)에 있다. 남은 것은 출시 뒤 `prod` 로그 그룹 보존을 3개월로 늘리기, 개발 알람이 운영 알람을 묻으면 Discord 채널과 SNS 토픽을 환경별로 나누기, 5xx 알람을 건수에서 비율로 바꾸기, 밖에서 443을 찔러 보는 외부 헬스 체크, 그리고 Lambda가 스스로 만든 로그 그룹 `/aws/lambda/yeogidam-alerts-to-discord`에 태그가 있는지 확인하는 일이다.
+1. **관측에서 남은 것.** 스프린트 1 조건(로그 보존, 대시보드 지표, 팀에 닿는 알림, 두 환경, 사고 기록 1건)은 2026-10-01에 찼고 운영 RDS도 2026-10-02에 관측 범위에 들어왔다. 이름과 절차는 [observability.md](observability.md), 사고 기록은 [incidents/](incidents/)에 있다. 남은 것은 출시 뒤 `prod` 로그 그룹 보존을 3개월로 늘리기, 개발 알람이 운영 알람을 묻으면 Discord 채널과 SNS 토픽을 환경별로 나누기, 5xx 알람을 건수에서 비율로 바꾸기, 밖에서 443을 찔러 보는 외부 헬스 체크다.
 2. **배포 Job에 `environment:`가 없다.** Production 승인 관문이 ADR-02의 결정인데 빠졌다. 환경별로 다른 변수를 주려면 이것이 먼저 있어야 한다. 지금은 저장소 변수 하나를 개발과 운영이 같이 쓴다.
 3. **외부 Action이 태그로 고정되어 있다.** ADR-02는 commit SHA 고정을 요구한다.
 4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔다(2026-09-29). verify와 deploy 잡은 아직 워크플로 레벨을 따른다.

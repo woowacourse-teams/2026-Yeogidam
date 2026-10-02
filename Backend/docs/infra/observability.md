@@ -182,7 +182,7 @@ CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 
 
 ### 5. 태그를 한 번에 단다
 
-Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소스 유형에 `CloudWatch::Alarm`, `SNS::Topic`, `Lambda::Function`, `Logs::LogGroup`을 고르고 검색한 뒤, 이름이 `yeogidam`으로 시작하는 것을 모두 선택해 「선택한 리소스의 태그 관리」에서 세 태그를 한 번에 단다. 만들 때 하나씩 달아도 되지만 빠뜨린 것이 없는지 마지막에 여기서 한 번 훑는 편이 안전하다. 대시보드와 지표 필터는 태그 항목이 없다. 2026-10-01에 dev 리소스 11개(알람 4, 토픽 1, Lambda 1, 로그 그룹 5)에 달았고, `ProjectTeam = yeogidam`으로 다시 검색해 11개가 나오는 것을 확인했다. 같은 날 저녁 prod 알람 3개까지 14개가 됐다. 2026-10-02 RDS 쪽은 인스턴스와 파라미터 그룹과 로그 그룹 2개는 만들 때 달았고 알람 `yeogidam-prod-rds-storage`만 Tag Editor로 달았다. Lambda가 첫 실행 때 스스로 만드는 `/aws/lambda/yeogidam-alerts-to-discord` 로그 그룹은 태그 없이 생기므로 `AWS::Logs::LogGroup`으로 검색해 태그가 있는지 보고 없으면 단다. 팀이 만든 리소스 전체 목록은 [current-state.md](current-state.md) 「AWS 리소스 목록」에 있다.
+Resource Groups & Tag Editor > Tag Editor에서 리전 `ap-northeast-2`, 리소스 유형에 `CloudWatch::Alarm`, `SNS::Topic`, `Lambda::Function`, `Logs::LogGroup`을 고르고 검색한 뒤, 이름이 `yeogidam`으로 시작하는 것을 모두 선택해 「선택한 리소스의 태그 관리」에서 세 태그를 한 번에 단다. 만들 때 하나씩 달아도 되지만 빠뜨린 것이 없는지 마지막에 여기서 한 번 훑는 편이 안전하다. 대시보드와 지표 필터는 태그 항목이 없다. 2026-10-01에 dev 리소스 11개(알람 4, 토픽 1, Lambda 1, 로그 그룹 5)에 달았고, `ProjectTeam = yeogidam`으로 다시 검색해 11개가 나오는 것을 확인했다. 같은 날 저녁 prod 알람 3개까지 14개가 됐다. 2026-10-02 RDS 쪽은 인스턴스와 파라미터 그룹과 로그 그룹 2개는 만들 때 달았고 알람 `yeogidam-prod-rds-storage`만 Tag Editor로 달았다. Lambda가 첫 실행 때 스스로 만드는 `/aws/lambda/yeogidam-alerts-to-discord` 로그 그룹은 태그 없이 생기므로 2026-10-02에 따로 달았다. 팀이 만든 리소스 전체 목록은 [current-state.md](current-state.md) 「AWS 리소스 목록」에 있다.
 
 ## 알아 둘 제약
 
