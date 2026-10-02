@@ -34,7 +34,7 @@
 ## 5. 재발 방지
 
 - 설정 쪽: `KAKAO_REDIRECT_URI`는 앱이 실제로 쓸 콜백 주소가 정해질 때 카카오 콘솔 등록값과 함께 다시 맞춘다. 지금 값은 스웨거 시험용이고 앱은 아직 스프링 로그인을 쓰지 않는다. 백로그는 [current-state.md](../current-state.md)에 있다.
-- 배포 쪽: env만 바꿨을 때 사람이 `docker rm -f`를 하지 않도록 `deploy.sh`가 env 파일 sha256을 컨테이너 라벨로 남기고 다음 배포에서 다르면 같은 이미지라도 교체하게, 그리고 코드 변경 없이 재배포를 부를 수 있게 `workflow_dispatch`를 더한다(#267). 급할 때 쓰는 `Infra/scripts/restart-backend.sh`도 같은 PR에 둔다.
+- 배포 쪽: env만 바꿨을 때 이날처럼 손으로 옵션을 맞춰 `docker run`을 치지 않도록, `deploy.sh`와 같은 옵션으로 `current` 이미지를 다시 띄우는 `Infra/scripts/restart-backend.sh`를 둔다. env 변경은 이 스크립트로 손배포한다. 코드 변경 없이 재배포를 부를 수 있게 `workflow_dispatch`도 더한다(#267). `deploy.sh`가 env 해시를 보고 스스로 교체하게 하는 안도 만들었지만 배포 스크립트가 복잡해져 넣지 않았다.
 - 알람 쪽: 바꾸지 않는다. 이유는 2절에 적었다.
 
 ## 같은 날의 드릴

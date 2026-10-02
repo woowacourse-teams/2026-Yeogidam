@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# 급할 때 env만 바꾸고 앱 컨테이너를 같은 이미지(current)로 다시 띄운다. 서버에서 root로 돌린다.
+# 서버의 env만 바꿨을 때 앱 컨테이너를 같은 이미지(current)로 다시 띄운다. 서버에서 root로 돌린다.
 #
 #     sudo bash /opt/yeogidam/restart-backend.sh
 #
-# 평소에는 쓰지 않는다. 배포 워크플로(gh workflow run backend-cd.yml --ref <브랜치>)가 env 해시를
-# 보고 컨테이너를 교체하면서 헬스 체크와 롤백까지 해 준다. 이 스크립트는 그 길이 막혔을 때
-# (워크플로가 안 돌거나 당장 띄워야 할 때) 쓰는 비상용이라 헬스 체크만 하고 롤백은 없다.
+# --env-file은 컨테이너를 만들 때만 읽히고, deploy.sh는 같은 이미지면 컨테이너를 그대로 두므로
+# env 변경은 배포를 다시 돌려도 반영되지 않는다. 그래서 env를 고친 뒤에는 이 스크립트로 손배포한다.
+# 헬스 체크만 하고 롤백은 없으니, 띄운 뒤 healthy가 안 되면 env 값을 되돌리고 다시 돌린다.
 #
 # 배포 워크플로가 도는 중에는 돌리지 않는다. 이 스크립트는 deploy.sh의 flock을 잡지 않아서
 # 둘이 동시에 돌면 서로의 컨테이너를 걷어낸다. Actions에서 Backend CD가 끝난 것을 보고 돌린다.
 #
 # 옵션은 Backend/scripts/deploy.sh의 start_container와 같아야 한다. 그쪽이 바뀌면 여기도 고친다.
-# env 해시 라벨을 같이 붙이므로, 다음 배포가 "env가 같다"고 알아보고 불필요하게 교체하지 않는다.
 # 메모리 상한은 backend-cd.yml의 기본값(512m / 768m)을 그대로 쓴다. repository variable로 바꾼
 # 값은 모르므로, 기본값과 다르게 운영 중이면 아래 두 줄을 맞춘다.
 
@@ -35,8 +34,7 @@ PROFILE="$(grep -E '^SPRING_PROFILES_ACTIVE=' "$ENV_FILE" | tail -n 1 | cut -d= 
 [[ "$PROFILE" =~ ^(dev|prod)$ ]] || fail "SPRING_PROFILES_ACTIVE가 dev나 prod가 아닙니다: '$PROFILE'"
 docker image inspect "$IMAGE" >/dev/null 2>&1 || fail "이미지 $IMAGE 가 없습니다. 배포가 한 번은 돌았어야 합니다."
 
-ENV_SHA="$(sha256sum "$ENV_FILE" | awk '{ print $1 }')"
-log "프로필 $PROFILE, env sha256 ${ENV_SHA:0:8}, 이미지 $(docker image inspect "$IMAGE" --format '{{.Id}}' | cut -c8-19)"
+log "프로필 $PROFILE, 이미지 $(docker image inspect "$IMAGE" --format '{{.Id}}' | cut -c8-19)"
 
 # 지난 배포가 중간에 끊겨 남은 롤백 컨테이너도 같이 치운다. 남겨 두면 다음 배포가 그것을
 # "중단된 배포 흔적"으로 보고 지금 띄우는 컨테이너를 옛것으로 되돌린 뒤 실패한다.
@@ -46,7 +44,6 @@ docker run --detach \
   --name "$NAME" \
   --restart unless-stopped \
   --env-file "$ENV_FILE" \
-  --label "yeogidam.env-sha256=${ENV_SHA}" \
   --publish 127.0.0.1:8080:8080 \
   --memory "$MEMORY_LIMIT" \
   --memory-swap "$MEMORY_SWAP_LIMIT" \

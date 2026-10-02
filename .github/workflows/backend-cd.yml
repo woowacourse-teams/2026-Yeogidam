@@ -10,8 +10,8 @@ on:
   pull_request:
     branches:
       - be-release
-  # 서버의 /opt/yeogidam/backend.env만 고쳤을 때 코드 변경 없이 지금 HEAD로 다시 배포하는 길이다.
-  # deploy.sh가 env 해시 라벨을 보고 컨테이너를 교체하므로 손으로 docker rm -f 할 일이 없어진다.
+  # 코드 변경 없이 지금 HEAD로 다시 배포하는 길이다. deploy.sh는 같은 이미지면 컨테이너를 그대로
+  # 두므로 서버 env만 바꾼 경우는 이 트리거로 반영되지 않고, Infra/scripts/restart-backend.sh로 손배포한다.
   # Re-run은 「Validate Deployment Target」이 GITHUB_SHA와 원격 브랜치 HEAD를 대조해 거부하므로
   # 그 뒤에 커밋이 하나라도 들어가면 쓸 수 없다. 입력은 두지 않고 브랜치만 골라 부른다.
   # 호출은 `gh workflow run backend-cd.yml --ref be-dev`다. 깃허브는 dispatch 가능 여부를 기본
