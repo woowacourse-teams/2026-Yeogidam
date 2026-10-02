@@ -85,6 +85,9 @@ jobs:
             'SUPABASE_PUBLISHABLE_KEY=ci-placeholder' > .env
       # Gradle wrapper로 Debug APK를 컴파일한다. 이 단계는 Play 업로드용 AAB를 만들지 않는다.
       - name: Build Android debug app
+        env:
+          SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+          SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
         run: ./gradlew :app:assembleDebug --no-daemon
         working-directory: Frontend/android
 
@@ -126,6 +129,9 @@ jobs:
       # Debug 설정을 iOS Simulator SDK로 빌드한다. 특정 시뮬레이터를 실행하지는 않는다.
       # 중간 결과물은 runner 임시 폴더에 두고, 시뮬레이터 빌드의 코드 서명은 끈다.
       - name: Build iOS debug simulator app
+        env:
+          SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+          SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
         run: |
           xcodebuild \
             -workspace ios/Frontend.xcworkspace \
