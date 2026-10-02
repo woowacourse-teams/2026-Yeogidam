@@ -67,6 +67,21 @@ import {
   getSharedSaveState,
   setSharedSaveState,
 } from './src/lib/reel-save-state';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: false,
+
+  // Enable Logs
+  enableLogs: false,
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -859,4 +874,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default Sentry.wrap(App);
