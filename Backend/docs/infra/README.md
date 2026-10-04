@@ -17,6 +17,8 @@ ADR을 읽다가 "그래서 지금은 어떤데"가 궁금하면 `current-state.
 | --- | --- | --- |
 | [current-state.md](current-state.md) | 인프라 현재 상태 | 계속 갱신 |
 | [observability.md](observability.md) | 운영 관찰과 대응 (CloudWatch 로그, 지표, 알람 절차) | 계속 갱신 |
+| [incidents/](incidents/) | 사고 기록. 파일 하나가 사고 하나이고 양식은 observability.md 「사고 기록」 절 | 사고마다 추가 |
+| [architecture.excalidraw](architecture.excalidraw) | 인프라 구조도. excalidraw.com에서 열어 본다. 도메인은 적지 않는다 | 인프라가 바뀔 때 |
 | [adr-01-docker-image-identity.md](adr-01-docker-image-identity.md) | Docker 이미지 식별 및 롤백 보존 전략 | Accepted |
 | [adr-02-cicd-execution.md](adr-02-cicd-execution.md) | CI/CD 실행 전략 | Accepted |
 | [adr-03-ec2-architecture.md](adr-03-ec2-architecture.md) | EC2 인스턴스 아키텍처와 유형 선정 | Accepted (아키텍처만. 사양 재결정 필요) |

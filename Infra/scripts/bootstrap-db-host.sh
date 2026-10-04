@@ -20,7 +20,7 @@
 # 바꿀 수 있는데, 에이전트가 읽는 로그 경로는 Infra/cloudwatch/agent-db.json.template에
 # 볼륨 이름으로 박혀 있으니 볼륨 이름이 다르면 그 파일도 고친다.
 #
-# 운영 DB는 RDS로 갈 예정이라 이 스크립트는 개발 서버 전용이고 ENV_NAME은 dev만 받는다. 앱 서버와
+# 운영 DB는 RDS(2026-10-02)라 이 스크립트는 개발 서버 전용이고 ENV_NAME은 dev만 받는다. 앱 서버와
 # 같은 규칙으로 prod까지 받게 두면 실수로 prod로 돌렸을 때 에이전트가 콘솔에 없는 /yeogidam/prod/mysql
 # 그룹을 태그 없이 만들어 버리는데, 우리는 그 그룹을 지울 권한이 없어 관리자에게 부탁해야 한다.
 # 운영 DB를 EC2에 두게 되어 prod가 필요해지면 콘솔에 그 그룹을 태그와 함께 먼저 만든 뒤 아래 case에
@@ -48,7 +48,7 @@ fail() { printf '[bootstrap-db-host] 오류: %s\n' "$*" >&2; exit 1; }
 [ -n "${ENV_NAME:-}" ] || fail "ENV_NAME이 비어 있습니다. 개발 DB 서버는 dev입니다."
 case "$ENV_NAME" in
   dev) ;;
-  *) fail "이 스크립트는 개발 DB 전용이라 ENV_NAME은 dev만 받습니다(운영 DB는 RDS로 갑니다). 지금 값은 ${ENV_NAME}입니다." ;;
+  *) fail "이 스크립트는 개발 DB 전용이라 ENV_NAME은 dev만 받습니다(운영 DB는 RDS입니다). 지금 값은 ${ENV_NAME}입니다." ;;
 esac
 [ -f "$CNF_SOURCE" ] || fail "설정 원본이 없습니다: $CNF_SOURCE"
 [ -f "$CW_TEMPLATE" ] || fail "템플릿이 없습니다: $CW_TEMPLATE"

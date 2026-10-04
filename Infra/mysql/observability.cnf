@@ -3,8 +3,8 @@
 # 바인드되어 mysqld가 시작할 때 읽는다. 서버에 반영하는 절차는 Infra/scripts/bootstrap-db-host.sh에
 # 있고, 이 파일이 바뀌었을 때만 컨테이너를 재시작한다.
 #
-# 운영 DB는 RDS로 갈 예정이라 이 파일은 개발 DB만 대상으로 한다. RDS는 파라미터 그룹으로 같은
-# 값을 준다.
+# 운영 DB는 RDS(yeogidam-prod-db, 2026-10-02)라 이 파일은 개발 DB만 대상으로 한다. RDS는 파라미터
+# 그룹 yeogidam-prod-mysql84로 같은 값을 준다.
 
 [mysqld]
 # 0.5초를 넘긴 쿼리를 문장째 남긴다. 스프린트 2 부하 테스트에서 어느 쿼리가 느린지 SQL 원문으로
