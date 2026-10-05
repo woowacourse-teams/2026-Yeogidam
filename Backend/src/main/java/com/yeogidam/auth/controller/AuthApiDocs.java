@@ -16,15 +16,24 @@ import org.springframework.http.ResponseEntity;
 public interface AuthApiDocs {
 
     @Operation(summary = "카카오 로그인",
-            description = "카카오 인가 코드로 로그인하고 토큰 쌍과 회원 정보를 돌려줍니다. 처음 로그인한 계정은 회원으로 등록합니다.")
+            description = """
+                    카카오 인가 코드로 로그인하고 토큰 쌍과 회원 정보를 돌려줍니다. 처음 로그인한 계정은 회원으로 등록합니다.
+                    제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 닉네임을 정하고, 다시 로그인해도 닉네임은 바뀌지 않습니다.
+                    """)
     ResponseEntity<LoginResponse> createKakaoLogin(LoginRequest request);
 
     @Operation(summary = "구글 로그인",
-            description = "구글 인가 코드로 로그인하고 토큰 쌍과 회원 정보를 돌려줍니다. 처음 로그인한 계정은 회원으로 등록합니다.")
+            description = """
+                    구글 인가 코드로 로그인하고 토큰 쌍과 회원 정보를 돌려줍니다. 처음 로그인한 계정은 회원으로 등록합니다.
+                    제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 닉네임을 정하고, 다시 로그인해도 닉네임은 바뀌지 않습니다.
+                    """)
     ResponseEntity<LoginResponse> createGoogleLogin(LoginRequest request);
 
     @Operation(summary = "애플 로그인",
-            description = "애플 인가 코드로 로그인하고 토큰 쌍과 회원 정보를 돌려줍니다. 처음 로그인한 계정은 회원으로 등록합니다.")
+            description = """
+                    애플 인가 코드로 로그인하고 토큰 쌍과 회원 정보를 돌려줍니다. 처음 로그인한 계정은 회원으로 등록합니다.
+                    제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 닉네임을 정하고, 다시 로그인해도 닉네임은 바뀌지 않습니다.
+                    """)
     ResponseEntity<LoginResponse> createAppleLogin(LoginRequest request);
 
     @Operation(summary = "토큰 재발급",

@@ -1,7 +1,7 @@
 package com.yeogidam.member.domain;
 
 /**
- * OAuth 계정으로 식별하는 여기담 회원. 로그인 시 최신 프로필로 갱신한다.
+ * OAuth 계정으로 식별하는 여기담 회원. 로그인할 때마다 이메일과 프로필 이미지를 제공자 값으로 갱신하고, 닉네임은 그대로 둔다.
  */
 public class Member {
 
@@ -31,7 +31,7 @@ public class Member {
 
     public void updateProfile(MemberProfile profile) {
         validate(profile, oauthAccount);
-        this.profile = profile;
+        this.profile = this.profile.updatedBy(profile);
     }
 
     public Long id() {

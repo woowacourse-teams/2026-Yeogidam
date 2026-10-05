@@ -107,11 +107,11 @@ class MemberDaoTest extends JdbcTestSupport {
     void 갱신하면_프로필_세_열이_바뀐다() {
         // given
         insertBean();
-        Member member = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();
-        member.updateProfile(profile("새이름"));
+        Member saved = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();
+        Member changed = new Member(saved.id(), profile("새이름"), saved.oauthAccount());
 
         // when
-        memberDao.update(member);
+        memberDao.update(changed);
 
         // then
         Member updated = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();
