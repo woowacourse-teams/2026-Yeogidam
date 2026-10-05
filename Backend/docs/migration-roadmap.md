@@ -36,7 +36,7 @@
 | P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl} | 202. 히스토리에 공유를 남기고 분석 성공 시 추출된 장소를 보관함에 자동 저장하고 원본 릴스와 연결 | 이식(POST /media) |
 | P-6 히스토리 B, B-1 | GET /shares?cursorCreatedAt=&cursorId= | {sharedMedias:[{sharedMediaId, createdAt, thumbnailUrl, caption, author, extractionStatus, failureReason, sharedUrl}], nextCursor:{createdAt, id} 또는 null}. 50건씩 커서로 나눠 읽는다. 커서 없이 요청하면 최근 50건을 주고 폴링도 같은 요청을 쓴다. 커서는 이번 페이지의 마지막 공유다 | 이식. 커서 페이징 적용(#277, #217 결론) |
 | P-6 성공/실패 항목 C, C-1 | GET /shares/{sharedMediaId}/places | 히스토리 목록은 공유 정보를 제공하고, 장소 목록은 `media_places`에서 별도로 읽는다. 단건 조회 GET /shares/{sharedMediaId}는 제거했다(#280) | 이식 |
-| P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 이식 |
+| P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 재시도 구현 완료(2026-10-05). 신고 구현 완료(2026-10-06). 본문 없음, 공유 이력별 1회 |
 | P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{savedPlaceId, placeId, name, category, landLotAddress, roadAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, lastSavedAt}]} lastSavedAt 내림차순. 카드용 짧은 주소는 클라이언트가 앞 두 마디로 줄인다 | 이식 + lastSavedAt 추가(#166 PR 중) |
 | P-2 보관함 편집 D-1 | DELETE /saved-places?savedPlaceIds=11,12 | 204. 한 트랜잭션으로 다건 삭제, 멱등 | 이식 |
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
@@ -118,7 +118,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 1. **파이프라인 골격.** 포트 3개(`InstagramContentReader`, `PlaceNameExtractor`, `PlaceSearcher`)와 Fake 3개(test, fake 프로필 `@Primary`), `ExtractionProcess`, `ExtractionResultRecorder`, `ExtractionPipeline`(`@Async`, 커밋 후 디스패치), `AsyncConfig`, `MediaDao`, `MediaPlaceDao`, `SavedPlaceDao`, `PlaceDao`(kakao_place_id로 get-or-create)를 둔다. 추출 사실은 `media_places`에 기록하고 성공한 장소는 보관함과 공유 이력에 연결한다.
 2. **접수.** `POST /shares`(`ShareService.createShare`: 회원 확인, URL 파싱, 게시물 find-or-create, 공유 삽입, 추출 성공본이면 장소를 보관함에 저장하고 공유와 연결, 실패본이면 재추출 선점, 커밋 후 디스패치), `SharedMediaDao`, `ShareController`의 POST, `ExtractionRecoveryRunner`.
-3. **재시도와 제보.** 실패한 추출은 `POST /shares/{sharedMediaId}/extraction-retries`로 다시 시도하고, 실패 제보는 `POST /shares/{sharedMediaId}/reports`로 접수한다. 두 API는 장소 저장과 별도 흐름이다.
+3. **재시도와 제보.** 실패한 추출은 `POST /shares/{sharedMediaId}/extraction-retries`로 다시 시도하고, 실패 제보는 `POST /shares/{sharedMediaId}/reports`로 접수한다. 두 API는 장소 저장과 별도 흐름이다. `POST /shares/{sharedMediaId}/reports`도 구현했다(2026-10-06). 본인의 `FAILED` 공유 이력을 실패 사유와 분석 버전에 관계없이 접수하며, 신고 저장 후 본문 없는 `201`을 반환한다. 존재하지 않거나 다른 회원의 이력은 `404`, 실패하지 않은 이력은 `400`, 중복 신고는 `409`로 응답한다. 같은 미디어를 공유한 다른 회원은 각자의 이력을 신고할 수 있다. 기존 공유 이력과 분석 상태는 유지하며 재분석을 예약하지 않는다.
 
 각자 구현에 들어가기 전에 월요일 오전에 같이 맞춘다. 왕복 E2E 시나리오 초안은 금요일 오후에 잡아 둔다.
 

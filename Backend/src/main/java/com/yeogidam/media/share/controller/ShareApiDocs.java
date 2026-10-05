@@ -159,6 +159,63 @@ public interface ShareApiDocs {
             @Parameter(description = "재시도할 실패 이력 ID(shared_media.id)", example = "10") Long sharedMediaId
     );
 
+    @Operation(summary = "장소 분석 실패 신고",
+            description = """
+                    로그인한 회원의 실패한 공유 이력을 신고합니다. 요청 본문은 없습니다.
+
+                    - 공유 이력의 분석 상태가 `FAILED`일 때만 신고할 수 있습니다.
+                    - 실패 사유와 분석 버전에 관계없이 신고할 수 있습니다.
+                    - 같은 미디어를 공유한 다른 회원도 각자의 실패 이력을 신고할 수 있습니다.
+                    - 같은 공유 이력은 한 번만 신고할 수 있으며, 중복 신고는 `409`로 응답합니다.
+                    - 신고는 분석을 다시 실행하거나 공유 이력을 변경하지 않습니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "201", description = "신고 접수 완료. 응답 본문 없음",
+                            content = @Content),
+                    @ApiResponse(responseCode = "400", description = "실패하지 않은 공유 이력",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "MEDIA400_017",
+                                            value = """
+                                                    {
+                                                      "message": "장소 분석에 실패한 공유만 신고할 수 있습니다.",
+                                                      "errorCode": "MEDIA400_017"
+                                                    }
+                                                    """))),
+                    @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    value = """
+                                                            {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
+                                                            """),
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    value = """
+                                                            {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
+                                                            """)
+                                    })),
+                    @ApiResponse(responseCode = "404", description = "존재하지 않거나 다른 회원의 공유 이력",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "MEDIA404_002",
+                                            value = """
+                                                    {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
+                                                    """))),
+                    @ApiResponse(responseCode = "409", description = "이미 신고한 공유 이력",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "MEDIA409_001",
+                                            value = """
+                                                    {"message": "이미 신고한 공유입니다.", "errorCode": "MEDIA409_001"}
+                                                    """)))
+            })
+    ResponseEntity<Void> createReport(
+            Long memberId,
+            @Parameter(description = "신고할 실패 이력 ID(shared_media.id)", example = "10") Long sharedMediaId
+    );
+
     @Operation(summary = "히스토리 목록 조회",
             description = """
                     로그인한 회원의 공유 이력을 최근 공유부터 50건씩 반환합니다.
