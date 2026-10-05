@@ -17,10 +17,16 @@ public final class SharedMediaSqlFixture {
             Instant createdAt
     ) {
         jdbcTemplate.update("""
-                INSERT INTO shared_media (id, member_id, media_id, shared_url, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, sharedMediaId, memberId, mediaId,
-                "https://www.instagram.com/reel/fixture-" + sharedMediaId + "/", Timestamp.from(createdAt));
+                INSERT INTO shared_media (
+                    id, member_id, media_id, shared_url, created_at,
+                    extraction_status, failure_reason, extraction_version
+                )
+                SELECT ?, ?, m.id, ?, ?, m.extraction_status, m.failure_reason, m.extraction_version
+                FROM media m
+                WHERE m.id = ?
+                """, sharedMediaId, memberId,
+                "https://www.instagram.com/reel/fixture-" + sharedMediaId + "/",
+                Timestamp.from(createdAt), mediaId);
     }
 
     /**
@@ -35,8 +41,13 @@ public final class SharedMediaSqlFixture {
             Instant createdAt
     ) {
         jdbcTemplate.update("""
-                INSERT INTO shared_media (id, member_id, media_id, shared_url, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, sharedMediaId, memberId, mediaId, sharedUrl, Timestamp.from(createdAt));
+                INSERT INTO shared_media (
+                    id, member_id, media_id, shared_url, created_at,
+                    extraction_status, failure_reason, extraction_version
+                )
+                SELECT ?, ?, m.id, ?, ?, m.extraction_status, m.failure_reason, m.extraction_version
+                FROM media m
+                WHERE m.id = ?
+                """, sharedMediaId, memberId, sharedUrl, Timestamp.from(createdAt), mediaId);
     }
 }

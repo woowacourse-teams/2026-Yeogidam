@@ -35,6 +35,7 @@ public class MediaExtractionResultWriter {
         if (!instagramMediaDao.succeedExtractionIfInProgress(mediaId)) {
             throw new IllegalStateException("진행 중인 미디어의 추출 완료 상태를 저장하지 못했습니다.");
         }
+        sharedMediaDao.updatePendingExtractions(mediaId);
     }
 
     private List<Long> getPlaceIds(Long mediaId, PlaceExtractionResult result) {

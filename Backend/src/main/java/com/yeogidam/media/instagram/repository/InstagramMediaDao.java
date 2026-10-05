@@ -1,6 +1,7 @@
 package com.yeogidam.media.instagram.repository;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.instagram.domain.InstagramMedia;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
@@ -53,16 +54,20 @@ public class InstagramMediaDao {
         jdbcTemplate.update(sql, metadata.caption(), metadata.thumbnailKey(), metadata.author(), mediaId);
     }
 
-    public void failExtractionIfInProgress(Long mediaId, ExtractionFailureReason failureReason) {
+    public boolean failExtractionIfInProgress(Long mediaId, ExtractionFailureReason failureReason) {
         String sql = """
                 UPDATE media
                 SET extraction_status = 'FAILED', failure_reason = ?
                 WHERE id = ? AND extraction_status = 'EXTRACTING'
                 """;
-        jdbcTemplate.update(sql, failureReason.name(), mediaId);
+        return jdbcTemplate.update(sql, failureReason.name(), mediaId) == 1;
     }
 
     public boolean isExtractionInProgressForUpdate(Long mediaId) {
+        return findExtractionStatusForUpdate(mediaId) == ExtractionStatus.EXTRACTING;
+    }
+
+    public ExtractionStatus findExtractionStatusForUpdate(Long mediaId) {
         String sql = """
                 SELECT extraction_status
                 FROM media
@@ -70,7 +75,7 @@ public class InstagramMediaDao {
                 FOR UPDATE
                 """;
         String status = jdbcTemplate.queryForObject(sql, String.class, mediaId);
-        return "EXTRACTING".equals(status);
+        return ExtractionStatus.valueOf(status);
     }
 
     public boolean isExtractionSucceeded(Long mediaId) {
@@ -120,17 +125,6 @@ public class InstagramMediaDao {
                 FROM media
                 WHERE media_shortcode = ?
                 FOR UPDATE
-                """;
-        return jdbcTemplate.query(sql, ID_ROW_MAPPER, shortcode.value())
-                .stream()
-                .findFirst();
-    }
-
-    public Optional<Long> findIdByShortcode(MediaShortcode shortcode) {
-        String sql = """
-                SELECT id
-                FROM media
-                WHERE media_shortcode = ?
                 """;
         return jdbcTemplate.query(sql, ID_ROW_MAPPER, shortcode.value())
                 .stream()

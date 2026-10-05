@@ -1,16 +1,36 @@
 package com.yeogidam.media.share.repository;
 
+import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@RequiredArgsConstructor
 public class SharedMediaDao {
+
+    private static final RowMapper<ExtractionRetrySource> RETRY_SOURCE_ROW_MAPPER = (resultSet, rowNumber) ->
+            new ExtractionRetrySource(
+                    resultSet.getLong("media_id"),
+                    new InstagramUrl(resultSet.getString("shared_url")),
+                    ExtractionStatus.valueOf(resultSet.getString("extraction_status")),
+                    failureReason(resultSet),
+                    resultSet.getInt("extraction_version")
+            );
 
     private static final RowMapper<SharedMediaOwnerProjection> OWNER_ROW_MAPPER = (resultSet, rowNumber) ->
             new SharedMediaOwnerProjection(
@@ -31,22 +51,65 @@ public class SharedMediaDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
-    private final SimpleJdbcInsert jdbcInsert;
 
-    public SharedMediaDao(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
-                .withTableName("shared_media")
-                .usingColumns("member_id", "media_id", "shared_url")
-                .usingGeneratedKeyColumns("id");
+    private static ExtractionFailureReason failureReason(ResultSet resultSet) throws SQLException {
+        String reason = resultSet.getString("failure_reason");
+        if (reason == null) {
+            return null;
+        }
+        return ExtractionFailureReason.valueOf(reason);
     }
 
     public Long save(SharedInstagramMedia sharedInstagramMedia) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("member_id", sharedInstagramMedia.getMemberId())
-                .addValue("media_id", sharedInstagramMedia.getMediaId())
-                .addValue("shared_url", sharedInstagramMedia.getInstagramUrl().getSharedUrl());
-        return jdbcInsert.executeAndReturnKey(parameters).longValue();
+        String sql = """
+                INSERT INTO shared_media (
+                    member_id, media_id, shared_url,
+                    extraction_status, failure_reason, extraction_version
+                )
+                SELECT ?, m.id, ?, m.extraction_status, m.failure_reason, m.extraction_version
+                FROM media m
+                WHERE m.id = ?
+                """;
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        int insertedRows = jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            statement.setLong(1, sharedInstagramMedia.getMemberId());
+            statement.setString(2, sharedInstagramMedia.getInstagramUrl().getSharedUrl());
+            statement.setLong(3, sharedInstagramMedia.getMediaId());
+            return statement;
+        }, keyHolder);
+        if (insertedRows != 1 || keyHolder.getKey() == null) {
+            throw new IllegalStateException("공유할 게시물의 분석 상태를 저장하지 못했습니다.");
+        }
+        return keyHolder.getKey().longValue();
+    }
+
+    public void updatePendingExtractions(Long mediaId) {
+        String sql = """
+                UPDATE shared_media sm
+                JOIN media m ON m.id = sm.media_id
+                SET sm.extraction_status = m.extraction_status,
+                    sm.failure_reason = m.failure_reason,
+                    sm.extraction_version = m.extraction_version
+                WHERE sm.media_id = ?
+                  AND sm.extraction_status = 'EXTRACTING'
+                """;
+        jdbcTemplate.update(sql, mediaId);
+    }
+
+    public Optional<ExtractionRetrySource> findRetrySource(Long memberId, Long sharedMediaId) {
+        String sql = """
+                SELECT sm.media_id,
+                       sm.shared_url,
+                       sm.extraction_status,
+                       sm.failure_reason,
+                       sm.extraction_version
+                FROM shared_media sm
+                WHERE sm.member_id = ? AND sm.id = ?
+                """;
+        return jdbcTemplate.query(sql, RETRY_SOURCE_ROW_MAPPER, memberId, sharedMediaId)
+                .stream()
+                .findFirst();
     }
 
     public List<SharedMediaOwnerProjection> findLatestSharesByMediaId(Long mediaId) {
@@ -55,6 +118,7 @@ public class SharedMediaDao {
                        sm.member_id
                 FROM shared_media sm
                 WHERE sm.media_id = ?
+                  AND sm.extraction_status = 'EXTRACTING'
                   AND NOT EXISTS (
                       SELECT 1
                       FROM shared_media newer
@@ -77,8 +141,8 @@ public class SharedMediaDao {
                        m.thumbnail_key,
                        m.caption,
                        m.author,
-                       m.extraction_status,
-                       m.failure_reason,
+                       sm.extraction_status,
+                       sm.failure_reason,
                        sm.shared_url
                 FROM shared_media sm
                 JOIN media m ON m.id = sm.media_id
@@ -100,8 +164,8 @@ public class SharedMediaDao {
                        m.thumbnail_key,
                        m.caption,
                        m.author,
-                       m.extraction_status,
-                       m.failure_reason,
+                       sm.extraction_status,
+                       sm.failure_reason,
                        sm.shared_url
                 FROM shared_media sm
                 JOIN media m ON m.id = sm.media_id

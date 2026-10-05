@@ -1,5 +1,6 @@
 package com.yeogidam.media.share.repository;
 
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertExtractingMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
@@ -59,7 +60,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         // given: 시각과 삽입 순서가 달라도 ID가 가장 큰 공유를 회원별로 선택한다.
         insertKakaoMember(jdbcTemplate, 1L, "share-latest-owner", null, null, null);
         insertKakaoMember(jdbcTemplate, 2L, "share-latest-other", null, null, null);
-        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertExtractingMedia(jdbcTemplate, 1L);
         insertMedia(jdbcTemplate, 2L, null, null, null);
         Instant now = Instant.parse("2026-10-01T10:00:00Z");
         insertSharedMedia(jdbcTemplate, 9L, 1L, 1L, now.minusSeconds(1));
@@ -216,5 +217,54 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         for (long id = 1; id <= count; id++) {
             insertSharedMedia(jdbcTemplate, id, memberId, mediaId, base.plusSeconds(id));
         }
+    }
+
+    @Test
+    void 분석_완료_시_대기_중인_공유만_미디어_상태로_갱신한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 9L, "pending-share-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 10L, "pending-share-other", null, null, null);
+        insertExtractingMedia(jdbcTemplate, 9L);
+        insertSharedMedia(jdbcTemplate, 91L, 9L, 9L, Instant.parse("2026-10-01T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 92L, 9L, 9L, Instant.parse("2026-10-02T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 93L, 10L, 9L, Instant.parse("2026-10-03T10:00:00Z"));
+        jdbcTemplate.update("""
+                UPDATE shared_media
+                SET extraction_status = 'FAILED', failure_reason = 'UNEXPECTED'
+                WHERE id = ?
+                """, 91L);
+        jdbcTemplate.update("""
+                UPDATE media
+                SET extraction_status = 'SUCCEEDED', failure_reason = NULL, extraction_version = 2
+                WHERE id = ?
+                """, 9L);
+
+        // when
+        sharedMediaDao.updatePendingExtractions(9L);
+
+        // then: 이미 실패한 공유 이력은 보존하고 대기 중인 이력만 완료 상태를 받는다.
+        assertAll(
+                () -> assertThat(readExtractionState(91L))
+                        .isEqualTo(new ExtractionState("FAILED", "UNEXPECTED", 1)),
+                () -> assertThat(readExtractionState(92L))
+                        .isEqualTo(new ExtractionState("SUCCEEDED", null, 2)),
+                () -> assertThat(readExtractionState(93L))
+                        .isEqualTo(new ExtractionState("SUCCEEDED", null, 2))
+        );
+    }
+
+    private ExtractionState readExtractionState(Long sharedMediaId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT extraction_status, failure_reason, extraction_version
+                FROM shared_media
+                WHERE id = ?
+                """, (resultSet, rowNumber) -> new ExtractionState(
+                resultSet.getString("extraction_status"),
+                resultSet.getString("failure_reason"),
+                resultSet.getInt("extraction_version")
+        ), sharedMediaId);
+    }
+
+    private record ExtractionState(String status, String failureReason, int version) {
     }
 }

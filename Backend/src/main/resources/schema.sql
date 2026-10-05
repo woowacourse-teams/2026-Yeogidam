@@ -37,7 +37,7 @@ CREATE TABLE refresh_sessions
         ON DELETE CASCADE
 );
 
--- 게시물. shortcode로 유일하며 추출 상태와 결과의 주인이다. 사용자와 공유 사건을 모른다.
+-- 게시물. shortcode로 유일하며 현재 추출 상태와 장소 결과를 공유한다.
 CREATE TABLE media
 (
     id                 BIGINT      NOT NULL AUTO_INCREMENT,
@@ -71,12 +71,27 @@ CREATE TABLE media
 -- 공유 사건. 같은 게시물을 다시 공유해도 새 행이 생겨 이력이 쌓인다.
 CREATE TABLE shared_media
 (
-    id         BIGINT       NOT NULL AUTO_INCREMENT,
-    member_id  BIGINT       NOT NULL,
-    media_id   BIGINT       NOT NULL,
-    shared_url VARCHAR(512) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    id                  BIGINT       NOT NULL AUTO_INCREMENT,
+    member_id           BIGINT       NOT NULL,
+    media_id            BIGINT       NOT NULL,
+    shared_url          VARCHAR(512) NOT NULL,
+    created_at          TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    extraction_status   VARCHAR(20)  NOT NULL,
+    failure_reason      VARCHAR(40),
+    extraction_version  INT          NOT NULL,
     PRIMARY KEY (id),
+    INDEX idx_shared_media_media_extraction_status (media_id, extraction_status),
+    CONSTRAINT chk_shared_media_extraction_status
+        CHECK (extraction_status IN ('EXTRACTING', 'SUCCEEDED', 'FAILED')),
+    CONSTRAINT chk_shared_media_failure_reason
+        CHECK (failure_reason IN (
+            'CONTENT_UNAVAILABLE', 'PLACE_NOT_EXTRACTED', 'PLACE_NOT_MATCHED', 'PROCESSING_FAILED', 'UNEXPECTED'
+        )),
+    CONSTRAINT chk_shared_media_extraction_snapshot CHECK (
+        (extraction_status = 'FAILED' AND failure_reason IS NOT NULL)
+            OR
+        (extraction_status <> 'FAILED' AND failure_reason IS NULL)
+    ),
     CONSTRAINT fk_shared_media_member FOREIGN KEY (member_id)
         REFERENCES members (id)
         ON DELETE CASCADE,

@@ -3,6 +3,7 @@ package com.yeogidam.media.share.service;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.extraction.config.ExtractionProperties;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.repository.MediaPlaceDao;
 import com.yeogidam.media.extraction.repository.MediaPlaceProjection;
 import com.yeogidam.media.extraction.service.MediaExtractionDispatcher;
@@ -11,8 +12,10 @@ import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
+import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.media.share.dto.request.ShareRequest;
+import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
@@ -85,6 +88,29 @@ public class ShareService {
     private Long createSharedMedia(Long memberId, Long mediaId, InstagramUrl instagramUrl) {
         SharedInstagramMedia sharedInstagramMedia = new SharedInstagramMedia(memberId, mediaId, instagramUrl);
         return sharedMediaDao.save(sharedInstagramMedia);
+    }
+
+    @Transactional
+    public ExtractionRetryResponse createExtractionRetry(Long memberId, Long sharedMediaId) {
+        ExtractionRetrySource source = sharedMediaDao.findRetrySource(memberId, sharedMediaId)
+                .orElseThrow(() -> new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND));
+        source.validateRetry(extractionProperties.pipelineVersion());
+        startOrJoinExtraction(source);
+        Long newSharedMediaId = createSharedMedia(memberId, source.mediaId(), source.instagramUrl());
+        return new ExtractionRetryResponse(newSharedMediaId, ExtractionStatus.EXTRACTING.name());
+    }
+
+    private void startOrJoinExtraction(ExtractionRetrySource source) {
+        ExtractionStatus status = instagramMediaDao.findExtractionStatusForUpdate(source.mediaId());
+        if (status == ExtractionStatus.SUCCEEDED) {
+            throw new MediaException(MediaErrorCode.RETRY_ON_SUCCEEDED);
+        }
+        if (status == ExtractionStatus.EXTRACTING) {
+            return;
+        }
+        if (!retryMediaIfEligible(source.mediaId(), source.instagramUrl())) {
+            throw new MediaException(MediaErrorCode.RETRY_NOT_ELIGIBLE);
+        }
     }
 
     public ShareHistoryResponses readShareHistory(

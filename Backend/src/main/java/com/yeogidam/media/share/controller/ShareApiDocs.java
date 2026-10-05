@@ -2,6 +2,7 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.media.share.dto.request.ShareRequest;
+import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,8 +67,57 @@ public interface ShareApiDocs {
                                                             {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
                                                             """)
                                     }))
-            })
+    })
     ResponseEntity<Void> createShare(Long memberId, @Valid ShareRequest request);
+
+    @Operation(summary = "실패한 장소 추출 재시도",
+            description = """
+                    로그인한 회원의 실패한 공유 이력에서 장소 추출을 다시 요청합니다. 요청 본문은 없습니다.
+
+                    - 요청마다 새로운 공유 이력을 생성하고 기존 실패 이력과 최초 공유 시각을 보존합니다.
+                    - 현재 분석 버전에서는 PROCESSING_FAILED, UNEXPECTED만 재시도할 수 있습니다.
+                    - 이전 분석 버전의 실패는 실패 사유에 관계없이 재시도할 수 있습니다.
+                    - 같은 미디어의 분석이 진행 중이면 새 이력을 만들어 해당 분석에 합류합니다.
+                    - 성공한 이력과 분석 중인 이력을 대상으로 요청할 수 없습니다.
+                    - 미디어가 이미 분석에 성공했다면 과거 실패 이력에서도 재시도할 수 없습니다.
+                    - 결과는 이번 분석에 참여한 회원의 최신 공유에 장소를 보관함으로 자동 저장하고 연결합니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "202", description = "새 재시도 이력 접수",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ExtractionRetryResponse.class),
+                                    examples = @ExampleObject(value = """
+                                            {"sharedMediaId": 30, "extractionStatus": "EXTRACTING"}
+                                            """))),
+                    @ApiResponse(responseCode = "400", description = "성공 또는 분석 중인 이력, 재시도할 수 없는 실패",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "MEDIA400_002", value = """
+                                                    {"message": "추출에 성공한 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_002"}
+                                                    """),
+                                            @ExampleObject(name = "MEDIA400_006", value = """
+                                                    {"message": "추출이 진행 중인 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_006"}
+                                                    """),
+                                            @ExampleObject(name = "MEDIA400_016", value = """
+                                                    {"message": "현재 분석 버전에서 다시 시도할 수 없는 실패입니다.", "errorCode": "MEDIA400_016"}
+                                                    """)
+                                    })),
+                    @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "404", description = "존재하지 않거나 다른 회원의 공유",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "MEDIA404_002", value = """
+                                            {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
+                                            """)))
+            })
+    ResponseEntity<ExtractionRetryResponse> createExtractionRetry(
+            Long memberId,
+            @Parameter(description = "재시도할 실패 이력 ID(shared_media.id)", example = "10") Long sharedMediaId
+    );
 
     @Operation(summary = "히스토리 목록 조회",
             description = """
