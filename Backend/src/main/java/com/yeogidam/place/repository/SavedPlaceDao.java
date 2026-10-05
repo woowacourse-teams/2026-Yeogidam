@@ -1,16 +1,28 @@
 package com.yeogidam.place.repository;
 
+import com.yeogidam.place.domain.SavedPlace;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@RequiredArgsConstructor
 public class SavedPlaceDao {
+
+    private static final RowMapper<SavedPlace> SAVED_PLACE_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SavedPlace(
+                    resultSet.getLong("id"),
+                    resultSet.getLong("member_id"),
+                    resultSet.getLong("place_id"),
+                    resultSet.getTimestamp("last_saved_at").toInstant()
+            );
 
     private static final RowMapper<SavedPlaceProjection> PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
             new SavedPlaceProjection(
@@ -41,6 +53,57 @@ public class SavedPlaceDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
+    private final SimpleJdbcInsert jdbcInsert;
+
+    public SavedPlaceDao(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
+                .withTableName("saved_places")
+                .usingColumns("member_id", "place_id", "last_saved_at")
+                .usingGeneratedKeyColumns("id");
+    }
+
+    public Optional<SavedPlace> findByMemberAndPlace(Long memberId, Long placeId) {
+        String sql = """
+                SELECT id, member_id, place_id, last_saved_at
+                FROM saved_places
+                WHERE member_id = ?
+                  AND place_id = ?
+                """;
+        return jdbcTemplate.query(sql, SAVED_PLACE_ROW_MAPPER, memberId, placeId)
+                .stream()
+                .findFirst();
+    }
+
+    public Long save(SavedPlace savedPlace) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("member_id", savedPlace.memberId())
+                .addValue("place_id", savedPlace.placeId())
+                .addValue("last_saved_at", Timestamp.from(savedPlace.lastSavedAt()));
+        return jdbcInsert.executeAndReturnKey(parameters).longValue();
+    }
+
+    public void update(SavedPlace savedPlace) {
+        String sql = """
+                UPDATE saved_places
+                SET last_saved_at = ?
+                WHERE id = ?
+                  AND member_id = ?
+                """;
+        jdbcTemplate.update(sql, Timestamp.from(savedPlace.lastSavedAt()), savedPlace.id(), savedPlace.memberId());
+    }
+
+    public void saveShare(
+            Long savedPlaceId,
+            Long sharedMediaId,
+            Instant savedAt
+    ) {
+        String sql = """
+                INSERT INTO shared_media_saved_places (saved_place_id, shared_media_id, created_at)
+                VALUES (?, ?, ?)
+                """;
+        jdbcTemplate.update(sql, savedPlaceId, sharedMediaId, Timestamp.from(savedAt));
+    }
 
     /**
      * 회원의 보관함 전량을 최근 저장 순으로 읽는다.

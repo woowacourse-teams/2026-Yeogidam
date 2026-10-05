@@ -32,9 +32,9 @@ class PlaceCandidatesTest {
         // then
         assertAll(
                 () -> assertThat(decided).containsExactly(1L, 3L),
-                () -> assertThat(decisionOf(candidates, 1L)).isEqualTo(PlaceDecisionStatus.SAVED),
-                () -> assertThat(decisionOf(candidates, 2L)).isEqualTo(PlaceDecisionStatus.UNDECIDED),
-                () -> assertThat(decisionOf(candidates, 3L)).isEqualTo(PlaceDecisionStatus.SAVED)
+                () -> assertThat(canDecide(candidates, 1L)).isFalse(),
+                () -> assertThat(canDecide(candidates, 2L)).isTrue(),
+                () -> assertThat(canDecide(candidates, 3L)).isFalse()
         );
     }
 
@@ -63,7 +63,7 @@ class PlaceCandidatesTest {
         // then
         assertAll(
                 () -> assertThat(decided).isEmpty(),
-                () -> assertThat(decisionOf(candidates, 1L)).isEqualTo(PlaceDecisionStatus.DISCARDED)
+                () -> assertThat(canDecide(candidates, 1L)).isFalse()
         );
     }
 
@@ -90,9 +90,10 @@ class PlaceCandidatesTest {
         // when & then
         assertAll(
                 () -> assertThatThrownBy(() -> candidates.decide(List.of(1L, 2L), target))
-                        .isInstanceOf(IllegalArgumentException.class),
-                () -> assertThat(decisionOf(candidates, 1L)).isEqualTo(PlaceDecisionStatus.UNDECIDED),
-                () -> assertThat(decisionOf(candidates, 2L)).isEqualTo(PlaceDecisionStatus.SAVED)
+                        .isInstanceOfSatisfying(MediaException.class, exception ->
+                                assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.INVALID_PLACE_DECISION)),
+                () -> assertThat(canDecide(candidates, 1L)).isTrue(),
+                () -> assertThat(canDecide(candidates, 2L)).isFalse()
         );
     }
 
@@ -103,12 +104,12 @@ class PlaceCandidatesTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    private static PlaceDecisionStatus decisionOf(PlaceCandidates candidates, Long placeId) {
+    private static boolean canDecide(PlaceCandidates candidates, Long placeId) {
         return candidates.values()
                 .stream()
-                .filter(candidate -> candidate.place().id().equals(placeId))
+                .filter(candidate -> candidate.getId().equals(placeId))
                 .findFirst()
                 .orElseThrow()
-                .decision();
+                .canDecide();
     }
 }

@@ -36,7 +36,7 @@
 | P-6 성공/실패 항목 C, C-1 | GET /shares/{sharedMediaId}/places | 항목 자체는 히스토리 목록 응답을 그대로 쓰고 장소만 따로 읽는다. 단건 조회 GET /shares/{sharedMediaId}는 #217에서 단건 폴링을 없애며 지웠다(#231) | 이식 |
 | P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 이식 |
 | P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 하나 이상 있는 공유만 최근 공유순 DESC로 반환하고 places[]는 UNDECIDED만 포함 | 신규 |
-| P-6 대기함 저장/삭제 | POST /shares/{sharedMediaId}/place-selections, POST /shares/{sharedMediaId}/place-discards {placeIds} | 201 | 이식 |
+| P-6 대기함 저장/삭제 | POST /shares/{sharedMediaId}/place-decisions {placeIds, decision} | 201, 본문 없음. decision은 SAVED 또는 DISCARDED | 구현 완료(2026-10-05). E2E, 서비스 통합, DAO 테스트 완료 |
 | P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{savedPlaceId, placeId, name, category, landLotAddress, roadAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, lastSavedAt}]} lastSavedAt 내림차순. 카드용 짧은 주소는 클라이언트가 앞 두 마디로 줄인다(대기함과 같은 규칙) | 이식 + lastSavedAt 추가(#166 PR 중) |
 | P-2 보관함 편집 D-1 | DELETE /saved-places?savedPlaceIds=11,12 | 204. 한 트랜잭션으로 다건 삭제, 멱등 | 이식 |
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
@@ -45,6 +45,10 @@
 | 강제 업데이트 모달, 업데이트 권고 안내(1.2.0 앱부터) | GET /app-update-policies?platform&appVersion | {updateRequired, updateRecommended, minimumSupportedVersion, latestVersion, storeUrl}, 인증 없음. 비교는 서버가 한다 | 신규(#170 진행 중) |
 
 공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 보관함 항목은 `savedPlaceId`(saved_places.id)로 가리킨다(2026-09-22 결정). 목록이 그 값을 내리고 삭제와 관련 릴스가 경로 변수로 받는다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 서버가 내리지 않는다(2026-09-21, #179 리뷰. 클라이언트 inBoxScreen의 placeAddress가 이미 앞 두 마디로 줄이므로 같은 함수를 쓴다). 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 #217 결정대로 히스토리 목록 3초 하나로 줄이고 단건 폴링은 없앤다. 대기함은 현행 5초를 유지한다. 시각은 ISO-8601 UTC(Instant)다.
+
+2026-10-04 대기함 후보 결정 계약을 `place-decisions` 한 경로와 `{placeIds, decision}`으로 정리했다.
+공유 ID는 URL로 받고 선택한 장소 전체에 동일한 결정을 적용한다.
+삭제는 `DISCARDED` 상태 기록이며 관련 릴스에는 실제 저장한 공유만 연결한다.
 
 ## 4. 두 단계 계획 (2026-09-16 팀 결정)
 
@@ -117,11 +121,11 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 1. **파이프라인 골격.** 포트 3개(`InstagramContentReader`, `PlaceNameExtractor`, `PlaceSearcher`)와 Fake 3개(test, fake 프로필 `@Primary`), `ExtractionProcess`, `ExtractionResultRecorder`, `ExtractionPipeline`(`@Async`, 커밋 후 디스패치), `AsyncConfig`, `MediaDao`, `MediaPlaceDao`, `PlaceDao`(kakao_place_id로 get-or-create), `PlaceCandidateDao.issueCandidates`(DAO 이름은 테이블을 따른다. `PlaceCandidateDao`는 #172가 조회로 먼저 만들었으니 쓰기 메서드를 더한다).
 2. **접수.** `POST /shares`(`ShareService.createShare`: 회원 확인, URL 파싱, 게시물 find-or-create, 재공유 시 이전 미결정 SUPERSEDED, 공유 삽입, 성공본이면 후보 발급 아니면 재추출 선점, 커밋 후 디스패치), `SharedMediaDao`, `ShareController`의 POST, `ExtractionRecoveryRunner`.
-3. **결정과 재시도.** `POST /shares/{sharedMediaId}/place-selections`, `place-discards`(`PlaceSelectionService`, `PlaceCandidateDao.markSaved/markDiscarded`, `SavedPlaceDao` upsert와 `linkShare`), `POST /shares/{sharedMediaId}/extraction-retries`, `POST /shares/{sharedMediaId}/reports`.
+3. **결정과 재시도.** 후보 결정 API 구현 완료(2026-10-05). `ShareController`가 `POST /shares/{sharedMediaId}/place-decisions` 요청을 받고, `PlaceDecisionService`가 `{placeIds, decision}`을 처리한다. 선택한 후보만 `SAVED` 또는 `DISCARDED`로 바꾸며, `SAVED`는 회원·장소 기준으로 보관함을 생성하거나 `last_saved_at`을 갱신하고 해당 공유를 연결한다. `DISCARDED`는 후보 결정만 기록한다. E2E·서비스 통합·DAO 테스트를 작성했고 백엔드 전체 테스트 439건이 통과했다. `POST /shares/{sharedMediaId}/extraction-retries`, `POST /shares/{sharedMediaId}/reports`는 별도 흐름으로 남아 있다.
 
 각자 구현에 들어가기 전에 월요일 오전에 같이 맞춘다. 왕복 E2E 시나리오 초안은 금요일 오후에 잡아 둔다.
 
-- **왕복 E2E 하나를 같이 쓴다.** 접수 → Fake 완료(awaitility) → 대기함 조회 → 저장 → 보관함 조회 → 같은 릴스 재접수 → 대기함(새 후보만 보이고 옛 미결정 후보는 SUPERSEDED) → 다시 저장 → 보관함(행이 늘지 않고 시각만 갱신) → 관련 릴스 조회(같은 릴스는 최신 공유 한 건) → 히스토리(공유 2건). 조회는 1단계 API를 그대로 쓰므로 두 구현은 이 E2E를 똑같이 통과해야 하고, 합칠 때 동작 비교는 이 E2E가 대신한다. 검증 항목에 "SAVED 후보 수 = shared_media_saved_places 행 수"를 넣어 저장 트랜잭션이 셋(후보 SAVED, 보관함 upsert, 연결 삽입)을 함께 쓰는지 확인한다.
+- **왕복 E2E 하나를 같이 쓴다.** 접수 -> Fake 완료(awaitility) -> 대기함 조회 -> 한 장소 저장 -> 나머지 장소 삭제 -> 보관함 및 관련 릴스 조회 -> 같은 릴스 재접수 -> 대기함(새 후보는 모두 UNDECIDED, 과거 결정은 유지) -> 이미 저장한 장소 다시 저장 -> 보관함(행이 늘지 않고 시각만 갱신) -> 관련 릴스 조회(같은 릴스는 저장 연결 중 최신 공유 한 건) -> 히스토리(공유 2건). 조회는 1단계 API를 그대로 쓰므로 두 구현은 이 E2E를 똑같이 통과해야 하고, 합칠 때 동작 비교는 이 E2E가 대신한다. 저장 직후 이번에 SAVED로 바뀐 후보마다 보관함 항목과 공유 연결이 있는지 확인한다. 이후 보관함 삭제는 연결을 지우고 과거 SAVED 후보를 남기므로 전체 후보 수와 연결 수의 상시 동일성을 요구하지 않는다. 검증 시나리오는 2026-10-04 명세의 `PD-35`다.
 - **재공유 때 후보는 이전 결정과 무관하게 새로 발급한다(2026-09-20 결정).** 접수는 이전 공유의 UNDECIDED 후보만 SUPERSEDED로 닫고(SAVED, DISCARDED는 그대로) 새 공유에는 릴스의 장소 전부를 UNDECIDED로 발급한다. 이미 보관함에 있는 장소도 다른 장소와 똑같이 뜬다. 이렇게 하면 접수는 후보를 만들고, 대기함 조회는 UNDECIDED를 읽고, 저장은 세 테이블을 쓰는 것으로 서로의 상태를 몰라도 되어 규칙이 가장 적다. 다시 저장해도 saved_places는 (member_id, place_id) UNIQUE라 last_saved_at만 갱신되고 연결 행이 하나 더 쌓인다. 이미 저장한 장소를 다시 보는 것이 어색하다는 피드백이 오면 대기함 응답에 "보관함에 있음" boolean 하나를 더하는 것으로 해결하고, 접수 때 후보에서 빼는 방식은 접수가 saved_places를 알아야 하고 카드가 비는 경우가 생겨 쓰지 않는다.
 - **스키마는 PR 0 그대로 쓴다.** 바꿔야 하면 단독 PR로 be-dev에 먼저 넣고 둘 다 rebase한다.
 - **1단계 코드는 고치지 않는다.** 읽기 DAO, 읽기 서비스, GET 컨트롤러에 손댈 일이 생기면 별도 PR로 낸다. `ShareController`의 POST는 각자 브랜치에서 추가하고 합칠 때 하나만 남긴다.
@@ -146,7 +150,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | 1 | 인가 기초 작업 | 공통 | 마이 A, A-1 | (완료 2026-09-16, #162 머지) 액세스 토큰 인터셉터, @LoginMember 리졸버, GET /members/me, 401 계약(AUTH401_004), E2E 로그인 헬퍼 | 토큰 없이 401, 있으면 내 정보 |
 | 2 | 스키마 계약과 접수 기본 흐름 | 화면 | 링크 입력 B, B-1 | bean-fable 테이블 8개를 be-dev 규칙으로 이식, POST /shares, Fake 3종(fake 프로필), afterCommit 디스패치, GET /shares/{sharedMediaId}(#231에서 삭제) | 링크를 보내면 Fake가 돌아 SUCCEEDED 상세가 나온다 (awaitility) |
 | 3 | 히스토리 | 화면 | 히스토리 B, B-1, C, C-1 | GET /shares(커서 페이징), extraction-retries, reports | 실패 건 재시도가 EXTRACTING으로 돌아간다 |
-| 4 | 대기함 | 화면 | 대기함 A~A-5 | GET /place-candidates, place-selections, place-discards, saved_places upsert, SUPERSEDED 재공유 규칙 | 저장한 장소가 보관함에 한 행으로 생긴다 |
+| 4 | 대기함 | 화면 | 대기함 A~A-5 | GET /place-candidates, place-decisions {placeIds, decision}, saved_places upsert, SUPERSEDED 재공유 규칙 | 저장한 장소가 보관함에 한 행으로 생긴다 |
 | 5 | 보관함과 장소 상세 | 화면 | 보관함 A, A-1, D, D-1, 장소 상세 전부 | GET /saved-places(lastSavedAt), GET /saved-places/{savedPlaceId}, /media, DELETE | 삭제해도 후보와 이력은 남는다 |
 | 6 | 지도와 검색 | 화면 | 지도 전부, 검색 C | 좌표 포함 확인, 시트 이미지 띠(/media 재사용), 검색은 클라이언트 필터로 결정 | 핀 = saved_places 행 |
 | 7 | 회원 탈퇴와 앱 정책 | 화면 | 회원탈퇴 B, 강제 업데이트 모달 | DELETE /members/me, GET /app-update-policies(설정값, 강제 + 권고 두 단계) | 탈퇴 후 토큰 전부 401 |
@@ -213,7 +217,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 3. **테이블 이름.** (정함, 2026-09-16) media, shared_media, media_places, place_candidates, places, saved_places, shared_media_saved_places, shared_media_reports. 게시물은 `media`고 FK 컬럼은 `media_id`, `shared_media_id`다.
 4. **응답 DTO 조립.** (바뀜, 2026-09-21) 정적 팩토리 `from`을 기본으로 한다. 항목은 `SavedPlaceResponse.from(projection)`, 목록 껍데기는 `SavedPlaceResponses.from(List<SavedPlaceProjection>)`이 변환을 맡아 서비스는 조회 결과만 넘긴다. 2026-09-16의 부생성자 결정은 목록 껍데기에 `List<XxxProjection>` 부생성자를 둘 수 없어서(제네릭 소거로 정식 생성자와 시그니처가 겹침) 목록 변환이 서비스로 새는 문제가 있었고, #179 리뷰에서 러키가 정적 팩토리로 매핑 책임을 DTO에 모으자고 제안해 팀이 받아들였다. `MemberResponse(Member)` 부생성자 등 기존 DTO도 `from`으로 맞춘다.
 5. **탈퇴 시 제공자 연결 해제.** (미결, B의 탈퇴 착수 전에 정한다) 우리 DB 삭제만 할지, 카카오 unlink(admin key + 저장된 provider id)까지 1단계에 넣을지. 구글과 애플 revoke는 제공자 토큰이 필요해 탈퇴 화면의 재인증 코드를 그 자리에서 쓰는 방식으로 어댑터 시기에 붙인다. 애플은 계정 삭제 시 revoke를 요구하고 카카오는 로그인 검수 항목에 연결 끊기가 있어 컷오버 전에는 둘째 겹이 필요하다.
-6. **대기함 다건 결정.** 공유 건마다 호출(도메인 경계와 일치) 또는 배치 엔드포인트 하나.
+6. **대기함 다건 결정.** (2026-10-04 명세 기준) 공유 건마다 `POST /shares/{sharedMediaId}/place-decisions`를 호출하고 한 공유의 여러 장소에 같은 결정을 적용한다. 여러 공유는 개별 호출이므로 일부만 성공할 수 있다. 공유 간 배치 API는 필요할 때 별도 계약으로 다룬다.
 7. **공유 확장의 만료 토큰.** 401 저장 후 앱 재접수(권장), 또는 확장이 직접 갱신(리프레시 회전 때문에 앱 세션이 깨지므로 비권장).
 8. **썸네일 저장소.** (S3로 간다, 2026-09-16) S3 버킷 하나와 ThumbnailStore 포트. 인스타그램 직링크는 1~2주면 만료된다. 버킷과 자격 증명이 준비되는 날에 맞춰 사이클 11에 넣는다.
 9. **보관함 검색.** 클라이언트 메모리 필터로 시작(권장), 페이징 도입 시 서버 ?query=.
@@ -240,7 +244,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | saved_places | saved_places(+shared_media_saved_places) | (member, place) 유니크, 재저장은 last_saved_at 갱신 |
 | user_related_reels 뷰 | shared_media_saved_places 조인 | 릴스당 최신 공유 한 건은 서비스에서 |
 | save-instagram-reel-v2 + RPC 11개 | POST /shares + ExtractionPipeline + Recorder | 커밋 후 @Async, 조건부 UPDATE 선점 |
-| resolve_queue_items | place-selections, place-discards | 큐 항목 id → sharedMediaId + placeIds |
+| resolve_queue_items | place-decisions | 큐 항목 id -> URL의 sharedMediaId + 본문의 placeIds, decision |
 | delete-account | DELETE /members/me | 남은 결정 5 |
 | app-update-policy | GET /app-update-policies | 설정값 |
 | reel_place_match_failures, provider_usage_monthly | 로그 계층, 사용량 카운터 | 사이클 10, 11 |

@@ -3,7 +3,10 @@ package com.yeogidam.media.share.domain;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 한 공유 건(SharedInstagramMedia)에 발급된 후보 전부의 일급 컬렉션.
@@ -37,13 +40,14 @@ public class PlaceCandidates {
         List<PlaceCandidate> decidable = decidableAmong(placeIds);
         decidable.forEach(placeCandidate -> placeCandidate.decide(target));
         return decidable.stream()
-                .map(placeCandidate -> placeCandidate.place().id())
+                .map(PlaceCandidate::getId)
                 .toList();
     }
 
     private List<PlaceCandidate> decidableAmong(List<Long> placeIds) {
+        Set<Long> selectedPlaceIds = new HashSet<>(placeIds);
         return places.stream()
-                .filter(placeCandidate -> placeIds.contains(placeCandidate.place().id()))
+                .filter(placeCandidate -> selectedPlaceIds.contains(placeCandidate.getId()))
                 .filter(PlaceCandidate::canDecide)
                 .toList();
     }
@@ -57,14 +61,10 @@ public class PlaceCandidates {
         }
     }
 
-    private List<Long> placeIdValues() {
+    private Set<Long> placeIdValues() {
         return places.stream()
-                .map(placeCandidate -> placeCandidate.place().id())
-                .toList();
-    }
-
-    public int count() {
-        return places.size();
+                .map(PlaceCandidate::getId)
+                .collect(Collectors.toCollection(HashSet::new));
     }
 
     public List<PlaceCandidate> values() {

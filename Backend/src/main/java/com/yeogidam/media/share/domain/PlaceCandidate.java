@@ -1,5 +1,7 @@
 package com.yeogidam.media.share.domain;
 
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
 
@@ -43,22 +45,18 @@ public class PlaceCandidate {
     public void decide(PlaceDecisionStatus target) {
         validateTarget(target);
         if (!canDecide()) {
-            throw new IllegalStateException("이미 결정된 후보입니다: " + decision);
+            throw new MediaException(MediaErrorCode.PLACE_CANDIDATE_ALREADY_DECIDED);
         }
         this.decision = target;
     }
 
     private void validateTarget(PlaceDecisionStatus target) {
         if (target == null || !target.isDecision()) {
-            throw new IllegalArgumentException("후보의 결정은 SAVED 또는 DISCARDED여야 합니다: " + target);
+            throw new MediaException(MediaErrorCode.INVALID_PLACE_DECISION);
         }
     }
 
-    public Place place() {
-        return place;
-    }
-
-    public PlaceDecisionStatus decision() {
-        return decision;
+    public Long getId() {
+        return place.id();
     }
 }

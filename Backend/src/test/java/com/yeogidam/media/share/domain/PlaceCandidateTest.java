@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.place.domain.PlaceDecisionStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,10 +21,7 @@ class PlaceCandidateTest {
         PlaceCandidate candidate = new PlaceCandidate(place(1L));
 
         // then
-        assertAll(
-                () -> assertThat(candidate.decision()).isEqualTo(PlaceDecisionStatus.UNDECIDED),
-                () -> assertThat(candidate.canDecide()).isTrue()
-        );
+        assertThat(candidate.canDecide()).isTrue();
     }
 
     @ParameterizedTest
@@ -35,10 +34,7 @@ class PlaceCandidateTest {
         candidate.decide(target);
 
         // then
-        assertAll(
-                () -> assertThat(candidate.decision()).isEqualTo(target),
-                () -> assertThat(candidate.canDecide()).isFalse()
-        );
+        assertThat(candidate.canDecide()).isFalse();
     }
 
     @ParameterizedTest
@@ -49,10 +45,11 @@ class PlaceCandidateTest {
 
         // when & then
         assertAll(
-                () -> assertThat(candidate.canDecide()).isFalse(),
                 () -> assertThatThrownBy(() -> candidate.decide(PlaceDecisionStatus.SAVED))
-                        .isInstanceOf(IllegalStateException.class),
-                () -> assertThat(candidate.decision()).isEqualTo(current)
+                        .isInstanceOfSatisfying(MediaException.class, exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(MediaErrorCode.PLACE_CANDIDATE_ALREADY_DECIDED)),
+                () -> assertThat(candidate.canDecide()).isFalse()
         );
     }
 
@@ -66,8 +63,9 @@ class PlaceCandidateTest {
         // when & then
         assertAll(
                 () -> assertThatThrownBy(() -> candidate.decide(target))
-                        .isInstanceOf(IllegalArgumentException.class),
-                () -> assertThat(candidate.decision()).isEqualTo(PlaceDecisionStatus.UNDECIDED)
+                        .isInstanceOfSatisfying(MediaException.class, exception ->
+                                assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.INVALID_PLACE_DECISION)),
+                () -> assertThat(candidate.canDecide()).isTrue()
         );
     }
 

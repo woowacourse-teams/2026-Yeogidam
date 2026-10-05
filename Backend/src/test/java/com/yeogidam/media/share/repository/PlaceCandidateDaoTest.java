@@ -1,20 +1,29 @@
 package com.yeogidam.media.share.repository;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertDiscardedCandidate;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertDiscardedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSavedCandidate;
+import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSupersededCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.media.share.domain.PlaceCandidate;
+import com.yeogidam.place.domain.PlaceDecisionStatus;
 import com.yeogidam.support.JdbcTestSupport;
+import com.yeogidam.support.fixture.sql.PlaceDecisionSqlFixture;
+import com.yeogidam.support.fixture.sql.PlaceDecisionSqlFixture.CandidateState;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,12 +33,78 @@ class PlaceCandidateDaoTest extends JdbcTestSupport {
 
     private static final BigDecimal FIXTURE_LATITUDE = new BigDecimal("37.5796");
     private static final BigDecimal FIXTURE_LONGITUDE = new BigDecimal("126.9770");
+    private static final Instant NOW = Instant.parse("2026-10-04T01:00:00.123456Z");
+    private static final Instant PREVIOUS_DECISION = NOW.minus(Duration.ofHours(1));
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private PlaceCandidateDao placeCandidateDao;
+
+    @Test
+    void 장소_후보를_선택할_수_있는지_판단한다() {
+        // given: 후보 ID와 장소 ID가 다르고, 같은 장소가 다른 공유에도 있다.
+        insertKakaoMember(jdbcTemplate, 1L, "candidate-domain-mapping-user", null, null, null);
+        PlaceDecisionSqlFixture fixture = new PlaceDecisionSqlFixture(jdbcTemplate);
+        fixture.createPlaces(List.of(11L, 12L, 13L, 14L));
+        fixture.createShare(1L, 101L, 201L, PREVIOUS_DECISION);
+        fixture.createShareForExistingMedia(1L, 102L, 201L, NOW);
+
+        insertSavedCandidate(jdbcTemplate, 1001L, 101L, 12L, PREVIOUS_DECISION);
+        insertUndecidedCandidate(jdbcTemplate, 1002L, 101L, 11L);
+        insertDiscardedCandidate(jdbcTemplate, 1003L, 101L, 13L, PREVIOUS_DECISION);
+        insertSupersededCandidate(jdbcTemplate, 1004L, 101L, 14L);
+
+        insertUndecidedCandidate(jdbcTemplate, 901L, 102L, 11L);
+
+        // when
+        List<PlaceCandidate> candidates = placeCandidateDao.findAllBySharedMediaId(101L);
+
+        // then: 모든 상태를 후보 ID 순으로 읽고, places.id를 도메인 식별자로 사용한다.
+        assertThat(candidates)
+                .extracting(PlaceCandidate::getId, PlaceCandidate::canDecide)
+                .containsExactly(tuple(12L, false), tuple(11L, true), tuple(13L, false), tuple(14L, false));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = PlaceDecisionStatus.class, names = {"SAVED", "DISCARDED"})
+    void 장소_선택은_장소_후보중_미결정_후보에만_적용한다(PlaceDecisionStatus decision) {
+        // given: 다른 공유, 미선택 후보, SAVED·DISCARDED·SUPERSEDED 행은 수정 대상이 아니다.
+        insertKakaoMember(jdbcTemplate, 1L, "candidate-decision-update-user", null, null, null);
+        PlaceDecisionSqlFixture fixture = new PlaceDecisionSqlFixture(jdbcTemplate);
+
+        fixture.createPlaces(List.of(11L, 12L, 13L, 14L, 15L, 16L));
+        fixture.createShare(1L, 101L, 201L, PREVIOUS_DECISION);
+        fixture.createShareForExistingMedia(1L, 102L, 201L, NOW);
+        fixture.createUndecidedCandidates(101L, List.of(11L, 12L, 13L));
+        fixture.createUndecidedCandidates(102L, List.of(11L, 13L));
+        insertSavedCandidate(jdbcTemplate, 1001L, 101L, 14L, PREVIOUS_DECISION);
+        insertDiscardedCandidate(jdbcTemplate, 1002L, 101L, 15L, PREVIOUS_DECISION);
+        insertSupersededCandidate(jdbcTemplate, 1003L, 101L, 16L);
+
+        // when
+        placeCandidateDao.updateDecisions(101L, List.of(11L, 13L, 14L, 15L, 16L), decision, NOW);
+
+        // then: 대상 두 행의 결정과 UTC 마이크로초 시각만 바뀐다.
+        assertAll(
+                () -> assertThat(fixture.candidate(101L, 11L))
+                        .isEqualTo(new CandidateState(decision.name(), NOW)),
+                () -> assertThat(fixture.candidate(101L, 13L))
+                        .isEqualTo(new CandidateState(decision.name(), NOW)),
+                () -> assertThat(fixture.candidate(101L, 12L))
+                        .isEqualTo(new CandidateState("UNDECIDED", null)),
+                () -> assertThat(fixture.candidate(101L, 14L))
+                        .isEqualTo(new CandidateState("SAVED", PREVIOUS_DECISION)),
+                () -> assertThat(fixture.candidate(101L, 15L))
+                        .isEqualTo(new CandidateState("DISCARDED", PREVIOUS_DECISION)),
+                () -> assertThat(fixture.candidate(101L, 16L))
+                        .isEqualTo(new CandidateState("SUPERSEDED", null)),
+                () -> assertThat(fixture.candidate(102L, 11L))
+                        .isEqualTo(new CandidateState("UNDECIDED", null)),
+                () -> assertThat(fixture.candidate(102L, 13L))
+                        .isEqualTo(new CandidateState("UNDECIDED", null)));
+    }
 
     @Test
     void 대기_중인_후보가_있는_내_공유만_최근순으로_조회하고_미디어를_매핑한다() {

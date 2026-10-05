@@ -1,5 +1,17 @@
 package com.yeogidam.media.share.repository;
 
+import com.yeogidam.media.share.domain.PlaceCandidate;
+import com.yeogidam.place.domain.Address;
+import com.yeogidam.place.domain.Coordinate;
+import com.yeogidam.place.domain.Place;
+import com.yeogidam.place.domain.PlaceDecisionStatus;
+import com.yeogidam.place.domain.PlaceExternalSource;
+import com.yeogidam.place.domain.PlaceName;
+import com.yeogidam.place.domain.PlaceProfile;
+import com.yeogidam.place.domain.PlaceThumbnail;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +23,27 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class PlaceCandidateDao {
 
+    private static final RowMapper<PlaceCandidate> CANDIDATE_ROW_MAPPER = (resultSet, rowNumber) ->
+            new PlaceCandidate(
+                    new Place(
+                            resultSet.getLong("place_id"),
+                            new PlaceExternalSource(resultSet.getString("kakao_place_id"),
+                                    resultSet.getString("kakao_place_url")),
+                            new PlaceProfile(
+                                    new PlaceName(resultSet.getString("name")),
+                                    new Address(resultSet.getString("land_lot_address"),
+                                            resultSet.getString("road_address")),
+                                    new Coordinate(resultSet.getBigDecimal("latitude"),
+                                            resultSet.getBigDecimal("longitude")),
+                                    resultSet.getString("category"),
+                                    resultSet.getString("telephone"),
+                                    new PlaceThumbnail(resultSet.getString("thumbnail_key"),
+                                            resultSet.getString("thumbnail_source"))
+                            )
+                    ),
+                    PlaceDecisionStatus.valueOf(resultSet.getString("decision_status"))
+            );
+
     private static final RowMapper<SharedMediaSummaryProjection> SHARED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
             new SharedMediaSummaryProjection(
                     resultSet.getLong("shared_media_id"),
@@ -20,8 +53,8 @@ public class PlaceCandidateDao {
                     resultSet.getString("author")
             );
 
-    private static final RowMapper<PlaceCandidateProjection> PLACE_CANDIDATE_ROW_MAPPER = (resultSet, rowNumber) ->
-            new PlaceCandidateProjection(
+    private static final RowMapper<PlaceCandidateProjection> PLACE_CANDIDATE_PROJECTION_ROW_MAPPER =
+            (resultSet, rowNumber) -> new PlaceCandidateProjection(
                     resultSet.getLong("shared_media_id"),
                     resultSet.getLong("candidate_id"),
                     resultSet.getLong("place_id"),
@@ -33,6 +66,53 @@ public class PlaceCandidateDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
+
+    public List<PlaceCandidate> findAllBySharedMediaId(Long sharedMediaId) {
+        String sql = """
+                SELECT pc.place_id,
+                       pc.decision_status,
+                       p.kakao_place_id,
+                       p.kakao_place_url,
+                       p.name,
+                       p.land_lot_address,
+                       p.road_address,
+                       p.latitude,
+                       p.longitude,
+                       p.category,
+                       p.telephone,
+                       p.thumbnail_key,
+                       p.thumbnail_source
+                FROM place_candidates pc
+                JOIN places p ON p.id = pc.place_id
+                WHERE pc.shared_media_id = ?
+                ORDER BY pc.id ASC
+                """;
+        return jdbcTemplate.query(sql, CANDIDATE_ROW_MAPPER, sharedMediaId);
+    }
+
+    public void updateDecisions(
+            Long sharedMediaId,
+            List<Long> placeIds,
+            PlaceDecisionStatus decision,
+            Instant decidedAt
+    ) {
+        if (placeIds.isEmpty()) {
+            return;
+        }
+        String placeholders = placeIds.stream()
+                .map(placeId -> "?")
+                .collect(Collectors.joining(", "));
+        String sql = """
+                UPDATE place_candidates
+                SET decision_status = ?, decided_at = ?
+                WHERE shared_media_id = ?
+                  AND place_id IN (%s)
+                  AND decision_status = 'UNDECIDED'
+                """.formatted(placeholders);
+        List<Object> arguments = new ArrayList<>(List.of(decision.name(), Timestamp.from(decidedAt), sharedMediaId));
+        arguments.addAll(placeIds);
+        jdbcTemplate.update(sql, arguments.toArray());
+    }
 
     public void supersedeUndecided(Long memberId, Long mediaId) {
         String sql = """
@@ -116,7 +196,7 @@ public class PlaceCandidateDao {
                   AND pc.decision_status = 'UNDECIDED'
                 ORDER BY pc.shared_media_id ASC, pc.id ASC
                 """.formatted(placeholders);
-        return jdbcTemplate.query(sql, PLACE_CANDIDATE_ROW_MAPPER, sharedMediaIds.toArray());
+        return jdbcTemplate.query(sql, PLACE_CANDIDATE_PROJECTION_ROW_MAPPER, sharedMediaIds.toArray());
     }
 
     public List<PlaceCandidateProjection> findCandidates(Long sharedMediaId) {
@@ -134,6 +214,6 @@ public class PlaceCandidateDao {
                 WHERE pc.shared_media_id = ?
                 ORDER BY pc.id ASC
                 """;
-        return jdbcTemplate.query(sql, PLACE_CANDIDATE_ROW_MAPPER, sharedMediaId);
+        return jdbcTemplate.query(sql, PLACE_CANDIDATE_PROJECTION_ROW_MAPPER, sharedMediaId);
     }
 }

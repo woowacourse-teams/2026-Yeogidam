@@ -12,8 +12,10 @@ import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertShare
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.place.domain.SavedPlace;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -22,16 +24,70 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 보관함 조회 쿼리의 조인, 정렬, 열 매핑과 삭제의 범위, 관련 릴스 조회의 조인과 열 매핑이 실제 MySQL에서 동작하는지 검증한다. 행은 SQL fixture로 given에서 직접 넣는다.
+ * 보관함 조회·갱신·삭제의 범위와 매핑, 관련 릴스 조회가 실제 MySQL에서 동작하는지 검증한다.
+ * 행은 SQL fixture로 given에서 직접 넣는다.
  */
 @Import(SavedPlaceDao.class)
 class SavedPlaceDaoTest extends JdbcTestSupport {
+
+    private static final Instant NOW = Instant.parse("2026-10-04T01:00:00.123456Z");
+    private static final Instant PREVIOUS_SAVE = NOW.minus(Duration.ofHours(1));
 
     @Autowired
     private SavedPlaceDao savedPlaceDao;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    void 회원과_장소ID로_보관함_장소를_조회한다() {
+        // given: 같은 회원의 다른 장소와 다른 회원의 같은 장소가 함께 있다.
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, PREVIOUS_SAVE);
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, NOW);
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 2L, PREVIOUS_SAVE);
+
+        // when
+        SavedPlace savedPlace = savedPlaceDao.findByMemberAndPlace(1L, 2L).orElseThrow();
+
+        // then
+        assertAll(
+                () -> assertThat(savedPlace.id()).isEqualTo(12L),
+                () -> assertThat(savedPlace.memberId()).isEqualTo(1L),
+                () -> assertThat(savedPlace.placeId()).isEqualTo(2L),
+                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(NOW),
+                () -> assertThat(savedPlaceDao.findByMemberAndPlace(1L, 3L)).isEmpty(),
+                () -> assertThat(savedPlaceDao.findByMemberAndPlace(2L, 1L)).isEmpty());
+    }
+
+    @Test
+    void 보관함_갱신은_저장_ID와_회원_ID가_모두_일치하는_행에만_적용한다() {
+        // given
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, PREVIOUS_SAVE);
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, PREVIOUS_SAVE);
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, PREVIOUS_SAVE);
+
+        // when: 정상 갱신과 회원 ID가 맞지 않는 갱신을 각각 실행한다.
+        savedPlaceDao.update(new SavedPlace(11L, 1L, 1L, NOW));
+        savedPlaceDao.update(new SavedPlace(21L, 1L, 1L, NOW));
+
+        // then: 내 대상 행의 시각만 바뀌고 다른 행은 유지된다.
+        assertAll(
+                () -> assertThat(savedPlaceDao.findByMemberAndPlace(1L, 1L).orElseThrow())
+                        .usingRecursiveComparison()
+                        .isEqualTo(new SavedPlace(11L, 1L, 1L, NOW)),
+                () -> assertThat(savedPlaceDao.findByMemberAndPlace(1L, 2L).orElseThrow())
+                        .usingRecursiveComparison()
+                        .isEqualTo(new SavedPlace(12L, 1L, 2L, PREVIOUS_SAVE)),
+                () -> assertThat(savedPlaceDao.findByMemberAndPlace(2L, 1L).orElseThrow())
+                        .usingRecursiveComparison()
+                        .isEqualTo(new SavedPlace(21L, 2L, 1L, PREVIOUS_SAVE)));
+    }
 
     @Test
     void 보관함을_최근에_저장한_순서로_읽는다() {
