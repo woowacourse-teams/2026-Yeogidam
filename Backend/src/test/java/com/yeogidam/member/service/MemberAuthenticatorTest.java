@@ -40,7 +40,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
                 () -> assertThat(saved.id()).isEqualTo(member.id()),
-                () -> assertThat(saved.nickname()).isEqualTo("빈"),
+                () -> assertThat(saved.profile().nickname()).isEqualTo("빈"),
                 () -> assertThat(saved.profile().email()).isEqualTo("빈@example.com")
         );
     }
@@ -57,7 +57,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
                 () -> assertThat(again.id()).isEqualTo(created.id()),
-                () -> assertThat(saved.nickname()).isEqualTo("새이름"),
+                () -> assertThat(saved.profile().nickname()).isEqualTo("새이름"),
                 () -> assertThat(memberCount()).isEqualTo(1)
         );
     }
@@ -73,7 +73,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         // then
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
-                () -> assertThat(saved.nickname()).isNull(),
+                () -> assertThat(saved.profile().nickname()).isNull(),
                 () -> assertThat(saved.profile().email()).isNull(),
                 () -> assertThat(saved.profile().imageUrl()).isNull()
         );

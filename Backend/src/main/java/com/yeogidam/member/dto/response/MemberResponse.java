@@ -13,7 +13,7 @@ public record MemberResponse(
     public static MemberResponse from(Member member) {
         return new MemberResponse(
                 member.id(),
-                member.nickname(),
+                member.profile().nickname(),
                 member.profile().email(),
                 member.profile().imageUrl(),
                 member.oauthAccount().provider()

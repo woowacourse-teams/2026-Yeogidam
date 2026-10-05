@@ -18,7 +18,7 @@ class MemberTest {
         // then
         assertAll(
                 () -> assertThat(member.id()).isNull(),
-                () -> assertThat(member.nickname()).isEqualTo("빈"),
+                () -> assertThat(member.profile().nickname()).isEqualTo("빈"),
                 () -> assertThat(member.oauthAccount()).isEqualTo(kakaoAccount("kakao-1"))
         );
     }
@@ -33,7 +33,7 @@ class MemberTest {
 
         // then
         assertAll(
-                () -> assertThat(member.nickname()).isEqualTo("새이름"),
+                () -> assertThat(member.profile().nickname()).isEqualTo("새이름"),
                 () -> assertThat(member.oauthAccount()).isEqualTo(kakaoAccount("kakao-1"))
         );
     }

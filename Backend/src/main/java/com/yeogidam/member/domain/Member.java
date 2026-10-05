@@ -38,10 +38,6 @@ public class Member {
         return id;
     }
 
-    public String nickname() {
-        return profile.nickname();
-    }
-
     public OAuthAccount oauthAccount() {
         return oauthAccount;
     }
