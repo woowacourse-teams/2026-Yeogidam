@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.Instant;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -70,9 +71,13 @@ public interface ShareApiDocs {
 
     @Operation(summary = "히스토리 목록 조회",
             description = """
-                    로그인한 회원의 공유 이력을 최근 공유 순서로 돌려줍니다.
+                    로그인한 회원의 공유 이력을 최근 공유부터 50건씩 반환합니다.
 
                     - `createdAt` 내림차순으로 정렬하고, 같은 시각에는 `sharedMediaId` 내림차순으로 정렬합니다.
+                    - 커서 없이 요청하면 가장 최근 50건을 반환합니다. 목록 폴링도 커서 없이 요청해 첫 페이지만 갱신합니다.
+                    - 다음 페이지가 있으면 `nextCursor`에 이번 페이지 마지막 공유의 `createdAt`과 `id`가 담기고, 없으면 `nextCursor`는 null입니다.
+                    - 다음 페이지는 `nextCursor`의 두 값을 `cursorCreatedAt`, `cursorId`로 보내 요청합니다. 두 값은 함께 보내야 합니다.
+                    - `cursorCreatedAt`은 받은 값을 마이크로초까지 그대로 보내야 페이지 경계의 공유가 빠지지 않습니다.
                     - 장소 목록은 포함하지 않으며, 분석 실패 시 `failureReason`을 반환합니다.
                     - `failureReason`은 `CONTENT_UNAVAILABLE`, `PLACE_NOT_EXTRACTED`, `PLACE_NOT_MATCHED`,
                       `PROCESSING_FAILED`, `UNEXPECTED` 중 하나입니다.
@@ -85,6 +90,21 @@ public interface ShareApiDocs {
                     @ApiResponse(responseCode = "200", description = "히스토리 목록 조회 성공. 기록이 없으면 빈 배열",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ShareHistoryResponses.class))),
+                    @ApiResponse(responseCode = "400", description = "커서 값이 하나만 오거나 형식이 맞지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "MEDIA400_015",
+                                                    description = "cursorCreatedAt과 cursorId 중 하나만 보냈을 때",
+                                                    value = """
+                                                            {"message": "커서의 공유 시각과 ID는 함께 보내야 합니다.", "errorCode": "MEDIA400_015"}
+                                                            """),
+                                            @ExampleObject(name = "COMMON400_004",
+                                                    description = "cursorCreatedAt이 ISO-8601 시각이 아니거나 cursorId가 숫자가 아닐 때",
+                                                    value = """
+                                                            {"message": "요청 값의 형식이 올바르지 않습니다.", "errorCode": "COMMON400_004"}
+                                                            """)
+                                    })),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -101,7 +121,12 @@ public interface ShareApiDocs {
                                                             """)
                                     }))
             })
-    ResponseEntity<ShareHistoryResponses> readShareHistory(Long memberId);
+    ResponseEntity<ShareHistoryResponses> readShareHistory(
+            Long memberId,
+            @Parameter(description = "다음 페이지를 요청할 때 이전 응답의 nextCursor.createdAt을 보냅니다.",
+                    example = "2026-09-20T03:12:45.123456Z") Instant cursorCreatedAt,
+            @Parameter(description = "다음 페이지를 요청할 때 이전 응답의 nextCursor.id를 보냅니다.", example = "812") Long cursorId
+    );
 
     @Operation(summary = "히스토리 내 장소 목록 조회",
             description = """
