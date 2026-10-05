@@ -75,7 +75,7 @@ public interface ShareApiDocs {
                     로그인한 회원의 실패한 공유 이력에서 장소 추출을 다시 요청합니다. 요청 본문은 없습니다.
 
                     - 요청마다 새로운 공유 이력을 생성하고 기존 실패 이력과 최초 공유 시각을 보존합니다.
-                    - 현재 분석 버전에서는 PROCESSING_FAILED, UNEXPECTED만 재시도할 수 있습니다.
+                    - 현재 분석 버전에서는 `PROCESSING_FAILED`, `UNEXPECTED`만 재시도할 수 있습니다.
                     - 이전 분석 버전의 실패는 실패 사유에 관계없이 재시도할 수 있습니다.
                     - 같은 미디어의 분석이 진행 중이면 새 이력을 만들어 해당 분석에 합류합니다.
                     - 성공한 이력과 분석 중인 이력을 대상으로 요청할 수 없습니다.
@@ -87,32 +87,57 @@ public interface ShareApiDocs {
                     @ApiResponse(responseCode = "202", description = "새 재시도 이력 접수",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ExtractionRetryResponse.class),
-                                    examples = @ExampleObject(value = """
-                                            {"sharedMediaId": 30, "extractionStatus": "EXTRACTING"}
-                                            """))),
+                                    examples = @ExampleObject(name = "재시도 이력",
+                                            description = "새로 생성한 이력과 분석 상태",
+                                            value = """
+                                                    {
+                                                      "sharedMediaId": 30,
+                                                      "extractionStatus": "EXTRACTING"
+                                                    }
+                                                    """))),
                     @ApiResponse(responseCode = "400", description = "성공 또는 분석 중인 이력, 재시도할 수 없는 실패",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = {
-                                            @ExampleObject(name = "MEDIA400_002", value = """
-                                                    {"message": "추출에 성공한 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_002"}
-                                                    """),
-                                            @ExampleObject(name = "MEDIA400_006", value = """
-                                                    {"message": "추출이 진행 중인 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_006"}
-                                                    """),
-                                            @ExampleObject(name = "MEDIA400_016", value = """
-                                                    {"message": "현재 분석 버전에서 다시 시도할 수 없는 실패입니다.", "errorCode": "MEDIA400_016"}
-                                                    """)
+                                             @ExampleObject(name = "MEDIA400_002",
+                                                     description = "이미 분석에 성공한 미디어를 다시 요청할 때",
+                                                     value = """
+                                                            {"message": "추출에 성공한 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_002"}
+                                                            """),
+                                            @ExampleObject(name = "MEDIA400_006",
+                                                    description = "분석 중인 공유 이력을 대상으로 요청할 때",
+                                                    value = """
+                                                            {"message": "추출이 진행 중인 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_006"}
+                                                            """),
+                                             @ExampleObject(name = "MEDIA400_016",
+                                                     description = "현재 분석 버전에서 재시도할 수 없는 실패 사유일 때",
+                                                     value = """
+                                                             {"message": "현재 분석 버전에서 다시 시도할 수 없는 실패입니다.", "errorCode": "MEDIA400_016"}
+                                                             """)
                                     })),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ErrorResponse.class))),
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
+                                                    value = """
+                                                            {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
+                                                            """),
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
+                                                    value = """
+                                                            {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
+                                                            """)
+                                    })),
                     @ApiResponse(responseCode = "404", description = "존재하지 않거나 다른 회원의 공유",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
-                                    examples = @ExampleObject(name = "MEDIA404_002", value = """
-                                            {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
-                                            """)))
+                                    examples = @ExampleObject(name = "MEDIA404_002",
+                                            description = "존재하지 않거나 다른 회원의 공유 이력일 때",
+                                            value = """
+                                                    {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
+                                                    """)))
             })
     ResponseEntity<ExtractionRetryResponse> createExtractionRetry(
             Long memberId,
