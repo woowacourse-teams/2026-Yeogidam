@@ -51,7 +51,6 @@ import org.springframework.test.context.TestPropertySource;
 class ExtractionRetryE2eTest extends E2eTestSupport {
 
     private static final String SHARES_PATH = "/api/v1/shares";
-    private static final String CANDIDATES_PATH = "/api/v1/place-candidates";
     private static final Long MEDIA_ID = 3L;
     private static final Long ORIGINAL_SHARE_ID = 10L;
     private static final Long OTHER_SHARE_ID = 20L;
@@ -246,7 +245,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 재시도_성공은_새_히스토리에만_반영하고_다른_회원의_실패와_대기함은_유지한다() throws Exception {
+    void 재시도_성공은_새_히스토리와_보관함에_반영하고_다른_회원의_실패와_보관함은_유지한다() throws Exception {
         // given
         LoginResult memberA = loginAsKakao("retry-success-member-a");
         LoginResult memberB = loginAsKakao("retry-success-member-b");
@@ -254,7 +253,8 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
         insertSharedMedia(jdbcTemplate, OTHER_SHARE_ID, memberB.memberId(), MEDIA_ID,
                 sharedUrl(MEDIA_ID), ORIGINAL_SHARED_AT);
         List<Long> previousHistoryB = readHistoryIds(memberB);
-        List<Long> previousCandidatesB = readCandidateHistoryIds(memberB);
+        List<Long> previousSavedSharesB = readSavedShareIds(memberB);
+        List<Long> previousSavedPlacesB = readSavedPlaceIds(memberB);
 
         // when
         Long retriedShareId = requestRetry(memberA, ORIGINAL_SHARE_ID);
@@ -268,11 +268,13 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertHistorySummary(memberA, retriedShareId, ExtractionStatus.SUCCEEDED),
                 () -> assertHistorySummary(memberA, ORIGINAL_SHARE_ID, ExtractionStatus.FAILED),
                 () -> assertHistorySummary(memberB, OTHER_SHARE_ID, ExtractionStatus.FAILED),
-                () -> assertThat(countCandidates(retriedShareId)).isEqualTo(1),
-                () -> assertThat(countCandidates(ORIGINAL_SHARE_ID)).isZero(),
-                () -> assertThat(countCandidates(OTHER_SHARE_ID)).isZero(),
+                () -> assertThat(countSavedPlacesFromShare(retriedShareId)).isEqualTo(1),
+                () -> assertThat(countSavedPlacesFromShare(ORIGINAL_SHARE_ID)).isZero(),
+                () -> assertThat(countSavedPlacesFromShare(OTHER_SHARE_ID)).isZero(),
                 () -> assertThat(readHistoryIds(memberB)).isEqualTo(previousHistoryB),
-                () -> assertThat(readCandidateHistoryIds(memberB)).isEqualTo(previousCandidatesB)
+                () -> assertThat(readSavedShareIds(memberB)).isEqualTo(previousSavedSharesB),
+                () -> assertThat(readSavedPlaceIds(memberA)).hasSize(1),
+                () -> assertThat(readSavedPlaceIds(memberB)).isEqualTo(previousSavedPlacesB)
         );
     }
 
@@ -295,7 +297,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertSucceededHistory(member, firstShareId),
                 () -> assertSucceededHistory(member, secondShareId),
                 () -> assertFailedHistory(member, ORIGINAL_SHARE_ID),
-                () -> assertThat(readCandidateHistoryIds(member))
+                () -> assertThat(readSavedShareIds(member))
                         .containsExactly(secondShareId),
                 () -> assertThat(placeNameExtractor.requestCount())
                         .isEqualTo(1)
@@ -381,14 +383,24 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 .jsonPath().getList("sharedMedias.sharedMediaId", Long.class);
     }
 
-    private List<Long> readCandidateHistoryIds(LoginResult member) {
+    private List<Long> readSavedShareIds(LoginResult member) {
+        return jdbcTemplate.queryForList("""
+                SELECT link.shared_media_id
+                FROM shared_media_saved_places link
+                JOIN saved_places saved ON saved.id = link.saved_place_id
+                WHERE saved.member_id = ?
+                ORDER BY link.shared_media_id DESC
+                """, Long.class, member.memberId());
+    }
+
+    private List<Long> readSavedPlaceIds(LoginResult member) {
         return givenBearer(member.accessToken())
                 .when()
-                .get(CANDIDATES_PATH)
+                .get("/api/v1/saved-places")
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .extract()
-                .jsonPath().getList("sharedMedias.sharedMediaId", Long.class);
+                .jsonPath().getList("savedPlaces.savedPlaceId", Long.class);
     }
 
     private void assertFailedHistory(LoginResult member, Long sharedMediaId) {
@@ -432,9 +444,9 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 .isEqualTo(readHistory(member, sharedMediaId).getString("failureReason"));
     }
 
-    private int countCandidates(Long sharedMediaId) {
+    private int countSavedPlacesFromShare(Long sharedMediaId) {
         return jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM place_candidates WHERE shared_media_id = ?
+                SELECT COUNT(*) FROM shared_media_saved_places WHERE shared_media_id = ?
                 """, Integer.class, sharedMediaId);
     }
 
@@ -462,14 +474,16 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
         return new RetryDataSnapshot(
                 jdbcTemplate.queryForList("SELECT * FROM media ORDER BY id"),
                 jdbcTemplate.queryForList("SELECT * FROM shared_media ORDER BY id"),
-                jdbcTemplate.queryForList("SELECT * FROM place_candidates ORDER BY id")
+                jdbcTemplate.queryForList("SELECT * FROM saved_places ORDER BY id"),
+                jdbcTemplate.queryForList("SELECT * FROM shared_media_saved_places ORDER BY id")
         );
     }
 
     private record RetryDataSnapshot(
             List<Map<String, Object>> media,
             List<Map<String, Object>> sharedMedia,
-            List<Map<String, Object>> candidates
+            List<Map<String, Object>> savedPlaces,
+            List<Map<String, Object>> sharedMediaSavedPlaces
     ) {
     }
 

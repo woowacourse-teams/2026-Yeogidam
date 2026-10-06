@@ -80,7 +80,7 @@ public interface ShareApiDocs {
                     - 같은 미디어의 분석이 진행 중이면 새 이력을 만들어 해당 분석에 합류합니다.
                     - 성공한 이력과 분석 중인 이력을 대상으로 요청할 수 없습니다.
                     - 미디어가 이미 분석에 성공했다면 과거 실패 이력에서도 재시도할 수 없습니다.
-                    - 결과는 이번 분석에 참여한 회원의 최신 공유에 장소를 보관함으로 자동 저장하고 연결합니다.
+                    - 결과는 이번 분석을 기다리는 이력에만 반영하며 참여 회원별 최신 이력에 장소를 보관함으로 자동 저장합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
@@ -112,7 +112,7 @@ public interface ShareApiDocs {
                                              @ExampleObject(name = "MEDIA400_016",
                                                      description = "현재 분석 버전에서 재시도할 수 없는 실패 사유일 때",
                                                      value = """
-                                                             {"message": "현재 분석 버전에서 다시 시도할 수 없는 실패입니다.", "errorCode": "MEDIA400_016"}
+                                                             {"message": "현재 분석 버전에서는 재시도가 불가능합니다.", "errorCode": "MEDIA400_016"}
                                                              """)
                                     })),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
