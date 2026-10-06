@@ -138,7 +138,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 Instant.parse("2026-09-17T11:00:00Z"));
 
         // when
-        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(5L);
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(5L).page();
 
         // then
         assertThat(shares)
@@ -168,10 +168,60 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     @Test
     void 히스토리가_없으면_빈_목록을_반환한다() {
         // when
-        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(7L);
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(7L).shares();
 
         // then
         assertThat(shares).isEmpty();
+    }
+
+    @Test
+    void 첫_페이지는_다음_페이지가_있는지_알_수_있게_최신순으로_51건을_읽는다() {
+        // given: 1초 간격으로 공유한 기록이 55건 있다
+        insertKakaoMember(jdbcTemplate, 8L, "share-dao-page-user", null, null, null);
+        insertMedia(jdbcTemplate, 8L, "페이지 게시글", "page.jpg", "@page");
+        insertSharesOneSecondApart(8L, 8L, 55);
+
+        // when
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(8L).shares();
+
+        // then: 최신인 55부터 51건을 읽고, 52번째인 4부터는 읽지 않는다
+        assertAll(
+                () -> assertThat(shares).hasSize(51),
+                () -> assertThat(shares.getFirst().sharedMediaId()).isEqualTo(55L),
+                () -> assertThat(shares.getLast().sharedMediaId()).isEqualTo(5L)
+        );
+    }
+
+    @Test
+    void 커서보다_오래된_내_공유만_최신순으로_읽는다() {
+        // given: 공유 3, 4, 5는 공유 시각이 같고, 공유 6은 다른 회원의 공유다
+        insertKakaoMember(jdbcTemplate, 9L, "share-dao-cursor-user", null, null, null);
+        insertKakaoMember(jdbcTemplate, 10L, "share-dao-cursor-other", null, null, null);
+        insertMedia(jdbcTemplate, 9L, "커서 게시글", "cursor.jpg", "@cursor");
+        Instant sameTime = Instant.parse("2026-09-20T03:00:00.123456Z");
+        insertSharedMedia(jdbcTemplate, 1L, 9L, 9L, sameTime.minusSeconds(2));
+        insertSharedMedia(jdbcTemplate, 2L, 9L, 9L, sameTime.minusNanos(1_000));
+        insertSharedMedia(jdbcTemplate, 3L, 9L, 9L, sameTime);
+        insertSharedMedia(jdbcTemplate, 4L, 9L, 9L, sameTime);
+        insertSharedMedia(jdbcTemplate, 5L, 9L, 9L, sameTime);
+        insertSharedMedia(jdbcTemplate, 6L, 10L, 9L, sameTime.minusSeconds(1));
+
+        // when: 공유 4까지 본 뒤 다음 페이지를 읽는다
+        List<ShareHistoryProjection> shares = sharedMediaDao
+                .findShareHistoryBefore(9L, new ShareHistoryCursor(sameTime, 4L))
+                .shares();
+
+        // then: 시각이 같은 공유 3과 1마이크로초 이른 공유 2는 빠지지 않고, 다른 회원의 공유 6은 섞이지 않는다
+        assertThat(shares)
+                .extracting(ShareHistoryProjection::sharedMediaId)
+                .containsExactly(3L, 2L, 1L);
+    }
+
+    private void insertSharesOneSecondApart(Long memberId, Long mediaId, int count) {
+        Instant base = Instant.parse("2026-09-20T03:00:00Z");
+        for (long id = 1; id <= count; id++) {
+            insertSharedMedia(jdbcTemplate, id, memberId, mediaId, base.plusSeconds(id));
+        }
     }
 
     private void insertMediaWithStatus(

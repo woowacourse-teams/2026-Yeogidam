@@ -17,8 +17,11 @@ import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.repository.PlaceCandidateDao;
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
+import com.yeogidam.media.share.repository.ShareHistoryCursor;
 import com.yeogidam.media.share.repository.ShareHistoryProjection;
+import com.yeogidam.media.share.repository.ShareHistoryProjections;
 import com.yeogidam.media.share.repository.SharedMediaDao;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,15 +84,34 @@ public class ShareService {
         return sharedMediaDao.save(sharedInstagramMedia);
     }
 
-    public ShareHistoryResponses readShareHistory(Long memberId) {
-        List<ShareHistoryProjection> history = sharedMediaDao.findShareHistory(memberId);
-        List<ShareHistoryResponse> responses = history.stream()
+    public ShareHistoryResponses readShareHistory(
+            Long memberId,
+            Instant cursorCreatedAt,
+            Long cursorId
+    ) {
+        ShareHistoryProjections history = findShareHistory(memberId, cursorCreatedAt, cursorId);
+        List<ShareHistoryResponse> responses = history.page()
+                .stream()
                 .map(projection -> {
                     String instagramThumbnailUrl = mediaThumbnailUrlResolver.resolve(projection.thumbnailKey());
                     return ShareHistoryResponse.from(projection, instagramThumbnailUrl);
                 })
                 .toList();
-        return ShareHistoryResponses.from(responses);
+        return ShareHistoryResponses.from(responses, history.nextCursor());
+    }
+
+    private ShareHistoryProjections findShareHistory(
+            Long memberId,
+            Instant cursorCreatedAt,
+            Long cursorId
+    ) {
+        if (cursorCreatedAt == null && cursorId == null) {
+            return sharedMediaDao.findShareHistory(memberId);
+        }
+        if (cursorCreatedAt == null || cursorId == null) {
+            throw new MediaException(MediaErrorCode.INCOMPLETE_HISTORY_CURSOR);
+        }
+        return sharedMediaDao.findShareHistoryBefore(memberId, new ShareHistoryCursor(cursorCreatedAt, cursorId));
     }
 
     public PlaceCandidateResponses readShareHistoryPlaces(Long memberId, Long sharedMediaId) {

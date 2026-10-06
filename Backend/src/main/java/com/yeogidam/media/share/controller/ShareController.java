@@ -6,6 +6,7 @@ import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.service.ShareService;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -36,8 +38,12 @@ public class ShareController implements ShareApiDocs {
 
     @Override
     @GetMapping
-    public ResponseEntity<ShareHistoryResponses> readShareHistory(@LoginMember Long memberId) {
-        ShareHistoryResponses response = shareService.readShareHistory(memberId);
+    public ResponseEntity<ShareHistoryResponses> readShareHistory(
+            @LoginMember Long memberId,
+            @RequestParam(required = false) Instant cursorCreatedAt,
+            @RequestParam(required = false) Long cursorId
+    ) {
+        ShareHistoryResponses response = shareService.readShareHistory(memberId, cursorCreatedAt, cursorId);
         return ResponseEntity.ok()
                 .body(response);
     }
