@@ -12,13 +12,11 @@ import com.yeogidam.media.instagram.repository.InstagramMediaDao;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
-import com.yeogidam.media.share.dto.response.ShareHistoryItemResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.repository.PlaceCandidateDao;
 import com.yeogidam.media.share.repository.PlaceCandidateProjection;
 import com.yeogidam.media.share.repository.ShareHistoryCursor;
-import com.yeogidam.media.share.repository.ShareHistoryProjection;
 import com.yeogidam.media.share.repository.ShareHistoryProjections;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import java.time.Instant;
@@ -130,12 +128,5 @@ public class ShareService {
             placeThumbnailUrls.put(candidate.placeId(), placeThumbnailUrl);
         }
         return placeThumbnailUrls;
-    }
-
-    public ShareHistoryItemResponse readShareHistoryItem(Long memberId, Long sharedMediaId) {
-        ShareHistoryProjection sharedMedia = sharedMediaDao.findShareHistoryItem(memberId, sharedMediaId)
-                .orElseThrow(() -> new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND));
-        String instagramThumbnailUrl = mediaThumbnailUrlResolver.resolve(sharedMedia.thumbnailKey());
-        return ShareHistoryItemResponse.from(sharedMedia, instagramThumbnailUrl);
     }
 }

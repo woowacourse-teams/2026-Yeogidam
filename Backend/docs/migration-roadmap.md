@@ -33,7 +33,7 @@
 | P-5 회원탈퇴 B | DELETE /members/me | 204. 전 세션 폐기 + 회원 데이터 삭제 | 신규 |
 | P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl, source, clientRequestId} | 202 {sharedMediaId, extractionStatus} / 400 미지원 링크 | 이식(POST /media) |
 | P-6 히스토리 B, B-1 | GET /shares?cursorCreatedAt=&cursorId= | {sharedMedias:[{sharedMediaId, createdAt, thumbnailUrl, caption, author, extractionStatus, failureReason, sharedUrl}], nextCursor:{createdAt, id} 또는 null}. 50건씩 커서로 나눠 읽는다. 커서 없이 요청하면 최근 50건을 주고 폴링도 같은 요청을 쓴다. 커서는 이번 페이지의 마지막 공유다 | 이식. 커서 페이징 적용(#277, #217 결론) |
-| P-6 성공/실패 항목 C, C-1, 접수 후 상태 폴링 | GET /shares/{sharedMediaId} | 히스토리 항목 + failureReason + sharedUrl | 이식 |
+| P-6 성공/실패 항목 C, C-1 | GET /shares/{sharedMediaId}/places | 항목 자체는 히스토리 목록 응답을 그대로 쓰고 장소만 따로 읽는다. 단건 조회 GET /shares/{sharedMediaId}는 #217에서 단건 폴링을 없애며 지웠다(#231) | 이식 |
 | P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 이식 |
 | P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 하나 이상 있는 공유만 최근 공유순 DESC로 반환하고 places[]는 UNDECIDED만 포함 | 신규 |
 | P-6 대기함 저장/삭제 | POST /shares/{sharedMediaId}/place-selections, POST /shares/{sharedMediaId}/place-discards {placeIds} | 201 | 이식 |
@@ -44,7 +44,7 @@
 | P-4 장소 상세 전부 | GET /saved-places/{savedPlaceId}, GET /saved-places/{savedPlaceId}/media, DELETE /saved-places?savedPlaceIds= | 장소 정보(목록 항목과 같은 모양) / 관련 공유 {media:[{sharedMediaId, thumbnailUrl, author, caption, sharedUrl, createdAt}]} | 상세만 신규 |
 | 강제 업데이트 모달, 업데이트 권고 안내(1.2.0 앱부터) | GET /app-update-policies?platform&appVersion | {updateRequired, updateRecommended, minimumSupportedVersion, latestVersion, storeUrl}, 인증 없음. 비교는 서버가 한다 | 신규(#170 진행 중) |
 
-공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 보관함 항목은 `savedPlaceId`(saved_places.id)로 가리킨다(2026-09-22 결정). 목록이 그 값을 내리고 삭제와 관련 릴스가 경로 변수로 받는다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 서버가 내리지 않는다(2026-09-21, #179 리뷰. 클라이언트 inBoxScreen의 placeAddress가 이미 앞 두 마디로 줄이므로 같은 함수를 쓴다). 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 클라이언트 현행(상태 3초, 히스토리와 대기함 5초)을 유지한다. 시각은 ISO-8601 UTC(Instant)다.
+공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 보관함 항목은 `savedPlaceId`(saved_places.id)로 가리킨다(2026-09-22 결정). 목록이 그 값을 내리고 삭제와 관련 릴스가 경로 변수로 받는다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 서버가 내리지 않는다(2026-09-21, #179 리뷰. 클라이언트 inBoxScreen의 placeAddress가 이미 앞 두 마디로 줄이므로 같은 함수를 쓴다). 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 #217 결정대로 히스토리 목록 3초 하나로 줄이고 단건 폴링은 없앤다. 대기함은 현행 5초를 유지한다. 시각은 ISO-8601 UTC(Instant)다.
 
 ## 4. 두 단계 계획 (2026-09-16 팀 결정)
 
@@ -95,7 +95,7 @@ A와 B로 나눈다(2026-09-16 확정). A는 정콩(빈), B는 러키가 맡는�
 | A | 앱 업데이트 | `GET /app-update-policies?platform&appVersion` | 설정값 플랫폼당 3개(minimum-supported-version, latest-version, store-url)를 `application.yml`에서 읽는 엔드포인트. `AppVersion` 값 객체가 비교. 인증 없음(`AuthenticationConfig` exclude 추가) | 0.3일 |
 | B | 대기함 목록 조회 | `GET /place-candidates` | UNDECIDED 후보가 하나 이상 있는 공유를 `shared_media.created_at DESC`, 동일 시각은 `shared_media.id DESC`로 읽고, `place_candidates ⋈ places`에서 UNDECIDED 후보만 `place_candidates.id ASC`로 조회해 서비스에서 묶는다. 장소 응답에는 `placeId`, `thumbnailUrl`, `name`, `category`, `landLotAddress`, `roadAddress`를 포함한다. 별도 장소 개수 필드와 COUNT 쿼리는 사용하지 않는다. `PlaceCandidateController` + `PlaceCandidateApiDocs`. 페이징은 백로그로 이동한다. | 0.75일 |
 | B | 히스토리 목록 조회 | `GET /shares` | `ShareDao`, `ShareService`, `ShareController`(GET만) + `ShareApiDocs`. 페이징은 API 구현 시 검토한다. | 0.5일 |
-| B | 히스토리 항목 조회 | `GET /shares/{sharedMediaId}` | 히스토리 항목 + failureReason + sharedUrl. 남의 공유는 404. 접수 후 상태 폴링도 이 API를 쓴다 | 0.5일 |
+| B | 히스토리 항목 조회 | ~~`GET /shares/{sharedMediaId}`~~ | 구현했다가 #217에서 단건 폴링을 없애며 지웠다(#231). 상태는 히스토리 목록 폴링으로 본다 | 0.5일 |
 | B | 회원 탈퇴 | `DELETE /members/me` | `MemberService.deleteMember`: 전 세션 폐기 + members 삭제(FK CASCADE). 탈퇴 뒤 같은 토큰이 401인지 E2E. 범위는 PR 0에서 정한다 | 0.5일 |
 
 A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 남는 2인일은 PR 0, 처음 만지는 테이블의 SQL 픽스처, 교차 리뷰와 rebase에 쓰인다. B가 반나절 무겁고 정책이 걸린 탈퇴를 안고 있으니 A가 먼저 끝나면 "공유 한 건" 필드 맞추기 확인이나 카카오 unlink를 받아 간다. 금요일 오후에는 두 PR이 be-dev에 들어간 상태에서 Swagger를 같이 열어 필드가 맞는지 확인하고 2단계 왕복 E2E 시나리오 초안을 잡는다.
@@ -144,7 +144,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 |---|---|---|---|---|---|
 | 0 | 인증, /api/v1, Swagger | 공통 | 로그인 | (완료) #150, 64ff616, a1d4721 | 커밋 |
 | 1 | 인가 기초 작업 | 공통 | 마이 A, A-1 | (완료 2026-09-16, #162 머지) 액세스 토큰 인터셉터, @LoginMember 리졸버, GET /members/me, 401 계약(AUTH401_004), E2E 로그인 헬퍼 | 토큰 없이 401, 있으면 내 정보 |
-| 2 | 스키마 계약과 접수 기본 흐름 | 화면 | 링크 입력 B, B-1 | bean-fable 테이블 8개를 be-dev 규칙으로 이식, POST /shares, Fake 3종(fake 프로필), afterCommit 디스패치, GET /shares/{sharedMediaId} | 링크를 보내면 Fake가 돌아 SUCCEEDED 상세가 나온다 (awaitility) |
+| 2 | 스키마 계약과 접수 기본 흐름 | 화면 | 링크 입력 B, B-1 | bean-fable 테이블 8개를 be-dev 규칙으로 이식, POST /shares, Fake 3종(fake 프로필), afterCommit 디스패치, GET /shares/{sharedMediaId}(#231에서 삭제) | 링크를 보내면 Fake가 돌아 SUCCEEDED 상세가 나온다 (awaitility) |
 | 3 | 히스토리 | 화면 | 히스토리 B, B-1, C, C-1 | GET /shares(커서 페이징), extraction-retries, reports | 실패 건 재시도가 EXTRACTING으로 돌아간다 |
 | 4 | 대기함 | 화면 | 대기함 A~A-5 | GET /place-candidates, place-selections, place-discards, saved_places upsert, SUPERSEDED 재공유 규칙 | 저장한 장소가 보관함에 한 행으로 생긴다 |
 | 5 | 보관함과 장소 상세 | 화면 | 보관함 A, A-1, D, D-1, 장소 상세 전부 | GET /saved-places(lastSavedAt), GET /saved-places/{savedPlaceId}, /media, DELETE | 삭제해도 후보와 이력은 남는다 |

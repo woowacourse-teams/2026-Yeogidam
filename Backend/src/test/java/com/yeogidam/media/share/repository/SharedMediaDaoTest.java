@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.yeogidam.support.JdbcTestSupport;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -23,81 +22,6 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
     @Autowired
     private SharedMediaDao sharedMediaDao;
-
-    @Test
-    void 본인_공유_결과를_모든_필드로_매핑한다() {
-        // given
-        insertKakaoMember(jdbcTemplate, 1L, "share-dao-user", "share-dao-user",
-                "share-dao-user@example.com", "https://img.example.com/share-dao-user");
-        insertMediaWithStatus(
-                1L,
-                "성수동 카페 모음",
-                "media.jpg",
-                "@seongsu",
-                "SUCCEEDED",
-                null
-        );
-        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L,
-                Instant.parse("2026-09-17T10:00:00Z"));
-
-        // when
-        ShareHistoryProjection result = sharedMediaDao.findShareHistoryItem(1L, 1L).orElseThrow();
-
-        // then
-        assertAll(
-                () -> assertThat(result.sharedMediaId()).isEqualTo(1L),
-                () -> assertThat(result.thumbnailKey()).isEqualTo("media.jpg"),
-                () -> assertThat(result.caption()).isEqualTo("성수동 카페 모음"),
-                () -> assertThat(result.author()).isEqualTo("@seongsu"),
-                () -> assertThat(result.extractionStatus()).isEqualTo("SUCCEEDED"),
-                () -> assertThat(result.failureReason()).isNull(),
-                () -> assertThat(result.sharedUrl())
-                        .isEqualTo("https://www.instagram.com/reel/fixture-1/")
-        );
-    }
-
-    @Test
-    void 게시글_접근_실패_결과의_게시글_정보_null을_매핑한다() {
-        // given
-        insertKakaoMember(jdbcTemplate, 2L, "share-dao-content-unavailable-user",
-                "share-dao-content-unavailable-user", "share-dao-content-unavailable-user@example.com",
-                "https://img.example.com/share-dao-content-unavailable-user");
-        insertMediaWithStatus(2L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
-        insertSharedMedia(jdbcTemplate, 2L, 2L, 2L,
-                Instant.parse("2026-09-17T10:00:00Z"));
-
-        // when
-        ShareHistoryProjection result = sharedMediaDao.findShareHistoryItem(2L, 2L).orElseThrow();
-
-        // then
-        assertAll(
-                () -> assertThat(result.thumbnailKey()).isNull(),
-                () -> assertThat(result.caption()).isNull(),
-                () -> assertThat(result.author()).isNull(),
-                () -> assertThat(result.extractionStatus()).isEqualTo("FAILED"),
-                () -> assertThat(result.failureReason()).isEqualTo("CONTENT_UNAVAILABLE")
-        );
-    }
-
-    @Test
-    void 다른_회원의_공유_결과_또는_존재하지_않는_공유_결과는_빈_Optional을_반환한다() {
-        // given
-        insertKakaoMember(jdbcTemplate, 3L, "share-dao-owner", "share-dao-owner",
-                "share-dao-owner@example.com", "https://img.example.com/share-dao-owner");
-        insertKakaoMember(jdbcTemplate, 4L, "share-dao-other", "share-dao-other",
-                "share-dao-other@example.com", "https://img.example.com/share-dao-other");
-        insertMedia(jdbcTemplate, 3L, "게시글", "media.jpg", "@author");
-        insertSharedMedia(jdbcTemplate, 3L, 3L, 3L,
-                Instant.parse("2026-09-17T10:00:00Z"));
-
-        // when
-        Optional<ShareHistoryProjection> otherMemberResult = sharedMediaDao.findShareHistoryItem(4L, 3L);
-        Optional<ShareHistoryProjection> missingResult = sharedMediaDao.findShareHistoryItem(3L, 99L);
-
-        // then
-        assertThat(otherMemberResult).isEmpty();
-        assertThat(missingResult).isEmpty();
-    }
 
     @Test
     void 공유_미디어가_회원의_소유인지_확인한다() {
