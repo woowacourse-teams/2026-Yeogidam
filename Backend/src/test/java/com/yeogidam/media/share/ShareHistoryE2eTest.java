@@ -1,7 +1,7 @@
 package com.yeogidam.media.share;
 
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertUndecidedCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
@@ -220,7 +220,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 히스토리_내_장소_목록을_후보_ID_오름차순으로_반환한다() {
+    void 히스토리_내_장소_목록을_릴스_추출_순서로_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-history-places-user");
         insertMedia(jdbcTemplate, 1L, "장소 모음", "media.jpg", "@author");
@@ -233,8 +233,8 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", new BigDecimal("37.5704"),
                 new BigDecimal("126.9921"), "https://place.map.kakao.com/2", null,
                 "https://img.example.com/place-2.jpg", null);
-        insertUndecidedCandidate(jdbcTemplate, 2L, 1L, 2L);
-        insertUndecidedCandidate(jdbcTemplate, 1L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 1L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 2L, 1L, 2L);
 
         // when & then
         givenBearer(login.accessToken())

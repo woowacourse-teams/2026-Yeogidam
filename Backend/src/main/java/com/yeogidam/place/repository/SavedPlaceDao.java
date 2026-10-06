@@ -83,6 +83,30 @@ public class SavedPlaceDao {
         return jdbcInsert.executeAndReturnKey(parameters).longValue();
     }
 
+    public Long upsertAndGetId(Long memberId, Long placeId, Instant savedAt) {
+        String upsertSql = """
+                INSERT INTO saved_places (member_id, place_id, last_saved_at)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE last_saved_at = VALUES(last_saved_at)
+                """;
+        jdbcTemplate.update(upsertSql, memberId, placeId, Timestamp.from(savedAt));
+
+        String findIdSql = """
+                SELECT id
+                FROM saved_places
+                WHERE member_id = ?
+                  AND place_id = ?
+                """;
+        return jdbcTemplate.queryForObject(findIdSql, Long.class, memberId, placeId);
+    }
+
+    public void savePlacesFromShare(Long memberId, Long sharedMediaId, List<Long> placeIds, Instant savedAt) {
+        for (Long placeId : placeIds) {
+            Long savedPlaceId = upsertAndGetId(memberId, placeId, savedAt);
+            saveShareIfAbsent(savedPlaceId, sharedMediaId, savedAt);
+        }
+    }
+
     public void update(SavedPlace savedPlace) {
         String sql = """
                 UPDATE saved_places
@@ -93,7 +117,7 @@ public class SavedPlaceDao {
         jdbcTemplate.update(sql, Timestamp.from(savedPlace.lastSavedAt()), savedPlace.id(), savedPlace.memberId());
     }
 
-    public void saveShare(
+    public void saveShareIfAbsent(
             Long savedPlaceId,
             Long sharedMediaId,
             Instant savedAt
@@ -101,6 +125,7 @@ public class SavedPlaceDao {
         String sql = """
                 INSERT INTO shared_media_saved_places (saved_place_id, shared_media_id, created_at)
                 VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE id = id
                 """;
         jdbcTemplate.update(sql, savedPlaceId, sharedMediaId, Timestamp.from(savedAt));
     }

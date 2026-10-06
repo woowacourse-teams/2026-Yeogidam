@@ -1,9 +1,8 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
-import com.yeogidam.media.share.dto.request.PlaceDecisionRequest;
 import com.yeogidam.media.share.dto.request.ShareRequest;
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
+import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,7 +25,8 @@ public interface ShareApiDocs {
 
     @Operation(summary = "인스타그램 미디어 공유",
             description = """
-                    미디어를 공유 이력에 등록하고, 처음 보거나 파이프라인 버전이 바뀐 경우 비동기로 분석합니다.
+                    미디어를 공유 이력에 등록합니다. 분석에 성공하면 검색된 모든 장소를 보관함에 저장하고 이 공유와 연결합니다.
+                    처음 보거나 파이프라인 버전이 바뀐 경우에는 비동기로 분석합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
@@ -68,65 +68,6 @@ public interface ShareApiDocs {
                                     }))
             })
     ResponseEntity<Void> createShare(Long memberId, @Valid ShareRequest request);
-
-    @Operation(summary = "대기함 장소 후보 저장 또는 삭제",
-            description = """
-                    로그인한 회원의 공유 한 건에서 선택한 장소 후보를 보관함에 저장하거나 대기함에서 삭제합니다.
-
-                    - `placeIds`는 이 공유에 발급된 후보의 장소 ID(`places.id`)입니다.
-                    - `decision`은 `SAVED` 또는 `DISCARDED`이며 선택한 후보 모두에 동일하게 적용합니다.
-                    - `SAVED`는 보관함을 생성하거나 기존 장소의 마지막 저장 시각을 갱신하고 이 공유를 연결합니다.
-                    - `DISCARDED`는 후보를 버림 상태로 바꾸며 기존 보관함과 공유 연결을 유지합니다.
-                    - 선택하지 않은 후보는 그대로 두고, 미결정 후보가 모두 없어지면 공유가 대기함에서 사라집니다.
-                    - 후보 결정과 보관함 저장, 공유 연결은 하나의 트랜잭션으로 처리합니다.
-                    """,
-            security = @SecurityRequirement(name = "access-token"),
-            responses = {
-                    @ApiResponse(responseCode = "201", description = "후보 결정 완료. 응답 본문 없음",
-                            content = @Content),
-                    @ApiResponse(responseCode = "400", description = "요청 필드 오류, 공유의 후보가 아닌 장소 또는 미발급 후보",
-                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ErrorResponse.class),
-                                    examples = {
-                                            @ExampleObject(name = "COMMON400_001", description = "장소 목록이나 결정값이 올바르지 않음",
-                                                    value = """
-                                                            {"message": "유효하지 않은 요청 필드입니다.", "errorCode": "COMMON400_001"}
-                                                            """),
-                                            @ExampleObject(name = "MEDIA400_004", description = "이 공유의 후보가 아닌 장소가 포함됨",
-                                                    value = """
-                                                            {"message": "이 공유 건의 후보가 아닌 장소는 결정할 수 없습니다.", "errorCode": "MEDIA400_004"}
-                                                            """),
-                                            @ExampleObject(name = "MEDIA400_007", description = "공유에 후보가 아직 발급되지 않음",
-                                                    value = """
-                                                            {"message": "추출이 끝나지 않은 게시물에는 선택할 장소가 없습니다.", "errorCode": "MEDIA400_007"}
-                                                            """)
-                                    })),
-                    @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
-                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ErrorResponse.class),
-                                    examples = {
-                                            @ExampleObject(name = "AUTH401_004", description = "로그인 정보 없음",
-                                                    value = """
-                                                            {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
-                                                            """),
-                                            @ExampleObject(name = "AUTH401_001", description = "유효하지 않은 액세스 토큰",
-                                                    value = """
-                                                            {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
-                                                            """)
-                                    })),
-                    @ApiResponse(responseCode = "404", description = "존재하지 않는 공유이거나 다른 회원의 공유",
-                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = ErrorResponse.class),
-                                    examples = @ExampleObject(name = "MEDIA404_002",
-                                            value = """
-                                                    {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
-                                                    """)))
-            })
-    ResponseEntity<Void> createPlaceDecisions(
-            Long memberId,
-            @Parameter(description = "공유 ID(shared_media.id)", example = "101") Long sharedMediaId,
-            @Valid PlaceDecisionRequest request
-    );
 
     @Operation(summary = "히스토리 목록 조회",
             description = """
@@ -189,9 +130,9 @@ public interface ShareApiDocs {
 
     @Operation(summary = "히스토리 내 장소 목록 조회",
             description = """
-                    로그인한 회원의 히스토리에서 선택한 항목의 장소 목록만 반환합니다.
+                    로그인한 회원의 지정된 공유 이력에서 추출된 장소 목록을 반환합니다.
 
-                    - 장소는 후보 식별자 오름차순으로 반환합니다.
+                    - 장소는 릴스 추출 결과 순서로 반환합니다.
                     - 장소마다 `landLotAddress`와 `roadAddress`를 모두 제공합니다.
                     - 다른 회원의 공유이거나 존재하지 않는 공유면 조회할 수 없습니다.
                     """,
@@ -199,7 +140,7 @@ public interface ShareApiDocs {
             responses = {
                     @ApiResponse(responseCode = "200", description = "히스토리 내 장소 목록 조회 성공. 장소가 없으면 빈 배열",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = PlaceCandidateResponses.class))),
+                                    schema = @Schema(implementation = ShareHistoryPlaceResponses.class))),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -224,7 +165,7 @@ public interface ShareApiDocs {
                                             {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
                                             """)))
             })
-    ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(
+    ResponseEntity<ShareHistoryPlaceResponses> readShareHistoryPlaces(
             Long memberId,
             @Parameter(description = "공유 이력 id(shared_media.id)", example = "102") Long sharedMediaId
     );

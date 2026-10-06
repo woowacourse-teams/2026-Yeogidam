@@ -9,6 +9,7 @@ import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.place.exception.PlaceException;
 import com.yeogidam.place.repository.SavedPlaceDao;
 import com.yeogidam.place.repository.SavedPlaceMediaProjections;
+import java.time.Clock;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,8 +20,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SavedPlaceService {
 
+    private final Clock clock;
     private final SavedPlaceDao savedPlaceDao;
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
+
+    @Transactional
+    public void savePlacesFromShare(Long memberId, Long sharedMediaId, List<Long> placeIds) {
+        if (placeIds.isEmpty()) {
+            return;
+        }
+        savedPlaceDao.savePlacesFromShare(memberId, sharedMediaId, placeIds, clock.instant());
+    }
 
     public SavedPlaceResponses readSavedPlaces(Long memberId) {
         List<SavedPlaceResponse> responses = savedPlaceDao.findAllByMember(memberId).stream()

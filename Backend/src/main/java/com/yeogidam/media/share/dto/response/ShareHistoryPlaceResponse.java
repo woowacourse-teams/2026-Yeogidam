@@ -1,8 +1,8 @@
 package com.yeogidam.media.share.dto.response;
 
-import com.yeogidam.media.share.repository.PlaceCandidateProjection;
+import com.yeogidam.media.extraction.repository.MediaPlaceProjection;
 
-public record PlaceCandidateResponse(
+public record ShareHistoryPlaceResponse(
         Long placeId,
         String thumbnailUrl,
         String name,
@@ -10,13 +10,10 @@ public record PlaceCandidateResponse(
         String landLotAddress,
         String roadAddress
 ) {
-    public static PlaceCandidateResponse from(
-            PlaceCandidateProjection projection,
-            String placeThumbnailUrl
-    ) {
-        return new PlaceCandidateResponse(
+    public static ShareHistoryPlaceResponse from(MediaPlaceProjection projection, String thumbnailUrl) {
+        return new ShareHistoryPlaceResponse(
                 projection.placeId(),
-                placeThumbnailUrl,
+                thumbnailUrl,
                 projection.name(),
                 projection.category(),
                 projection.landLotAddress(),

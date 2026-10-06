@@ -61,7 +61,7 @@ IntelliJ는 실행 버튼만 누르면 된다. 기동 로그에 `falling back to
 
 2. Swagger(`http://localhost:8080/swagger-ui/index.html`)에서 `POST /api/v1/auth/logins/kakao`에 `{"authorizationCode": "XXXX"}`를 보내 `accessToken`을 받는다.
 3. Authorize에 `accessToken`을 넣는다. 30분이면 만료된다.
-4. API를 누른다. 정콩은 `GET /api/v1/saved-places` 2건, `GET /api/v1/place-candidates` 카드 2장이고, 러키는 보관함 3건, 대기함 카드 1장이다.
+4. `GET /api/v1/saved-places`에서 정콩의 보관함 2건과 러키의 보관함 3건을 확인한다. 공유 히스토리는 `GET /api/v1/shares`, 각 공유의 추출 장소는 `GET /api/v1/shares/{sharedMediaId}/places`에서 확인한다.
 
 ## 4. 테스트
 

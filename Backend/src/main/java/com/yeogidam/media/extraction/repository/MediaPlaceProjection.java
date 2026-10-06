@@ -1,8 +1,6 @@
-package com.yeogidam.media.share.repository;
+package com.yeogidam.media.extraction.repository;
 
-public record PlaceCandidateProjection(
-        Long sharedMediaId,
-        Long candidateId,
+public record MediaPlaceProjection(
         Long placeId,
         String thumbnailKey,
         String name,

@@ -1,5 +1,6 @@
 package com.yeogidam.member;
 
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -192,10 +193,7 @@ class MemberE2eTest extends E2eTestSupport {
                 )
                 VALUES (301, 'delete-place', '탈퇴 테스트 장소', '서울시 마포구', 37.5500000000, 126.9000000000)
                 """);
-        jdbcTemplate.update("""
-                INSERT INTO media_places (id, media_id, place_id)
-                VALUES (401, 201, 301)
-                """);
+        insertMediaPlace(jdbcTemplate, 401L, 201L, 301L);
         jdbcTemplate.update("""
                 INSERT INTO shared_media (id, member_id, media_id, shared_url)
                 VALUES (101, ?, 201, 'https://www.instagram.com/reel/delete-test/')

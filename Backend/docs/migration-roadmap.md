@@ -2,6 +2,8 @@
 
 작성일 2026-09-16, 코드 기준 갱신 2026-09-19. 근거는 작성일에 읽은 네 가지다. 백엔드 세 트리(bean-fable 217a197, be-dev 1edfa26, feat/#151 작업 트리), 운영 Supabase(hbbrgudsbvnwuylxqlta, CLI 읽기 전용)와 Edge Function 저장소(Jiihyun/yeogidam 02a90f2), 클라이언트(origin/fe-dev 13c40ef), 피그마 화면 명세 1.1.0(40화면)과 FigJam 보드.
 
+2026-10-06 현재 동작: 대기함을 제거했다. 장소 추출 성공 시 최신 공유 건에 추출된 모든 장소를 보관함에 upsert하고 공유 릴스와 연결한다. 분석에 성공한 릴스를 다시 공유해도 새 히스토리 건을 즉시 같은 방식으로 저장한다. `GET /shares/{sharedMediaId}/places`는 `media_places`에서 읽어 유지하며, `GET /place-candidates`와 `POST /shares/{sharedMediaId}/place-decisions`는 제거했다. `place_candidates` 스키마 정리는 별도 소형 스키마 PR로 남긴다.
+
 ## 1. 현재 상태
 
 | 갈래 | 상태 |
@@ -31,24 +33,26 @@
 | (세션) | POST /auth/token-refreshes, POST /auth/logouts | 회전, 폐기 | 있음 |
 | P-5 마이 A, A-1 | GET /members/me | id, nickname, email, imageUrl, oauthProvider | 있음(사이클 1 완료) |
 | P-5 회원탈퇴 B | DELETE /members/me | 204. 전 세션 폐기 + 회원 데이터 삭제 | 신규 |
-| P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl, source, clientRequestId} | 202 {sharedMediaId, extractionStatus} / 400 미지원 링크 | 이식(POST /media) |
+| P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl} | 202. 히스토리에 공유를 남기고 분석 성공 시 추출된 장소를 보관함에 자동 저장하고 원본 릴스와 연결 | 이식(POST /media) |
 | P-6 히스토리 B, B-1 | GET /shares?cursorCreatedAt=&cursorId= | {sharedMedias:[{sharedMediaId, createdAt, thumbnailUrl, caption, author, extractionStatus, failureReason, sharedUrl}], nextCursor:{createdAt, id} 또는 null}. 50건씩 커서로 나눠 읽는다. 커서 없이 요청하면 최근 50건을 주고 폴링도 같은 요청을 쓴다. 커서는 이번 페이지의 마지막 공유다 | 이식. 커서 페이징 적용(#277, #217 결론) |
-| P-6 성공/실패 항목 C, C-1 | GET /shares/{sharedMediaId}/places | 항목 자체는 히스토리 목록 응답을 그대로 쓰고 장소만 따로 읽는다. 단건 조회 GET /shares/{sharedMediaId}는 #217에서 단건 폴링을 없애며 지웠다(#231) | 이식 |
+| P-6 성공/실패 항목 C, C-1 | GET /shares/{sharedMediaId}/places | 히스토리 목록은 공유 정보를 제공하고, 장소 목록은 `media_places`에서 별도로 읽는다. 단건 조회 GET /shares/{sharedMediaId}는 제거했다(#280) | 이식 |
 | P-6 실패 상세 C-1 | POST /shares/{sharedMediaId}/extraction-retries, POST /shares/{sharedMediaId}/reports | 202 / 201 | 이식 |
-| P-6 대기함 A~A-5 | GET /place-candidates | {sharedMedias:[{sharedMediaId, thumbnailUrl, caption, author, places:[{placeId, thumbnailUrl, name, category, landLotAddress, roadAddress}]}]}. UNDECIDED 후보가 하나 이상 있는 공유만 최근 공유순 DESC로 반환하고 places[]는 UNDECIDED만 포함 | 신규 |
-| P-6 대기함 저장/삭제 | POST /shares/{sharedMediaId}/place-decisions {placeIds, decision} | 201, 본문 없음. decision은 SAVED 또는 DISCARDED | 구현 완료(2026-10-05). E2E, 서비스 통합, DAO 테스트 완료 |
-| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{savedPlaceId, placeId, name, category, landLotAddress, roadAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, lastSavedAt}]} lastSavedAt 내림차순. 카드용 짧은 주소는 클라이언트가 앞 두 마디로 줄인다(대기함과 같은 규칙) | 이식 + lastSavedAt 추가(#166 PR 중) |
+| P-6 대기함 A~A-5 | GET /place-candidates | 제거(2026-10-06) |
+| P-6 대기함 저장/삭제 | POST /shares/{sharedMediaId}/place-decisions | 제거(2026-10-06) |
+| P-2 보관함 A, A-1, D, D-1 | GET /saved-places | {savedPlaces:[{savedPlaceId, placeId, name, category, landLotAddress, roadAddress, latitude, longitude, kakaoPlaceUrl, telephone, thumbnailUrl, thumbnailSource, lastSavedAt}]} lastSavedAt 내림차순. 카드용 짧은 주소는 클라이언트가 앞 두 마디로 줄인다 | 이식 + lastSavedAt 추가(#166 PR 중) |
 | P-2 보관함 편집 D-1 | DELETE /saved-places?savedPlaceIds=11,12 | 204. 한 트랜잭션으로 다건 삭제, 멱등 | 이식 |
 | P-2 검색 C, C-1, C-2 | (클라이언트 메모리 필터. 검색 기록은 단말 저장) | 서버 API 없음. 페이징을 넣게 되면 ?query= 추가 | 결정 |
 | P-3 지도 전부 | GET /saved-places (좌표 포함 전량), GET /saved-places/{savedPlaceId}/media (시트의 이미지 띠) | 지도 범위와 검색어 필터는 클라이언트 | 이식 |
 | P-4 장소 상세 전부 | GET /saved-places/{savedPlaceId}, GET /saved-places/{savedPlaceId}/media, DELETE /saved-places?savedPlaceIds= | 장소 정보(목록 항목과 같은 모양) / 관련 공유 {media:[{sharedMediaId, thumbnailUrl, author, caption, sharedUrl, createdAt}]} | 상세만 신규 |
 | 강제 업데이트 모달, 업데이트 권고 안내(1.2.0 앱부터) | GET /app-update-policies?platform&appVersion | {updateRequired, updateRecommended, minimumSupportedVersion, latestVersion, storeUrl}, 인증 없음. 비교는 서버가 한다 | 신규(#170 진행 중) |
 
-공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 보관함 항목은 `savedPlaceId`(saved_places.id)로 가리킨다(2026-09-22 결정). 목록이 그 값을 내리고 삭제와 관련 릴스가 경로 변수로 받는다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 서버가 내리지 않는다(2026-09-21, #179 리뷰. 클라이언트 inBoxScreen의 placeAddress가 이미 앞 두 마디로 줄이므로 같은 함수를 쓴다). 상태 어휘는 EXTRACTING, SUCCEEDED, FAILED와 UNDECIDED, SAVED, DISCARDED, SUPERSEDED다. 폴링은 #217 결정대로 히스토리 목록 3초 하나로 줄이고 단건 폴링은 없앤다. 대기함은 현행 5초를 유지한다. 시각은 ISO-8601 UTC(Instant)다.
+공통 계약도 있다. 에러 응답은 be-dev의 {message, errorCode}이고 클라이언트가 쓰던 retryable, requestId는 뺀다. 보관함 항목은 `savedPlaceId`(saved_places.id)로 가리킨다(2026-09-22 결정). 목록이 그 값을 내리고 삭제와 관련 릴스가 경로 변수로 받는다. 주소 필드 이름은 DB 컬럼을 따라 landLotAddress(지번), roadAddress(도로명)이고 카드용 짧은 주소는 서버가 내리지 않는다(2026-09-21, #179 리뷰. 클라이언트 inBoxScreen의 placeAddress가 이미 앞 두 마디로 줄이므로 같은 함수를 쓴다). 현재 처리 상태는 EXTRACTING, SUCCEEDED, FAILED다. 폴링은 히스토리 목록 3초 하나로 줄이고 단건 폴링은 없앴다. 시각은 ISO-8601 UTC(Instant)다.
 
 2026-10-04 대기함 후보 결정 계약을 `place-decisions` 한 경로와 `{placeIds, decision}`으로 정리했다.
 공유 ID는 URL로 받고 선택한 장소 전체에 동일한 결정을 적용한다.
 삭제는 `DISCARDED` 상태 기록이며 관련 릴스에는 실제 저장한 공유만 연결한다.
+
+2026-10-06 대기함을 제거하고 위 계약을 대체했다. 선택 단계 없이 검색에 성공한 모든 장소를 자동 저장한다. `saved_places`는 회원·장소 유니크 키로 upsert하고 `last_saved_at`을 갱신하며, `shared_media_saved_places`는 중복 연결을 무시한다. 히스토리와 장소 조회는 유지한다.
 
 ## 4. 두 단계 계획 (2026-09-16 팀 결정)
 
