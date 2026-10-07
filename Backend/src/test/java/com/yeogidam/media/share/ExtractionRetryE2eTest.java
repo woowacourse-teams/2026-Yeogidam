@@ -85,7 +85,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 재시도하면_새_히스토리를_반환하고_기존_실패_이력은_유지한다() {
+    void 재시도하면_새_히스토리를_만들고_기존_실패_이력은_유지한다() {
         // given
         LoginResult member = loginAsKakao("retry-new-history");
         createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
