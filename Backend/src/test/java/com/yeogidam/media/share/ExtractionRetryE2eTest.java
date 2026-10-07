@@ -15,6 +15,7 @@ import com.yeogidam.global.exception.ErrorCode;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
@@ -115,6 +116,43 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertFailedHistory(member, ORIGINAL_SHARE_ID),
                 () -> assertThat(readHistoryIds(member)).containsExactly(retriedShareId, ORIGINAL_SHARE_ID),
                 () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1)
+        );
+    }
+
+    @Test
+    void 재시도한_분석이_실패하면_새_이력에_실패_사유를_기록하고_옛_이력은_유지한다() throws Exception {
+        // given
+        LoginResult member = loginAsKakao("retry-failed-again");
+        insertFailedMedia(jdbcTemplate, MEDIA_ID, PREVIOUS_VERSION, ExtractionFailureReason.UNEXPECTED);
+        insertSharedMedia(jdbcTemplate, ORIGINAL_SHARE_ID, member.memberId(), MEDIA_ID,
+                sharedUrl(MEDIA_ID), ORIGINAL_SHARED_AT);
+        Map<String, Object> originalHistory = jdbcTemplate.queryForMap(
+                "SELECT * FROM shared_media WHERE id = ?", ORIGINAL_SHARE_ID);
+        placeNameExtractor.failWith(new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED));
+
+        // when
+        Long retriedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
+        assertThat(placeNameExtractor.awaitStarted()).isTrue();
+        completeExtraction();
+
+        // then
+        JsonPath history = readHistory(member, retriedShareId);
+        assertAll(
+                () -> assertThat(history.getString("extractionStatus"))
+                        .isEqualTo(ExtractionStatus.FAILED.name()),
+                () -> assertThat(history.getString("failureReason"))
+                        .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED.name()),
+                () -> assertThat(jdbcTemplate.queryForObject(
+                        "SELECT extraction_version FROM shared_media WHERE id = ?", Integer.class, retriedShareId))
+                        .isEqualTo(CURRENT_VERSION),
+                () -> assertThat(jdbcTemplate.queryForMap(
+                        "SELECT * FROM shared_media WHERE id = ?", ORIGINAL_SHARE_ID))
+                        .isEqualTo(originalHistory),
+                () -> assertFailedHistory(member, ORIGINAL_SHARE_ID),
+                () -> assertThat(readHistoryIds(member)).containsExactly(retriedShareId, ORIGINAL_SHARE_ID),
+                () -> assertThat(readSavedPlaceIds(member)).isEmpty(),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1),
+                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
         );
     }
 

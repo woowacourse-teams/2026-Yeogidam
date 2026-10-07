@@ -1,10 +1,12 @@
 package com.yeogidam.media.share.repository;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertExtractingMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
@@ -34,7 +36,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     void 같은_회원이_같은_미디어를_재공유하면_원본_URL을_보존한_새_공유_이력이_생긴다() {
         // given
         insertKakaoMember(jdbcTemplate, 1L, "share-save-owner", null, null, null);
-        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertFailedMedia(jdbcTemplate, 1L, 3, ExtractionFailureReason.PROCESSING_FAILED);
         String firstUrl = "https://www.instagram.com/reel/fixture-media-1/?igsh=first";
         String secondUrl = "https://www.instagram.com/reel/fixture-media-1/?igsh=second";
 
@@ -55,8 +57,24 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                         .containsExactly(secondUrl, firstUrl),
                 () -> assertThat(jdbcTemplate.queryForObject(
                         "SELECT media_id FROM shared_media WHERE id = ?", Long.class, secondId))
-                        .isEqualTo(1L)
+                        .isEqualTo(1L),
+                () -> assertThat(readExtractionState(firstId))
+                        .isEqualTo(new ExtractionState("FAILED", "PROCESSING_FAILED", 3)),
+                () -> assertThat(readExtractionState(secondId))
+                        .isEqualTo(new ExtractionState("FAILED", "PROCESSING_FAILED", 3))
         );
+    }
+
+    @Test
+    void 공유할_미디어가_없으면_예외가_발생한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 1L, "share-save-missing-media", null, null, null);
+        SharedInstagramMedia sharedMedia = new SharedInstagramMedia(
+                1L, 999L, new InstagramUrl("https://www.instagram.com/reel/missing-media/"));
+
+        // when & then
+        assertThatThrownBy(() -> sharedMediaDao.save(sharedMedia))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -116,10 +134,12 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 대상_미디어의_회원별_최대_공유_ID만_공유_ID_오름차순으로_조회한다() {
+    void 대상_미디어의_회원별_최대_공유_ID가_분석_중인_이력만_공유_ID_오름차순으로_조회한다() {
         // given: 시각과 삽입 순서가 달라도 ID가 가장 큰 공유를 회원별로 선택한다.
         insertKakaoMember(jdbcTemplate, 1L, "share-latest-owner", null, null, null);
         insertKakaoMember(jdbcTemplate, 2L, "share-latest-other", null, null, null);
+        insertKakaoMember(jdbcTemplate, 3L, "share-latest-failed", null, null, null);
+        insertKakaoMember(jdbcTemplate, 4L, "share-latest-succeeded", null, null, null);
         insertExtractingMedia(jdbcTemplate, 1L);
         insertMedia(jdbcTemplate, 2L, null, null, null);
         Instant now = Instant.parse("2026-10-01T10:00:00Z");
@@ -128,6 +148,15 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         insertSharedMedia(jdbcTemplate, 7L, 2L, 1L, now);
         insertSharedMedia(jdbcTemplate, 5L, 2L, 1L, now);
         insertSharedMedia(jdbcTemplate, 10L, 1L, 2L, now.plusSeconds(1));
+        ExtractionSnapshot failed = new ExtractionSnapshot(
+                ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 1);
+        ExtractionSnapshot succeeded = new ExtractionSnapshot(ExtractionStatus.SUCCEEDED, null, 1);
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L, now, failed);
+        insertSharedMedia(jdbcTemplate, 2L, 2L, 1L, now, succeeded);
+        insertSharedMedia(jdbcTemplate, 11L, 3L, 1L, now);
+        insertSharedMedia(jdbcTemplate, 12L, 4L, 1L, now);
+        insertSharedMedia(jdbcTemplate, 13L, 3L, 1L, now, failed);
+        insertSharedMedia(jdbcTemplate, 14L, 4L, 1L, now, succeeded);
 
         // when
         List<SharedMediaOwnerProjection> shares = sharedMediaDao.findLatestSharesByMediaId(1L);
