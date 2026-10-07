@@ -61,7 +61,7 @@ public class ShareService {
         Optional<Long> existingMediaId = instagramMediaDao.findIdByShortcodeForUpdate(shortcode);
         if (existingMediaId.isPresent()) {
             Long mediaId = existingMediaId.get();
-            retryMediaIfNeeded(mediaId, instagramUrl);
+            retryExistingMediaIfEligible(mediaId, instagramUrl);
             return mediaId;
         }
 
@@ -77,10 +77,9 @@ public class ShareService {
         return mediaId;
     }
 
-    private void retryMediaIfNeeded(Long mediaId, InstagramUrl instagramUrl) {
+    private void retryExistingMediaIfEligible(Long mediaId, InstagramUrl instagramUrl) {
         int pipelineVersion = extractionProperties.pipelineVersion();
-        boolean retryStarted = instagramMediaDao.retryFailedExtractionIfEligible(mediaId, pipelineVersion);
-        if (retryStarted) {
+        if (instagramMediaDao.retryFailedExtractionIfEligible(mediaId, pipelineVersion)) {
             mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
         }
     }
@@ -108,9 +107,16 @@ public class ShareService {
         if (status == ExtractionStatus.EXTRACTING) {
             return;
         }
-        if (!retryMediaIfEligible(source.mediaId(), source.instagramUrl())) {
-            throw new MediaException(MediaErrorCode.RETRY_NOT_ELIGIBLE);
+        startRetryIfEligible(source.mediaId(), source.instagramUrl());
+    }
+
+    private void startRetryIfEligible(Long mediaId, InstagramUrl instagramUrl) {
+        int pipelineVersion = extractionProperties.pipelineVersion();
+        if (instagramMediaDao.retryFailedExtractionIfEligible(mediaId, pipelineVersion)) {
+            mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
+            return;
         }
+        throw new MediaException(MediaErrorCode.RETRY_NOT_ELIGIBLE);
     }
 
     public ShareHistoryResponses readShareHistory(
