@@ -232,11 +232,10 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
 
         // when & then
         assertAll(
-                () -> assertThat(instagramMediaDao.findIdByShortcode(new MediaShortcode("fixture-media-1")))
+                () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("fixture-media-1")))
                         .contains(1L),
                 () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("fixture-media-2")))
                         .contains(2L),
-                () -> assertThat(instagramMediaDao.findIdByShortcode(new MediaShortcode("missing-media"))).isEmpty(),
                 () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("missing-media")))
                         .isEmpty()
         );

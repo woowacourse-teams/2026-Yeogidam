@@ -70,7 +70,7 @@ public class ShareService {
         try {
             mediaId = instagramMediaDao.save(instagramMedia, extractionProperties.pipelineVersion());
         } catch (DuplicateKeyException exception) {
-            return instagramMediaDao.findIdByShortcode(shortcode)
+            return instagramMediaDao.findIdByShortcodeForUpdate(shortcode)
                     .orElseThrow(() -> new IllegalStateException("게시물을 찾을 수 없습니다.", exception));
         }
         mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
