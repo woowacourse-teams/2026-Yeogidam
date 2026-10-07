@@ -25,13 +25,8 @@ import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,9 +91,9 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
         createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
 
         // when
-        Instant requestStartedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        Instant requestStartedAt = readDatabaseTime();
         Long retriedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
-        Instant requestFinishedAt = Instant.now();
+        Instant requestFinishedAt = readDatabaseTime();
 
         // then
         JsonPath history = readHistory(member, retriedShareId);
@@ -362,7 +357,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 분석이_시작된_뒤의_재시도도_새_이력을_만들고_기존_분석에_합류한다() throws Exception {
+    void 같은_회원이_분석_중에_다시_재시도하면_기존_이력_ID를_반환한다() throws Exception {
         // given
         LoginResult member = loginAsKakao("retry-join-started-extraction");
         createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
@@ -372,18 +367,56 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
 
         // when
         Long secondShareId = requestRetry(member, ORIGINAL_SHARE_ID);
-        assertJoined(List.of(firstShareId, secondShareId), member, member);
-        completeExtraction();
 
         // then
         assertAll(
+                () -> assertThat(secondShareId).isEqualTo(firstShareId),
+                () -> assertThat(readHistoryIds(member)).containsExactly(firstShareId, ORIGINAL_SHARE_ID),
+                () -> assertThat(readHistory(member, firstShareId).getString("extractionStatus"))
+                        .isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1)
+        );
+        completeExtraction();
+        assertAll(
                 () -> assertSucceededHistory(member, firstShareId),
-                () -> assertSucceededHistory(member, secondShareId),
                 () -> assertFailedHistory(member, ORIGINAL_SHARE_ID),
                 () -> assertThat(readSavedShareIds(member))
-                        .containsExactly(secondShareId),
+                        .containsExactly(firstShareId),
                 () -> assertThat(placeNameExtractor.requestCount())
                         .isEqualTo(1)
+        );
+    }
+
+    @Test
+    void 다른_회원이_분석_중에_재시도하면_자신의_새_이력으로_분석에_합류한다() throws Exception {
+        // given
+        LoginResult memberA = loginAsKakao("retry-join-member-a");
+        LoginResult memberB = loginAsKakao("retry-join-member-b");
+        createFailedHistory(memberA, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
+        insertSharedMedia(jdbcTemplate, OTHER_SHARE_ID, memberB.memberId(), MEDIA_ID,
+                sharedUrl(MEDIA_ID), ORIGINAL_SHARED_AT);
+        Long shareIdA = requestRetry(memberA, ORIGINAL_SHARE_ID);
+        assertThat(placeNameExtractor.awaitStarted())
+                .isTrue();
+
+        // when
+        Long shareIdB = requestRetry(memberB, OTHER_SHARE_ID);
+
+        // then
+        assertJoined(List.of(shareIdA, shareIdB), memberA, memberB);
+        assertAll(
+                () -> assertThat(readHistoryIds(memberA)).containsExactly(shareIdA, ORIGINAL_SHARE_ID),
+                () -> assertThat(readHistoryIds(memberB)).containsExactly(shareIdB, OTHER_SHARE_ID)
+        );
+        completeExtraction();
+        assertAll(
+                () -> assertSucceededHistory(memberA, shareIdA),
+                () -> assertSucceededHistory(memberB, shareIdB),
+                () -> assertFailedHistory(memberA, ORIGINAL_SHARE_ID),
+                () -> assertFailedHistory(memberB, OTHER_SHARE_ID),
+                () -> assertThat(readSavedShareIds(memberA)).containsExactly(shareIdA),
+                () -> assertThat(readSavedShareIds(memberB)).containsExactly(shareIdB),
+                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
         );
     }
 
@@ -454,6 +487,11 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     private void completeExtraction() throws Exception {
         placeNameExtractor.allow();
         extractionExecutor.awaitCompletion();
+    }
+
+    private Instant readDatabaseTime() {
+        return jdbcTemplate.queryForObject("SELECT CURRENT_TIMESTAMP(6)",
+                (resultSet, rowNumber) -> resultSet.getTimestamp(1).toInstant());
     }
 
     private JsonPath readHistory(LoginResult member, Long sharedMediaId) {

@@ -109,6 +109,10 @@ public class ShareService {
     }
 
     private Long createRetryShare(Long memberId, ExtractionRetrySource source, ExtractionStatus status) {
+        Optional<Long> existingShareId = sharedMediaDao.findExtractingShareId(memberId, source.mediaId());
+        if (existingShareId.isPresent()) {
+            return existingShareId.get();
+        }
         Long newSharedMediaId = createSharedMedia(memberId, source.mediaId(), source.instagramUrl());
         if (status == ExtractionStatus.SUCCEEDED) {
             savePlacesFromMedia(memberId, newSharedMediaId, source.mediaId());

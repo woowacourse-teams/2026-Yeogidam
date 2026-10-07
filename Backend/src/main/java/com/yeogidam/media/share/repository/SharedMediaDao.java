@@ -112,6 +112,21 @@ public class SharedMediaDao {
                 .findFirst();
     }
 
+    public Optional<Long> findExtractingShareId(Long memberId, Long mediaId) {
+        String sql = """
+                SELECT id
+                FROM shared_media
+                WHERE member_id = ?
+                  AND media_id = ?
+                  AND extraction_status = 'EXTRACTING'
+                ORDER BY id DESC
+                LIMIT 1
+                """;
+        return jdbcTemplate.queryForList(sql, Long.class, memberId, mediaId)
+                .stream()
+                .findFirst();
+    }
+
     public List<SharedMediaOwnerProjection> findLatestSharesByMediaId(Long mediaId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,

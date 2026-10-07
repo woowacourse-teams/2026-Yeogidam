@@ -7,7 +7,10 @@ import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertShare
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.support.JdbcTestSupport;
 import java.time.Instant;
@@ -52,6 +55,59 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 () -> assertThat(jdbcTemplate.queryForObject(
                         "SELECT media_id FROM shared_media WHERE id = ?", Long.class, secondId))
                         .isEqualTo(1L)
+        );
+    }
+
+    @Test
+    void 회원_ID와_공유_이력_ID로_재시도에_사용할_게시물과_분석_정보를_조회한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 51L, "retry-source-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 52L, "retry-source-other", null, null, null);
+        insertMedia(jdbcTemplate, 51L, "FAILED", "UNEXPECTED", 3, "EXTRACTED");
+        String sharedUrl = "https://www.instagram.com/reel/retry-source/?igsh=source";
+        insertSharedMedia(jdbcTemplate, 510L, 51L, 51L, sharedUrl,
+                Instant.parse("2026-10-01T10:00:00Z"));
+
+        // when
+        ExtractionRetrySource source = sharedMediaDao.findRetrySource(51L, 510L)
+                .orElseThrow();
+
+        // then
+        assertAll(
+                () -> assertThat(source).isEqualTo(new ExtractionRetrySource(
+                                51L,
+                                new InstagramUrl(sharedUrl),
+                                ExtractionStatus.FAILED,
+                                ExtractionFailureReason.UNEXPECTED,
+                                3
+                        )),
+                () -> assertThat(sharedMediaDao.findRetrySource(52L, 510L)).isEmpty(),
+                () -> assertThat(sharedMediaDao.findRetrySource(51L, 511L)).isEmpty()
+        );
+    }
+
+    @Test
+    void 회원과_미디어로_분석_중인_최신_공유_이력을_조회한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 60L, "extracting-share-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 61L, "extracting-share-other", null, null, null);
+        insertExtractingMedia(jdbcTemplate, 60L);
+        insertExtractingMedia(jdbcTemplate, 61L);
+        insertMedia(jdbcTemplate, 62L, "FAILED", "UNEXPECTED", 2, "EXTRACTED");
+        Instant sharedAt = Instant.parse("2026-10-01T10:00:00Z");
+        insertSharedMedia(jdbcTemplate, 601L, 60L, 60L, sharedAt);
+        insertSharedMedia(jdbcTemplate, 602L, 60L, 60L, sharedAt.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 603L, 61L, 60L, sharedAt.plusSeconds(2));
+        insertSharedMedia(jdbcTemplate, 604L, 60L, 61L, sharedAt.plusSeconds(3));
+        insertSharedMedia(jdbcTemplate, 605L, 60L, 62L, sharedAt.plusSeconds(4));
+
+        // when & then
+        assertAll(
+                () -> assertThat(sharedMediaDao.findExtractingShareId(60L, 60L)).contains(602L),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(61L, 60L)).contains(603L),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(60L, 61L)).contains(604L),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(60L, 62L)).isEmpty(),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(99L, 99L)).isEmpty()
         );
     }
 

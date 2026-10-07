@@ -74,10 +74,11 @@ public interface ShareApiDocs {
             description = """
                     로그인한 회원의 실패한 공유 이력에서 장소 추출을 다시 요청합니다. 요청 본문은 없습니다.
 
-                    - 요청마다 새로운 공유 이력을 생성하고 기존 실패 이력과 최초 공유 시각을 보존합니다.
+                    - 기존 실패 이력과 최초 공유 시각을 보존합니다.
                     - 현재 분석 버전에서는 `PROCESSING_FAILED`, `UNEXPECTED`만 재시도할 수 있습니다.
                     - 이전 분석 버전의 실패는 실패 사유에 관계없이 재시도할 수 있습니다.
-                    - 같은 미디어의 분석이 진행 중이면 새 이력을 만들어 해당 분석에 합류합니다.
+                    - 같은 회원이 같은 미디어의 분석 중인 이력을 이미 갖고 있으면 그 이력 ID를 반환합니다.
+                    - 요청 회원의 분석 중인 이력이 없으면 새 이력을 만들어 해당 분석에 합류합니다.
                     - 분석 중인 이력을 대상으로 요청할 수 없습니다.
                     - 본인 실패 후 다른 회원이 성공한 미디어를 재시도하면 재공유처럼 새 성공 이력을 만들고 장소를 바로 저장합니다.
                     - 요청 회원의 성공 이력이 이미 있어도 과거 실패 이력의 재시도는 허용합니다.
@@ -85,12 +86,12 @@ public interface ShareApiDocs {
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
-                    @ApiResponse(responseCode = "202", description = "새 재시도 이력 접수 또는 기존 결과로 즉시 성공",
+                    @ApiResponse(responseCode = "202", description = "새 재시도 이력 접수, 분석 중인 이력 재사용 또는 기존 결과로 즉시 성공",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ExtractionRetryResponse.class),
                                     examples = {
                                             @ExampleObject(name = "재시도 이력",
-                                                    description = "새로 생성한 이력과 분석 상태",
+                                                    description = "새로 접수하거나 재사용한 이력과 분석 상태",
                                                     value = """
                                                             {
                                                               "sharedMediaId": 30,
