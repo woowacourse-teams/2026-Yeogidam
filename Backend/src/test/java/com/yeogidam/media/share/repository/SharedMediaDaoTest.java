@@ -206,6 +206,25 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 회원의_공유_이력이면_분석_상태를_돌려주고_남의_것이거나_없으면_빈_Optional을_반환한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 7L, "status-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 8L, "status-other", null, null, null);
+        insertFailedMedia(jdbcTemplate, 7L, 1, ExtractionFailureReason.UNEXPECTED);
+        insertSharedMedia(jdbcTemplate, 7L, 7L, 7L, Instant.parse("2026-10-06T10:00:00Z"));
+
+        // when & then
+        assertAll(
+                () -> assertThat(sharedMediaDao.findStatusByMemberAndSharedMediaId(7L, 7L))
+                        .contains(ExtractionStatus.FAILED),
+                () -> assertThat(sharedMediaDao.findStatusByMemberAndSharedMediaId(8L, 7L))
+                        .isEmpty(),
+                () -> assertThat(sharedMediaDao.findStatusByMemberAndSharedMediaId(7L, 99L))
+                        .isEmpty()
+        );
+    }
+
+    @Test
     void 히스토리_목록을_회원별로_공유_시각과_ID_내림차순으로_조회하고_요약_필드를_매핑한다() {
         // given
         insertKakaoMember(jdbcTemplate, 5L, "share-dao-list-user", "share-dao-list-user",

@@ -203,7 +203,7 @@ public class SharedMediaDao {
                 ShareHistoryProjections.FETCH_SIZE));
     }
 
-    public Optional<ExtractionStatus> findExtractionStatus(Long memberId, Long sharedMediaId) {
+    public Optional<ExtractionStatus> findStatusByMemberAndSharedMediaId(Long memberId, Long sharedMediaId) {
         String sql = """
                 SELECT extraction_status
                 FROM shared_media

@@ -1,5 +1,9 @@
 package com.yeogidam.media.share;
 
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.insertReport;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.emptyString;
@@ -15,16 +19,11 @@ import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig;
-import com.yeogidam.support.fixture.sql.MediaSqlFixture;
-import com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture;
-import com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.ExtractionState;
-import com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.ReportState;
-import com.yeogidam.support.fixture.sql.SharedMediaSqlFixture;
 import io.restassured.response.Response;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,12 +42,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class ShareReportE2eTest extends E2eTestSupport {
 
     private static final String REPORTS_PATH = "/api/v1/shares/{sharedMediaId}/reports";
-    private static final Long MEDIA_ID = 201L;
-    private static final Long SHARED_MEDIA_ID = 101L;
-    private static final Long OTHER_SHARED_MEDIA_ID = 102L;
-    private static final int EXTRACTION_VERSION = 1;
-    private static final Instant SHARED_AT = Instant.parse("2026-10-06T00:00:00.123456Z");
-    private static final Instant PREVIOUS_REPORTED_AT = SHARED_AT.plus(Duration.ofMinutes(30));
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -56,12 +49,9 @@ class ShareReportE2eTest extends E2eTestSupport {
     @Autowired
     private FakeExtractionRetryExecutor extractionExecutor;
 
-    private SharedMediaReportSqlFixture fixture;
-
     @BeforeEach
     void setUpReport() {
         extractionExecutor.reset();
-        fixture = new SharedMediaReportSqlFixture(jdbcTemplate);
     }
 
     @AfterEach
@@ -74,21 +64,21 @@ class ShareReportE2eTest extends E2eTestSupport {
     void 본인의_실패_이력을_신고할_수_있다(ExtractionFailureReason failureReason) {
         // given
         LoginResult member = loginAsKakao("report-owner");
-        createFailedHistory(member, failureReason);
-        ExtractionState before = fixture.captureExtractionState();
+        insertFailedHistory(member.memberId(), 101L, failureReason);
+        ExtractionSnapshot before = readExtractionSnapshot();
 
         // when
         Instant requestStartedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        Response response = report(member, SHARED_MEDIA_ID);
+        Response response = report(member, 101L);
         Instant requestFinishedAt = Instant.now();
 
         // then
         assertAll(
                 () -> assertCreated(response),
-                () -> assertThat(fixture.reports())
+                () -> assertThat(readReports())
                         .extracting(ReportState::sharedMediaId)
-                        .containsExactly(SHARED_MEDIA_ID),
-                () -> assertThat(fixture.reports())
+                        .containsExactly(101L),
+                () -> assertThat(readReports())
                         .singleElement()
                         .satisfies(saved -> assertThat(saved.createdAt())
                                 .isBetween(requestStartedAt, requestFinishedAt)),
@@ -101,21 +91,21 @@ class ShareReportE2eTest extends E2eTestSupport {
         // given
         LoginResult first = loginAsKakao("report-first-member");
         LoginResult second = loginAsKakao("report-second-member");
-        createFailedHistory(first, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
-        createHistory(second, OTHER_SHARED_MEDIA_ID);
-        ExtractionState before = fixture.captureExtractionState();
+        insertFailedHistory(first.memberId(), 101L, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
+        insertHistory(second.memberId(), 102L);
+        ExtractionSnapshot before = readExtractionSnapshot();
 
         // when
-        Response firstResponse = report(first, SHARED_MEDIA_ID);
-        Response secondResponse = report(second, OTHER_SHARED_MEDIA_ID);
+        Response firstResponse = report(first, 101L);
+        Response secondResponse = report(second, 102L);
 
         // then
         assertAll(
                 () -> assertCreated(firstResponse),
                 () -> assertCreated(secondResponse),
-                () -> assertThat(fixture.reports())
+                () -> assertThat(readReports())
                         .extracting(ReportState::sharedMediaId)
-                        .containsExactly(SHARED_MEDIA_ID, OTHER_SHARED_MEDIA_ID),
+                        .containsExactly(101L, 102L),
                 () -> assertExtractionUnchanged(before)
         );
     }
@@ -124,13 +114,13 @@ class ShareReportE2eTest extends E2eTestSupport {
     void 토큰_없이_신고하면_401_예외를_던진다() {
         // given
         LoginResult member = loginAsKakao("report-owner");
-        createFailedHistory(member, ExtractionFailureReason.UNEXPECTED);
-        ExtractionState before = fixture.captureExtractionState();
+        insertFailedHistory(member.memberId(), 101L, ExtractionFailureReason.UNEXPECTED);
+        ExtractionSnapshot before = readExtractionSnapshot();
 
         // when
         Response response = given()
                 .when()
-                .post(REPORTS_PATH, SHARED_MEDIA_ID);
+                .post(REPORTS_PATH, 101L);
 
         // then
         assertRejected(response, AuthErrorCode.AUTHENTICATION_REQUIRED, before, List.of());
@@ -142,9 +132,9 @@ class ShareReportE2eTest extends E2eTestSupport {
         // given
         LoginResult member = loginAsKakao("report-owner");
         LoginResult other = loginAsKakao("report-other-member");
-        createFailedHistory(member, ExtractionFailureReason.UNEXPECTED);
-        createHistory(other, OTHER_SHARED_MEDIA_ID);
-        ExtractionState before = fixture.captureExtractionState();
+        insertFailedHistory(member.memberId(), 101L, ExtractionFailureReason.UNEXPECTED);
+        insertHistory(other.memberId(), 102L);
+        ExtractionSnapshot before = readExtractionSnapshot();
 
         // when
         Response response = report(member, sharedMediaId);
@@ -158,12 +148,12 @@ class ShareReportE2eTest extends E2eTestSupport {
     void 실패하지_않은_이력을_신고하면_400_예외를_던진다(ExtractionStatus status) {
         // given
         LoginResult member = loginAsKakao("report-owner");
-        MediaSqlFixture.insertMedia(jdbcTemplate, MEDIA_ID, EXTRACTION_VERSION, status);
-        createHistory(member, SHARED_MEDIA_ID);
-        ExtractionState before = fixture.captureExtractionState();
+        insertMedia(jdbcTemplate, 201L, 1, status);
+        insertHistory(member.memberId(), 101L);
+        ExtractionSnapshot before = readExtractionSnapshot();
 
         // when
-        Response response = report(member, SHARED_MEDIA_ID);
+        Response response = report(member, 101L);
 
         // then
         assertRejected(response, MediaErrorCode.REPORT_ON_NON_FAILED, before, List.of());
@@ -173,25 +163,25 @@ class ShareReportE2eTest extends E2eTestSupport {
     void 이미_신고한_이력을_다시_신고하면_409_예외를_던진다() {
         // given
         LoginResult member = loginAsKakao("report-owner");
-        createFailedHistory(member, ExtractionFailureReason.UNEXPECTED);
-        fixture.insertReport(SHARED_MEDIA_ID, PREVIOUS_REPORTED_AT);
-        List<ReportState> reportsBefore = fixture.reports();
-        ExtractionState before = fixture.captureExtractionState();
+        insertFailedHistory(member.memberId(), 101L, ExtractionFailureReason.UNEXPECTED);
+        insertReport(jdbcTemplate, 1L, 101L, Instant.parse("2026-10-06T00:30:00.123456Z"));
+        List<ReportState> reportsBefore = readReports();
+        ExtractionSnapshot before = readExtractionSnapshot();
 
         // when
-        Response response = report(member, SHARED_MEDIA_ID);
+        Response response = report(member, 101L);
 
         // then
         assertRejected(response, MediaErrorCode.ALREADY_REPORTED, before, reportsBefore);
     }
 
-    private void createFailedHistory(LoginResult member, ExtractionFailureReason failureReason) {
-        MediaSqlFixture.insertFailedMedia(jdbcTemplate, MEDIA_ID, EXTRACTION_VERSION, failureReason);
-        createHistory(member, SHARED_MEDIA_ID);
+    private void insertFailedHistory(Long memberId, Long sharedMediaId, ExtractionFailureReason failureReason) {
+        insertFailedMedia(jdbcTemplate, 201L, 1, failureReason);
+        insertHistory(memberId, sharedMediaId);
     }
 
-    private void createHistory(LoginResult member, Long sharedMediaId) {
-        SharedMediaSqlFixture.insertSharedMedia(jdbcTemplate, sharedMediaId, member.memberId(), MEDIA_ID, SHARED_AT);
+    private void insertHistory(Long memberId, Long sharedMediaId) {
+        insertSharedMedia(jdbcTemplate, sharedMediaId, memberId, 201L, Instant.parse("2026-10-06T00:00:00.123456Z"));
     }
 
     private Response report(LoginResult member, Long sharedMediaId) {
@@ -209,7 +199,7 @@ class ShareReportE2eTest extends E2eTestSupport {
     private void assertRejected(
             Response response,
             ErrorCode errorCode,
-            ExtractionState before,
+            ExtractionSnapshot before,
             List<ReportState> reportsBefore
     ) {
         assertAll(
@@ -217,19 +207,44 @@ class ShareReportE2eTest extends E2eTestSupport {
                         .statusCode(errorCode.getHttpStatus().value())
                         .body("errorCode", equalTo(errorCode.getCode()))
                         .body("message", equalTo(errorCode.getMessage())),
-                () -> assertThat(fixture.reports())
+                () -> assertThat(readReports())
                         .isEqualTo(reportsBefore),
                 () -> assertExtractionUnchanged(before)
         );
     }
 
-    private void assertExtractionUnchanged(ExtractionState before) {
+    private void assertExtractionUnchanged(ExtractionSnapshot before) {
         assertAll(
-                () -> assertThat(fixture.captureExtractionState())
+                () -> assertThat(readExtractionSnapshot())
                         .isEqualTo(before),
                 () -> assertThat(extractionExecutor.countSubmittedTasks())
                         .isZero()
         );
+    }
+
+    private List<ReportState> readReports() {
+        return jdbcTemplate.query("""
+                SELECT id, shared_media_id, created_at
+                FROM shared_media_reports
+                ORDER BY shared_media_id
+                """, (resultSet, rowNumber) -> new ReportState(
+                resultSet.getLong("id"),
+                resultSet.getLong("shared_media_id"),
+                resultSet.getTimestamp("created_at").toInstant()
+        ));
+    }
+
+    private ExtractionSnapshot readExtractionSnapshot() {
+        return new ExtractionSnapshot(
+                jdbcTemplate.queryForList("SELECT * FROM media ORDER BY id"),
+                jdbcTemplate.queryForList("SELECT * FROM shared_media ORDER BY id")
+        );
+    }
+
+    private record ReportState(Long id, Long sharedMediaId, Instant createdAt) {
+    }
+
+    private record ExtractionSnapshot(List<Map<String, Object>> media, List<Map<String, Object>> sharedMedia) {
     }
 
     @TestConfiguration
