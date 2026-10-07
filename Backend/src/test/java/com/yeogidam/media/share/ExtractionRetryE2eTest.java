@@ -265,9 +265,6 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertSucceededHistory(memberA, retriedShareId),
                 () -> assertFailedHistory(memberA, ORIGINAL_SHARE_ID),
                 () -> assertFailedHistory(memberB, OTHER_SHARE_ID),
-                () -> assertHistorySummary(memberA, retriedShareId, ExtractionStatus.SUCCEEDED),
-                () -> assertHistorySummary(memberA, ORIGINAL_SHARE_ID, ExtractionStatus.FAILED),
-                () -> assertHistorySummary(memberB, OTHER_SHARE_ID, ExtractionStatus.FAILED),
                 () -> assertThat(countSavedPlacesFromShare(retriedShareId)).isEqualTo(1),
                 () -> assertThat(countSavedPlacesFromShare(ORIGINAL_SHARE_ID)).isZero(),
                 () -> assertThat(countSavedPlacesFromShare(OTHER_SHARE_ID)).isZero(),
@@ -364,13 +361,19 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     private JsonPath readHistory(LoginResult member, Long sharedMediaId) {
-        return givenBearer(member.accessToken())
+        JsonPath history = givenBearer(member.accessToken())
                 .when()
-                .get(SHARES_PATH + "/" + sharedMediaId)
+                .get(SHARES_PATH)
                 .then()
                 .statusCode(HttpStatus.OK.value())
                 .extract()
                 .jsonPath();
+        String item = "sharedMedias.find { it.sharedMediaId == " + sharedMediaId + " }";
+        Map<String, Object> sharedMedia = history.getMap(item);
+        assertThat(sharedMedia)
+                .as("공유 이력 %s가 목록에 존재한다", sharedMediaId)
+                .isNotNull();
+        return history.setRootPath(item);
     }
 
     private List<Long> readHistoryIds(LoginResult member) {
@@ -423,25 +426,6 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertThat(history.getString("failureReason"))
                         .isNull()
         );
-    }
-
-    private void assertHistorySummary(
-            LoginResult member,
-            Long sharedMediaId,
-            ExtractionStatus status
-    ) {
-        JsonPath history = givenBearer(member.accessToken())
-                .when()
-                .get(SHARES_PATH)
-                .then()
-                .statusCode(HttpStatus.OK.value())
-                .extract()
-                .jsonPath();
-        String item = "sharedMedias.find { it.sharedMediaId == " + sharedMediaId + " }";
-        assertThat(history.getString(item + ".extractionStatus"))
-                .isEqualTo(status.name());
-        assertThat(history.getString(item + ".failureReason"))
-                .isEqualTo(readHistory(member, sharedMediaId).getString("failureReason"));
     }
 
     private int countSavedPlacesFromShare(Long sharedMediaId) {
