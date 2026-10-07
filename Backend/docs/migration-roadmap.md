@@ -29,7 +29,7 @@
 
 | 화면(피그마) | API | 응답 요지 | 상태 |
 |---|---|---|---|
-| P-1 로그인 | POST /auth/logins/{kakao,google,apple} | 토큰 쌍 + 회원. 제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 정하고, 다시 로그인해도 닉네임은 바뀌지 않는다(#276) | 있음 |
+| P-1 로그인 | POST /auth/logins/{kakao,google,apple} | 토큰 쌍 + 회원. 제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 정하고, 다시 로그인해도 닉네임은 바뀌지 않는다. 애플은 앱이 첫 인증 때 받은 이름을 `fullName`(선택)으로 보내면 닉네임으로 쓴다(#276) | 있음 |
 | (세션) | POST /auth/token-refreshes, POST /auth/logouts | 회전, 폐기 | 있음 |
 | P-5 마이 A, A-1 | GET /members/me | id, nickname, email, imageUrl, oauthProvider | 있음(사이클 1 완료) |
 | P-5 회원탈퇴 B | DELETE /members/me | 204. 전 세션 폐기 + 회원 데이터 삭제 | 신규 |

@@ -38,7 +38,15 @@ class AuthE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 닉네임을_주지_않는_애플로_처음_로그인하면_담이_닉네임으로_가입한다() {
+    void 애플로_처음_로그인할_때_보낸_이름으로_가입한다() {
+        loginWithApple("user-1", "홍길동")
+                .then().statusCode(200)
+                .body("member.nickname", equalTo("홍길동"))
+                .body("member.oauthProvider", equalTo("APPLE"));
+    }
+
+    @Test
+    void 애플로_처음_로그인할_때_이름을_보내지_않으면_담이_닉네임으로_가입한다() {
         login("apple", "user-1")
                 .then().statusCode(200)
                 .body("accessToken", notNullValue())
@@ -56,6 +64,17 @@ class AuthE2eTest extends E2eTestSupport {
         login("apple", "user-1")
                 .then().statusCode(200)
                 .body("member.nickname", equalTo(nickname));
+    }
+
+    @Test
+    void 애플로_다시_로그인하며_다른_이름을_보내도_닉네임은_바뀌지_않는다() {
+        // given
+        loginWithApple("user-1", "홍길동");
+
+        // when & then
+        loginWithApple("user-1", "김철수")
+                .then().statusCode(200)
+                .body("member.nickname", equalTo("홍길동"));
     }
 
     @Test
@@ -88,6 +107,13 @@ class AuthE2eTest extends E2eTestSupport {
         given().contentType(ContentType.JSON)
                 .body("{\"authorizationCode\":\" \"}")
                 .when().post("/api/v1/auth/logins/kakao")
+                .then().statusCode(400)
+                .body("errorCode", equalTo("COMMON400_001"));
+    }
+
+    @Test
+    void 애플_로그인의_이름이_255자를_넘으면_400_예외를_던진다() {
+        loginWithApple("user-1", "가".repeat(256))
                 .then().statusCode(400)
                 .body("errorCode", equalTo("COMMON400_001"));
     }
@@ -158,6 +184,15 @@ class AuthE2eTest extends E2eTestSupport {
         return given().contentType(ContentType.JSON)
                 .body("{\"authorizationCode\":\"" + authorizationCode + "\"}")
                 .when().post("/api/v1/auth/logins/" + provider);
+    }
+
+    private static Response loginWithApple(
+            String authorizationCode,
+            String fullName
+    ) {
+        return given().contentType(ContentType.JSON)
+                .body("{\"authorizationCode\":\"" + authorizationCode + "\",\"fullName\":\"" + fullName + "\"}")
+                .when().post("/api/v1/auth/logins/apple");
     }
 
     private static Response refresh(String refreshToken) {
