@@ -59,19 +59,14 @@ public class SavedPlaceDao {
         );
     }
 
-    public Long getIdByMemberAndPlace(SavedPlace savedPlace) {
+    public Long getIdByMemberAndPlace(Long memberId, Long placeId) {
         String sql = """
                 SELECT id
                 FROM saved_places
                 WHERE member_id = ?
                   AND place_id = ?
                 """;
-        return jdbcTemplate.queryForObject(
-                sql,
-                Long.class,
-                savedPlace.getMemberId(),
-                savedPlace.getPlaceId()
-        );
+        return jdbcTemplate.queryForObject(sql, Long.class, memberId, placeId);
     }
 
     public void saveShareIfAbsent(

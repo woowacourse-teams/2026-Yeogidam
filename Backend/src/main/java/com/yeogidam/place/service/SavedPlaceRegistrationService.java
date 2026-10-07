@@ -27,7 +27,7 @@ public class SavedPlaceRegistrationService {
         for (Long placeId : placeIds) {
             SavedPlace savedPlace = new SavedPlace(memberId, placeId, savedAt);
             savedPlaceDao.saveOrUpdate(savedPlace);
-            Long savedPlaceId = savedPlaceDao.getIdByMemberAndPlace(savedPlace);
+            Long savedPlaceId = savedPlaceDao.getIdByMemberAndPlace(memberId, placeId);
             savedPlaceDao.saveShareIfAbsent(savedPlaceId, sharedMediaId, savedAt);
         }
     }

@@ -93,18 +93,17 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMember(2L, "saved-id-other");
         insertThreePlaces();
         Instant previous = Instant.parse("2026-10-01T10:00:00Z");
-        Instant now = previous.plusSeconds(10);
         insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
         insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, previous);
         insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, previous);
 
         // when & then
         assertAll(
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(new SavedPlace(1L, 1L, now)))
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 1L))
                         .isEqualTo(11L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(new SavedPlace(1L, 2L, now)))
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 2L))
                         .isEqualTo(12L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(new SavedPlace(2L, 1L, now)))
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(2L, 1L))
                         .isEqualTo(21L)
         );
     }
