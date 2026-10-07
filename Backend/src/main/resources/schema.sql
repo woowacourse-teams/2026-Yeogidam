@@ -80,7 +80,6 @@ CREATE TABLE shared_media
     failure_reason      VARCHAR(40),
     extraction_version  INT          NOT NULL,
     PRIMARY KEY (id),
-    INDEX idx_shared_media_media_extraction_status (media_id, extraction_status),
     CONSTRAINT chk_shared_media_extraction_status
         CHECK (extraction_status IN ('EXTRACTING', 'SUCCEEDED', 'FAILED')),
     CONSTRAINT chk_shared_media_failure_reason
