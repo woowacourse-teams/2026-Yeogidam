@@ -8,7 +8,6 @@ public enum MediaErrorCode implements ErrorCode {
     UNSUPPORTED_LINK(HttpStatus.BAD_REQUEST, "MEDIA400_001", "지원하지 않는 링크입니다."),
     RETRY_ON_SUCCEEDED(HttpStatus.BAD_REQUEST, "MEDIA400_002", "추출에 성공한 게시물은 다시 시도할 수 없습니다."),
     EXTRACTION_ALREADY_FINISHED(HttpStatus.BAD_REQUEST, "MEDIA400_003", "이미 추출이 끝난 게시물입니다."),
-    RETRY_ALREADY_CLAIMED(HttpStatus.BAD_REQUEST, "MEDIA400_005", "이미 다시 시도가 접수된 게시물입니다."),
     RETRY_WHILE_EXTRACTING(HttpStatus.BAD_REQUEST, "MEDIA400_006", "추출이 진행 중인 게시물은 다시 시도할 수 없습니다."),
     EXTRACTION_NOT_FINISHED(HttpStatus.BAD_REQUEST, "MEDIA400_007", "추출 중인 게시물의 장소 결과는 아직 준비되지 않았습니다."),
     FAILED_EXTRACTION_HAS_NO_PLACES(HttpStatus.BAD_REQUEST, "MEDIA400_008", "추출에 실패한 게시물에는 장소가 없습니다."),

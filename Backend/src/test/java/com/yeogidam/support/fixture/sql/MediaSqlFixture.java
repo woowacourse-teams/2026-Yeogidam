@@ -7,13 +7,6 @@ public final class MediaSqlFixture {
     private MediaSqlFixture() {
     }
 
-    public static void insertExtractingMedia(JdbcTemplate jdbcTemplate, Long mediaId) {
-        jdbcTemplate.update("""
-                INSERT INTO media (id, media_shortcode, extraction_status, extraction_version, source_type)
-                VALUES (?, ?, 'EXTRACTING', 1, 'EXTRACTED')
-                """, mediaId, "fixture-media-" + mediaId);
-    }
-
     public static void insertMedia(
             JdbcTemplate jdbcTemplate,
             Long mediaId,
