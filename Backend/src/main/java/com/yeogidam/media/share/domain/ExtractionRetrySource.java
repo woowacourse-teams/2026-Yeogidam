@@ -2,39 +2,28 @@ package com.yeogidam.media.share.domain;
 
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
-import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 
 public record ExtractionRetrySource(
         Long mediaId,
         InstagramUrl instagramUrl,
-        ExtractionStatus extractionStatus,
-        ExtractionFailureReason failureReason,
-        int extractionVersion
+        ExtractionSnapshot snapshot
 ) {
     public void validateRetry(int pipelineVersion) {
         validateFailed();
-        if (!isRetryEligible(pipelineVersion)) {
+        if (!snapshot.canRetry(pipelineVersion)) {
             throw new MediaException(MediaErrorCode.RETRY_NOT_ELIGIBLE);
         }
     }
 
     private void validateFailed() {
-        if (extractionStatus == ExtractionStatus.SUCCEEDED) {
+        if (snapshot.status() == ExtractionStatus.SUCCEEDED) {
             throw new MediaException(MediaErrorCode.RETRY_ON_SUCCEEDED);
         }
-        if (extractionStatus == ExtractionStatus.EXTRACTING) {
+        if (snapshot.status() == ExtractionStatus.EXTRACTING) {
             throw new MediaException(MediaErrorCode.RETRY_WHILE_EXTRACTING);
         }
-    }
-
-    private boolean isRetryEligible(int pipelineVersion) {
-        if (extractionVersion < pipelineVersion) {
-            return true;
-        }
-        return extractionVersion == pipelineVersion
-                && (failureReason == ExtractionFailureReason.PROCESSING_FAILED
-                || failureReason == ExtractionFailureReason.UNEXPECTED);
     }
 }

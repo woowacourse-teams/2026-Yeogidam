@@ -3,6 +3,7 @@ package com.yeogidam.media.share.service;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.extraction.config.ExtractionProperties;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.repository.MediaPlaceDao;
 import com.yeogidam.media.extraction.repository.MediaPlaceProjection;
@@ -83,10 +84,13 @@ public class ShareService {
     }
 
     private void retryExistingMediaIfEligible(Long mediaId, InstagramUrl instagramUrl) {
+        ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(mediaId);
         int pipelineVersion = extractionProperties.pipelineVersion();
-        if (instagramMediaDao.retryFailedExtractionIfEligible(mediaId, pipelineVersion)) {
-            mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
+        if (!snapshot.canRetry(pipelineVersion)) {
+            return;
         }
+        instagramMediaDao.updateExtractionForRetry(mediaId, pipelineVersion);
+        mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
     }
 
     private Long createSharedMedia(Long memberId, Long mediaId, InstagramUrl instagramUrl) {
@@ -98,14 +102,26 @@ public class ShareService {
     public ExtractionRetryResponse createExtractionRetry(Long memberId, Long sharedMediaId) {
         ExtractionRetrySource source = sharedMediaDao.findRetrySource(memberId, sharedMediaId)
                 .orElseThrow(() -> new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND));
-        source.validateRetry(extractionProperties.pipelineVersion());
-        ExtractionStatus status = instagramMediaDao.findExtractionStatusForUpdate(source.mediaId());
-        if (status == ExtractionStatus.FAILED) {
-            startRetryIfEligible(source.mediaId(), source.instagramUrl());
-            status = ExtractionStatus.EXTRACTING;
+        int pipelineVersion = extractionProperties.pipelineVersion();
+        source.validateRetry(pipelineVersion);
+        ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(source.mediaId());
+        ExtractionStatus status = resolveRetryStatus(snapshot, pipelineVersion);
+        if (snapshot.status() == ExtractionStatus.FAILED) {
+            instagramMediaDao.updateExtractionForRetry(source.mediaId(), pipelineVersion);
+            mediaExtractionDispatcher.dispatchAfterCommit(source.mediaId(), source.instagramUrl());
         }
         Long newSharedMediaId = createRetryShare(memberId, source, status);
         return new ExtractionRetryResponse(newSharedMediaId, status.name());
+    }
+
+    private ExtractionStatus resolveRetryStatus(ExtractionSnapshot snapshot, int pipelineVersion) {
+        if (snapshot.status() != ExtractionStatus.FAILED) {
+            return snapshot.status();
+        }
+        if (!snapshot.canRetry(pipelineVersion)) {
+            throw new MediaException(MediaErrorCode.RETRY_NOT_ELIGIBLE);
+        }
+        return ExtractionStatus.EXTRACTING;
     }
 
     private Long createRetryShare(Long memberId, ExtractionRetrySource source, ExtractionStatus status) {
@@ -118,15 +134,6 @@ public class ShareService {
             savePlacesFromMedia(memberId, newSharedMediaId, source.mediaId());
         }
         return newSharedMediaId;
-    }
-
-    private void startRetryIfEligible(Long mediaId, InstagramUrl instagramUrl) {
-        int pipelineVersion = extractionProperties.pipelineVersion();
-        if (instagramMediaDao.retryFailedExtractionIfEligible(mediaId, pipelineVersion)) {
-            mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
-            return;
-        }
-        throw new MediaException(MediaErrorCode.RETRY_NOT_ELIGIBLE);
     }
 
     public ShareHistoryResponses readShareHistory(

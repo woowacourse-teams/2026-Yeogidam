@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
@@ -59,7 +60,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 회원_ID와_공유_이력_ID로_재시도에_사용할_게시물과_분석_정보를_조회한다() {
+    void 회원_ID와_공유_이력_ID로_공유_이력에_기록된_스냅숏을_조회한다() {
         // given
         insertKakaoMember(jdbcTemplate, 51L, "retry-source-owner", null, null, null);
         insertKakaoMember(jdbcTemplate, 52L, "retry-source-other", null, null, null);
@@ -67,6 +68,11 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         String sharedUrl = "https://www.instagram.com/reel/retry-source/?igsh=source";
         insertSharedMedia(jdbcTemplate, 510L, 51L, 51L, sharedUrl,
                 Instant.parse("2026-10-01T10:00:00Z"));
+        jdbcTemplate.update("""
+                UPDATE media
+                SET extraction_status = 'SUCCEEDED', failure_reason = NULL, extraction_version = 4
+                WHERE id = ?
+                """, 51L);
 
         // when
         ExtractionRetrySource source = sharedMediaDao.findRetrySource(51L, 510L)
@@ -77,9 +83,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 () -> assertThat(source).isEqualTo(new ExtractionRetrySource(
                                 51L,
                                 new InstagramUrl(sharedUrl),
-                                ExtractionStatus.FAILED,
-                                ExtractionFailureReason.UNEXPECTED,
-                                3
+                                new ExtractionSnapshot(ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 3)
                         )),
                 () -> assertThat(sharedMediaDao.findRetrySource(52L, 510L)).isEmpty(),
                 () -> assertThat(sharedMediaDao.findRetrySource(51L, 511L)).isEmpty()

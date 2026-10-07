@@ -1,6 +1,7 @@
 package com.yeogidam.media.share.repository;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
@@ -27,9 +28,11 @@ public class SharedMediaDao {
             new ExtractionRetrySource(
                     resultSet.getLong("media_id"),
                     new InstagramUrl(resultSet.getString("shared_url")),
-                    ExtractionStatus.valueOf(resultSet.getString("extraction_status")),
-                    failureReason(resultSet),
-                    resultSet.getInt("extraction_version")
+                    new ExtractionSnapshot(
+                            ExtractionStatus.valueOf(resultSet.getString("extraction_status")),
+                            failureReason(resultSet),
+                            resultSet.getInt("extraction_version")
+                    )
             );
 
     private static final RowMapper<SharedMediaOwnerProjection> OWNER_ROW_MAPPER = (resultSet, rowNumber) ->
