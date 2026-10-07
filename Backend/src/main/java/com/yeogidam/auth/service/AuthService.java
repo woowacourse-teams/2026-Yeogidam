@@ -39,7 +39,7 @@ public class AuthService {
      * 애플은 ID 토큰에 이름이 없어서, 앱이 첫 인증 때 받은 이름을 닉네임으로 함께 보낸다.
      */
     @Transactional
-    public LoginResponse createAppleLogin(OAuthProvider provider ,AppleLoginRequest request) {
+    public LoginResponse createAppleLogin(OAuthProvider provider, AppleLoginRequest request) {
         OAuthIdentity identity = readIdentity(provider, request.authorizationCode());
         MemberProfile profile = identity.getProfile().withNicknameIfAbsent(request.fullName());
         return createLoginResponse(identity.getAccount(), profile);
