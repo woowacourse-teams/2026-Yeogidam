@@ -79,7 +79,7 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 미디어에_등록된_장소들을_장소id_순으로_조회한다() {
+    void 미디어에_등록된_장소들을_릴스에서_추출된_순서로_조회한다() {
         // given
         insertMedia(jdbcTemplate, 1L, null, null, null);
         insertMedia(jdbcTemplate, 2L, null, null, null);
