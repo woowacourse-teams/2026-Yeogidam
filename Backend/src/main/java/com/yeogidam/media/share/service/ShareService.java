@@ -19,8 +19,7 @@ import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.repository.ShareHistoryCursor;
 import com.yeogidam.media.share.repository.ShareHistoryProjections;
 import com.yeogidam.media.share.repository.SharedMediaDao;
-import com.yeogidam.place.repository.SavedPlaceDao;
-import java.time.Clock;
+import com.yeogidam.place.service.SavedPlaceRegistrationService;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,14 +35,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ShareService {
 
-    private final Clock clock;
+    private final MediaPlaceDao mediaPlaceDao;
     private final SharedMediaDao sharedMediaDao;
     private final InstagramMediaDao instagramMediaDao;
-    private final MediaPlaceDao mediaPlaceDao;
-    private final SavedPlaceDao savedPlaceDao;
     private final ExtractionProperties extractionProperties;
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
     private final MediaExtractionDispatcher mediaExtractionDispatcher;
+    private final SavedPlaceRegistrationService savedPlaceRegistrationService;
 
     @Transactional
     public void createShare(Long memberId, ShareRequest rawInstagramUrl) {
@@ -52,7 +50,7 @@ public class ShareService {
         Long sharedMediaId = createSharedMedia(memberId, mediaId, instagramUrl);
         if (instagramMediaDao.isExtractionSucceeded(mediaId)) {
             List<Long> placeIds = mediaPlaceDao.findPlaceIds(mediaId);
-            savedPlaceDao.savePlacesFromShare(memberId, sharedMediaId, placeIds, clock.instant());
+            savedPlaceRegistrationService.savePlacesFromShare(memberId, sharedMediaId, placeIds);
         }
     }
 
@@ -65,14 +63,15 @@ public class ShareService {
         }
 
         InstagramMedia instagramMedia = new InstagramMedia(shortcode);
+        Long mediaId;
         try {
-            Long mediaId = instagramMediaDao.save(instagramMedia, extractionProperties.pipelineVersion());
-            mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
-            return mediaId;
+            mediaId = instagramMediaDao.save(instagramMedia, extractionProperties.pipelineVersion());
         } catch (DuplicateKeyException exception) {
             return instagramMediaDao.findIdByShortcode(shortcode)
                     .orElseThrow(() -> new IllegalStateException("게시물을 찾을 수 없습니다.", exception));
         }
+        mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
+        return mediaId;
     }
 
     private void retryMediaIfNeeded(Long mediaId, InstagramUrl instagramUrl) {

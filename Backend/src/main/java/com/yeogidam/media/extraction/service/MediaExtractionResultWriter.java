@@ -6,7 +6,7 @@ import com.yeogidam.media.instagram.repository.InstagramMediaDao;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.repository.PlaceDao;
-import com.yeogidam.place.service.SavedPlaceService;
+import com.yeogidam.place.service.SavedPlaceRegistrationService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,7 +21,7 @@ public class MediaExtractionResultWriter {
     private final PlaceDao placeDao;
     private final MediaPlaceDao mediaPlaceDao;
     private final SharedMediaDao sharedMediaDao;
-    private final SavedPlaceService savedPlaceService;
+    private final SavedPlaceRegistrationService savedPlaceRegistrationService;
 
     @Transactional
     public void recordSuccess(Long mediaId, PlaceExtractionResult result) {
@@ -30,7 +30,7 @@ public class MediaExtractionResultWriter {
         }
         List<Long> placeIds = getPlaceIds(mediaId, result);
         sharedMediaDao.findLatestSharesByMediaId(mediaId)
-                .forEach(share -> savedPlaceService.savePlacesFromShare(
+                .forEach(share -> savedPlaceRegistrationService.savePlacesFromShare(
                         share.memberId(), share.sharedMediaId(), placeIds));
         if (!instagramMediaDao.succeedExtractionIfInProgress(mediaId)) {
             throw new IllegalStateException("진행 중인 미디어의 추출 완료 상태를 저장하지 못했습니다.");
