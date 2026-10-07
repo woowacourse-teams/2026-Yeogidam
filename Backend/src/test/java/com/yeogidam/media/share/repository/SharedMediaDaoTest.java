@@ -220,7 +220,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 분석_완료_시_대기_중인_공유만_미디어_상태로_갱신한다() {
+    void 분석이_끝나면_EXTRACTING인_이력에만_미디어의_분석_결과를_복사하고_FAILED인_이력은_그대로_둔다() {
         // given
         insertKakaoMember(jdbcTemplate, 9L, "pending-share-owner", null, null, null);
         insertKakaoMember(jdbcTemplate, 10L, "pending-share-other", null, null, null);

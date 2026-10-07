@@ -78,29 +78,40 @@ public interface ShareApiDocs {
                     - 현재 분석 버전에서는 `PROCESSING_FAILED`, `UNEXPECTED`만 재시도할 수 있습니다.
                     - 이전 분석 버전의 실패는 실패 사유에 관계없이 재시도할 수 있습니다.
                     - 같은 미디어의 분석이 진행 중이면 새 이력을 만들어 해당 분석에 합류합니다.
-                    - 성공한 이력과 분석 중인 이력을 대상으로 요청할 수 없습니다.
-                    - 미디어가 이미 분석에 성공했다면 과거 실패 이력에서도 재시도할 수 없습니다.
+                    - 분석 중인 이력을 대상으로 요청할 수 없습니다.
+                    - 본인 실패 후 다른 회원이 성공한 미디어를 재시도하면 재공유처럼 새 성공 이력을 만들고 장소를 바로 저장합니다.
+                    - 요청 회원의 성공 이력이 이미 있어도 과거 실패 이력의 재시도는 허용합니다.
                     - 결과는 이번 분석을 기다리는 이력에만 반영하며 참여 회원별 최신 이력에 장소를 보관함으로 자동 저장합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
-                    @ApiResponse(responseCode = "202", description = "새 재시도 이력 접수",
+                    @ApiResponse(responseCode = "202", description = "새 재시도 이력 접수 또는 기존 결과로 즉시 성공",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ExtractionRetryResponse.class),
-                                    examples = @ExampleObject(name = "재시도 이력",
-                                            description = "새로 생성한 이력과 분석 상태",
-                                            value = """
-                                                    {
-                                                      "sharedMediaId": 30,
-                                                      "extractionStatus": "EXTRACTING"
-                                                    }
-                                                    """))),
+                                    examples = {
+                                            @ExampleObject(name = "재시도 이력",
+                                                    description = "새로 생성한 이력과 분석 상태",
+                                                    value = """
+                                                            {
+                                                              "sharedMediaId": 30,
+                                                              "extractionStatus": "EXTRACTING"
+                                                            }
+                                                            """),
+                                            @ExampleObject(name = "기존 성공 결과 재사용",
+                                                    description = "이미 분석에 성공한 미디어의 새 성공 이력",
+                                                    value = """
+                                                            {
+                                                              "sharedMediaId": 30,
+                                                              "extractionStatus": "SUCCEEDED"
+                                                            }
+                                                            """)
+                                    })),
                     @ApiResponse(responseCode = "400", description = "성공 또는 분석 중인 이력, 재시도할 수 없는 실패",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = {
                                              @ExampleObject(name = "MEDIA400_002",
-                                                     description = "이미 분석에 성공한 미디어를 다시 요청할 때",
+                                                     description = "성공한 공유 이력 자체를 대상으로 요청할 때",
                                                      value = """
                                                             {"message": "추출에 성공한 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_002"}
                                                             """),

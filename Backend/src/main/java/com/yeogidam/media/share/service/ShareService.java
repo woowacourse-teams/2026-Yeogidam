@@ -31,6 +31,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -52,9 +53,13 @@ public class ShareService {
         Long mediaId = getOrCreateMediaId(instagramUrl.getMediaShortcode(), instagramUrl);
         Long sharedMediaId = createSharedMedia(memberId, mediaId, instagramUrl);
         if (instagramMediaDao.isExtractionSucceeded(mediaId)) {
-            List<Long> placeIds = mediaPlaceDao.findPlaceIds(mediaId);
-            savedPlaceRegistrationService.savePlacesFromShare(memberId, sharedMediaId, placeIds);
+            savePlacesFromMedia(memberId, sharedMediaId, mediaId);
         }
+    }
+
+    private void savePlacesFromMedia(Long memberId, Long sharedMediaId, Long mediaId) {
+        List<Long> placeIds = mediaPlaceDao.findPlaceIds(mediaId);
+        savedPlaceRegistrationService.savePlacesFromShare(memberId, sharedMediaId, placeIds);
     }
 
     private Long getOrCreateMediaId(MediaShortcode shortcode, InstagramUrl instagramUrl) {
@@ -89,25 +94,26 @@ public class ShareService {
         return sharedMediaDao.save(sharedInstagramMedia);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ExtractionRetryResponse createExtractionRetry(Long memberId, Long sharedMediaId) {
         ExtractionRetrySource source = sharedMediaDao.findRetrySource(memberId, sharedMediaId)
                 .orElseThrow(() -> new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND));
         source.validateRetry(extractionProperties.pipelineVersion());
-        startOrJoinExtraction(source);
-        Long newSharedMediaId = createSharedMedia(memberId, source.mediaId(), source.instagramUrl());
-        return new ExtractionRetryResponse(newSharedMediaId, ExtractionStatus.EXTRACTING.name());
+        ExtractionStatus status = instagramMediaDao.findExtractionStatusForUpdate(source.mediaId());
+        if (status == ExtractionStatus.FAILED) {
+            startRetryIfEligible(source.mediaId(), source.instagramUrl());
+            status = ExtractionStatus.EXTRACTING;
+        }
+        Long newSharedMediaId = createRetryShare(memberId, source, status);
+        return new ExtractionRetryResponse(newSharedMediaId, status.name());
     }
 
-    private void startOrJoinExtraction(ExtractionRetrySource source) {
-        ExtractionStatus status = instagramMediaDao.findExtractionStatusForUpdate(source.mediaId());
+    private Long createRetryShare(Long memberId, ExtractionRetrySource source, ExtractionStatus status) {
+        Long newSharedMediaId = createSharedMedia(memberId, source.mediaId(), source.instagramUrl());
         if (status == ExtractionStatus.SUCCEEDED) {
-            throw new MediaException(MediaErrorCode.RETRY_ON_SUCCEEDED);
+            savePlacesFromMedia(memberId, newSharedMediaId, source.mediaId());
         }
-        if (status == ExtractionStatus.EXTRACTING) {
-            return;
-        }
-        startRetryIfEligible(source.mediaId(), source.instagramUrl());
+        return newSharedMediaId;
     }
 
     private void startRetryIfEligible(Long mediaId, InstagramUrl instagramUrl) {

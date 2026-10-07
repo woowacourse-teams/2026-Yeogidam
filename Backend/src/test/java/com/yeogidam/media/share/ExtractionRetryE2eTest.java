@@ -21,12 +21,17 @@ import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import com.yeogidam.support.fake.FakePlaceNameExtractor;
 import com.yeogidam.support.fake.FakePlaceSearcher;
+import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,7 +90,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 본문_없이_재시도하면_새_히스토리를_반환하고_기존_실패_이력은_유지한다() {
+    void 재시도하면_새_히스토리를_반환하고_기존_실패_이력은_유지한다() {
         // given
         LoginResult member = loginAsKakao("retry-new-history");
         createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
@@ -276,6 +281,87 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
+    void 본인_실패_후_다른_회원이_성공한_미디어를_재시도하면_성공_히스토리와_장소를_보관함에_저장한다() throws Exception {
+        // given
+        LoginResult memberA = loginAsKakao("retry-cached-success-member-a");
+        LoginResult memberB = loginAsKakao("retry-cached-success-member-b");
+        insertFailedMedia(jdbcTemplate, MEDIA_ID, PREVIOUS_VERSION, ExtractionFailureReason.UNEXPECTED);
+        insertSharedMedia(jdbcTemplate, ORIGINAL_SHARE_ID, memberA.memberId(), MEDIA_ID,
+                sharedUrl(MEDIA_ID), ORIGINAL_SHARED_AT);
+        shareAndCompleteExtraction(memberB);
+        List<Long> previousHistoryB = readHistoryIds(memberB);
+        Long succeededShareB = previousHistoryB.getFirst();
+        assertSucceededHistory(memberB, succeededShareB);
+        List<Long> previousSavedSharesB = readSavedShareIds(memberB);
+        List<Long> previousSavedPlacesB = readSavedPlaceIds(memberB);
+        List<Map<String, Object>> previousMedia = jdbcTemplate.queryForList("SELECT * FROM media ORDER BY id");
+
+        // when
+        Long retriedShareId = requestSucceededRetry(memberA, ORIGINAL_SHARE_ID);
+
+        // then
+        assertAll(
+                () -> assertThat(retriedShareId)
+                        .isNotEqualTo(ORIGINAL_SHARE_ID)
+                        .isNotEqualTo(succeededShareB),
+                () -> assertSucceededHistory(memberA, retriedShareId),
+                () -> assertFailedHistory(memberA, ORIGINAL_SHARE_ID),
+                () -> assertThat(readHistoryIds(memberA)).containsExactly(retriedShareId, ORIGINAL_SHARE_ID),
+                () -> assertThat(countSavedPlacesFromShare(retriedShareId)).isEqualTo(1),
+                () -> assertThat(countSavedPlacesFromShare(ORIGINAL_SHARE_ID)).isZero(),
+                () -> assertThat(readSavedShareIds(memberA)).containsExactly(retriedShareId),
+                () -> assertThat(readSavedPlaceIds(memberA)).hasSize(1),
+                () -> assertThat(readHistoryIds(memberB)).isEqualTo(previousHistoryB),
+                () -> assertThat(readSavedShareIds(memberB)).isEqualTo(previousSavedSharesB),
+                () -> assertThat(readSavedPlaceIds(memberB)).isEqualTo(previousSavedPlacesB),
+                () -> assertThat(jdbcTemplate.queryForList("SELECT * FROM media ORDER BY id")).isEqualTo(previousMedia),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1),
+                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
+        );
+    }
+
+    private void shareAndCompleteExtraction(LoginResult member) throws Exception {
+        givenBearer(member.accessToken())
+                .contentType(ContentType.JSON)
+                .body(Map.of("instagramUrl", sharedUrl(MEDIA_ID)))
+                .when()
+                .post(SHARES_PATH)
+                .then()
+                .statusCode(HttpStatus.ACCEPTED.value());
+        completeExtraction();
+    }
+
+    @Test
+    void 본인_재시도가_성공한_뒤_옛_실패를_다시_재시도하면_새_성공_이력과_장소를_저장한다() throws Exception {
+        // given
+        LoginResult member = loginAsKakao("retry-own-cached-success");
+        createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
+        Long firstRetriedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
+        completeExtraction();
+        assertSucceededHistory(member, firstRetriedShareId);
+        List<Long> previousSavedPlaces = readSavedPlaceIds(member);
+
+        // when
+        Long secondRetriedShareId = requestSucceededRetry(member, ORIGINAL_SHARE_ID);
+
+        // then
+        assertAll(
+                () -> assertThat(secondRetriedShareId)
+                        .isNotEqualTo(firstRetriedShareId)
+                        .isNotEqualTo(ORIGINAL_SHARE_ID),
+                () -> assertSucceededHistory(member, firstRetriedShareId),
+                () -> assertSucceededHistory(member, secondRetriedShareId),
+                () -> assertFailedHistory(member, ORIGINAL_SHARE_ID),
+                () -> assertThat(readHistoryIds(member)).containsExactly(secondRetriedShareId, firstRetriedShareId, ORIGINAL_SHARE_ID),
+                () -> assertThat(countSavedPlacesFromShare(secondRetriedShareId)).isEqualTo(1),
+                () -> assertThat(countSavedPlacesFromShare(ORIGINAL_SHARE_ID)).isZero(),
+                () -> assertThat(readSavedPlaceIds(member)).isEqualTo(previousSavedPlaces),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1),
+                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
+        );
+    }
+
+    @Test
     void 분석이_시작된_뒤의_재시도도_새_이력을_만들고_기존_분석에_합류한다() throws Exception {
         // given
         LoginResult member = loginAsKakao("retry-join-started-extraction");
@@ -331,6 +417,16 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
         return givenBearer(member.accessToken())
                 .when()
                 .post(retryPath(sharedMediaId));
+    }
+
+    private Long requestSucceededRetry(LoginResult member, Long sharedMediaId) {
+        return sendRetry(member, sharedMediaId)
+                .then()
+                .statusCode(HttpStatus.ACCEPTED.value())
+                .body("extractionStatus", equalTo(ExtractionStatus.SUCCEEDED.name()))
+                .extract()
+                .jsonPath()
+                .getLong("sharedMediaId");
     }
 
     private static String retryPath(Long sharedMediaId) {
