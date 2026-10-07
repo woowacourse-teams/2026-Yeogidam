@@ -1,9 +1,11 @@
 package com.yeogidam.media.share.service;
 
-import com.yeogidam.media.extraction.config.ExtractionProperties;
-import com.yeogidam.media.extraction.service.MediaExtractionDispatcher;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
+import com.yeogidam.media.extraction.config.ExtractionProperties;
+import com.yeogidam.media.extraction.repository.MediaPlaceDao;
+import com.yeogidam.media.extraction.repository.MediaPlaceProjection;
+import com.yeogidam.media.extraction.service.MediaExtractionDispatcher;
 import com.yeogidam.media.instagram.domain.InstagramMedia;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
@@ -11,16 +13,15 @@ import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.media.share.dto.request.ShareRequest;
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
+import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
-import com.yeogidam.media.share.repository.PlaceCandidateDao;
-import com.yeogidam.media.share.repository.PlaceCandidateProjection;
 import com.yeogidam.media.share.repository.ShareHistoryCursor;
 import com.yeogidam.media.share.repository.ShareHistoryProjections;
 import com.yeogidam.media.share.repository.SharedMediaDao;
+import com.yeogidam.place.service.SavedPlaceRegistrationService;
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,20 +35,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ShareService {
 
+    private final MediaPlaceDao mediaPlaceDao;
     private final SharedMediaDao sharedMediaDao;
-    private final PlaceCandidateDao placeCandidateDao;
     private final InstagramMediaDao instagramMediaDao;
     private final ExtractionProperties extractionProperties;
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
     private final MediaExtractionDispatcher mediaExtractionDispatcher;
+    private final SavedPlaceRegistrationService savedPlaceRegistrationService;
 
     @Transactional
     public void createShare(Long memberId, ShareRequest rawInstagramUrl) {
         InstagramUrl instagramUrl = new InstagramUrl(rawInstagramUrl.instagramUrl());
         Long mediaId = getOrCreateMediaId(instagramUrl.getMediaShortcode(), instagramUrl);
-        placeCandidateDao.supersedeUndecided(memberId, mediaId);
         Long sharedMediaId = createSharedMedia(memberId, mediaId, instagramUrl);
-        placeCandidateDao.issueForShare(sharedMediaId, mediaId);
+        if (instagramMediaDao.isExtractionSucceeded(mediaId)) {
+            List<Long> placeIds = mediaPlaceDao.findPlaceIds(mediaId);
+            savedPlaceRegistrationService.savePlacesFromShare(memberId, sharedMediaId, placeIds);
+        }
     }
 
     private Long getOrCreateMediaId(MediaShortcode shortcode, InstagramUrl instagramUrl) {
@@ -59,14 +63,15 @@ public class ShareService {
         }
 
         InstagramMedia instagramMedia = new InstagramMedia(shortcode);
+        Long mediaId;
         try {
-            Long mediaId = instagramMediaDao.save(instagramMedia, extractionProperties.pipelineVersion());
-            mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
-            return mediaId;
+            mediaId = instagramMediaDao.save(instagramMedia, extractionProperties.pipelineVersion());
         } catch (DuplicateKeyException exception) {
             return instagramMediaDao.findIdByShortcode(shortcode)
                     .orElseThrow(() -> new IllegalStateException("게시물을 찾을 수 없습니다.", exception));
         }
+        mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
+        return mediaId;
     }
 
     private void retryMediaIfNeeded(Long mediaId, InstagramUrl instagramUrl) {
@@ -112,20 +117,20 @@ public class ShareService {
         return sharedMediaDao.findShareHistoryBefore(memberId, new ShareHistoryCursor(cursorCreatedAt, cursorId));
     }
 
-    public PlaceCandidateResponses readShareHistoryPlaces(Long memberId, Long sharedMediaId) {
+    public ShareHistoryPlaceResponses readShareHistoryPlaces(Long memberId, Long sharedMediaId) {
         if (!sharedMediaDao.existsByMemberIdAndSharedMediaId(memberId, sharedMediaId)) {
             throw new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND);
         }
-        List<PlaceCandidateProjection> candidates = placeCandidateDao.findCandidates(sharedMediaId);
-        Map<Long, String> placeThumbnailUrls = resolvePlaceThumbnailUrls(candidates);
-        return PlaceCandidateResponses.from(candidates, placeThumbnailUrls);
+        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(sharedMediaId);
+        Map<Long, String> placeThumbnailUrls = resolvePlaceThumbnailUrls(places);
+        return ShareHistoryPlaceResponses.from(places, placeThumbnailUrls);
     }
 
-    private Map<Long, String> resolvePlaceThumbnailUrls(List<PlaceCandidateProjection> candidates) {
-        Map<Long, String> placeThumbnailUrls = new HashMap<>();
-        for (PlaceCandidateProjection candidate : candidates) {
-            String placeThumbnailUrl = mediaThumbnailUrlResolver.resolve(candidate.thumbnailKey());
-            placeThumbnailUrls.put(candidate.placeId(), placeThumbnailUrl);
+    private Map<Long, String> resolvePlaceThumbnailUrls(List<MediaPlaceProjection> places) {
+        Map<Long, String> placeThumbnailUrls = new LinkedHashMap<>();
+        for (MediaPlaceProjection place : places) {
+            String placeThumbnailUrl = mediaThumbnailUrlResolver.resolve(place.thumbnailKey());
+            placeThumbnailUrls.put(place.placeId(), placeThumbnailUrl);
         }
         return placeThumbnailUrls;
     }

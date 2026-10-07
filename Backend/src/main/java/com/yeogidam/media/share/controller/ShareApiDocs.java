@@ -2,7 +2,7 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.media.share.dto.request.ShareRequest;
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
+import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,7 +25,8 @@ public interface ShareApiDocs {
 
     @Operation(summary = "인스타그램 미디어 공유",
             description = """
-                    미디어를 공유 이력에 등록하고, 처음 보거나 파이프라인 버전이 바뀐 경우 비동기로 분석합니다.
+                    미디어를 공유 이력에 등록합니다. 분석에 성공하면 검색된 모든 장소를 보관함에 저장하고 이 공유와 연결합니다.
+                    처음 보거나 파이프라인 버전이 바뀐 경우에는 비동기로 분석합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
@@ -129,9 +130,9 @@ public interface ShareApiDocs {
 
     @Operation(summary = "히스토리 내 장소 목록 조회",
             description = """
-                    로그인한 회원의 히스토리에서 선택한 항목의 장소 목록만 반환합니다.
+                    로그인한 회원의 지정된 공유 이력에서 추출된 장소 목록을 반환합니다.
 
-                    - 장소는 후보 식별자 오름차순으로 반환합니다.
+                    - 장소는 릴스 추출 결과 순서로 반환합니다.
                     - 장소마다 `landLotAddress`와 `roadAddress`를 모두 제공합니다.
                     - 다른 회원의 공유이거나 존재하지 않는 공유면 조회할 수 없습니다.
                     """,
@@ -139,7 +140,7 @@ public interface ShareApiDocs {
             responses = {
                     @ApiResponse(responseCode = "200", description = "히스토리 내 장소 목록 조회 성공. 장소가 없으면 빈 배열",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = PlaceCandidateResponses.class))),
+                                    schema = @Schema(implementation = ShareHistoryPlaceResponses.class))),
                     @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -164,7 +165,7 @@ public interface ShareApiDocs {
                                             {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
                                             """)))
             })
-    ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(
+    ResponseEntity<ShareHistoryPlaceResponses> readShareHistoryPlaces(
             Long memberId,
             @Parameter(description = "공유 이력 id(shared_media.id)", example = "102") Long sharedMediaId
     );

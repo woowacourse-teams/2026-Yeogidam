@@ -10,44 +10,18 @@ import org.junit.jupiter.api.Test;
 class SavedPlaceTest {
 
     private static final Instant FIRST = Instant.parse("2026-09-01T12:00:00Z");
-    private static final Instant LATER = Instant.parse("2026-09-16T09:30:00Z");
 
     @Test
-    void 처음_저장하면_식별자가_비어_있고_저장_시각이_들어간다() {
+    void 생성하면_회원과_장소와_저장_시각을_가진다() {
         // when
         SavedPlace savedPlace = new SavedPlace(1L, 10L, FIRST);
 
         // then
         assertAll(
-                () -> assertThat(savedPlace.id()).isNull(),
-                () -> assertThat(savedPlace.memberId()).isEqualTo(1L),
-                () -> assertThat(savedPlace.placeId()).isEqualTo(10L),
-                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(FIRST)
+                () -> assertThat(savedPlace.getMemberId()).isEqualTo(1L),
+                () -> assertThat(savedPlace.getPlaceId()).isEqualTo(10L),
+                () -> assertThat(savedPlace.getLastSavedAt()).isEqualTo(FIRST)
         );
-    }
-
-    @Test
-    void 저장된_행을_읽으면_식별자를_함께_가진다() {
-        // when
-        SavedPlace savedPlace = new SavedPlace(5L, 1L, 10L, FIRST);
-
-        // then
-        assertAll(
-                () -> assertThat(savedPlace.id()).isEqualTo(5L),
-                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(FIRST)
-        );
-    }
-
-    @Test
-    void 다시_저장하면_마지막_저장_시각이_바뀐다() {
-        // given
-        SavedPlace savedPlace = new SavedPlace(1L, 10L, FIRST);
-
-        // when
-        savedPlace.saveAgain(LATER);
-
-        // then
-        assertThat(savedPlace.lastSavedAt()).isEqualTo(LATER);
     }
 
     @Test
@@ -58,20 +32,7 @@ class SavedPlaceTest {
                 () -> assertThatThrownBy(() -> new SavedPlace(1L, null, FIRST))
                         .isInstanceOf(IllegalArgumentException.class),
                 () -> assertThatThrownBy(() -> new SavedPlace(1L, 10L, null))
-                        .isInstanceOf(IllegalArgumentException.class),
-                () -> assertThatThrownBy(() -> new SavedPlace(5L, 1L, 10L, null))
                         .isInstanceOf(IllegalArgumentException.class)
         );
-    }
-
-    @Test
-    void 다시_저장할_때_시각이_없으면_예외가_발생하고_이전_시각은_그대로다() {
-        // given
-        SavedPlace savedPlace = new SavedPlace(1L, 10L, FIRST);
-
-        // when & then
-        assertThatThrownBy(() -> savedPlace.saveAgain(null))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThat(savedPlace.lastSavedAt()).isEqualTo(FIRST);
     }
 }

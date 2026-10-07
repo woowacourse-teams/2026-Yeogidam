@@ -2,6 +2,7 @@ package com.yeogidam.media.share.repository;
 
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import java.sql.Timestamp;
+import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -10,6 +11,12 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public class SharedMediaDao {
+
+    private static final RowMapper<SharedMediaOwnerProjection> OWNER_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SharedMediaOwnerProjection(
+                    resultSet.getLong("shared_media_id"),
+                    resultSet.getLong("member_id")
+            );
 
     private static final RowMapper<ShareHistoryProjection> SHARE_ROW_MAPPER = (resultSet, rowNumber) ->
             new ShareHistoryProjection(
@@ -36,10 +43,28 @@ public class SharedMediaDao {
 
     public Long save(SharedInstagramMedia sharedInstagramMedia) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("member_id", sharedInstagramMedia.memberId())
-                .addValue("media_id", sharedInstagramMedia.mediaId())
-                .addValue("shared_url", sharedInstagramMedia.instagramUrl().getSharedUrl());
+                .addValue("member_id", sharedInstagramMedia.getMemberId())
+                .addValue("media_id", sharedInstagramMedia.getMediaId())
+                .addValue("shared_url", sharedInstagramMedia.getInstagramUrl().getSharedUrl());
         return jdbcInsert.executeAndReturnKey(parameters).longValue();
+    }
+
+    public List<SharedMediaOwnerProjection> findLatestSharesByMediaId(Long mediaId) {
+        String sql = """
+                SELECT sm.id AS shared_media_id,
+                       sm.member_id
+                FROM shared_media sm
+                WHERE sm.media_id = ?
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM shared_media newer
+                      WHERE newer.member_id = sm.member_id
+                        AND newer.media_id = sm.media_id
+                        AND newer.id > sm.id
+                  )
+                ORDER BY sm.id
+                """;
+        return jdbcTemplate.query(sql, OWNER_ROW_MAPPER, mediaId);
     }
 
     /**

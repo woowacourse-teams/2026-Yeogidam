@@ -30,12 +30,12 @@ env는 노션 페이지를 참고한다.
 
 기동마다 `schema.sql`이 테이블을 새로 만든 뒤 `data-local.sql`이 들어간다. 재시작하면 항상 같은 상태다.
 
-- `data-local.sql`: 장소 8개, 릴스 7개, 공유 9건, 후보 14개, 보관함 5행, 제보 1건. 정콩(회원 1)과 러키(회원 2) 시나리오이고 파일 머리 주석에 적혀 있다.
+- `data-local.sql`: 장소 8개, 릴스 7개, 공유 9건, 보관함 5행, 제보 1건. 정콩(회원 1)과 러키(회원 2) 시나리오이고 파일 머리 주석에 적혀 있다.
 - 회원 행은 `LocalMemberSeeder`가 넣는다. `.env`의 `SEED_KAKAO_USER_ID_BEAN`이 회원 1, `SEED_KAKAO_USER_ID_LUCKY`가 회원 2다.
 - 카카오 회원 번호를 환경변수로 관리하기 위해 `LocalMemberSeeder` 클래스를 생성했다. SQL 파일은 환경변수를 못 읽어서 회원만 자바로 뺐다.
 
 로그인은 카카오 회원번호로 `members`를 찾는다. 
-`.env`의 값이 내 회원번호면 회원 1이나 2로 들어가고, 아니면 새 회원이 생겨 보관함과 대기함이 비어 보인다.
+`.env`의 값이 내 회원번호면 회원 1이나 2로 들어가고, 아니면 새 회원이 생겨 보관함이 비어 보인다.
 
 회원번호를 모르면:
 
@@ -61,7 +61,7 @@ IntelliJ는 실행 버튼만 누르면 된다. 기동 로그에 `falling back to
 
 2. Swagger(`http://localhost:8080/swagger-ui/index.html`)에서 `POST /api/v1/auth/logins/kakao`에 `{"authorizationCode": "XXXX"}`를 보내 `accessToken`을 받는다.
 3. Authorize에 `accessToken`을 넣는다. 30분이면 만료된다.
-4. API를 누른다. 정콩은 `GET /api/v1/saved-places` 2건, `GET /api/v1/place-candidates` 카드 2장이고, 러키는 보관함 3건, 대기함 카드 1장이다.
+4. `GET /api/v1/saved-places`에서 정콩의 보관함 2건과 러키의 보관함 3건을 확인한다. 공유 히스토리는 `GET /api/v1/shares`, 각 공유의 추출 장소는 `GET /api/v1/shares/{sharedMediaId}/places`에서 확인한다.
 
 ## 4. 테스트
 

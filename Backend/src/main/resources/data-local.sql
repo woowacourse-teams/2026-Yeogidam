@@ -7,10 +7,8 @@
 -- CLI에서 직접 INSERT할 때도 먼저 SET SESSION time_zone = '+00:00'을 실행한다.
 
 -- 시나리오
---   정콩(1): 릴스 5개 공유(공유 6건). 성수 카페 릴스(10)는 두 번 공유해 첫 공유(100)의 후보가 SUPERSEDED.
---            경복궁은 버렸고, 추출 실패 릴스(13)와 추출 중 릴스(16)도 있다.
---   러키(2): 릴스 3개 공유. 하나는 정콩과 같은 릴스(10). 대기함에 미결정 후보가 남아 있는 공유(202)가 있다.
---   대기함(UNDECIDED가 남은 공유): 정콩 102, 103 / 러키 202
+--   정콩(1): 릴스 5개를 6회 공유. 같은 릴스를 다시 공유한 이력과 추출 실패·진행 중 상태가 있다.
+--   러키(2): 릴스 3개를 공유했고, 정콩과 같은 릴스(10)도 공유했다.
 --   보관함: 정콩 카페 온월, 윤숲 후르츠산도 / 러키 카페 온월, 성수 베이커리, 망원한강공원
 
 SET FOREIGN_KEY_CHECKS = 0;
@@ -85,7 +83,7 @@ VALUES (100, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-10 10:
        (201, 2, 14, 'https://www.instagram.com/reel/C5mangwon/', '2026-09-14 11:00:00'),
        (202, 2, 15, 'https://www.instagram.com/reel/C6bukchon/', '2026-09-15 11:00:00');
 
--- 공유 건마다 발급된 후보와 결정
+-- 미사용 레거시 테이블 데이터 (스키마 정리 전까지 유지)
 INSERT INTO place_candidates (id, shared_media_id, place_id, decision_status, decided_at)
 VALUES (1000, 100, 1, 'SUPERSEDED', NULL),
        (1001, 100, 2, 'SUPERSEDED', NULL),
@@ -102,7 +100,7 @@ VALUES (1000, 100, 1, 'SUPERSEDED', NULL),
        (2004, 201, 7, 'DISCARDED', '2026-09-14 13:00:00'),
        (2005, 202, 8, 'UNDECIDED', NULL);
 
--- 보관함 (SAVED 결정의 결과)
+-- 회원별 보관함
 INSERT INTO saved_places (id, member_id, place_id, last_saved_at)
 VALUES (1, 1, 1, '2026-09-12 12:00:00'),
        (2, 1, 2, '2026-09-12 12:00:05'),

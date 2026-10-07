@@ -74,7 +74,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 여러_장소를_찾으면_장소와_미디어_관계와_공유_후보를_저장한_뒤_성공한다() throws Exception {
+    void 여러_장소를_찾으면_장소와_미디어_관계를_연결하고_보관함에_저장한다() throws Exception {
         // given
         placeNameExtractor.respondWith(List.of(hint("올드빅"), hint("Dub.+")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
@@ -95,15 +95,13 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(media.get("failure_reason")).isNull(),
                 () -> assertThat(count("places")).isEqualTo(2),
                 () -> assertThat(count("media_places")).isEqualTo(2),
-                () -> assertThat(count("place_candidates")).isEqualTo(2),
-                () -> assertThat(jdbcTemplate.queryForList(
-                        "SELECT decision_status FROM place_candidates ORDER BY id", String.class))
-                        .containsExactly("UNDECIDED", "UNDECIDED")
+                () -> assertThat(count("saved_places")).isEqualTo(2),
+                () -> assertThat(count("shared_media_saved_places")).isEqualTo(2)
         );
     }
 
     @Test
-    void 여러_장소_중_일부만_지도에서_확인되면_확인된_장소를_후보로_발급한다() throws Exception {
+    void 여러_장소_중_일부만_지도에서_확인되면_확인된_장소만_보관함에_저장한다() throws Exception {
         // given
         placeNameExtractor.respondWith(List.of(hint("올드빅"), hint("Dub.+")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
@@ -115,7 +113,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         // then
         assertThat(count("places")).isEqualTo(1);
         assertThat(count("media_places")).isEqualTo(1);
-        assertThat(count("place_candidates")).isEqualTo(1);
+        assertThat(count("saved_places")).isEqualTo(1);
+        assertThat(count("shared_media_saved_places")).isEqualTo(1);
     }
 
     @Test
@@ -135,7 +134,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         // then
         assertThat(count("places")).isEqualTo(1);
         assertThat(count("media_places")).isEqualTo(2);
-        assertThat(count("place_candidates")).isEqualTo(2);
+        assertThat(count("saved_places")).isEqualTo(1);
+        assertThat(count("shared_media_saved_places")).isEqualTo(2);
     }
 
     @Test
@@ -154,7 +154,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 "SELECT failure_reason FROM media WHERE id = ?", String.class, mediaId))
                 .isEqualTo("PROCESSING_FAILED");
         assertThat(count("places")).isZero();
-        assertThat(count("place_candidates")).isZero();
+        assertThat(count("saved_places")).isZero();
+        assertThat(count("shared_media_saved_places")).isZero();
 
         // when: 파이프라인 버전이 오른 뒤 실패한 미디어를 다시 공유한다.
         jdbcTemplate.update("UPDATE media SET extraction_version = ? WHERE id = ?",
@@ -164,17 +165,17 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
         awaitStatus(mediaId, "SUCCEEDED");
 
-        // then: 가장 최근 공유 건에만 후보를 발급한다.
+        // then: 가장 최근 공유 건을 보관함 장소와 연결한다.
         assertThat(placeNameExtractor.requestCount()).isEqualTo(2);
         assertThat(count("places")).isEqualTo(1);
         assertThat(count("media_places")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForList(
-                "SELECT shared_media_id FROM place_candidates", Long.class))
+                "SELECT shared_media_id FROM shared_media_saved_places", Long.class))
                 .containsExactly(latestSharedMediaId());
     }
 
     @Test
-    void 성공한_미디어를_재공유하면_추출을_반복하지_않고_새_공유에_후보를_발급한다() throws Exception {
+    void 성공한_미디어를_재공유하면_추출을_반복하지_않고_새_공유를_보관함에_연결한다() throws Exception {
         // given
         placeSearcher.add("올드빅", place("100", "올드빅"));
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
@@ -188,16 +189,13 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         assertThat(placeNameExtractor.requestCount()).isEqualTo(1);
         assertThat(count("places")).isEqualTo(1);
         assertThat(count("media_places")).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT decision_status FROM place_candidates WHERE shared_media_id = ?",
-                String.class, previousSharedMediaId)).isEqualTo("SUPERSEDED");
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT decision_status FROM place_candidates WHERE shared_media_id = ?",
-                String.class, latestSharedMediaId())).isEqualTo("UNDECIDED");
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT shared_media_id FROM shared_media_saved_places ORDER BY shared_media_id", Long.class))
+                .containsExactly(previousSharedMediaId, latestSharedMediaId());
     }
 
     @Test
-    void 추출_중에_재공유하면_가장_최근_공유에만_후보를_발급한다() throws Exception {
+    void 추출_중에_재공유하면_가장_최근_공유에_장소를_연결한다() throws Exception {
         // given
         placeSearcher.add("올드빅", place("100", "올드빅"));
         placeNameExtractor.block();
@@ -209,9 +207,9 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
             Long previousSharedMediaId = latestSharedMediaId();
             shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
 
-            // then: 추출을 기다리던 첫 공유 건에는 후보가 없다.
+            // then: 추출을 기다리던 첫 공유 건에는 저장 연결이 아직 없다.
             assertThat(jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM place_candidates WHERE shared_media_id = ?",
+                    "SELECT COUNT(*) FROM shared_media_saved_places WHERE shared_media_id = ?",
                     Integer.class, previousSharedMediaId)).isZero();
         } finally {
             placeNameExtractor.allow();
@@ -219,7 +217,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         awaitStatus(mediaId(), "SUCCEEDED");
         assertThat(placeNameExtractor.requestCount()).isEqualTo(1);
         assertThat(jdbcTemplate.queryForList(
-                "SELECT shared_media_id FROM place_candidates", Long.class))
+                "SELECT shared_media_id FROM shared_media_saved_places", Long.class))
                 .containsExactly(latestSharedMediaId());
     }
 
@@ -238,7 +236,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         // then
         assertThat(count("places")).isZero();
         assertThat(count("media_places")).isZero();
-        assertThat(count("place_candidates")).isZero();
+        assertThat(count("saved_places")).isZero();
+        assertThat(count("shared_media_saved_places")).isZero();
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT caption FROM media WHERE id = ?", String.class, mediaId))
                 .isEqualTo("올드빅과 Dub.+에 다녀왔어요");

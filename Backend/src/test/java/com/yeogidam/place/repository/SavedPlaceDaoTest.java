@@ -12,8 +12,10 @@ import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertShare
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.place.domain.SavedPlace;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -22,7 +24,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 보관함 조회 쿼리의 조인, 정렬, 열 매핑과 삭제의 범위, 관련 릴스 조회의 조인과 열 매핑이 실제 MySQL에서 동작하는지 검증한다. 행은 SQL fixture로 given에서 직접 넣는다.
+ * 보관함 저장·조회·삭제와 공유 연결이 실제 MySQL에서 동작하는지 검증한다.
+ * 행은 SQL fixture로 given에서 직접 넣는다.
  */
 @Import(SavedPlaceDao.class)
 class SavedPlaceDaoTest extends JdbcTestSupport {
@@ -34,7 +37,110 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    void 보관함을_최근에_저장한_순서로_읽는다() {
+    void 처음_저장하는_장소면_보관함에_장소가_생성된다() {
+        // given
+        insertMember(1L, "save-new-owner");
+        insertMember(2L, "save-new-other");
+        insertThreePlaces();
+        Instant savedAt = Instant.parse("2026-10-01T10:00:00.123456Z");
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, savedAt.minusSeconds(10));
+
+        // when
+        savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, savedAt));
+
+        // then
+        List<SavedPlaceProjection> savedPlaces = savedPlaceDao.findAllByMember(1L);
+        assertThat(savedPlaces).hasSize(1);
+        SavedPlaceProjection savedPlace = savedPlaces.getFirst();
+        assertAll(
+                () -> assertThat(savedPlace.savedPlaceId()).isPositive(),
+                () -> assertThat(savedPlace.savedPlaceId()).isNotEqualTo(21L),
+                () -> assertThat(savedPlace.placeId()).isEqualTo(1L),
+                () -> assertThat(savedPlace.lastSavedAt()).isEqualTo(savedAt),
+                () -> assertThat(count("saved_places")).isEqualTo(2),
+                () -> assertThat(readSavedAt(21L)).isEqualTo(savedAt.minusSeconds(10))
+        );
+    }
+
+    @Test
+    void 같은_회원이_같은_장소를_재저장하면_기존_ID를_유지하고_대상_행의_시각만_갱신한다() {
+        // given
+        insertMember(1L, "save-again-owner");
+        insertMember(2L, "save-again-other");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00.123456Z");
+        Instant savedAt = previous.plusSeconds(10);
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, previous);
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, previous);
+
+        // when
+        savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, savedAt));
+
+        // then
+        assertAll(
+                () -> assertThat(count("saved_places")).isEqualTo(3),
+                () -> assertThat(readSavedAt(11L)).isEqualTo(savedAt),
+                () -> assertThat(readSavedAt(12L)).isEqualTo(previous),
+                () -> assertThat(readSavedAt(21L)).isEqualTo(previous)
+        );
+    }
+
+    @Test
+    void 회원과_장소가_모두_일치하는_보관함_ID를_조회한다() {
+        // given
+        insertMember(1L, "saved-id-owner");
+        insertMember(2L, "saved-id-other");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, previous);
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, previous);
+
+        // when & then
+        assertAll(
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 1L))
+                        .isEqualTo(11L),
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 2L))
+                        .isEqualTo(12L),
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(2L, 1L))
+                        .isEqualTo(21L)
+        );
+    }
+
+    @Test
+    void 공유_연결은_중복_저장해도_기존_정보를_유지하고_새_연결을_저장한다() {
+        // given
+        insertMember(1L, "saved-share-owner");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00.123456Z");
+        Instant savedAt = previous.plusSeconds(10);
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, previous);
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertSharedMedia(jdbcTemplate, 100L, 1L, 1L, previous);
+        insertSharedMedia(jdbcTemplate, 102L, 1L, 1L, savedAt);
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, previous);
+
+        // when
+        savedPlaceDao.saveShareIfAbsent(11L, 100L, savedAt);
+        savedPlaceDao.saveShareIfAbsent(11L, 102L, savedAt);
+        savedPlaceDao.saveShareIfAbsent(12L, 100L, savedAt);
+
+        // then
+        assertAll(
+                () -> assertThat(count("shared_media_saved_places")).isEqualTo(3),
+                () -> assertThat(jdbcTemplate.queryForObject(
+                        "SELECT id FROM shared_media_saved_places WHERE saved_place_id = ? AND shared_media_id = ?",
+                        Long.class, 11L, 100L)).isEqualTo(1L),
+                () -> assertThat(readShareSavedAt(11L, 100L)).isEqualTo(previous),
+                () -> assertThat(readShareSavedAt(11L, 102L)).isEqualTo(savedAt),
+                () -> assertThat(readShareSavedAt(12L, 100L)).isEqualTo(savedAt)
+        );
+    }
+
+    @Test
+    void 보관함을_최근에_저장한_순서대로_조회한다() {
         // given
         insertMember(1L, "user-1");
         insertThreePlaces();
@@ -279,6 +385,19 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(count("saved_places WHERE id = 12")).isEqualTo(1),
                 () -> assertThat(count("saved_places WHERE id = 21")).isEqualTo(1)
         );
+    }
+
+    private Instant readSavedAt(Long savedPlaceId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT last_saved_at FROM saved_places WHERE id = ?", Timestamp.class, savedPlaceId).toInstant();
+    }
+
+    private Instant readShareSavedAt(Long savedPlaceId, Long sharedMediaId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT created_at
+                FROM shared_media_saved_places
+                WHERE saved_place_id = ? AND shared_media_id = ?
+                """, Timestamp.class, savedPlaceId, sharedMediaId).toInstant();
     }
 
     private int count(String fromWhere) {

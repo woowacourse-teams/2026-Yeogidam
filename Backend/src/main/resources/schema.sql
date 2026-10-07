@@ -117,7 +117,7 @@ CREATE TABLE media_places
         REFERENCES places (id)
 );
 
--- 공유 건에 발급된 후보와 사용자 결정. 결정 전이는 조건부 UPDATE가 guard를 겸한다.
+-- 미사용 레거시 테이블. 현재 애플리케이션 흐름에서는 사용하지 않는다.
 CREATE TABLE place_candidates
 (
     id              BIGINT      NOT NULL AUTO_INCREMENT,

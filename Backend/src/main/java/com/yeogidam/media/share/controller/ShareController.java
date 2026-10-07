@@ -2,17 +2,17 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.media.share.dto.request.ShareRequest;
+import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
-import com.yeogidam.media.share.dto.response.PlaceCandidateResponses;
 import com.yeogidam.media.share.service.ShareService;
 import java.time.Instant;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,11 +49,11 @@ public class ShareController implements ShareApiDocs {
 
     @Override
     @GetMapping("/{sharedMediaId}/places")
-    public ResponseEntity<PlaceCandidateResponses> readShareHistoryPlaces(
+    public ResponseEntity<ShareHistoryPlaceResponses> readShareHistoryPlaces(
             @LoginMember Long memberId,
             @PathVariable Long sharedMediaId
     ) {
-        PlaceCandidateResponses response = shareService.readShareHistoryPlaces(memberId, sharedMediaId);
+        ShareHistoryPlaceResponses response = shareService.readShareHistoryPlaces(memberId, sharedMediaId);
         return ResponseEntity.ok()
                 .body(response);
     }
