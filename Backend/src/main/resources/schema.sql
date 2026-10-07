@@ -56,6 +56,9 @@ CREATE TABLE media
         CHECK (extraction_status IN ('EXTRACTING', 'SUCCEEDED', 'FAILED')),
     CONSTRAINT chk_media_source_type
         CHECK (source_type IN ('EXTRACTED', 'SEEDED')),
+    CONSTRAINT chk_media_seeded_succeeded
+        CHECK (source_type <> 'SEEDED'
+            OR (extraction_status = 'SUCCEEDED' AND failure_reason IS NULL)),
     CONSTRAINT chk_media_failure_reason
         CHECK (failure_reason IN (
             'CONTENT_UNAVAILABLE', 'PLACE_NOT_EXTRACTED', 'PLACE_NOT_MATCHED', 'PROCESSING_FAILED', 'UNEXPECTED'

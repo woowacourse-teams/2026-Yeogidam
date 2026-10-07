@@ -1,6 +1,7 @@
 package com.yeogidam.media.share;
 
 import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
@@ -14,6 +15,7 @@ import static org.hamcrest.Matchers.nullValue;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.math.BigDecimal;
@@ -86,7 +88,7 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         // given
         LoginResult login = loginAsKakao("share-list-summary-user");
         insertMedia(jdbcTemplate, 1L, "성공 게시글", "succeeded.jpg", "@succeeded");
-        insertMediaWithStatus(2L, null, null, null, "FAILED", "CONTENT_UNAVAILABLE");
+        insertFailedMedia(jdbcTemplate, 2L, 1, ExtractionFailureReason.CONTENT_UNAVAILABLE);
         insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 2L, Instant.parse("2026-09-17T10:00:00Z"));
 
@@ -297,23 +299,5 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         insertMedia(jdbcTemplate, 1L, "페이지 게시글", "page.jpg", "@page");
         IntStream.rangeClosed(1, count)
                 .forEach(id -> insertSharedMedia(jdbcTemplate, (long) id, memberId, 1L, BASE.plusSeconds(id)));
-    }
-
-    private void insertMediaWithStatus(
-            Long mediaId,
-            String caption,
-            String thumbnailKey,
-            String author,
-            String extractionStatus,
-            String failureReason
-    ) {
-        jdbcTemplate.update("""
-                INSERT INTO media (
-                    id, media_shortcode, caption, thumbnail_key, author,
-                    extraction_status, failure_reason, extraction_version, source_type
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'SEEDED')
-                """, mediaId, "fixture-media-" + mediaId, caption, thumbnailKey, author,
-                extractionStatus, failureReason);
     }
 }

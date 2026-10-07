@@ -3,9 +3,13 @@ package com.yeogidam.media.extraction.domain;
 public record ExtractionSnapshot(
         ExtractionStatus status,
         ExtractionFailureReason failureReason,
-        int version
+        int version,
+        MediaSourceType sourceType
 ) {
     public boolean canRetry(int pipelineVersion) {
+        if (sourceType == MediaSourceType.SEEDED) {
+            return false;
+        }
         if (status != ExtractionStatus.FAILED) {
             return false;
         }

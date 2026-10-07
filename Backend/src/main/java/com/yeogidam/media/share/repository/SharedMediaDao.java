@@ -3,6 +3,7 @@ package com.yeogidam.media.share.repository;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
@@ -31,7 +32,8 @@ public class SharedMediaDao {
                     new ExtractionSnapshot(
                             ExtractionStatus.valueOf(resultSet.getString("extraction_status")),
                             failureReason(resultSet),
-                            resultSet.getInt("extraction_version")
+                            resultSet.getInt("extraction_version"),
+                            MediaSourceType.valueOf(resultSet.getString("source_type"))
                     )
             );
 
@@ -106,8 +108,10 @@ public class SharedMediaDao {
                        sm.shared_url,
                        sm.extraction_status,
                        sm.failure_reason,
-                       sm.extraction_version
+                       sm.extraction_version,
+                       m.source_type
                 FROM shared_media sm
+                JOIN media m ON m.id = sm.media_id
                 WHERE sm.member_id = ? AND sm.id = ?
                 """;
         return jdbcTemplate.query(sql, RETRY_SOURCE_ROW_MAPPER, memberId, sharedMediaId)

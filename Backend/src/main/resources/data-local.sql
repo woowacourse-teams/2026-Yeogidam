@@ -53,7 +53,7 @@ VALUES (10, 'C1seongsu', '성수 카페 투어 🧁 온월 → 윤숲 → 베이
         'yeogidam/instagram-thumbnails/C3euljiro.jpg', '@night_seoul', 'SUCCEEDED', NULL, 1,
         '2026-09-12 09:00:00', 'SEEDED'),
        (13, 'C4private', NULL, NULL, NULL, 'FAILED', 'CONTENT_UNAVAILABLE', 1,
-        '2026-09-13 09:00:00', 'SEEDED'),
+        '2026-09-13 09:00:00', 'EXTRACTED'),
        (14, 'C5mangwon', '망원한강공원 피크닉 🧺 광장시장 들렀다가 #망원 #한강',
         'yeogidam/instagram-thumbnails/C5mangwon.jpg', '@picnic_daily', 'SUCCEEDED', NULL, 1,
         '2026-09-14 09:00:00', 'SEEDED'),
@@ -61,7 +61,7 @@ VALUES (10, 'C1seongsu', '성수 카페 투어 🧁 온월 → 윤숲 → 베이
         'yeogidam/instagram-thumbnails/C6bukchon.jpg', '@hanok_lover', 'SUCCEEDED', NULL, 1,
         '2026-09-15 09:00:00', 'SEEDED'),
        (16, 'C7extracting', NULL, NULL, NULL, 'EXTRACTING', NULL, 1,
-        '2026-09-16 09:00:00', 'SEEDED');
+        '2026-09-16 09:00:00', 'EXTRACTED');
 
 -- 추출 사실 (게시물 → 장소)
 INSERT INTO media_places (id, media_id, place_id)

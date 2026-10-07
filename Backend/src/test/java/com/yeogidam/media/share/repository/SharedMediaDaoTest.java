@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
@@ -101,7 +102,8 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 () -> assertThat(source).isEqualTo(new ExtractionRetrySource(
                                 51L,
                                 new InstagramUrl(sharedUrl),
-                                new ExtractionSnapshot(ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 3)
+                                new ExtractionSnapshot(ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 3,
+                                        MediaSourceType.EXTRACTED)
                         )),
                 () -> assertThat(sharedMediaDao.findRetrySource(52L, 510L)).isEmpty(),
                 () -> assertThat(sharedMediaDao.findRetrySource(51L, 511L)).isEmpty()
@@ -149,8 +151,9 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         insertSharedMedia(jdbcTemplate, 5L, 2L, 1L, now);
         insertSharedMedia(jdbcTemplate, 10L, 1L, 2L, now.plusSeconds(1));
         ExtractionSnapshot failed = new ExtractionSnapshot(
-                ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 1);
-        ExtractionSnapshot succeeded = new ExtractionSnapshot(ExtractionStatus.SUCCEEDED, null, 1);
+                ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 1, MediaSourceType.EXTRACTED);
+        ExtractionSnapshot succeeded = new ExtractionSnapshot(
+                ExtractionStatus.SUCCEEDED, null, 1, MediaSourceType.EXTRACTED);
         insertSharedMedia(jdbcTemplate, 1L, 1L, 1L, now, failed);
         insertSharedMedia(jdbcTemplate, 2L, 2L, 1L, now, succeeded);
         insertSharedMedia(jdbcTemplate, 11L, 3L, 1L, now);

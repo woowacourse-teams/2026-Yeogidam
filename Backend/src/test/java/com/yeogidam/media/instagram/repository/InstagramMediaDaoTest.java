@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.extraction.domain.InProgressExtraction;
 import com.yeogidam.media.instagram.domain.InstagramMedia;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
@@ -165,28 +166,30 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
 
     @ParameterizedTest
     @CsvSource({
-            "FAILED,UNEXPECTED,2",
-            "EXTRACTING,,3",
-            "SUCCEEDED,,4"
+            "FAILED,UNEXPECTED,2,EXTRACTED",
+            "EXTRACTING,,3,EXTRACTED",
+            "SUCCEEDED,,4,EXTRACTED",
+            "SUCCEEDED,,1,SEEDED"
     })
-    void 대상_게시물의_분석_상태와_실패_사유와_버전을_잠금_조회한다(
+    void 대상_게시물의_분석_상태와_실패_사유와_버전과_출처를_잠금_조회한다(
             ExtractionStatus status,
             ExtractionFailureReason failureReason,
-            int version
+            int version,
+            MediaSourceType sourceType
     ) {
         // given
         String reason = null;
         if (failureReason != null) {
             reason = failureReason.name();
         }
-        insertMedia(jdbcTemplate, 1L, status.name(), reason, version, "EXTRACTED");
+        insertMedia(jdbcTemplate, 1L, status.name(), reason, version, sourceType.name());
         insertMedia(jdbcTemplate, 2L, "FAILED", "PROCESSING_FAILED", 1, "EXTRACTED");
 
         // when
         ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(1L);
 
         // then
-        assertThat(snapshot).isEqualTo(new ExtractionSnapshot(status, failureReason, version));
+        assertThat(snapshot).isEqualTo(new ExtractionSnapshot(status, failureReason, version, sourceType));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.yeogidam.media.instagram.repository;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramMedia;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
@@ -25,7 +26,8 @@ public class InstagramMediaDao {
             new ExtractionSnapshot(
                     ExtractionStatus.valueOf(resultSet.getString("extraction_status")),
                     failureReason(resultSet),
-                    resultSet.getInt("extraction_version")
+                    resultSet.getInt("extraction_version"),
+                    MediaSourceType.valueOf(resultSet.getString("source_type"))
             );
 
     private static ExtractionFailureReason failureReason(ResultSet resultSet) throws SQLException {
@@ -61,7 +63,7 @@ public class InstagramMediaDao {
                 .addValue("author", instagramMedia.metadata().author())
                 .addValue("extraction_status", instagramMedia.extraction().status().name())
                 .addValue("extraction_version", pipelineVersion)
-                .addValue("source_type", "EXTRACTED");
+                .addValue("source_type", MediaSourceType.EXTRACTED.name());
     }
 
     public void updateMetadata(Long mediaId, MediaMetadata metadata) {
@@ -84,7 +86,7 @@ public class InstagramMediaDao {
 
     public ExtractionSnapshot findExtractionSnapshotForUpdate(Long mediaId) {
         String sql = """
-                SELECT extraction_status, failure_reason, extraction_version
+                SELECT extraction_status, failure_reason, extraction_version, source_type
                 FROM media
                 WHERE id = ?
                 FOR UPDATE

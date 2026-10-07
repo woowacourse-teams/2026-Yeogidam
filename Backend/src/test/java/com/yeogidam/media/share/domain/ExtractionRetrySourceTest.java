@@ -9,6 +9,7 @@ import com.yeogidam.media.exception.MediaException;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -73,7 +74,7 @@ class ExtractionRetrySourceTest {
         return new ExtractionRetrySource(
                 1L,
                 new InstagramUrl("https://www.instagram.com/reel/retry-source/"),
-                new ExtractionSnapshot(status, failureReason, version)
+                new ExtractionSnapshot(status, failureReason, version, MediaSourceType.EXTRACTED)
         );
     }
 }
