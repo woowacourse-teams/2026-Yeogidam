@@ -220,35 +220,37 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 히스토리_내_장소_목록을_릴스_추출_순서로_반환한다() {
+    void 히스토리_한_건의_장소를_릴스에서_추출된_순서로_반환한다() {
         // given
         LoginResult login = loginAsKakao("share-history-places-user");
         insertMedia(jdbcTemplate, 1L, "장소 모음", "media.jpg", "@author");
         insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, Instant.parse("2026-09-17T10:00:00Z"));
-        insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "첫 번째 카페", "카페",
+
+        insertPlace(jdbcTemplate, 1L, "kakao-fixture-1", "성수 카페", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new BigDecimal("37.5446"),
                 new BigDecimal("127.0559"), "https://place.map.kakao.com/1", null,
                 "https://img.example.com/place-1.jpg", null);
-        insertPlace(jdbcTemplate, 2L, "kakao-fixture-2", "두 번째 식당", "식당",
+        insertPlace(jdbcTemplate, 2L, "kakao-fixture-2", "종로 식당", "식당",
                 "서울 종로구 관철동 1-1", "서울 종로구 삼일대로 1", new BigDecimal("37.5704"),
                 new BigDecimal("126.9921"), "https://place.map.kakao.com/2", null,
                 "https://img.example.com/place-2.jpg", null);
-        insertMediaPlace(jdbcTemplate, 1L, 1L, 1L);
-        insertMediaPlace(jdbcTemplate, 2L, 1L, 2L);
+
+        insertMediaPlace(jdbcTemplate, 2L, 1L, 1L); // 성수 카페: 나중에 추출
+        insertMediaPlace(jdbcTemplate, 1L, 1L, 2L); // 종로 식당: 먼저 추출
 
         // when & then
         givenBearer(login.accessToken())
                 .when().get(PATH + "/1/places")
                 .then().statusCode(200)
                 .body("places", hasSize(2))
-                .body("places[0].placeId", equalTo(1))
-                .body("places[0].thumbnailUrl", equalTo("https://img.example.com/place-1.jpg"))
-                .body("places[0].name", equalTo("첫 번째 카페"))
-                .body("places[0].category", equalTo("카페"))
-                .body("places[0].landLotAddress", equalTo("서울 성동구 성수동2가 1-1"))
-                .body("places[0].roadAddress", equalTo("서울 성동구 연무장길 1"))
-                .body("places[1].placeId", equalTo(2))
-                .body("places[1].name", equalTo("두 번째 식당"));
+                .body("places[0].placeId", equalTo(2))
+                .body("places[0].thumbnailUrl", equalTo("https://img.example.com/place-2.jpg"))
+                .body("places[0].name", equalTo("종로 식당"))
+                .body("places[0].category", equalTo("식당"))
+                .body("places[0].landLotAddress", equalTo("서울 종로구 관철동 1-1"))
+                .body("places[0].roadAddress", equalTo("서울 종로구 삼일대로 1"))
+                .body("places[1].placeId", equalTo(1))
+                .body("places[1].name", equalTo("성수 카페"));
     }
 
     @Test
