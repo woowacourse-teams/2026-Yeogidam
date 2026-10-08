@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		ABCDEF0123456789ABCDEF02 /* LocationPermissionModule.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */; };
 		0C80B921A6F3F58F76C31292 /* libPods-Frontend.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */; };
@@ -21,6 +20,7 @@
 		8ADF704D968BA7FADBACB601 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34D8C133FE00FB78A589F46E /* Foundation.framework */; };
 		9B9D58B5EA4CF49C77B325E3 /* FrontendShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */; };
 		9D091FF6CF961902FEB30DF5 /* ShareIntentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */; };
+		ABCDEF0123456789ABCDEF02 /* LocationPermissionModule.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */; };
 		B4285DA2BB719CBECE7B841F /* ShareIntentModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C962E32A69AAB6305A26757E /* ShareIntentModule.swift */; };
 /* End PBXBuildFile section */
 
@@ -49,7 +49,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LocationPermissionModule.m; path = Frontend/LocationPermissionModule.m; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* Frontend.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Frontend.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Frontend/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Frontend/Info.plist; sourceTree = "<group>"; };
@@ -70,6 +69,7 @@
 		770DAA3EB3DBA3A90C73CA68 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = ShareExtension/Info.plist; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Frontend/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FrontendShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LocationPermissionModule.m; path = Frontend/LocationPermissionModule.m; sourceTree = "<group>"; };
 		AE3216032EEEE0A7AB1BE1B6 /* ShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = ShareExtension.entitlements; path = ShareExtension/ShareExtension.entitlements; sourceTree = "<group>"; };
 		C962E32A69AAB6305A26757E /* ShareIntentModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareIntentModule.swift; path = Frontend/ShareIntentModule.swift; sourceTree = "<group>"; };
 		DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = ShareIntentModuleBridge.m; path = Frontend/ShareIntentModuleBridge.m; sourceTree = "<group>"; };
@@ -234,6 +234,7 @@
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
 				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
 				26AFCFC0A6A1EE6E0C3E8B25 /* Embed App Extensions */,
+				2439564DD42C43EB94BE3F40 /* Upload Debug Symbols to Sentry */,
 			);
 			buildRules = (
 			);
@@ -312,7 +313,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
+			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nSENTRY_XCODE=\"$REACT_NATIVE_PATH/../@sentry/react-native/scripts/sentry-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$SENTRY_XCODE\\\"\"\n";
 		};
 		00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -369,6 +370,20 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Frontend/Pods-Frontend-resources.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		2439564DD42C43EB94BE3F40 /* Upload Debug Symbols to Sentry */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			name = "Upload Debug Symbols to Sentry";
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh ../node_modules/@sentry/react-native/scripts/sentry-xcode-debug-files.sh";
 		};
 /* End PBXShellScriptBuildPhase section */
 

@@ -4,6 +4,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
+import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
@@ -33,6 +34,7 @@ import {
   trackLoginStarted,
   type LoginFailureType,
 } from './src/analytics/userEntryEvents';
+import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -69,6 +71,21 @@ import {
   getSharedSaveState,
   setSharedSaveState,
 } from './src/lib/reel-save-state';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: false,
+
+  // Enable Logs
+  enableLogs: false,
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -125,6 +142,8 @@ function App() {
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
+    useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
@@ -155,6 +174,7 @@ function App() {
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
+  const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
   const currentScreen: Screen =
@@ -212,7 +232,10 @@ function App() {
     });
   };
 
-  const openMainScreen = (nextScreen: MainScreen) => {
+  const openMainScreen = (
+    nextScreen: MainScreen,
+    entryType: InboxEntryType = 'direct',
+  ) => {
     if (nextScreen !== 'map') {
       setIsMapPlaceDetailVisible(false);
     }
@@ -222,10 +245,18 @@ function App() {
       activeTab: nextScreen,
       detailSource: null,
     });
+    if (nextScreen === 'inBox') {
+      setInBoxEntryType(entryType);
+    }
   };
 
-  const openDetailFrom = (sourceScreen: 'saved' | 'map', place: Place) => {
+  const openDetailFrom = (
+    sourceScreen: 'saved' | 'map',
+    place: Place,
+    context?: SavedPlaceViewContext,
+  ) => {
     setSelectedPlace(place);
+    setSelectedPlaceViewContext(context ?? null);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -239,6 +270,7 @@ function App() {
 
   const closeDetail = () => {
     setSelectedPlace(null);
+    setSelectedPlaceViewContext(null);
     setFlowState(current =>
       current.kind === 'main'
         ? {
@@ -488,7 +520,10 @@ function App() {
               created_at: new Date(result.updatedAt).toISOString(),
             },
           });
-          openMainScreen(result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox');
+          openMainScreen(
+            result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox',
+            'auto',
+          );
         })
         .catch(error => {
           if (__DEV__) {
@@ -748,7 +783,9 @@ function App() {
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           onEditModeChange={setIsSavedPlacesEditing}
-          onOpenDetail={place => openDetailFrom('saved', place)}
+          onOpenDetail={(place, context) =>
+            openDetailFrom('saved', place, context)
+          }
           onScrollOffsetChange={offset => {
             savedPlacesScrollOffsetRef.current = offset;
           }}
@@ -762,6 +799,7 @@ function App() {
     if (currentScreen === 'inBox') {
       return (
         <InBoxScreen
+          entryType={inBoxEntryType}
           onOpenHistory={() => setIsHistoryVisible(true)}
           onSelectionChange={setIsInBoxSelecting}
         />
@@ -783,6 +821,7 @@ function App() {
           onBack={closeDetail}
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
           place={selectedPlace}
+          viewContext={selectedPlaceViewContext ?? undefined}
         />
       );
     }
@@ -878,4 +917,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default Sentry.wrap(App);

@@ -101,6 +101,8 @@ jobs:
           ANDROID_UPLOAD_STORE_PASSWORD: android
           ANDROID_UPLOAD_KEY_ALIAS: androiddebugkey
           ANDROID_UPLOAD_KEY_PASSWORD: android
+          SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+          SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
         run: ./gradlew :app:assembleRelease --no-daemon
         working-directory: Frontend/android
 
@@ -143,6 +145,9 @@ jobs:
       # Release 설정을 iOS Simulator SDK로 빌드한다. 특정 시뮬레이터를 실행하지는 않는다.
       # 중간 결과물은 runner 임시 폴더에 두고, 시뮬레이터 빌드의 코드 서명은 끈다.
       - name: Build iOS release simulator app
+        env:
+          SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+          SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
         run: |
           xcodebuild \
             -workspace ios/Frontend.xcworkspace \

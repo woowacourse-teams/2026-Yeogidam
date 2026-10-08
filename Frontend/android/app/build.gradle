@@ -92,6 +92,7 @@ def escapedSupabaseUrl = supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 def escapedSupabasePublishableKey = supabasePublishableKey.replace("\\", "\\\\").replace("\"", "\\\"")
 def escapedAppEnvironment = appEnvironment.replace("\\", "\\\\").replace("\"", "\\\"")
 
+apply from: new File(new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim()).parentFile, "sentry.gradle")
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
