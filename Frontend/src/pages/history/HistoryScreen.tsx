@@ -9,7 +9,15 @@ import {
   Text,
   View,
   Animated,
+  type LayoutChangeEvent,
 } from 'react-native';
+import {usePostHog} from 'posthog-react-native';
+import {
+  trackHistoryContentDetailViewed,
+  trackHistoryContentViewed,
+  trackHistoryViewed,
+  type HistoryVisibleState,
+} from '../../analytics/placeExtractionEvents';
 import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
 import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
@@ -81,10 +89,12 @@ function HistoryItem({
   reel,
   skeleton = false,
   onPress,
+  onLayout,
 }: {
   reel: HistoryReel;
   skeleton?: boolean;
   onPress?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const completed = reel.processing_status === 'COMPLETED';
   const processing =
@@ -127,6 +137,7 @@ function HistoryItem({
       accessibilityRole="button"
       accessibilityLabel={showSkeleton ? '새 히스토리를 불러오는 중' : undefined}
       onPress={showSkeleton ? undefined : onPress}
+      onLayout={onLayout}
       style={styles.item}
     >
       {showSkeleton ? (
@@ -231,6 +242,10 @@ function HistorySuccessDetail({
   onBack: () => void;
   reel: HistoryReel;
 }) {
+  const posthog = usePostHog();
+  useEffect(() => {
+    trackHistoryContentDetailViewed(posthog, reel.id, 'success');
+  }, [posthog, reel.id]);
   const { detail, loading, error } = useHistoryReelDetail(reel.id);
   const displayReel = detail ?? reel;
   const places =
@@ -327,6 +342,10 @@ function HistoryFailureDetail({
   reel: HistoryReel;
   onRetry: () => Promise<void>;
 }) {
+  const posthog = usePostHog();
+  useEffect(() => {
+    trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
+  }, [posthog, reel.id]);
   const [reported, setReported] = useState(false);
   const { detail } = useHistoryReelDetail(reel.id);
   const displayReel = detail ?? reel;
@@ -426,8 +445,16 @@ function HistoryFailureDetail({
 }
 
 export function HistoryScreen({ onBack }: HistoryScreenProps) {
+  const posthog = usePostHog();
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
+  const viewportHeightRef = useRef(0);
+  const groupOffsetsRef = useRef(new Map<string, number>());
+  const cardLayoutsRef = useRef(new Map<string, {group: string; y: number; height: number}>());
+  const seenCardsRef = useRef(new Set<string>());
+  const visibleTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
+  const historyViewedRef = useRef(false);
   const shouldRestoreScrollRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>([]);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
@@ -440,6 +467,66 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   const [retrySkeletonIds, setRetrySkeletonIds] = useState<Set<string>>(
     () => new Set(),
   );
+
+  cardStatesRef.current = new Map(reels.filter(reel => !reel.id.startsWith('retry-')).map(reel => {
+    const processing = reel.processing_status === 'PENDING' || reel.processing_status === 'PROCESSING';
+    const state: HistoryVisibleState = retrySkeletonIds.has(reel.id) ||
+      (processing && (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel)))
+      ? 'loading' : reel.processing_status === 'COMPLETED' ? 'success'
+      : reel.processing_status === 'FAILED' ? 'failed' : 'processing';
+    return [reel.id, state];
+  }));
+
+  const evaluateVisibleCards = useCallback(() => {
+    if (selectedSuccess || selectedFailure) return;
+    const top = scrollOffsetRef.current;
+    const bottom = top + viewportHeightRef.current;
+    for (const [contentId, layout] of cardLayoutsRef.current) {
+      const state = cardStatesRef.current.get(contentId);
+      const groupY = groupOffsetsRef.current.get(layout.group);
+      if (!state || groupY === undefined || viewportHeightRef.current === 0) continue;
+      const cardTop = groupY + layout.y;
+      const overlap = Math.max(0, Math.min(cardTop + layout.height, bottom) - Math.max(cardTop, top));
+      const key = `${contentId}.${state}`;
+      if (overlap >= layout.height / 2 && !seenCardsRef.current.has(key)) {
+        if (!visibleTimersRef.current.has(key)) {
+          const timer = setTimeout(() => {
+            visibleTimersRef.current.delete(key);
+            const latest = cardLayoutsRef.current.get(contentId);
+            const latestY = latest && groupOffsetsRef.current.get(latest.group);
+            if (!latest || latestY === undefined || cardStatesRef.current.get(contentId) !== state) return;
+            const visible = Math.max(0, Math.min(latestY + latest.y + latest.height,
+              scrollOffsetRef.current + viewportHeightRef.current) - Math.max(latestY + latest.y, scrollOffsetRef.current));
+            if (visible >= latest.height / 2 && !seenCardsRef.current.has(key)) {
+              seenCardsRef.current.add(key);
+              trackHistoryContentViewed(posthog, contentId, state);
+            }
+          }, 500);
+          visibleTimersRef.current.set(key, timer);
+        }
+      } else {
+        const timer = visibleTimersRef.current.get(key);
+        if (timer) clearTimeout(timer);
+        visibleTimersRef.current.delete(key);
+      }
+    }
+  }, [posthog, selectedSuccess, selectedFailure]);
+
+  useEffect(() => {
+    evaluateVisibleCards();
+  }, [evaluateVisibleCards, reels, retrySkeletonIds]);
+
+  useEffect(() => () => {
+    visibleTimersRef.current.forEach(clearTimeout);
+    visibleTimersRef.current.clear();
+  }, []);
+
+  useEffect(() => {
+    if (selectedSuccess || selectedFailure) {
+      visibleTimersRef.current.forEach(clearTimeout);
+      visibleTimersRef.current.clear();
+    }
+  }, [selectedSuccess, selectedFailure]);
 
   const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
     setError(false);
@@ -491,13 +578,21 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
         ];
       });
       setCursor(result.nextCursor);
+      if (!nextCursor && !silent && !historyViewedRef.current) {
+        historyViewedRef.current = true;
+        requestAnimationFrame(() => trackHistoryViewed(posthog, result.reels.length ? 'list' : 'empty'));
+      }
     } catch {
       setError(true);
+      if (!nextCursor && !silent && !historyViewedRef.current) {
+        historyViewedRef.current = true;
+        requestAnimationFrame(() => trackHistoryViewed(posthog, 'error'));
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [posthog]);
 
   const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
     if (!reel.instagram_url) {
@@ -729,12 +824,17 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       </View>
       <ScrollView
         ref={scrollViewRef}
+        onLayout={event => {
+          viewportHeightRef.current = event.nativeEvent.layout.height;
+          evaluateVisibleCards();
+        }}
         contentContainerStyle={[
           styles.content,
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
           scrollOffsetRef.current = nativeEvent.contentOffset.y;
+          evaluateVisibleCards();
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
@@ -770,13 +870,24 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           </View>
         ) : (
           Object.entries(groupedReels).map(([date, dateReels]) => (
-            <View key={date} style={styles.group}>
+            <View key={date} style={styles.group} onLayout={event => {
+              groupOffsetsRef.current.set(date, event.nativeEvent.layout.y);
+              evaluateVisibleCards();
+            }}>
               <Text style={styles.date}>{date}</Text>
               {dateReels.map(reel => (
                 <HistoryItem
                   key={reel.id}
                   reel={reel}
                   skeleton={retrySkeletonIds.has(reel.id)}
+                  onLayout={event => {
+                    cardLayoutsRef.current.set(reel.id, {
+                      group: date,
+                      y: event.nativeEvent.layout.y,
+                      height: event.nativeEvent.layout.height,
+                    });
+                    evaluateVisibleCards();
+                  }}
                   onPress={
                     reel.processing_status === 'COMPLETED'
                       ? () => {

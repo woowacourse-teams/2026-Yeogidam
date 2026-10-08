@@ -1,4 +1,9 @@
-import {getAnalyticsEnvironment} from './analytics';
+import {
+  capture,
+  getAnalyticsEnvironment,
+  getCommonAnalyticsProperties,
+  type AnalyticsClient,
+} from './analytics';
 
 /** Events captured by the Android/iOS share outbox before the app opens. */
 export const SHARE_EXTRACTION_EVENTS = [
@@ -11,6 +16,8 @@ export const SHARE_EXTRACTION_EVENTS = [
 ] as const;
 
 export type ShareExtractionEventName = typeof SHARE_EXTRACTION_EVENTS[number];
+export type HistoryVisibleState = 'loading' | 'processing' | 'success' | 'failed';
+export type HistoryDetailResult = 'success' | 'failed';
 
 export function isShareExtractionEventName(
   name: string,
@@ -64,4 +71,38 @@ export function buildShareExtractionCapture(event: NativeShareEvent) {
       ...(distinctId === event.share_id ? {$process_person_profile: false} : {}),
     },
   };
+}
+
+export function trackHistoryViewed(
+  client: AnalyticsClient | null | undefined,
+  viewState: 'list' | 'empty' | 'error',
+) {
+  capture(client, 'history_viewed', {
+    ...getCommonAnalyticsProperties(),
+    view_state: viewState,
+  });
+}
+
+export function trackHistoryContentViewed(
+  client: AnalyticsClient | null | undefined,
+  contentId: string,
+  visibleState: HistoryVisibleState,
+) {
+  capture(client, 'history_content_viewed', {
+    ...getCommonAnalyticsProperties(),
+    content_id: contentId,
+    visible_state: visibleState,
+  });
+}
+
+export function trackHistoryContentDetailViewed(
+  client: AnalyticsClient | null | undefined,
+  contentId: string,
+  result: HistoryDetailResult,
+) {
+  capture(client, 'history_content_detail_viewed', {
+    ...getCommonAnalyticsProperties(),
+    content_id: contentId,
+    result,
+  });
 }
