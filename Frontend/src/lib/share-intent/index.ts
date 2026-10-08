@@ -1,5 +1,6 @@
 import {NativeEventEmitter, NativeModules} from 'react-native';
 import type {Session} from '@supabase/supabase-js';
+import Config from 'react-native-config';
 
 import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase} from '../auth/supabase';
 
@@ -15,6 +16,7 @@ type NativeShareIntentPayload = {
 };
 
 type NativeShareIntentModule = {
+  installationId?: string;
   getPendingShare(): Promise<NativeShareIntentPayload | null>;
   clearPendingShare(shareId: string | null): Promise<void>;
   setShareSession?(session: NativeShareSession | null): Promise<void>;
@@ -24,9 +26,22 @@ type NativeShareIntentModule = {
     url: string,
     publishableKey: string,
   ): Promise<void>;
+  setPostHogConfiguration?(projectToken: string, host: string): Promise<void>;
   getShareResult?(): Promise<NativeShareResult | null>;
   getShareResults?(): Promise<NativeShareResult[]>;
   clearShareResult?(requestId: string | null): Promise<void>;
+  getPendingShareAnalyticsEvents?(): Promise<NativeShareAnalyticsEvent[]>;
+  acknowledgeShareAnalyticsEvent?(id: string): Promise<void>;
+};
+
+export type NativeShareAnalyticsEvent = {
+  id: string;
+  uuid?: string;
+  name: string;
+  share_id: string;
+  distinct_id?: string;
+  occurred_at: number;
+  properties: Record<string, string | number | boolean>;
 };
 
 export type NativeShareSession = {accessToken: string; refreshToken: string; expiresAt: number; userId: string};
@@ -41,6 +56,11 @@ const SHARE_INTENT_EVENT_NAME = 'shareIntentReceived';
 
 const nativeShareIntentModule: NativeShareIntentModule | undefined =
   NativeModules.ShareIntentModule as NativeShareIntentModule | undefined;
+
+export function getInstallationId(): string | undefined {
+  const value = nativeShareIntentModule?.installationId?.trim();
+  return value || undefined;
+}
 
 const shareIntentEmitter =
   nativeShareIntentModule != null
@@ -90,6 +110,7 @@ export async function getInitialSharedContent(): Promise<SharedContent | null> {
 }
 
 export async function syncShareSession(session: Session | null) {
+  await syncShareAnalyticsConfiguration();
   await nativeShareIntentModule?.setSupabaseConfiguration?.(
     SUPABASE_URL,
     SUPABASE_PUBLISHABLE_KEY,
@@ -100,6 +121,13 @@ export async function syncShareSession(session: Session | null) {
     expiresAt: session.expires_at ?? 0,
     userId: session.user.id,
   } : null);
+}
+
+export async function syncShareAnalyticsConfiguration(): Promise<void> {
+  await nativeShareIntentModule?.setPostHogConfiguration?.(
+    Config.POSTHOG_PROJECT_TOKEN ?? '',
+    Config.POSTHOG_HOST ?? '',
+  );
 }
 export async function getShareSession(): Promise<NativeShareSession | null> {
   return nativeShareIntentModule?.getShareSession?.() ?? null;
@@ -130,6 +158,12 @@ export async function reconcileShareSession(): Promise<void> {
 }
 export async function resumeWaitingShares(): Promise<void> {
   await nativeShareIntentModule?.resumeWaitingShares?.();
+}
+export async function getPendingShareAnalyticsEvents(): Promise<NativeShareAnalyticsEvent[]> {
+  return nativeShareIntentModule?.getPendingShareAnalyticsEvents?.() ?? [];
+}
+export async function acknowledgeShareAnalyticsEvent(id: string): Promise<void> {
+  await nativeShareIntentModule?.acknowledgeShareAnalyticsEvent?.(id);
 }
 export async function getShareResult() { return nativeShareIntentModule?.getShareResult?.() ?? null; }
 export async function getShareResults(): Promise<NativeShareResult[]> {

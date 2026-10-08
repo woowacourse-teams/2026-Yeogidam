@@ -28,10 +28,14 @@ export function capture(
 }
 
 /** 모든 이벤트에 공통으로 포함할 속성입니다. */
+export function getAnalyticsEnvironment() {
+  return Config.APP_ENV?.trim() || 'development';
+}
+
 export function getCommonAnalyticsProperties() {
   return {
     platform: Platform.OS,
     release: DeviceInfo.getVersion(),
-    environment: Config.APP_ENV?.trim() || 'development',
+    environment: getAnalyticsEnvironment(),
   };
 }
