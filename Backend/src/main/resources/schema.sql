@@ -119,7 +119,7 @@ CREATE TABLE places
     CONSTRAINT uk_places_kakao_place_id UNIQUE (kakao_place_id)
 );
 
--- 추출 사실. 이 게시물에서 이 장소가 나왔다는 것만 들고 결정은 모른다.
+-- 추출 사실. 이 게시물에서 이 장소가 나왔다는 것만 들고, 누가 보관했는지는 saved_places가 안다.
 CREATE TABLE media_places
 (
     id       BIGINT NOT NULL AUTO_INCREMENT,
