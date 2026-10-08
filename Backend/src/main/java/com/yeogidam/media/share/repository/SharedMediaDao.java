@@ -203,6 +203,19 @@ public class SharedMediaDao {
                 ShareHistoryProjections.FETCH_SIZE));
     }
 
+    public Optional<ExtractionStatus> findStatusByMemberAndSharedMediaId(Long memberId, Long sharedMediaId) {
+        String sql = """
+                SELECT extraction_status
+                FROM shared_media
+                WHERE member_id = ? AND id = ?
+                """;
+        return jdbcTemplate.query(sql,
+                        (resultSet, rowNumber) -> ExtractionStatus.valueOf(resultSet.getString("extraction_status")),
+                        memberId, sharedMediaId)
+                .stream()
+                .findFirst();
+    }
+
     public boolean existsByMemberIdAndSharedMediaId(Long memberId, Long sharedMediaId) {
         String sql = """
                 SELECT EXISTS (

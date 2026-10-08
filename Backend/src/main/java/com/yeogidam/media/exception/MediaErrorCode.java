@@ -16,8 +16,11 @@ public enum MediaErrorCode implements ErrorCode {
     MISSING_EXTRACTION_STATE(HttpStatus.BAD_REQUEST, "MEDIA400_012", "추출 상태가 비어 있습니다."),
     INCOMPLETE_HISTORY_CURSOR(HttpStatus.BAD_REQUEST, "MEDIA400_015", "커서의 공유 시각과 ID는 함께 보내야 합니다."),
     RETRY_NOT_ELIGIBLE(HttpStatus.BAD_REQUEST, "MEDIA400_016", "현재 분석 버전에서는 재시도가 불가능합니다."),
+    REPORT_ON_NON_FAILED(HttpStatus.BAD_REQUEST, "MEDIA400_017", "장소 분석에 실패한 공유만 신고할 수 있습니다."),
 
-    SHARED_MEDIA_NOT_FOUND(HttpStatus.NOT_FOUND, "MEDIA404_002", "존재하지 않는 공유입니다.");
+    SHARED_MEDIA_NOT_FOUND(HttpStatus.NOT_FOUND, "MEDIA404_002", "존재하지 않는 공유입니다."),
+
+    ALREADY_REPORTED(HttpStatus.CONFLICT, "MEDIA409_001", "이미 신고한 공유입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
