@@ -119,6 +119,23 @@ public class SharedMediaDao {
                 .findFirst();
     }
 
+    /**
+     * 회원이 이 게시물을 공유한 이력이 있는지 본다. 같은 게시물을 여러 번 공유했으면 가장 나중 이력의 id를 돌려준다.
+     */
+    public Optional<Long> findShareIdByMemberAndMedia(Long memberId, Long mediaId) {
+        String sql = """
+                SELECT id
+                FROM shared_media
+                WHERE member_id = ?
+                  AND media_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """;
+        return jdbcTemplate.queryForList(sql, Long.class, memberId, mediaId)
+                .stream()
+                .findFirst();
+    }
+
     public Optional<Long> findExtractingShareId(Long memberId, Long mediaId) {
         String sql = """
                 SELECT id

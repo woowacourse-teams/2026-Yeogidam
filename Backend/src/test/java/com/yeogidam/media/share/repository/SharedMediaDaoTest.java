@@ -111,6 +111,29 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 회원이_게시물을_공유한_이력이_있으면_가장_나중_이력의_ID를_조회한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 70L, "latest-share-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 71L, "latest-share-other", null, null, null);
+        insertMedia(jdbcTemplate, 70L, null, null, null);
+        insertMedia(jdbcTemplate, 71L, null, null, null);
+        Instant sharedAt = Instant.parse("2026-10-08T10:00:00Z");
+        insertSharedMedia(jdbcTemplate, 701L, 70L, 70L, sharedAt);
+        insertSharedMedia(jdbcTemplate, 702L, 70L, 70L, sharedAt.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 703L, 71L, 70L, sharedAt.plusSeconds(2));
+        insertSharedMedia(jdbcTemplate, 704L, 70L, 71L, sharedAt.plusSeconds(3));
+
+        // when & then
+        assertAll(
+                () -> assertThat(sharedMediaDao.findShareIdByMemberAndMedia(70L, 70L)).contains(702L),
+                () -> assertThat(sharedMediaDao.findShareIdByMemberAndMedia(71L, 70L)).contains(703L),
+                () -> assertThat(sharedMediaDao.findShareIdByMemberAndMedia(70L, 71L)).contains(704L),
+                () -> assertThat(sharedMediaDao.findShareIdByMemberAndMedia(71L, 71L)).isEmpty(),
+                () -> assertThat(sharedMediaDao.findShareIdByMemberAndMedia(99L, 70L)).isEmpty()
+        );
+    }
+
+    @Test
     void 회원과_미디어로_분석_중인_최신_공유_이력을_조회한다() {
         // given
         insertKakaoMember(jdbcTemplate, 60L, "extracting-share-owner", null, null, null);

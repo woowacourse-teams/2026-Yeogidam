@@ -137,6 +137,30 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
         );
     }
 
+    @Test
+    void 미디어에서_추출된_장소를_우리_id와_카카오_장소_id_순서대로_조회한다() {
+        // given: 장소 2는 미디어 1에만 연결되어 있고, 미디어 3에는 연결된 장소가 없다.
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertMedia(jdbcTemplate, 2L, null, null, null);
+        insertMedia(jdbcTemplate, 3L, null, null, null);
+        insertPlaces();
+        insertMediaPlace(jdbcTemplate, 11L, 1L, 2L);
+        insertMediaPlace(jdbcTemplate, 12L, 2L, 1L);
+        insertMediaPlace(jdbcTemplate, 13L, 1L, 1L);
+
+        // when & then
+        assertAll(
+                () -> assertThat(mediaPlaceDao.findExtractedPlaces(1L).places()).containsExactly(
+                        new ExtractedPlaceProjection(2L, "media-place-restaurant"),
+                        new ExtractedPlaceProjection(1L, "media-place-cafe")
+                ),
+                () -> assertThat(mediaPlaceDao.findExtractedPlaces(2L).places()).containsExactly(
+                        new ExtractedPlaceProjection(1L, "media-place-cafe")
+                ),
+                () -> assertThat(mediaPlaceDao.findExtractedPlaces(3L).places()).isEmpty()
+        );
+    }
+
     private void insertPlaces() {
         insertPlace(jdbcTemplate, 1L, "media-place-cafe", "성수 카페", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",

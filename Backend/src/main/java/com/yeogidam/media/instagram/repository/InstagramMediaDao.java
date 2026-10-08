@@ -129,6 +129,17 @@ public class InstagramMediaDao {
         jdbcTemplate.update(sql, pipelineVersion, mediaId);
     }
 
+    public Optional<Long> findIdByShortcode(MediaShortcode shortcode) {
+        String sql = """
+                SELECT id
+                FROM media
+                WHERE media_shortcode = ?
+                """;
+        return jdbcTemplate.query(sql, ID_ROW_MAPPER, shortcode.value())
+                .stream()
+                .findFirst();
+    }
+
     public Optional<Long> findIdByShortcodeForUpdate(MediaShortcode shortcode) {
         String sql = """
                 SELECT id
