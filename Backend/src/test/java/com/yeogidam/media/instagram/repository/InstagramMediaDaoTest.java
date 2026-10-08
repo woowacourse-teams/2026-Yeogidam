@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.extraction.domain.InProgressExtraction;
 import com.yeogidam.media.instagram.domain.InstagramMedia;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
@@ -118,24 +121,6 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
     }
 
     @ParameterizedTest
-    @CsvSource({"EXTRACTING,,true", "SUCCEEDED,,false", "FAILED,UNEXPECTED,false"})
-    void 대상_미디어의_추출_진행_여부를_조회한다(
-            String extractionStatus,
-            String failureReason,
-            boolean expected
-    ) {
-        // given
-        insertMedia(jdbcTemplate, 1L, extractionStatus, failureReason, 2, "EXTRACTED");
-        insertMedia(jdbcTemplate, 2L, "EXTRACTING", null, 2, "EXTRACTED");
-
-        // when
-        boolean inProgress = instagramMediaDao.isExtractionInProgressForUpdate(1L);
-
-        // then
-        assertThat(inProgress).isEqualTo(expected);
-    }
-
-    @ParameterizedTest
     @CsvSource({"EXTRACTING,,true,SUCCEEDED", "SUCCEEDED,,false,SUCCEEDED", "FAILED,UNEXPECTED,false,FAILED"})
     void 진행_중인_미디어에만_추출_성공_상태를_반영한다(
             String status,
@@ -170,7 +155,7 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
             boolean expected
     ) {
         // given
-        insertMedia(jdbcTemplate, 1L, extractionStatus, failureReason, 1, "SEEDED");
+        insertMedia(jdbcTemplate, 1L, extractionStatus, failureReason, 1, "EXTRACTED");
 
         // when
         boolean succeeded = instagramMediaDao.isExtractionSucceeded(1L);
@@ -179,48 +164,50 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
         assertThat(succeeded).isEqualTo(expected);
     }
 
-
     @ParameterizedTest
     @CsvSource({
-            "FAILED,CONTENT_UNAVAILABLE,2,EXTRACTED,true,EXTRACTING,,3",
-            "FAILED,PROCESSING_FAILED,3,EXTRACTED,true,EXTRACTING,,3",
-            "FAILED,UNEXPECTED,3,EXTRACTED,true,EXTRACTING,,3",
-            "FAILED,CONTENT_UNAVAILABLE,3,EXTRACTED,false,FAILED,CONTENT_UNAVAILABLE,3",
-            "FAILED,PLACE_NOT_EXTRACTED,3,EXTRACTED,false,FAILED,PLACE_NOT_EXTRACTED,3",
-            "FAILED,PLACE_NOT_MATCHED,3,EXTRACTED,false,FAILED,PLACE_NOT_MATCHED,3",
-            "FAILED,UNEXPECTED,4,EXTRACTED,false,FAILED,UNEXPECTED,4",
-            "EXTRACTING,,2,EXTRACTED,false,EXTRACTING,,2",
-            "SUCCEEDED,,2,EXTRACTED,false,SUCCEEDED,,2",
-            "FAILED,UNEXPECTED,2,SEEDED,false,FAILED,UNEXPECTED,2",
-            "FAILED,PROCESSING_FAILED,3,SEEDED,false,FAILED,PROCESSING_FAILED,3"
+            "FAILED,UNEXPECTED,2,EXTRACTED",
+            "EXTRACTING,,3,EXTRACTED",
+            "SUCCEEDED,,4,EXTRACTED",
+            "SUCCEEDED,,1,SEEDED"
     })
-    void 재시도는_실패_상태와_버전과_실패_이유와_출처에_따라_허용한다(
-            String status,
-            String failureReason,
+    void 대상_게시물의_분석_상태와_실패_사유와_버전과_출처를_잠금_조회한다(
+            ExtractionStatus status,
+            ExtractionFailureReason failureReason,
             int version,
-            String sourceType,
-            boolean expected,
-            String expectedStatus,
-            String expectedFailureReason,
-            int expectedVersion
+            MediaSourceType sourceType
     ) {
         // given
-        insertMedia(jdbcTemplate, 1L, status, failureReason, version, sourceType);
-        insertMedia(jdbcTemplate, 2L, "FAILED", "UNEXPECTED", 2, "EXTRACTED");
+        String reason = null;
+        if (failureReason != null) {
+            reason = failureReason.name();
+        }
+        insertMedia(jdbcTemplate, 1L, status.name(), reason, version, sourceType.name());
+        insertMedia(jdbcTemplate, 2L, "FAILED", "PROCESSING_FAILED", 1, "EXTRACTED");
 
         // when
-        boolean retried = instagramMediaDao.retryFailedExtractionIfEligible(1L, PIPELINE_VERSION);
-        boolean retriedAgain = instagramMediaDao.retryFailedExtractionIfEligible(1L, PIPELINE_VERSION);
+        ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(1L);
+
+        // then
+        assertThat(snapshot).isEqualTo(new ExtractionSnapshot(status, failureReason, version, sourceType));
+    }
+
+    @Test
+    void 재시작할_게시물의_상태와_버전을_갱신하고_실패_사유를_초기화한다() {
+        // given
+        insertMedia(jdbcTemplate, 1L, "FAILED", "UNEXPECTED", 2, "EXTRACTED");
+        insertMedia(jdbcTemplate, 2L, "FAILED", "CONTENT_UNAVAILABLE", 1, "EXTRACTED");
+        instagramMediaDao.findExtractionSnapshotForUpdate(1L);
+
+        // when
+        instagramMediaDao.updateExtractionForRetry(1L, PIPELINE_VERSION);
 
         // then
         assertAll(
-                () -> assertThat(retried).isEqualTo(expected),
-                () -> assertThat(retriedAgain).isFalse(),
                 () -> assertThat(readExtractionState(1L))
-                        .isEqualTo(new ExtractionState(
-                                expectedStatus, expectedFailureReason, expectedVersion, sourceType)),
+                        .isEqualTo(new ExtractionState("EXTRACTING", null, PIPELINE_VERSION, "EXTRACTED")),
                 () -> assertThat(readExtractionState(2L))
-                        .isEqualTo(new ExtractionState("FAILED", "UNEXPECTED", 2, "EXTRACTED"))
+                        .isEqualTo(new ExtractionState("FAILED", "CONTENT_UNAVAILABLE", 1, "EXTRACTED"))
         );
     }
 
@@ -232,11 +219,10 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
 
         // when & then
         assertAll(
-                () -> assertThat(instagramMediaDao.findIdByShortcode(new MediaShortcode("fixture-media-1")))
+                () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("fixture-media-1")))
                         .contains(1L),
                 () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("fixture-media-2")))
                         .contains(2L),
-                () -> assertThat(instagramMediaDao.findIdByShortcode(new MediaShortcode("missing-media"))).isEmpty(),
                 () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("missing-media")))
                         .isEmpty()
         );

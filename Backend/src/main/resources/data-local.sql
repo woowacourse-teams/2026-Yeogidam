@@ -53,7 +53,7 @@ VALUES (10, 'C1seongsu', '성수 카페 투어 🧁 온월 → 윤숲 → 베이
         'yeogidam/instagram-thumbnails/C3euljiro.jpg', '@night_seoul', 'SUCCEEDED', NULL, 1,
         '2026-09-12 09:00:00', 'SEEDED'),
        (13, 'C4private', NULL, NULL, NULL, 'FAILED', 'CONTENT_UNAVAILABLE', 1,
-        '2026-09-13 09:00:00', 'SEEDED'),
+        '2026-09-13 09:00:00', 'EXTRACTED'),
        (14, 'C5mangwon', '망원한강공원 피크닉 🧺 광장시장 들렀다가 #망원 #한강',
         'yeogidam/instagram-thumbnails/C5mangwon.jpg', '@picnic_daily', 'SUCCEEDED', NULL, 1,
         '2026-09-14 09:00:00', 'SEEDED'),
@@ -61,7 +61,7 @@ VALUES (10, 'C1seongsu', '성수 카페 투어 🧁 온월 → 윤숲 → 베이
         'yeogidam/instagram-thumbnails/C6bukchon.jpg', '@hanok_lover', 'SUCCEEDED', NULL, 1,
         '2026-09-15 09:00:00', 'SEEDED'),
        (16, 'C7extracting', NULL, NULL, NULL, 'EXTRACTING', NULL, 1,
-        '2026-09-16 09:00:00', 'SEEDED');
+        '2026-09-16 09:00:00', 'EXTRACTED');
 
 -- 추출 사실 (게시물 → 장소)
 INSERT INTO media_places (id, media_id, place_id)
@@ -72,16 +72,18 @@ VALUES (1, 10, 1), (2, 10, 2), (3, 10, 4),
        (8, 15, 8);
 
 -- 공유 사건 (누가 언제 어느 릴스를)
-INSERT INTO shared_media (id, member_id, media_id, shared_url, created_at)
-VALUES (100, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-10 10:00:00'),
-       (101, 1, 11, 'https://www.instagram.com/reel/C2gyeongbok/', '2026-09-11 10:00:00'),
-       (102, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-12 10:00:00'),
-       (103, 1, 12, 'https://www.instagram.com/reel/C3euljiro/', '2026-09-13 10:00:00'),
-       (104, 1, 13, 'https://www.instagram.com/reel/C4private/', '2026-09-14 10:00:00'),
-       (105, 1, 16, 'https://www.instagram.com/reel/C7extracting/', '2026-09-16 10:00:00'),
-       (200, 2, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-11 11:00:00'),
-       (201, 2, 14, 'https://www.instagram.com/reel/C5mangwon/', '2026-09-14 11:00:00'),
-       (202, 2, 15, 'https://www.instagram.com/reel/C6bukchon/', '2026-09-15 11:00:00');
+INSERT INTO shared_media (
+    id, member_id, media_id, shared_url, created_at, extraction_status, failure_reason, extraction_version
+)
+VALUES (100, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-10 10:00:00', 'SUCCEEDED', NULL, 1),
+       (101, 1, 11, 'https://www.instagram.com/reel/C2gyeongbok/', '2026-09-11 10:00:00', 'SUCCEEDED', NULL, 1),
+       (102, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-12 10:00:00', 'SUCCEEDED', NULL, 1),
+       (103, 1, 12, 'https://www.instagram.com/reel/C3euljiro/', '2026-09-13 10:00:00', 'SUCCEEDED', NULL, 1),
+       (104, 1, 13, 'https://www.instagram.com/reel/C4private/', '2026-09-14 10:00:00', 'FAILED', 'CONTENT_UNAVAILABLE', 1),
+       (105, 1, 16, 'https://www.instagram.com/reel/C7extracting/', '2026-09-16 10:00:00', 'EXTRACTING', NULL, 1),
+       (200, 2, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-11 11:00:00', 'SUCCEEDED', NULL, 1),
+       (201, 2, 14, 'https://www.instagram.com/reel/C5mangwon/', '2026-09-14 11:00:00', 'SUCCEEDED', NULL, 1),
+       (202, 2, 15, 'https://www.instagram.com/reel/C6bukchon/', '2026-09-15 11:00:00', 'SUCCEEDED', NULL, 1);
 
 -- 미사용 레거시 테이블 데이터 (스키마 정리 전까지 유지)
 INSERT INTO place_candidates (id, shared_media_id, place_id, decision_status, decided_at)

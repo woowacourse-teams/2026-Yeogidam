@@ -2,6 +2,7 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.media.share.dto.request.ShareRequest;
+import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.service.ShareService;
@@ -33,6 +34,17 @@ public class ShareController implements ShareApiDocs {
         shareService.createShare(memberId, request);
         return ResponseEntity.accepted()
                 .build();
+    }
+
+    @Override
+    @PostMapping("/{sharedMediaId}/extraction-retries")
+    public ResponseEntity<ExtractionRetryResponse> createExtractionRetry(
+            @LoginMember Long memberId,
+            @PathVariable Long sharedMediaId
+    ) {
+        ExtractionRetryResponse response = shareService.createExtractionRetry(memberId, sharedMediaId);
+        return ResponseEntity.accepted()
+                .body(response);
     }
 
     @Override

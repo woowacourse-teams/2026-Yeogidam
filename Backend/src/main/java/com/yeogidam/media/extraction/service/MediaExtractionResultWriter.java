@@ -1,5 +1,7 @@
 package com.yeogidam.media.extraction.service;
 
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.PlaceExtractionResult;
 import com.yeogidam.media.extraction.repository.MediaPlaceDao;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
@@ -25,7 +27,8 @@ public class MediaExtractionResultWriter {
 
     @Transactional
     public void recordSuccess(Long mediaId, PlaceExtractionResult result) {
-        if (!instagramMediaDao.isExtractionInProgressForUpdate(mediaId)) {
+        ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(mediaId);
+        if (snapshot.status() != ExtractionStatus.EXTRACTING) {
             return;
         }
         List<Long> placeIds = getPlaceIds(mediaId, result);
@@ -35,6 +38,7 @@ public class MediaExtractionResultWriter {
         if (!instagramMediaDao.succeedExtractionIfInProgress(mediaId)) {
             throw new IllegalStateException("진행 중인 미디어의 추출 완료 상태를 저장하지 못했습니다.");
         }
+        sharedMediaDao.updatePendingExtractions(mediaId);
     }
 
     private List<Long> getPlaceIds(Long mediaId, PlaceExtractionResult result) {

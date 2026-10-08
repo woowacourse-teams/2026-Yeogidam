@@ -1,12 +1,20 @@
 package com.yeogidam.media.share.repository;
 
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertExtractingMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.support.JdbcTestSupport;
 import java.time.Instant;
@@ -29,7 +37,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     void 같은_회원이_같은_미디어를_재공유하면_원본_URL을_보존한_새_공유_이력이_생긴다() {
         // given
         insertKakaoMember(jdbcTemplate, 1L, "share-save-owner", null, null, null);
-        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertFailedMedia(jdbcTemplate, 1L, 3, ExtractionFailureReason.PROCESSING_FAILED);
         String firstUrl = "https://www.instagram.com/reel/fixture-media-1/?igsh=first";
         String secondUrl = "https://www.instagram.com/reel/fixture-media-1/?igsh=second";
 
@@ -50,16 +58,91 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                         .containsExactly(secondUrl, firstUrl),
                 () -> assertThat(jdbcTemplate.queryForObject(
                         "SELECT media_id FROM shared_media WHERE id = ?", Long.class, secondId))
-                        .isEqualTo(1L)
+                        .isEqualTo(1L),
+                () -> assertThat(readExtractionState(firstId))
+                        .isEqualTo(new ExtractionState("FAILED", "PROCESSING_FAILED", 3)),
+                () -> assertThat(readExtractionState(secondId))
+                        .isEqualTo(new ExtractionState("FAILED", "PROCESSING_FAILED", 3))
         );
     }
 
     @Test
-    void 대상_미디어의_회원별_최대_공유_ID만_공유_ID_오름차순으로_조회한다() {
+    void 공유할_미디어가_없으면_예외가_발생한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 1L, "share-save-missing-media", null, null, null);
+        SharedInstagramMedia sharedMedia = new SharedInstagramMedia(
+                1L, 999L, new InstagramUrl("https://www.instagram.com/reel/missing-media/"));
+
+        // when & then
+        assertThatThrownBy(() -> sharedMediaDao.save(sharedMedia))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 회원_ID와_공유_이력_ID로_공유_이력에_기록된_스냅숏을_조회한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 51L, "retry-source-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 52L, "retry-source-other", null, null, null);
+        insertMedia(jdbcTemplate, 51L, "FAILED", "UNEXPECTED", 3, "EXTRACTED");
+        String sharedUrl = "https://www.instagram.com/reel/retry-source/?igsh=source";
+        insertSharedMedia(jdbcTemplate, 510L, 51L, 51L, sharedUrl,
+                Instant.parse("2026-10-01T10:00:00Z"));
+        jdbcTemplate.update("""
+                UPDATE media
+                SET extraction_status = 'SUCCEEDED', failure_reason = NULL, extraction_version = 4
+                WHERE id = ?
+                """, 51L);
+
+        // when
+        ExtractionRetrySource source = sharedMediaDao.findRetrySource(51L, 510L)
+                .orElseThrow();
+
+        // then
+        assertAll(
+                () -> assertThat(source).isEqualTo(new ExtractionRetrySource(
+                                51L,
+                                new InstagramUrl(sharedUrl),
+                                new ExtractionSnapshot(ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 3,
+                                        MediaSourceType.EXTRACTED)
+                        )),
+                () -> assertThat(sharedMediaDao.findRetrySource(52L, 510L)).isEmpty(),
+                () -> assertThat(sharedMediaDao.findRetrySource(51L, 511L)).isEmpty()
+        );
+    }
+
+    @Test
+    void 회원과_미디어로_분석_중인_최신_공유_이력을_조회한다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 60L, "extracting-share-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 61L, "extracting-share-other", null, null, null);
+        insertExtractingMedia(jdbcTemplate, 60L);
+        insertExtractingMedia(jdbcTemplate, 61L);
+        insertMedia(jdbcTemplate, 62L, "FAILED", "UNEXPECTED", 2, "EXTRACTED");
+        Instant sharedAt = Instant.parse("2026-10-01T10:00:00Z");
+        insertSharedMedia(jdbcTemplate, 601L, 60L, 60L, sharedAt);
+        insertSharedMedia(jdbcTemplate, 602L, 60L, 60L, sharedAt.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 603L, 61L, 60L, sharedAt.plusSeconds(2));
+        insertSharedMedia(jdbcTemplate, 604L, 60L, 61L, sharedAt.plusSeconds(3));
+        insertSharedMedia(jdbcTemplate, 605L, 60L, 62L, sharedAt.plusSeconds(4));
+
+        // when & then
+        assertAll(
+                () -> assertThat(sharedMediaDao.findExtractingShareId(60L, 60L)).contains(602L),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(61L, 60L)).contains(603L),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(60L, 61L)).contains(604L),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(60L, 62L)).isEmpty(),
+                () -> assertThat(sharedMediaDao.findExtractingShareId(99L, 99L)).isEmpty()
+        );
+    }
+
+    @Test
+    void 대상_미디어의_회원별_최대_공유_ID가_분석_중인_이력만_공유_ID_오름차순으로_조회한다() {
         // given: 시각과 삽입 순서가 달라도 ID가 가장 큰 공유를 회원별로 선택한다.
         insertKakaoMember(jdbcTemplate, 1L, "share-latest-owner", null, null, null);
         insertKakaoMember(jdbcTemplate, 2L, "share-latest-other", null, null, null);
-        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertKakaoMember(jdbcTemplate, 3L, "share-latest-failed", null, null, null);
+        insertKakaoMember(jdbcTemplate, 4L, "share-latest-succeeded", null, null, null);
+        insertExtractingMedia(jdbcTemplate, 1L);
         insertMedia(jdbcTemplate, 2L, null, null, null);
         Instant now = Instant.parse("2026-10-01T10:00:00Z");
         insertSharedMedia(jdbcTemplate, 9L, 1L, 1L, now.minusSeconds(1));
@@ -67,6 +150,16 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         insertSharedMedia(jdbcTemplate, 7L, 2L, 1L, now);
         insertSharedMedia(jdbcTemplate, 5L, 2L, 1L, now);
         insertSharedMedia(jdbcTemplate, 10L, 1L, 2L, now.plusSeconds(1));
+        ExtractionSnapshot failed = new ExtractionSnapshot(
+                ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED, 1, MediaSourceType.EXTRACTED);
+        ExtractionSnapshot succeeded = new ExtractionSnapshot(
+                ExtractionStatus.SUCCEEDED, null, 1, MediaSourceType.EXTRACTED);
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L, now, failed);
+        insertSharedMedia(jdbcTemplate, 2L, 2L, 1L, now, succeeded);
+        insertSharedMedia(jdbcTemplate, 11L, 3L, 1L, now);
+        insertSharedMedia(jdbcTemplate, 12L, 4L, 1L, now);
+        insertSharedMedia(jdbcTemplate, 13L, 3L, 1L, now, failed);
+        insertSharedMedia(jdbcTemplate, 14L, 4L, 1L, now, succeeded);
 
         // when
         List<SharedMediaOwnerProjection> shares = sharedMediaDao.findLatestSharesByMediaId(1L);
@@ -216,5 +309,54 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         for (long id = 1; id <= count; id++) {
             insertSharedMedia(jdbcTemplate, id, memberId, mediaId, base.plusSeconds(id));
         }
+    }
+
+    @Test
+    void 분석이_끝나면_EXTRACTING인_이력에만_미디어의_분석_결과를_복사하고_FAILED인_이력은_그대로_둔다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 9L, "pending-share-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 10L, "pending-share-other", null, null, null);
+        insertExtractingMedia(jdbcTemplate, 9L);
+        insertSharedMedia(jdbcTemplate, 91L, 9L, 9L, Instant.parse("2026-10-01T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 92L, 9L, 9L, Instant.parse("2026-10-02T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 93L, 10L, 9L, Instant.parse("2026-10-03T10:00:00Z"));
+        jdbcTemplate.update("""
+                UPDATE shared_media
+                SET extraction_status = 'FAILED', failure_reason = 'UNEXPECTED'
+                WHERE id = ?
+                """, 91L);
+        jdbcTemplate.update("""
+                UPDATE media
+                SET extraction_status = 'SUCCEEDED', failure_reason = NULL, extraction_version = 2
+                WHERE id = ?
+                """, 9L);
+
+        // when
+        sharedMediaDao.updatePendingExtractions(9L);
+
+        // then: 이미 실패한 공유 이력은 보존하고 대기 중인 이력만 완료 상태를 받는다.
+        assertAll(
+                () -> assertThat(readExtractionState(91L))
+                        .isEqualTo(new ExtractionState("FAILED", "UNEXPECTED", 1)),
+                () -> assertThat(readExtractionState(92L))
+                        .isEqualTo(new ExtractionState("SUCCEEDED", null, 2)),
+                () -> assertThat(readExtractionState(93L))
+                        .isEqualTo(new ExtractionState("SUCCEEDED", null, 2))
+        );
+    }
+
+    private ExtractionState readExtractionState(Long sharedMediaId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT extraction_status, failure_reason, extraction_version
+                FROM shared_media
+                WHERE id = ?
+                """, (resultSet, rowNumber) -> new ExtractionState(
+                resultSet.getString("extraction_status"),
+                resultSet.getString("failure_reason"),
+                resultSet.getInt("extraction_version")
+        ), sharedMediaId);
+    }
+
+    private record ExtractionState(String status, String failureReason, int version) {
     }
 }

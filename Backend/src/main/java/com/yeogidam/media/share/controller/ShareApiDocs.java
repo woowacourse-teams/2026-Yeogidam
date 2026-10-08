@@ -2,6 +2,7 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.media.share.dto.request.ShareRequest;
+import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,8 +67,97 @@ public interface ShareApiDocs {
                                                             {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
                                                             """)
                                     }))
-            })
+    })
     ResponseEntity<Void> createShare(Long memberId, @Valid ShareRequest request);
+
+    @Operation(summary = "실패한 장소 추출 재시도",
+            description = """
+                    로그인한 회원의 실패한 공유 이력에서 장소 추출을 다시 요청합니다. 요청 본문은 없습니다.
+
+                    - 기존 실패 이력과 최초 공유 시각을 보존합니다.
+                    - 현재 분석 버전에서는 `PROCESSING_FAILED`, `UNEXPECTED`만 재시도할 수 있습니다.
+                    - 이전 분석 버전의 실패는 실패 사유에 관계없이 재시도할 수 있습니다.
+                    - 운영이 씨앗으로 넣은 게시물(`source_type = SEEDED`)은 추출 파이프라인을 타지 않으므로 재시도할 수 없습니다.
+                    - 같은 회원이 같은 미디어의 분석 중인 이력을 이미 갖고 있으면 그 이력 ID를 반환합니다.
+                    - 요청 회원의 분석 중인 이력이 없으면 새 이력을 만들어 해당 분석에 합류합니다.
+                    - 분석 중인 이력을 대상으로 요청할 수 없습니다.
+                    - 본인 실패 후 다른 회원이 성공한 미디어를 재시도하면 재공유처럼 새 성공 이력을 만들고 장소를 바로 저장합니다.
+                    - 요청 회원의 성공 이력이 이미 있어도 과거 실패 이력의 재시도는 허용합니다.
+                    - 결과는 이번 분석을 기다리는 이력에만 반영하며 참여 회원별 최신 이력에 장소를 보관함으로 자동 저장합니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "202",
+                            description = "새 재시도 이력 접수, 분석 중인 이력 재사용 또는 기존 결과로 즉시 성공. "
+                                    + "응답 코드는 모두 202이고, extractionStatus가 SUCCEEDED면 분석이 이미 끝난 결과라 폴링 없이 바로 쓰면 된다",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ExtractionRetryResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "재시도 이력",
+                                                    description = "새로 접수하거나 재사용한 이력과 분석 상태",
+                                                    value = """
+                                                            {
+                                                              "sharedMediaId": 30,
+                                                              "extractionStatus": "EXTRACTING"
+                                                            }
+                                                            """),
+                                            @ExampleObject(name = "기존 성공 결과 재사용",
+                                                    description = "이미 분석에 성공한 미디어의 새 성공 이력. 장소는 응답 시점에 보관함에 저장되어 있다",
+                                                    value = """
+                                                            {
+                                                              "sharedMediaId": 30,
+                                                              "extractionStatus": "SUCCEEDED"
+                                                            }
+                                                            """)
+                                    })),
+                    @ApiResponse(responseCode = "400", description = "성공 또는 분석 중인 이력, 재시도할 수 없는 실패",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                             @ExampleObject(name = "MEDIA400_002",
+                                                     description = "이력에 기록된 게시물 상태가 SUCCEEDED일 때(추출에 성공한 게시물)",
+                                                     value = """
+                                                            {"message": "추출에 성공한 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_002"}
+                                                            """),
+                                            @ExampleObject(name = "MEDIA400_006",
+                                                    description = "이력에 기록된 게시물 상태가 EXTRACTING일 때(추출이 진행 중인 게시물)",
+                                                    value = """
+                                                            {"message": "추출이 진행 중인 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_006"}
+                                                            """),
+                                             @ExampleObject(name = "MEDIA400_016",
+                                                     description = "현재 분석 버전에서 재시도할 수 없는 실패 사유이거나 씨앗으로 넣은 게시물일 때",
+                                                     value = """
+                                                             {"message": "현재 분석 버전에서는 재시도가 불가능합니다.", "errorCode": "MEDIA400_016"}
+                                                             """)
+                                    })),
+                    @ApiResponse(responseCode = "401", description = "토큰 없음 또는 유효하지 않음",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때",
+                                                    value = """
+                                                            {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
+                                                            """),
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때",
+                                                    value = """
+                                                            {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
+                                                            """)
+                                    })),
+                    @ApiResponse(responseCode = "404", description = "존재하지 않거나 다른 회원의 공유",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "MEDIA404_002",
+                                            description = "존재하지 않거나 다른 회원의 공유 이력일 때",
+                                            value = """
+                                                    {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
+                                                    """)))
+            })
+    ResponseEntity<ExtractionRetryResponse> createExtractionRetry(
+            Long memberId,
+            @Parameter(description = "재시도할 실패 이력 ID(shared_media.id)", example = "10") Long sharedMediaId
+    );
 
     @Operation(summary = "히스토리 목록 조회",
             description = """

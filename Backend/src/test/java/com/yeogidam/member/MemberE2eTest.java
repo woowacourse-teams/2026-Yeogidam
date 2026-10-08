@@ -195,8 +195,10 @@ class MemberE2eTest extends E2eTestSupport {
                 """);
         insertMediaPlace(jdbcTemplate, 401L, 201L, 301L);
         jdbcTemplate.update("""
-                INSERT INTO shared_media (id, member_id, media_id, shared_url)
-                VALUES (101, ?, 201, 'https://www.instagram.com/reel/delete-test/')
+                INSERT INTO shared_media (
+                    id, member_id, media_id, shared_url, extraction_status, failure_reason, extraction_version
+                )
+                VALUES (101, ?, 201, 'https://www.instagram.com/reel/delete-test/', 'SUCCEEDED', NULL, 1)
                 """, memberId);
         jdbcTemplate.update("""
                 INSERT INTO place_candidates (id, shared_media_id, place_id)

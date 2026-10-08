@@ -5,6 +5,7 @@ import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
+import com.yeogidam.media.share.repository.SharedMediaDao;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
@@ -21,17 +22,20 @@ public class MediaExtractionDispatcher {
     private final MediaExtractionPipeline mediaExtractionPipeline;
     private final TaskExecutor mediaExtractionExecutor;
     private final InstagramMediaDao instagramMediaDao;
+    private final SharedMediaDao sharedMediaDao;
     private final TransactionTemplate failureTransactionTemplate;
 
     public MediaExtractionDispatcher(
             MediaExtractionPipeline mediaExtractionPipeline,
             TaskExecutor mediaExtractionExecutor,
             InstagramMediaDao instagramMediaDao,
+            SharedMediaDao sharedMediaDao,
             PlatformTransactionManager transactionManager
     ) {
         this.mediaExtractionPipeline = mediaExtractionPipeline;
         this.mediaExtractionExecutor = mediaExtractionExecutor;
         this.instagramMediaDao = instagramMediaDao;
+        this.sharedMediaDao = sharedMediaDao;
         this.failureTransactionTemplate = new TransactionTemplate(transactionManager);
         this.failureTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -113,8 +117,11 @@ public class MediaExtractionDispatcher {
 
     private void markExtractionFailed(Long mediaId, String shortcode, ExtractionFailureReason failureReason) {
         try {
-            failureTransactionTemplate.executeWithoutResult(status -> instagramMediaDao
-                    .failExtractionIfInProgress(mediaId, failureReason));
+            failureTransactionTemplate.executeWithoutResult(status -> {
+                if (instagramMediaDao.failExtractionIfInProgress(mediaId, failureReason)) {
+                    sharedMediaDao.updatePendingExtractions(mediaId);
+                }
+            });
         } catch (RuntimeException exception) {
             log.error("인스타그램 미디어 메타데이터 추출 실패 상태를 저장하지 못했습니다. mediaId={}, shortcode={}",
                     mediaId, shortcode, exception);

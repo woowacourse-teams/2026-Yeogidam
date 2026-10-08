@@ -7,12 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.yeogidam.media.extraction.config.ExtractionProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
-import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
-import com.yeogidam.media.instagram.domain.InstagramUrl;
-import com.yeogidam.media.instagram.domain.MediaMetadataWithUrl;
-import com.yeogidam.media.instagram.infrastructure.InstagramMediaHtmlReader;
-import com.yeogidam.media.instagram.infrastructure.InstagramThumbnailStore;
 import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.service.ShareService;
 import com.yeogidam.place.domain.Address;
@@ -22,28 +17,21 @@ import com.yeogidam.place.domain.PlaceExternalSource;
 import com.yeogidam.place.domain.PlaceName;
 import com.yeogidam.place.domain.PlaceProfile;
 import com.yeogidam.place.domain.PlaceThumbnail;
-import com.yeogidam.place.infrastructure.KakaoPlaceMetaReader;
 import com.yeogidam.support.IntegrationTestSupport;
+import com.yeogidam.support.fake.FakeMediaExtractionConfig;
+import com.yeogidam.support.fake.FakePlaceNameExtractor;
+import com.yeogidam.support.fake.FakePlaceSearcher;
 import java.math.BigDecimal;
-import java.net.http.HttpClient;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.web.client.RestClient;
 
-@Import(MediaExtractionPipelineIntegrationTest.FakeAdapters.class)
+@Import(FakeMediaExtractionConfig.class)
 class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
 
     private static final Long MEMBER_ID = 1L;
@@ -153,6 +141,15 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT failure_reason FROM media WHERE id = ?", String.class, mediaId))
                 .isEqualTo("PROCESSING_FAILED");
+        Map<String, Object> sharedMedia = jdbcTemplate.queryForMap("""
+                SELECT extraction_status, failure_reason
+                FROM shared_media
+                WHERE media_id = ?
+                """, mediaId);
+        assertAll(
+                () -> assertThat(sharedMedia.get("extraction_status")).isEqualTo("FAILED"),
+                () -> assertThat(sharedMedia.get("failure_reason")).isEqualTo("PROCESSING_FAILED")
+        );
         assertThat(count("places")).isZero();
         assertThat(count("saved_places")).isZero();
         assertThat(count("shared_media_saved_places")).isZero();
@@ -313,148 +310,5 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 new PlaceProfile(new PlaceName(name), new Address("서울 용산구 용산동2가 1", null),
                         new Coordinate(new BigDecimal("37.5"), new BigDecimal("127.0")),
                         "술집", null, new PlaceThumbnail(null, null)));
-    }
-
-    @TestConfiguration
-    static class FakeAdapters {
-
-        @Bean
-        @Primary
-        FakeInstagramMediaHtmlReader fakeInstagramMediaHtmlReader() {
-            return new FakeInstagramMediaHtmlReader();
-        }
-
-        @Bean
-        @Primary
-        InstagramThumbnailStore fakeThumbnailStore() {
-            return (shortcode, sourceUrl) -> THUMBNAIL_KEY;
-        }
-
-        @Bean
-        @Primary
-        KakaoPlaceMetaReader fakeKakaoPlaceMetaReader(HttpClient httpClient) {
-            return new FakeKakaoPlaceMetaReader(httpClient);
-        }
-
-        @Bean
-        @Primary
-        FakePlaceNameExtractor fakePlaceNameExtractor() {
-            return new FakePlaceNameExtractor();
-        }
-
-        @Bean
-        @Primary
-        FakePlaceSearcher fakePlaceSearcher() {
-            return new FakePlaceSearcher();
-        }
-    }
-
-    static class FakeKakaoPlaceMetaReader extends KakaoPlaceMetaReader {
-
-        FakeKakaoPlaceMetaReader(HttpClient httpClient) {
-            super(httpClient);
-        }
-
-        @Override
-        public String readMainPhotoUrl(String placeId) {
-            return null;
-        }
-    }
-
-    static class FakeInstagramMediaHtmlReader extends InstagramMediaHtmlReader {
-
-        FakeInstagramMediaHtmlReader() {
-            super(RestClient.create());
-        }
-
-        @Override
-        public MediaMetadataWithUrl read(InstagramUrl instagramUrl) {
-            return new MediaMetadataWithUrl("올드빅과 Dub.+에 다녀왔어요",
-                    "https://instagram.example.com/thumbnail.jpg", "yeogidam");
-        }
-    }
-
-    static class FakePlaceNameExtractor implements PlaceNameExtractor {
-
-        private final AtomicReference<PlaceSearchHints> hints = new AtomicReference<>();
-        private final AtomicReference<RuntimeException> failure = new AtomicReference<>();
-        private final AtomicInteger requests = new AtomicInteger();
-        private volatile CountDownLatch started = new CountDownLatch(0);
-        private volatile CountDownLatch proceed = new CountDownLatch(0);
-
-        @Override
-        public PlaceSearchHints extract(String caption) {
-            requests.incrementAndGet();
-            started.countDown();
-            awaitPermission();
-            RuntimeException nextFailure = failure.get();
-            if (nextFailure != null) {
-                throw nextFailure;
-            }
-            return hints.get();
-        }
-
-        private void awaitPermission() {
-            try {
-                if (!proceed.await(5, TimeUnit.SECONDS)) {
-                    throw new IllegalStateException("테스트가 추출을 5초 안에 허용하지 않았습니다.");
-                }
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("테스트 추출 대기가 중단되었습니다.", exception);
-            }
-        }
-
-        void block() {
-            started = new CountDownLatch(1);
-            proceed = new CountDownLatch(1);
-        }
-
-        boolean awaitStarted() throws InterruptedException {
-            return started.await(5, TimeUnit.SECONDS);
-        }
-
-        void allow() {
-            proceed.countDown();
-        }
-
-        void respondWith(List<PlaceSearchHint> places) {
-            hints.set(new PlaceSearchHints(places));
-        }
-
-        void failWith(RuntimeException exception) {
-            failure.set(exception);
-        }
-
-        int requestCount() {
-            return requests.get();
-        }
-
-        void reset() {
-            hints.set(new PlaceSearchHints(List.of(hint("올드빅"))));
-            failure.set(null);
-            requests.set(0);
-            started = new CountDownLatch(0);
-            proceed = new CountDownLatch(0);
-        }
-    }
-
-    static class FakePlaceSearcher implements PlaceSearcher {
-
-        private final Map<String, Place> places = new ConcurrentHashMap<>();
-
-        @Override
-        public List<Place> search(PlaceSearchHint hint) {
-            Place place = places.get(hint.nameInCaption());
-            return place == null ? List.of() : List.of(place);
-        }
-
-        void add(String name, Place place) {
-            places.put(name, place);
-        }
-
-        void reset() {
-            places.clear();
-        }
     }
 }
