@@ -37,9 +37,12 @@ internal class ShareSaveWorker(
                         authReason = auth.reason, retryable = false,
                     ),
                 )
+                ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred", "login_required")
                 return Result.success()
             }
             ShareAuthResult.WaitingForNetwork, ShareAuthResult.WaitingForAuth -> {
+                ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred",
+                    if (auth is ShareAuthResult.WaitingForNetwork) "network_unavailable" else "auth_pending")
                 ShareResultStore.saveResult(
                     applicationContext,
                     ShareReelResult(
@@ -84,6 +87,11 @@ internal class ShareSaveWorker(
                 put("source", "instagram_share")
                 put("clientRequestId", requestId)
             }.toString()
+            ShareAnalyticsStore.record(
+                applicationContext, "extraction_request_started", requestId,
+                release = ShareResultStore.loadResult(applicationContext, requestId)?.release
+                    ?: BuildConfig.VERSION_NAME,
+            )
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
             val responseCode = connection.responseCode
@@ -107,6 +115,7 @@ internal class ShareSaveWorker(
                                     authReason = refreshed.reason, retryable = false,
                                 ),
                             )
+                            ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred", "login_required")
                             return Result.success()
                         }
                         ShareAuthResult.WaitingForNetwork, ShareAuthResult.WaitingForAuth -> {
@@ -119,6 +128,8 @@ internal class ShareSaveWorker(
                                     retryable = true,
                                 ),
                             )
+                            ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred",
+                                if (refreshed is ShareAuthResult.WaitingForNetwork) "network_unavailable" else "auth_pending")
                             return Result.retry()
                         }
                     }
@@ -143,6 +154,12 @@ internal class ShareSaveWorker(
                     reelId = response.optNullableString("reelId")
                         ?: nestedError?.optNullableString("reelId"),
                 )
+                recordFinished(requestId, "request_failed", responseCode, when {
+                    responseCode == 401 || responseCode == 403 -> "auth_failed"
+                    responseCode == 408 || responseCode == 504 -> "timeout"
+                    responseCode >= 500 -> "server_error"
+                    else -> "invalid_request"
+                }, response.optNullableString("reelId") ?: nestedError?.optNullableString("reelId"))
                 return Result.success()
             }
 
@@ -166,6 +183,8 @@ internal class ShareSaveWorker(
                     saveMode = response.optNullableString("saveMode"),
                 ),
             )
+            recordFinished(requestId, "response_received", responseCode, null,
+                response.optNullableString("reelId"))
             Result.success()
         } catch (error: Exception) {
             if (runAttemptCount < MAX_RETRY_COUNT) {
@@ -179,11 +198,28 @@ internal class ShareSaveWorker(
                     reason = "CLIENT000_002 | ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
                     retryable = true,
                 )
+                recordFinished(requestId, "request_failed", null,
+                    if (error is java.net.SocketTimeoutException) "timeout" else "network_error")
                 Result.success()
             }
         } finally {
             connection?.disconnect()
         }
+    }
+
+    private fun recordFinished(
+        requestId: String, outcome: String, responseStatus: Int?, failureType: String?, contentId: String? = null,
+    ) {
+        ShareAnalyticsStore.record(
+            applicationContext, "extraction_request_finished", requestId,
+            JSONObject().put("outcome", outcome).apply {
+                responseStatus?.let { put("response_status", it) }
+                failureType?.let { put("failure_type", it) }
+                contentId?.let { put("content_id", it) }
+            },
+            release = ShareResultStore.loadResult(applicationContext, requestId)?.release
+                ?: BuildConfig.VERSION_NAME,
+        )
     }
 
     private fun saveFailure(
@@ -245,6 +281,7 @@ internal class ShareSaveWorker(
                 request,
             ).result.get()
             ShareResultStore.markQueued(context, requestId, queuedAt)
+            ShareAnalyticsStore.recordDeliveryStatus(context, requestId, "queued", occurredAt = queuedAt)
             return true
         }
     }
