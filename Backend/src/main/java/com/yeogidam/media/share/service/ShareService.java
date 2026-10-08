@@ -105,23 +105,13 @@ public class ShareService {
         int pipelineVersion = extractionProperties.pipelineVersion();
         source.validateRetry(pipelineVersion);
         ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(source.mediaId());
-        ExtractionStatus status = resolveRetryStatus(snapshot, pipelineVersion);
-        if (snapshot.status() == ExtractionStatus.FAILED) {
+        ExtractionStatus status = snapshot.statusAfterRetry(pipelineVersion);
+        if (snapshot.canRetry(pipelineVersion)) {
             instagramMediaDao.updateExtractionForRetry(source.mediaId(), pipelineVersion);
             mediaExtractionDispatcher.dispatchAfterCommit(source.mediaId(), source.instagramUrl());
         }
         Long newSharedMediaId = createRetryShare(memberId, source, status);
         return new ExtractionRetryResponse(newSharedMediaId, status.name());
-    }
-
-    private ExtractionStatus resolveRetryStatus(ExtractionSnapshot snapshot, int pipelineVersion) {
-        if (snapshot.status() != ExtractionStatus.FAILED) {
-            return snapshot.status();
-        }
-        if (!snapshot.canRetry(pipelineVersion)) {
-            throw new MediaException(MediaErrorCode.RETRY_NOT_ELIGIBLE);
-        }
-        return ExtractionStatus.EXTRACTING;
     }
 
     private Long createRetryShare(Long memberId, ExtractionRetrySource source, ExtractionStatus status) {

@@ -87,7 +87,9 @@ public interface ShareApiDocs {
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
-                    @ApiResponse(responseCode = "202", description = "새 재시도 이력 접수, 분석 중인 이력 재사용 또는 기존 결과로 즉시 성공",
+                    @ApiResponse(responseCode = "202",
+                            description = "새 재시도 이력 접수, 분석 중인 이력 재사용 또는 기존 결과로 즉시 성공. "
+                                    + "응답 코드는 모두 202이고, extractionStatus가 SUCCEEDED면 분석이 이미 끝난 결과라 폴링 없이 바로 쓰면 된다",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ExtractionRetryResponse.class),
                                     examples = {
@@ -100,7 +102,7 @@ public interface ShareApiDocs {
                                                             }
                                                             """),
                                             @ExampleObject(name = "기존 성공 결과 재사용",
-                                                    description = "이미 분석에 성공한 미디어의 새 성공 이력",
+                                                    description = "이미 분석에 성공한 미디어의 새 성공 이력. 장소는 응답 시점에 보관함에 저장되어 있다",
                                                     value = """
                                                             {
                                                               "sharedMediaId": 30,
@@ -113,12 +115,12 @@ public interface ShareApiDocs {
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = {
                                              @ExampleObject(name = "MEDIA400_002",
-                                                     description = "성공한 공유 이력 자체를 대상으로 요청할 때",
+                                                     description = "이력에 기록된 게시물 상태가 SUCCEEDED일 때(추출에 성공한 게시물)",
                                                      value = """
                                                             {"message": "추출에 성공한 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_002"}
                                                             """),
                                             @ExampleObject(name = "MEDIA400_006",
-                                                    description = "분석 중인 공유 이력을 대상으로 요청할 때",
+                                                    description = "이력에 기록된 게시물 상태가 EXTRACTING일 때(추출이 진행 중인 게시물)",
                                                     value = """
                                                             {"message": "추출이 진행 중인 게시물은 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_006"}
                                                             """),

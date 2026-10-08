@@ -1,7 +1,10 @@
 package com.yeogidam.media.extraction.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.exception.MediaException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -90,5 +93,48 @@ class ExtractionSnapshotTest {
 
         // then
         assertThat(canRetry).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"SUCCEEDED,2", "SUCCEEDED,3", "EXTRACTING,2", "EXTRACTING,3"})
+    void 실패하지_않은_게시물을_재시도하면_이력은_게시물의_상태를_그대로_받는다(ExtractionStatus status, int version) {
+        // given
+        ExtractionSnapshot snapshot = new ExtractionSnapshot(status, null, version, MediaSourceType.EXTRACTED);
+
+        // when
+        ExtractionStatus statusAfterRetry = snapshot.statusAfterRetry(PIPELINE_VERSION);
+
+        // then
+        assertThat(statusAfterRetry).isEqualTo(status);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"CONTENT_UNAVAILABLE,2", "PROCESSING_FAILED,3"})
+    void 재시도할_수_있는_실패를_재시도하면_이력은_분석_중으로_시작한다(ExtractionFailureReason failureReason, int version) {
+        // given
+        ExtractionSnapshot snapshot = new ExtractionSnapshot(
+                ExtractionStatus.FAILED, failureReason, version, MediaSourceType.EXTRACTED);
+
+        // when
+        ExtractionStatus statusAfterRetry = snapshot.statusAfterRetry(PIPELINE_VERSION);
+
+        // then
+        assertThat(statusAfterRetry).isEqualTo(ExtractionStatus.EXTRACTING);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"CONTENT_UNAVAILABLE,3,EXTRACTED", "PROCESSING_FAILED,4,EXTRACTED", "UNEXPECTED,2,SEEDED"})
+    void 재시도할_수_없는_실패를_재시도하면_예외가_발생한다(
+            ExtractionFailureReason failureReason,
+            int version,
+            MediaSourceType sourceType
+    ) {
+        // given
+        ExtractionSnapshot snapshot = new ExtractionSnapshot(ExtractionStatus.FAILED, failureReason, version, sourceType);
+
+        // when & then
+        assertThatThrownBy(() -> snapshot.statusAfterRetry(PIPELINE_VERSION))
+                .isInstanceOfSatisfying(MediaException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.RETRY_NOT_ELIGIBLE));
     }
 }
