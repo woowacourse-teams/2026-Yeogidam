@@ -12,6 +12,12 @@ public class MediaPlaceDao {
 
     private static final RowMapper<Long> PLACE_ID_ROW_MAPPER = (resultSet, rowNumber) -> resultSet.getLong("place_id");
 
+    private static final RowMapper<ExtractedPlaceProjection> EXTRACTED_PLACE_ROW_MAPPER = (resultSet, rowNumber) ->
+            new ExtractedPlaceProjection(
+                    resultSet.getLong("place_id"),
+                    resultSet.getString("kakao_place_id")
+            );
+
     private static final RowMapper<MediaPlaceProjection> PLACE_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
             new MediaPlaceProjection(
                     resultSet.getLong("place_id"),
@@ -41,6 +47,18 @@ public class MediaPlaceDao {
                 ORDER BY id
                 """;
         return jdbcTemplate.query(sql, PLACE_ID_ROW_MAPPER, mediaId);
+    }
+
+    public ExtractedPlaceProjections findExtractedPlaces(Long mediaId) {
+        String sql = """
+                SELECT p.id AS place_id,
+                       p.kakao_place_id
+                FROM media_places mp
+                JOIN places p ON p.id = mp.place_id
+                WHERE mp.media_id = ?
+                ORDER BY mp.id
+                """;
+        return new ExtractedPlaceProjections(jdbcTemplate.query(sql, EXTRACTED_PLACE_ROW_MAPPER, mediaId));
     }
 
     public List<MediaPlaceProjection> findBySharedMediaId(Long sharedMediaId) {

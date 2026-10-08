@@ -83,7 +83,7 @@ class ExtractionSnapshotTest {
 
     @ParameterizedTest
     @EnumSource(ExtractionFailureReason.class)
-    void 씨앗으로_넣은_게시물은_이전_버전의_실패여도_재시도할_수_없다(ExtractionFailureReason failureReason) {
+    void 시드_데이터로_넣은_게시물은_이전_버전의_실패여도_재시도할_수_없다(ExtractionFailureReason failureReason) {
         // given: 출처만 다르고 나머지는 재시도가 허용되는 가장 느슨한 조건이다.
         ExtractionSnapshot snapshot = new ExtractionSnapshot(
                 ExtractionStatus.FAILED, failureReason, 2, MediaSourceType.SEEDED);

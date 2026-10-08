@@ -25,6 +25,10 @@ media:
   place-thumbnail:
     timeout: 1s
 
+# 온보딩 E2E가 넣는 미디어 17번(shortcode fixture-media-17)이다.
+onboarding:
+  instagram-url: https://www.instagram.com/p/fixture-media-17/
+
 # 제공자 클라이언트 빈을 만들기 위한 자리값. E2E는 FakeOAuthClientConfig가 제공자를 대신한다.
 oauth:
   providers:
