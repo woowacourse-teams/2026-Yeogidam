@@ -9,6 +9,10 @@
 
 태그 없이 배포 이력을 찾을 때에는 Actions 실행 번호, 실행 커밋, 플랫폼, 업로드된 AAB 또는 TestFlight 빌드 번호를 확인한다. 빌드 번호 배정 전에 브랜치가 전진하면 검증이 실패한다. 두 플랫폼의 beta 실행이 끝날 때까지 `fe-release`에 새 커밋을 넣지 않는다.
 
+내부 배포와 공개 앱 모두 PostHog `environment=production`으로 기록한다. 내부 테스터를 운영 지표에서 제외할 때는 테스터의 `installation_id` 또는 로그인 계정의 `distinct_id`에 해당하는 이벤트를 제외한다. 설치 ID는 앱이나 공유 확장 중 먼저 실행된 쪽에서 만들므로, 앱을 열기 전의 공유 이벤트에도 붙는다. 앱을 삭제하고 다시 설치하면 새 설치 ID를 테스터 목록에 등록해야 한다.
+
+배포 후 확인할 때는 비로그인 공유의 `reel_share_received`에서 `environment=production`, `installation_id=현재 설치 ID`, `distinct_id=share_id`를 확인한다. 테스터 계정으로 로그인해 다시 공유한 이벤트에서는 같은 `installation_id`, `distinct_id=해당 Supabase 사용자 ID`인지 확인한다. 앱의 `history_viewed`에도 같은 `installation_id`가 붙는지 확인한다.
+
 ## 버전과 빌드 번호
 
 앱 버전은 수동 실행 화면의 필수 입력값이다. `1.1.0`처럼 숫자 세 부분으로 입력하며 `v` 접두사나 사전 출시 접미사는 허용하지 않는다. 이 입력값이 Android와 iOS 앱 버전에 사용되며 `Frontend/package.json`의 `version`은 읽지 않는다. 두 플랫폼을 같은 앱 버전으로 배포하려면 각각 실행할 때 같은 버전을 입력한다. 빌드 번호는 직접 입력하지 않는다.
