@@ -13,10 +13,13 @@ import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
+import com.yeogidam.media.share.config.OnboardingProperties;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
+import com.yeogidam.media.share.dto.request.OnboardingShareRequest;
 import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
+import com.yeogidam.media.share.dto.response.OnboardingShareResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
@@ -44,6 +47,7 @@ public class ShareService {
     private final SharedMediaDao sharedMediaDao;
     private final InstagramMediaDao instagramMediaDao;
     private final ExtractionProperties extractionProperties;
+    private final OnboardingProperties onboardingProperties;
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
     private final MediaExtractionDispatcher mediaExtractionDispatcher;
     private final SavedPlaceRegistrationService savedPlaceRegistrationService;
@@ -96,6 +100,37 @@ public class ShareService {
     private Long createSharedMedia(Long memberId, Long mediaId, InstagramUrl instagramUrl) {
         SharedInstagramMedia sharedInstagramMedia = new SharedInstagramMedia(memberId, mediaId, instagramUrl);
         return sharedMediaDao.save(sharedInstagramMedia);
+    }
+
+    /**
+     * 온보딩 때 보관함에 담은 장소를 가입한 회원의 보관함으로 옮긴다. 온보딩 릴스의 공유 이력을 만들고 장소를 그 이력에 연결한다.
+     * 이미 옮긴 회원이 다시 부르면 그 이력을 그대로 돌려준다.
+     */
+    @Transactional
+    public OnboardingShareResponse createOnboardingShare(Long memberId, OnboardingShareRequest request) {
+        InstagramUrl instagramUrl = onboardingProperties.toInstagramUrl();
+        Long mediaId = getOnboardingMediaId(instagramUrl);
+        return sharedMediaDao.findShareIdByMemberAndMedia(memberId, mediaId)
+                .map(OnboardingShareResponse::new)
+                .orElseGet(() -> transferOnboardingPlacesToMember(
+                        memberId, mediaId, instagramUrl, request.kakaoPlaceIds()));
+    }
+
+    private Long getOnboardingMediaId(InstagramUrl instagramUrl) {
+        return instagramMediaDao.findIdByShortcode(instagramUrl.getMediaShortcode())
+                .orElseThrow(() -> new MediaException(MediaErrorCode.ONBOARDING_MEDIA_NOT_PREPARED));
+    }
+
+    private OnboardingShareResponse transferOnboardingPlacesToMember(
+            Long memberId,
+            Long mediaId,
+            InstagramUrl instagramUrl,
+            List<String> kakaoPlaceIds
+    ) {
+        List<Long> placeIds = mediaPlaceDao.findExtractedPlaces(mediaId).getPlaceIds(kakaoPlaceIds);
+        Long sharedMediaId = createSharedMedia(memberId, mediaId, instagramUrl);
+        savedPlaceRegistrationService.savePlacesFromShare(memberId, sharedMediaId, placeIds);
+        return new OnboardingShareResponse(sharedMediaId);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)

@@ -20,7 +20,9 @@ public enum MediaErrorCode implements ErrorCode {
 
     SHARED_MEDIA_NOT_FOUND(HttpStatus.NOT_FOUND, "MEDIA404_002", "존재하지 않는 공유입니다."),
 
-    ALREADY_REPORTED(HttpStatus.CONFLICT, "MEDIA409_001", "이미 신고한 공유입니다.");
+    ALREADY_REPORTED(HttpStatus.CONFLICT, "MEDIA409_001", "이미 신고한 공유입니다."),
+
+    ONBOARDING_MEDIA_NOT_PREPARED(HttpStatus.SERVICE_UNAVAILABLE, "MEDIA503_001", "온보딩 미디어를 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
