@@ -85,23 +85,6 @@ VALUES (100, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-10 10:
        (201, 2, 14, 'https://www.instagram.com/reel/C5mangwon/', '2026-09-14 11:00:00', 'SUCCEEDED', NULL, 1),
        (202, 2, 15, 'https://www.instagram.com/reel/C6bukchon/', '2026-09-15 11:00:00', 'SUCCEEDED', NULL, 1);
 
--- 미사용 레거시 테이블 데이터 (스키마 정리 전까지 유지)
-INSERT INTO place_candidates (id, shared_media_id, place_id, decision_status, decided_at)
-VALUES (1000, 100, 1, 'SUPERSEDED', NULL),
-       (1001, 100, 2, 'SUPERSEDED', NULL),
-       (1002, 100, 4, 'SUPERSEDED', NULL),
-       (1003, 101, 3, 'DISCARDED', '2026-09-11 12:00:00'),
-       (1004, 102, 1, 'SAVED', '2026-09-12 12:00:00'),
-       (1005, 102, 2, 'SAVED', '2026-09-12 12:00:00'),
-       (1006, 102, 4, 'UNDECIDED', NULL),
-       (1007, 103, 5, 'UNDECIDED', NULL),
-       (2000, 200, 1, 'SAVED', '2026-09-11 13:00:00'),
-       (2001, 200, 2, 'DISCARDED', '2026-09-11 13:00:00'),
-       (2002, 200, 4, 'SAVED', '2026-09-11 13:00:00'),
-       (2003, 201, 6, 'SAVED', '2026-09-14 13:00:00'),
-       (2004, 201, 7, 'DISCARDED', '2026-09-14 13:00:00'),
-       (2005, 202, 8, 'UNDECIDED', NULL);
-
 -- 회원별 보관함
 INSERT INTO saved_places (id, member_id, place_id, last_saved_at)
 VALUES (1, 1, 1, '2026-09-12 12:00:00'),

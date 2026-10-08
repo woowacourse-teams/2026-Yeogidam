@@ -102,7 +102,6 @@ class MemberE2eTest extends E2eTestSupport {
         assertThat(count("refresh_sessions")).isZero();
         assertThat(count("shared_media")).isZero();
         assertThat(count("saved_places")).isZero();
-        assertThat(count("place_candidates")).isZero();
         assertThat(count("shared_media_saved_places")).isZero();
         assertThat(count("shared_media_reports")).isZero();
 
@@ -200,10 +199,6 @@ class MemberE2eTest extends E2eTestSupport {
                 )
                 VALUES (101, ?, 201, 'https://www.instagram.com/reel/delete-test/', 'SUCCEEDED', NULL, 1)
                 """, memberId);
-        jdbcTemplate.update("""
-                INSERT INTO place_candidates (id, shared_media_id, place_id)
-                VALUES (501, 101, 301)
-                """);
         jdbcTemplate.update("""
                 INSERT INTO saved_places (id, member_id, place_id)
                 VALUES (601, ?, 301)

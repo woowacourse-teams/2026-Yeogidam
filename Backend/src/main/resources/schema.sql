@@ -1,7 +1,6 @@
 DROP TABLE IF EXISTS shared_media_reports;
 DROP TABLE IF EXISTS shared_media_saved_places;
 DROP TABLE IF EXISTS saved_places;
-DROP TABLE IF EXISTS place_candidates;
 DROP TABLE IF EXISTS media_places;
 DROP TABLE IF EXISTS shared_media;
 DROP TABLE IF EXISTS media;
@@ -131,25 +130,6 @@ CREATE TABLE media_places
     CONSTRAINT fk_media_places_media FOREIGN KEY (media_id)
         REFERENCES media (id),
     CONSTRAINT fk_media_places_place FOREIGN KEY (place_id)
-        REFERENCES places (id)
-);
-
--- 미사용 레거시 테이블. 현재 애플리케이션 흐름에서는 사용하지 않는다.
-CREATE TABLE place_candidates
-(
-    id              BIGINT      NOT NULL AUTO_INCREMENT,
-    shared_media_id BIGINT      NOT NULL,
-    place_id        BIGINT      NOT NULL,
-    decision_status VARCHAR(20) NOT NULL DEFAULT 'UNDECIDED',
-    decided_at      TIMESTAMP(6),
-    PRIMARY KEY (id),
-    CONSTRAINT uk_place_candidates_shared_media_place UNIQUE (shared_media_id, place_id),
-    CONSTRAINT chk_place_candidates_decision_status
-        CHECK (decision_status IN ('UNDECIDED', 'SAVED', 'DISCARDED', 'SUPERSEDED')),
-    CONSTRAINT fk_place_candidates_shared_media FOREIGN KEY (shared_media_id)
-        REFERENCES shared_media (id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_place_candidates_place FOREIGN KEY (place_id)
         REFERENCES places (id)
 );
 

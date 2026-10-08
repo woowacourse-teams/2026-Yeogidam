@@ -69,7 +69,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 | instagram_media | media | 게시물. media_shortcode UNIQUE, caption(TEXT), thumbnail_key(2048), author, extraction_status, failure_reason, extraction_version, source_type(EXTRACTED, SEEDED). SEEDED는 SUCCEEDED이고 실패 사유가 없어야 한다는 CHECK를 #282에서 더했다 |
 | media_share | shared_media | 공유 사건. member_id, media_id, shared_url, created_at. #282에서 분석 상태 스냅숏 3열(extraction_status, failure_reason, extraction_version)을 더했다(9절) |
 | media_place | media_places | 추출 사실. media_id, place_id. position은 뺐다 |
-| share_place | place_candidates | 후보와 결정(decision_status). 2026-10-06 대기함 제거(#274)로 코드가 읽거나 쓰지 않는 레거시 테이블이 되었고 별도 스키마 정리 PR 대상이다 |
+| share_place | (없음) | 후보와 결정 테이블은 대기함 제거(#274) 후 2026-10-08에 생성문, 로컬 씨앗, Fixture와 테스트 참조를 제거했다. |
 | place | places | 전역 장소. kakao_place_id UNIQUE, name, category, land_lot_address, road_address, 좌표, kakao_place_url, telephone, 썸네일 3열 |
 | saved_place | saved_places | 보관함. (member_id, place_id) UNIQUE, last_saved_at. first_saved_at은 뺐다 |
 | saved_place_share | shared_media_saved_places | 어느 공유에서 저장했나. (saved_place_id, shared_media_id) UNIQUE |
@@ -246,7 +246,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | reel_places | saved_places + shared_media_saved_places | 회원 보관함과 공유 이력의 연결 |
 | saved_places | saved_places(+shared_media_saved_places) | (member, place) 유니크, 재저장은 last_saved_at 갱신 |
 | user_related_reels 뷰 | shared_media_saved_places 조인 | 릴스당 최신 공유 한 건은 서비스에서 |
-| reel_queue_batches, reel_queue_items, resolve_queue_items | (없음) | 운영의 대기함 큐와 결정 RPC. 2026-10-06 설계에서 대기함을 빼고 추출 성공 시 자동 저장으로 대신한다(#274). `place_candidates` 테이블만 레거시로 남아 있다 |
+| reel_queue_batches, reel_queue_items, resolve_queue_items | (없음) | 운영의 대기함 큐와 결정 RPC. 2026-10-06 설계에서 대기함을 빼고 추출 성공 시 자동 저장으로 대신한다(#274). 2026-10-08에 레거시 후보 테이블 관련 코드도 제거했다 |
 | save-instagram-reel-v2 + RPC 11개 | POST /shares + 추출 파이프라인 + 결과 기록 | 커밋 후 디스패치, 게시물 행 잠금 뒤 재추출 판단(9절) |
 | delete-account | DELETE /members/me | 남은 결정 5 |
 | app-update-policy | GET /app-update-policies | 설정값 |
@@ -267,7 +267,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 | 항목 | 로드맵의 원래 설계 | 바뀐 설계 | 이유 | PR |
 |---|---|---|---|---|
-| 대기함 | 추출된 장소를 후보(`place_candidates`)로 발급하고 사용자가 대기함에서 저장과 버림을 결정한다. 재공유 때 후보를 새로 발급한다(2026-09-20) | 대기함과 결정 API(`GET /place-candidates`, `place-selections`, `place-discards`)를 없애고, 추출 성공 시 확인된 장소를 `saved_places`에 회원과 장소 기준으로 upsert하고 `shared_media_saved_places`로 공유 이력에 연결한다. 재공유는 기존 결과를 새 이력에 즉시 연결한다 | 사용자가 장소마다 결정하는 단계가 필요 없다는 제품 결정(2026-10-06). `place_candidates` 테이블과 로컬 씨앗은 별도 스키마 정리 PR로 지운다 | #274 |
+| 대기함 | 추출된 장소를 후보(`place_candidates`)로 발급하고 사용자가 대기함에서 저장과 버림을 결정한다. 재공유 때 후보를 새로 발급한다(2026-09-20) | 대기함과 결정 API(`GET /place-candidates`, `place-selections`, `place-discards`)를 없애고, 추출 성공 시 확인된 장소를 `saved_places`에 회원과 장소 기준으로 upsert하고 `shared_media_saved_places`로 공유 이력에 연결한다. 재공유는 기존 결과를 새 이력에 즉시 연결한다 | 사용자가 장소마다 결정하는 단계가 필요 없다는 제품 결정(2026-10-06). 2026-10-08에 후보 테이블 생성문, 로컬 씨앗, Fixture와 테스트 참조도 제거했다 | #274 |
 | 공유 이력의 분석 상태 | `shared_media`는 공유 사건만 적고 상태는 `media`에서 읽는다 | `shared_media`에 `extraction_status`, `failure_reason`, `extraction_version` 3열을 두고, 공유 때 `INSERT … SELECT`로 `media`의 값을 복사하며, 분석이 끝나면 `EXTRACTING`인 이력만 결과로 갱신한다 | 옛 이력에 나중 시도의 결과가 비치지 않게 이력마다 당시 상태를 남긴다. `media`와의 중복 저장을 유지할지 `extraction_attempts`로 분리할지는 #297 | #282 |
 | 재추출 규칙과 경쟁 방어 | FAILED에서만 재시도하고 조건부 UPDATE 한 문장이 자격 판단과 경쟁 방지를 함께 한다(bean-fable) | 게시물 행을 FOR UPDATE로 잠근 뒤 `ExtractionSnapshot.canRetry`가 판단한다. 이전 버전의 실패는 사유와 관계없이, 현재 버전은 PROCESSING_FAILED와 UNEXPECTED만, 씨앗 게시물(SEEDED)은 제외. UPDATE는 조건 없이 한다. 재시도 트랜잭션만 READ COMMITTED로 둔다 | 규칙이 도메인과 SQL 두 곳에 있던 것을 도메인 한 곳으로 모았다. READ COMMITTED는 잠금을 기다리는 동안 다른 요청이 커밋한 분석 중 이력과 장소 연결을 잠금 뒤 읽기가 보게 하려는 것이고, 기본 격리 수준이면 같은 회원의 동시 재시도가 이력을 두 줄 만들고 분석 완료와 겹친 재시도가 장소 없는 성공 이력을 만든다. 두 경우는 E2E로 고정했다 | #282 |
 | 재시도 응답 | 재시도는 늘 EXTRACTING으로 돌아간다 | 게시물이 이미 성공했으면 새 SUCCEEDED 이력을 만들고 장소를 바로 연결해 `extractionStatus: SUCCEEDED`로 돌려준다(응답 코드는 202 그대로). 분석 중이면 같은 회원은 기존 분석 중 이력의 id를 돌려주고 다른 회원은 새 이력으로 합류한다 | 다른 회원이 먼저 성공한 릴스의 옛 실패 이력을 가진 사용자가 장소를 받을 길이 없었다. 성공 뒤 반복 요청은 #309 | #282 |
