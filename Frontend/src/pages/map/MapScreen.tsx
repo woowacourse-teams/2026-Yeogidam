@@ -96,6 +96,7 @@ export function MapScreen({
   });
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
     viewContext: SavedPlaceViewContext | null;
@@ -283,6 +284,7 @@ export function MapScreen({
                 markerPlaces.map(({ id, name, latitude, longitude }) => ({
                   id,
                   name,
+                  selected: id === selectedPlaceId,
                   latitude,
                   longitude,
                 })),
@@ -364,7 +366,8 @@ export function MapScreen({
             openPlaceContext={openedMarker.viewContext}
             openPlaceSignal={openedMarker.signal}
             collapseSignal={collapseSignal}
-            onDetailViewChange={isDetailView => {
+            onDetailViewChange={(isDetailView, placeId) => {
+              setSelectedPlaceId(placeId);
               setIsPlaceDetailVisible(isDetailView);
               onDetailViewChange?.(isDetailView);
             }}

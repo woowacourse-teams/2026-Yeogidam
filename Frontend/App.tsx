@@ -33,6 +33,7 @@ import {
   trackLoginStarted,
   type LoginFailureType,
 } from './src/analytics/userEntryEvents';
+import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -68,6 +69,21 @@ import {
   getSharedSaveState,
   setSharedSaveState,
 } from './src/lib/reel-save-state';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: false,
+
+  // Enable Logs
+  enableLogs: false,
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -139,6 +155,7 @@ function App() {
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
+  const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
   const currentScreen: Screen =
@@ -196,7 +213,10 @@ function App() {
     });
   };
 
-  const openMainScreen = (nextScreen: MainScreen) => {
+  const openMainScreen = (
+    nextScreen: MainScreen,
+    entryType: InboxEntryType = 'direct',
+  ) => {
     if (nextScreen !== 'map') {
       setIsMapPlaceDetailVisible(false);
     }
@@ -206,6 +226,9 @@ function App() {
       activeTab: nextScreen,
       detailSource: null,
     });
+    if (nextScreen === 'inBox') {
+      setInBoxEntryType(entryType);
+    }
   };
 
   const openDetailFrom = (
@@ -478,7 +501,10 @@ function App() {
               created_at: new Date(result.updatedAt).toISOString(),
             },
           });
-          openMainScreen(result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox');
+          openMainScreen(
+            result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox',
+            'auto',
+          );
         })
         .catch(error => {
           if (__DEV__) {
@@ -754,6 +780,7 @@ function App() {
     if (currentScreen === 'inBox') {
       return (
         <InBoxScreen
+          entryType={inBoxEntryType}
           onOpenHistory={() => setIsHistoryVisible(true)}
           onSelectionChange={setIsInBoxSelecting}
         />
@@ -871,4 +898,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default App;
+export default Sentry.wrap(App);

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import {usePostHog} from 'posthog-react-native';
 import {
   Alert,
   AppState,
@@ -35,6 +36,14 @@ import {
   getLastSeenHistorySnapshot,
   setLastSeenHistorySnapshot,
 } from '../../lib/history-notification-storage';
+import {
+  trackPendingPlaceDiscardFinished,
+  trackPendingPlaceSaveFinished,
+  trackPendingPlacesViewed,
+  trackPendingResolutionCompleted,
+  type InboxEntryType,
+  type PlaceResolutionFailureType,
+} from '../../analytics/placeSavingEvents';
 
 function pendingPlaces(item: InboxReel) {
   return item.places.filter(place => place.reviewStatus === 'PENDING');
@@ -68,9 +77,15 @@ const ANALYSIS_POLL_INTERVAL_MS = 5000;
 type InBoxScreenProps = {
   onOpenHistory: () => void;
   onSelectionChange: (hasSelection: boolean) => void;
+  entryType?: InboxEntryType;
 };
 
-export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps) {
+export function InBoxScreen({
+  onOpenHistory,
+  onSelectionChange,
+  entryType = 'direct',
+}: InBoxScreenProps) {
+  const posthog = usePostHog();
   const {bottom: bottomInset} = useSafeAreaInsets();
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
   const [items, setItems] = useState<InboxReel[]>([]);
@@ -83,6 +98,7 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
   const [hasUnreadHistory, setHasUnreadHistory] = useState(false);
   const [latestHistoryId, setLatestHistoryId] = useState<string | null>(null);
   const [latestHistoryStatus, setLatestHistoryStatus] = useState<string | null>(null);
+  const hasTrackedViewedRef = React.useRef(false);
 
   const syncHistoryNotification = useCallback(async () => {
     try {
@@ -120,6 +136,16 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
     try {
       const reels = await getInboxReels();
       setItems(reels);
+      if (!hasTrackedViewedRef.current) {
+        trackPendingPlacesViewed(posthog, {
+          entryType,
+          itemCount: reels.reduce(
+            (count, item) => count + pendingPlaces(item).length,
+            0,
+          ),
+        });
+        hasTrackedViewedRef.current = true;
+      }
       setErrorMessage(null);
     } catch (error) {
       // Keep the last successful list visible for permission, timeout, and network failures.
@@ -130,7 +156,7 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
         setIsRefreshing(false);
       }
     }
-  }, []);
+  }, [entryType, posthog]);
 
   useEffect(() => {
     loadInbox();
@@ -217,13 +243,56 @@ export function InBoxScreen({onOpenHistory, onSelectionChange}: InBoxScreenProps
     }
 
     setIsResolving(true);
+    const selectedPlaces = items.flatMap(item =>
+      pendingPlaces(item).filter(place => queueItemIds.includes(place.id)),
+    );
     try {
       await resolveQueueItems(queueItemIds, action);
+      selectedPlaces.forEach(place => {
+        const params = {
+          contentId: items.find(item =>
+            item.places.some(candidate => candidate.id === place.id),
+          )?.id ?? 'unknown',
+          placeId: place.place?.id ?? place.id,
+          outcome: 'success' as const,
+        };
+        if (action === 'SAVE') {
+          trackPendingPlaceSaveFinished(posthog, params);
+        } else {
+          trackPendingPlaceDiscardFinished(posthog, params);
+        }
+      });
+      trackPendingResolutionCompleted(posthog, {
+        action: action === 'SAVE' ? 'save' : 'discard',
+        processedCount: selectedPlaces.length,
+      });
       setSelectedPlaceIds([]);
       await loadInbox(true);
     } catch (error) {
       const normalized = normalizeReelError(error);
       setErrorMessage(normalized.message);
+      const failureType: PlaceResolutionFailureType =
+        normalized.status === 401 || normalized.status === 403
+          ? 'auth_failed'
+          : normalized.errorCode === 'CLIENT000_001' ||
+              normalized.errorCode === 'CLIENT000_002'
+            ? 'network_error'
+            : 'unknown';
+      selectedPlaces.forEach(place => {
+        const params = {
+          contentId: items.find(item =>
+            item.places.some(candidate => candidate.id === place.id),
+          )?.id ?? 'unknown',
+          placeId: place.place?.id ?? place.id,
+          outcome: 'failure' as const,
+          failureType,
+        };
+        if (action === 'SAVE') {
+          trackPendingPlaceSaveFinished(posthog, params);
+        } else {
+          trackPendingPlaceDiscardFinished(posthog, params);
+        }
+      });
 
       if (normalized.status === 401) {
         await supabase.auth.refreshSession();

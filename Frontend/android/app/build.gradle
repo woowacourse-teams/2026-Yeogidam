@@ -73,23 +73,15 @@ def enableProguardInReleaseBuilds = true
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-// Load the Kakao native app key without an additional React Native package.
-// Frontend/.env must contain: KAKAO_NATIVE_APP_KEY=your_native_app_key
-def envFile = rootProject.file("../.env")
-def envProperties = new Properties()
-
-if (envFile.exists()) {
-    envFile.withInputStream { envProperties.load(it) }
-}
-
-def kakaoNativeAppKey = envProperties.getProperty("KAKAO_NATIVE_APP_KEY", "").trim()
-def supabaseUrl = envProperties.getProperty("SUPABASE_URL", "").trim()
-def supabasePublishableKey = envProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "").trim()
+// Use the same build configuration that react-native-config loads from ENVFILE.
+def kakaoNativeAppKey = project.env.get("KAKAO_NATIVE_APP_KEY", "").trim()
+def supabaseUrl = project.env.get("SUPABASE_URL", "").trim()
+def supabasePublishableKey = project.env.get("SUPABASE_PUBLISHABLE_KEY", "").trim()
 if (kakaoNativeAppKey.isEmpty()) {
-    throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from Frontend/.env")
+    throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from the build configuration")
 }
 if (supabaseUrl.isEmpty() || supabasePublishableKey.isEmpty()) {
-    throw new GradleException("SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing from Frontend/.env")
+    throw new GradleException("SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing from the build configuration")
 }
 
 def escapedKakaoNativeAppKey = kakaoNativeAppKey
@@ -98,6 +90,7 @@ def escapedKakaoNativeAppKey = kakaoNativeAppKey
 def escapedSupabaseUrl = supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 def escapedSupabasePublishableKey = supabasePublishableKey.replace("\\", "\\\\").replace("\"", "\\\"")
 
+apply from: new File(new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim()).parentFile, "sentry.gradle")
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion

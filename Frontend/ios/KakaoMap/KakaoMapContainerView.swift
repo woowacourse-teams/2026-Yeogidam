@@ -626,16 +626,18 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     layer?.clearAllItems()
 
     if !savedPlaceStyleAdded {
-      let iconStyle = PoiIconStyle(
-        symbol: makeSavedPlaceMarker(),
-        anchorPoint: CGPoint(x: 0.5, y: 0.5)
-      )
-      labelManager.addPoiStyle(
-        PoiStyle(
-          styleID: Self.savedPlaceStyleID,
-          styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)]
+      for selected in [false, true] {
+        let iconStyle = PoiIconStyle(
+          symbol: makeSavedPlaceMarker(selected: selected),
+          anchorPoint: CGPoint(x: 0.5, y: 0.5)
         )
-      )
+        labelManager.addPoiStyle(
+          PoiStyle(
+            styleID: selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID,
+            styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)]
+          )
+        )
+      }
       savedPlaceStyleAdded = true
     }
 
@@ -645,7 +647,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
         let latitude = place["latitude"] as? Double,
         let longitude = place["longitude"] as? Double
       else { return }
-      let options = PoiOptions(styleID: Self.savedPlaceStyleID, poiID: id)
+      let selected = place["selected"] as? Bool ?? false
+      let options = PoiOptions(
+        styleID: selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID,
+        poiID: id
+      )
       options.rank = 1
       options.clickable = true
       layer?.addPoi(
@@ -740,10 +746,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     }
   }
 
-  private func makeSavedPlaceMarker() -> UIImage {
+  private func makeSavedPlaceMarker(selected: Bool) -> UIImage {
     let size = CGSize(width: 36, height: 36)
 
-    if let markerImage = UIImage(named: Self.savedPlaceMarkerAssetName) {
+    let assetName = selected ? Self.selectedPlaceMarkerAssetName : Self.savedPlaceMarkerAssetName
+    if let markerImage = UIImage(named: assetName) {
       return UIGraphicsImageRenderer(size: size).image { _ in
         markerImage.draw(in: CGRect(origin: .zero, size: size))
       }
@@ -791,4 +798,6 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private static let searchResultMaxZoomLevel = 16
   private static let savedPlaceStyleID = "yeogidam-saved-place-style"
   private static let savedPlaceMarkerAssetName = "MapMarker"
+  private static let selectedPlaceStyleID = "yeogidam-selected-place-style"
+  private static let selectedPlaceMarkerAssetName = "MapMarkerSelected"
 }
