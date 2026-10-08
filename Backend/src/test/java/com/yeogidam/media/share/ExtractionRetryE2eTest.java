@@ -1,9 +1,11 @@
 package com.yeogidam.media.share;
 
 import static com.yeogidam.support.fixture.PlaceFixture.place;
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.sharedUrl;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,7 +16,9 @@ import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.global.exception.ErrorCode;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
@@ -25,9 +29,15 @@ import com.yeogidam.support.fake.FakePlaceSearcher;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +53,8 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 새 히스토리 접수, 요청 권한, 과거 실패 보존과 분석 합류를 공개 API로 검증한다.
@@ -70,6 +82,9 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
 
     @Autowired
     private FakeExtractionRetryExecutor extractionExecutor;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void setUpRetry() {
@@ -395,6 +410,84 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
+    void 같은_회원의_두_재시도가_게시물_잠금을_함께_기다려도_분석_중_이력은_하나만_생긴다() throws Exception {
+        // given: 다른 트랜잭션이 게시물 행을 잠근 사이 같은 회원의 재시도 둘이 들어와 잠금을 기다린다.
+        // 두 요청 모두 잠금 전에 이력을 읽어 두었으므로, 먼저 커밋한 쪽의 이력을 뒤의 요청이 보는지가 갈린다.
+        LoginResult member = loginAsKakao("retry-same-member-lock-wait");
+        createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
+        ExecutorService pool = Executors.newFixedThreadPool(3);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            Future<?> holder = holdMediaLock(pool, locked, release, () -> {
+            });
+            locked.await();
+            Future<Long> first = pool.submit(() -> requestRetry(member, ORIGINAL_SHARE_ID));
+            Future<Long> second = pool.submit(() -> requestRetry(member, ORIGINAL_SHARE_ID));
+            awaitMediaLockWaiters(2);
+
+            // when
+            release.countDown();
+            holder.get();
+            Long firstShareId = first.get();
+            Long secondShareId = second.get();
+
+            // then
+            assertAll(
+                    () -> assertThat(secondShareId).isEqualTo(firstShareId),
+                    () -> assertThat(readHistoryIds(member)).containsExactly(firstShareId, ORIGINAL_SHARE_ID),
+                    () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1)
+            );
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void 분석_완료가_게시물을_잠근_사이에_들어온_재시도도_새_성공_이력에_장소를_연결한다() throws Exception {
+        // given: 다른 회원의 재시도로 게시물이 분석 중이고, 분석 완료 기록이 게시물 행을 잠근 채 장소를 쓰고 있다.
+        // 완료 기록은 장소 연결과 SUCCEEDED 갱신 두 문장으로 흉내 낸다.
+        // 재시도는 잠금 전에 이력을 읽어 두고 기다리므로, 잠금을 얻은 뒤 완료 기록이 커밋한 장소를 보는지가 갈린다.
+        LoginResult member = loginAsKakao("retry-during-completion");
+        insertMedia(jdbcTemplate, MEDIA_ID, CURRENT_VERSION, ExtractionStatus.EXTRACTING);
+        insertSharedMedia(jdbcTemplate, ORIGINAL_SHARE_ID, member.memberId(), MEDIA_ID, ORIGINAL_SHARED_AT,
+                new ExtractionSnapshot(ExtractionStatus.FAILED, ExtractionFailureReason.UNEXPECTED,
+                        CURRENT_VERSION, MediaSourceType.EXTRACTED));
+        insertPlace(jdbcTemplate, 301L, "kakao-301", "올드빅", "카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new BigDecimal("37.5446"),
+                new BigDecimal("127.0559"), "https://place.map.kakao.com/301", null, null, null);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            Future<?> holder = holdMediaLock(pool, locked, release, () -> {
+                insertMediaPlace(jdbcTemplate, 1L, MEDIA_ID, 301L);
+                jdbcTemplate.update("""
+                        UPDATE media SET extraction_status = 'SUCCEEDED', failure_reason = NULL WHERE id = ?
+                        """, MEDIA_ID);
+            });
+            locked.await();
+            Future<Long> retry = pool.submit(() -> requestSucceededRetry(member, ORIGINAL_SHARE_ID));
+            awaitMediaLockWaiters(1);
+
+            // when
+            release.countDown();
+            holder.get();
+            Long newShareId = retry.get();
+
+            // then
+            assertAll(
+                    () -> assertSucceededHistory(member, newShareId),
+                    () -> assertThat(countSavedPlacesFromShare(newShareId)).isEqualTo(1),
+                    () -> assertThat(readSavedShareIds(member)).containsExactly(newShareId),
+                    () -> assertThat(extractionExecutor.countSubmittedTasks()).isZero()
+            );
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
     void 같은_회원이_분석_중에_다시_재시도하면_기존_이력_ID를_반환한다() throws Exception {
         // given
         LoginResult member = loginAsKakao("retry-join-started-extraction");
@@ -520,6 +613,58 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertThat(extractionExecutor.countSubmittedTasks())
                         .isEqualTo(1)
         );
+    }
+
+    /**
+     * 게시물 행을 FOR UPDATE로 잠근 채 release가 열릴 때까지 기다렸다가 body를 실행하고 커밋한다.
+     * 분석 완료 기록이나 앞선 재시도가 잠금을 쥔 사이에 다른 재시도가 들어오는 상황을 만든다.
+     */
+    private Future<?> holdMediaLock(
+            ExecutorService pool,
+            CountDownLatch locked,
+            CountDownLatch release,
+            Runnable body
+    ) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        return pool.submit(() -> transactionTemplate.executeWithoutResult(status -> {
+            jdbcTemplate.queryForObject("SELECT id FROM media WHERE id = ? FOR UPDATE", Long.class, MEDIA_ID);
+            locked.countDown();
+            awaitLatch(release);
+            body.run();
+        }));
+    }
+
+    /**
+     * 재시도 요청이 게시물 행 잠금에서 기다리는 중인지 서버 프로세스 목록으로 확인한다.
+     * 같은 DB 사용자의 연결이라 PROCESS 권한 없이도 보이며, 잠금을 기다리는 문장은 Info에 그대로 남는다.
+     */
+    private void awaitMediaLockWaiters(int expected) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        List<String> statements = List.of();
+        while (System.nanoTime() < deadline) {
+            statements = jdbcTemplate.queryForList("SHOW FULL PROCESSLIST").stream()
+                    .map(row -> row.get("Info"))
+                    .filter(info -> info != null)
+                    .map(Object::toString)
+                    .filter(info -> info.contains("FROM media") && info.contains("FOR UPDATE"))
+                    .toList();
+            if (statements.size() >= expected) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("재시도 요청 " + expected + "건이 게시물 잠금을 기다리지 않습니다. 보인 문장: " + statements);
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("잠금을 풀라는 신호를 받지 못했습니다.");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     private void completeExtraction() throws Exception {
