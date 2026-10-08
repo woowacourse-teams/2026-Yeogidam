@@ -1,5 +1,6 @@
 package com.yeogidam.auth.controller;
 
+import com.yeogidam.auth.dto.request.AppleLoginRequest;
 import com.yeogidam.auth.dto.request.LoginRequest;
 import com.yeogidam.auth.dto.request.RefreshTokenRequest;
 import com.yeogidam.auth.dto.response.LoginResponse;
@@ -39,8 +40,8 @@ public class AuthController implements AuthApiDocs {
 
     @Override
     @PostMapping("/logins/apple")
-    public ResponseEntity<LoginResponse> createAppleLogin(@Valid @RequestBody LoginRequest request) {
-        LoginResponse response = authService.createLogin(OAuthProvider.APPLE, request);
+    public ResponseEntity<LoginResponse> createAppleLogin(@Valid @RequestBody AppleLoginRequest request) {
+        LoginResponse response = authService.createAppleLogin(OAuthProvider.APPLE, request);
         return ResponseEntity.ok()
                 .body(response);
     }

@@ -3,6 +3,7 @@ package com.yeogidam.auth;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 
 import com.yeogidam.support.E2eTestSupport;
@@ -21,7 +22,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class AuthE2eTest extends E2eTestSupport {
 
     @ParameterizedTest
-    @ValueSource(strings = {"kakao", "google", "apple"})
+    @ValueSource(strings = {"kakao", "google"})
     void 인가_코드로_로그인하면_토큰_쌍과_회원_정보를_돌려준다(String provider) {
         login(provider, "user-1")
                 .then().statusCode(200)
@@ -34,6 +35,46 @@ class AuthE2eTest extends E2eTestSupport {
                 .body("member.nickname", equalTo(provider + "-user-1"))
                 .body("member.email", equalTo("user-1@example.com"))
                 .body("member.oauthProvider", equalTo(provider.toUpperCase()));
+    }
+
+    @Test
+    void 애플로_처음_로그인할_때_보낸_이름으로_가입한다() {
+        loginWithApple("user-1", "홍길동")
+                .then().statusCode(200)
+                .body("member.nickname", equalTo("홍길동"))
+                .body("member.oauthProvider", equalTo("APPLE"));
+    }
+
+    @Test
+    void 애플로_처음_로그인할_때_이름을_보내지_않으면_담이_닉네임으로_가입한다() {
+        login("apple", "user-1")
+                .then().statusCode(200)
+                .body("accessToken", notNullValue())
+                .body("member.nickname", matchesPattern("담이 \\d{4}"))
+                .body("member.email", equalTo("user-1@example.com"))
+                .body("member.oauthProvider", equalTo("APPLE"));
+    }
+
+    @Test
+    void 애플로_다시_로그인해도_처음_정한_닉네임은_바뀌지_않는다() {
+        // given
+        String nickname = login("apple", "user-1").then().extract().jsonPath().getString("member.nickname");
+
+        // when & then
+        login("apple", "user-1")
+                .then().statusCode(200)
+                .body("member.nickname", equalTo(nickname));
+    }
+
+    @Test
+    void 애플로_다시_로그인하며_다른_이름을_보내도_닉네임은_바뀌지_않는다() {
+        // given
+        loginWithApple("user-1", "홍길동");
+
+        // when & then
+        loginWithApple("user-1", "김철수")
+                .then().statusCode(200)
+                .body("member.nickname", equalTo("홍길동"));
     }
 
     @Test
@@ -66,6 +107,13 @@ class AuthE2eTest extends E2eTestSupport {
         given().contentType(ContentType.JSON)
                 .body("{\"authorizationCode\":\" \"}")
                 .when().post("/api/v1/auth/logins/kakao")
+                .then().statusCode(400)
+                .body("errorCode", equalTo("COMMON400_001"));
+    }
+
+    @Test
+    void 애플_로그인의_이름이_255자를_넘으면_400_예외를_던진다() {
+        loginWithApple("user-1", "가".repeat(256))
                 .then().statusCode(400)
                 .body("errorCode", equalTo("COMMON400_001"));
     }
@@ -136,6 +184,15 @@ class AuthE2eTest extends E2eTestSupport {
         return given().contentType(ContentType.JSON)
                 .body("{\"authorizationCode\":\"" + authorizationCode + "\"}")
                 .when().post("/api/v1/auth/logins/" + provider);
+    }
+
+    private static Response loginWithApple(
+            String authorizationCode,
+            String fullName
+    ) {
+        return given().contentType(ContentType.JSON)
+                .body("{\"authorizationCode\":\"" + authorizationCode + "\",\"fullName\":\"" + fullName + "\"}")
+                .when().post("/api/v1/auth/logins/apple");
     }
 
     private static Response refresh(String refreshToken) {

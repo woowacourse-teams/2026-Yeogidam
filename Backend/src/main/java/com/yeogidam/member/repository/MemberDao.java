@@ -93,7 +93,7 @@ public class MemberDao {
                 .addValue("oauth_provider", member.oauthAccount().provider().name())
                 .addValue("provider_user_id",
                         member.oauthAccount().providerUserId().getBytes(StandardCharsets.UTF_8))
-                .addValue("nickname", member.nickname())
+                .addValue("nickname", member.profile().nickname())
                 .addValue("email", member.profile().email())
                 .addValue("image_url", member.profile().imageUrl());
         Number generatedId = jdbcInsert.executeAndReturnKey(parameters);
@@ -108,7 +108,8 @@ public class MemberDao {
                     image_url = ?
                 WHERE id = ?
                 """;
-        jdbcTemplate.update(sql, member.nickname(), member.profile().email(), member.profile().imageUrl(), member.id());
+        jdbcTemplate.update(sql, member.profile().nickname(), member.profile().email(), member.profile().imageUrl(),
+                member.id());
     }
 
     public void deleteById(Long id) {

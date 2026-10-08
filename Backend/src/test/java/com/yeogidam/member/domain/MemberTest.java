@@ -18,13 +18,13 @@ class MemberTest {
         // then
         assertAll(
                 () -> assertThat(member.id()).isNull(),
-                () -> assertThat(member.nickname()).isEqualTo("빈"),
+                () -> assertThat(member.profile().nickname()).isEqualTo("빈"),
                 () -> assertThat(member.oauthAccount()).isEqualTo(kakaoAccount("kakao-1"))
         );
     }
 
     @Test
-    void 프로필을_갱신하면_계정은_그대로고_프로필만_바뀐다() {
+    void 프로필을_갱신해도_닉네임과_계정은_그대로고_이메일과_이미지만_바뀐다() {
         // given
         Member member = new Member(1L, profile("빈"), kakaoAccount("kakao-1"));
 
@@ -33,7 +33,9 @@ class MemberTest {
 
         // then
         assertAll(
-                () -> assertThat(member.nickname()).isEqualTo("새이름"),
+                () -> assertThat(member.profile().nickname()).isEqualTo("빈"),
+                () -> assertThat(member.profile().email()).isEqualTo("새이름@example.com"),
+                () -> assertThat(member.profile().imageUrl()).isEqualTo("https://img.example.com/새이름"),
                 () -> assertThat(member.oauthAccount()).isEqualTo(kakaoAccount("kakao-1"))
         );
     }
