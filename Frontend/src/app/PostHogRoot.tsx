@@ -3,6 +3,8 @@ import Config from 'react-native-config';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
 import { supabase } from '../lib/auth/supabase';
+import { getAnalyticsEnvironment } from '../analytics/analytics';
+import { getInstallationId } from '../lib/share-intent';
 
 type PostHogRootProps = {
   children: ReactNode;
@@ -40,6 +42,8 @@ function PostHogAuthIdentity({ children }: PostHogRootProps) {
 export function PostHogRoot({ children }: PostHogRootProps) {
   const projectToken = configuredValue(Config.POSTHOG_PROJECT_TOKEN);
   const host = configuredValue(Config.POSTHOG_HOST);
+  const environment = getAnalyticsEnvironment();
+  const installationId = getInstallationId();
 
   if (!projectToken || !host) {
     return <>{children}</>;
@@ -58,6 +62,14 @@ export function PostHogRoot({ children }: PostHogRootProps) {
         disableSurveys: true,
         enableSessionReplay: false,
         host,
+        before_send: event => event && ({
+          ...event,
+          properties: {
+            ...event.properties,
+            environment,
+            ...(installationId ? {installation_id: installationId} : {}),
+          },
+        }),
       }}
     >
       <PostHogAuthIdentity>{children}</PostHogAuthIdentity>

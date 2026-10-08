@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 final class ShareViewController: UIViewController {
   private var hasProcessedShare = false
+  private let shareId = UUID().uuidString
   private let statusContainerView = UIView()
   private let statusLabel = UILabel()
 
@@ -25,6 +26,7 @@ final class ShareViewController: UIViewController {
   }
 
   private func processShare() {
+    ShareAnalyticsStore.record("reel_share_received", shareId: shareId)
     // 새 공유는 현재 extensionContext의 URL만 사용합니다.
     // 과거 호환용 payload만 제거합니다. requestId별 결과는 서로 독립적으로 유지합니다.
     ShareIntentStorage.clear()
@@ -40,10 +42,14 @@ final class ShareViewController: UIViewController {
         try ShareIntentStorage.saveResult(ShareReelResult(
           requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
           status: "PENDING", transferStatus: "SAVED", reelId: nil,
-          failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000
+          failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000,
+          release: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
         ))
-        self.statusLabel.text = await self.prepareTransfer(payload)
-        self.showStatusLabel()
+        ShareAnalyticsStore.record("share_local_save_resolved", shareId: self.shareId,
+          properties: ["outcome": "saved"])
+        await self.prepareTransfer(payload)
+        self.statusLabel.text = "링크를 받았어요. 여기담 앱에서 확인해 주세요."
+        self.showStatusLabel(feedbackType: "received")
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       } catch {
@@ -53,46 +59,50 @@ final class ShareViewController: UIViewController {
         } else {
           self.statusLabel.text = "공유한 인스타그램 게시물을 확인하지 못했어요. 다시 공유해 주세요."
         }
-        self.showStatusLabel()
+        let failure = extractedPayload == nil ? "invalid_link" : "storage_failed"
+        ShareAnalyticsStore.record("share_local_save_resolved", shareId: self.shareId,
+          properties: ["outcome": failure])
+        self.showStatusLabel(feedbackType: failure == "invalid_link" ? "invalid_link" : "save_failed")
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       }
     }
   }
 
-  private func prepareTransfer(_ payload: ShareIntentPayload) async -> String {
+  private func prepareTransfer(_ payload: ShareIntentPayload) async {
     let auth = await ShareAuth.ensureAccessToken()
     guard var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == payload.id }) else {
-      return "공유를 마무리하지 못했어요. 여기담 앱에서 확인해 주세요."
+      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "queue_registration_failed")
+      return
     }
-    let receivedMessage = "\(payload.text.contains("/p/") ? "게시물이" : "릴스가") 잘 전달됐어요! 장소를 찾아볼게요."
     switch auth {
     case .ready(let token):
       do {
         try ShareBackgroundTransfer.shared.enqueue(
           requestId: payload.id, url: payload.text, rawText: payload.rawText, token: token
         )
+        return
       } catch {
-        // The link remains saved and the containing app can register the transfer later.
+        ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "queue_registration_failed", release: result.release)
+        return
       }
-      return receivedMessage
     case .loginRequired(let reason):
       result.transferStatus = "LOGIN_REQUIRED"
       result.authReason = reason
       result.retryable = false
       result.updatedAt = Date().timeIntervalSince1970 * 1000
       try? ShareIntentStorage.saveResult(result)
-      return receivedMessage
+      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "login_required", release: result.release)
     case .waitingForNetwork:
       result.transferStatus = "WAITING_FOR_NETWORK"
       result.updatedAt = Date().timeIntervalSince1970 * 1000
       try? ShareIntentStorage.saveResult(result)
-      return receivedMessage
+      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "network_unavailable", release: result.release)
     case .waitingForAuth:
       result.transferStatus = "WAITING_FOR_AUTH"
       result.updatedAt = Date().timeIntervalSince1970 * 1000
       try? ShareIntentStorage.saveResult(result)
-      return receivedMessage
+      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "auth_pending", release: result.release)
     }
   }
 
@@ -129,10 +139,12 @@ final class ShareViewController: UIViewController {
     ])
   }
 
-  private func showStatusLabel() {
+  private func showStatusLabel(feedbackType: String) {
     UIView.animate(withDuration: 0.12) {
       self.statusLabel.alpha = 1
     }
+    ShareAnalyticsStore.record("reel_share_feedback_viewed", shareId: shareId,
+      properties: ["feedback_type": feedbackType])
   }
 
   private func extractPayload() async throws -> ShareIntentPayload {
@@ -152,7 +164,8 @@ final class ShareViewController: UIViewController {
           return ShareIntentStorage.makePayload(
             text: urlString,
             subject: subject,
-            mimeType: UTType.url.identifier
+            mimeType: UTType.url.identifier,
+            id: shareId
           )
         }
       }
@@ -162,7 +175,8 @@ final class ShareViewController: UIViewController {
           let payload = ShareIntentStorage.makePayload(
             text: sharedText,
             subject: subject,
-            mimeType: UTType.plainText.identifier
+            mimeType: UTType.plainText.identifier,
+            id: shareId
           )
           if ShareIntentStorage.isInstagramContentURL(payload.text) {
             return payload
@@ -178,7 +192,8 @@ final class ShareViewController: UIViewController {
         let payload = ShareIntentStorage.makePayload(
           text: additionalText,
           subject: subject,
-          mimeType: UTType.plainText.identifier
+          mimeType: UTType.plainText.identifier,
+          id: shareId
         )
         if ShareIntentStorage.isInstagramContentURL(payload.text) {
           return payload

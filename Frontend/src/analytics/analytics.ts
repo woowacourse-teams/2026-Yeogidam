@@ -25,11 +25,15 @@ export type CommonAnalyticsProperties = {
 };
 
 /** 모든 이벤트에 공통으로 포함할 속성입니다. */
+export function getAnalyticsEnvironment() {
+  return Config.APP_ENV?.trim() || 'development';
+}
+
 export function getCommonAnalyticsProperties(): CommonAnalyticsProperties {
   return {
     platform: Platform.OS === 'ios' ? 'ios' : 'android',
     release: DeviceInfo.getVersion(),
-    environment: Config.APP_ENV?.trim() || 'development',
+    environment: getAnalyticsEnvironment(),
   };
 }
 

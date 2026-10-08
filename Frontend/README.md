@@ -7,11 +7,17 @@ Create `Frontend/.env` and add the environment variables required by the app.
 ```dotenv
 POSTHOG_PROJECT_TOKEN=<PostHog project token>
 POSTHOG_HOST=<PostHog ingestion host>
+APP_ENV=development
 ```
 
-PostHog is disabled when either value is missing. The current integration only
-captures app lifecycle events used to measure DAU and MAU. Screen and touch
-autocapture, surveys, and session replay are disabled.
+PostHog is disabled when either value is missing. The app collects lifecycle,
+entry, and login events; the native share flow and history screen record the
+events in [the share experience contract](docs/POSTHOG_SHARE_EXPERIENCE_PLAN.md). Screen
+and touch autocapture, surveys, and session replay are disabled.
+The Android share component and iOS Share Extension use PostHog values included
+in their build so share events can be sent before the containing app opens.
+Set `APP_ENV` for each build to label both app and share events. Internal store distribution uses the production environment, so its builds use `production`.
+App and share events also include an `installation_id` generated for that app installation. It can be used to exclude an internal tester's events before login. After login, PostHog uses the account's user ID as `distinct_id`. Reinstalling the app creates a new installation ID.
 
 # Getting Started
 

@@ -55,6 +55,7 @@
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = Frontend/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		19FBFE7B302C5D8E00049FC4 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		19FBFE7C302C5D9800049FC4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ShareExtension.xcconfig; sourceTree = "<group>"; };
 		19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KakaoMapContainerView.swift; sourceTree = "<group>"; };
 		19FBFE7E302C722200049FC4 /* RCTKakaoMapView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RCTKakaoMapView.h; sourceTree = "<group>"; };
 		19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RCTKakaoMapView.mm; sourceTree = "<group>"; };
@@ -158,6 +159,7 @@
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
 				19FBFE7B302C5D8E00049FC4 /* Debug.xcconfig */,
 				19FBFE7C302C5D9800049FC4 /* Release.xcconfig */,
+				934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */,
 				AB471D19E93EEE1EA06B71D1 /* Shared */,
 				0FCEC6FE205E0D07D1A9A89A /* ShareExtension */,
 			);
@@ -488,6 +490,7 @@
 		};
 		3AAB5092E2FFEC36B82BE3DE /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
@@ -515,6 +518,7 @@
 		};
 		59722665D33F5A81A5532F32 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;

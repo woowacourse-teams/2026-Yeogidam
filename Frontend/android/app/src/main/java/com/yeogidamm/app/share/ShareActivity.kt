@@ -11,6 +11,8 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.yeogidamm.app.BuildConfig
+import org.json.JSONObject
 import java.util.UUID
 
 class ShareActivity : AppCompatActivity() {
@@ -55,15 +57,21 @@ class ShareActivity : AppCompatActivity() {
     }
 
     private fun processShare(intent: Intent?) {
+        val requestId = UUID.randomUUID().toString()
+        ShareAnalyticsStore.record(this, "reel_share_received", requestId)
         val rawText = intent?.sharedText()
         val normalizedUrl = rawText?.let(::extractInstagramUrl)
         if (normalizedUrl == null) {
-            showResultAndFinish("공유한 인스타그램 게시물을 확인하지 못했어요. 다시 공유해 주세요.")
+            ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
+                JSONObject().put("outcome", "invalid_link"))
+            showResultAndFinish(
+                "공유한 인스타그램 게시물을 확인하지 못했어요. 다시 공유해 주세요.",
+                requestId, "invalid_link",
+            )
             return
         }
 
         val isPost = normalizedUrl.contains("/p/")
-        val requestId = UUID.randomUUID().toString()
         val saved = ShareResultStore.saveResult(
             this,
             ShareReelResult(
@@ -72,12 +80,20 @@ class ShareActivity : AppCompatActivity() {
                 rawSharedText = rawText,
                 status = "PENDING",
                 retryable = true,
+                release = BuildConfig.VERSION_NAME,
             ),
         )
         if (!saved) {
-            showResultAndFinish("${if (isPost) "게시물을" else "릴스를"} 전달하지 못했어요. 다시 공유해 주세요.")
+            ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
+                JSONObject().put("outcome", "storage_failed"))
+            showResultAndFinish(
+                "${if (isPost) "게시물을" else "릴스를"} 전달하지 못했어요. 다시 공유해 주세요.",
+                requestId, "save_failed",
+            )
             return
         }
+        ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
+            JSONObject().put("outcome", "saved"))
 
         Thread {
             val auth = ShareAuth.ensureAccessToken(this)
@@ -99,17 +115,36 @@ class ShareActivity : AppCompatActivity() {
                     retryable = auth !is ShareAuthResult.LoginRequired,
                 ),
             )
-            if (updated && auth !is ShareAuthResult.LoginRequired) {
+            val queued = updated && auth !is ShareAuthResult.LoginRequired &&
                 runCatching { ShareSaveWorker.enqueue(this, requestId, normalizedUrl, rawText) }
+                    .getOrDefault(false)
+            if (auth is ShareAuthResult.WaitingForNetwork) {
+                ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", "network_unavailable")
+            } else if (auth is ShareAuthResult.WaitingForAuth) {
+                ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", "auth_pending")
+            }
+            if (!queued) {
+                val reason = when {
+                    !updated -> "queue_registration_failed"
+                    auth is ShareAuthResult.LoginRequired -> "login_required"
+                    else -> "queue_registration_failed"
+                }
+                ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", reason)
             }
             runOnUiThread {
-                showResultAndFinish("${if (isPost) "게시물이" else "릴스가"} 잘 전달됐어요! 장소를 찾아볼게요.")
+                showResultAndFinish("링크를 받았어요. 여기담 앱에서 확인해 주세요.", requestId, "received")
             }
         }.start()
     }
 
-    private fun showResultAndFinish(message: String) {
+    private fun showResultAndFinish(
+        message: String, requestId: String, feedbackType: String,
+    ) {
         statusLabel.text = message
+        ShareAnalyticsStore.record(
+            this, "reel_share_feedback_viewed", requestId,
+            JSONObject().put("feedback_type", feedbackType),
+        )
         statusLabel.postDelayed({ finish() }, 2_000L)
     }
 }

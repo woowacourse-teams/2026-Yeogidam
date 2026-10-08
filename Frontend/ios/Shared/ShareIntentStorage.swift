@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import Darwin
 
 enum ShareIntentConstants {
   static let appGroupIdentifier = "group.com.yeogidamm.app.shared"
@@ -36,6 +37,7 @@ struct ShareReelResult: Codable {
   var queuedAt: Double? = nil
   var apiAcceptedAt: Double? = nil
   var transferFinishedAt: Double? = nil
+  var release: String? = nil
 }
 
 struct ShareAuthSession: Codable {
@@ -221,6 +223,7 @@ enum ShareIntentStorage {
       ?? (result.transferStatus == "API_SUCCEEDED" ? result.updatedAt : nil)
     stored.transferFinishedAt = previous?.transferFinishedAt ?? result.transferFinishedAt
       ?? (["API_SUCCEEDED", "API_FAILED"].contains(result.transferStatus ?? "") ? result.updatedAt : nil)
+    stored.release = previous?.release ?? result.release
     let encoded = try JSONEncoder().encode(stored)
     defaults.set(encoded, forKey: storageKey)
     defaults.synchronize()
@@ -287,7 +290,7 @@ enum ShareIntentStorage {
     defaults.synchronize()
   }
 
-  static func makePayload(text: String, subject: String?, mimeType: String) -> ShareIntentPayload {
+  static func makePayload(text: String, subject: String?, mimeType: String, id: String) -> ShareIntentPayload {
     let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
     let extractedText = firstURLString(in: trimmedText) ?? trimmedText
 
@@ -297,7 +300,8 @@ enum ShareIntentStorage {
       text: normalizeInstagramURL(extractedText),
       rawText: trimmedText,
       subject: subject,
-      kind: inferKind(from: extractedText)
+      kind: inferKind(from: extractedText),
+      id: id
     )
   }
 
@@ -410,6 +414,288 @@ enum ShareIntentStorage {
     }
 
     return match.url == nil ? "text" : "url"
+  }
+}
+
+enum ShareAnalyticsInstallationIdentity {
+  static func id() -> String? {
+    guard let directory = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: ShareIntentConstants.appGroupIdentifier
+    ) else { return nil }
+
+    let lockURL = directory.appendingPathComponent("posthog_installation_id.lock")
+    let descriptor = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
+    guard descriptor >= 0 else { return nil }
+    defer { close(descriptor) }
+    guard flock(descriptor, LOCK_EX) == 0 else { return nil }
+    defer { flock(descriptor, LOCK_UN) }
+
+    let fileURL = directory.appendingPathComponent("posthog_installation_id")
+    if let stored = try? String(contentsOf: fileURL, encoding: .utf8) {
+      let normalized = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+      if UUID(uuidString: normalized) != nil { return normalized }
+    }
+
+    let created = UUID().uuidString.lowercased()
+    do {
+      try created.write(to: fileURL, atomically: true, encoding: .utf8)
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      var mutableURL = fileURL
+      try mutableURL.setResourceValues(values)
+      return created
+    } catch {
+      try? FileManager.default.removeItem(at: fileURL)
+      return nil
+    }
+  }
+}
+
+enum ShareAnalyticsStore {
+  private static let prefix = "share_analytics_event."
+  private static let seenPrefix = "share_analytics_seen."
+  private static let identityPrefix = "share_analytics_identity."
+  private static let statusPrefix = "share_analytics_delivery_status."
+  private static let statusSequencePrefix = "share_analytics_delivery_sequence."
+  private static let tokenKey = "posthog_project_token"
+  private static let hostKey = "posthog_host"
+  private static let allowedProperties: [String: Set<String>] = [
+    "reel_share_received": [],
+    "reel_share_feedback_viewed": ["feedback_type"],
+    "share_local_save_resolved": ["outcome"],
+    "share_delivery_status_changed": ["delivery_status", "reason"],
+    "extraction_request_started": [],
+    "extraction_request_finished": ["outcome", "response_status", "failure_type", "content_id"],
+  ]
+
+  private static func eventEnvironment() -> String {
+    let value = (Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.flatMap { !$0.isEmpty && !$0.contains("$(") ? $0 : nil } ?? "development"
+  }
+
+  static func setConfiguration(projectToken: String, host: String) {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return }
+    let normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    let token = projectToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    let previous = configuration()
+    let valid = !token.isEmpty && validHost(normalizedHost)
+    defaults.set(valid ? token : "", forKey: tokenKey)
+    defaults.set(valid ? normalizedHost : "", forKey: hostKey)
+    defaults.synchronize()
+    if valid && (previous?.token != token || previous?.host != normalizedHost) {
+      ShareAnalyticsTransfer.shared.enqueuePending()
+    }
+  }
+
+  static func configuration() -> (token: String, host: String)? {
+    let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier)
+    defaults?.synchronize()
+    if let token = defaults?.string(forKey: tokenKey), !token.isEmpty,
+       let host = defaults?.string(forKey: hostKey), validHost(host) {
+      return (token, host)
+    }
+    guard let token = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_PROJECT_TOKEN") as? String,
+          !token.isEmpty, !token.contains("$("),
+          let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String,
+          validHost(host) else { return nil }
+    return (token, host)
+  }
+
+  private static func validHost(_ host: String) -> Bool {
+    guard let parts = URLComponents(string: host) else { return false }
+    return parts.scheme == "https" && parts.host != nil && parts.user == nil &&
+      parts.password == nil && (parts.path.isEmpty || parts.path == "/") &&
+      parts.query == nil && parts.fragment == nil
+  }
+
+  @discardableResult
+  static func record(_ name: String, shareId: String, properties: [String: Any] = [:], occurredAt: Double = Date().timeIntervalSince1970 * 1000, release: String? = nil, eventKey: String? = nil) -> Bool {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return false }
+    defaults.synchronize()
+    let id = eventKey ?? "\(name).\(shareId)"
+    let key = "\(prefix)\(id)"
+    let identityKey = "\(identityPrefix)\(shareId)"
+    if defaults.data(forKey: key) != nil || defaults.bool(forKey: "\(seenPrefix)\(id)") { return true }
+    var safeProperties = properties
+    safeProperties["platform"] = "ios"
+    safeProperties["release"] = release ?? Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+    safeProperties["environment"] = eventEnvironment()
+    if let installationId = ShareAnalyticsInstallationIdentity.id() {
+      safeProperties["installation_id"] = installationId
+    }
+    let storedUserId = (try? ShareIntentStorage.loadSession())?.userId
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let distinctId = defaults.string(forKey: identityKey).flatMap { $0.isEmpty ? nil : $0 }
+      ?? storedUserId.flatMap { $0.isEmpty ? nil : $0 }
+      ?? shareId
+    let event: [String: Any] = [
+      "id": id, "uuid": UUID().uuidString.lowercased(), "name": name, "share_id": shareId,
+      "distinct_id": distinctId, "occurred_at": occurredAt, "properties": safeProperties,
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: event) else { return false }
+    defaults.set(data, forKey: key)
+    defaults.set(true, forKey: "\(seenPrefix)\(id)")
+    defaults.set(distinctId, forKey: identityKey)
+    defaults.synchronize()
+    let saved = defaults.data(forKey: key) == data
+    if saved { ShareAnalyticsTransfer.shared.enqueue(event: event) }
+    return saved
+  }
+
+  @discardableResult
+  static func recordDeliveryStatus(_ shareId: String, status: String, reason: String? = nil, release: String? = nil) -> Bool {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return false }
+    defaults.synchronize()
+    let state = "\(status).\(reason ?? "")"
+    if defaults.string(forKey: "\(statusPrefix)\(shareId)") == state { return true }
+    let sequence = defaults.integer(forKey: "\(statusSequencePrefix)\(shareId)") + 1
+    var properties: [String: Any] = ["delivery_status": status]
+    if let reason { properties["reason"] = reason }
+    let saved = record("share_delivery_status_changed", shareId: shareId, properties: properties,
+      release: release, eventKey: "share_delivery_status_changed.\(shareId).\(sequence)")
+    if saved {
+      defaults.set(state, forKey: "\(statusPrefix)\(shareId)")
+      defaults.set(sequence, forKey: "\(statusSequencePrefix)\(shareId)")
+      defaults.synchronize()
+    }
+    return saved
+  }
+
+  static func pending() -> [[String: Any]] {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return [] }
+    defaults.synchronize()
+    return defaults.dictionaryRepresentation().compactMap { key, value in
+      guard key.hasPrefix(prefix), let data = value as? Data else { return nil }
+      return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }.sorted {
+      ($0["occurred_at"] as? Double ?? 0) < ($1["occurred_at"] as? Double ?? 0)
+    }
+  }
+
+  static func acknowledge(_ id: String) {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return }
+    defaults.removeObject(forKey: "\(prefix)\(id)")
+    defaults.synchronize()
+  }
+
+  static func captureBody(event: [String: Any], projectToken: String) -> Data? {
+    guard let name = event["name"] as? String,
+          let allowed = allowedProperties[name],
+          let shareId = event["share_id"] as? String, !shareId.isEmpty,
+          let occurredAt = event["occurred_at"] as? Double, occurredAt > 0 else { return nil }
+    let storedDistinctId = (event["distinct_id"] as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let distinctId = storedDistinctId.flatMap { $0.isEmpty ? nil : $0 } ?? shareId
+    let source = event["properties"] as? [String: Any] ?? [:]
+    var properties: [String: Any] = [:]
+    for key in allowed.union(["platform", "release", "environment", "installation_id"]) {
+      properties[key] = source[key]
+    }
+    if let recordedEnvironment = (properties["environment"] as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines), !recordedEnvironment.isEmpty {
+      properties["environment"] = recordedEnvironment
+    } else {
+      properties["environment"] = eventEnvironment()
+    }
+    properties["share_id"] = shareId
+    if distinctId == shareId { properties["$process_person_profile"] = false }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    var body: [String: Any] = [
+      "api_key": projectToken, "event": name, "distinct_id": distinctId,
+      "timestamp": formatter.string(from: Date(timeIntervalSince1970: occurredAt / 1000)),
+      "properties": properties,
+    ]
+    if let uuid = event["uuid"] as? String, !uuid.isEmpty { body["uuid"] = uuid }
+    return try? JSONSerialization.data(withJSONObject: body)
+  }
+}
+
+/** Background uploads from the share extension and containing app use separate sessions. */
+final class ShareAnalyticsTransfer: NSObject, URLSessionTaskDelegate {
+  static let shared = ShareAnalyticsTransfer()
+  static let extensionIdentifier = "com.yeogidamm.app.share-analytics-extension"
+  static let appIdentifier = "com.yeogidamm.app.share-analytics-app"
+  private var sessions: [String: URLSession] = [:]
+  private let sessionLock = NSLock()
+  private var eventsCompletion: [String: () -> Void] = [:]
+
+  private var ownIdentifier: String {
+    Bundle.main.bundleURL.pathExtension == "appex" ? Self.extensionIdentifier : Self.appIdentifier
+  }
+
+  private var uploadDirectory: URL? {
+    FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: ShareIntentConstants.appGroupIdentifier)?
+      .appendingPathComponent("share-analytics-uploads", isDirectory: true)
+  }
+
+  private func session(for identifier: String) -> URLSession {
+    sessionLock.lock()
+    defer { sessionLock.unlock() }
+    if let existing = sessions[identifier] { return existing }
+    let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
+    configuration.sharedContainerIdentifier = ShareIntentConstants.appGroupIdentifier
+    configuration.sessionSendsLaunchEvents = true
+    let created = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    sessions[identifier] = created
+    return created
+  }
+
+  func enqueue(event: [String: Any]) {
+    guard let config = ShareAnalyticsStore.configuration(),
+          let endpoint = URL(string: "\(config.host)/i/v0/e/"),
+          let data = ShareAnalyticsStore.captureBody(event: event, projectToken: config.token),
+          let id = event["id"] as? String,
+          let directory = uploadDirectory else { return }
+    var bodyFile: URL?
+    do {
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let filename = "\(UUID().uuidString).json"
+      let file = directory.appendingPathComponent(filename)
+      bodyFile = file
+      try data.write(to: file, options: .atomic)
+      var request = URLRequest(url: endpoint)
+      request.httpMethod = "POST"
+      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      let task = session(for: ownIdentifier).uploadTask(with: request, fromFile: file)
+      task.taskDescription = "\(id)|\(filename)"
+      task.resume()
+    } catch {
+      if let bodyFile { try? FileManager.default.removeItem(at: bodyFile) }
+      // The event remains in the app group outbox for the next app launch.
+    }
+  }
+
+  func enqueuePending() {
+    for event in ShareAnalyticsStore.pending() { enqueue(event: event) }
+  }
+
+  func handleEvents(identifier: String, completion: @escaping () -> Void) {
+    eventsCompletion[identifier] = completion
+    _ = session(for: identifier)
+  }
+
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    guard let description = task.taskDescription,
+          let separator = description.firstIndex(of: "|") else { return }
+    let id = String(description[..<separator])
+    let filename = String(description[description.index(after: separator)...])
+    if error == nil, let response = task.response as? HTTPURLResponse,
+       (200..<300).contains(response.statusCode) {
+      ShareAnalyticsStore.acknowledge(id)
+    }
+    if let directory = uploadDirectory {
+      try? FileManager.default.removeItem(at: directory.appendingPathComponent(filename))
+    }
+  }
+
+  func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    guard let identifier = session.configuration.identifier else { return }
+    DispatchQueue.main.async {
+      self.eventsCompletion.removeValue(forKey: identifier)?()
+    }
   }
 }
 
@@ -527,6 +813,7 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
         status: "PENDING", transferStatus: "QUEUED", reelId: nil,
         failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000
       ))
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "queued")
       task.resume()
     } catch {
       task.cancel()
@@ -551,15 +838,22 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
       )
       switch auth {
       case .ready(let token):
-        try? enqueue(requestId: requestId, url: result.url, rawText: result.rawSharedText, token: token)
+        do {
+          try enqueue(requestId: requestId, url: result.url, rawText: result.rawSharedText, token: token)
+        } catch {
+          ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "queue_registration_failed", release: result.release)
+        }
       case .loginRequired(let reason):
         var updated = result
         updated.transferStatus = "LOGIN_REQUIRED"
         updated.authReason = reason
         updated.updatedAt = Date().timeIntervalSince1970 * 1000
         try? ShareIntentStorage.saveResult(updated)
-      case .waitingForNetwork, .waitingForAuth:
-        break
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "login_required", release: result.release)
+      case .waitingForNetwork:
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "network_unavailable", release: result.release)
+      case .waitingForAuth:
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "auth_pending", release: result.release)
       }
     }
   }
@@ -574,6 +868,10 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     result.transferStatus = "REQUESTING"
     result.updatedAt = result.requestSentAt ?? result.updatedAt
     try? ShareIntentStorage.saveResult(result)
+    ShareAnalyticsStore.record(
+      "extraction_request_started", shareId: requestId,
+      occurredAt: result.requestSentAt ?? result.updatedAt, release: result.release
+    )
   }
 
   func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -589,16 +887,25 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     }
     guard let requestId = task.taskDescription,
           var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == requestId }) else { return }
+    if result.requestSentAt == nil && task.response is HTTPURLResponse {
+      ShareAnalyticsStore.record("extraction_request_started", shareId: requestId, release: result.release)
+    }
     result.updatedAt = Date().timeIntervalSince1970 * 1000
+    var analyticsOutcome: String?
+    var analyticsProperties: [String: Any] = [:]
     if let error {
       result.status = "FAILED"
       result.transferStatus = "API_FAILED"
       result.failureReason = "CLIENT000_002 | \((error as NSError).code)"
       result.retryable = true
+      analyticsOutcome = "request_failed"
+      analyticsProperties["failure_type"] = (error as NSError).code == NSURLErrorTimedOut ? "timeout" : "network_error"
     } else if let http = task.response as? HTTPURLResponse {
       let json = (try? JSONSerialization.jsonObject(with: responseData[task.taskIdentifier] ?? Data())) as? [String: Any] ?? [:]
       let nested = json["error"] as? [String: Any] ?? [:]
       if (200..<300).contains(http.statusCode) {
+        analyticsOutcome = "response_received"
+        analyticsProperties["response_status"] = http.statusCode
         result.status = json["status"] as? String ?? "FAILED"
         result.transferStatus = "API_SUCCEEDED"
         result.reelId = json["reelId"] as? String
@@ -611,15 +918,36 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
         result.status = "FAILED"
         result.transferStatus = code == "AUTH401_002" ? "WAITING_FOR_AUTH" : "API_FAILED"
         result.failureReason = code
+        result.reelId = json["reelId"] as? String ?? nested["reelId"] as? String
         result.retryable = json["retryable"] as? Bool ?? (http.statusCode >= 500)
+        if result.transferStatus == "API_FAILED" {
+          analyticsOutcome = "request_failed"
+          analyticsProperties["response_status"] = http.statusCode
+          analyticsProperties["failure_type"] = [401, 403].contains(http.statusCode) ? "auth_failed" :
+            [408, 504].contains(http.statusCode) ? "timeout" :
+            http.statusCode >= 500 ? "server_error" : "invalid_request"
+        }
       }
     } else {
       result.status = "FAILED"
       result.transferStatus = "API_FAILED"
       result.failureReason = "CLIENT000_003"
       result.retryable = true
+      analyticsOutcome = "request_failed"
+      analyticsProperties["failure_type"] = "network_error"
     }
     try? ShareIntentStorage.saveResult(result)
+    if result.transferStatus == "WAITING_FOR_AUTH" {
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "auth_pending", release: result.release)
+    }
+    if let analyticsOutcome {
+      analyticsProperties["outcome"] = analyticsOutcome
+      if let contentId = result.reelId { analyticsProperties["content_id"] = contentId }
+      ShareAnalyticsStore.record(
+        "extraction_request_finished", shareId: requestId,
+        properties: analyticsProperties, release: result.release
+      )
+    }
   }
 
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {

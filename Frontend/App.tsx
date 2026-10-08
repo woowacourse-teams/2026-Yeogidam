@@ -26,6 +26,7 @@ import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
+import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy } from './src/lib/app-update-policy';
 import {
   trackAppOpened,
@@ -57,6 +58,7 @@ import {
   getShareSession,
   reconcileShareSession,
   resumeWaitingShares,
+  syncShareAnalyticsConfiguration,
   syncShareSession,
 } from './src/lib/share-intent';
 import type {
@@ -120,6 +122,23 @@ configureDataSources();
 
 function App() {
   const posthog = usePostHog();
+
+  useEffect(() => {
+    syncShareAnalyticsConfiguration().catch(() => undefined);
+    flushShareAnalytics().catch(() => undefined);
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        flushShareAnalytics().catch(() => undefined);
+      }
+    }, 30_000);
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') flushShareAnalytics().catch(() => undefined);
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);

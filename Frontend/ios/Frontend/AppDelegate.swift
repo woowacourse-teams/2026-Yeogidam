@@ -72,11 +72,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     handleEventsForBackgroundURLSession identifier: String,
     completionHandler: @escaping () -> Void
   ) {
-    guard identifier == ShareBackgroundTransfer.identifier else {
+    switch identifier {
+    case ShareBackgroundTransfer.identifier:
+      ShareBackgroundTransfer.shared.handleEvents(completion: completionHandler)
+    case ShareAnalyticsTransfer.extensionIdentifier, ShareAnalyticsTransfer.appIdentifier:
+      ShareAnalyticsTransfer.shared.handleEvents(identifier: identifier, completion: completionHandler)
+    default:
       completionHandler()
-      return
     }
-    ShareBackgroundTransfer.shared.handleEvents(completion: completionHandler)
   }
 
   private func handleShareExtensionURL(_ url: URL) -> Bool {

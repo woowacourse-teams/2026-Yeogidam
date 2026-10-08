@@ -23,6 +23,7 @@ internal data class ShareReelResult(
     val queuedAt: Long? = null,
     val apiAcceptedAt: Long? = null,
     val transferFinishedAt: Long? = null,
+    val release: String? = null,
 ) {
     fun toJson(): JSONObject =
         JSONObject().apply {
@@ -43,6 +44,7 @@ internal data class ShareReelResult(
             put("queuedAt", queuedAt ?: JSONObject.NULL)
             put("apiAcceptedAt", apiAcceptedAt ?: JSONObject.NULL)
             put("transferFinishedAt", transferFinishedAt ?: JSONObject.NULL)
+            put("release", release ?: JSONObject.NULL)
         }
 
     fun toWritableMap(): WritableMap =
@@ -88,6 +90,7 @@ internal data class ShareReelResult(
                     queuedAt = json.optLongOrNull("queuedAt"),
                     apiAcceptedAt = json.optLongOrNull("apiAcceptedAt"),
                     transferFinishedAt = json.optLongOrNull("transferFinishedAt"),
+                    release = json.optStringOrNull("release"),
                 )
             }.getOrNull()
     }
@@ -111,6 +114,7 @@ internal object ShareResultStore {
                 ?: if (result.transferStatus == "API_SUCCEEDED") result.updatedAt else null,
             transferFinishedAt = previous?.transferFinishedAt ?: result.transferFinishedAt
                 ?: if (result.transferStatus in setOf("API_SUCCEEDED", "API_FAILED")) result.updatedAt else null,
+            release = previous?.release ?: result.release,
         )
         return preferences(context).edit()
             .putString("$RESULT_KEY_PREFIX${result.requestId}", stored.toJson().toString())
