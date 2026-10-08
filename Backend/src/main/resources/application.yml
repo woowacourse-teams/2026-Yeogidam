@@ -45,6 +45,10 @@ jwt:
   access-token-ttl: 30m
   refresh-token-ttl: 30d
 
+# 온보딩에 쓰는 릴스. dev와 prod의 시드 데이터에 SEEDED, SUCCEEDED 미디어로 들어 있어야 하고 바꿀 때는 커밋과 배포로 반영한다.
+onboarding:
+  instagram-url: https://www.instagram.com/p/Db4gRWqkuUg/
+
 media:
   extraction:
     pipeline-version: 1

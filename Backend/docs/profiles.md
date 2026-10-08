@@ -10,7 +10,8 @@
 | DB | 로컬 MySQL(`.env`) | Testcontainers MySQL 8.4 | `yeogidam-dev-db`의 Docker MySQL 8.4 | RDS MySQL 8.4 `yeogidam-prod-db` (2026-10-02) |
 | 앱 업데이트 정책(`app-update.*`) | `application.yml` 값(최소 1.1.0, 최신 1.1.0) | `application-test.yml`(E2E용 구간) | 공통값 | 공통값 |
 | `schema.sql` 실행 | 기동마다 (DROP 뒤 CREATE) | 컨텍스트마다 | 안 함 | 안 함 |
-| 로컬 실행용 데이터 (`data-local.sql`) | 넣음 | 안 넣음 | 안 넣음 | 안 넣음 |
+| 로컬 시나리오 데이터 (`data-local.sql`) | 자동 실행 | 안 함 | 안 함 | 안 함 |
+| 온보딩 시드 (`data-onboarding.sql`) | 자동 실행 | 안 함 | 수동 적용 | 수동 적용 |
 | OAuth | 실제 키 | Fake | 실제 키 | 실제 키 |
 | Swagger | 켬 (springdoc 기본값) | 켬 (기본값) | 켬 (기본값) | 끔 (`springdoc.*.enabled: false`) |
 | 로그 형식 | 텍스트 (기본값) | 텍스트 (기본값) | JSON (`logging.structured.format.console: logstash`) | JSON (dev와 같음) |
@@ -26,11 +27,12 @@
 
 env는 노션 페이지를 참고한다.
 
-### 2.2 로컬 실행용 데이터 (`data-local.sql`)
+### 2.2 로컬 실행용 데이터
 
-기동마다 `schema.sql`이 테이블을 새로 만든 뒤 `data-local.sql`이 들어간다. 재시작하면 항상 같은 상태다.
+기동마다 `schema.sql`이 테이블을 새로 만든 뒤 `data-local.sql`, `data-onboarding.sql` 순서로 데이터가 들어간다. 재시작하면 항상 같은 상태다.
 
 - `data-local.sql`: 장소 8개, 릴스 7개, 공유 9건, 보관함 5행, 제보 1건. 정콩(회원 1)과 러키(회원 2) 시나리오이고 파일 머리 주석에 적혀 있다.
+- `data-onboarding.sql`: 군자역 디저트 캐러셀의 게시물 1개, 장소 5개, 게시물-장소 연결 5개다. 로컬에서는 자동 실행되고, 개발·운영 DB에는 같은 파일을 직접 적용한다. `media_shortcode`, `kakao_place_id`를 기준으로 upsert해 재적용해도 중복되지 않는다.
 - 회원 행은 `LocalMemberSeeder`가 넣는다. `.env`의 `SEED_KAKAO_USER_ID_BEAN`이 회원 1, `SEED_KAKAO_USER_ID_LUCKY`가 회원 2다.
 - 카카오 회원 번호를 환경변수로 관리하기 위해 `LocalMemberSeeder` 클래스를 생성했다. SQL 파일은 환경변수를 못 읽어서 회원만 자바로 뺐다.
 
