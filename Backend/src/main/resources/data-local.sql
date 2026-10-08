@@ -10,6 +10,7 @@
 --   정콩(1): 릴스 5개를 6회 공유. 같은 릴스를 다시 공유한 이력과 추출 실패·진행 중 상태가 있다.
 --   러키(2): 릴스 3개를 공유했고, 정콩과 같은 릴스(10)도 공유했다.
 --   보관함: 정콩 카페 온월, 윤숲 후르츠산도 / 러키 카페 온월, 성수 베이커리, 망원한강공원
+--   추출은 성공했는데 보관함에 없는 장소(정콩의 경복궁, 성수 베이커리, 을지로 노가리골목 / 러키의 윤숲 후르츠산도, 광장시장, 북촌 한옥마을)는 자동 저장 뒤 보관함에서 지운 것으로 본다.
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -84,23 +85,6 @@ VALUES (100, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-10 10:
        (200, 2, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-11 11:00:00', 'SUCCEEDED', NULL, 1),
        (201, 2, 14, 'https://www.instagram.com/reel/C5mangwon/', '2026-09-14 11:00:00', 'SUCCEEDED', NULL, 1),
        (202, 2, 15, 'https://www.instagram.com/reel/C6bukchon/', '2026-09-15 11:00:00', 'SUCCEEDED', NULL, 1);
-
--- 미사용 레거시 테이블 데이터 (스키마 정리 전까지 유지)
-INSERT INTO place_candidates (id, shared_media_id, place_id, decision_status, decided_at)
-VALUES (1000, 100, 1, 'SUPERSEDED', NULL),
-       (1001, 100, 2, 'SUPERSEDED', NULL),
-       (1002, 100, 4, 'SUPERSEDED', NULL),
-       (1003, 101, 3, 'DISCARDED', '2026-09-11 12:00:00'),
-       (1004, 102, 1, 'SAVED', '2026-09-12 12:00:00'),
-       (1005, 102, 2, 'SAVED', '2026-09-12 12:00:00'),
-       (1006, 102, 4, 'UNDECIDED', NULL),
-       (1007, 103, 5, 'UNDECIDED', NULL),
-       (2000, 200, 1, 'SAVED', '2026-09-11 13:00:00'),
-       (2001, 200, 2, 'DISCARDED', '2026-09-11 13:00:00'),
-       (2002, 200, 4, 'SAVED', '2026-09-11 13:00:00'),
-       (2003, 201, 6, 'SAVED', '2026-09-14 13:00:00'),
-       (2004, 201, 7, 'DISCARDED', '2026-09-14 13:00:00'),
-       (2005, 202, 8, 'UNDECIDED', NULL);
 
 -- 회원별 보관함
 INSERT INTO saved_places (id, member_id, place_id, last_saved_at)

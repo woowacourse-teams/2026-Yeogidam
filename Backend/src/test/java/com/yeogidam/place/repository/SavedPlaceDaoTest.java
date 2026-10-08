@@ -1,9 +1,8 @@
 package com.yeogidam.place.repository;
 
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSavedCandidate;
-import static com.yeogidam.support.fixture.sql.PlaceCandidateSqlFixture.insertSupersededCandidate;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
@@ -337,8 +336,8 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 보관함에서_삭제해도_공유_이력과_공유_건마다의_결정_기록과_장소는_남는다() {
-        // given: 회원 1이 릴스 10을 두 번 공유했고(100, 102) 첫 공유의 윤숲 후보는 재공유로 SUPERSEDED, 온월은 두 번 다 SAVED
+    void 보관함에서_삭제해도_공유_이력과_추출_결과와_장소는_남는다() {
+        // given: 회원 1이 릴스 10을 두 번 공유했고(100, 102), 온월(장소 1)을 두 공유에서 저장했다
         insertMember(1L, "user-1");
         insertMember(2L, "user-2");
         insertThreePlaces();
@@ -347,18 +346,16 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
         insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
         insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-10T10:00:00Z"));
         insertSharedMedia(jdbcTemplate, 102L, 1L, 10L, "https://www.instagram.com/reel/C1seongsu/", Instant.parse("2026-09-12T10:00:00Z"));
-        insertSavedCandidate(jdbcTemplate, 1000L, 100L, 1L, Instant.parse("2026-09-10T12:00:00Z"));
-        insertSupersededCandidate(jdbcTemplate, 1001L, 100L, 2L);
-        insertSavedCandidate(jdbcTemplate, 1003L, 102L, 1L, Instant.parse("2026-09-12T12:00:00Z"));
+        insertMediaPlace(jdbcTemplate, 1L, 10L, 1L);
         insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
         insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
 
         // when
         savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L));
 
-        // then: shared_media, place_candidates, places와 다른 회원의 보관함은 그대로다
+        // then: shared_media, media_places, places와 다른 회원의 보관함은 그대로다
         assertAll(
-                () -> assertThat(count("place_candidates WHERE place_id = 1")).isEqualTo(2),
+                () -> assertThat(count("media_places WHERE media_id = 10 AND place_id = 1")).isEqualTo(1),
                 () -> assertThat(count("shared_media WHERE member_id = 1")).isEqualTo(2),
                 () -> assertThat(count("places WHERE id = 1")).isEqualTo(1),
                 () -> assertThat(count("saved_places WHERE member_id = 2 AND place_id = 1")).isEqualTo(1)
