@@ -629,7 +629,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       for selected in [false, true] {
         let iconStyle = PoiIconStyle(
           symbol: makeSavedPlaceMarker(selected: selected),
-          anchorPoint: CGPoint(x: 0.5, y: 0.5)
+          anchorPoint: CGPoint(x: 0.5, y: 1.0)
         )
         labelManager.addPoiStyle(
           PoiStyle(
@@ -720,34 +720,51 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func makeCurrentLocationMarker() -> UIImage {
-    let size = CGSize(width: 28, height: 28)
+    let size = CGSize(width: 40, height: 40)
+    let center = CGPoint(x: size.width / 2, y: size.height / 2)
 
     return UIGraphicsImageRenderer(size: size).image { context in
-      let bounds = CGRect(origin: .zero, size: size)
-      let outerCircle = UIBezierPath(ovalIn: bounds)
-      UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 0.22)
-        .setFill()
-      outerCircle.fill()
+      let cgContext = context.cgContext
+      cgContext.setAllowsAntialiasing(true)
+
+      let blueColor = UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 1)
+      if let gradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [
+          blueColor.withAlphaComponent(0.34).cgColor,
+          blueColor.withAlphaComponent(0.3).cgColor,
+          blueColor.withAlphaComponent(0.2).cgColor,
+          blueColor.withAlphaComponent(0.08).cgColor,
+          blueColor.withAlphaComponent(0).cgColor
+        ] as CFArray,
+        locations: [0, 0.35, 0.6, 0.82, 1]
+      ) {
+        cgContext.drawRadialGradient(
+          gradient,
+          startCenter: center,
+          startRadius: 0,
+          endCenter: center,
+          endRadius: size.width / 2,
+          options: []
+        )
+      }
 
       let whiteCircle = UIBezierPath(
-        ovalIn: bounds.insetBy(dx: 4, dy: 4)
+        ovalIn: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12)
       )
       UIColor.white.setFill()
       whiteCircle.fill()
 
       let blueCircle = UIBezierPath(
-        ovalIn: bounds.insetBy(dx: 7, dy: 7)
+        ovalIn: CGRect(x: center.x - 4.5, y: center.y - 4.5, width: 9, height: 9)
       )
-      UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 1)
-        .setFill()
+      blueColor.setFill()
       blueCircle.fill()
-
-      context.cgContext.setAllowsAntialiasing(true)
     }
   }
 
   private func makeSavedPlaceMarker(selected: Bool) -> UIImage {
-    let size = CGSize(width: 36, height: 36)
+    let size = CGSize(width: 28, height: 28)
 
     let assetName = selected ? Self.selectedPlaceMarkerAssetName : Self.savedPlaceMarkerAssetName
     if let markerImage = UIImage(named: assetName) {
@@ -757,16 +774,16 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     }
 
     return UIGraphicsImageRenderer(size: size).image { _ in
-      let center = CGPoint(x: 18, y: 18)
-      let radius: CGFloat = 13
+      let center = CGPoint(x: size.width / 2, y: size.height / 2)
+      let radius = size.width * 0.36
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: 32, height: 32)).fill()
+      UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).fill()
       UIColor(red: 122 / 255, green: 199 / 255, blue: 223 / 255, alpha: 1).setFill()
       UIBezierPath(
-        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: 26, height: 26)
+        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
       ).fill()
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: 13, y: 13, width: 10, height: 10)).fill()
+      UIBezierPath(ovalIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)).fill()
     }
   }
 

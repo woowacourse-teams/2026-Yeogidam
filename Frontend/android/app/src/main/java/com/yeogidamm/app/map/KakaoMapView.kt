@@ -27,6 +27,7 @@ import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.Label
 import com.kakao.vectormap.label.LabelOptions
+import com.kakao.vectormap.label.LabelStyle
 import com.yeogidamm.app.R
 import org.json.JSONArray
 import kotlin.math.roundToInt
@@ -292,7 +293,11 @@ class KakaoMapView(
                     LabelOptions.from(
                         place.getString("id"),
                         LatLng.from(place.getDouble("latitude"), place.getDouble("longitude")),
-                    ).setStyles(createSavedPlaceMarker(place.optBoolean("selected", false))),
+                    ).setStyles(
+                        LabelStyle
+                            .from(createSavedPlaceMarker(place.optBoolean("selected", false)))
+                            .setAnchorPoint(0.5f, 1.0f),
+                    ),
                 ).apply {
                     tag = place.getString("id")
                     isClickable = true
@@ -611,7 +616,7 @@ class KakaoMapView(
     private companion object {
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
-        const val SAVED_PLACE_MARKER_SIZE_DP = 36
+        const val SAVED_PLACE_MARKER_SIZE_DP = 20
         const val SEARCH_RESULT_CAMERA_PADDING = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
