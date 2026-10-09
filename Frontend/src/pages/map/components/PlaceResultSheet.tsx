@@ -166,6 +166,7 @@ export function PlaceResultSheet({
   const currentOffset = useRef(middleOffset);
   const dragStartOffset = useRef(middleOffset);
   const previousSelectedPlaceId = useRef<string | null>(selectedPlace?.id ?? null);
+  const pendingBackSnapIndex = useRef<number | null>(null);
   const startedInPageMode = useRef(false);
   const previousSheetHeight = useRef(sheetHeight);
   const handledCollapseSignal = useRef(collapseSignal);
@@ -183,6 +184,7 @@ export function PlaceResultSheet({
   const restoreScheduledRef = useRef(false);
   const isResultsUserScrollingRef = useRef(false);
   const [activeSnapIndex, setActiveSnapIndex] = useState(1);
+  const detailEntrySnapIndex = useRef(activeSnapIndex);
   const dragStartSnapIndex = useRef(activeSnapIndex);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
@@ -463,6 +465,7 @@ export function PlaceResultSheet({
     if (!place) return;
 
     handledOpenPlaceSignal.current = openPlaceSignal;
+    detailEntrySnapIndex.current = activeSnapIndex;
     setSelectedPlace(place);
     setSelectedPlaceViewContext(openPlaceContext ?? null);
     snapTo(snapOffsets[1]);
@@ -472,6 +475,7 @@ export function PlaceResultSheet({
     openPlaceId,
     openPlaceSignal,
     places,
+    activeSnapIndex,
     snapOffsets,
     snapTo,
   ]);
@@ -578,6 +582,7 @@ export function PlaceResultSheet({
     pendingResultsScrollOffsetRef.current = resultsScrollOffsetRef.current;
     restoringResultsScrollOffsetRef.current = null;
     isResultsUserScrollingRef.current = false;
+    detailEntrySnapIndex.current = activeSnapIndex;
     setSelectedPlace(place);
     if (place.savedPlaceId) {
       const viewContext: SavedPlaceViewContext = {
@@ -599,9 +604,31 @@ export function PlaceResultSheet({
 
   const backToPlaceList = useCallback(() => {
     setIsActionSheetVisible(false);
+
+    // If the detail was expanded after it opened from a shorter list sheet,
+    // the first back action only restores the detail to that prior height.
+    if (
+      activeSnapIndex === 0 &&
+      detailEntrySnapIndex.current !== 0
+    ) {
+      snapTo(snapOffsets[detailEntrySnapIndex.current]);
+      return;
+    }
+
+    pendingBackSnapIndex.current = detailEntrySnapIndex.current;
     setSelectedPlace(null);
     setSelectedPlaceViewContext(null);
-  }, []);
+  }, [activeSnapIndex, snapOffsets, snapTo]);
+
+  useEffect(() => {
+    if (selectedPlace || pendingBackSnapIndex.current === null) {
+      return;
+    }
+
+    const snapIndex = pendingBackSnapIndex.current;
+    pendingBackSnapIndex.current = null;
+    snapTo(snapOffsets[snapIndex]);
+  }, [selectedPlace, snapOffsets, snapTo]);
 
   useEffect(() => {
     if (backToPlaceListSignal === handledBackToPlaceListSignal.current) {

@@ -234,11 +234,6 @@ export function MapScreen({
 
       sheetVisibleHeightRef.current = height;
       setSheetVisibleHeight(height);
-
-      // The sheet can cover a different part of the map before the native map
-      // reports its new camera bounds. Do not keep rendering the previous area's
-      // results during that short interval.
-      setVisibleBounds(null);
     },
     [],
   );
