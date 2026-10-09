@@ -70,7 +70,7 @@ type PlaceResultSheetProps = {
 
 export const COLLAPSED_SHEET_HEIGHT = 56;
 const DETAIL_PEEK_HEIGHT = 84;
-const MIDDLE_SHEET_HEIGHT_RATIO = 0.5;
+const MIDDLE_VISIBLE_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
@@ -129,9 +129,15 @@ export function PlaceResultSheet({
     : COLLAPSED_SHEET_HEIGHT;
   const sheetHeight = Math.max(collapsedHeight, height);
   const collapsedOffset = sheetHeight - collapsedHeight;
+  // The results sheet sits above the bottom navigation, while the detail
+  // sheet reaches the screen bottom. Use their shared screen-space height so
+  // the middle snap lands at the same vertical position in both modes.
+  const middleLayoutHeight = selectedPlace
+    ? sheetHeight
+    : sheetHeight + bottomTabOffset;
   const middleOffset = Math.min(
     collapsedOffset,
-    sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
+    middleLayoutHeight * (1 - MIDDLE_VISIBLE_RATIO),
   );
   const snapOffsets = useMemo(
     () => [0, middleOffset, collapsedOffset],
@@ -149,6 +155,7 @@ export function PlaceResultSheet({
   }
   const currentOffset = useRef(collapsedOffset);
   const dragStartOffset = useRef(collapsedOffset);
+  const previousSelectedPlaceId = useRef<string | null>(selectedPlace?.id ?? null);
   const startedInPageMode = useRef(false);
   const previousSheetHeight = useRef(sheetHeight);
   const handledCollapseSignal = useRef(collapseSignal);
@@ -334,6 +341,20 @@ export function PlaceResultSheet({
       updatePageMode,
     ],
   );
+
+  useEffect(() => {
+    const nextPlaceId = selectedPlace?.id ?? null;
+    if (previousSelectedPlaceId.current === nextPlaceId) {
+      return;
+    }
+
+    previousSelectedPlaceId.current = nextPlaceId;
+    // Selecting a place changes the middle snap point. Re-apply that point
+    // after the detail state is rendered so it doesn't retain the list height.
+    if (selectedPlace && activeSnapIndex === 1) {
+      snapTo(snapOffsets[1]);
+    }
+  }, [activeSnapIndex, selectedPlace, snapOffsets, snapTo]);
 
   useEffect(() => {
     // Keep the selected snap point when device rotation changes the sheet size.
@@ -672,7 +693,6 @@ export function PlaceResultSheet({
                 setIsActionSheetVisible(true);
               }}
               headerTopInset={isPageMode ? expandedDetailHeaderHeight : 0}
-              stickyHeaderTopInset={isPageMode ? expandedHeaderHeight : 0}
               compactHeader
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
