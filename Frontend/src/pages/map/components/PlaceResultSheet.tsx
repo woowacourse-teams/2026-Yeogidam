@@ -134,8 +134,9 @@ export function PlaceResultSheet({
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
     null,
   );
+  const detailPeekHeight = Math.max(DETAIL_PEEK_HEIGHT, bottomTabOffset);
   const collapsedHeight = selectedPlace
-    ? COLLAPSED_SHEET_HEIGHT + DETAIL_PEEK_HEIGHT
+    ? COLLAPSED_SHEET_HEIGHT + detailPeekHeight
     : COLLAPSED_SHEET_HEIGHT;
   const sheetHeight = Math.max(collapsedHeight, height);
   const collapsedOffset = sheetHeight - collapsedHeight;
