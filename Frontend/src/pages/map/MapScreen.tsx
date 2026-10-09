@@ -392,6 +392,7 @@ export function MapScreen({
             topInset={topInset}
             bottomTabOffset={bottomNavigationOffset}
             places={resultPlaces}
+            hasSavedPlaces={savedPlaces.length > 0}
             isSearchActive={hasActiveSearch}
             expandSignal={searchResultSignal}
             openPlace={openedMarker.place}

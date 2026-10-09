@@ -48,6 +48,7 @@ import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 type PlaceResultSheetProps = {
   places: Place[];
   isSearchActive?: boolean;
+  hasSavedPlaces?: boolean;
   isVisibleAreaUpdating?: boolean;
   height: number;
   translateY?: Animated.Value;
@@ -93,6 +94,7 @@ function getMiddleCategory(category?: string) {
 export function PlaceResultSheet({
   places,
   isSearchActive = false,
+  hasSavedPlaces = false,
   isVisibleAreaUpdating = false,
   height,
   translateY: sharedTranslateY,
@@ -817,13 +819,42 @@ export function PlaceResultSheet({
           )}
           ListEmptyComponent={
             <View style={styles.emptyResult}>
-              <Text style={styles.emptyResultText}>
-                {isVisibleAreaUpdating
-                  ? '현재 지도 영역을 확인하고 있어요.'
-                  : isSearchActive
-                  ? '검색 결과 없습니다.'
-                  : '현재 지도 영역에 저장한 장소가 없어요.'}
-              </Text>
+              {isVisibleAreaUpdating ? (
+                <Text style={styles.emptyResultText}>
+                  현재 지도 영역을 확인하고 있어요.
+                </Text>
+              ) : isSearchActive ? (
+                <>
+                  <Text style={styles.emptyResultTitle}>
+                    검색 결과가 없어요
+                  </Text>
+                  <Text style={styles.emptyResultText}>
+                    다른 키워드로 다시 검색해보세요.
+                  </Text>
+                </>
+              ) : !hasSavedPlaces ? (
+                <>
+                  <Image
+                    source={require('../../../assets/illustrations/empty-illustration.png')}
+                    style={styles.emptyIllustration}
+                  />
+                  <Text style={styles.emptyResultTitle}>
+                    아직 저장한 장소가 없어요
+                  </Text>
+                  <Text style={styles.emptyResultText}>
+                    장소를 저장하면 지도에서 확인할 수 있어요.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyResultTitle}>
+                    이 지도 영역에 저장한 장소가 없어요
+                  </Text>
+                  <Text style={styles.emptyResultText}>
+                    지도를 움직여 다른 곳도 확인해보세요.
+                  </Text>
+                </>
+              )}
             </View>
           }
         />
@@ -889,11 +920,26 @@ const styles = StyleSheet.create({
   },
   emptyResult: {
     paddingTop: 34,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
+  emptyIllustration: {
+    width: 96,
+    height: 96,
+    borderRadius: 18,
+    marginBottom: 12,
+  },
+  emptyResultTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    textAlign: 'center',
+  },
   emptyResultText: {
+    marginTop: 6,
     fontSize: 14,
     color: '#8e8e93',
+    textAlign: 'center',
   },
   resultCard: {
     flexDirection: 'row',
