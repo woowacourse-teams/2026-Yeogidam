@@ -23,6 +23,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var viewResizedHandler: (any DisposableEventHandler)?
   private var savedPlaceStyleAdded = false
   private var savedPlacesJson = "[]"
+  private var savedPlaceSelectionByID: [String: Bool] = [:]
   private var lastKnownLocation: CLLocation?
 
   private var latitude: Double = 37.5665
@@ -585,7 +586,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           competitionType: .none,
           competitionUnit: .symbolFirst,
           orderType: .rank,
-          zOrder: 1_000
+          zOrder: 10_000
         )
       )
 
@@ -593,7 +594,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       styleID: Self.currentLocationStyleID,
       poiID: Self.currentLocationPoiID
     )
-    options.rank = 1
+    options.rank = Int.max
 
     currentLocationPoi = layer?.addPoi(option: options, at: position)
     currentLocationPoi?.show()
@@ -617,19 +618,19 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           competitionType: .none,
           competitionUnit: .symbolFirst,
           orderType: .rank,
-          zOrder: 900
+          zOrder: 9_000
         )
       )
     // Kakao Maps disables POI interaction by default. Both the layer and its
     // POIs must be made clickable for `poiDidTapped` to fire.
     layer?.setClickable(true)
-    layer?.clearAllItems()
 
     if !savedPlaceStyleAdded {
       for selected in [false, true] {
         let iconStyle = PoiIconStyle(
           symbol: makeSavedPlaceMarker(selected: selected),
-          anchorPoint: CGPoint(x: 0.5, y: 1.0)
+          anchorPoint: CGPoint(x: 0.5, y: 1.0),
+          transition: PoiTransition(entrance: .scale, exit: .scale)
         )
         labelManager.addPoiStyle(
           PoiStyle(
@@ -641,24 +642,44 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       savedPlaceStyleAdded = true
     }
 
-    places.forEach { place in
+    let markers = places.compactMap { place -> (String, Double, Double, Bool)? in
       guard
         let id = place["id"] as? String,
         let latitude = place["latitude"] as? Double,
         let longitude = place["longitude"] as? Double
-      else { return }
-      let selected = place["selected"] as? Bool ?? false
-      let options = PoiOptions(
-        styleID: selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID,
-        poiID: id
-      )
-      options.rank = 1
-      options.clickable = true
-      layer?.addPoi(
-        option: options,
-        at: MapPoint(longitude: longitude, latitude: latitude)
-      )?.show()
+      else { return nil }
+
+      return (id, latitude, longitude, place["selected"] as? Bool ?? false)
     }
+    let nextSelectionByID = markers.reduce(into: [String: Bool]()) { result, marker in
+      result[marker.0] = marker.3
+    }
+
+    for removedID in savedPlaceSelectionByID.keys where nextSelectionByID[removedID] == nil {
+      layer?.removePoi(poiID: removedID)
+    }
+
+    markers.forEach { id, latitude, longitude, selected in
+      let position = MapPoint(longitude: longitude, latitude: latitude)
+      let styleID = selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID
+
+      if let poi = layer?.getPoi(poiID: id) {
+        poi.position = position
+        poi.clickable = true
+        poi.rank = selected ? Int.max - 1 : 1
+
+        if savedPlaceSelectionByID[id] != selected {
+          poi.changeStyle(styleID: styleID, enableTransition: true)
+        }
+      } else {
+        let options = PoiOptions(styleID: styleID, poiID: id)
+        options.rank = selected ? Int.max - 1 : 1
+        options.clickable = true
+        layer?.addPoi(option: options, at: position)?.show()
+      }
+    }
+
+    savedPlaceSelectionByID = nextSelectionByID
   }
 
   private func emitCameraChanged() {
@@ -764,7 +785,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func makeSavedPlaceMarker(selected: Bool) -> UIImage {
-    let size = CGSize(width: 26, height: 26)
+    let size = selected ? CGSize(width: 32, height: 32) : CGSize(width: 26, height: 26)
 
     let assetName = selected ? Self.selectedPlaceMarkerAssetName : Self.savedPlaceMarkerAssetName
     if let markerImage = UIImage(named: assetName) {
