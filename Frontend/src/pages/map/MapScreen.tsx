@@ -115,6 +115,7 @@ export function MapScreen({
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
     COLLAPSED_SHEET_HEIGHT,
   );
+  const sheetVisibleHeightRef = useRef(COLLAPSED_SHEET_HEIGHT);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   // Request the initial camera position from the user's location. The native
   // map waits for the permission/location callback before moving the camera.
@@ -211,9 +212,12 @@ export function MapScreen({
 
   const handleSheetVisibleHeightChange = useCallback(
     (height: number) => {
-      setSheetVisibleHeight(currentHeight =>
-        currentHeight === height ? currentHeight : height,
-      );
+      if (sheetVisibleHeightRef.current === height) {
+        return;
+      }
+
+      sheetVisibleHeightRef.current = height;
+      setSheetVisibleHeight(height);
 
       // The sheet can cover a different part of the map before the native map
       // reports its new camera bounds. Do not keep rendering the previous area's
