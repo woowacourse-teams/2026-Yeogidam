@@ -319,7 +319,7 @@ class KakaoMapView(
                     layer.addLabel(
                         LabelOptions
                             .from(id, position)
-                            .setRank(if (selected) Int.MAX_VALUE - 1 else 1)
+                            .setRank(if (selected) Int.MAX_VALUE.toLong() - 1 else 1L)
                             .setStyles(style),
                     ).apply {
                         tag = id
@@ -327,7 +327,7 @@ class KakaoMapView(
                     }
                 } else {
                     label.moveTo(position)
-                    label.rank = if (selected) Int.MAX_VALUE - 1 else 1
+                    label.rank = if (selected) Int.MAX_VALUE.toLong() - 1 else 1L
                     label.tag = id
                     label.isClickable = true
 
@@ -500,7 +500,7 @@ class KakaoMapView(
                 map.labelManager?.layer?.addLabel(
                     LabelOptions
                         .from(CURRENT_LOCATION_LABEL_ID, position)
-                        .setRank(Int.MAX_VALUE)
+                        .setRank(Int.MAX_VALUE.toLong())
                         .setStyles(createCurrentLocationMarker()),
                 )
             currentLocationLabel = newLabel
