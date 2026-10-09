@@ -1,5 +1,12 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,22 +19,15 @@ type BottomNavigationBarProps = {
 };
 
 export const BOTTOM_NAVIGATION_BAR_HEIGHT = 64;
-export const BOTTOM_NAVIGATION_BAR_SIDE_INSET = 16;
-export const BOTTOM_NAVIGATION_BAR_BOTTOM_GAP = 20;
 
 export function getBottomNavigationBarOffset(bottomInset: number) {
-  const bottomGap =
-    bottomInset > 0 ? BOTTOM_NAVIGATION_BAR_BOTTOM_GAP : 8;
-
-  return bottomInset + bottomGap;
+  return bottomInset;
 }
-
-const NAVIGATION_BAR_OVERLAY_FADE_HEIGHT = 60;
 
 export const bottomNavigationBarContainerStyle: ViewStyle = {
   position: 'absolute',
-  left: BOTTOM_NAVIGATION_BAR_SIDE_INSET,
-  right: BOTTOM_NAVIGATION_BAR_SIDE_INSET,
+  left: 16,
+  right: 16,
   minHeight: BOTTOM_NAVIGATION_BAR_HEIGHT,
   flexDirection: 'row',
   alignItems: 'center',
@@ -61,34 +61,31 @@ export function BottomNavigationBar({
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
-  const navigationBarBottom = getBottomNavigationBarOffset(bottom);
-  const overlayHeight =
-    BOTTOM_NAVIGATION_BAR_HEIGHT +
-    navigationBarBottom +
-    NAVIGATION_BAR_OVERLAY_FADE_HEIGHT;
 
   return (
-    <>
-      <LinearGradient
-        colors={[
-          'rgba(255,255,255,0)',
-          'rgba(255,255,255,0.14)',
-          'rgba(255,255,255,0.75)',
-        ]}
-        end={{ x: 0.5, y: 1 }}
-        locations={[0, 0.58, 1]}
-        pointerEvents="none"
-        start={{ x: 0.5, y: 0 }}
-        style={[styles.overlay, { height: overlayHeight }]}
-      />
-      <View
-        style={[
-          styles.navigationBar,
-          {
-            bottom: navigationBarBottom,
-          },
-        ]}
-      >
+    <View
+      style={[
+        styles.navigationBar,
+        {
+          bottom: 0,
+          paddingBottom: bottom,
+        },
+      ]}
+    >
+      {Platform.OS === 'android' && bottom > 0 ? (
+        <LinearGradient
+          colors={[
+            'rgba(31, 34, 56, 0.08)',
+            'rgba(31, 34, 56, 0.24)',
+            'rgba(31, 34, 56, 0.42)',
+          ]}
+          end={{ x: 0.5, y: 1 }}
+          locations={[0, 0.52, 1]}
+          start={{ x: 0.5, y: 0 }}
+          style={[styles.systemNavigationGradient, { top: BOTTOM_NAVIGATION_BAR_HEIGHT }]}
+        />
+      ) : null}
+      <View style={styles.navigationItems}>
         {navigationItems.map(navigation => (
           <Pressable
             key={navigation.id}
@@ -117,19 +114,34 @@ export function BottomNavigationBar({
           </Pressable>
         ))}
       </View>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  navigationBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+  },
+  navigationItems: {
+    height: BOTTOM_NAVIGATION_BAR_HEIGHT,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth * 1.5,
+    borderTopColor: '#d9dbe0',
+    backgroundColor: '#ffffff',
+  },
+  systemNavigationGradient: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  navigationBar: {
-    ...bottomNavigationBarContainerStyle,
   },
   navigation: {
     flex: 1,

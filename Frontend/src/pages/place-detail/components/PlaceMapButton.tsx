@@ -11,12 +11,14 @@ type PlaceMapButtonProps = {
   url: string;
   savedAt?: string;
   viewContext?: SavedPlaceViewContext;
+  bottomOffset?: number;
 };
 
 export function PlaceMapButton({
   url,
   savedAt,
   viewContext,
+  bottomOffset = 16,
 }: PlaceMapButtonProps) {
   const posthog = usePostHog();
 
@@ -37,7 +39,11 @@ export function PlaceMapButton({
   return (
     <Pressable
       onPress={openMap}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.button,
+        { bottom: bottomOffset },
+        pressed && styles.pressed,
+      ]}
       accessibilityRole="link"
       accessibilityLabel="카카오맵으로 바로가기"
     >

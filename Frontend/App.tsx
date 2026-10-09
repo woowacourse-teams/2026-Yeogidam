@@ -140,7 +140,6 @@ function App() {
     };
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
-  const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
@@ -236,10 +235,6 @@ function App() {
     nextScreen: MainScreen,
     entryType: InboxEntryType = 'direct',
   ) => {
-    if (nextScreen !== 'map') {
-      setIsMapPlaceDetailVisible(false);
-    }
-
     setFlowState({
       kind: 'main',
       activeTab: nextScreen,
@@ -378,7 +373,6 @@ function App() {
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
-        setIsMapPlaceDetailVisible(false);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
         setIsAuthReady(true);
@@ -810,7 +804,6 @@ function App() {
       return (
         <MapScreen
           onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
-          onDetailViewChange={setIsMapPlaceDetailVisible}
         />
       );
     }
@@ -844,12 +837,10 @@ function App() {
 
   const showTabBar =
     flowState.kind === 'main' &&
-    flowState.detailSource === null &&
     myPageOverlay === null &&
     !isHistoryVisible &&
     !isSavedPlacesEditing &&
-    !isInBoxSelecting &&
-    !(currentScreen === 'map' && isMapPlaceDetailVisible);
+    !isInBoxSelecting;
 
   const isMapScreen = currentScreen === 'map';
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;

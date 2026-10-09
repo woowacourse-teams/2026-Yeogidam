@@ -648,12 +648,21 @@ export function PlaceResultSheet({
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
                 isPageMode
-                  ? DETAIL_PAGE_BOTTOM_PADDING
+                  ? Math.max(
+                      DETAIL_PAGE_BOTTOM_PADDING,
+                      bottomTabOffset + 12,
+                    )
                   : DETAIL_ACTION_BOTTOM_PADDING
               }
             />
             {selectedPlace.placeUrl ? (
               <PlaceMapButton
+                bottomOffset={
+                  Math.max(
+                    16,
+                    bottomTabOffset - COLLAPSED_SHEET_HEIGHT + 16,
+                  )
+                }
                 savedAt={selectedPlace.savedAt}
                 url={selectedPlace.placeUrl}
                 viewContext={selectedPlaceViewContext ?? undefined}
