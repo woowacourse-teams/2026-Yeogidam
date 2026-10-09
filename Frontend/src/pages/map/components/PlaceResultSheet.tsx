@@ -72,6 +72,8 @@ export const COLLAPSED_SHEET_HEIGHT = 56;
 const DETAIL_PEEK_HEIGHT = 84;
 const MIDDLE_VISIBLE_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
+const MIDDLE_TO_EXPANDED_DRAG_THRESHOLD = 48;
+const MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD = 0.35;
 const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
@@ -172,6 +174,7 @@ export function PlaceResultSheet({
   const restoreScheduledRef = useRef(false);
   const isResultsUserScrollingRef = useRef(false);
   const [activeSnapIndex, setActiveSnapIndex] = useState(2);
+  const dragStartSnapIndex = useRef(activeSnapIndex);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
   const isExpanded = activeSnapIndex === 0;
@@ -461,6 +464,7 @@ export function PlaceResultSheet({
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           startedInPageMode.current = isPageModeRef.current;
+          dragStartSnapIndex.current = activeSnapIndex;
           translateY.stopAnimation(value => {
             dragStartOffset.current = value;
             currentOffset.current = value;
@@ -504,6 +508,14 @@ export function PlaceResultSheet({
             releasedOffset > PAGE_MODE_TRIGGER_OFFSET
           ) {
             snapTo(snapOffsets[1]);
+            return;
+          }
+
+          if (dragStartSnapIndex.current === 1 && gesture.dy < 0) {
+            const shouldExpand =
+              Math.abs(gesture.dy) >= MIDDLE_TO_EXPANDED_DRAG_THRESHOLD ||
+              gesture.vy <= -MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD;
+            snapTo(shouldExpand ? snapOffsets[0] : snapOffsets[1]);
             return;
           }
 
