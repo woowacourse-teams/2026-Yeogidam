@@ -8,6 +8,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   @objc var onMapError: ((NSDictionary) -> Void)?
   @objc var onCameraChanged: ((NSDictionary) -> Void)?
   @objc var onMarkerPressed: ((NSDictionary) -> Void)?
+  @objc var onMapPanStarted: ((NSDictionary) -> Void)?
 
   private let mapContainer = KMViewContainer()
   private var mapController: KMController?
@@ -238,6 +239,17 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   func cameraWillMove(kakaoMap: KakaoMap, by: MoveBy) {
+    if by == .pan ||
+      by == .longTapAndDrag ||
+      by == .zoom ||
+      by == .oneFingerZoom ||
+      by == .rotateZoom ||
+      by == .doubleTapZoomIn ||
+      by == .twoFingerTapZoomOut
+    {
+      onMapPanStarted?(["started": true])
+    }
+
     // An inverted range is a lightweight signal over the existing Fabric
     // event: JS clears the previous list while the user is moving the map.
     // `cameraDidStopped` immediately replaces it with the final real bounds.

@@ -165,6 +165,23 @@ class KakaoMapView(
                     map.setOnCameraMoveEndListener { _, position, _ ->
                         emitVisibleBounds(position.position, position.zoomLevel)
                     }
+                    map.setOnCameraMoveStartListener { _, gestureType ->
+                        if (
+                            gestureType == com.kakao.vectormap.GestureType.Pan ||
+                            gestureType == com.kakao.vectormap.GestureType.LongTapAndDrag ||
+                            gestureType == com.kakao.vectormap.GestureType.Zoom ||
+                            gestureType == com.kakao.vectormap.GestureType.OneFingerZoom ||
+                            gestureType == com.kakao.vectormap.GestureType.RotateZoom ||
+                            gestureType == com.kakao.vectormap.GestureType.OneFingerDoubleTap ||
+                            gestureType == com.kakao.vectormap.GestureType.TwoFingerSingleTap
+                        ) {
+                            reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                                id,
+                                "onMapPanStarted",
+                                Arguments.createMap().apply { putBoolean("started", true) },
+                            )
+                        }
+                    }
                     renderSavedPlaceMarkers()
                     if (cameraFitRequestId > 0) {
                         moveCameraToFitSearchResults()

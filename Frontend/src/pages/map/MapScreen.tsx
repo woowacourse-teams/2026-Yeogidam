@@ -113,6 +113,7 @@ export function MapScreen({
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailHeaderProgress = useRef(new Animated.Value(0)).current;
   const [collapseSignal, setCollapseSignal] = useState(0);
+  const [mapPanCollapseSignal, setMapPanCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
     COLLAPSED_SHEET_HEIGHT,
   );
@@ -368,6 +369,9 @@ export function MapScreen({
                   signal: current.signal + 1,
                 }));
               }}
+              onMapPanStarted={() => {
+                setMapPanCollapseSignal(signal => signal + 1);
+              }}
               onCameraChanged={event => {
                 const {
                   latitude,
@@ -418,6 +422,7 @@ export function MapScreen({
             backToPlaceListSignal={backToPlaceListSignal}
             detailMoreSignal={detailMoreSignal}
             collapseSignal={collapseSignal}
+            mapPanCollapseSignal={mapPanCollapseSignal}
             onDetailViewChange={(isDetailView, placeId) => {
               setSelectedPlaceId(placeId);
               setIsPlaceDetailVisible(isDetailView);

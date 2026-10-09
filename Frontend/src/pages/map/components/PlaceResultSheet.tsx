@@ -59,6 +59,7 @@ type PlaceResultSheetProps = {
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
+  mapPanCollapseSignal?: number;
   expandSignal?: number;
   openPlace?: Place | null;
   openPlaceContext?: SavedPlaceViewContext | null;
@@ -107,6 +108,7 @@ export function PlaceResultSheet({
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
+  mapPanCollapseSignal = 0,
   expandSignal = 0,
   openPlace,
   openPlaceContext,
@@ -166,6 +168,7 @@ export function PlaceResultSheet({
   const startedInPageMode = useRef(false);
   const previousSheetHeight = useRef(sheetHeight);
   const handledCollapseSignal = useRef(collapseSignal);
+  const handledMapPanCollapseSignal = useRef(mapPanCollapseSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
   const handledBackToPlaceListSignal = useRef(backToPlaceListSignal);
@@ -412,10 +415,23 @@ export function PlaceResultSheet({
     }
 
     handledCollapseSignal.current = collapseSignal;
-    if (isPageMode) {
+    if (isPageMode || activeSnapIndex === 0) {
       snapTo(snapOffsets[1]);
+    } else if (activeSnapIndex === 1) {
+      snapTo(snapOffsets[2]);
     }
-  }, [collapseSignal, isPageMode, snapOffsets, snapTo]);
+  }, [activeSnapIndex, collapseSignal, isPageMode, snapOffsets, snapTo]);
+
+  useEffect(() => {
+    if (mapPanCollapseSignal === handledMapPanCollapseSignal.current) {
+      return;
+    }
+
+    handledMapPanCollapseSignal.current = mapPanCollapseSignal;
+    if (activeSnapIndex === 1) {
+      snapTo(snapOffsets[2]);
+    }
+  }, [activeSnapIndex, mapPanCollapseSignal, snapOffsets, snapTo]);
 
   useEffect(() => {
     if (expandSignal === handledExpandSignal.current) {
