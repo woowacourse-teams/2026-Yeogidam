@@ -187,6 +187,10 @@ export function PlaceResultSheet({
     SEARCH_BAR_TOP_GAP +
     SEARCH_BAR_HEIGHT +
     EXPANDED_RESULTS_TOP_GAP;
+  const expandedDetailHeaderHeight =
+    topInset +
+    SEARCH_BAR_TOP_GAP +
+    SEARCH_BAR_HEIGHT;
 
   const reportVisibleHeight = useCallback(
     (offset: number) => {
@@ -678,7 +682,7 @@ export function PlaceResultSheet({
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
               }}
-              headerTopInset={isPageMode ? expandedHeaderHeight : 0}
+              headerTopInset={isPageMode ? expandedDetailHeaderHeight : 0}
               stickyHeaderTopInset={isPageMode ? expandedHeaderHeight : 0}
               compactHeader
               scrollEnabled={activeSnapIndex !== 2}
