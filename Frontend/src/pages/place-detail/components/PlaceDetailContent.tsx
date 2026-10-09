@@ -50,26 +50,16 @@ export function PlaceDetailContent({
   stickyHeaderTopInset = 0,
   compactHeader = false,
 }: PlaceDetailContentProps) {
-  const scrollViewRef = useRef<ScrollView>(null);
   const tabsOffsetY = useRef(0);
   const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
   const [isTabsSticky, setIsTabsSticky] = useState(false);
 
-  const scrollToTabs = () => {
-    scrollViewRef.current?.scrollTo({
-      y: tabsOffsetY.current,
-      animated: true,
-    });
-  };
-
   const handleTabPress = (tab: PlaceTab) => {
     setActiveTab(tab);
-    requestAnimationFrame(scrollToTabs);
   };
 
   return (
     <ScrollView
-      ref={scrollViewRef}
       style={styles.container}
       contentContainerStyle={[
         styles.content,
