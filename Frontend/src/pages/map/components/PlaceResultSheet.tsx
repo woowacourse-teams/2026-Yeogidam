@@ -550,6 +550,7 @@ export function PlaceResultSheet({
         onPanResponderTerminate: () => snapTo(currentOffset.current),
       }),
     [
+      activeSnapIndex,
       collapsedOffset,
       isExpanded,
       snapOffsets,
