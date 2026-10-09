@@ -5,6 +5,9 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 type PlaceDetailHeaderProps = {
   onBack: () => void;
   onPressMore?: () => void;
+  hideBack?: boolean;
+  title?: string;
+  titleInHeader?: boolean;
   topInset?: number;
   compact?: boolean;
 };
@@ -12,6 +15,9 @@ type PlaceDetailHeaderProps = {
 export function PlaceDetailHeader({
   onBack,
   onPressMore,
+  hideBack = false,
+  title,
+  titleInHeader = false,
   topInset = 0,
   compact = false,
 }: PlaceDetailHeaderProps) {
@@ -23,14 +29,24 @@ export function PlaceDetailHeader({
         { paddingTop: topInset },
       ]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="뒤로 가기"
-        hitSlop={12}
-        onPress={onBack}
-      >
-        <Text style={styles.back}>‹</Text>
-      </Pressable>
+      {hideBack ? (
+        titleInHeader && title ? (
+          <Text numberOfLines={1} style={styles.title}>
+            {title}
+          </Text>
+        ) : (
+          <View style={styles.backPlaceholder} />
+        )
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="뒤로 가기"
+          hitSlop={12}
+          onPress={onBack}
+        >
+          <Text style={styles.back}>‹</Text>
+        </Pressable>
+      )}
       <Pressable
         accessibilityLabel="더보기"
         accessibilityRole="button"
@@ -58,6 +74,18 @@ const styles = StyleSheet.create({
   back: {
     fontSize: 38,
     lineHeight: 38,
+    color: '#1a1a2e',
+  },
+  backPlaceholder: {
+    width: 38,
+    height: 38,
+  },
+  title: {
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 23,
+    lineHeight: 28,
+    fontWeight: '800',
     color: '#1a1a2e',
   },
   moreButton: {

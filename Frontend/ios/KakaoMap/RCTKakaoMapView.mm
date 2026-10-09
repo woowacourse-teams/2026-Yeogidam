@@ -45,6 +45,9 @@ using namespace facebook::react;
     _mapView.onMarkerPressed = ^(NSDictionary *event) {
       [weakSelf emitMarkerPressed:event];
     };
+    _mapView.onMapPanStarted = ^(NSDictionary *event) {
+      [weakSelf emitMapPanStarted:event];
+    };
 
     [self addSubview:_mapView];
   }
@@ -120,6 +123,19 @@ using namespace facebook::react;
     static_cast<const YeogidamKakaoMapViewEventEmitter &>(*_eventEmitter);
   eventEmitter.onMarkerPressed({
     .id = std::string(markerID.UTF8String ?: "")
+  });
+}
+
+- (void)emitMapPanStarted:(NSDictionary *)event
+{
+  if (!_eventEmitter) {
+    return;
+  }
+
+  const auto &eventEmitter =
+    static_cast<const YeogidamKakaoMapViewEventEmitter &>(*_eventEmitter);
+  eventEmitter.onMapPanStarted({
+    .started = [event[@"started"] boolValue]
   });
 }
 

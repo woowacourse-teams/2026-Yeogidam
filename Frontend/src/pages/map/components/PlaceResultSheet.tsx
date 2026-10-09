@@ -8,6 +8,7 @@ import React, {
 import {
   Animated,
   FlatList,
+  LayoutAnimation,
   Image,
   PanResponder,
   Pressable,
@@ -16,8 +17,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import {usePostHog} from 'posthog-react-native';
-import {v4 as uuidv4} from 'uuid';
+import { usePostHog } from 'posthog-react-native';
+import { v4 as uuidv4 } from 'uuid';
 
 import {
   captureSavedPlaceOpened,
@@ -35,7 +36,10 @@ import type {
   SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
-import { SEARCH_BAR_HEIGHT, SEARCH_BAR_TOP_GAP } from '../../../components/SearchBar';
+import {
+  SEARCH_BAR_HEIGHT,
+  SEARCH_BAR_TOP_GAP,
+} from '../../../components/SearchBar';
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
 import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
@@ -44,6 +48,9 @@ import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 type PlaceResultSheetProps = {
   places: Place[];
   isSearchActive?: boolean;
+  hasSavedPlaces?: boolean;
+  isSavedPlacesLoading?: boolean;
+  savedPlacesLoadFailed?: boolean;
   isVisibleAreaUpdating?: boolean;
   height: number;
   translateY?: Animated.Value;
@@ -52,19 +59,25 @@ type PlaceResultSheetProps = {
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
+  mapPanCollapseSignal?: number;
   expandSignal?: number;
   openPlace?: Place | null;
   openPlaceContext?: SavedPlaceViewContext | null;
   openPlaceId?: string;
   openPlaceSignal?: number;
+  backToPlaceListSignal?: number;
+  detailMoreSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
 };
 
-export const COLLAPSED_SHEET_HEIGHT = 48;
-const MIDDLE_SHEET_HEIGHT_RATIO = 0.5;
+export const COLLAPSED_SHEET_HEIGHT = 84;
+const DETAIL_PEEK_HEIGHT = 84;
+const MIDDLE_VISIBLE_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
+const MIDDLE_TO_EXPANDED_DRAG_THRESHOLD = 48;
+const MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD = 0.35;
 const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
@@ -84,6 +97,9 @@ function getMiddleCategory(category?: string) {
 export function PlaceResultSheet({
   places,
   isSearchActive = false,
+  hasSavedPlaces = false,
+  isSavedPlacesLoading = false,
+  savedPlacesLoadFailed = false,
   isVisibleAreaUpdating = false,
   height,
   translateY: sharedTranslateY,
@@ -92,18 +108,20 @@ export function PlaceResultSheet({
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
+  mapPanCollapseSignal = 0,
   expandSignal = 0,
   openPlace,
   openPlaceContext,
   openPlaceId,
   openPlaceSignal = 0,
+  backToPlaceListSignal = 0,
+  detailMoreSignal = 0,
   onDetailViewChange,
   onAuthenticationRequired,
   onSavedPlaceDeleted,
 }: PlaceResultSheetProps) {
   const posthog = usePostHog();
   const { width: windowWidth } = useWindowDimensions();
-  const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
   const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
@@ -116,40 +134,47 @@ export function PlaceResultSheet({
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
     null,
   );
-  const detailEntryOffsetRef = useRef<number | null>(null);
-  const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
+  const detailPeekHeight = Math.max(DETAIL_PEEK_HEIGHT, bottomTabOffset);
+  const collapsedHeight = selectedPlace
+    ? COLLAPSED_SHEET_HEIGHT + detailPeekHeight
+    : COLLAPSED_SHEET_HEIGHT;
+  const sheetHeight = Math.max(collapsedHeight, height);
+  const collapsedOffset = sheetHeight - collapsedHeight;
+  // The results sheet sits above the bottom navigation, while the detail
+  // sheet reaches the screen bottom. Use their shared screen-space height so
+  // the middle snap lands at the same vertical position in both modes.
+  const middleLayoutHeight = selectedPlace
+    ? sheetHeight
+    : sheetHeight + bottomTabOffset;
   const middleOffset = Math.min(
     collapsedOffset,
-    sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
+    middleLayoutHeight * (1 - MIDDLE_VISIBLE_RATIO),
   );
-  // The sheet uses the bottom-tab offset only while showing the list. Once
-  // detail is opened its bottom edge moves to the screen edge, so preserving
-  // the same offset also preserves the sheet's existing top position.
-  const detailMiddleOffset =
-    selectedPlace && detailEntryOffsetRef.current !== null
-      ? Math.min(collapsedOffset, detailEntryOffsetRef.current)
-      : middleOffset;
   const snapOffsets = useMemo(
-    () => [0, detailMiddleOffset, collapsedOffset],
-    [collapsedOffset, detailMiddleOffset],
+    () => [0, middleOffset, collapsedOffset],
+    [collapsedOffset, middleOffset],
   );
-  // Start compact so the sheet can be dragged both upward and downward.
   const internalTranslateY = useRef(
-    new Animated.Value(collapsedOffset),
+    new Animated.Value(middleOffset),
   ).current;
   const translateY = sharedTranslateY ?? internalTranslateY;
   const didInitializeSharedTranslateY = useRef(false);
   if (sharedTranslateY && !didInitializeSharedTranslateY.current) {
-    sharedTranslateY.setValue(collapsedOffset);
+    sharedTranslateY.setValue(middleOffset);
     didInitializeSharedTranslateY.current = true;
   }
-  const currentOffset = useRef(collapsedOffset);
-  const dragStartOffset = useRef(collapsedOffset);
+  const currentOffset = useRef(middleOffset);
+  const dragStartOffset = useRef(middleOffset);
+  const previousSelectedPlaceId = useRef<string | null>(selectedPlace?.id ?? null);
+  const pendingBackSnapIndex = useRef<number | null>(null);
   const startedInPageMode = useRef(false);
   const previousSheetHeight = useRef(sheetHeight);
   const handledCollapseSignal = useRef(collapseSignal);
+  const handledMapPanCollapseSignal = useRef(mapPanCollapseSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
+  const handledBackToPlaceListSignal = useRef(backToPlaceListSignal);
+  const handledDetailMoreSignal = useRef(detailMoreSignal);
   const capturedPlaceViewIdRef = useRef<string | null>(null);
   const isPageModeRef = useRef(false);
   const resultsScrollOffsetRef = useRef(0);
@@ -158,7 +183,9 @@ export function PlaceResultSheet({
   const restoringResultsScrollOffsetRef = useRef<number | null>(null);
   const restoreScheduledRef = useRef(false);
   const isResultsUserScrollingRef = useRef(false);
-  const [activeSnapIndex, setActiveSnapIndex] = useState(2);
+  const [activeSnapIndex, setActiveSnapIndex] = useState(1);
+  const detailEntrySnapIndex = useRef(activeSnapIndex);
+  const dragStartSnapIndex = useRef(activeSnapIndex);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
   const isExpanded = activeSnapIndex === 0;
@@ -173,6 +200,10 @@ export function PlaceResultSheet({
     SEARCH_BAR_TOP_GAP +
     SEARCH_BAR_HEIGHT +
     EXPANDED_RESULTS_TOP_GAP;
+  const expandedDetailHeaderHeight =
+    topInset +
+    SEARCH_BAR_TOP_GAP +
+    SEARCH_BAR_HEIGHT;
 
   const reportVisibleHeight = useCallback(
     (offset: number) => {
@@ -180,6 +211,10 @@ export function PlaceResultSheet({
     },
     [onVisibleHeightChange, sheetHeight],
   );
+  useEffect(() => {
+    reportVisibleHeight(middleOffset);
+  }, [middleOffset, reportVisibleHeight]);
+
   const recordResultsScroll = useCallback((offset: number) => {
     const nextOffset = Math.max(0, offset);
     const restoringOffset = restoringResultsScrollOffsetRef.current;
@@ -293,6 +328,11 @@ export function PlaceResultSheet({
       );
       const nearestOffset = snapOffsets[nearestSnapIndex];
 
+      const nextIsPageMode = nearestSnapIndex === 0;
+      if (isPageModeRef.current !== nextIsPageMode) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
+
       currentOffset.current = nearestOffset;
       if (nearestSnapIndex < activeSnapIndex) {
         setTapDirection('up');
@@ -319,6 +359,20 @@ export function PlaceResultSheet({
       updatePageMode,
     ],
   );
+
+  useEffect(() => {
+    const nextPlaceId = selectedPlace?.id ?? null;
+    if (previousSelectedPlaceId.current === nextPlaceId) {
+      return;
+    }
+
+    previousSelectedPlaceId.current = nextPlaceId;
+    // Selecting a place changes the middle snap point. Re-apply that point
+    // after the detail state is rendered so it doesn't retain the list height.
+    if (selectedPlace && activeSnapIndex === 1) {
+      snapTo(snapOffsets[1]);
+    }
+  }, [activeSnapIndex, selectedPlace, snapOffsets, snapTo]);
 
   useEffect(() => {
     // Keep the selected snap point when device rotation changes the sheet size.
@@ -364,10 +418,23 @@ export function PlaceResultSheet({
     }
 
     handledCollapseSignal.current = collapseSignal;
-    if (isPageMode) {
+    if (isPageMode || activeSnapIndex === 0) {
       snapTo(snapOffsets[1]);
+    } else if (activeSnapIndex === 1) {
+      snapTo(snapOffsets[2]);
     }
-  }, [collapseSignal, isPageMode, snapOffsets, snapTo]);
+  }, [activeSnapIndex, collapseSignal, isPageMode, snapOffsets, snapTo]);
+
+  useEffect(() => {
+    if (mapPanCollapseSignal === handledMapPanCollapseSignal.current) {
+      return;
+    }
+
+    handledMapPanCollapseSignal.current = mapPanCollapseSignal;
+    if (activeSnapIndex === 1) {
+      snapTo(snapOffsets[2]);
+    }
+  }, [activeSnapIndex, mapPanCollapseSignal, snapOffsets, snapTo]);
 
   useEffect(() => {
     if (expandSignal === handledExpandSignal.current) {
@@ -398,7 +465,7 @@ export function PlaceResultSheet({
     if (!place) return;
 
     handledOpenPlaceSignal.current = openPlaceSignal;
-    detailEntryOffsetRef.current = currentOffset.current;
+    detailEntrySnapIndex.current = activeSnapIndex;
     setSelectedPlace(place);
     setSelectedPlaceViewContext(openPlaceContext ?? null);
     snapTo(snapOffsets[1]);
@@ -408,6 +475,7 @@ export function PlaceResultSheet({
     openPlaceId,
     openPlaceSignal,
     places,
+    activeSnapIndex,
     snapOffsets,
     snapTo,
   ]);
@@ -426,6 +494,7 @@ export function PlaceResultSheet({
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
           startedInPageMode.current = isPageModeRef.current;
+          dragStartSnapIndex.current = activeSnapIndex;
           translateY.stopAnimation(value => {
             dragStartOffset.current = value;
             currentOffset.current = value;
@@ -472,11 +541,20 @@ export function PlaceResultSheet({
             return;
           }
 
+          if (dragStartSnapIndex.current === 1 && gesture.dy < 0) {
+            const shouldExpand =
+              Math.abs(gesture.dy) >= MIDDLE_TO_EXPANDED_DRAG_THRESHOLD ||
+              gesture.vy <= -MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD;
+            snapTo(shouldExpand ? snapOffsets[0] : snapOffsets[1]);
+            return;
+          }
+
           snapTo(releasedOffset);
         },
         onPanResponderTerminate: () => snapTo(currentOffset.current),
       }),
     [
+      activeSnapIndex,
       collapsedOffset,
       isExpanded,
       snapOffsets,
@@ -504,7 +582,7 @@ export function PlaceResultSheet({
     pendingResultsScrollOffsetRef.current = resultsScrollOffsetRef.current;
     restoringResultsScrollOffsetRef.current = null;
     isResultsUserScrollingRef.current = false;
-    detailEntryOffsetRef.current = currentOffset.current;
+    detailEntrySnapIndex.current = activeSnapIndex;
     setSelectedPlace(place);
     if (place.savedPlaceId) {
       const viewContext: SavedPlaceViewContext = {
@@ -513,7 +591,7 @@ export function PlaceResultSheet({
         placeViewId: uuidv4(),
         source: 'map_search_result',
       };
-      captureSavedPlaceSelected(posthog, {...viewContext, position});
+      captureSavedPlaceSelected(posthog, { ...viewContext, position });
       setSelectedPlaceViewContext(viewContext);
     } else {
       setSelectedPlaceViewContext(null);
@@ -526,10 +604,53 @@ export function PlaceResultSheet({
 
   const backToPlaceList = useCallback(() => {
     setIsActionSheetVisible(false);
-    detailEntryOffsetRef.current = null;
+
+    // If the detail was expanded after it opened from a shorter list sheet,
+    // the first back action only restores the detail to that prior height.
+    if (
+      activeSnapIndex === 0 &&
+      detailEntrySnapIndex.current !== 0
+    ) {
+      snapTo(snapOffsets[detailEntrySnapIndex.current]);
+      return;
+    }
+
+    pendingBackSnapIndex.current = detailEntrySnapIndex.current;
     setSelectedPlace(null);
     setSelectedPlaceViewContext(null);
-  }, []);
+  }, [activeSnapIndex, snapOffsets, snapTo]);
+
+  useEffect(() => {
+    if (selectedPlace || pendingBackSnapIndex.current === null) {
+      return;
+    }
+
+    const snapIndex = pendingBackSnapIndex.current;
+    pendingBackSnapIndex.current = null;
+    snapTo(snapOffsets[snapIndex]);
+  }, [selectedPlace, snapOffsets, snapTo]);
+
+  useEffect(() => {
+    if (backToPlaceListSignal === handledBackToPlaceListSignal.current) {
+      return;
+    }
+
+    handledBackToPlaceListSignal.current = backToPlaceListSignal;
+    backToPlaceList();
+  }, [backToPlaceList, backToPlaceListSignal]);
+
+  useEffect(() => {
+    if (
+      detailMoreSignal === handledDetailMoreSignal.current ||
+      !selectedPlace
+    ) {
+      return;
+    }
+
+    handledDetailMoreSignal.current = detailMoreSignal;
+    setDeleteError(null);
+    setIsActionSheetVisible(true);
+  }, [detailMoreSignal, selectedPlace]);
 
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
@@ -620,31 +741,25 @@ export function PlaceResultSheet({
         <View style={[styles.detailArea, { height: detailVisibleHeight }]}>
           <CopyToastProvider>
             <PlaceDetailContent
-              // Recreate the detail scroll view when it becomes a full page so
-              // the header always starts below the status bar instead of
-              // inheriting the inline sheet's scroll position.
-              key={`${selectedPlace.id}-${isPageMode ? 'page' : 'sheet'}`}
+              // Keep the detail content mounted across snap changes so its
+              // scroll position and header do not jump during expansion.
+              key={selectedPlace.id}
               onBack={backToPlaceList}
               place={selectedPlace}
               reels={selectedPlaceReels}
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
               onRetryReels={loadSelectedPlaceReels}
+              hideHeader={isPageMode}
+              hideBack
+              showTitle={false}
+              titleInHeader
               onPressMore={() => {
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
               }}
-              // A partially-open sheet is already below the status area, so
-              // reserving the map's safe-area inset here creates a large,
-              // unnecessary gap above the detail header. Keep that inset only
-              // when the sheet becomes a full-screen page.
-              headerTopInset={
-                isPageMode || activeSnapIndex === 0 ? topInset : 0
-              }
-              stickyHeaderTopInset={
-                isPageMode || activeSnapIndex === 0 ? topInset : 0
-              }
-              compactHeader={!isPageMode}
+              headerTopInset={isPageMode ? expandedDetailHeaderHeight : 0}
+              compactHeader
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
                 isPageMode
@@ -708,7 +823,7 @@ export function PlaceResultSheet({
             isResultsUserScrollingRef.current = false;
           }}
           onContentSizeChange={restoreResultsScroll}
-          renderItem={({item: place, index}) => (
+          renderItem={({ item: place, index }) => (
             <View style={styles.result}>
               <Pressable
                 accessibilityRole="button"
@@ -756,13 +871,50 @@ export function PlaceResultSheet({
           )}
           ListEmptyComponent={
             <View style={styles.emptyResult}>
-              <Text style={styles.emptyResultText}>
-                {isVisibleAreaUpdating
-                  ? '현재 지도 영역을 확인하고 있어요.'
-                  : isSearchActive
-                  ? '검색 결과 없습니다.'
-                  : '현재 지도 영역에 저장한 장소가 없어요.'}
-              </Text>
+              {isVisibleAreaUpdating ? (
+                <Text style={styles.emptyResultText}>
+                  현재 지도 영역을 확인하고 있어요.
+                </Text>
+              ) : isSavedPlacesLoading ? (
+                <Text style={styles.emptyResultText}>
+                  저장한 장소를 불러오고 있어요.
+                </Text>
+              ) : savedPlacesLoadFailed ? (
+                <Text style={styles.emptyResultText}>
+                  저장한 장소를 불러오지 못했어요.
+                </Text>
+              ) : isSearchActive ? (
+                <>
+                  <Text style={styles.emptyResultTitle}>
+                    검색 결과가 없어요
+                  </Text>
+                  <Text style={styles.emptyResultText}>
+                    다른 키워드로 다시 검색해보세요.
+                  </Text>
+                </>
+              ) : !hasSavedPlaces ? (
+                <>
+                  <Image
+                    source={require('../../../assets/illustrations/empty-illustration.png')}
+                    style={styles.emptyIllustration}
+                  />
+                  <Text style={styles.emptyResultTitle}>
+                    아직 저장한 장소가 없어요
+                  </Text>
+                  <Text style={styles.emptyResultText}>
+                    장소를 저장하면 지도에서 확인할 수 있어요.
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyResultTitle}>
+                    이 지도 영역에 저장한 장소가 없어요
+                  </Text>
+                  <Text style={styles.emptyResultText}>
+                    지도를 움직여 다른 곳도 확인해보세요.
+                  </Text>
+                </>
+              )}
             </View>
           }
         />
@@ -807,7 +959,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 14,
     paddingBottom: 2,
-    minHeight: 28,
+    minHeight: 44,
   },
   title: {
     fontSize: 15,
@@ -828,11 +980,26 @@ const styles = StyleSheet.create({
   },
   emptyResult: {
     paddingTop: 34,
+    paddingHorizontal: 16,
     alignItems: 'center',
   },
+  emptyIllustration: {
+    width: 96,
+    height: 96,
+    borderRadius: 18,
+    marginBottom: 12,
+  },
+  emptyResultTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1a1a2e',
+    textAlign: 'center',
+  },
   emptyResultText: {
+    marginTop: 6,
     fontSize: 14,
     color: '#8e8e93',
+    textAlign: 'center',
   },
   resultCard: {
     flexDirection: 'row',
