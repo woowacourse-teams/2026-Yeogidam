@@ -72,7 +72,7 @@ type PlaceResultSheetProps = {
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
 };
 
-export const COLLAPSED_SHEET_HEIGHT = 56;
+export const COLLAPSED_SHEET_HEIGHT = 84;
 const DETAIL_PEEK_HEIGHT = 84;
 const MIDDLE_VISIBLE_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
