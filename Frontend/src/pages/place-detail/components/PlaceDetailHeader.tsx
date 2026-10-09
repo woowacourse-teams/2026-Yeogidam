@@ -83,8 +83,8 @@ const styles = StyleSheet.create({
   title: {
     flex: 1,
     flexShrink: 1,
-    fontSize: 24,
-    lineHeight: 29,
+    fontSize: 23,
+    lineHeight: 28,
     fontWeight: '800',
     color: '#1a1a2e',
   },
