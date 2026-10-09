@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
 type PlaceDetailHeaderProps = {
-  onBack: () => void;
+  onBack?: () => void;
   onPressMore?: () => void;
   topInset?: number;
   compact?: boolean;
@@ -23,14 +23,16 @@ export function PlaceDetailHeader({
         { paddingTop: topInset },
       ]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="뒤로 가기"
-        hitSlop={12}
-        onPress={onBack}
-      >
-        <Text style={styles.back}>‹</Text>
-      </Pressable>
+      {onBack ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="뒤로 가기"
+          hitSlop={12}
+          onPress={onBack}
+        >
+          <Text style={styles.back}>‹</Text>
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityLabel="더보기"
         accessibilityRole="button"

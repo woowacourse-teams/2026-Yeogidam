@@ -1,5 +1,6 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
+import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Place } from '../../../entities/place/types';
@@ -7,9 +8,10 @@ import { useCopyToast } from './CopyToast';
 
 type PlaceInfoProps = {
   place: Place;
+  onPressMore?: () => void;
 };
 
-export function PlaceInfo({ place }: PlaceInfoProps) {
+export function PlaceInfo({ place, onPressMore }: PlaceInfoProps) {
   const { showCopyToast } = useCopyToast();
 
   const copyAddress = () => {
@@ -20,7 +22,20 @@ export function PlaceInfo({ place }: PlaceInfoProps) {
   return (
     <View>
       <View style={styles.summary}>
-        <Text style={styles.name}>{place.name}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.name}>{place.name}</Text>
+          {onPressMore ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="더보기"
+              hitSlop={8}
+              onPress={onPressMore}
+              style={styles.moreButton}
+            >
+              <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
+            </Pressable>
+          ) : null}
+        </View>
         {place.category ? (
           <Text style={styles.category}>{place.category}</Text>
         ) : null}
@@ -51,10 +66,24 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 18,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   name: {
+    flex: 1,
     fontSize: 28,
     fontWeight: '800',
     color: '#1a1a2e',
+  },
+  moreButton: {
+    width: 40,
+    height: 40,
+    marginRight: -10,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   category: {
     marginTop: 8,

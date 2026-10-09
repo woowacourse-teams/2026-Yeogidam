@@ -19,8 +19,9 @@ type PlaceDetailContentProps = {
   reelsError?: PlaceReelsApiError | null;
   isReelsLoading?: boolean;
   onRetryReels?: () => void;
-  onBack: () => void;
+  onBack?: () => void;
   onPressMore?: () => void;
+  hideHeader?: boolean;
   scrollEnabled?: boolean;
   contentBottomPadding?: number;
   headerTopInset?: number;
@@ -36,6 +37,7 @@ export function PlaceDetailContent({
   onRetryReels,
   onBack,
   onPressMore,
+  hideHeader = false,
   scrollEnabled = true,
   contentBottomPadding = 100,
   headerTopInset = 0,
@@ -86,12 +88,16 @@ export function PlaceDetailContent({
       stickyHeaderIndices={[2]}
       showsVerticalScrollIndicator={false}
     >
-      <PlaceDetailHeader
-        onBack={onBack}
-        onPressMore={onPressMore}
-        topInset={headerTopInset}
-        compact={compactHeader}
-      />
+      {hideHeader ? (
+        <View style={{ height: headerTopInset }} />
+      ) : (
+        <PlaceDetailHeader
+          onBack={onBack}
+          onPressMore={onPressMore}
+          topInset={headerTopInset}
+          compact={compactHeader}
+        />
+      )}
       <View
         onLayout={event => {
           const { y, height } = event.nativeEvent.layout;
@@ -99,7 +105,10 @@ export function PlaceDetailContent({
           tabsOffsetY.current = y + height;
         }}
       >
-        <PlaceInfo place={place} />
+        <PlaceInfo
+          place={place}
+          onPressMore={hideHeader ? onPressMore : undefined}
+        />
       </View>
       <View
         style={[

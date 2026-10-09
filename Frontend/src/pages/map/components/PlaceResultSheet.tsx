@@ -640,8 +640,8 @@ export function PlaceResultSheet({
               // the header always starts below the status bar instead of
               // inheriting the inline sheet's scroll position.
               key={`${selectedPlace.id}-${isPageMode ? 'page' : 'sheet'}`}
-              onBack={backToPlaceList}
               place={selectedPlace}
+              hideHeader
               reels={selectedPlaceReels}
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
