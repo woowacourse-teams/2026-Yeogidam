@@ -49,6 +49,8 @@ type PlaceResultSheetProps = {
   places: Place[];
   isSearchActive?: boolean;
   hasSavedPlaces?: boolean;
+  isSavedPlacesLoading?: boolean;
+  savedPlacesLoadFailed?: boolean;
   isVisibleAreaUpdating?: boolean;
   height: number;
   translateY?: Animated.Value;
@@ -95,6 +97,8 @@ export function PlaceResultSheet({
   places,
   isSearchActive = false,
   hasSavedPlaces = false,
+  isSavedPlacesLoading = false,
+  savedPlacesLoadFailed = false,
   isVisibleAreaUpdating = false,
   height,
   translateY: sharedTranslateY,
@@ -147,18 +151,17 @@ export function PlaceResultSheet({
     () => [0, middleOffset, collapsedOffset],
     [collapsedOffset, middleOffset],
   );
-  // Start compact so the sheet can be dragged both upward and downward.
   const internalTranslateY = useRef(
-    new Animated.Value(collapsedOffset),
+    new Animated.Value(middleOffset),
   ).current;
   const translateY = sharedTranslateY ?? internalTranslateY;
   const didInitializeSharedTranslateY = useRef(false);
   if (sharedTranslateY && !didInitializeSharedTranslateY.current) {
-    sharedTranslateY.setValue(collapsedOffset);
+    sharedTranslateY.setValue(middleOffset);
     didInitializeSharedTranslateY.current = true;
   }
-  const currentOffset = useRef(collapsedOffset);
-  const dragStartOffset = useRef(collapsedOffset);
+  const currentOffset = useRef(middleOffset);
+  const dragStartOffset = useRef(middleOffset);
   const previousSelectedPlaceId = useRef<string | null>(selectedPlace?.id ?? null);
   const startedInPageMode = useRef(false);
   const previousSheetHeight = useRef(sheetHeight);
@@ -175,7 +178,7 @@ export function PlaceResultSheet({
   const restoringResultsScrollOffsetRef = useRef<number | null>(null);
   const restoreScheduledRef = useRef(false);
   const isResultsUserScrollingRef = useRef(false);
-  const [activeSnapIndex, setActiveSnapIndex] = useState(2);
+  const [activeSnapIndex, setActiveSnapIndex] = useState(1);
   const dragStartSnapIndex = useRef(activeSnapIndex);
   const [isPageMode, setIsPageMode] = useState(false);
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
@@ -202,6 +205,10 @@ export function PlaceResultSheet({
     },
     [onVisibleHeightChange, sheetHeight],
   );
+  useEffect(() => {
+    reportVisibleHeight(middleOffset);
+  }, [middleOffset, reportVisibleHeight]);
+
   const recordResultsScroll = useCallback((offset: number) => {
     const nextOffset = Math.max(0, offset);
     const restoringOffset = restoringResultsScrollOffsetRef.current;
@@ -822,6 +829,14 @@ export function PlaceResultSheet({
               {isVisibleAreaUpdating ? (
                 <Text style={styles.emptyResultText}>
                   현재 지도 영역을 확인하고 있어요.
+                </Text>
+              ) : isSavedPlacesLoading ? (
+                <Text style={styles.emptyResultText}>
+                  저장한 장소를 불러오고 있어요.
+                </Text>
+              ) : savedPlacesLoadFailed ? (
+                <Text style={styles.emptyResultText}>
+                  저장한 장소를 불러오지 못했어요.
                 </Text>
               ) : isSearchActive ? (
                 <>

@@ -141,6 +141,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       self.showsCurrentLocation = showsCurrentLocation
       if showsCurrentLocation {
         requestCurrentLocationIfNeeded()
+        if needsCurrentLocationCameraMove, lastKnownLocation != nil {
+          scheduleCameraMove()
+        }
       } else {
         locationManager.stopUpdatingLocation()
         removeCurrentLocationMarker()
@@ -537,9 +540,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func centerMapOnCurrentLocation() {
-    guard showsCurrentLocation else { return }
-
     needsCurrentLocationCameraMove = true
+    guard showsCurrentLocation else { return }
     guard lastKnownLocation != nil else {
       requestCurrentLocationIfNeeded()
       return

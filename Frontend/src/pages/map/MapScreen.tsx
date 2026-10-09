@@ -63,6 +63,7 @@ export function MapScreen({
 }: MapScreenProps) {
   const posthog = usePostHog();
   const [locationGranted, setLocationGranted] = useState(false);
+  const didRequestInitialCurrentLocation = useRef(false);
   useEffect(() => {
     const unsubscribe = subscribeLocationPermission(setLocationGranted);
     const refresh = () => {
@@ -117,11 +118,19 @@ export function MapScreen({
   );
   const sheetVisibleHeightRef = useRef(COLLAPSED_SHEET_HEIGHT);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
-  // Request the initial camera position from the user's location. The native
-  // map waits for the permission/location callback before moving the camera.
-  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(1);
+  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
+  useEffect(() => {
+    if (!locationGranted || didRequestInitialCurrentLocation.current) {
+      return;
+    }
+
+    didRequestInitialCurrentLocation.current = true;
+    setCurrentLocationRequestId(requestId => requestId + 1);
+  }, [locationGranted]);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
+  const [isSavedPlacesLoading, setIsSavedPlacesLoading] = useState(true);
+  const [savedPlacesLoadFailed, setSavedPlacesLoadFailed] = useState(false);
   const bottomNavigationOffset =
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
 
@@ -155,7 +164,13 @@ export function MapScreen({
       })
       .catch(error => {
         if (isActive) {
+          setSavedPlacesLoadFailed(true);
           setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsSavedPlacesLoading(false);
         }
       });
 
@@ -393,6 +408,8 @@ export function MapScreen({
             bottomTabOffset={bottomNavigationOffset}
             places={resultPlaces}
             hasSavedPlaces={savedPlaces.length > 0}
+            isSavedPlacesLoading={isSavedPlacesLoading}
+            savedPlacesLoadFailed={savedPlacesLoadFailed}
             isSearchActive={hasActiveSearch}
             expandSignal={searchResultSignal}
             openPlace={openedMarker.place}
