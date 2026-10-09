@@ -418,25 +418,23 @@ export function MapScreen({
             </Pressable>
           </Animated.View>
         ) : null}
-        {!isPlaceDetailVisible ? (
-          <SearchBar
-            backButtonPosition={
-              hasActiveSearch || isSearchFocused ? 'leading' : 'inside'
-            }
-            value={searchKeyword}
-            onChangeText={handleSearchKeywordChange}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-            onSubmitEditing={handleSearch}
-            onPressSearchAction={handleSearch}
-            topInset={topInset}
-            onPressBack={
-              hasActiveSearch || isSearchFocused || isSheetExpanded
-                ? handleSearchBack
-                : undefined
-            }
-          />
-        ) : null}
+        <SearchBar
+          backButtonPosition={
+            hasActiveSearch || isSearchFocused ? 'leading' : 'inside'
+          }
+          value={searchKeyword}
+          onChangeText={handleSearchKeywordChange}
+          onFocus={() => setIsSearchFocused(true)}
+          onBlur={() => setIsSearchFocused(false)}
+          onSubmitEditing={handleSearch}
+          onPressSearchAction={handleSearch}
+          topInset={topInset}
+          onPressBack={
+            hasActiveSearch || isSearchFocused || isSheetExpanded
+              ? handleSearchBack
+              : undefined
+          }
+        />
         {mapMessage ? (
           <Pressable
             accessibilityRole="button"
