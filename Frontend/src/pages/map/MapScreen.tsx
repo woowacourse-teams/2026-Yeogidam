@@ -84,6 +84,7 @@ export function MapScreen({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchedPlaces, setSearchedPlaces] = useState<Place[] | null>(null);
   const [searchResultSignal, setSearchResultSignal] = useState(0);
+  const [backToPlaceListSignal, setBackToPlaceListSignal] = useState(0);
   const [mapCenter, setMapCenter] = useState({
     latitude: 37.5448,
     longitude: 127.0557,
@@ -243,6 +244,13 @@ export function MapScreen({
     }
   };
   const handleSearchBack = () => {
+    if (isPlaceDetailVisible) {
+      setBackToPlaceListSignal(signal => signal + 1);
+      setIsSearchFocused(false);
+      Keyboard.dismiss();
+      return;
+    }
+
     if (isSheetExpanded) {
       setCollapseSignal(signal => signal + 1);
       setIsSearchFocused(false);
@@ -365,6 +373,7 @@ export function MapScreen({
             openPlace={openedMarker.place}
             openPlaceContext={openedMarker.viewContext}
             openPlaceSignal={openedMarker.signal}
+            backToPlaceListSignal={backToPlaceListSignal}
             collapseSignal={collapseSignal}
             onDetailViewChange={(isDetailView, placeId) => {
               setSelectedPlaceId(placeId);
@@ -418,25 +427,33 @@ export function MapScreen({
             </Pressable>
           </Animated.View>
         ) : null}
-        <SearchBar
-          backButtonPosition={
-            hasActiveSearch || isSearchFocused || isSheetExpanded
-              ? 'leading'
-              : 'inside'
-          }
-          value={searchKeyword}
-          onChangeText={handleSearchKeywordChange}
-          onFocus={() => setIsSearchFocused(true)}
-          onBlur={() => setIsSearchFocused(false)}
-          onSubmitEditing={handleSearch}
-          onPressSearchAction={handleSearch}
-          topInset={topInset}
-          onPressBack={
-            hasActiveSearch || isSearchFocused || isSheetExpanded
-              ? handleSearchBack
-              : undefined
-          }
-        />
+        <View pointerEvents="box-none" style={styles.searchOverlay}>
+          <SearchBar
+            backButtonPosition={
+              hasActiveSearch ||
+              isSearchFocused ||
+              isSheetExpanded ||
+              isPlaceDetailVisible
+                ? 'leading'
+                : 'inside'
+            }
+            value={searchKeyword}
+            onChangeText={handleSearchKeywordChange}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+            onSubmitEditing={handleSearch}
+            onPressSearchAction={handleSearch}
+            topInset={topInset}
+            onPressBack={
+              hasActiveSearch ||
+              isSearchFocused ||
+              isSheetExpanded ||
+              isPlaceDetailVisible
+                ? handleSearchBack
+                : undefined
+            }
+          />
+        </View>
         {mapMessage ? (
           <Pressable
             accessibilityRole="button"
@@ -462,6 +479,15 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  searchOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 20,
+    elevation: 20,
   },
   mapViewport: {
     position: 'absolute',

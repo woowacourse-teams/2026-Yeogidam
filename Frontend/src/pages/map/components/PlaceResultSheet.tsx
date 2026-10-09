@@ -57,12 +57,14 @@ type PlaceResultSheetProps = {
   openPlaceContext?: SavedPlaceViewContext | null;
   openPlaceId?: string;
   openPlaceSignal?: number;
+  backToPlaceListSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
 };
 
-export const COLLAPSED_SHEET_HEIGHT = 48;
+export const COLLAPSED_SHEET_HEIGHT = 56;
+const DETAIL_PEEK_HEIGHT = 84;
 const MIDDLE_SHEET_HEIGHT_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const BOTTOM_TAB_CLEARANCE = 92;
@@ -97,13 +99,13 @@ export function PlaceResultSheet({
   openPlaceContext,
   openPlaceId,
   openPlaceSignal = 0,
+  backToPlaceListSignal = 0,
   onDetailViewChange,
   onAuthenticationRequired,
   onSavedPlaceDeleted,
 }: PlaceResultSheetProps) {
   const posthog = usePostHog();
   const { width: windowWidth } = useWindowDimensions();
-  const sheetHeight = Math.max(COLLAPSED_SHEET_HEIGHT, height);
   const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
@@ -117,7 +119,11 @@ export function PlaceResultSheet({
     null,
   );
   const detailEntryOffsetRef = useRef<number | null>(null);
-  const collapsedOffset = sheetHeight - COLLAPSED_SHEET_HEIGHT;
+  const collapsedHeight = selectedPlace
+    ? COLLAPSED_SHEET_HEIGHT + DETAIL_PEEK_HEIGHT
+    : COLLAPSED_SHEET_HEIGHT;
+  const sheetHeight = Math.max(collapsedHeight, height);
+  const collapsedOffset = sheetHeight - collapsedHeight;
   const middleOffset = Math.min(
     collapsedOffset,
     sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
@@ -150,6 +156,7 @@ export function PlaceResultSheet({
   const handledCollapseSignal = useRef(collapseSignal);
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
+  const handledBackToPlaceListSignal = useRef(backToPlaceListSignal);
   const capturedPlaceViewIdRef = useRef<string | null>(null);
   const isPageModeRef = useRef(false);
   const resultsScrollOffsetRef = useRef(0);
@@ -531,6 +538,15 @@ export function PlaceResultSheet({
     setSelectedPlaceViewContext(null);
   }, []);
 
+  useEffect(() => {
+    if (backToPlaceListSignal === handledBackToPlaceListSignal.current) {
+      return;
+    }
+
+    handledBackToPlaceListSignal.current = backToPlaceListSignal;
+    backToPlaceList();
+  }, [backToPlaceList, backToPlaceListSignal]);
+
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
       return;
@@ -639,10 +655,14 @@ export function PlaceResultSheet({
               // unnecessary gap above the detail header. Keep that inset only
               // when the sheet becomes a full-screen page.
               headerTopInset={
-                isPageMode || activeSnapIndex === 0 ? topInset : 0
+                isPageMode || activeSnapIndex === 0
+                  ? expandedHeaderHeight
+                  : 0
               }
               stickyHeaderTopInset={
-                isPageMode || activeSnapIndex === 0 ? topInset : 0
+                isPageMode || activeSnapIndex === 0
+                  ? expandedHeaderHeight
+                  : 0
               }
               compactHeader={!isPageMode}
               scrollEnabled={activeSnapIndex !== 2}
@@ -807,7 +827,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 14,
     paddingBottom: 2,
-    minHeight: 28,
+    minHeight: 44,
   },
   title: {
     fontSize: 15,
