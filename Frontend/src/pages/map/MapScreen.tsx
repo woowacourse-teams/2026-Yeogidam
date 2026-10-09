@@ -13,6 +13,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
 import {v4 as uuidv4} from 'uuid';
@@ -28,7 +29,11 @@ import {
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { getSavedPlaces } from '../../entities/info/api';
-import { SearchBar } from '../../components/SearchBar';
+import {
+  SEARCH_BAR_HEIGHT,
+  SEARCH_BAR_TOP_GAP,
+  SearchBar,
+} from '../../components/SearchBar';
 import {
   COLLAPSED_SHEET_HEIGHT,
   PlaceResultSheet,
@@ -85,6 +90,7 @@ export function MapScreen({
   const [searchedPlaces, setSearchedPlaces] = useState<Place[] | null>(null);
   const [searchResultSignal, setSearchResultSignal] = useState(0);
   const [backToPlaceListSignal, setBackToPlaceListSignal] = useState(0);
+  const [detailMoreSignal, setDetailMoreSignal] = useState(0);
   const [mapCenter, setMapCenter] = useState({
     latitude: 37.5448,
     longitude: 127.0557,
@@ -104,6 +110,7 @@ export function MapScreen({
     signal: number;
   }>({place: null, viewContext: null, signal: 0});
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const detailHeaderProgress = useRef(new Animated.Value(0)).current;
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
     COLLAPSED_SHEET_HEIGHT,
@@ -178,6 +185,19 @@ export function MapScreen({
     );
   }, [placesWithCoordinates, searchedPlaces, visibleBounds]);
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
+  const selectedPlaceForHeader = selectedPlaceId
+    ? markerPlaces.find(place => place.id === selectedPlaceId) ??
+      resultPlaces.find(place => place.id === selectedPlaceId)
+    : undefined;
+  const showExpandedDetailHeader = isPlaceDetailVisible && isSheetExpanded;
+
+  useEffect(() => {
+    Animated.timing(detailHeaderProgress, {
+      toValue: showExpandedDetailHeader ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [detailHeaderProgress, showExpandedDetailHeader]);
   const cameraFitPointsJson = useMemo(
     () =>
       JSON.stringify(
@@ -374,6 +394,7 @@ export function MapScreen({
             openPlaceContext={openedMarker.viewContext}
             openPlaceSignal={openedMarker.signal}
             backToPlaceListSignal={backToPlaceListSignal}
+            detailMoreSignal={detailMoreSignal}
             collapseSignal={collapseSignal}
             onDetailViewChange={(isDetailView, placeId) => {
               setSelectedPlaceId(placeId);
@@ -428,31 +449,76 @@ export function MapScreen({
           </Animated.View>
         ) : null}
         <View pointerEvents="box-none" style={styles.searchOverlay}>
-          <SearchBar
-            backButtonPosition={
-              hasActiveSearch ||
-              isSearchFocused ||
-              isSheetExpanded ||
-              isPlaceDetailVisible
-                ? 'leading'
-                : 'inside'
-            }
-            value={searchKeyword}
-            onChangeText={handleSearchKeywordChange}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-            onSubmitEditing={handleSearch}
-            onPressSearchAction={handleSearch}
-            topInset={topInset}
-            onPressBack={
-              hasActiveSearch ||
-              isSearchFocused ||
-              isSheetExpanded ||
-              isPlaceDetailVisible
-                ? handleSearchBack
-                : undefined
-            }
-          />
+          <Animated.View
+            pointerEvents={showExpandedDetailHeader ? 'none' : 'auto'}
+            style={{
+              opacity: detailHeaderProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0],
+              }),
+            }}
+          >
+            <SearchBar
+              backButtonPosition={
+                hasActiveSearch ||
+                isSearchFocused ||
+                isSheetExpanded ||
+                isPlaceDetailVisible
+                  ? 'leading'
+                  : 'inside'
+              }
+              value={searchKeyword}
+              onChangeText={handleSearchKeywordChange}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+              onSubmitEditing={handleSearch}
+              onPressSearchAction={handleSearch}
+              topInset={topInset}
+              onPressBack={
+                hasActiveSearch ||
+                isSearchFocused ||
+                isSheetExpanded ||
+                isPlaceDetailVisible
+                  ? handleSearchBack
+                  : undefined
+              }
+            />
+          </Animated.View>
+          {selectedPlaceForHeader ? (
+            <Animated.View
+              pointerEvents={showExpandedDetailHeader ? 'auto' : 'none'}
+              style={[
+                styles.expandedDetailHeader,
+                {
+                  top: topInset + SEARCH_BAR_TOP_GAP,
+                  height: SEARCH_BAR_HEIGHT,
+                  opacity: detailHeaderProgress,
+                },
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="뒤로 가기"
+                hitSlop={12}
+                onPress={handleSearchBack}
+                style={styles.expandedDetailBack}
+              >
+                <Text style={styles.expandedDetailBackText}>‹</Text>
+              </Pressable>
+              <Text numberOfLines={1} style={styles.expandedDetailTitle}>
+                {selectedPlaceForHeader.name}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="더보기"
+                hitSlop={8}
+                onPress={() => setDetailMoreSignal(signal => signal + 1)}
+                style={styles.expandedDetailMore}
+              >
+                <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
+              </Pressable>
+            </Animated.View>
+          ) : null}
         </View>
         {mapMessage ? (
           <Pressable
@@ -488,6 +554,41 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 20,
     elevation: 20,
+  },
+  expandedDetailHeader: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 11,
+  },
+  expandedDetailBack: {
+    width: SEARCH_BAR_HEIGHT,
+    height: SEARCH_BAR_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedDetailBackText: {
+    marginTop: -4,
+    fontSize: 31,
+    lineHeight: 35,
+    color: '#202124',
+  },
+  expandedDetailTitle: {
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 24,
+    lineHeight: 29,
+    fontWeight: '800',
+    color: '#1a1a2e',
+  },
+  expandedDetailMore: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mapViewport: {
     position: 'absolute',

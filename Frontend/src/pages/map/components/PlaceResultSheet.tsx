@@ -8,6 +8,7 @@ import React, {
 import {
   Animated,
   FlatList,
+  LayoutAnimation,
   Image,
   PanResponder,
   Pressable,
@@ -16,8 +17,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import {usePostHog} from 'posthog-react-native';
-import {v4 as uuidv4} from 'uuid';
+import { usePostHog } from 'posthog-react-native';
+import { v4 as uuidv4 } from 'uuid';
 
 import {
   captureSavedPlaceOpened,
@@ -35,7 +36,10 @@ import type {
   SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
-import { SEARCH_BAR_HEIGHT, SEARCH_BAR_TOP_GAP } from '../../../components/SearchBar';
+import {
+  SEARCH_BAR_HEIGHT,
+  SEARCH_BAR_TOP_GAP,
+} from '../../../components/SearchBar';
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
 import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
@@ -58,6 +62,7 @@ type PlaceResultSheetProps = {
   openPlaceId?: string;
   openPlaceSignal?: number;
   backToPlaceListSignal?: number;
+  detailMoreSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
@@ -100,6 +105,7 @@ export function PlaceResultSheet({
   openPlaceId,
   openPlaceSignal = 0,
   backToPlaceListSignal = 0,
+  detailMoreSignal = 0,
   onDetailViewChange,
   onAuthenticationRequired,
   onSavedPlaceDeleted,
@@ -157,6 +163,7 @@ export function PlaceResultSheet({
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
   const handledBackToPlaceListSignal = useRef(backToPlaceListSignal);
+  const handledDetailMoreSignal = useRef(detailMoreSignal);
   const capturedPlaceViewIdRef = useRef<string | null>(null);
   const isPageModeRef = useRef(false);
   const resultsScrollOffsetRef = useRef(0);
@@ -299,6 +306,11 @@ export function PlaceResultSheet({
         0,
       );
       const nearestOffset = snapOffsets[nearestSnapIndex];
+
+      const nextIsPageMode = nearestSnapIndex === 0;
+      if (isPageModeRef.current !== nextIsPageMode) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
 
       currentOffset.current = nearestOffset;
       if (nearestSnapIndex < activeSnapIndex) {
@@ -520,7 +532,7 @@ export function PlaceResultSheet({
         placeViewId: uuidv4(),
         source: 'map_search_result',
       };
-      captureSavedPlaceSelected(posthog, {...viewContext, position});
+      captureSavedPlaceSelected(posthog, { ...viewContext, position });
       setSelectedPlaceViewContext(viewContext);
     } else {
       setSelectedPlaceViewContext(null);
@@ -546,6 +558,19 @@ export function PlaceResultSheet({
     handledBackToPlaceListSignal.current = backToPlaceListSignal;
     backToPlaceList();
   }, [backToPlaceList, backToPlaceListSignal]);
+
+  useEffect(() => {
+    if (
+      detailMoreSignal === handledDetailMoreSignal.current ||
+      !selectedPlace
+    ) {
+      return;
+    }
+
+    handledDetailMoreSignal.current = detailMoreSignal;
+    setDeleteError(null);
+    setIsActionSheetVisible(true);
+  }, [detailMoreSignal, selectedPlace]);
 
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
@@ -636,35 +661,26 @@ export function PlaceResultSheet({
         <View style={[styles.detailArea, { height: detailVisibleHeight }]}>
           <CopyToastProvider>
             <PlaceDetailContent
-              // Recreate the detail scroll view when it becomes a full page so
-              // the header always starts below the status bar instead of
-              // inheriting the inline sheet's scroll position.
-              key={`${selectedPlace.id}-${isPageMode ? 'page' : 'sheet'}`}
+              // Keep the detail content mounted across snap changes so its
+              // scroll position and header do not jump during expansion.
+              key={selectedPlace.id}
+              onBack={backToPlaceList}
               place={selectedPlace}
-              hideHeader
               reels={selectedPlaceReels}
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
               onRetryReels={loadSelectedPlaceReels}
+              hideHeader={isPageMode}
+              hideBack
+              showTitle={false}
+              titleInHeader
               onPressMore={() => {
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
               }}
-              // A partially-open sheet is already below the status area, so
-              // reserving the map's safe-area inset here creates a large,
-              // unnecessary gap above the detail header. Keep that inset only
-              // when the sheet becomes a full-screen page.
-              headerTopInset={
-                isPageMode || activeSnapIndex === 0
-                  ? expandedHeaderHeight
-                  : 0
-              }
-              stickyHeaderTopInset={
-                isPageMode || activeSnapIndex === 0
-                  ? expandedHeaderHeight
-                  : 0
-              }
-              compactHeader={!isPageMode}
+              headerTopInset={isPageMode ? expandedHeaderHeight : 0}
+              stickyHeaderTopInset={isPageMode ? expandedHeaderHeight : 0}
+              compactHeader
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
                 isPageMode
@@ -728,7 +744,7 @@ export function PlaceResultSheet({
             isResultsUserScrollingRef.current = false;
           }}
           onContentSizeChange={restoreResultsScroll}
-          renderItem={({item: place, index}) => (
+          renderItem={({ item: place, index }) => (
             <View style={styles.result}>
               <Pressable
                 accessibilityRole="button"

@@ -9,9 +9,14 @@ import { useCopyToast } from './CopyToast';
 type PlaceInfoProps = {
   place: Place;
   onPressMore?: () => void;
+  showTitle?: boolean;
 };
 
-export function PlaceInfo({ place, onPressMore }: PlaceInfoProps) {
+export function PlaceInfo({
+  place,
+  onPressMore,
+  showTitle = true,
+}: PlaceInfoProps) {
   const { showCopyToast } = useCopyToast();
 
   const copyAddress = () => {
@@ -22,20 +27,22 @@ export function PlaceInfo({ place, onPressMore }: PlaceInfoProps) {
   return (
     <View>
       <View style={styles.summary}>
-        <View style={styles.titleRow}>
-          <Text style={styles.name}>{place.name}</Text>
-          {onPressMore ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="더보기"
-              hitSlop={8}
-              onPress={onPressMore}
-              style={styles.moreButton}
-            >
-              <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
-            </Pressable>
-          ) : null}
-        </View>
+        {showTitle ? (
+          <View style={styles.titleRow}>
+            <Text style={styles.name}>{place.name}</Text>
+            {onPressMore ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="더보기"
+                hitSlop={8}
+                onPress={onPressMore}
+                style={styles.moreButton}
+              >
+                <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         {place.category ? (
           <Text style={styles.category}>{place.category}</Text>
         ) : null}
