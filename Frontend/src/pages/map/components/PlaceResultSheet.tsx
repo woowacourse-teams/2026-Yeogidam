@@ -124,7 +124,6 @@ export function PlaceResultSheet({
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
     null,
   );
-  const detailEntryOffsetRef = useRef<number | null>(null);
   const collapsedHeight = selectedPlace
     ? COLLAPSED_SHEET_HEIGHT + DETAIL_PEEK_HEIGHT
     : COLLAPSED_SHEET_HEIGHT;
@@ -134,16 +133,9 @@ export function PlaceResultSheet({
     collapsedOffset,
     sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
   );
-  // Keep the existing detail position when possible, but never let opening a
-  // detail from a collapsed results list leave the detail at its collapsed
-  // peek. In that case, use at least the middle snap point.
-  const detailMiddleOffset =
-    selectedPlace && detailEntryOffsetRef.current !== null
-      ? Math.min(middleOffset, detailEntryOffsetRef.current)
-      : middleOffset;
   const snapOffsets = useMemo(
-    () => [0, detailMiddleOffset, collapsedOffset],
-    [collapsedOffset, detailMiddleOffset],
+    () => [0, middleOffset, collapsedOffset],
+    [collapsedOffset, middleOffset],
   );
   // Start compact so the sheet can be dragged both upward and downward.
   const internalTranslateY = useRef(
@@ -421,7 +413,6 @@ export function PlaceResultSheet({
     if (!place) return;
 
     handledOpenPlaceSignal.current = openPlaceSignal;
-    detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
     setSelectedPlaceViewContext(openPlaceContext ?? null);
     snapTo(snapOffsets[1]);
@@ -527,7 +518,6 @@ export function PlaceResultSheet({
     pendingResultsScrollOffsetRef.current = resultsScrollOffsetRef.current;
     restoringResultsScrollOffsetRef.current = null;
     isResultsUserScrollingRef.current = false;
-    detailEntryOffsetRef.current = currentOffset.current;
     setSelectedPlace(place);
     if (place.savedPlaceId) {
       const viewContext: SavedPlaceViewContext = {
@@ -549,7 +539,6 @@ export function PlaceResultSheet({
 
   const backToPlaceList = useCallback(() => {
     setIsActionSheetVisible(false);
-    detailEntryOffsetRef.current = null;
     setSelectedPlace(null);
     setSelectedPlaceViewContext(null);
   }, []);
