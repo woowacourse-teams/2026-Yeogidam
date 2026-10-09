@@ -128,12 +128,12 @@ export function PlaceResultSheet({
     collapsedOffset,
     sheetHeight * (1 - MIDDLE_SHEET_HEIGHT_RATIO),
   );
-  // The sheet uses the bottom-tab offset only while showing the list. Once
-  // detail is opened its bottom edge moves to the screen edge, so preserving
-  // the same offset also preserves the sheet's existing top position.
+  // Keep the existing detail position when possible, but never let opening a
+  // detail from a collapsed results list leave the detail at its collapsed
+  // peek. In that case, use at least the middle snap point.
   const detailMiddleOffset =
     selectedPlace && detailEntryOffsetRef.current !== null
-      ? Math.min(collapsedOffset, detailEntryOffsetRef.current)
+      ? Math.min(middleOffset, detailEntryOffsetRef.current)
       : middleOffset;
   const snapOffsets = useMemo(
     () => [0, detailMiddleOffset, collapsedOffset],
