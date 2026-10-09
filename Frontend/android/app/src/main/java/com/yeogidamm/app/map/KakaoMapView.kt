@@ -27,6 +27,10 @@ import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.Label
 import com.kakao.vectormap.label.LabelOptions
+import com.kakao.vectormap.label.LabelStyle
+import com.kakao.vectormap.label.LabelStyles
+import com.kakao.vectormap.label.LabelTransition
+import com.kakao.vectormap.label.Transition
 import com.yeogidamm.app.R
 import org.json.JSONArray
 import kotlin.math.roundToInt
@@ -42,7 +46,15 @@ class KakaoMapView(
     private var kakaoMap: KakaoMap? = null
     private var currentLocationLabel: Label? = null
     private var savedPlacesJson = "[]"
+    private val savedPlaceSelectionById = mutableMapOf<String, Boolean>()
     private var lastKnownLocation: Location? = null
+
+    private val savedPlaceStyles: Map<Boolean, LabelStyles> by lazy {
+        mapOf(
+            false to createSavedPlaceStyles(selected = false),
+            true to createSavedPlaceStyles(selected = true),
+        )
+    }
 
     private var latitude = 37.5445
     private var longitude = 127.0557
@@ -282,26 +294,69 @@ class KakaoMapView(
 
     private fun renderSavedPlaceMarkers() {
         val layer = kakaoMap?.labelManager?.layer ?: return
-        layer.removeAll()
 
         try {
             val places = JSONArray(savedPlacesJson)
+            val placesById = linkedMapOf<String, org.json.JSONObject>()
+
             for (index in 0 until places.length()) {
                 val place = places.getJSONObject(index)
-                layer.addLabel(
-                    LabelOptions.from(
-                        place.getString("id"),
-                        LatLng.from(place.getDouble("latitude"), place.getDouble("longitude")),
-                    ).setStyles(createSavedPlaceMarker(place.optBoolean("selected", false))),
-                ).apply {
-                    tag = place.getString("id")
-                    isClickable = true
+                placesById[place.getString("id")] = place
+            }
+
+            (savedPlaceSelectionById.keys - placesById.keys).forEach { removedId ->
+                layer.getLabel(removedId)?.remove()
+            }
+
+            placesById.forEach { (id, place) ->
+                val selected = place.optBoolean("selected", false)
+                val position =
+                    LatLng.from(place.getDouble("latitude"), place.getDouble("longitude"))
+                val style = savedPlaceStyles.getValue(selected)
+                val label = layer.getLabel(id)
+
+                if (label == null) {
+                    layer.addLabel(
+                        LabelOptions
+                            .from(id, position)
+                            .setRank(if (selected) Int.MAX_VALUE.toLong() - 1 else 1L)
+                            .setStyles(style),
+                    ).apply {
+                        tag = id
+                        isClickable = true
+                    }
+                } else {
+                    label.moveTo(position)
+                    label.rank = if (selected) Int.MAX_VALUE.toLong() - 1 else 1L
+                    label.tag = id
+                    label.isClickable = true
+
+                    if (savedPlaceSelectionById[id] != selected) {
+                        label.changeStyles(style, true)
+                    }
                 }
             }
+
+            savedPlaceSelectionById.clear()
+            savedPlaceSelectionById.putAll(
+                placesById.mapValues { (_, place) -> place.optBoolean("selected", false) },
+            )
         } catch (error: Exception) {
             Log.e("YeogidamKakaoMap", "저장 장소 핀을 표시하지 못했습니다.", error)
         }
     }
+
+    private fun createSavedPlaceStyles(selected: Boolean): LabelStyles =
+        LabelStyles.from(
+            LabelStyle
+                .from(createSavedPlaceMarker(selected))
+                .setAnchorPoint(0.5f, 1.0f)
+                .setIconTransition(
+                    LabelTransition
+                        .from(Transition.Scale, Transition.Scale)
+                        .enableTransitionWhenChange(true, true),
+                ),
+        )
 
     override fun onSizeChanged(
         width: Int,
@@ -445,6 +500,7 @@ class KakaoMapView(
                 map.labelManager?.layer?.addLabel(
                     LabelOptions
                         .from(CURRENT_LOCATION_LABEL_ID, position)
+                        .setRank(Int.MAX_VALUE.toLong())
                         .setStyles(createCurrentLocationMarker()),
                 )
             currentLocationLabel = newLabel
@@ -551,7 +607,8 @@ class KakaoMapView(
 
     private fun createSavedPlaceMarker(selected: Boolean): Bitmap {
         val density = resources.displayMetrics.density
-        val size = (SAVED_PLACE_MARKER_SIZE_DP * density).roundToInt()
+        val markerSizeDp = if (selected) SAVED_PLACE_MARKER_SIZE_DP + 4 else SAVED_PLACE_MARKER_SIZE_DP
+        val size = (markerSizeDp * density).roundToInt()
         val resourceId = if (selected) R.drawable.map_marker_selected else R.drawable.map_marker
         BitmapFactory.decodeResource(resources, resourceId)?.let { markerBitmap ->
             return Bitmap.createScaledBitmap(markerBitmap, size, size, true)
@@ -611,7 +668,7 @@ class KakaoMapView(
     private companion object {
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
-        const val SAVED_PLACE_MARKER_SIZE_DP = 36
+        const val SAVED_PLACE_MARKER_SIZE_DP = 18
         const val SEARCH_RESULT_CAMERA_PADDING = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L

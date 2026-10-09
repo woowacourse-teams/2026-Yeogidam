@@ -23,6 +23,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var viewResizedHandler: (any DisposableEventHandler)?
   private var savedPlaceStyleAdded = false
   private var savedPlacesJson = "[]"
+  private var savedPlaceSelectionByID: [String: Bool] = [:]
   private var lastKnownLocation: CLLocation?
 
   private var latitude: Double = 37.5665
@@ -585,7 +586,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           competitionType: .none,
           competitionUnit: .symbolFirst,
           orderType: .rank,
-          zOrder: 1_000
+          zOrder: 10_000
         )
       )
 
@@ -593,7 +594,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       styleID: Self.currentLocationStyleID,
       poiID: Self.currentLocationPoiID
     )
-    options.rank = 1
+    options.rank = Int.max
 
     currentLocationPoi = layer?.addPoi(option: options, at: position)
     currentLocationPoi?.show()
@@ -617,19 +618,19 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           competitionType: .none,
           competitionUnit: .symbolFirst,
           orderType: .rank,
-          zOrder: 900
+          zOrder: 9_000
         )
       )
     // Kakao Maps disables POI interaction by default. Both the layer and its
     // POIs must be made clickable for `poiDidTapped` to fire.
     layer?.setClickable(true)
-    layer?.clearAllItems()
 
     if !savedPlaceStyleAdded {
       for selected in [false, true] {
         let iconStyle = PoiIconStyle(
           symbol: makeSavedPlaceMarker(selected: selected),
-          anchorPoint: CGPoint(x: 0.5, y: 0.5)
+          anchorPoint: CGPoint(x: 0.5, y: 1.0),
+          transition: PoiTransition(entrance: .scale, exit: .scale)
         )
         labelManager.addPoiStyle(
           PoiStyle(
@@ -641,24 +642,44 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       savedPlaceStyleAdded = true
     }
 
-    places.forEach { place in
+    let markers = places.compactMap { place -> (String, Double, Double, Bool)? in
       guard
         let id = place["id"] as? String,
         let latitude = place["latitude"] as? Double,
         let longitude = place["longitude"] as? Double
-      else { return }
-      let selected = place["selected"] as? Bool ?? false
-      let options = PoiOptions(
-        styleID: selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID,
-        poiID: id
-      )
-      options.rank = 1
-      options.clickable = true
-      layer?.addPoi(
-        option: options,
-        at: MapPoint(longitude: longitude, latitude: latitude)
-      )?.show()
+      else { return nil }
+
+      return (id, latitude, longitude, place["selected"] as? Bool ?? false)
     }
+    let nextSelectionByID = markers.reduce(into: [String: Bool]()) { result, marker in
+      result[marker.0] = marker.3
+    }
+
+    for removedID in savedPlaceSelectionByID.keys where nextSelectionByID[removedID] == nil {
+      layer?.removePoi(poiID: removedID)
+    }
+
+    markers.forEach { id, latitude, longitude, selected in
+      let position = MapPoint(longitude: longitude, latitude: latitude)
+      let styleID = selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID
+
+      if let poi = layer?.getPoi(poiID: id) {
+        poi.position = position
+        poi.clickable = true
+        poi.rank = selected ? Int.max - 1 : 1
+
+        if savedPlaceSelectionByID[id] != selected {
+          poi.changeStyle(styleID: styleID, enableTransition: true)
+        }
+      } else {
+        let options = PoiOptions(styleID: styleID, poiID: id)
+        options.rank = selected ? Int.max - 1 : 1
+        options.clickable = true
+        layer?.addPoi(option: options, at: position)?.show()
+      }
+    }
+
+    savedPlaceSelectionByID = nextSelectionByID
   }
 
   private func emitCameraChanged() {
@@ -720,34 +741,51 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func makeCurrentLocationMarker() -> UIImage {
-    let size = CGSize(width: 28, height: 28)
+    let size = CGSize(width: 40, height: 40)
+    let center = CGPoint(x: size.width / 2, y: size.height / 2)
 
     return UIGraphicsImageRenderer(size: size).image { context in
-      let bounds = CGRect(origin: .zero, size: size)
-      let outerCircle = UIBezierPath(ovalIn: bounds)
-      UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 0.22)
-        .setFill()
-      outerCircle.fill()
+      let cgContext = context.cgContext
+      cgContext.setAllowsAntialiasing(true)
+
+      let blueColor = UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 1)
+      if let gradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [
+          blueColor.withAlphaComponent(0.34).cgColor,
+          blueColor.withAlphaComponent(0.3).cgColor,
+          blueColor.withAlphaComponent(0.2).cgColor,
+          blueColor.withAlphaComponent(0.08).cgColor,
+          blueColor.withAlphaComponent(0).cgColor
+        ] as CFArray,
+        locations: [0, 0.35, 0.6, 0.82, 1]
+      ) {
+        cgContext.drawRadialGradient(
+          gradient,
+          startCenter: center,
+          startRadius: 0,
+          endCenter: center,
+          endRadius: size.width / 2,
+          options: []
+        )
+      }
 
       let whiteCircle = UIBezierPath(
-        ovalIn: bounds.insetBy(dx: 4, dy: 4)
+        ovalIn: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12)
       )
       UIColor.white.setFill()
       whiteCircle.fill()
 
       let blueCircle = UIBezierPath(
-        ovalIn: bounds.insetBy(dx: 7, dy: 7)
+        ovalIn: CGRect(x: center.x - 4.5, y: center.y - 4.5, width: 9, height: 9)
       )
-      UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 1)
-        .setFill()
+      blueColor.setFill()
       blueCircle.fill()
-
-      context.cgContext.setAllowsAntialiasing(true)
     }
   }
 
   private func makeSavedPlaceMarker(selected: Bool) -> UIImage {
-    let size = CGSize(width: 36, height: 36)
+    let size = selected ? CGSize(width: 32, height: 32) : CGSize(width: 26, height: 26)
 
     let assetName = selected ? Self.selectedPlaceMarkerAssetName : Self.savedPlaceMarkerAssetName
     if let markerImage = UIImage(named: assetName) {
@@ -757,16 +795,16 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     }
 
     return UIGraphicsImageRenderer(size: size).image { _ in
-      let center = CGPoint(x: 18, y: 18)
-      let radius: CGFloat = 13
+      let center = CGPoint(x: size.width / 2, y: size.height / 2)
+      let radius = size.width * 0.36
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: 32, height: 32)).fill()
+      UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).fill()
       UIColor(red: 122 / 255, green: 199 / 255, blue: 223 / 255, alpha: 1).setFill()
       UIBezierPath(
-        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: 26, height: 26)
+        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
       ).fill()
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: 13, y: 13, width: 10, height: 10)).fill()
+      UIBezierPath(ovalIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)).fill()
     }
   }
 
