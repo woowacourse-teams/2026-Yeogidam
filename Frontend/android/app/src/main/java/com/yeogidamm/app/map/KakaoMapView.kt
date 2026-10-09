@@ -616,7 +616,7 @@ class KakaoMapView(
     private companion object {
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
-        const val SAVED_PLACE_MARKER_SIZE_DP = 20
+        const val SAVED_PLACE_MARKER_SIZE_DP = 18
         const val SEARCH_RESULT_CAMERA_PADDING = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L

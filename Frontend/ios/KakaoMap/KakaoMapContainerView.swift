@@ -764,7 +764,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func makeSavedPlaceMarker(selected: Bool) -> UIImage {
-    let size = CGSize(width: 28, height: 28)
+    let size = CGSize(width: 26, height: 26)
 
     let assetName = selected ? Self.selectedPlaceMarkerAssetName : Self.savedPlaceMarkerAssetName
     if let markerImage = UIImage(named: assetName) {
