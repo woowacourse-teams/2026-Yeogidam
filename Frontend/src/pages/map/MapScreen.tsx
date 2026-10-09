@@ -420,7 +420,9 @@ export function MapScreen({
         ) : null}
         <SearchBar
           backButtonPosition={
-            hasActiveSearch || isSearchFocused ? 'leading' : 'inside'
+            hasActiveSearch || isSearchFocused || isSheetExpanded
+              ? 'leading'
+              : 'inside'
           }
           value={searchKeyword}
           onChangeText={handleSearchKeywordChange}
