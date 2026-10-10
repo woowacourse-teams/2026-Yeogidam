@@ -3,6 +3,7 @@ import {
   Animated,
   FlatList,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -18,7 +19,8 @@ type AppGuideScreenProps = {
   onClose?: () => void;
 };
 
-type GuideStep = 'intro' | 'share' | 'done';
+type GuideStep = 'intro' | 'share' | 'check' | 'help' | 'done';
+type DeviceTab = 'ios' | 'android';
 
 const BRAND_MARK = require('../../assets/icons/brand-mark.png');
 
@@ -35,6 +37,21 @@ const MOCK_SLIDES = [
 
 const SHARE_PRACTICE_MESSAGE =
   '여기담 공유 연습 · 마음에 드는 장소가 담긴 게시물에서 공유 → 여기담을 선택해요.';
+
+const HELP_STEPS: Record<DeviceTab, string[]> = {
+  ios: [
+    '오른쪽 끝까지 넘겨요',
+    '더보기를 눌러요',
+    '편집에서 여기담 옆 +를 눌러요',
+    '완료하면 맨 앞에 보여요',
+  ],
+  android: [
+    '옆으로 넘겨 여기담을 찾아요',
+    '여기담을 길게 눌러요',
+    '고정(Pin)을 눌러요',
+    '맨 앞에 보여요',
+  ],
+};
 
 function MockInstagramPost({ onPressShare }: { onPressShare: () => void }) {
   const { width } = useWindowDimensions();
@@ -163,6 +180,398 @@ function StepHeader({
       <Text style={styles.stepTitle}>{title}</Text>
       {description ? (
         <Text style={styles.stepDescription}>{description}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+const DEMO_APPS = [
+  {
+    key: 'airdrop',
+    label: 'AirDrop',
+    color: '#3b9cf5',
+    icon: 'wifi-tethering',
+  },
+  { key: 'message', label: '메시지', color: '#34c759', icon: 'chat-bubble' },
+  { key: 'note', label: '메모', color: '#f5c518', icon: 'sticky-note-2' },
+  { key: 'remind', label: '미리알림', color: '#ff7a6b', icon: 'checklist' },
+  { key: 'mail', label: '메일', color: '#2f8cf0', icon: 'mail' },
+  { key: 'files', label: '파일', color: '#4a90e2', icon: 'folder' },
+  { key: 'more', label: '더보기', color: '#ffffff', icon: 'more-horiz' },
+] as const;
+const DEMO_TILE = 64;
+
+function PulseRing({ size, radius }: { size: number; radius: number }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: 1100,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        width: size,
+        height: size,
+        borderRadius: radius,
+        backgroundColor: '#4f6ef7',
+        opacity: pulse.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.55, 0],
+        }),
+        transform: [
+          {
+            scale: pulse.interpolate({
+              inputRange: [0, 1],
+              outputRange: [1, 1.5],
+            }),
+          },
+        ],
+      }}
+    />
+  );
+}
+
+function useSwipeLoop(active: number) {
+  const swipe = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    swipe.stopAnimation();
+    if (active === 0) {
+      swipe.setValue(0);
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(swipe, {
+            toValue: 1,
+            duration: 1300,
+            useNativeDriver: true,
+          }),
+          Animated.delay(400),
+          Animated.timing(swipe, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+    swipe.setValue(1);
+    return undefined;
+  }, [active, swipe]);
+
+  return swipe;
+}
+
+const ANDROID_APPS = [
+  { key: 'message', label: '메시지', color: '#34a853', icon: 'chat-bubble' },
+  { key: 'drive', label: '드라이브', color: '#4285f4', icon: 'cloud-upload' },
+  { key: 'note', label: '메모', color: '#f9ab00', icon: 'sticky-note-2' },
+  { key: 'mail', label: '메일', color: '#ea4335', icon: 'mail' },
+  { key: 'link', label: '링크', color: '#7e57c2', icon: 'link' },
+  { key: 'yeogidam', label: '여기담', color: '#d9def2', icon: 'place' },
+] as const;
+
+function AndroidShareDemo({ active }: { active: number }) {
+  const [width, setWidth] = useState(0);
+  const swipe = useSwipeLoop(active);
+  const press = useRef(new Animated.Value(0)).current;
+  const maxOffset = Math.max(0, ANDROID_APPS.length * DEMO_TILE - width + 8);
+
+  useEffect(() => {
+    press.stopAnimation();
+    press.setValue(0);
+    if (active === 1) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(press, {
+            toValue: 1,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+          Animated.delay(300),
+        ]),
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+    return undefined;
+  }, [active, press]);
+
+  // 3단계는 이미 끝까지 넘긴 상태, 4단계는 여기담이 맨 앞으로 온 상태
+  const apps =
+    active === 3
+      ? [ANDROID_APPS[5], ...ANDROID_APPS.slice(0, 5)]
+      : ANDROID_APPS;
+  const translateX = swipe.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, active === 3 ? 0 : -maxOffset],
+  });
+
+  return (
+    <View
+      style={styles.demo}
+      onLayout={event => setWidth(event.nativeEvent.layout.width)}
+    >
+      <View style={styles.demoRowClip}>
+        <Animated.View
+          style={[styles.demoRow, { transform: [{ translateX }] }]}
+        >
+          {apps.map(app => {
+            const isTarget = app.key === 'yeogidam';
+            return (
+              <View key={app.key} style={styles.demoTile}>
+                <View style={styles.demoIconWrap}>
+                  {isTarget && active === 1 ? (
+                    <PulseRing size={46} radius={23} />
+                  ) : null}
+                  {isTarget && active === 3 ? (
+                    <View style={styles.demoPinBadge}>
+                      <MaterialIcons
+                        name="push-pin"
+                        size={12}
+                        color="#ffffff"
+                      />
+                    </View>
+                  ) : null}
+                  <Animated.View
+                    style={[
+                      styles.demoIcon,
+                      styles.demoRoundIcon,
+                      { backgroundColor: app.color },
+                      isTarget && active === 1
+                        ? {
+                            transform: [
+                              {
+                                scale: press.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [1, 0.85],
+                                }),
+                              },
+                            ],
+                          }
+                        : null,
+                    ]}
+                  >
+                    {isTarget ? (
+                      <Image source={BRAND_MARK} style={styles.demoBrand} />
+                    ) : (
+                      <MaterialIcons
+                        name={app.icon}
+                        size={24}
+                        color="#ffffff"
+                      />
+                    )}
+                  </Animated.View>
+                </View>
+                <Text style={styles.demoLabel}>{app.label}</Text>
+              </View>
+            );
+          })}
+        </Animated.View>
+        {active === 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.demoFinger,
+              {
+                transform: [
+                  {
+                    translateX: swipe.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [width * 0.7, width * 0.25],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        ) : null}
+        {active === 2 ? (
+          <View style={styles.demoMenu}>
+            <View style={styles.demoMenuRow}>
+              <View style={styles.demoMenuPin}>
+                <PulseRing size={26} radius={13} />
+                <MaterialIcons name="push-pin" size={18} color="#141c2d" />
+              </View>
+              <Text style={styles.demoMenuText}>고정</Text>
+            </View>
+            <View style={styles.demoMenuRow}>
+              <MaterialIcons name="info-outline" size={18} color="#596275" />
+              <Text style={styles.demoMenuTextMuted}>앱 정보</Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function ShareSheetDemo({ active }: { active: number }) {
+  const [width, setWidth] = useState(0);
+  const swipe = useSwipeLoop(active);
+  const maxOffset = Math.max(0, DEMO_APPS.length * DEMO_TILE - width + 8);
+
+  const translateX = swipe.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -maxOffset],
+  });
+
+  return (
+    <View
+      style={styles.demo}
+      onLayout={event => setWidth(event.nativeEvent.layout.width)}
+    >
+      {active <= 1 ? (
+        <View style={styles.demoRowClip}>
+          <Animated.View
+            style={[styles.demoRow, { transform: [{ translateX }] }]}
+          >
+            {DEMO_APPS.map(app => (
+              <View key={app.key} style={styles.demoTile}>
+                <View style={styles.demoIconWrap}>
+                  {app.key === 'more' && active === 1 ? (
+                    <PulseRing size={46} radius={12} />
+                  ) : null}
+                  <View
+                    style={[styles.demoIcon, { backgroundColor: app.color }]}
+                  >
+                    <MaterialIcons
+                      name={app.icon}
+                      size={26}
+                      color={app.key === 'more' ? '#141c2d' : '#ffffff'}
+                    />
+                  </View>
+                </View>
+                <Text style={styles.demoLabel}>{app.label}</Text>
+              </View>
+            ))}
+          </Animated.View>
+          {active === 0 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.demoFinger,
+                {
+                  transform: [
+                    {
+                      translateX: swipe.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [width * 0.7, width * 0.25],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.demoList}>
+          <Text style={styles.demoListHeader}>
+            {active === 2 ? '앱 편집' : '즐겨찾기'}
+          </Text>
+          <View style={styles.demoListRow}>
+            <View style={[styles.demoIcon, styles.demoSmallIcon]}>
+              <Image source={BRAND_MARK} style={styles.demoBrand} />
+            </View>
+            <Text style={styles.demoListLabel}>여기담</Text>
+            <View style={styles.demoAction}>
+              <PulseRing size={28} radius={14} />
+              <View style={styles.demoPlus}>
+                <MaterialIcons
+                  name={active === 2 ? 'add' : 'check'}
+                  size={20}
+                  color="#ffffff"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function HelpSteps() {
+  const [tab, setTab] = useState<DeviceTab>(
+    Platform.OS === 'ios' ? 'ios' : 'android',
+  );
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setActive(prev => (prev + 1) % HELP_STEPS[tab].length),
+      3200,
+    );
+    return () => clearTimeout(timer);
+  }, [tab, active]);
+
+  return (
+    <View style={styles.helpCard}>
+      <View style={styles.tabs}>
+        {(['ios', 'android'] as const).map(key => (
+          <Pressable
+            key={key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === key }}
+            onPress={() => {
+              setTab(key);
+              setActive(0);
+            }}
+            style={[styles.tab, tab === key && styles.tabActive]}
+          >
+            <Text style={[styles.tabText, tab === key && styles.tabTextActive]}>
+              {key === 'ios' ? 'iPhone' : 'Android'}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {tab === 'ios' ? (
+        <ShareSheetDemo active={active} />
+      ) : (
+        <AndroidShareDemo active={active} />
+      )}
+      {HELP_STEPS[tab].map((text, index) => {
+        const highlighted = index === active;
+        return (
+          <Pressable
+            key={text}
+            onPress={() => setActive(index)}
+            style={[styles.helpStep, highlighted && styles.helpStepActive]}
+          >
+            <View
+              style={[
+                styles.helpStepNumber,
+                highlighted && styles.helpStepNumberActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.helpStepNumberText,
+                  highlighted && styles.helpStepNumberTextActive,
+                ]}
+              >
+                {index + 1}
+              </Text>
+            </View>
+            <Text style={styles.helpStepText}>{text}</Text>
+          </Pressable>
+        );
+      })}
+      {tab === 'android' ? (
+        <Text style={styles.helpFooter}>기기마다 메뉴 이름이 조금 달라요.</Text>
       ) : null}
     </View>
   );
@@ -433,14 +842,66 @@ export function AppGuideScreen({ onComplete, onClose }: AppGuideScreenProps) {
           <>
             <StepHeader step={1} title="공유 버튼을 눌러보세요" />
             <View style={styles.center}>
-              <MockInstagramPost onPressShare={() => openShareSheet('done')} />
+              <MockInstagramPost onPressShare={() => openShareSheet('check')} />
             </View>
+          </>
+        );
+      case 'check':
+        return (
+          <>
+            <StepHeader step={2} title="공유 목록에서 여기담이 보였나요?" />
+            <View style={styles.choices}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setStep('done')}
+                style={({ pressed }) => [
+                  styles.choice,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.choiceTitle}>네, 보였어요</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setStep('help')}
+                style={({ pressed }) => [
+                  styles.choice,
+                  styles.choiceHighlight,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.choiceTitle}>안 보여요</Text>
+              </Pressable>
+            </View>
+          </>
+        );
+      case 'help':
+        return (
+          <>
+            <StepHeader
+              step={2}
+              title="여기담을 공유 목록에 추가해요"
+              description="처음 한 번만 하면 돼요."
+            />
+            <HelpSteps />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => openShareSheet('check')}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              <Text style={styles.secondaryButtonText}>
+                공유 목록 다시 열어보기
+              </Text>
+            </Pressable>
           </>
         );
       case 'done':
         return (
           <>
-            <StepHeader step={2} title="이제 공유만 하면 저장돼요" />
+            <StepHeader step={3} title="이제 공유만 하면 저장돼요" />
             <View style={styles.doneCard}>
               <Text style={styles.doneFlow}>
                 공유 버튼 → 여기담 선택 → 보관함 확인
@@ -479,10 +940,21 @@ export function AppGuideScreen({ onComplete, onClose }: AppGuideScreenProps) {
     ) : step === 'share' ? (
       <Pressable
         accessibilityRole="button"
-        onPress={() => setStep('done')}
+        onPress={() => setStep('check')}
         hitSlop={8}
       >
         <Text style={styles.skipText}>공유는 나중에 해볼게요</Text>
+      </Pressable>
+    ) : step === 'help' ? (
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setStep('done')}
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.buttonPressed,
+        ]}
+      >
+        <Text style={styles.buttonText}>등록했어요</Text>
       </Pressable>
     ) : null;
 
@@ -751,6 +1223,251 @@ const styles = StyleSheet.create({
   tooltipText: {
     color: '#ffffff',
     fontSize: 13,
+    fontWeight: '800',
+  },
+  choices: {
+    gap: 12,
+  },
+  choice: {
+    padding: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#d9def2',
+    backgroundColor: '#ffffff',
+    gap: 4,
+  },
+  choiceHighlight: {
+    backgroundColor: '#f3f5fd',
+    borderColor: '#aebcf6',
+  },
+  choiceTitle: {
+    color: '#141c2d',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  helpCard: {
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: '#f3f5fd',
+    gap: 12,
+  },
+  tabs: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: 10,
+    backgroundColor: '#e4e8f6',
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: '#ffffff',
+  },
+  tabText: {
+    color: '#596275',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  tabTextActive: {
+    color: '#141c2d',
+  },
+  demo: {
+    borderRadius: 14,
+    backgroundColor: '#e9ebf2',
+    paddingTop: 14,
+    overflow: 'hidden',
+  },
+  demoRowClip: {
+    height: 92,
+    overflow: 'hidden',
+  },
+  demoRow: {
+    flexDirection: 'row',
+    paddingLeft: 8,
+  },
+  demoTile: {
+    width: DEMO_TILE,
+    alignItems: 'center',
+    gap: 6,
+  },
+  demoIconWrap: {
+    width: 46,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoIcon: {
+    width: 46,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  demoSmallIcon: {
+    width: 36,
+    height: 36,
+    backgroundColor: '#d9def2',
+  },
+  demoBrand: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  demoLabel: {
+    color: '#596275',
+    fontSize: 11,
+  },
+  demoFinger: {
+    position: 'absolute',
+    top: 12,
+    left: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(20,28,45,0.35)',
+  },
+  demoList: {
+    marginHorizontal: 14,
+    marginBottom: 6,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    gap: 10,
+  },
+  demoListHeader: {
+    color: '#596275',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  demoListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  demoListLabel: {
+    flex: 1,
+    color: '#141c2d',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  demoAction: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoPlus: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: '#4f6ef7',
+  },
+  demoRoundIcon: {
+    borderRadius: 23,
+  },
+  demoPinBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -2,
+    zIndex: 1,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: '#4f6ef7',
+  },
+  demoMenu: {
+    position: 'absolute',
+    top: 4,
+    right: 14,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    gap: 10,
+    elevation: 4,
+    shadowColor: '#000000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  demoMenuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  demoMenuPin: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoMenuText: {
+    color: '#141c2d',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  demoMenuTextMuted: {
+    color: '#596275',
+    fontSize: 14,
+  },
+  helpStepActive: {
+    backgroundColor: '#e4e8f6',
+    borderRadius: 10,
+    padding: 6,
+    margin: -6,
+  },
+  helpStepNumberActive: {
+    backgroundColor: '#4f6ef7',
+  },
+  helpStepNumberTextActive: {
+    color: '#ffffff',
+  },
+  helpStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  helpStepNumber: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: '#aebcf6',
+  },
+  helpStepNumberText: {
+    color: '#141c2d',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  helpStepText: {
+    flex: 1,
+    color: '#141c2d',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  helpFooter: {
+    color: '#596275',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#141c2d',
+  },
+  secondaryButtonText: {
+    color: '#141c2d',
+    fontSize: 15,
     fontWeight: '800',
   },
   doneCard: {
