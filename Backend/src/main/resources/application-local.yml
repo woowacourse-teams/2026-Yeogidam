@@ -13,3 +13,8 @@ seed:
   kakao-user-id:
     bean: ${SEED_KAKAO_USER_ID_BEAN:}
     lucky: ${SEED_KAKAO_USER_ID_LUCKY:}
+
+media:
+  thumbnail:
+    instagram-key-prefix: yeogidam/local/instagram-thumbnails
+    place-key-prefix: yeogidam/local/place-thumbnails

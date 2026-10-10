@@ -5,6 +5,11 @@ spring:
     init:
       mode: never
 
+media:
+  thumbnail:
+    instagram-key-prefix: yeogidam/prod/instagram-thumbnails
+    place-key-prefix: yeogidam/prod/place-thumbnails
+
 # 운영에서는 API 문서를 열지 않는다.
 springdoc:
   api-docs:
