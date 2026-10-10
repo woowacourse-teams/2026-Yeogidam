@@ -31,7 +31,10 @@
 | `GET /oauth/kakao/callback?code=abc&state=forged` (위조, 만료. state가 아예 없으면 `COMMON400_003`) | `YeogidamException` | 400 | 소셜 로그인 요청이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요. | `AUTH400_001` | `INFO [요청 거부] AUTH400_001` |
 | `GET /api/v1/saved-places/999/media` (남의 항목) | `YeogidamException` | 404 | 저장된 장소가 아닙니다. | `PLACE404_001` | `INFO [요청 거부] PLACE404_001` |
 | `GET /api/v1/saved-places` (토큰 없음) | `YeogidamException` | 401 | 로그인이 필요한 요청입니다. | `AUTH401_004` | `WARN [인증 거부] AUTH401_004` |
+| `POST /api/v1/auth/token-refreshes` (교체된 직전 리프레시 토큰을 교체 뒤 10초 안에 다시 보냄) | `YeogidamException` | 401 | 이미 교체된 리프레시 토큰입니다. 새 토큰으로 다시 시도해 주세요. | `AUTH401_005` | `WARN [인증 거부] AUTH401_005` |
 | 그 밖의 예외 | `Exception` 폴백 | 500 | 예기치 못한 예외가 발생했습니다. | `COMMON500_001` | `ERROR [예기치 못한 오류] GET /경로` + 스택 |
+
+이미 쓴 리프레시 토큰이 다시 오면 세션을 폐기하고 `AUTH401_003`을 내지만, 교체된 직전 토큰이 교체 뒤 10초 안에 오면 앱과 공유 확장의 동시 재발급으로 보고 세션은 그대로 둔 채 `AUTH401_005`만 내며, 유예 기록은 서버 메모리에만 있어 재기동하면 비어 있다.
 
 ## 3. 공통 코드와 도메인 코드가 갈리는 기준
 
