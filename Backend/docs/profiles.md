@@ -11,7 +11,7 @@
 | 앱 업데이트 정책(`app-update.*`) | `application.yml` 값(최소 1.1.0, 최신 1.1.0) | `application-test.yml`(E2E용 구간) | 공통값 | 공통값 |
 | `schema.sql` 실행 | 기동마다 (DROP 뒤 CREATE) | 컨텍스트마다 | 안 함 | 안 함 |
 | 로컬 시나리오 데이터 (`data-local.sql`) | 자동 실행 | 안 함 | DB를 지우고 다시 넣을 때 수동 적용 | 안 함 |
-| 온보딩 시드 (`data-onboarding.sql`) | 자동 실행 | 안 함 | `data-local.sql` 다음에 수동 적용 | 안 함 (Supabase에서 옮겨 오는 데이터에 들어 있다) |
+| 온보딩 시드 (`data-onboarding.sql`) | 자동 실행 | 안 함 | `data-local.sql` 다음에 수동 적용 | 수동 적용 |
 | OAuth | 실제 키 | Fake | 실제 키 | 실제 키 |
 | Swagger | 켬 (springdoc 기본값) | 켬 (기본값) | 켬 (기본값) | 끔 (`springdoc.*.enabled: false`) |
 | 로그 형식 | 텍스트 (기본값) | 텍스트 (기본값) | JSON (`logging.structured.format.console: logstash`) | JSON (dev와 같음) |
@@ -32,7 +32,7 @@ env는 노션 페이지를 참고한다.
 기동마다 `schema.sql`이 테이블을 새로 만든 뒤 `data-local.sql`, `data-onboarding.sql` 순서로 데이터가 들어간다. 재시작하면 항상 같은 상태다.
 
 - `data-local.sql`: 장소 8개, 릴스 7개, 공유 9건, 보관함 5행, 제보 1건. 정콩(회원 1)과 러키(회원 2) 시나리오이고 파일 머리 주석에 적혀 있다.
-- `data-onboarding.sql`: 군자역 디저트 캐러셀의 게시물 1개, 장소 5개, 게시물과 장소 연결 5개다. 로컬에서는 `data-local.sql` 다음에 자동 실행되고, 개발 DB에는 `data-local.sql`을 넣은 뒤 같은 파일을 직접 넣는다. 운영에는 넣지 않는다. 컷오버 때 Supabase에서 옮겨 오는 데이터에 이 게시물이 SUCCEEDED로 들어 있고 연결된 장소 5개의 `kakao_place_id`가 이 파일, FE 번들과 같아야 한다. `media_shortcode`, `kakao_place_id`를 기준으로 upsert해 재적용해도 중복되지 않는다.
+- `data-onboarding.sql`: 군자역 디저트 캐러셀의 게시물 1개, 장소 5개, 게시물과 장소 연결 5개다. 로컬에서는 `data-local.sql` 다음에 자동 실행되고, 개발 DB에는 `data-local.sql`을 넣은 뒤 같은 파일을 직접 넣고, 운영 DB에도 같은 파일을 직접 넣는다. `media_shortcode`, `kakao_place_id`를 기준으로 upsert해 재적용해도 중복되지 않고, 컷오버 때 Supabase에서 옮겨 오는 데이터와 같은 키로 만나므로 이관 전후 어느 쪽에 넣어도 된다. 장소 5개의 `kakao_place_id`는 FE 번들과 같아야 한다. 이 파일은 썸네일을 넣지 않으며, 게시물 표지와 장소 5개의 썸네일은 컷오버 때 이관이 채운다.
 - 회원 행은 `LocalMemberSeeder`가 넣는다. `.env`의 `SEED_KAKAO_USER_ID_BEAN`이 회원 1, `SEED_KAKAO_USER_ID_LUCKY`가 회원 2다.
 - 카카오 회원 번호를 환경변수로 관리하기 위해 `LocalMemberSeeder` 클래스를 생성했다. SQL 파일은 환경변수를 못 읽어서 회원만 자바로 뺐다.
 
