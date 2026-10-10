@@ -29,8 +29,10 @@ media:
 onboarding:
   instagram-url: https://www.instagram.com/p/fixture-media-17/
 
-# 제공자 클라이언트 빈을 만들기 위한 자리값. E2E는 FakeOAuthClientConfig가 제공자를 대신한다.
+# 제공자 클라이언트 빈을 만들고 인가 URL E2E가 확인하는 자리값. 로그인 E2E는 FakeOAuthClientConfig가 제공자를 대신한다.
 oauth:
+  # 콜백 E2E가 Location에서 확인하는 앱 주소로, application.yml과 같은 값을 둔다.
+  app-callback-uri: com.yeogidamm.app://auth-callback
   providers:
     kakao:
       client-id: test-kakao-client

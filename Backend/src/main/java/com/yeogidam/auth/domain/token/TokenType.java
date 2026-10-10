@@ -8,7 +8,8 @@ import lombok.RequiredArgsConstructor;
 public enum TokenType {
 
     ACCESS("access"),
-    REFRESH("refresh");
+    REFRESH("refresh"),
+    OAUTH_STATE("oauth_state");
 
     private final String value;
 }

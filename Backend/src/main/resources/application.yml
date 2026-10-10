@@ -24,6 +24,8 @@ server:
   forward-headers-strategy: native
 
 oauth:
+  # 서버 콜백(/oauth/{kakao,google}/callback)이 인가 코드를 넘겨 줄 앱 주소. 비밀이 아니고 앱의 스킴과 함께 바뀌므로 환경 변수 대신 리터럴로 둔다.
+  app-callback-uri: com.yeogidamm.app://auth-callback
   providers:
     kakao:
       client-id: ${KAKAO_CLIENT_ID}
