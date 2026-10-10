@@ -7,6 +7,7 @@ import com.yeogidam.auth.domain.token.TokenType;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -28,6 +29,7 @@ public class JwtTokenProvider {
     private static final String TOKEN_TYPE_CLAIM = "token_type";
     private static final String SESSION_ID_CLAIM = "sid";
     private static final long CLOCK_SKEW_SECONDS = 60;
+    private static final Duration OAUTH_STATE_TTL = Duration.ofMinutes(10);
     private static final JwsHeader JWT_HEADER = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
 
     private final JwtEncoder encoder;
@@ -71,6 +73,41 @@ public class JwtTokenProvider {
         }
         long memberId = Long.parseLong(jwt.getSubject());
         return new RefreshTokenClaims(memberId, value);
+    }
+
+    /**
+     * 소셜 로그인 인가 URL에 실을 state를 만든다. 콜백에서 저장소 없이 확인할 수 있도록 무작위 식별자와 발급 시각을 담아
+     * 액세스 토큰과 같은 키로 서명하고, token_type으로 액세스 토큰, 리프레시 토큰과 구분한다.
+     */
+    public String createOAuthState() {
+        Instant issuedAt = clock.instant()
+                .truncatedTo(ChronoUnit.SECONDS);
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(properties.issuer())
+                .issuedAt(issuedAt)
+                .expiresAt(issuedAt.plus(OAUTH_STATE_TTL))
+                .id(UUID.randomUUID().toString())
+                .claim(TOKEN_TYPE_CLAIM, TokenType.OAUTH_STATE.getValue())
+                .build();
+        return signToken(claims).value();
+    }
+
+    public void validateOAuthState(String state) {
+        if (state == null || state.isBlank()) {
+            throw new AuthException(AuthErrorCode.INVALID_OAUTH_STATE);
+        }
+        String tokenType = decodeOAuthState(state).getClaimAsString(TOKEN_TYPE_CLAIM);
+        if (!TokenType.OAUTH_STATE.getValue().equals(tokenType)) {
+            throw new AuthException(AuthErrorCode.INVALID_OAUTH_STATE);
+        }
+    }
+
+    private Jwt decodeOAuthState(String state) {
+        try {
+            return decoder.decode(state);
+        } catch (JwtException exception) {
+            throw new AuthException(AuthErrorCode.INVALID_OAUTH_STATE);
+        }
     }
 
     private JwtClaimsSet createRefreshClaims(Long memberId, String sessionId, Instant expiresAt) {
