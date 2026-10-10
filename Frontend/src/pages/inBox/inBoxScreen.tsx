@@ -103,10 +103,10 @@ export function InBoxScreen({
   const syncHistoryNotification = useCallback(async () => {
     try {
       const result = await getHistoryReels();
-      const latest = result.reels[0]?.id;
+      const latest = result.reels[0]?.sharedMediaId;
       if (!latest) return;
       setLatestHistoryId(latest);
-      const latestStatus = result.reels[0].processing_status;
+      const latestStatus = result.reels[0].extractionStatus;
       setLatestHistoryStatus(latestStatus);
       const lastSeen = await getLastSeenHistorySnapshot();
       if (lastSeen === null) {
