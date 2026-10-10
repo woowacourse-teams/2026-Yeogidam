@@ -15,10 +15,8 @@ export const frontendInfoDomainMock: {
     {
       id: 'profile-yeogidam-user',
       nickname: '여기담 사용자',
-      description: '릴스로 발견한 장소를 차곡차곡 저장하고 있어요.',
       avatarUrl: 'https://images.example.com/profiles/yeogidam-user.png',
-      createdAt: '2026-08-01T09:00:00+09:00',
-      updatedAt: '2026-08-13T09:30:00+09:00',
+      oauthProvider: 'KAKAO',
     },
   ],
   places: [
