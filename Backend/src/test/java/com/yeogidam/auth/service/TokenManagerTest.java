@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
- * 세션 저장소의 최종 상태(해시 저장, 회전 시 만료 유지, 재사용 시 폐기, 만료 세션 거부)를 검증한다.
+ * 세션 저장소의 최종 상태(해시 저장, 회전 시 만료 유지, 유예 안 재사용 시 유지, 나머지 재사용 시 폐기, 만료 세션 거부)를 검증한다.
  * HTTP로 드러나는 상태 코드와 에러코드는 AuthE2eTest가 맡는다.
  */
 class TokenManagerTest extends IntegrationTestSupport {
@@ -86,10 +86,32 @@ class TokenManagerTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 회전_전_토큰을_다시_쓰면_세션을_폐기한다() {
+    void 교체한_직전_토큰을_유예_안에_다시_쓰면_세션을_폐기하지_않는다() throws Exception {
         // given
         TokenResponse issued = tokenManager.createTokens(memberId);
-        tokenManager.createTokenRefresh(new RefreshTokenRequest(issued.refreshToken()));
+        TokenResponse rotated = tokenManager.createTokenRefresh(new RefreshTokenRequest(issued.refreshToken()));
+
+        // when
+        assertThatThrownBy(() -> tokenManager.createTokenRefresh(new RefreshTokenRequest(issued.refreshToken())))
+                .isInstanceOf(AuthException.class)
+                .extracting("errorCode")
+                .isEqualTo(AuthErrorCode.REFRESH_TOKEN_ROTATED);
+
+        // then
+        RefreshSession session = sessionOf(issued.refreshToken());
+        String rotatedHash = sha256(rotated.refreshToken());
+        assertAll(
+                () -> assertThat(session.isRevoked()).isFalse(),
+                () -> assertThat(session.getTokenHash()).isEqualTo(rotatedHash)
+        );
+    }
+
+    @Test
+    void 직전보다_오래된_토큰을_다시_쓰면_세션을_폐기한다() {
+        // given
+        TokenResponse issued = tokenManager.createTokens(memberId);
+        TokenResponse rotated = tokenManager.createTokenRefresh(new RefreshTokenRequest(issued.refreshToken()));
+        tokenManager.createTokenRefresh(new RefreshTokenRequest(rotated.refreshToken()));
 
         // when
         assertThatThrownBy(() -> tokenManager.createTokenRefresh(new RefreshTokenRequest(issued.refreshToken())))

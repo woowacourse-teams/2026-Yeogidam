@@ -119,7 +119,30 @@ class AuthE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 재발급하면_200_응답하고_이전_토큰을_재사용하면_401_예외를_던진다() {
+    void 재발급하면_200_응답하고_직전보다_오래된_토큰을_재사용하면_401_예외를_던진다() {
+        // given
+        String refreshToken = login("kakao", "user-1").then().extract().jsonPath().getString("refreshToken");
+
+        // when
+        JsonPath rotated = refresh(refreshToken)
+                .then().statusCode(200)
+                .extract().jsonPath();
+        JsonPath rotatedAgain = refresh(rotated.getString("refreshToken"))
+                .then().statusCode(200)
+                .extract().jsonPath();
+
+        // then
+        assertThat(rotated.getString("refreshToken")).isNotEqualTo(refreshToken);
+        refresh(refreshToken)
+                .then().statusCode(401)
+                .body("errorCode", equalTo("AUTH401_003"));
+        refresh(rotatedAgain.getString("refreshToken"))
+                .then().statusCode(401)
+                .body("errorCode", equalTo("AUTH401_001"));
+    }
+
+    @Test
+    void 같은_리프레시_토큰으로_연달아_재발급하면_두_번째는_401_예외를_던지고_세션은_유지된다() {
         // given
         String refreshToken = login("kakao", "user-1").then().extract().jsonPath().getString("refreshToken");
 
@@ -129,13 +152,11 @@ class AuthE2eTest extends E2eTestSupport {
                 .extract().jsonPath();
 
         // then
-        assertThat(rotated.getString("refreshToken")).isNotEqualTo(refreshToken);
         refresh(refreshToken)
                 .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_003"));
+                .body("errorCode", equalTo("AUTH401_005"));
         refresh(rotated.getString("refreshToken"))
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_001"));
+                .then().statusCode(200);
     }
 
     @Test
