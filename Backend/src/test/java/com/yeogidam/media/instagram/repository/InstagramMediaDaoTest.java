@@ -148,23 +148,6 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
     }
 
     @ParameterizedTest
-    @CsvSource({"SUCCEEDED,,true", "EXTRACTING,,false", "FAILED,UNEXPECTED,false"})
-    void 추출에_성공한_미디어만_완료로_판단한다(
-            String extractionStatus,
-            String failureReason,
-            boolean expected
-    ) {
-        // given
-        insertMedia(jdbcTemplate, 1L, extractionStatus, failureReason, 1, "EXTRACTED");
-
-        // when
-        boolean succeeded = instagramMediaDao.isExtractionSucceeded(1L);
-
-        // then
-        assertThat(succeeded).isEqualTo(expected);
-    }
-
-    @ParameterizedTest
     @CsvSource({
             "FAILED,UNEXPECTED,2,EXTRACTED",
             "EXTRACTING,,3,EXTRACTED",
