@@ -42,6 +42,6 @@ export function configureDataSources() {
   };
 
   configureProfilesApi(sharedOptions);
-  configureSavedPlacesApi(sharedOptions);
-  configurePlaceReelsApi(sharedOptions);
+  configureSavedPlacesApi({ ...sharedOptions, baseUrl: API_BASE_URL });
+  configurePlaceReelsApi({ ...sharedOptions, baseUrl: API_BASE_URL });
 }
