@@ -13,6 +13,8 @@
 | 로컬 시나리오 데이터 (`data-local.sql`) | 자동 실행 | 안 함 | DB를 지우고 다시 넣을 때 수동 적용 | 안 함 |
 | 온보딩 시드 (`data-onboarding.sql`) | 자동 실행 | 안 함 | `data-local.sql` 다음에 수동 적용 | 안 함 (Supabase에서 옮겨 오는 데이터에 들어 있다) |
 | OAuth | 실제 키 | Fake | 실제 키 | 실제 키 |
+| 인스타그램 썸네일 저장 경로 | `yeogidam/local/instagram-thumbnails` | Fake가 미리 정한 파일 키를 반환하며 실제 S3 업로드는 하지 않음 | `yeogidam/dev/instagram-thumbnails` | `yeogidam/prod/instagram-thumbnails` |
+| 장소 썸네일 저장 경로 | `yeogidam/local/place-thumbnails` | Fake가 사진 주소를 `null`로 반환해 업로드를 생략 | `yeogidam/dev/place-thumbnails` | `yeogidam/prod/place-thumbnails` |
 | Swagger | 켬 (springdoc 기본값) | 켬 (기본값) | 켬 (기본값) | 끔 (`springdoc.*.enabled: false`) |
 | 로그 형식 | 텍스트 (기본값) | 텍스트 (기본값) | JSON (`logging.structured.format.console: logstash`) | JSON (dev와 같음) |
 | 설정 파일 | `application-local.yml` | `src/test/resources/application-test.yml` | `application-dev.yml` | `application-prod.yml` |
@@ -20,6 +22,15 @@
 `application.yml`의 `spring.sql.init.mode`는 `never`다. `schema.sql`이 `DROP TABLE`로 시작하므로 프로필 없이 서버에 올려도 테이블이 지워지지 않게 했다. local과 test만 `always`로 켠다.
 
 프로필을 지정하지 않으면 local로 뜬다(`spring.profiles.default: local`). 서버는 `SPRING_PROFILES_ACTIVE`로 명시한다.
+
+썸네일 저장 경로는 각 프로필 파일에서 지정한다. 버킷, 리전, 이미지 조회 주소는 `application.yml`에 둔다.
+로컬에서도 업로드를 시도하며, 권한이 없어 실패하면 썸네일 없이 처리를 진행한다.
+
+썸네일 관련 테스트는 Fake(외부 서비스 대신 정해진 결과를 돌려주는 테스트용 구현)를 사용한다.
+`FakeMediaExtractionConfig`의 인스타그램 저장소는 `yeogidam/instagram-thumbnails/pipeline-2026.jpg`를
+반환해 업로드 성공 이후의 처리를 검증한다. 장소 사진 조회는 `null`을 반환하므로 카카오 사진 업로드를
+시도하지 않고 인스타그램 썸네일을 대체 사진으로 사용하거나, 썸네일 없이 처리한다.
+`test` 프로필 자체가 S3 업로드를 차단하는 것은 아니다.
 
 ## 2. 로컬 실행 준비
 

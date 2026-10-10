@@ -63,8 +63,7 @@ media:
     public-base-url: ${MEDIA_THUMBNAIL_PUBLIC_BASE_URL}
     bucket: ${S3_THUMBNAIL_BUCKET}
     region: ${AWS_REGION}
-    instagram-key-prefix: yeogidam/instagram-thumbnails
-    place-key-prefix: yeogidam/place-thumbnails
+
 # 앱 업데이트 정책. 최소 버전 아래는 강제, 최신 버전 아래는 권고다.
 # 프로필로 나누지 않고 여기 한 곳에 둔다. 값을 바꿀 때는 커밋하고 배포한다(docs/profiles.md 6절).
 app-update:
