@@ -1,6 +1,7 @@
 package com.yeogidam.auth.infrastructure.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -129,6 +130,64 @@ class JwtTokenProviderTest {
         assertInvalidToken(() -> provider.parseAccessToken(token));
     }
 
+    @Test
+    void state는_발급하고_10분까지_검증을_통과한다() {
+        // given
+        String state = provider.createOAuthState();
+        clock.advance(Duration.ofMinutes(10));
+
+        // when & then
+        assertThatCode(() -> provider.validateOAuthState(state))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void 발급하고_10분이_지난_state는_예외가_발생한다() {
+        // given
+        String state = provider.createOAuthState();
+        clock.advance(Duration.ofMinutes(10).plusSeconds(1));
+
+        // when & then
+        assertInvalidOAuthState(() -> provider.validateOAuthState(state));
+    }
+
+    @Test
+    void 서명은_그대로_두고_내용을_바꾼_state는_예외가_발생한다() {
+        // given
+        String[] original = provider.createOAuthState().split("\\.");
+        String[] other = provider.createOAuthState().split("\\.");
+        String tampered = original[0] + "." + other[1] + "." + original[2];
+
+        // when & then
+        assertInvalidOAuthState(() -> provider.validateOAuthState(tampered));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "not.a.jwt"})
+    void 비어_있거나_형식이_깨진_state는_예외가_발생한다(String state) {
+        // when & then
+        assertInvalidOAuthState(() -> provider.validateOAuthState(state));
+    }
+
+    @Test
+    void 액세스_토큰을_state로_검증하면_예외가_발생한다() {
+        // given
+        String accessToken = provider.createAccessToken(7L).value();
+
+        // when & then
+        assertInvalidOAuthState(() -> provider.validateOAuthState(accessToken));
+    }
+
+    @Test
+    void state를_액세스_토큰으로_파싱하면_예외가_발생한다() {
+        // given
+        String state = provider.createOAuthState();
+
+        // when & then
+        assertInvalidToken(() -> provider.parseAccessToken(state));
+    }
+
     private static JwtTokenProvider createProvider(
             JwtProperties properties,
             MutableClock clock
@@ -144,5 +203,12 @@ class JwtTokenProviderTest {
                 .isInstanceOf(AuthException.class)
                 .extracting("errorCode")
                 .isEqualTo(AuthErrorCode.INVALID_TOKEN);
+    }
+
+    private static void assertInvalidOAuthState(ThrowingCallable callable) {
+        assertThatThrownBy(callable)
+                .isInstanceOf(AuthException.class)
+                .extracting("errorCode")
+                .isEqualTo(AuthErrorCode.INVALID_OAUTH_STATE);
     }
 }
