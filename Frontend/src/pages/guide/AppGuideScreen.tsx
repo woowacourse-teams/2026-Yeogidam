@@ -3,6 +3,7 @@ import {
   Animated,
   FlatList,
   Image,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -16,7 +17,6 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 
 type AppGuideScreenProps = {
   onComplete: () => void;
-  onClose?: () => void;
 };
 
 type GuideStep = 'intro' | 'share' | 'check' | 'help' | 'done';
@@ -34,6 +34,9 @@ const MOCK_SLIDES = [
   { id: 'wol', title: '카페 온월', place: '서울 성동구', color: '#cfe3cf' },
   { id: 'bar', title: '성수 이자카야', place: '서울 성동구', color: '#d4d9f2' },
 ];
+
+// 공유 연습용 게시물 (추적용 쿼리 파라미터는 제거)
+const SHARE_PRACTICE_URL = 'https://www.instagram.com/p/Db4gRWqkuUg/';
 
 const SHARE_PRACTICE_MESSAGE =
   '여기담 공유 연습 · 마음에 드는 장소가 담긴 게시물에서 공유 → 여기담을 선택해요.';
@@ -812,8 +815,22 @@ function IntroDemo() {
   );
 }
 
-export function AppGuideScreen({ onComplete, onClose }: AppGuideScreenProps) {
+export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
   const [step, setStep] = useState<GuideStep>('intro');
+
+  // 가이드를 완료 처리한 뒤 연습용 게시물로 이동한다.
+  const handleFinish = () => {
+    onComplete();
+    openPracticePost();
+  };
+
+  const openPracticePost = async () => {
+    try {
+      await Linking.openURL(SHARE_PRACTICE_URL);
+    } catch {
+      await Share.share({ message: SHARE_PRACTICE_URL });
+    }
+  };
 
   const openShareSheet = async (next: GuideStep) => {
     try {
@@ -928,14 +945,14 @@ export function AppGuideScreen({ onComplete, onClose }: AppGuideScreenProps) {
     ) : step === 'done' ? (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="여기담 시작하기"
-        onPress={onComplete}
+        accessibilityLabel="인스타그램에서 직접 해보기"
+        onPress={handleFinish}
         style={({ pressed }) => [
           styles.button,
           pressed && styles.buttonPressed,
         ]}
       >
-        <Text style={styles.buttonText}>시작하기</Text>
+        <Text style={styles.buttonText}>인스타그램에서 직접 해보기</Text>
       </Pressable>
     ) : step === 'share' ? (
       <Pressable
@@ -960,20 +977,6 @@ export function AppGuideScreen({ onComplete, onClose }: AppGuideScreenProps) {
 
   return (
     <View style={styles.container}>
-      {onClose ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="사용 가이드 닫기"
-          hitSlop={12}
-          onPress={onClose}
-          style={({ pressed }) => [
-            styles.closeButton,
-            pressed && styles.closeButtonPressed,
-          ]}
-        >
-          <Text style={styles.closeButtonText}>닫기</Text>
-        </Pressable>
-      ) : null}
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -989,22 +992,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 16,
-    right: 24,
-    zIndex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  closeButtonPressed: {
-    opacity: 0.65,
-  },
-  closeButtonText: {
-    color: '#596275',
-    fontSize: 15,
-    fontWeight: '700',
   },
   content: {
     flexGrow: 1,
