@@ -24,6 +24,8 @@ import {
 } from './src/lib/auth/deleteAccount';
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
+import { logout } from './src/lib/auth/tokenClient';
+import { runFirstRunCleanup } from './src/lib/first-run-cleanup';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
@@ -55,11 +57,8 @@ import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   clearShareResult,
   getShareResults,
-  getShareSession,
-  reconcileShareSession,
   resumeWaitingShares,
   syncShareAnalyticsConfiguration,
-  syncShareSession,
 } from './src/lib/share-intent';
 import type {
   AppFlowState,
@@ -286,7 +285,7 @@ function App() {
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
     const syncFlowState = async () => {
-      await reconcileShareSession().catch(() => undefined);
+      await runFirstRunCleanup();
       const { data, error } = await supabase.auth.getSession();
 
       if (!isMounted) {
@@ -299,11 +298,6 @@ function App() {
           hasTrackedAppOpenedRef.current = true;
         }
 
-        if (!error) {
-          const sharedSession = await getShareSession().catch(() => null);
-          if (!sharedSession?.refreshToken) await syncShareSession(null);
-        }
-
         setFlowState(INITIAL_FLOW_STATE); 
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
@@ -311,7 +305,6 @@ function App() {
         return;
       }
 
-      await syncShareSession(data.session);
       void resumeWaitingShares();
 
       if (!hasTrackedAppOpenedRef.current) {
@@ -363,12 +356,8 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session || event === 'SIGNED_OUT') {
-        void syncShareSession(session)
-          .then(() => {
-            if (session) return resumeWaitingShares();
-          })
-          .catch(() => undefined);
+      if (session) {
+        resumeWaitingShares().catch(() => undefined);
       }
       if (!isMounted) {
         return;
@@ -538,8 +527,7 @@ function App() {
       'change',
       nextState => {
         if (nextState === 'active') {
-          void reconcileShareSession()
-            .then(resumeWaitingShares)
+          resumeWaitingShares()
             .then(consumePendingSharedContent)
             .catch(consumePendingSharedContent);
         }
@@ -649,18 +637,9 @@ function App() {
     }
 
     setIsLogoutPending(true);
-
-    const { error } = await supabase.auth.signOut();
-
-    if (!error) {
-      return;
-    }
-
+    await logout();
     setIsLogoutPending(false);
-    Alert.alert(
-      '로그아웃 실패',
-      '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
-    );
+    setFlowState(INITIAL_FLOW_STATE);
   };
 
   const handleOpenAccountDeletion = async () => {
