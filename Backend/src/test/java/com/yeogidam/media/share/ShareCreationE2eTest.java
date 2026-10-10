@@ -1,17 +1,29 @@
 package com.yeogidam.media.share;
 
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.sharedUrl;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.media.extraction.config.ExtractionProperties;
+import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.service.MediaExtractionPipeline;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import io.restassured.path.json.JsonPath;
+import io.restassured.response.Response;
+import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,9 +41,13 @@ class ShareCreationE2eTest extends E2eTestSupport {
     private static final String PATH = "/api/v1/shares";
     private static final String REEL_URL = "https://www.instagram.com/reel/DtfsHfzzmdc/";
     private static final String CARESEL_URL = "https://www.instagram.com/p/Kpvneizvdyo/";
+    private static final Long MEDIA_ID = 1L;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ExtractionProperties extractionProperties;
 
     @TestConfiguration
     static class FakeMetadataServiceConfiguration {
@@ -54,16 +70,17 @@ class ShareCreationE2eTest extends E2eTestSupport {
         LoginResult login = loginAsKakao("share-creation-user");
 
         // when
-        String responseBody = givenBearer(login.accessToken())
+        JsonPath response = givenBearer(login.accessToken())
                 .contentType("application/json")
                 .body("{\"instagramUrl\":\"" + instagramUrl + "\"}")
                 .when().post(PATH)
                 .then().statusCode(HttpStatus.ACCEPTED.value())
-                .extract().asString();
+                .extract().jsonPath();
 
         // then
         // TODO: 비동기 작업 시작했는지 검증 추가?
-        assertThat(responseBody).isEmpty();
+        assertThat(response.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
+        assertThat(readSharedMediaIds(login.memberId())).containsExactly(response.getLong("sharedMediaId"));
         assertThat(countMedia(instagramUrl)).isEqualTo(1);
         assertThat(extractionStatus(instagramUrl)).isEqualTo(ExtractionStatus.EXTRACTING.name());
         assertThat(countSharedMedia(login.memberId(), instagramUrl)).isEqualTo(1);
@@ -76,15 +93,16 @@ class ShareCreationE2eTest extends E2eTestSupport {
         createMediaUnderAnalysis(REEL_URL);
 
         // when
-        String responseBody = givenBearer(login.accessToken())
+        JsonPath response = givenBearer(login.accessToken())
                 .contentType("application/json")
                 .body("{\"instagramUrl\":\"" + REEL_URL + "\"}")
                 .when().post(PATH)
                 .then().statusCode(HttpStatus.ACCEPTED.value())
-                .extract().asString();
+                .extract().jsonPath();
 
         // then
-        assertThat(responseBody).isEmpty();
+        assertThat(response.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
+        assertThat(readSharedMediaIds(login.memberId())).containsExactly(response.getLong("sharedMediaId"));
         assertThat(countMedia(REEL_URL)).isEqualTo(1);
         assertThat(extractionStatus(REEL_URL)).isEqualTo(ExtractionStatus.EXTRACTING.name());
         assertThat(countSharedMedia(login.memberId(), REEL_URL)).isEqualTo(1);
@@ -96,25 +114,76 @@ class ShareCreationE2eTest extends E2eTestSupport {
         LoginResult login = loginAsKakao("share-creation-user");
 
         // when
-        String firstResponseBody = givenBearer(login.accessToken())
+        JsonPath firstResponse = givenBearer(login.accessToken())
                 .contentType("application/json")
                 .body("{\"instagramUrl\":\"" + REEL_URL + "\"}")
                 .when().post(PATH)
                 .then().statusCode(HttpStatus.ACCEPTED.value())
-                .extract().asString();
-        String secondResponseBody = givenBearer(login.accessToken())
+                .extract().jsonPath();
+        JsonPath secondResponse = givenBearer(login.accessToken())
                 .contentType("application/json")
                 .body("{\"instagramUrl\":\"" + REEL_URL + "\"}")
                 .when().post(PATH)
                 .then().statusCode(HttpStatus.ACCEPTED.value())
-                .extract().asString();
+                .extract().jsonPath();
 
         // then
-        assertThat(firstResponseBody).isEmpty();
-        assertThat(secondResponseBody).isEmpty();
+        assertThat(firstResponse.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
+        assertThat(secondResponse.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
+        assertThat(readSharedMediaIds(login.memberId()))
+                .containsExactly(firstResponse.getLong("sharedMediaId"), secondResponse.getLong("sharedMediaId"));
         assertThat(countMedia(REEL_URL)).isEqualTo(1);
         assertThat(extractionStatus(REEL_URL)).isEqualTo(ExtractionStatus.EXTRACTING.name());
         assertThat(countSharedMedia(login.memberId(), REEL_URL)).isEqualTo(2);
+    }
+
+    @Test
+    void 이미_분석에_성공한_미디어를_공유하면_장소를_바로_보관함에_저장하고_SUCCEEDED를_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("share-creation-user");
+        insertMedia(jdbcTemplate, MEDIA_ID, extractionProperties.pipelineVersion(), ExtractionStatus.SUCCEEDED);
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 101L, "kakao-101", "올드빅",
+                "서울 성동구 성수동2가 1-1", new BigDecimal("37.5446"), new BigDecimal("127.0559"));
+        insertMediaPlace(jdbcTemplate, 1L, MEDIA_ID, 101L);
+
+        // when
+        Response response = share(login, sharedUrl(MEDIA_ID));
+
+        // then
+        Long sharedMediaId = response.then()
+                .statusCode(HttpStatus.ACCEPTED.value())
+                .body("extractionStatus", equalTo(ExtractionStatus.SUCCEEDED.name()))
+                .extract()
+                .jsonPath()
+                .getLong("sharedMediaId");
+        assertAll(
+                () -> assertThat(readSharedMediaIds(login.memberId())).containsExactly(sharedMediaId),
+                () -> assertThat(readSavedPlaceIds(login.memberId())).containsExactly(101L),
+                () -> assertThat(countShareLinks(sharedMediaId)).isEqualTo(1)
+        );
+    }
+
+    @Test
+    void 재시도_조건에_맞지_않는_실패_미디어를_공유하면_다시_분석하지_않고_FAILED를_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("share-creation-user");
+        insertFailedMedia(jdbcTemplate, MEDIA_ID, extractionProperties.pipelineVersion(),
+                ExtractionFailureReason.PLACE_NOT_EXTRACTED);
+
+        // when
+        Response response = share(login, sharedUrl(MEDIA_ID));
+
+        // then
+        Long sharedMediaId = response.then()
+                .statusCode(HttpStatus.ACCEPTED.value())
+                .body("extractionStatus", equalTo(ExtractionStatus.FAILED.name()))
+                .extract()
+                .jsonPath()
+                .getLong("sharedMediaId");
+        assertAll(
+                () -> assertThat(readSharedMediaIds(login.memberId())).containsExactly(sharedMediaId),
+                () -> assertThat(extractionStatus(sharedUrl(MEDIA_ID))).isEqualTo(ExtractionStatus.FAILED.name())
+        );
     }
 
     @Test
@@ -225,5 +294,37 @@ class ShareCreationE2eTest extends E2eTestSupport {
                         VALUES (?, 'EXTRACTING', ?, 'EXTRACTED')
                         """, new InstagramUrl(instagramUrl).getMediaShortcode().value(),
                 EXTRACTION_VERSION);
+    }
+
+    private Response share(LoginResult login, String instagramUrl) {
+        return givenBearer(login.accessToken())
+                .contentType("application/json")
+                .body("{\"instagramUrl\":\"" + instagramUrl + "\"}")
+                .when()
+                .post(PATH);
+    }
+
+    private List<Long> readSharedMediaIds(Long memberId) {
+        return jdbcTemplate.queryForList("""
+                SELECT id
+                FROM shared_media
+                WHERE member_id = ?
+                ORDER BY id
+                """, Long.class, memberId);
+    }
+
+    private List<Long> readSavedPlaceIds(Long memberId) {
+        return jdbcTemplate.queryForList("""
+                SELECT place_id
+                FROM saved_places
+                WHERE member_id = ?
+                ORDER BY id
+                """, Long.class, memberId);
+    }
+
+    private int countShareLinks(Long sharedMediaId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM shared_media_saved_places WHERE shared_media_id = ?
+                """, Integer.class, sharedMediaId);
     }
 }

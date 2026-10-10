@@ -94,18 +94,6 @@ public class InstagramMediaDao {
         return jdbcTemplate.queryForObject(sql, EXTRACTION_SNAPSHOT_ROW_MAPPER, mediaId);
     }
 
-    public boolean isExtractionSucceeded(Long mediaId) {
-        String sql = """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM media
-                    WHERE id = ?
-                      AND extraction_status = 'SUCCEEDED'
-                )
-                """;
-        return jdbcTemplate.queryForObject(sql, Boolean.class, mediaId);
-    }
-
     public boolean succeedExtractionIfInProgress(Long mediaId) {
         String sql = """
                 UPDATE media

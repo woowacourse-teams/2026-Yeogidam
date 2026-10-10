@@ -5,6 +5,7 @@ import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
+import com.yeogidam.media.share.dto.response.ShareResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,10 +29,47 @@ public interface ShareApiDocs {
             description = """
                     미디어를 공유 이력에 등록합니다. 분석에 성공하면 검색된 모든 장소를 보관함에 저장하고 이 공유와 연결합니다.
                     처음 보거나 파이프라인 버전이 바뀐 경우에는 비동기로 분석합니다.
+
+                    - 응답의 `sharedMediaId`로 히스토리 목록에서 방금 만든 공유 이력을 찾을 수 있습니다.
+                    - `extractionStatus`는 방금 만든 공유 이력의 분석 상태를 알려 주며, 재시도 API의 응답과 모양이 같습니다.
+                    - 분석을 새로 시작했거나 진행 중인 분석에 합류했으면 `EXTRACTING`을 반환하고, 결과는 히스토리 목록에서 확인합니다.
+                    - 이미 분석에 성공한 미디어를 다시 공유했으면 장소를 보관함에 바로 저장하고 `SUCCEEDED`를 반환합니다.
+                    - 재시도 조건에 맞지 않는 실패 미디어를 다시 공유했으면 실패 결과를 새 이력에 그대로 남기고 `FAILED`를 반환하며,
+                      실패 사유는 히스토리 목록의 `failureReason`으로 확인합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
-                    @ApiResponse(responseCode = "202", description = "공유 접수 성공"),
+                    @ApiResponse(responseCode = "202",
+                            description = "공유 접수 성공. 분석 상태와 관계없이 응답 코드는 202이고, "
+                                    + "extractionStatus가 SUCCEEDED나 FAILED면 분석이 이미 끝난 결과라 폴링 없이 바로 쓰면 된다",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ShareResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "분석 시작",
+                                                    description = "새로 분석을 시작했거나 진행 중인 분석에 합류한 이력과 분석 상태",
+                                                    value = """
+                                                            {
+                                                              "sharedMediaId": 30,
+                                                              "extractionStatus": "EXTRACTING"
+                                                            }
+                                                            """),
+                                            @ExampleObject(name = "기존 성공 결과 재사용",
+                                                    description = "이미 분석에 성공한 미디어의 새 성공 이력. 장소는 응답 시점에 보관함에 저장되어 있다",
+                                                    value = """
+                                                            {
+                                                              "sharedMediaId": 30,
+                                                              "extractionStatus": "SUCCEEDED"
+                                                            }
+                                                            """),
+                                            @ExampleObject(name = "기존 실패 결과 재사용",
+                                                    description = "재시도 조건에 맞지 않는 실패 미디어의 새 실패 이력. 사유는 히스토리 목록에서 확인한다",
+                                                    value = """
+                                                            {
+                                                              "sharedMediaId": 30,
+                                                              "extractionStatus": "FAILED"
+                                                            }
+                                                            """)
+                                    })),
                     @ApiResponse(responseCode = "400", description = "요청 필드 또는 인스타그램 링크가 올바르지 않음",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -68,7 +106,7 @@ public interface ShareApiDocs {
                                                             """)
                                     }))
     })
-    ResponseEntity<Void> createShare(Long memberId, @Valid ShareRequest request);
+    ResponseEntity<ShareResponse> createShare(Long memberId, @Valid ShareRequest request);
 
     @Operation(summary = "실패한 장소 추출 재시도",
             description = """

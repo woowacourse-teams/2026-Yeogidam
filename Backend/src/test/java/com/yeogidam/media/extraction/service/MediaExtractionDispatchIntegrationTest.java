@@ -7,6 +7,7 @@ import com.yeogidam.media.extraction.config.ExtractionProperties;
 import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.share.dto.request.ShareRequest;
+import com.yeogidam.media.share.dto.response.ShareResponse;
 import com.yeogidam.media.share.service.ShareService;
 import com.yeogidam.support.IntegrationTestSupport;
 import java.util.concurrent.BlockingQueue;
@@ -121,10 +122,11 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
         int failedVersion = readExtractionVersion(mediaId);
 
         // when: 같은 파이프라인 버전의 UNEXPECTED 실패 미디어를 재공유한다.
-        shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+        ShareResponse response = shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
         MetadataRequest sameVersionRetry = extractionPipeline.takeRequest(5, TimeUnit.SECONDS);
 
-        // then: 재시도를 예약하고 실패 사유는 지우되 파이프라인 버전은 유지한다.
+        // then: 재시도를 예약하고 실패 사유는 지우되 파이프라인 버전은 유지하며, 응답은 EXTRACTING이다.
+        assertThat(response.extractionStatus()).isEqualTo("EXTRACTING");
         assertThat(sameVersionRetry).isNotNull();
         assertThat(sameVersionRetry.mediaId()).isEqualTo(mediaId);
         assertThat(readExtractionStatus(mediaId)).isEqualTo("EXTRACTING");
@@ -188,13 +190,13 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
 
         try {
             // when: 두 공유 요청이 이전 파이프라인 버전의 FAILED 미디어를 재공유한다.
-            Future<?> firstShare = executor.submit(() -> shareService.createShare(
+            Future<ShareResponse> firstShare = executor.submit(() -> shareService.createShare(
                     MEMBER_ID, new ShareRequest(INSTAGRAM_URL)));
-            Future<?> secondShare = executor.submit(() -> shareService.createShare(
+            Future<ShareResponse> secondShare = executor.submit(() -> shareService.createShare(
                     MEMBER_ID, new ShareRequest(INSTAGRAM_URL)));
-            // then: 조건부 상태 전이에서 승리한 한 작업만 재분석한다.
-            assertThat(firstShare.get(2, TimeUnit.SECONDS)).isNull();
-            assertThat(secondShare.get(2, TimeUnit.SECONDS)).isNull();
+            // then: 조건부 상태 전이에서 승리한 한 작업만 재분석하고, 두 요청 모두 EXTRACTING을 돌려준다.
+            assertThat(firstShare.get(2, TimeUnit.SECONDS).extractionStatus()).isEqualTo("EXTRACTING");
+            assertThat(secondShare.get(2, TimeUnit.SECONDS).extractionStatus()).isEqualTo("EXTRACTING");
             MetadataRequest request = extractionPipeline.takeRequest(5, TimeUnit.SECONDS);
             assertThat(request).isNotNull();
             assertThat(request.mediaId()).isEqualTo(mediaId);

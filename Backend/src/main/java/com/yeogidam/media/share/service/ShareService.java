@@ -23,6 +23,7 @@ import com.yeogidam.media.share.dto.response.OnboardingShareResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
+import com.yeogidam.media.share.dto.response.ShareResponse;
 import com.yeogidam.media.share.repository.ShareHistoryCursor;
 import com.yeogidam.media.share.repository.ShareHistoryProjections;
 import com.yeogidam.media.share.repository.SharedMediaDao;
@@ -53,13 +54,15 @@ public class ShareService {
     private final SavedPlaceRegistrationService savedPlaceRegistrationService;
 
     @Transactional
-    public void createShare(Long memberId, ShareRequest rawInstagramUrl) {
+    public ShareResponse createShare(Long memberId, ShareRequest rawInstagramUrl) {
         InstagramUrl instagramUrl = new InstagramUrl(rawInstagramUrl.instagramUrl());
         Long mediaId = getOrCreateMediaId(instagramUrl.getMediaShortcode(), instagramUrl);
         Long sharedMediaId = createSharedMedia(memberId, mediaId, instagramUrl);
-        if (instagramMediaDao.isExtractionSucceeded(mediaId)) {
+        ExtractionStatus status = instagramMediaDao.findExtractionSnapshotForUpdate(mediaId).status();
+        if (status == ExtractionStatus.SUCCEEDED) {
             savePlacesFromMedia(memberId, sharedMediaId, mediaId);
         }
+        return new ShareResponse(sharedMediaId, status.name());
     }
 
     private void savePlacesFromMedia(Long memberId, Long sharedMediaId, Long mediaId) {

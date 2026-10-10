@@ -5,6 +5,7 @@ import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
+import com.yeogidam.media.share.dto.response.ShareResponse;
 import com.yeogidam.media.share.service.ShareReportService;
 import com.yeogidam.media.share.service.ShareService;
 import java.time.Instant;
@@ -30,13 +31,13 @@ public class ShareController implements ShareApiDocs {
 
     @Override
     @PostMapping
-    public ResponseEntity<Void> createShare(
+    public ResponseEntity<ShareResponse> createShare(
             @LoginMember Long memberId,
             @Valid @RequestBody ShareRequest request
     ) {
-        shareService.createShare(memberId, request);
+        ShareResponse response = shareService.createShare(memberId, request);
         return ResponseEntity.accepted()
-                .build();
+                .body(response);
     }
 
     @Override
