@@ -6,13 +6,16 @@ import com.yeogidam.place.domain.Place;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FakePlaceSearcher implements PlaceSearcher {
 
     private final Map<String, Place> places = new ConcurrentHashMap<>();
+    private final AtomicInteger requests = new AtomicInteger();
 
     @Override
     public List<Place> search(PlaceSearchHint hint) {
+        requests.incrementAndGet();
         Place place = places.get(hint.nameInCaption());
         if (place == null) {
             return List.of();
@@ -26,5 +29,10 @@ public final class FakePlaceSearcher implements PlaceSearcher {
 
     public void reset() {
         places.clear();
+        requests.set(0);
+    }
+
+    public int requestCount() {
+        return requests.get();
     }
 }

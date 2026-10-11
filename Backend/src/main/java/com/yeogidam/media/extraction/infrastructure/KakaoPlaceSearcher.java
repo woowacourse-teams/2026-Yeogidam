@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,7 +38,8 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * 검색명은 nameSearchHint(오타 등을 Gemini가 보정한 이름)를 우선 사용하고,
- * 지역은 캡션 주소 → 추론 주소(읍·면·동 우선, 없으면 구·군, 그다음 시) → 추론 지역 → 캡션 지역 순으로 선택한다.
+ * 지역은 캡션·영상·이미지·추론 주소(읍·면·동 우선, 없으면 구·군, 그다음 시),
+ * 영상·이미지·추론·캡션 지역 순으로 선택한다.
  * 중복 없이 붙여 검색하며,
  * 선택한 지역명을 검색명에 공백으로 붙여 '장소명 + 지역' 으로 먼저 검색하고,
  * 장소 목록이 비어 있으면 검색명만으로 다시 검색해 첫 번째 유효 장소를 반환한다.
@@ -49,6 +51,11 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
     private static final URI API_ENDPOINT = URI.create("https://dapi.kakao.com/v2/local/search/keyword.json");
 
     private static final int PAGE_SIZE = 15;
+
+    private static final List<Basis> ADDRESS_BASES = List.of(
+            Basis.CAPTION, Basis.VIDEO, Basis.IMAGE, Basis.INFERRED);
+    private static final List<Basis> REGION_BASES = List.of(
+            Basis.VIDEO, Basis.IMAGE, Basis.INFERRED, Basis.CAPTION);
 
     private static final Pattern LOCAL_REGION =
             Pattern.compile("(?<!\\S)([가-힣0-9]+(?:읍|면|동))(?=\\s|$)");
@@ -109,29 +116,22 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
 
     private List<String> regionCandidates(List<LocationHint> locationHints) {
         // 주소에서 지역을 얻을 수 있으면 그 지역을 우선 검색한다.
-        String addressRegion = addressRegion(locationHints, Basis.CAPTION);
-
-        if (addressRegion == null) {
-            addressRegion = addressRegion(locationHints, Basis.INFERRED);
-        }
+        String addressRegion = ADDRESS_BASES.stream()
+                .map(basis -> addressRegion(locationHints, basis))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
         if (addressRegion != null) {
             return List.of(addressRegion);
         }
 
         // 주소가 없거나 지역을 추출할 수 없을 때 Gemini의 지역 힌트를 사용한다.
-        String inferredRegion = regionCandidate(locationHints, Basis.INFERRED);
-
-        if (inferredRegion != null) {
-            return List.of(inferredRegion);
-        }
-
-        String captionRegion = regionCandidate(locationHints, Basis.CAPTION);
-
-        if (captionRegion == null) {
-            return List.of();
-        }
-
-        return List.of(captionRegion);
+        return REGION_BASES.stream()
+                .map(basis -> regionCandidate(locationHints, basis))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .stream()
+                .toList();
     }
 
     private String searchQuery(String searchName, String region) {

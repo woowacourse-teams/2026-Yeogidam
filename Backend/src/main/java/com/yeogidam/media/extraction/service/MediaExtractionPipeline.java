@@ -21,6 +21,10 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class MediaExtractionPipeline {
 
+    // 이 계정은 캡션에서 일부 장소를 찾더라도 첨부 콘텐츠의 장소가 누락되지 않도록
+    // 처음부터 캡션과 이미지·영상을 함께 분석한다.
+    private static final String MEDIA_ANALYSIS_AUTHOR = "with_sol_mate";
+
     private final InstagramMetadataService instagramMetadataService;
     private final PlaceNameExtractor placeNameExtractor;
     private final PlaceSearcher placeSearcher;
@@ -29,12 +33,24 @@ public class MediaExtractionPipeline {
 
     public void extract(Long mediaId, InstagramUrl instagramUrl) {
         MediaMetadata metadata = instagramMetadataService.readAndStore(mediaId, instagramUrl);
-        PlaceSearchHints hints = placeNameExtractor.extract(metadata.caption());
+        PlaceSearchHints hints = extractHints(instagramUrl, metadata);
         if (hints.places().isEmpty()) {
             throw new ExtractionFailedException(ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
         PlaceExtractionResult result = searchPlaces(hints, metadata.thumbnailKey());
         resultWriter.recordSuccess(mediaId, result);
+    }
+
+    private PlaceSearchHints extractHints(InstagramUrl instagramUrl, MediaMetadata metadata) {
+        // 캡션에서 장소를 찾으면 이미지·영상 분석을 생략하는 기본 흐름의 예외 대상
+        if (MEDIA_ANALYSIS_AUTHOR.equals(metadata.author())) {
+            return placeNameExtractor.extractFile(metadata.caption(), instagramUrl);
+        }
+        PlaceSearchHints hints = placeNameExtractor.extract(metadata.caption());
+        if (hints.places().isEmpty()) {
+            hints = placeNameExtractor.extractFile(metadata.caption(), instagramUrl);
+        }
+        return hints;
     }
 
     private PlaceExtractionResult searchPlaces(PlaceSearchHints hints, String instagramThumbnailKey) {

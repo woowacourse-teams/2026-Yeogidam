@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -80,6 +82,43 @@ class GeminiPlaceNameExtractorTest {
         assertThat(hints.places()).isEmpty();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"VIDEO", "IMAGE"})
+    void 미디어에서_확인한_주소의_출처를_위치_단서에_유지한다(String basis) throws Exception {
+        // given
+        String output = """
+                {"places":[{"nameInCaption":"올드빅","nameSearchHint":null,"accountHints":[],
+                  "locationHints":[{"type":"ADDRESS","value":"서울 용산구 용산동2가 1","basis":"%s"}],
+                  "categoryHint":"술집"}]}
+                """.formatted(basis);
+        geminiServer.respondWith(interactionResponse(output));
+
+        // when
+        PlaceSearchHints hints = extractor("test-gemini-key").extract(CAPTION);
+
+        // then
+        assertThat(hints.places().getFirst().nameInCaption()).isEqualTo("올드빅");
+        assertThat(hints.places().getFirst().locationHints().getFirst().basis().name()).isEqualTo(basis);
+        assertThat(hints.places().getFirst().locationHints().getFirst().value())
+                .isEqualTo("서울 용산구 용산동2가 1");
+    }
+
+    @Test
+    void 캡션_요청은_미디어_통합_프롬프트가_아닌_기존_캡션_전용_프롬프트를_사용한다() throws Exception {
+        // given
+        geminiServer.respondWith(interactionResponse("{\"places\":[]}"));
+
+        // when
+        extractor("test-gemini-key").extract(CAPTION);
+
+        // then
+        JsonNode request = jsonMapper.readTree(geminiServer.requestBody());
+        assertThat(request.path("system_instruction").asString())
+                .startsWith("너는 인스타그램 캡션에서 지도 검색에 쓸 장소 단서를 추출한다.")
+                .doesNotContain("캐러셀", "## 1. 분석 대상");
+        assertRequestUsesFrozenSchema();
+    }
+
     @Test
     void 응답에_장소_결과가_없으면_추출_예외가_발생한다() throws Exception {
         // given
@@ -137,7 +176,7 @@ class GeminiPlaceNameExtractorTest {
         assertThat(locationProperties.path("type").path("enum").toString())
                 .isEqualTo("[\"ADDRESS\",\"REGION\"]");
         assertThat(locationProperties.path("basis").path("enum").toString())
-                .isEqualTo("[\"CAPTION\",\"INFERRED\"]");
+                .isEqualTo("[\"CAPTION\",\"INFERRED\",\"VIDEO\",\"IMAGE\"]");
     }
 
     private Set<String> fieldNames(JsonNode object) {
