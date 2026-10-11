@@ -1,3 +1,5 @@
+import type { OAuthProvider } from '../user/types';
+
 export type ReelSource = 'instagram_share' | 'url_input';
 
 export type ReelProcessingStatus =
@@ -42,9 +44,9 @@ export type ProfileInfo = {
   id: string;
   nickname?: string | null;
   description?: string | null;
+  email?: string | null;
   avatarUrl?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  oauthProvider: OAuthProvider;
 };
 
 export type ProfileApiError = {

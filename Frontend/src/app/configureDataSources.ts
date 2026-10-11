@@ -6,10 +6,15 @@ import {
   configureProfilesApi,
   configureSavedPlacesApi,
 } from '../entities/info/api';
+import {
+  configureAccountDeletionApi,
+  requestAuthorizationCodeWithSupabase,
+} from '../lib/auth/deleteAccount';
 import {supabase} from '../lib/auth/supabase';
 import {
   configureTokenClient,
   getAccessToken,
+  logout,
   refreshSession,
 } from '../lib/auth/tokenClient';
 
@@ -42,8 +47,24 @@ export function configureDataSources() {
     refreshSession,
   };
 
-  configureProfilesApi(sharedOptions);
+  const serverOptions = {
+    baseUrl: API_BASE_URL,
+    getAccessToken: sharedOptions.getAccessToken,
+    refreshSession: sharedOptions.refreshSession,
+  };
+
+  configureProfilesApi(serverOptions);
   configureSavedPlacesApi({ ...sharedOptions, baseUrl: API_BASE_URL });
   configurePlaceReelsApi({ ...sharedOptions, baseUrl: API_BASE_URL });
   configureHistoryApi({ ...sharedOptions, baseUrl: API_BASE_URL });
+  configureAccountDeletionApi({
+    ...serverOptions,
+    // 재인증은 서버 로그인 경로(#337)가 생길 때까지 Supabase 쪽 함수를 씁니다.
+    requestAuthorizationCode: requestAuthorizationCodeWithSupabase,
+    // 탈퇴 뒤에는 토큰 클라이언트가 네이티브 공유 저장소의 서버 세션을 지우고, 남은 Supabase 로컬 세션도 함께 지웁니다.
+    clearSession: async () => {
+      await logout();
+      await supabase.auth.signOut({ scope: 'local' });
+    },
+  });
 }
