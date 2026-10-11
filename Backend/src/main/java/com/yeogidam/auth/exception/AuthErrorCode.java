@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum AuthErrorCode implements ErrorCode {
 
+    INVALID_OAUTH_STATE(HttpStatus.BAD_REQUEST, "AUTH400_001", "소셜 로그인 요청이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요."),
+
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH401_001", "인증 토큰이 유효하지 않습니다."),
     INVALID_CREDENTIAL(HttpStatus.UNAUTHORIZED, "AUTH401_002", "소셜 로그인 인증 정보가 유효하지 않습니다."),
     REFRESH_TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "AUTH401_003", "이미 사용된 리프레시 토큰입니다. 다시 로그인해 주세요."),

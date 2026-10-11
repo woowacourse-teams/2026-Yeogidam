@@ -28,6 +28,7 @@
 | `GET /nope` | `NoResourceFound` | 404 | 요청한 경로를 찾을 수 없습니다. | `COMMON404_001` | `INFO [요청 거부] COMMON404_001` |
 | `GET /api/v1/app-update-policies?platform=web&appVersion=1.1.0` | `YeogidamException` | 400 | platform은 ios 또는 android여야 합니다. | `APP400_001` | `INFO [요청 거부] APP400_001` |
 | `DELETE /api/v1/saved-places?savedPlaceIds=` | `YeogidamException` | 400 | 삭제할 보관함 항목이 없습니다. | `PLACE400_001` | `INFO [요청 거부] PLACE400_001` |
+| `GET /oauth/kakao/callback?code=abc&state=forged` (위조, 만료. state가 아예 없으면 `COMMON400_003`) | `YeogidamException` | 400 | 소셜 로그인 요청이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요. | `AUTH400_001` | `INFO [요청 거부] AUTH400_001` |
 | `GET /api/v1/saved-places/999/media` (남의 항목) | `YeogidamException` | 404 | 저장된 장소가 아닙니다. | `PLACE404_001` | `INFO [요청 거부] PLACE404_001` |
 | `GET /api/v1/saved-places` (토큰 없음) | `YeogidamException` | 401 | 로그인이 필요한 요청입니다. | `AUTH401_004` | `WARN [인증 거부] AUTH401_004` |
 | 그 밖의 예외 | `Exception` 폴백 | 500 | 예기치 못한 예외가 발생했습니다. | `COMMON500_001` | `ERROR [예기치 못한 오류] GET /경로` + 스택 |

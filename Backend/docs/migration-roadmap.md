@@ -29,7 +29,7 @@
 
 | 화면(피그마) | API | 응답 요지 | 상태 |
 |---|---|---|---|
-| P-1 로그인 | POST /auth/logins/{kakao,google,apple} | 토큰 쌍 + 회원. 제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 정하고, 다시 로그인해도 닉네임은 바뀌지 않는다. 애플은 앱이 첫 인증 때 받은 이름을 `fullName`(선택)으로 보내면 닉네임으로 쓴다(#276) | 완료(#150), 닉네임 규칙은 #286 진행 중 |
+| P-1 로그인 | POST /auth/logins/{kakao,google,apple}, GET /oauth/{kakao,google}/authorize, GET /oauth/{kakao,google}/callback(/oauth는 /api/v1 밖, #331) | 토큰 쌍 + 회원. 제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 정하고, 다시 로그인해도 닉네임은 바뀌지 않는다. 애플은 앱이 첫 인증 때 받은 이름을 `fullName`(선택)으로 보내면 닉네임으로 쓴다(#276) | 완료(#150), 닉네임 규칙은 #286 진행 중 |
 | (세션) | POST /auth/token-refreshes, POST /auth/logouts | 회전, 폐기 | 완료(#150) |
 | 온보딩(가입 직후) | POST /onboarding/saved-places {kakaoPlaceIds} | 201 {sharedMediaId}. 온보딩에서 보관함에 담아 둔 장소를 가입한 회원의 보관함으로 옮긴다. 설정 `onboarding.instagram-url`의 온보딩 릴스(SEEDED, SUCCEEDED)로 공유 이력을 하나 만들고 받은 장소만 보관함에 넣어 그 이력에 묶는다. 빈 배열이면 이력만 만들고, 이미 옮긴 회원이 다시 부르면 같은 이력 ID를 돌려준다. 추출되지 않은 장소가 섞이면 400(PLACE400_002), 릴스가 시드 데이터에 없으면 503(MEDIA503_001). 앱은 응답 뒤 GET /saved-places로 다시 읽는다 | PR #315. 시드 데이터는 FE와 kakaoPlaceId를 맞춘 뒤 |
 | P-5 마이 A, A-1 | GET /members/me | id, nickname, email, imageUrl, oauthProvider | 완료(#162) |
