@@ -22,9 +22,11 @@ type PlaceDetailContentProps = {
   onRetryReels?: () => void;
   onBack: () => void;
   onPressMore?: () => void;
+  onInteractivePressIn?: () => void;
   hideHeader?: boolean;
   hideBack?: boolean;
   showTitle?: boolean;
+  showMetadata?: boolean;
   actionsUnderTitle?: boolean;
   stickyHeader?: boolean;
   titleInHeader?: boolean;
@@ -43,9 +45,11 @@ export function PlaceDetailContent({
   onRetryReels,
   onBack,
   onPressMore,
+  onInteractivePressIn,
   hideHeader = false,
   hideBack = false,
   showTitle = true,
+  showMetadata = true,
   actionsUnderTitle = false,
   stickyHeader = false,
   titleInHeader = false,
@@ -79,6 +83,7 @@ export function PlaceDetailContent({
         <PlaceDetailHeader
           onBack={onBack}
           onPressMore={onPressMore}
+          onInteractivePressIn={onInteractivePressIn}
           hideBack={hideBack}
           title={place.name}
           titleInHeader={titleInHeader}
@@ -90,9 +95,11 @@ export function PlaceDetailContent({
         <PlaceInfo
           place={place}
           showTitle={showTitle}
-          showCategory
+          showCategory={showMetadata}
+          showAddress={showMetadata}
           actionsUnderTitle={actionsUnderTitle}
           viewContext={viewContext}
+          onInteractivePressIn={onInteractivePressIn}
         />
       </View>
       <View style={styles.tabsContainer}>

@@ -23,7 +23,9 @@ type PlaceInfoProps = {
   onPressMore?: () => void;
   showTitle?: boolean;
   showCategory?: boolean;
+  showAddress?: boolean;
   actionsUnderTitle?: boolean;
+  onInteractivePressIn?: () => void;
   viewContext?: SavedPlaceViewContext;
 };
 
@@ -32,7 +34,9 @@ export function PlaceInfo({
   onPressMore,
   showTitle = true,
   showCategory = true,
+  showAddress = true,
   actionsUnderTitle = false,
+  onInteractivePressIn,
   viewContext,
 }: PlaceInfoProps) {
   const posthog = usePostHog();
@@ -93,6 +97,7 @@ export function PlaceInfo({
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={`${place.name} 카카오맵 열기`}
+        onPressIn={onInteractivePressIn}
         onPress={() => {
           openKakaoMap().catch(() => undefined);
         }}
@@ -108,6 +113,7 @@ export function PlaceInfo({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="주소 복사"
+        onPressIn={onInteractivePressIn}
         onPress={copyAddress}
         style={({ pressed }) => [
           styles.actionButton,
@@ -132,6 +138,7 @@ export function PlaceInfo({
                 accessibilityRole="button"
                 accessibilityLabel="더보기"
                 hitSlop={8}
+                onPressIn={onInteractivePressIn}
                 onPress={onPressMore}
                 style={styles.moreButton}
               >
@@ -149,12 +156,14 @@ export function PlaceInfo({
             </Text>
           </View>
         ) : null}
-        <View style={styles.addressRow}>
-          <MaterialIcons color="#85869A" name="place" size={17} />
-          <Text style={styles.address} numberOfLines={1}>
-            {place.fullAddress}
-          </Text>
-        </View>
+        {showAddress ? (
+          <View style={styles.addressRow}>
+            <MaterialIcons color="#85869A" name="place" size={17} />
+            <Text style={styles.address} numberOfLines={1}>
+              {place.fullAddress}
+            </Text>
+          </View>
+        ) : null}
         {!actionsUnderTitle ? actions : null}
       </View>
       <View style={styles.imageContainer}>
