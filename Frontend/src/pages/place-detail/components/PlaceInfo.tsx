@@ -218,6 +218,7 @@ const styles = StyleSheet.create({
   },
   actionsUnderTitle: {
     marginTop: 2,
+    paddingBottom: 4,
   },
   actionButton: {
     minHeight: 36,
