@@ -1,4 +1,4 @@
-package com.yeogidam.auth.service;
+package com.yeogidam.auth.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;

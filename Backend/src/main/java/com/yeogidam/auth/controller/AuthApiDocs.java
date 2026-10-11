@@ -41,7 +41,7 @@ public interface AuthApiDocs {
     @Operation(summary = "토큰 재발급",
             description = """
                     리프레시 토큰으로 새 토큰 쌍을 발급합니다. 이전 리프레시 토큰은 더 쓸 수 없고, 이미 쓴 토큰을 다시 보내면 그 세션의 새 토큰도 함께 막힙니다(AUTH401_003).
-                    방금 교체된 직전 토큰을 교체 뒤 10초 안에 다시 보내면 세션은 그대로 두고 401(AUTH401_005)만 돌려주므로, 앱은 저장소에서 새 토큰을 다시 읽어 씁니다.
+                    방금 교체된 직전 토큰을 교체 뒤 10초 안에 다시 보내면 세션은 그대로 두고 401(AUTH401_005)만 돌려줍니다. 앱과 share extension이 같은 토큰으로 거의 동시에 재발급한 경우이므로, 이 응답을 받은 쪽은 재발급을 다시 요청하지 않고 공유 저장소를 다시 읽어 상대가 저장해 둔 새 토큰을 씁니다.
                     """)
     ResponseEntity<TokenResponse> reissueTokens(RefreshTokenRequest request);
 

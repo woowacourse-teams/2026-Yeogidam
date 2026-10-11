@@ -1,4 +1,4 @@
-package com.yeogidam.auth.service;
+package com.yeogidam.auth.repository;
 
 import com.yeogidam.auth.domain.session.RotatedRefreshToken;
 import java.time.Clock;

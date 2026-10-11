@@ -10,6 +10,7 @@ import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.exception.RefreshTokenMismatchException;
 import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
 import com.yeogidam.auth.repository.RefreshSessionDao;
+import com.yeogidam.auth.repository.RotatedRefreshTokens;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
