@@ -43,7 +43,6 @@ import {
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
 import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
-import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 
 type PlaceResultSheetProps = {
   places: Place[];
@@ -81,7 +80,7 @@ const MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD = 0.35;
 const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
-const DETAIL_ACTION_BOTTOM_PADDING = 76;
+const DETAIL_ACTION_BOTTOM_PADDING = 24;
 const RESULT_ITEM_HEIGHT = 116;
 
 function getMiddleCategory(category?: string) {
@@ -739,20 +738,21 @@ export function PlaceResultSheet({
       </View>
       {selectedPlace ? (
         <View style={[styles.detailArea, { height: detailVisibleHeight }]}>
-          <CopyToastProvider>
+          <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
             <PlaceDetailContent
               // Keep the detail content mounted across snap changes so its
               // scroll position and header do not jump during expansion.
               key={selectedPlace.id}
               onBack={backToPlaceList}
               place={selectedPlace}
+              viewContext={selectedPlaceViewContext ?? undefined}
               reels={selectedPlaceReels}
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
               onRetryReels={loadSelectedPlaceReels}
-              hideHeader={isPageMode}
+              hideHeader={isPageMode || activeSnapIndex === 0}
               hideBack
-              showTitle={false}
+              showTitle={!isPageMode && activeSnapIndex !== 0}
               titleInHeader
               onPressMore={() => {
                 setDeleteError(null);
@@ -767,13 +767,6 @@ export function PlaceResultSheet({
                   : DETAIL_ACTION_BOTTOM_PADDING
               }
             />
-            {selectedPlace.placeUrl ? (
-              <PlaceMapButton
-                savedAt={selectedPlace.savedAt}
-                url={selectedPlace.placeUrl}
-                viewContext={selectedPlaceViewContext ?? undefined}
-              />
-            ) : null}
             <PlaceDetailActionSheet
               visible={isActionSheetVisible}
               onClose={() => {

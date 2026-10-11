@@ -6,6 +6,7 @@ import type {
   PlaceReelsApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
+import type { SavedPlaceViewContext } from '../../../analytics/savedPlaceEvents';
 import { PlaceDetailHeader } from './PlaceDetailHeader';
 import { PlaceInformation } from './PlaceInformation';
 import { PlaceInfo } from './PlaceInfo';
@@ -29,6 +30,7 @@ type PlaceDetailContentProps = {
   contentBottomPadding?: number;
   headerTopInset?: number;
   compactHeader?: boolean;
+  viewContext?: SavedPlaceViewContext;
 };
 
 export function PlaceDetailContent({
@@ -47,6 +49,7 @@ export function PlaceDetailContent({
   contentBottomPadding = 100,
   headerTopInset = 0,
   compactHeader = false,
+  viewContext,
 }: PlaceDetailContentProps) {
   const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
 
@@ -79,7 +82,12 @@ export function PlaceDetailContent({
         />
       )}
       <View>
-        <PlaceInfo place={place} showTitle={showTitle} />
+        <PlaceInfo
+          place={place}
+          showTitle={showTitle}
+          showCategory
+          viewContext={viewContext}
+        />
       </View>
       <View style={styles.tabsContainer}>
         <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />

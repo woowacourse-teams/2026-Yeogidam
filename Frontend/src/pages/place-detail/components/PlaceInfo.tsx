@@ -1,8 +1,20 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { usePostHog } from 'posthog-react-native';
 
+import {
+  capturePlaceMapViewed,
+  type SavedPlaceViewContext,
+} from '../../../analytics/savedPlaceEvents';
 import type { Place } from '../../../entities/place/types';
 import { useCopyToast } from './CopyToast';
 
@@ -10,18 +22,63 @@ type PlaceInfoProps = {
   place: Place;
   onPressMore?: () => void;
   showTitle?: boolean;
+  showCategory?: boolean;
+  viewContext?: SavedPlaceViewContext;
 };
 
 export function PlaceInfo({
   place,
   onPressMore,
   showTitle = true,
+  showCategory = true,
+  viewContext,
 }: PlaceInfoProps) {
+  const posthog = usePostHog();
   const { showCopyToast } = useCopyToast();
 
   const copyAddress = () => {
     Clipboard.setString(place.fullAddress);
     showCopyToast('도로명 주소가 복사되었습니다.');
+  };
+
+  const openKakaoMap = async () => {
+    const hasCoordinates =
+      place.latitude !== undefined && place.longitude !== undefined;
+    const appPlaceUrl = hasCoordinates
+      ? `kakaomap://look?p=${place.latitude},${place.longitude}`
+      : `kakaomap://search?q=${encodeURIComponent(place.name)}`;
+    const webPlaceUrl = hasCoordinates
+      ? `https://map.kakao.com/link/map/${encodeURIComponent(place.name)},${place.latitude},${place.longitude}`
+      : `https://map.kakao.com/link/search/${encodeURIComponent(place.name)}`;
+
+    try {
+      await Linking.openURL(place.placeUrl ?? appPlaceUrl);
+    } catch {
+      if (place.placeUrl && place.placeUrl !== appPlaceUrl) {
+        try {
+          await Linking.openURL(appPlaceUrl);
+        } catch {
+          try {
+            await Linking.openURL(webPlaceUrl);
+          } catch {
+            return;
+          }
+        }
+      } else {
+        try {
+          await Linking.openURL(webPlaceUrl);
+        } catch {
+          return;
+        }
+      }
+    }
+
+    if (place.savedAt && viewContext) {
+      capturePlaceMapViewed(posthog, {
+        ...viewContext,
+        savedAt: place.savedAt,
+      });
+    }
   };
 
   return (
@@ -43,35 +100,71 @@ export function PlaceInfo({
             ) : null}
           </View>
         ) : null}
-        {place.category ? (
-          <Text style={styles.category}>{place.category}</Text>
+        {showCategory && place.category ? (
+          <View style={styles.metaRow}>
+            <MaterialIcons color="#85869A" name="sell" size={16} />
+            <Text style={styles.category} numberOfLines={1}>
+              {getMiddleCategory(place.category)}
+            </Text>
+          </View>
         ) : null}
-        <Pressable
-          onPress={copyAddress}
-          style={({ pressed }) => [
-            styles.addressRow,
-            pressed && styles.addressPressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`${place.fullAddress} 주소 복사`}
-        >
-          <Text style={styles.pin}>●</Text>
+        <View style={styles.addressRow}>
+          <MaterialIcons color="#85869A" name="place" size={17} />
           <Text style={styles.address} numberOfLines={1}>
             {place.fullAddress}
           </Text>
-          <Text style={styles.copyText}>복사</Text>
-        </Pressable>
+        </View>
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`${place.name} 카카오맵 열기`}
+            onPress={() => {
+              openKakaoMap().catch(() => undefined);
+            }}
+            style={({ pressed }) => [
+              styles.actionButton,
+              styles.mapButton,
+              pressed && styles.actionPressed,
+            ]}
+          >
+            <Text style={styles.kakaoMark}>K</Text>
+            <Text style={styles.directionsLabel}>카카오맵</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="주소 복사"
+            onPress={copyAddress}
+            style={({ pressed }) => [
+              styles.actionButton,
+              styles.copyButton,
+              pressed && styles.actionPressed,
+            ]}
+          >
+            <MaterialIcons color="#1a1a2e" name="content-copy" size={15} />
+            <Text style={styles.copyLabel}>주소 복사</Text>
+          </Pressable>
+        </View>
       </View>
-      <Image source={place.image} style={styles.image} />
+      <View style={styles.imageContainer}>
+        <Image source={place.image} style={styles.image} />
+      </View>
     </View>
   );
+}
+
+function getMiddleCategory(category: string) {
+  const categories = category
+    .split('>')
+    .map(value => value.trim())
+    .filter(Boolean);
+  return categories[1] ?? categories[0];
 }
 
 const styles = StyleSheet.create({
   summary: {
     paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 18,
+    paddingTop: 2,
+    paddingBottom: 8,
   },
   titleRow: {
     flexDirection: 'row',
@@ -93,35 +186,76 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   category: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '600',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
     color: '#66666F',
   },
-  addressRow: {
-    minHeight: 30,
-    marginTop: 4,
+  metaRow: {
+    minHeight: 22,
+    marginTop: 3,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 7,
   },
-  pin: {
-    marginRight: 7,
-    fontSize: 9,
-    color: '#C2C5CE',
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  actionButton: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  mapButton: {
+    backgroundColor: '#E7E9FF',
+  },
+  kakaoMark: {
+    fontSize: 15,
+    lineHeight: 18,
+    fontWeight: '800',
+    color: '#4456C8',
+  },
+  directionsLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4456C8',
+  },
+  copyButton: {
+    backgroundColor: '#F1F1F5',
+  },
+  copyLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1a1a2e',
+  },
+  actionPressed: {
+    opacity: 0.58,
+  },
+  addressRow: {
+    minHeight: 26,
+    marginTop: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   address: {
+    flex: 1,
     flexShrink: 1,
     fontSize: 14,
     color: '#55555F',
   },
-  copyText: {
-    marginLeft: 5,
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#5F6FC7',
-  },
-  addressPressed: {
-    opacity: 0.55,
+  imageContainer: {
+    marginHorizontal: 24,
+    marginTop: 6,
+    overflow: 'hidden',
+    borderRadius: 16,
   },
   image: {
     width: '100%',

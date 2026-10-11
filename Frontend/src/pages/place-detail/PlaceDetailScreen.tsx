@@ -14,10 +14,11 @@ import type {
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
 import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
+import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
-import { PlaceMapButton } from './components/PlaceMapButton';
 
 type PlaceDetailScreenProps = {
   onBack: () => void;
@@ -33,6 +34,7 @@ export function PlaceDetailScreen({
   onAuthenticationRequired,
 }: PlaceDetailScreenProps) {
   const posthog = usePostHog();
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const capturedPlaceViewIdRef = useRef<string | null>(null);
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
@@ -139,10 +141,11 @@ export function PlaceDetailScreen({
   }, [handleDelete, isDeleting]);
 
   return (
-    <CopyToastProvider>
+    <CopyToastProvider bottomOffset={BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 16}>
       <PlaceDetailContent
         onBack={onBack}
         place={place}
+        viewContext={viewContext}
         showTitle={false}
         titleInHeader
         compactHeader
@@ -156,13 +159,6 @@ export function PlaceDetailScreen({
           setIsActionSheetVisible(true);
         }}
       />
-      {place.placeUrl ? (
-        <PlaceMapButton
-          savedAt={place.savedAt}
-          url={place.placeUrl}
-          viewContext={viewContext}
-        />
-      ) : null}
       <PlaceDetailActionSheet
         visible={isActionSheetVisible}
         onClose={() => {

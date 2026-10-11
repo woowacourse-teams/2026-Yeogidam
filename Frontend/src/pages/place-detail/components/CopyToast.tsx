@@ -14,7 +14,13 @@ type CopyToastContextValue = {
 
 const CopyToastContext = createContext<CopyToastContextValue | null>(null);
 
-export function CopyToastProvider({ children }: { children: ReactNode }) {
+export function CopyToastProvider({
+  children,
+  bottomOffset = 16,
+}: {
+  children: ReactNode;
+  bottomOffset?: number;
+}) {
   const [message, setMessage] = useState('');
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -39,9 +45,13 @@ export function CopyToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <CopyToastContext.Provider value={{ showCopyToast }}>
-      <View style={styles.screen}>
+      <View pointerEvents="box-none" style={styles.screen}>
         {children}
-        <CopyToast visible={visible} message={message} />
+        <CopyToast
+          visible={visible}
+          message={message}
+          bottomOffset={bottomOffset}
+        />
       </View>
     </CopyToastContext.Provider>
   );
@@ -60,9 +70,11 @@ export function useCopyToast() {
 function CopyToast({
   visible,
   message,
+  bottomOffset,
 }: {
   visible: boolean;
   message: string;
+  bottomOffset: number;
 }) {
   const translateY = useRef(new Animated.Value(72)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -85,7 +97,10 @@ function CopyToast({
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.toast, { opacity, transform: [{ translateY }] }]}
+      style={[
+        styles.toast,
+        { bottom: bottomOffset, opacity, transform: [{ translateY }] },
+      ]}
     >
       <Text style={styles.text}>{message}</Text>
     </Animated.View>
@@ -95,13 +110,12 @@ function CopyToast({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
   toast: {
     position: 'absolute',
     left: 24,
     right: 24,
-    bottom: 16,
     height: 52,
     paddingHorizontal: 20,
     borderRadius: 12,
