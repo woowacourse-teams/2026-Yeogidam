@@ -2,7 +2,8 @@ import React, { useEffect, type ReactNode } from 'react';
 import Config from 'react-native-config';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
-import { supabase } from '../lib/auth/supabase';
+import { loadAuthSession } from '../lib/auth/authStorage';
+import { subscribeAuthState } from '../lib/auth/tokenClient';
 import { getAnalyticsEnvironment } from '../analytics/analytics';
 import { getInstallationId } from '../lib/share-intent';
 
@@ -20,20 +21,25 @@ function PostHogAuthIdentity({ children }: PostHogRootProps) {
   const posthog = usePostHog();
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session) {
-        posthog.identify(session.user.id);
+    // 공유 저장소 세션의 userId 자리에는 서버 회원 id 문자열이 들어 있습니다.
+    const identifyMember = async () => {
+      const session = await loadAuthSession();
+
+      if (session) {
+        posthog.identify(session.userId);
+      }
+    };
+
+    identifyMember().catch(() => undefined);
+
+    return subscribeAuthState(signedIn => {
+      if (signedIn) {
+        identifyMember().catch(() => undefined);
         return;
       }
 
-      if (event === 'SIGNED_OUT') {
-        posthog.reset();
-      }
+      posthog.reset();
     });
-
-    return () => subscription.unsubscribe();
   }, [posthog]);
 
   return <>{children}</>;

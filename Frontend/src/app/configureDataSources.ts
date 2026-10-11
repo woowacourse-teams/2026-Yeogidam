@@ -7,10 +7,10 @@ import {
   configureSavedPlacesApi,
 } from '../entities/info/api';
 import { configureAppUpdatePolicyApi } from '../lib/app-update-policy';
-import {
-  configureAccountDeletionApi,
-  requestAuthorizationCodeWithSupabase,
-} from '../lib/auth/deleteAccount';
+import { configureAccountDeletionApi } from '../lib/auth/deleteAccount';
+import { configureLoginApi } from '../lib/auth/loginApi';
+import { reauthenticateWithApple } from '../lib/auth/signInWithApple';
+import { reauthenticateWithOAuth } from '../lib/auth/signInWithOAuth';
 import {supabase} from '../lib/auth/supabase';
 import {
   configureTokenClient,
@@ -33,6 +33,7 @@ export function configureDataSources() {
   }
 
   configureTokenClient({ baseUrl: API_BASE_URL });
+  configureLoginApi({ baseUrl: API_BASE_URL });
 
   const sharedOptions = {
     baseUrl: SUPABASE_URL,
@@ -60,13 +61,13 @@ export function configureDataSources() {
   configureHistoryApi({ ...sharedOptions, baseUrl: API_BASE_URL });
   configureAccountDeletionApi({
     ...serverOptions,
-    // 재인증은 서버 로그인 경로(#337)가 생길 때까지 Supabase 쪽 함수를 씁니다.
-    requestAuthorizationCode: requestAuthorizationCodeWithSupabase,
-    // 탈퇴 뒤에는 토큰 클라이언트가 네이티브 공유 저장소의 서버 세션을 지우고, 남은 Supabase 로컬 세션도 함께 지웁니다.
-    clearSession: async () => {
-      await logout();
-      await supabase.auth.signOut({ scope: 'local' });
-    },
+    // 재인증은 로그인과 같은 창에서 인가 코드만 받습니다. 인가 URL 경로의 제공자 값은 소문자입니다.
+    requestAuthorizationCode: provider =>
+      provider === 'APPLE'
+        ? reauthenticateWithApple()
+        : reauthenticateWithOAuth(provider === 'KAKAO' ? 'kakao' : 'google'),
+    // 탈퇴 뒤에는 토큰 클라이언트가 네이티브 공유 저장소의 서버 세션을 지우고 로그아웃을 알립니다.
+    clearSession: logout,
   });
   configureAppUpdatePolicyApi({ baseUrl: API_BASE_URL });
 }

@@ -1,7 +1,5 @@
-import type {Session} from '@supabase/supabase-js';
-
 import {signInWithOAuth} from './signInWithOAuth';
 
-export async function signInWithKakao(): Promise<Session> {
+export async function signInWithKakao(): Promise<void> {
   return signInWithOAuth('kakao');
 }

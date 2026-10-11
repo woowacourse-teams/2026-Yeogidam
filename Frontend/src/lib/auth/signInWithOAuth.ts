@@ -1,18 +1,24 @@
 import {Linking} from 'react-native';
-import type {Provider, Session} from '@supabase/supabase-js';
 import {InAppBrowser} from 'react-native-inappbrowser-reborn';
 
-import {AUTH_CALLBACK_URL, supabase} from './supabase';
+import {
+  getAuthorizationUrl,
+  loginWithAuthorizationCode,
+  type LoginProvider,
+} from './loginApi';
 import {
   createCancelledAuthError,
   createProcessingAuthError,
   normalizeAuthError,
 } from './errors';
 
+/** 서버 콜백이 인가 코드를 실어 돌려보내는 앱 스킴 주소입니다. 서버 설정의 앱 콜백 주소와 같아야 합니다. */
+export const AUTH_CALLBACK_URL = 'com.yeogidamm.app://auth-callback';
+
 const OAUTH_REQUEST_TIMEOUT_MS = 15_000;
 const BROWSER_CALLBACK_TIMEOUT_MS = 120_000;
 
-export type SupportedOAuthProvider = Extract<Provider, 'google' | 'kakao'>;
+export type SupportedOAuthProvider = Exclude<LoginProvider, 'apple'>;
 
 class TimeoutError extends Error {
   constructor() {
@@ -53,27 +59,36 @@ function mergeUrlParams(url: string) {
   return params;
 }
 
-function getCallbackError(url: string) {
+/**
+ * 서버 콜백이 넘긴 앱 스킴 주소에서 인가 코드를 꺼냅니다. 제공자가 error로 돌려보냈으면 로그인을 이어 가지
+ * 않으며, 사용자가 거절한 access_denied는 취소로, 나머지는 처리 오류로 던집니다. 요청한 제공자의
+ * 주소가 아니거나 코드가 없어도 처리 오류입니다.
+ */
+export function getAuthorizationCodeFromCallback(
+  url: string,
+  provider: SupportedOAuthProvider,
+): string {
   const params = mergeUrlParams(url);
-  const errorCode = params.get('error_code');
 
-  if (!errorCode) {
-    return null;
+  if (params.get('provider') !== provider) {
+    throw createProcessingAuthError();
   }
 
-  if (errorCode.startsWith('4')) {
-    return {
-      status: 400,
-    };
+  const callbackError = params.get('error');
+
+  if (callbackError) {
+    throw callbackError === 'access_denied'
+      ? createCancelledAuthError()
+      : createProcessingAuthError();
   }
 
-  if (errorCode.startsWith('5')) {
-    return {
-      status: 502,
-    };
+  const code = params.get('code');
+
+  if (!code) {
+    throw createProcessingAuthError();
   }
 
-  return createProcessingAuthError();
+  return code;
 }
 
 async function waitForDeepLinkFallback(authUrl: string) {
@@ -109,58 +124,50 @@ async function openAuthSession(authUrl: string) {
   return withTimeout(waitForDeepLinkFallback(authUrl), BROWSER_CALLBACK_TIMEOUT_MS);
 }
 
-function getAuthCodeFromUrl(url: string) {
-  return mergeUrlParams(url).get('code');
+/** 서버가 만든 제공자 로그인 주소를 인앱 브라우저로 열고, 서버 콜백이 앱 스킴으로 넘긴 인가 코드를 받습니다. */
+async function receiveAuthorizationCode(provider: SupportedOAuthProvider) {
+  const authorizationUrl = await withTimeout(
+    getAuthorizationUrl(provider),
+    OAUTH_REQUEST_TIMEOUT_MS,
+  );
+  const authSessionResult = await withTimeout(
+    openAuthSession(authorizationUrl),
+    BROWSER_CALLBACK_TIMEOUT_MS,
+  );
+
+  if (authSessionResult.type !== 'success') {
+    throw createCancelledAuthError();
+  }
+
+  return getAuthorizationCodeFromCallback(authSessionResult.url, provider);
 }
 
 export async function signInWithOAuth(
   provider: SupportedOAuthProvider,
-): Promise<Session> {
+): Promise<void> {
   try {
-    const {data, error} = await withTimeout(
-      supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: AUTH_CALLBACK_URL,
-          skipBrowserRedirect: true,
-        },
-      }),
+    const authorizationCode = await receiveAuthorizationCode(provider);
+
+    await withTimeout(
+      loginWithAuthorizationCode(provider, {authorizationCode}),
       OAUTH_REQUEST_TIMEOUT_MS,
     );
+  } catch (error) {
+    throw normalizeAuthError(error);
+  } finally {
+    InAppBrowser.closeAuth();
+  }
+}
 
-    if (error || !data?.url) {
-      throw error ?? createProcessingAuthError();
-    }
-
-    const authSessionResult = await withTimeout(
-      openAuthSession(data.url),
-      BROWSER_CALLBACK_TIMEOUT_MS,
-    );
-
-    if (authSessionResult.type !== 'success') {
-      throw createCancelledAuthError();
-    }
-
-    const callbackError = getCallbackError(authSessionResult.url);
-    if (callbackError) {
-      throw callbackError;
-    }
-
-    const code = getAuthCodeFromUrl(authSessionResult.url);
-    if (!code) {
-      throw createProcessingAuthError();
-    }
-
-    const {data: sessionData, error: exchangeError} = await withTimeout(
-      supabase.auth.exchangeCodeForSession(code),
-      OAUTH_REQUEST_TIMEOUT_MS,
-    );
-
-    if (exchangeError || !sessionData.session) {
-      throw exchangeError ?? createProcessingAuthError();
-    }
-
-    return sessionData.session;
+/**
+ * 회원탈퇴 재인증입니다. 로그인과 같은 창에서 인가 코드만 받아 돌려주며, 코드는 한 번만 쓸 수 있어
+ * 로그인에 보내지 않습니다.
+ */
+export async function reauthenticateWithOAuth(
+  provider: SupportedOAuthProvider,
+): Promise<string> {
+  try {
+    return await receiveAuthorizationCode(provider);
   } catch (error) {
     throw normalizeAuthError(error);
   } finally {
