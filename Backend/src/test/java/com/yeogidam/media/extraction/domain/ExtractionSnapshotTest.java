@@ -14,6 +14,19 @@ class ExtractionSnapshotTest {
     private static final int PIPELINE_VERSION = 3;
 
     @ParameterizedTest
+    @CsvSource({"SUCCEEDED,true", "EXTRACTING,false", "FAILED,false"})
+    void 분석이_성공했을_때만_성공으로_본다(ExtractionStatus status, boolean expected) {
+        // given
+        ExtractionSnapshot snapshot = new ExtractionSnapshot(status, null, PIPELINE_VERSION, MediaSourceType.EXTRACTED);
+
+        // when
+        boolean succeeded = snapshot.isSucceeded();
+
+        // then
+        assertThat(succeeded).isEqualTo(expected);
+    }
+
+    @ParameterizedTest
     @EnumSource(ExtractionFailureReason.class)
     void 이전_버전의_실패는_실패_사유와_관계없이_재시도할_수_있다(ExtractionFailureReason failureReason) {
         // given

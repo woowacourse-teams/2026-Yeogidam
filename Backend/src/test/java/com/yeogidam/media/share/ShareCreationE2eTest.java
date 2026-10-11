@@ -79,11 +79,14 @@ class ShareCreationE2eTest extends E2eTestSupport {
 
         // then
         // TODO: 비동기 작업 시작했는지 검증 추가?
-        assertThat(response.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
-        assertThat(readSharedMediaIds(login.memberId())).containsExactly(response.getLong("sharedMediaId"));
-        assertThat(countMedia(instagramUrl)).isEqualTo(1);
-        assertThat(extractionStatus(instagramUrl)).isEqualTo(ExtractionStatus.EXTRACTING.name());
-        assertThat(countSharedMedia(login.memberId(), instagramUrl)).isEqualTo(1);
+        assertAll(
+                () -> assertThat(response.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(readSharedMediaIds(login.memberId()))
+                        .containsExactly(response.getLong("sharedMediaId")),
+                () -> assertThat(countMedia(instagramUrl)).isEqualTo(1),
+                () -> assertThat(extractionStatus(instagramUrl)).isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(countSharedMedia(login.memberId(), instagramUrl)).isEqualTo(1)
+        );
     }
 
     @Test
@@ -101,11 +104,14 @@ class ShareCreationE2eTest extends E2eTestSupport {
                 .extract().jsonPath();
 
         // then
-        assertThat(response.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
-        assertThat(readSharedMediaIds(login.memberId())).containsExactly(response.getLong("sharedMediaId"));
-        assertThat(countMedia(REEL_URL)).isEqualTo(1);
-        assertThat(extractionStatus(REEL_URL)).isEqualTo(ExtractionStatus.EXTRACTING.name());
-        assertThat(countSharedMedia(login.memberId(), REEL_URL)).isEqualTo(1);
+        assertAll(
+                () -> assertThat(response.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(readSharedMediaIds(login.memberId()))
+                        .containsExactly(response.getLong("sharedMediaId")),
+                () -> assertThat(countMedia(REEL_URL)).isEqualTo(1),
+                () -> assertThat(extractionStatus(REEL_URL)).isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(countSharedMedia(login.memberId(), REEL_URL)).isEqualTo(1)
+        );
     }
 
     @Test
@@ -128,13 +134,17 @@ class ShareCreationE2eTest extends E2eTestSupport {
                 .extract().jsonPath();
 
         // then
-        assertThat(firstResponse.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
-        assertThat(secondResponse.getString("extractionStatus")).isEqualTo(ExtractionStatus.EXTRACTING.name());
-        assertThat(readSharedMediaIds(login.memberId()))
-                .containsExactly(firstResponse.getLong("sharedMediaId"), secondResponse.getLong("sharedMediaId"));
-        assertThat(countMedia(REEL_URL)).isEqualTo(1);
-        assertThat(extractionStatus(REEL_URL)).isEqualTo(ExtractionStatus.EXTRACTING.name());
-        assertThat(countSharedMedia(login.memberId(), REEL_URL)).isEqualTo(2);
+        assertAll(
+                () -> assertThat(firstResponse.getString("extractionStatus"))
+                        .isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(secondResponse.getString("extractionStatus"))
+                        .isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(readSharedMediaIds(login.memberId())).containsExactly(
+                        firstResponse.getLong("sharedMediaId"), secondResponse.getLong("sharedMediaId")),
+                () -> assertThat(countMedia(REEL_URL)).isEqualTo(1),
+                () -> assertThat(extractionStatus(REEL_URL)).isEqualTo(ExtractionStatus.EXTRACTING.name()),
+                () -> assertThat(countSharedMedia(login.memberId(), REEL_URL)).isEqualTo(2)
+        );
     }
 
     @Test
@@ -199,8 +209,10 @@ class ShareCreationE2eTest extends E2eTestSupport {
                 .then().statusCode(MediaErrorCode.UNSUPPORTED_LINK.getHttpStatus().value())
                 .body("errorCode", equalTo(MediaErrorCode.UNSUPPORTED_LINK.getCode()))
                 .body("message", equalTo(MediaErrorCode.UNSUPPORTED_LINK.getMessage()));
-        assertThat(countMediaRows()).isZero();
-        assertThat(countSharedMediaRows()).isZero();
+        assertAll(
+                () -> assertThat(countMediaRows()).isZero(),
+                () -> assertThat(countSharedMediaRows()).isZero()
+        );
     }
 
     @Test
@@ -216,8 +228,10 @@ class ShareCreationE2eTest extends E2eTestSupport {
                 .then().statusCode(MediaErrorCode.INVALID_LINK.getHttpStatus().value())
                 .body("errorCode", equalTo(MediaErrorCode.INVALID_LINK.getCode()))
                 .body("message", equalTo(MediaErrorCode.INVALID_LINK.getMessage()));
-        assertThat(countMediaRows()).isZero();
-        assertThat(countSharedMediaRows()).isZero();
+        assertAll(
+                () -> assertThat(countMediaRows()).isZero(),
+                () -> assertThat(countSharedMediaRows()).isZero()
+        );
     }
 
     @Test
@@ -233,8 +247,10 @@ class ShareCreationE2eTest extends E2eTestSupport {
                 .then().statusCode(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getHttpStatus().value())
                 .body("errorCode", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getCode()))
                 .body("message", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getMessage()));
-        assertThat(countMediaRows()).isZero();
-        assertThat(countSharedMediaRows()).isZero();
+        assertAll(
+                () -> assertThat(countMediaRows()).isZero(),
+                () -> assertThat(countSharedMediaRows()).isZero()
+        );
     }
 
     @Test
@@ -247,8 +263,10 @@ class ShareCreationE2eTest extends E2eTestSupport {
                 .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
                 .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))
                 .body("message", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getMessage()));
-        assertThat(countMediaRows()).isZero();
-        assertThat(countSharedMediaRows()).isZero();
+        assertAll(
+                () -> assertThat(countMediaRows()).isZero(),
+                () -> assertThat(countSharedMediaRows()).isZero()
+        );
     }
 
     private int countMedia(String instagramUrl) {

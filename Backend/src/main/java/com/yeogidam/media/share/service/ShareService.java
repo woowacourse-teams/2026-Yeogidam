@@ -58,11 +58,11 @@ public class ShareService {
         InstagramUrl instagramUrl = new InstagramUrl(rawInstagramUrl.instagramUrl());
         Long mediaId = getOrCreateMediaId(instagramUrl.getMediaShortcode(), instagramUrl);
         Long sharedMediaId = createSharedMedia(memberId, mediaId, instagramUrl);
-        ExtractionStatus status = instagramMediaDao.findExtractionSnapshotForUpdate(mediaId).status();
-        if (status == ExtractionStatus.SUCCEEDED) {
+        ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(mediaId);
+        if (snapshot.isSucceeded()) {
             savePlacesFromMedia(memberId, sharedMediaId, mediaId);
         }
-        return new ShareResponse(sharedMediaId, status.name());
+        return new ShareResponse(sharedMediaId, snapshot.status().name());
     }
 
     private void savePlacesFromMedia(Long memberId, Long sharedMediaId, Long mediaId) {
