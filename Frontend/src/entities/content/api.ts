@@ -1,10 +1,6 @@
-import {supabase} from '../../lib/auth/supabase';
 import {v4 as uuidv4} from 'uuid';
 import type {
   ContentType,
-  SaveInstagramReelResponse,
-  SaveSource,
-  ReelProcessingStatus,
   HistoryCursor,
   HistoryReel,
   ExtractionFailureReason,
@@ -12,14 +8,11 @@ import type {
   ExtractionStatus,
   HistoryPlace,
   HistoryRepository,
+  ShareResult,
 } from './types';
-import {normalizeReelStatusError, reelErrorFromEnvelope, ReelApiError} from './errors';
 import { createApiClient, type ApiClientOptions } from '../../lib/api/client';
 import { ApiError } from '../../lib/api/errors';
 import { toIdString } from '../../lib/api/values';
-
-const REEL_STATUS_SELECT =
-  'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
 
 type ServerShareHistoryResponse = {
   sharedMediaId: number;
@@ -51,6 +44,11 @@ type ServerShareHistoryPlaceResponses = {
 };
 
 type ServerExtractionRetryResponse = {
+  sharedMediaId: number;
+  extractionStatus: ExtractionStatus;
+};
+
+type ServerShareResponse = {
   sharedMediaId: number;
   extractionStatus: ExtractionStatus;
 };
@@ -124,6 +122,18 @@ export function createServerHistoryRepository(
         method: 'POST',
       });
     },
+    async createShare(instagramUrl) {
+      // 서버는 아직 clientRequestId를 읽지 않지만 멱등 처리를 붙일 자리로 계속 보냅니다.
+      const body = (await request('/api/v1/shares', {
+        method: 'POST',
+        body: { instagramUrl, clientRequestId: uuidv4() },
+      })) as ServerShareResponse;
+
+      return {
+        sharedMediaId: toIdString(body.sharedMediaId),
+        extractionStatus: body.extractionStatus,
+      };
+    },
   };
 }
 
@@ -145,6 +155,10 @@ function createMockHistoryRepository(): HistoryRepository {
     getHistoryReelPlaces: notFound,
     retryHistoryExtraction: notFound,
     reportHistoryReel: notFound,
+    // 목 목록에는 항목을 더할 수 없어, 이미 분석이 끝난 게시물을 다시 공유한 것처럼 끝냅니다.
+    async createShare() {
+      return { sharedMediaId: '0', extractionStatus: 'SUCCEEDED' };
+    },
   };
 }
 
@@ -179,6 +193,11 @@ export function reportHistoryReel(sharedMediaId: string): Promise<void> {
   return historyRepository.reportHistoryReel(sharedMediaId);
 }
 
+/** 정규화한 인스타그램 링크를 공유 이력으로 접수합니다. */
+export function createShare(instagramUrl: string): Promise<ShareResult> {
+  return historyRepository.createShare(instagramUrl);
+}
+
 export function detectContentType(url: string): ContentType {
   return normalizeInstagramContentUrl(url) ? 'instagram_reel' : 'unsupported';
 }
@@ -202,83 +221,4 @@ export function normalizeInstagramContentUrl(url: string): string | null {
   }
 
   return null;
-}
-
-export async function saveInstagramReel(
-  instagramUrl: string,
-  source: SaveSource,
-  clientRequestId = uuidv4(),
-): Promise<SaveInstagramReelResponse> {
-  const {data, error} = await supabase.functions.invoke<SaveInstagramReelResponse>(
-    'save-instagram-reel-v2',
-    {
-      body: {
-        instagramUrl,
-        source,
-        clientRequestId,
-      },
-    },
-  );
-
-  if (error) {
-    const context = (error as {context?: Response}).context;
-    let envelope: unknown = null;
-    if (context) {
-      try {
-        envelope = await context.clone().json();
-      } catch {
-        // Network or non-JSON gateway error.
-      }
-    }
-    throw reelErrorFromEnvelope(envelope) ?? new ReelApiError({
-      errorCode: 'CLIENT000_001',
-      message: '인터넷 연결을 확인해주세요.',
-      retryable: true,
-      status: context?.status ?? null,
-    });
-  }
-
-  if (!data) {
-    throw new ReelApiError({
-      errorCode: 'CLIENT000_003',
-      message: '응답을 처리하지 못했어요.',
-    });
-  }
-
-  return data;
-}
-
-export async function saveContent(
-  url: string,
-  source: SaveSource,
-  clientRequestId?: string,
-): Promise<SaveInstagramReelResponse> {
-  const normalizedUrl = normalizeInstagramContentUrl(url);
-
-  if (!normalizedUrl) {
-    throw new ReelApiError({
-      errorCode: 'REEL400_001',
-      message: '지원하지 않는 링크입니다. Instagram 릴스 링크를 입력해주세요.',
-      retryable: false,
-      field: 'instagramUrl',
-    });
-  }
-
-  return saveInstagramReel(normalizedUrl, source, clientRequestId);
-}
-
-export async function getReelProcessingStatus(
-  reelId: string,
-): Promise<ReelProcessingStatus | null> {
-  const {data, error} = await supabase
-    .from('reels')
-    .select(REEL_STATUS_SELECT)
-    .eq('id', reelId)
-    .maybeSingle<ReelProcessingStatus>();
-
-  if (error) {
-    throw normalizeReelStatusError(error);
-  }
-
-  return data;
 }

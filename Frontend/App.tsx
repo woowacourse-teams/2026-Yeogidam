@@ -12,6 +12,7 @@ import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
 import type { OAuthProvider } from './src/entities/user/types';
+import { toIdString } from './src/lib/api/values';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -25,6 +26,7 @@ import {
   logout,
   subscribeAuthState,
 } from './src/lib/auth/tokenClient';
+import { registerExtraction } from './src/lib/extraction-poller';
 import { runFirstRunCleanup } from './src/lib/first-run-cleanup';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
@@ -68,10 +70,6 @@ import type {
   MainScreen,
   Screen,
 } from './src/types/navigation';
-import {
-  getSharedSaveState,
-  setSharedSaveState,
-} from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
@@ -437,15 +435,7 @@ function App() {
           if (!isMounted) {
             return;
           }
-          const currentShareState = getSharedSaveState();
-          const activeRequestId =
-            currentShareState?.source === 'instagram_share'
-              ? currentShareState.shareResultId
-              : undefined;
-          const result = activeRequestId
-            ? results.find(item => item.requestId === activeRequestId) ??
-              results[results.length - 1]
-            : results[results.length - 1];
+          const result = results[results.length - 1];
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
@@ -456,23 +446,13 @@ function App() {
               `updatedAt=${item.updatedAt}`,
             ].join(' | '),
           );
-          const resultSnapshot = JSON.stringify({
-            activeRequestId: activeRequestId ?? null,
-            resultSummary,
-          });
+          const resultSnapshot = JSON.stringify(resultSummary);
           if (__DEV__ && lastLoggedShareResultsRef.current !== resultSnapshot) {
             lastLoggedShareResultsRef.current = resultSnapshot;
-            console.log(
-              '[InstagramShare][native-results]',
-              `activeRequestId=${activeRequestId ?? 'none'}`,
-              ...resultSummary,
-            );
+            console.log('[InstagramShare][native-results]', ...resultSummary);
           }
           if (!result) {
             lastHandledShareResultRef.current = null;
-            if (currentShareState?.source === 'instagram_share') {
-              setSharedSaveState(null);
-            }
             return;
           }
           const resultKey = `${result.requestId ?? result.url}:${
@@ -507,26 +487,13 @@ function App() {
           if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
             return;
           }
-          setSharedSaveState({
-            shareResultId: result.requestId,
-            url: result.url,
-            status: result.status,
-            source: 'instagram_share',
-            rawSharedText: result.rawSharedText,
-            reused: result.reused,
-            saveMode: result.saveMode,
-            reel: {
-              id: result.reelId ?? `share-${Date.now()}`,
-              processing_status: result.status,
-              failure_reason: result.failureReason ?? null,
-              instagram_thumbnail_url: null,
-              created_at: new Date(result.updatedAt).toISOString(),
-            },
-          });
-          openMainScreen(
-            result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox',
-            'auto',
-          );
+          // Results without sharedMediaId come from the old native shape and
+          // are left to the list polling.
+          if (result.sharedMediaId != null) {
+            registerExtraction(toIdString(result.sharedMediaId));
+            clearShareResult(result.requestId).catch(() => undefined);
+          }
+          openMainScreen('saved');
         })
         .catch(error => {
           if (__DEV__) {
@@ -780,8 +747,6 @@ function App() {
             savedPlacesScrollOffsetRef.current = offset;
           }}
           onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
-          onOpenInbox={() => openMainScreen('inBox')}
-          onSharedResultConsumed={clearShareResult}
         />
       );
     }

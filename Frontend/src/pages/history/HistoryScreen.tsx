@@ -36,6 +36,10 @@ import type {
 import {normalizeReelTitle} from '../../entities/content/title';
 import { ApiError } from '../../lib/api/errors';
 import { parseServerDateTime } from '../../lib/api/values';
+import {
+  registerExtraction,
+  subscribeExtractionPoller,
+} from '../../lib/extraction-poller';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
 type HistoryScreenProps = { onBack: () => void };
@@ -527,6 +531,15 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           status: result.reels[0].extractionStatus,
         });
       }
+      // The poller only reads the first page, so it follows the extracting
+      // cards found there and tells this screen when they finish.
+      if (!nextCursor) {
+        registerExtraction(
+          ...result.reels
+            .filter(reel => reel.extractionStatus === 'EXTRACTING')
+            .map(reel => reel.sharedMediaId),
+        );
+      }
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         result.reels.forEach(reel => {
@@ -628,6 +641,9 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
             item.sharedMediaId !== result.sharedMediaId,
         ),
       ]);
+      if (result.extractionStatus === 'EXTRACTING') {
+        registerExtraction(result.sharedMediaId);
+      }
     } catch (retryError) {
       setReels(current => current.filter(item => item.sharedMediaId !== temporaryId));
       setRetrySkeletonIds(current => {
@@ -649,13 +665,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     load().catch(() => undefined);
   }, [load]);
 
-  useEffect(() => {
-    const refresh = setInterval(() => {
-      load(undefined, true).catch(() => undefined);
-    }, 5000);
-
-    return () => clearInterval(refresh);
-  }, [load]);
+  // Refresh the list whenever the app-wide poller reports a change.
+  useEffect(
+    () =>
+      subscribeExtractionPoller(() => {
+        load(undefined, true).catch(() => undefined);
+      }),
+    [load],
+  );
 
   useEffect(() => {
     if (

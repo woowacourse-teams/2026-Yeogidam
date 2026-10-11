@@ -1,24 +1,4 @@
-export type SaveSource = 'url_input' | 'instagram_share';
-
 export type ContentType = 'instagram_reel' | 'unsupported';
-
-export type SaveInstagramReelResponse = {
-  reelId: string;
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  saveMode: 'REVIEW_QUEUE' | 'AUTO_SAVE';
-  placeId?: string;
-  placeIds?: string[];
-  failureReason?: string;
-  reused: boolean;
-};
-
-export type ReelProcessingStatus = {
-  id: string;
-  processing_status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  failure_reason: string | null;
-  instagram_thumbnail_url: string | null;
-  created_at: string;
-};
 
 /** 서버가 내리는 분석 상태입니다. */
 export type ExtractionStatus = 'EXTRACTING' | 'SUCCEEDED' | 'FAILED';
@@ -65,7 +45,13 @@ export type ExtractionRetryResult = {
   extractionStatus: ExtractionStatus;
 };
 
-/** 히스토리 화면이 의존하는 공유 이력 계약입니다. */
+/** 공유 접수 결과입니다. sharedMediaId는 이번 접수로 만든 공유 이력의 식별자입니다. */
+export type ShareResult = {
+  sharedMediaId: string;
+  extractionStatus: ExtractionStatus;
+};
+
+/** 공유 접수와 히스토리 화면이 의존하는 공유 이력 계약입니다. */
 export type HistoryRepository = {
   getHistoryReels: (cursor?: HistoryCursor) => Promise<{
     reels: HistoryReel[];
@@ -76,4 +62,5 @@ export type HistoryRepository = {
     sharedMediaId: string,
   ) => Promise<ExtractionRetryResult>;
   reportHistoryReel: (sharedMediaId: string) => Promise<void>;
+  createShare: (instagramUrl: string) => Promise<ShareResult>;
 };
