@@ -155,6 +155,7 @@ function App() {
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
+  const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
   const lastHandledShareResultRef = useRef<string | null>(null);
@@ -386,6 +387,7 @@ function App() {
       }
 
       setSocialLoginError(null);
+      setHasPendingShareLogin(false);
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
       setFlowState({
@@ -434,6 +436,7 @@ function App() {
           if (!isMounted) {
             return;
           }
+          setHasPendingShareLogin(results.some(item => item.transferStatus === 'LOGIN_HANDOFF'));
           const currentShareState = getSharedSaveState();
           const activeRequestId =
             currentShareState?.source === 'instagram_share'
@@ -491,7 +494,7 @@ function App() {
               saveMode: result.saveMode ?? null,
             });
           }
-          if (result.transferStatus === 'LOGIN_REQUIRED') {
+          if (result.transferStatus === 'LOGIN_HANDOFF' || result.transferStatus === 'LOGIN_REQUIRED') {
             supabase.auth.getSession().then(({data}) => {
               if (data.session) {
                 resumeWaitingShares().catch(() => undefined);
@@ -499,6 +502,14 @@ function App() {
               }
               setFlowState(INITIAL_FLOW_STATE);
             }).catch(() => undefined);
+            return;
+          }
+          if (
+            (result.transferStatus === 'API_FAILED' || result.transferStatus === 'API_SUCCEEDED') &&
+            !result.reelId
+          ) {
+            clearShareResult(result.requestId).catch(() => undefined);
+            Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
           if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
@@ -634,6 +645,14 @@ function App() {
     }
   };
 
+  const handleCancelShareLogin = async () => {
+    const results = await getShareResults();
+    await Promise.all(results
+      .filter(result => result.transferStatus === 'LOGIN_HANDOFF')
+      .map(result => clearShareResult(result.requestId)));
+    setHasPendingShareLogin(false);
+  };
+
   const handleCompleteGuide = () => {
     setHasCompletedGuide(true);
     completeAppGuide();
@@ -747,6 +766,7 @@ function App() {
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
+          onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
         />
       );
     }
