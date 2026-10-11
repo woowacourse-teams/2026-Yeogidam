@@ -60,7 +60,9 @@ export function PlaceDetailScreen({
     setIsReelsLoading(true);
     setError(null);
     try {
-      setReels(await getPlaceReels(place.id));
+      setReels(
+        place.savedPlaceId ? await getPlaceReels(place.savedPlaceId) : [],
+      );
     } catch (nextError) {
       const apiError = nextError as PlaceReelsApiError;
       setError(apiError);
@@ -70,7 +72,7 @@ export function PlaceDetailScreen({
     } finally {
       setIsReelsLoading(false);
     }
-  }, [onAuthenticationRequired, place.id]);
+  }, [onAuthenticationRequired, place.savedPlaceId]);
 
   useEffect(() => {
     loadPosts();
