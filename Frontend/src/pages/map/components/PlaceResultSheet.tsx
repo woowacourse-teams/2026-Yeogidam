@@ -72,7 +72,8 @@ type PlaceResultSheetProps = {
 };
 
 export const COLLAPSED_SHEET_HEIGHT = 84;
-const DETAIL_PEEK_HEIGHT = 84;
+const COLLAPSED_HANDLE_HEIGHT = 44;
+const COLLAPSED_CONTENT_VISIBLE_HEIGHT = 87;
 const MIDDLE_VISIBLE_RATIO = 0.5;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const MIDDLE_TO_EXPANDED_DRAG_THRESHOLD = 48;
@@ -133,10 +134,10 @@ export function PlaceResultSheet({
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
     null,
   );
-  const detailPeekHeight = Math.max(DETAIL_PEEK_HEIGHT, bottomTabOffset);
-  const collapsedHeight = selectedPlace
-    ? COLLAPSED_SHEET_HEIGHT + detailPeekHeight
-    : COLLAPSED_SHEET_HEIGHT;
+  const collapsedHeight =
+    COLLAPSED_HANDLE_HEIGHT +
+    COLLAPSED_CONTENT_VISIBLE_HEIGHT +
+    (selectedPlace ? bottomTabOffset : 0);
   const sheetHeight = Math.max(collapsedHeight, height);
   const collapsedOffset = sheetHeight - collapsedHeight;
   // The results sheet sits above the bottom navigation, while the detail
@@ -192,7 +193,9 @@ export function PlaceResultSheet({
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
   const detailVisibleHeight = Math.max(
     0,
-    sheetHeight - hiddenSheetHeight - (isPageMode ? 0 : COLLAPSED_SHEET_HEIGHT),
+    sheetHeight -
+      hiddenSheetHeight -
+      (isPageMode ? 0 : COLLAPSED_HANDLE_HEIGHT),
   );
   const expandedHeaderHeight =
     topInset +
@@ -752,7 +755,8 @@ export function PlaceResultSheet({
               onRetryReels={loadSelectedPlaceReels}
               hideHeader={isPageMode || activeSnapIndex === 0}
               hideBack
-              showTitle={!isPageMode && activeSnapIndex !== 0}
+              showTitle={!isPageMode && activeSnapIndex === 0}
+              actionsUnderTitle={!isPageMode && activeSnapIndex === 2}
               titleInHeader
               onPressMore={() => {
                 setDeleteError(null);
@@ -952,7 +956,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 14,
     paddingBottom: 2,
-    minHeight: 44,
+    minHeight: COLLAPSED_HANDLE_HEIGHT,
   },
   title: {
     fontSize: 15,

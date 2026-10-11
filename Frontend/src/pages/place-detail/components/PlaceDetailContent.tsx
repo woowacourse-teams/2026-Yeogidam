@@ -25,6 +25,7 @@ type PlaceDetailContentProps = {
   hideHeader?: boolean;
   hideBack?: boolean;
   showTitle?: boolean;
+  actionsUnderTitle?: boolean;
   titleInHeader?: boolean;
   scrollEnabled?: boolean;
   contentBottomPadding?: number;
@@ -44,6 +45,7 @@ export function PlaceDetailContent({
   hideHeader = false,
   hideBack = false,
   showTitle = true,
+  actionsUnderTitle = false,
   titleInHeader = false,
   scrollEnabled = true,
   contentBottomPadding = 100,
@@ -86,6 +88,7 @@ export function PlaceDetailContent({
           place={place}
           showTitle={showTitle}
           showCategory
+          actionsUnderTitle={actionsUnderTitle}
           viewContext={viewContext}
         />
       </View>

@@ -23,6 +23,7 @@ type PlaceInfoProps = {
   onPressMore?: () => void;
   showTitle?: boolean;
   showCategory?: boolean;
+  actionsUnderTitle?: boolean;
   viewContext?: SavedPlaceViewContext;
 };
 
@@ -31,6 +32,7 @@ export function PlaceInfo({
   onPressMore,
   showTitle = true,
   showCategory = true,
+  actionsUnderTitle = false,
   viewContext,
 }: PlaceInfoProps) {
   const posthog = usePostHog();
@@ -81,6 +83,44 @@ export function PlaceInfo({
     }
   };
 
+  const actions = (
+    <View
+      style={[
+        styles.actions,
+        actionsUnderTitle && styles.actionsUnderTitle,
+      ]}
+    >
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`${place.name} 카카오맵 열기`}
+        onPress={() => {
+          openKakaoMap().catch(() => undefined);
+        }}
+        style={({ pressed }) => [
+          styles.actionButton,
+          styles.mapButton,
+          pressed && styles.actionPressed,
+        ]}
+      >
+        <Text style={styles.kakaoMark}>K</Text>
+        <Text style={styles.directionsLabel}>카카오맵</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="주소 복사"
+        onPress={copyAddress}
+        style={({ pressed }) => [
+          styles.actionButton,
+          styles.copyButton,
+          pressed && styles.actionPressed,
+        ]}
+      >
+        <MaterialIcons color="#1a1a2e" name="content-copy" size={15} />
+        <Text style={styles.copyLabel}>주소 복사</Text>
+      </Pressable>
+    </View>
+  );
+
   return (
     <View>
       <View style={styles.summary}>
@@ -100,6 +140,7 @@ export function PlaceInfo({
             ) : null}
           </View>
         ) : null}
+        {actionsUnderTitle ? actions : null}
         {showCategory && place.category ? (
           <View style={styles.metaRow}>
             <MaterialIcons color="#85869A" name="sell" size={16} />
@@ -114,36 +155,7 @@ export function PlaceInfo({
             {place.fullAddress}
           </Text>
         </View>
-        <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`${place.name} 카카오맵 열기`}
-            onPress={() => {
-              openKakaoMap().catch(() => undefined);
-            }}
-            style={({ pressed }) => [
-              styles.actionButton,
-              styles.mapButton,
-              pressed && styles.actionPressed,
-            ]}
-          >
-            <Text style={styles.kakaoMark}>K</Text>
-            <Text style={styles.directionsLabel}>카카오맵</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="주소 복사"
-            onPress={copyAddress}
-            style={({ pressed }) => [
-              styles.actionButton,
-              styles.copyButton,
-              pressed && styles.actionPressed,
-            ]}
-          >
-            <MaterialIcons color="#1a1a2e" name="content-copy" size={15} />
-            <Text style={styles.copyLabel}>주소 복사</Text>
-          </Pressable>
-        </View>
+        {!actionsUnderTitle ? actions : null}
       </View>
       <View style={styles.imageContainer}>
         <Image source={place.image} style={styles.image} />
@@ -203,6 +215,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginTop: 10,
+  },
+  actionsUnderTitle: {
+    marginTop: 2,
   },
   actionButton: {
     minHeight: 36,
