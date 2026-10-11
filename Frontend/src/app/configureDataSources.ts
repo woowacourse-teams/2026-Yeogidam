@@ -1,5 +1,6 @@
 import Config from 'react-native-config';
 
+import { configureHistoryApi } from '../entities/content/api';
 import {
   configurePlaceReelsApi,
   configureProfilesApi,
@@ -44,4 +45,5 @@ export function configureDataSources() {
   configureProfilesApi(sharedOptions);
   configureSavedPlacesApi({ ...sharedOptions, baseUrl: API_BASE_URL });
   configurePlaceReelsApi({ ...sharedOptions, baseUrl: API_BASE_URL });
+  configureHistoryApi({ ...sharedOptions, baseUrl: API_BASE_URL });
 }
