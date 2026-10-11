@@ -1,8 +1,11 @@
 -- 군자역 디저트 캐러셀의 사전 적재 데이터.
 -- local은 data-local.sql 다음에 읽고, dev와 prod에는 이 파일을 데이터베이스에 직접 적용한다.
 -- 자연키(media_shortcode, kakao_place_id) 기준 upsert라 여러 번 적용해도 중복되지 않는다.
+-- 썸네일 키는 data migration이 S3에 올린 사진(게시물은 첫 장, 장소는 카카오맵 대표 사진)이고, dev와 prod가 같은 버킷을 보므로
+-- 두 환경에 같은 키를 쓴다. 공개 주소는 media.thumbnail.public-base-url이 붙인다.
 
-INSERT INTO media (media_shortcode, caption, author, extraction_status, failure_reason, extraction_version, source_type)
+INSERT INTO media (media_shortcode, caption, thumbnail_key, author, extraction_status, failure_reason, extraction_version,
+                   source_type)
 VALUES ('Db4gRWqkuUg', '군자역 디저트 저장각 🍰
 
 📍오픈 한 달 만에 방문자리뷰 500개 넘긴 후르츠산도 맛집, 윤숲
@@ -24,9 +27,10 @@ VALUES ('Db4gRWqkuUg', '군자역 디저트 저장각 🍰
 💌 댓글에 “군자” 남기면 팔로우 여부 상관없이 지도 링크 DM으로 보내드려요!
 
 #군자역카페 #윤숲 #군자역맛집 #광진구카페 #디저트맛집',
-        '@yeogidamm', 'SUCCEEDED', NULL, 1, 'SEEDED') AS onboarding_media
+        'yeogidam/prod/instagram-thumbnails/Db4gRWqkuUg.jpg', '@yeogidamm', 'SUCCEEDED', NULL, 1, 'SEEDED') AS onboarding_media
 ON DUPLICATE KEY UPDATE
     caption = onboarding_media.caption,
+    thumbnail_key = onboarding_media.thumbnail_key,
     author = onboarding_media.author,
     extraction_status = onboarding_media.extraction_status,
     failure_reason = onboarding_media.failure_reason,
@@ -34,18 +38,23 @@ ON DUPLICATE KEY UPDATE
     source_type = onboarding_media.source_type;
 
 INSERT INTO places (kakao_place_id, name, category, land_lot_address, road_address, latitude, longitude, kakao_place_url,
-                    telephone)
+                    telephone, thumbnail_key, thumbnail_source)
 VALUES ('1775568752', '윤숲 후르츠산도점', '음식점 > 카페', '서울 광진구 중곡동 628-7', '서울 광진구 면목로7길 8',
-        37.5595478228, 127.0772756026, 'https://place.map.kakao.com/1775568752', '010-7901-7239'),
+        37.5595478228, 127.0772756026, 'https://place.map.kakao.com/1775568752', '010-7901-7239',
+        'yeogidam/prod/place-thumbnails/1775568752.jpg', 'KAKAO'),
        ('137070444', '에프씨씨', '음식점 > 카페', '서울 광진구 중곡동 134-1', '서울 광진구 용마산로3길 88',
-        37.5571767489, 127.0833823915, 'https://place.map.kakao.com/137070444', '0507-1363-2949'),
+        37.5571767489, 127.0833823915, 'https://place.map.kakao.com/137070444', '0507-1363-2949',
+        'yeogidam/prod/place-thumbnails/137070444.jpg', 'KAKAO'),
        ('337953507', '책방고즈넉', '음식점 > 카페', '서울 광진구 군자동 467-15', '서울 광진구 동일로60길 41-13',
-        37.5578428719, 127.0762971247, 'https://place.map.kakao.com/337953507', '010-3524-2064'),
+        37.5578428719, 127.0762971247, 'https://place.map.kakao.com/337953507', '010-3524-2064',
+        'yeogidam/prod/place-thumbnails/337953507.jpg', 'KAKAO'),
        ('98016856', '윤키', '음식점 > 카페 > 테마카페 > 디저트카페', '서울 광진구 중곡동 142-21',
         '서울 광진구 능동로38길 27', 37.5573429525, 127.0814902707,
-        'https://place.map.kakao.com/98016856', '0502-5553-0774'),
+        'https://place.map.kakao.com/98016856', '0502-5553-0774',
+        'yeogidam/prod/place-thumbnails/98016856.jpg', 'KAKAO'),
        ('1107844606', '연필', '음식점 > 카페 > 커피전문점', '서울 광진구 군자동 49-17', '서울 광진구 면목로 12',
-        37.5552241288, 127.0755882553, 'https://place.map.kakao.com/1107844606', '0502-5552-2000') AS onboarding_place
+        37.5552241288, 127.0755882553, 'https://place.map.kakao.com/1107844606', '0502-5552-2000',
+        'yeogidam/prod/place-thumbnails/1107844606.jpg', 'KAKAO') AS onboarding_place
 ON DUPLICATE KEY UPDATE
     name = onboarding_place.name,
     category = onboarding_place.category,
@@ -54,7 +63,9 @@ ON DUPLICATE KEY UPDATE
     latitude = onboarding_place.latitude,
     longitude = onboarding_place.longitude,
     kakao_place_url = onboarding_place.kakao_place_url,
-    telephone = onboarding_place.telephone;
+    telephone = onboarding_place.telephone,
+    thumbnail_key = onboarding_place.thumbnail_key,
+    thumbnail_source = onboarding_place.thumbnail_source;
 
 INSERT IGNORE INTO media_places (media_id, place_id)
 SELECT media.id, places.id
