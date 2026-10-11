@@ -26,6 +26,8 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.client.RestClient;
 
 class KakaoPlaceSearcherTest {
@@ -274,6 +276,41 @@ class KakaoPlaceSearcherTest {
                 .isInstanceOf(ExtractionFailedException.class)
                 .extracting(exception -> ((ExtractionFailedException) exception).reason())
                 .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"VIDEO", "IMAGE"})
+    void 미디어에서_확인한_주소의_지역을_장소_검색에_사용한다(String basis) {
+        // given
+        String address = "서울 광진구 뚝섬로27길 48";
+        kakaoServer.respondWith("송화산시도삭면 광진구", documents(
+                document("100", "송화산시도삭면", "서울 광진구 자양동 1", address)));
+        PlaceSearchHint hint = new PlaceSearchHint("송화산시도삭면", null, List.of(),
+                List.of(new LocationHint(Type.ADDRESS, address, Basis.valueOf(basis))), null);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("100");
+        assertThat(kakaoServer.queries()).containsExactly("송화산시도삭면 광진구");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"VIDEO", "IMAGE"})
+    void 미디어에서_주소_없이_지역만_확인해도_장소_검색에_사용한다(String basis) {
+        // given
+        kakaoServer.respondWith("올드빅 해방촌", documents(
+                document("100", "올드빅", "서울 용산구 용산동2가 1", "서울 용산구 신흥로 1")));
+        PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(),
+                List.of(new LocationHint(Type.REGION, "해방촌", Basis.valueOf(basis))), null);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("100");
+        assertThat(kakaoServer.queries()).containsExactly("올드빅 해방촌");
     }
 
     private KakaoPlaceSearcher searcher() {
