@@ -13,6 +13,7 @@ import type {
   SavedPlacesApiError,
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
+import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
@@ -142,6 +143,10 @@ export function PlaceDetailScreen({
       <PlaceDetailContent
         onBack={onBack}
         place={place}
+        showTitle={false}
+        titleInHeader
+        compactHeader
+        headerTopInset={SEARCH_BAR_TOP_GAP}
         reels={reels}
         reelsError={error}
         isReelsLoading={isReelsLoading}
