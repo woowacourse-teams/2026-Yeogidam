@@ -260,7 +260,11 @@ describe('retry after AUTH401_001', () => {
 
     // 화면은 AUTH401_001을 로그인 필요로 보므로, 세션이 남은 일시 실패는 재발급 오류로 끝나야 합니다.
     expect(error).toBeInstanceOf(ApiError);
-    expect(error).toMatchObject({ status: 503, errorCode: 'DATA500_001' });
+    expect(error).toMatchObject({
+      status: null,
+      errorCode: 'CLIENT000_004',
+      message: '로그인 정보를 갱신하지 못했어요. 잠시 후 다시 시도해주세요.',
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mockNativeStore.session).toEqual(session);
   });
@@ -284,8 +288,8 @@ describe('refresh failure classification', () => {
     },
   );
 
-  // 네이티브 결과에는 상태 코드가 없어 429와 5xx는 모두 본문 없는 503으로 바뀝니다.
-  const refreshUnavailable = { status: 503, errorCode: 'DATA500_001' };
+  // 네이티브 결과에는 상태 코드가 없어 429와 5xx는 모두 CLIENT000_004로 바뀝니다.
+  const refreshUnavailable = { status: null, errorCode: 'CLIENT000_004' };
   const transientFailures: Array<
     [string, () => Promise<Response>, Pick<ApiError, 'status' | 'errorCode'>]
   > = [

@@ -1,5 +1,9 @@
 import { createApiClient, type ApiRequest } from '../api/client';
-import { ApiError, createNetworkApiError, toApiError } from '../api/errors';
+import {
+  ApiError,
+  createNetworkApiError,
+  createTokenRefreshUnavailableApiError,
+} from '../api/errors';
 import { parseServerDateTime, toIdString } from '../api/values';
 import {
   ensureNativeAccessToken,
@@ -76,13 +80,13 @@ function isSessionEnded(error: unknown) {
 }
 
 /**
- * 세션을 둔 채 끝난 재발급 실패를 요청 쪽에 돌려줄 오류로 바꿉니다. 네이티브 결과에는 상태 코드가
- * 없어서, 네트워크 오류가 아니면 본문 없는 503(DATA500_001, "잠시 후 다시 시도")으로 둡니다.
+ * 세션을 둔 채 끝난 재발급 실패를 요청 쪽에 돌려줄 오류로 바꿉니다. 네트워크 오류는 CLIENT000_001,
+ * 그 밖의 일시 실패(429, 5xx 등)는 CLIENT000_004입니다.
  */
 function toRefreshFailure(result: NativeAccessTokenResult): ApiError {
   return result.status === 'WAITING_FOR_NETWORK'
     ? createNetworkApiError()
-    : toApiError(503, null, null);
+    : createTokenRefreshUnavailableApiError();
 }
 
 /** 네이티브 갱신 진입점이 없는 바이너리에서 쓰는 갱신입니다. 결과 모양은 네이티브와 같습니다. */
