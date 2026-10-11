@@ -147,6 +147,7 @@ export function PlaceDetailScreen({
         place={place}
         viewContext={viewContext}
         showTitle={false}
+        stickyHeader
         titleInHeader
         compactHeader
         headerTopInset={SEARCH_BAR_TOP_GAP}

@@ -26,6 +26,7 @@ type PlaceDetailContentProps = {
   hideBack?: boolean;
   showTitle?: boolean;
   actionsUnderTitle?: boolean;
+  stickyHeader?: boolean;
   titleInHeader?: boolean;
   scrollEnabled?: boolean;
   contentBottomPadding?: number;
@@ -46,6 +47,7 @@ export function PlaceDetailContent({
   hideBack = false,
   showTitle = true,
   actionsUnderTitle = false,
+  stickyHeader = false,
   titleInHeader = false,
   scrollEnabled = true,
   contentBottomPadding = 100,
@@ -68,6 +70,7 @@ export function PlaceDetailContent({
       ]}
       scrollEnabled={scrollEnabled}
       nestedScrollEnabled
+      stickyHeaderIndices={stickyHeader && !hideHeader ? [0] : undefined}
       showsVerticalScrollIndicator={false}
     >
       {hideHeader ? (
