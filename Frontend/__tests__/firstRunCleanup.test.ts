@@ -62,11 +62,12 @@ beforeEach(async () => {
 });
 
 describe('first run cleanup', () => {
-  it('clears the 1.1.0 session, finished share results and history snapshot only once', async () => {
+  it('clears the 1.1.0 session, every share result and history snapshot only once', async () => {
     mockNative.session = legacySession;
     mockNative.results = [
       shareResult('succeeded', 'API_SUCCEEDED'),
       shareResult('failed', 'API_FAILED'),
+      shareResult('queued', 'QUEUED'),
       shareResult('waiting', 'WAITING_FOR_AUTH'),
       shareResult('login', 'LOGIN_REQUIRED'),
     ];
@@ -85,11 +86,8 @@ describe('first run cleanup', () => {
       service: 'com.yeogidamm.app.supabase.supabase.auth.token',
     });
     expect(mockNative.session).toBeNull();
-    // 서버에 닿지 못한 공유는 로그인 뒤 새 서버로 다시 보내므로 남습니다.
-    expect(mockNative.results.map(result => result.requestId)).toEqual([
-      'waiting',
-      'login',
-    ]);
+    // 서버에 닿지 못한 공유 결과도 전송 상태와 관계없이 지웁니다.
+    expect(mockNative.results).toEqual([]);
     await expect(
       AsyncStorage.getItem(HISTORY_SNAPSHOT_KEY),
     ).resolves.toBeNull();
