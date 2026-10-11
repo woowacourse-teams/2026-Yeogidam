@@ -1,8 +1,5 @@
 import {NativeEventEmitter, NativeModules} from 'react-native';
-import type {Session} from '@supabase/supabase-js';
 import Config from 'react-native-config';
-
-import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase} from '../auth/supabase';
 
 export type SharedContent = {
   type: 'url' | 'text';
@@ -21,6 +18,12 @@ type NativeShareIntentModule = {
   clearPendingShare(shareId: string | null): Promise<void>;
   setShareSession?(session: NativeShareSession | null): Promise<void>;
   getShareSession?(): Promise<NativeShareSession | null>;
+  /**
+   * Refreshes inside the native lock shared with the share extension. Under the lock
+   * it re-reads the store, calls the server only when the stored access token is the
+   * rejected one or expires within 60 seconds, and saves the new pair before resolving.
+   */
+  ensureAccessToken?(rejectedAccessToken: string | null): Promise<NativeAccessTokenResult>;
   resumeWaitingShares?(): Promise<void>;
   setSupabaseConfiguration?(
     url: string,
@@ -44,7 +47,14 @@ export type NativeShareAnalyticsEvent = {
   properties: Record<string, string | number | boolean>;
 };
 
+/** The single session store shared by the app and the share extension. expiresAt is epoch seconds and userId holds the server member id as a string. */
 export type NativeShareSession = {accessToken: string; refreshToken: string; expiresAt: number; userId: string};
+/** Same outcomes as the native ShareAuth. LOGIN_REQUIRED means the session has ended and the store is empty; the WAITING_* outcomes keep the session. */
+export type NativeAccessTokenResult =
+  | {status: 'READY'; accessToken: string}
+  | {status: 'LOGIN_REQUIRED'}
+  | {status: 'WAITING_FOR_NETWORK'}
+  | {status: 'WAITING_FOR_AUTH'};
 export type ShareTransferStatus = 'SAVED' | 'WAITING_FOR_AUTH' | 'WAITING_FOR_NETWORK' | 'LOGIN_REQUIRED' | 'QUEUED' | 'REQUESTING' | 'API_SUCCEEDED' | 'API_FAILED';
 export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; transferStatus?: ShareTransferStatus; authReason?: string; reelId?: string; failureReason?: string; retryable?: boolean; updatedAt: number; receivedAt?: number; queuedAt?: number; apiAcceptedAt?: number; transferFinishedAt?: number; reused?: boolean; saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE'};
 
@@ -109,20 +119,6 @@ export async function getInitialSharedContent(): Promise<SharedContent | null> {
   return normalizeSharedContent(payload);
 }
 
-export async function syncShareSession(session: Session | null) {
-  await syncShareAnalyticsConfiguration();
-  await nativeShareIntentModule?.setSupabaseConfiguration?.(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY,
-  );
-  await nativeShareIntentModule?.setShareSession?.(session ? {
-    accessToken: session.access_token,
-    refreshToken: session.refresh_token,
-    expiresAt: session.expires_at ?? 0,
-    userId: session.user.id,
-  } : null);
-}
-
 export async function syncShareAnalyticsConfiguration(): Promise<void> {
   await nativeShareIntentModule?.setPostHogConfiguration?.(
     Config.POSTHOG_PROJECT_TOKEN ?? '',
@@ -132,29 +128,12 @@ export async function syncShareAnalyticsConfiguration(): Promise<void> {
 export async function getShareSession(): Promise<NativeShareSession | null> {
   return nativeShareIntentModule?.getShareSession?.() ?? null;
 }
-export async function reconcileShareSession(): Promise<void> {
-  const shared = await getShareSession();
-  if (!shared) return;
-  const {data: {session}} = await supabase.auth.getSession();
-  if (session && session.user.id !== shared.userId) return;
-  if (!shared.accessToken && shared.refreshToken) {
-    if (session?.access_token && (session.expires_at ?? 0) > Date.now() / 1000 + 60) {
-      await syncShareSession(session);
-      return;
-    }
-    const {error} = await supabase.auth.refreshSession({
-      refresh_token: shared.refreshToken,
-    });
-    if (error) throw error;
-    return;
-  }
-  if (!session || shared.expiresAt > (session.expires_at ?? 0)) {
-    const {error} = await supabase.auth.setSession({
-      access_token: shared.accessToken,
-      refresh_token: shared.refreshToken,
-    });
-    if (error) throw error;
-  }
+export async function setShareSession(session: NativeShareSession | null): Promise<void> {
+  await nativeShareIntentModule?.setShareSession?.(session);
+}
+/** Returns null on a binary built before the native ensureAccessToken bridge. */
+export async function ensureNativeAccessToken(rejectedAccessToken: string | null): Promise<NativeAccessTokenResult | null> {
+  return nativeShareIntentModule?.ensureAccessToken?.(rejectedAccessToken) ?? null;
 }
 export async function resumeWaitingShares(): Promise<void> {
   await nativeShareIntentModule?.resumeWaitingShares?.();

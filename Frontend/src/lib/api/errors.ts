@@ -6,10 +6,10 @@ type ServerErrorBody = {
 
 /**
  * 서버 호출이 실패했을 때 데이터 계층이 던지는 오류입니다. 서버 본문의 errorCode와 message는
- * 바꾸지 않고 싣고, 본문이 없는 응답과 네트워크 오류만 앱이 코드를 정합니다.
+ * 바꾸지 않고 싣고, 본문이 없는 응답과 네트워크 오류, 토큰 갱신 일시 실패만 앱이 코드를 정합니다.
  */
 export class ApiError extends Error {
-  /** HTTP 상태 코드입니다. 응답을 받지 못한 네트워크 오류는 null입니다. */
+  /** HTTP 상태 코드입니다. 응답을 받지 못한 네트워크 오류와 토큰 갱신 일시 실패는 null입니다. */
   readonly status: number | null;
   readonly errorCode: string;
   /** 응답 헤더 X-Request-Id입니다. nginx가 직접 끝낸 응답과 네트워크 오류에는 없어 null입니다. */
@@ -97,6 +97,19 @@ export function createNetworkApiError(): ApiError {
     status: null,
     errorCode: 'CLIENT000_001',
     message: '인터넷 연결을 확인해주세요.',
+    requestId: null,
+  });
+}
+
+/**
+ * 토큰 갱신이 네트워크 오류가 아닌 까닭(429, 5xx 등)으로 잠시 실패해, 세션을 둔 채 요청을 끝낼 때의
+ * 오류입니다. 갱신 결과에는 상태 코드가 없어 status는 null입니다.
+ */
+export function createTokenRefreshUnavailableApiError(): ApiError {
+  return new ApiError({
+    status: null,
+    errorCode: 'CLIENT000_004',
+    message: '로그인 정보를 갱신하지 못했어요. 잠시 후 다시 시도해주세요.',
     requestId: null,
   });
 }
