@@ -9,6 +9,10 @@ public record ExtractionSnapshot(
         int version,
         MediaSourceType sourceType
 ) {
+    public boolean isSucceeded() {
+        return status == ExtractionStatus.SUCCEEDED;
+    }
+
     public boolean canRetry(int pipelineVersion) {
         if (sourceType == MediaSourceType.SEEDED) {
             return false;
