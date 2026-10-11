@@ -13,6 +13,7 @@ public enum AuthErrorCode implements ErrorCode {
     INVALID_CREDENTIAL(HttpStatus.UNAUTHORIZED, "AUTH401_002", "소셜 로그인 인증 정보가 유효하지 않습니다."),
     REFRESH_TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "AUTH401_003", "이미 사용된 리프레시 토큰입니다. 다시 로그인해 주세요."),
     AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "AUTH401_004", "로그인이 필요한 요청입니다."),
+    REFRESH_TOKEN_ROTATED(HttpStatus.UNAUTHORIZED, "AUTH401_005", "이미 교체된 리프레시 토큰입니다. 새 토큰으로 다시 시도해 주세요."),
 
     PROVIDER_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "AUTH502_001", "소셜 로그인 제공자에 연결할 수 없습니다."),
     INVALID_PROVIDER_RESPONSE(HttpStatus.BAD_GATEWAY, "AUTH502_002", "소셜 로그인 제공자의 응답 정보가 유효하지 않습니다."),
