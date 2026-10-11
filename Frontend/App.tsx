@@ -900,6 +900,7 @@ function App() {
               ]}
             >
               <MapScreen
+                isActive={isMapScreen}
                 onAuthenticationRequired={() =>
                   setFlowState(INITIAL_FLOW_STATE)
                 }

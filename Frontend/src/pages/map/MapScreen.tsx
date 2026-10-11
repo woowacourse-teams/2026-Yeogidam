@@ -47,6 +47,7 @@ import {
 } from '../../lib/location-permission';
 
 type MapScreenProps = {
+  isActive?: boolean;
   onDetailViewChange?: (isDetailView: boolean) => void;
   onAuthenticationRequired?: () => void;
 };
@@ -58,6 +59,7 @@ type MapCamera = {
 };
 
 export function MapScreen({
+  isActive = true,
   onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
@@ -309,7 +311,10 @@ export function MapScreen({
 
   return (
     <View
-      style={styles.container}
+      style={[
+        styles.container,
+        !isActive && [styles.inactiveContainer, { top: -topInset }],
+      ]}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
       <View style={styles.mapStage}>
@@ -561,6 +566,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
+  },
+  inactiveContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   mapStage: {
     flex: 1,
