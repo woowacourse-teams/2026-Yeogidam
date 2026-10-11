@@ -7,8 +7,32 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.exception.MediaException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class InstagramUrlTest {
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "https://www.instagram.com/reel/DcVaTEdRMyP/",
+            " https://instagram.com/reel/DcVaTEdRMyP?igsh=abc "
+    })
+    void 릴스_경로인지_판단한다(String value) {
+        // given
+        InstagramUrl url = new InstagramUrl(value);
+
+        // when & then
+        assertThat(url.isReel()).isTrue();
+    }
+
+    @Test
+    void 일반_게시물_경로는_릴스가_아니다() {
+        // given
+        InstagramUrl url = new InstagramUrl("https://www.instagram.com/p/DcVaTEdRMyP/");
+
+        // when & then
+        assertThat(url.isReel()).isFalse();
+    }
 
     @Test
     void 지원하는_릴스_링크로_생성된다() {

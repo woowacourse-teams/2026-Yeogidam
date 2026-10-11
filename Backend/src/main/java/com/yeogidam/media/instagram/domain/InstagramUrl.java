@@ -32,6 +32,10 @@ public class InstagramUrl {
         this.mediaShortcode = extractMediaShortcode(uri);
     }
 
+    public boolean isReel() {
+        return parse(sharedUrl).getPath().startsWith("/reel/");
+    }
+
     private void validateNotBlank(String value) {
         if (value == null || value.isBlank()) {
             throw new MediaException(MediaErrorCode.INVALID_LINK);
