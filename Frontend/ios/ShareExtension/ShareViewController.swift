@@ -67,6 +67,15 @@ final class ShareViewController: UIViewController {
 
   private func prepareTransfer(_ payload: ShareIntentPayload) async throws -> Bool {
     let auth = await ShareAuth.ensureAccessToken()
+    if case .loginRequired = auth, payload.text == ShareIntentConstants.guestPracticePostURL {
+      ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
+        properties: ["outcome": "guest_practice_success"])
+      statusLabel.text = "공유에 성공했어요."
+      showStatusLabel(feedbackType: "received")
+      try? await Task.sleep(nanoseconds: 2_000_000_000)
+      extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+      return false
+    }
     if case .loginRequired = auth {
       pendingLoginPayload = payload
       statusLabel.text = "장소를 추출하려면 로그인이 필요해요."

@@ -16,6 +16,8 @@ import com.yeogidamm.app.BuildConfig
 import org.json.JSONObject
 import java.util.UUID
 
+private const val GUEST_PRACTICE_POST_URL = "https://www.instagram.com/p/Db4gRWqkuUg/"
+
 class ShareActivity : AppCompatActivity() {
     private lateinit var statusLabel: TextView
     private lateinit var loginButton: TextView
@@ -94,6 +96,15 @@ class ShareActivity : AppCompatActivity() {
         Thread {
             val auth = ShareAuth.ensureAccessToken(this)
             if (isFinishing || isDestroyed) return@Thread
+            if (auth is ShareAuthResult.LoginRequired && normalizedUrl == GUEST_PRACTICE_POST_URL) {
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
+                        JSONObject().put("outcome", "guest_practice_success"))
+                    showResultAndFinish("공유에 성공했어요.", requestId, "received")
+                }
+                return@Thread
+            }
             if (auth is ShareAuthResult.LoginRequired) {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
