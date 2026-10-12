@@ -48,7 +48,6 @@ import {
 
 type MapScreenProps = {
   isActive?: boolean;
-  onDetailViewChange?: (isDetailView: boolean) => void;
   onAuthenticationRequired?: () => void;
 };
 
@@ -60,7 +59,6 @@ type MapCamera = {
 
 export function MapScreen({
   isActive = true,
-  onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
   const posthog = usePostHog();
@@ -426,7 +424,6 @@ export function MapScreen({
             onDetailViewChange={(isDetailView, placeId) => {
               setSelectedPlaceId(placeId);
               setIsPlaceDetailVisible(isDetailView);
-              onDetailViewChange?.(isDetailView);
             }}
             onAuthenticationRequired={onAuthenticationRequired}
             onSavedPlaceDeleted={savedPlaceId => {
