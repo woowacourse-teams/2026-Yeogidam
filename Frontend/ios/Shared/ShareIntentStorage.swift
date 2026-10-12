@@ -827,7 +827,7 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
 
   func enqueue(requestId: String, url: String, rawText: String?, token: String) throws {
     guard let config = ShareIntentStorage.supabaseConfiguration(),
-          let endpoint = URL(string: "\(config.url)/functions/v1/save-instagram-reel-v2"),
+          let endpoint = URL(string: "\(config.url)/functions/v1/save-instagram-reel"),
           let directory = uploadDirectory else { throw ShareIntentStorageError.appGroupUnavailable }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let bodyFile = directory.appendingPathComponent("\(requestId).json")
