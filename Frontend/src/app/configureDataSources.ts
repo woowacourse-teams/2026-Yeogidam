@@ -46,9 +46,11 @@ function createProfileSeed(
  * 화면은 이 설정이나 Supabase를 직접 알 필요가 없습니다.
  */
 export function configureDataSources() {
-  const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = Config;
+  const { API_BASE_URL, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = Config;
 
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  // 서버 주소가 없으면 목 데이터로 둡니다.
+  // Supabase 키는 데이터 계층을 서버로 옮기는 동안만 함께 확인합니다.
+  if (!API_BASE_URL || !SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     return;
   }
 
