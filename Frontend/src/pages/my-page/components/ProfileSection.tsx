@@ -52,9 +52,6 @@ export function ProfileSection({
       <Text style={styles.name}>
         {isProfileUnavailable ? '프로필을 불러오지 못했습니다.' : user.nickname}
       </Text>
-      {!isProfileUnavailable && user.description ? (
-        <Text style={styles.description}>{user.description}</Text>
-      ) : null}
       {onPressEditProfile ? (
         <Pressable
           onPress={onPressEditProfile}
@@ -126,11 +123,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1a1a2e',
     marginTop: 12,
-  },
-  description: {
-    fontSize: 13,
-    color: '#8e8e93',
-    marginTop: 6,
   },
   editButton: {
     marginTop: 18,

@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useState} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -8,104 +8,63 @@ import {
   View,
 } from 'react-native';
 
-import type {
-  AccountDeletionProvider,
-  DeleteAccountError,
-  DeleteAccountRequest,
-} from '../../lib/auth/deleteAccount';
+import type {OAuthProvider} from '../../entities/user/types';
+import type {DeleteAccountError} from '../../lib/auth/deleteAccount';
 import {reauthenticateDeletionProvider} from '../../lib/auth/deleteAccount';
 
 type AccountDeletionScreenProps = {
-  linkedProviders: AccountDeletionProvider[];
+  provider: OAuthProvider;
   onBack: () => void;
-  onDeleteAccount: (payload: DeleteAccountRequest) => Promise<void>;
+  onDeleteAccount: (authorizationCode: string) => Promise<void>;
 };
 
-type ReauthState = {
-  appleAuthorizationCode?: string;
-  providerTokens: {
-    google?: string;
-    kakao?: string;
-  };
-};
-
-const PROVIDER_LABELS: Record<AccountDeletionProvider, string> = {
-  apple: 'Apple',
-  google: 'Google',
-  kakao: '카카오',
+const PROVIDER_LABELS: Record<OAuthProvider, string> = {
+  APPLE: 'Apple',
+  GOOGLE: 'Google',
+  KAKAO: '카카오',
 };
 
 export function AccountDeletionScreen({
-  linkedProviders,
+  provider,
   onBack,
   onDeleteAccount,
 }: AccountDeletionScreenProps) {
   const [confirmation, setConfirmation] = useState('');
-  const [reauthState, setReauthState] = useState<ReauthState>({
-    providerTokens: {},
-  });
-  const [reauthPendingProvider, setReauthPendingProvider] =
-    useState<AccountDeletionProvider | null>(null);
+  const [authorizationCode, setAuthorizationCode] = useState<string | null>(
+    null,
+  );
+  const [isReauthPending, setIsReauthPending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<DeleteAccountError | null>(null);
 
-  const reauthenticatedProviders = useMemo(() => {
-    const completedProviders = new Set<AccountDeletionProvider>();
-
-    if (reauthState.providerTokens.google) {
-      completedProviders.add('google');
-    }
-
-    if (reauthState.providerTokens.kakao) {
-      completedProviders.add('kakao');
-    }
-
-    if (reauthState.appleAuthorizationCode) {
-      completedProviders.add('apple');
-    }
-
-    return completedProviders;
-  }, [reauthState]);
+  const isReauthenticated = authorizationCode !== null;
 
   const isReadyToDelete =
-    confirmation === 'DELETE' &&
-    linkedProviders.every(provider => reauthenticatedProviders.has(provider)) &&
-    !isDeleting;
+    confirmation === 'DELETE' && isReauthenticated && !isDeleting;
 
-  const handleReauthenticate = async (provider: AccountDeletionProvider) => {
-    if (isDeleting || reauthPendingProvider) {
+  const handleReauthenticate = async () => {
+    if (isDeleting || isReauthPending) {
       return;
     }
 
-    setReauthPendingProvider(provider);
+    setIsReauthPending(true);
     setError(null);
 
     try {
-      const payload = await reauthenticateDeletionProvider(provider);
-
-      setReauthState(current => ({
-        appleAuthorizationCode:
-          payload.appleAuthorizationCode ?? current.appleAuthorizationCode,
-        providerTokens: {
-          ...current.providerTokens,
-          ...payload.providerTokens,
-        },
-      }));
+      setAuthorizationCode(await reauthenticateDeletionProvider(provider));
     } catch (nextError) {
       setError(nextError as DeleteAccountError);
     } finally {
-      setReauthPendingProvider(null);
+      setIsReauthPending(false);
     }
   };
 
   const resetReauthenticationState = () => {
-    setReauthState({
-      providerTokens: {},
-    });
+    setAuthorizationCode(null);
   };
 
   const handleDelete = async () => {
-    if (!isReadyToDelete) {
+    if (!isReadyToDelete || authorizationCode === null) {
       return;
     }
 
@@ -113,21 +72,17 @@ export function AccountDeletionScreen({
     setError(null);
 
     try {
-      await onDeleteAccount({
-        confirmation: 'DELETE',
-        ...(Object.keys(reauthState.providerTokens).length > 0
-          ? {providerTokens: reauthState.providerTokens}
-          : {}),
-        ...(reauthState.appleAuthorizationCode
-          ? {appleAuthorizationCode: reauthState.appleAuthorizationCode}
-          : {}),
-      });
+      await onDeleteAccount(authorizationCode);
     } catch (nextError) {
       const apiError = nextError as DeleteAccountError;
 
       setError(apiError);
 
-      if (apiError.errorCode === 'USER502_001') {
+      // 인가 코드는 한 번만 쓸 수 있어서, 서버가 코드를 거절했거나 쓰고 실패하면 다시 인증해야 합니다.
+      if (
+        apiError.errorCode === 'AUTH401_002' ||
+        apiError.errorCode === 'AUTH502_001'
+      ) {
         resetReauthenticationState();
       }
     } finally {
@@ -178,57 +133,42 @@ export function AccountDeletionScreen({
           <Text style={styles.sectionBody}>
             연결된 로그인 계정 해제를 위해 아래 제공자를 다시 인증해주세요.
           </Text>
-          {linkedProviders.length === 0 ? (
-            <Text style={styles.helperText}>
-              추가 재인증이 필요한 소셜 로그인 계정이 없어요.
-            </Text>
-          ) : (
-            <View style={styles.providerList}>
-              {linkedProviders.map(provider => {
-                const isPending = reauthPendingProvider === provider;
-                const isCompleted = reauthenticatedProviders.has(provider);
-
-                return (
-                  <View key={provider} style={styles.providerRow}>
-                    <View style={styles.providerTextGroup}>
-                      <Text style={styles.providerName}>
-                        {PROVIDER_LABELS[provider]}
-                      </Text>
-                      <Text style={styles.providerStatus}>
-                        {isCompleted
-                          ? '재인증 완료'
-                          : '탈퇴 전 다시 로그인해주세요.'}
-                      </Text>
-                    </View>
-                    <Pressable
-                      disabled={isDeleting || isPending}
-                      onPress={() => handleReauthenticate(provider)}
-                      style={({pressed}) => [
-                        styles.providerButton,
-                        isCompleted && styles.providerButtonCompleted,
-                        (isDeleting || isPending) && styles.providerButtonDisabled,
-                        pressed &&
-                          !isDeleting &&
-                          !isPending &&
-                          styles.providerButtonPressed,
-                      ]}>
-                      <Text
-                        style={[
-                          styles.providerButtonText,
-                          isCompleted && styles.providerButtonTextCompleted,
-                        ]}>
-                        {isPending
-                          ? '진행 중...'
-                          : isCompleted
-                            ? '다시 인증'
-                            : '재인증'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
+          <View style={styles.providerRow}>
+            <View style={styles.providerTextGroup}>
+              <Text style={styles.providerName}>
+                {PROVIDER_LABELS[provider]}
+              </Text>
+              <Text style={styles.providerStatus}>
+                {isReauthenticated
+                  ? '재인증 완료'
+                  : '탈퇴 전 다시 로그인해주세요.'}
+              </Text>
             </View>
-          )}
+            <Pressable
+              disabled={isDeleting || isReauthPending}
+              onPress={handleReauthenticate}
+              style={({pressed}) => [
+                styles.providerButton,
+                isReauthenticated && styles.providerButtonCompleted,
+                (isDeleting || isReauthPending) && styles.providerButtonDisabled,
+                pressed &&
+                  !isDeleting &&
+                  !isReauthPending &&
+                  styles.providerButtonPressed,
+              ]}>
+              <Text
+                style={[
+                  styles.providerButtonText,
+                  isReauthenticated && styles.providerButtonTextCompleted,
+                ]}>
+                {isReauthPending
+                  ? '진행 중...'
+                  : isReauthenticated
+                    ? '다시 인증'
+                    : '재인증'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         {error ? (
@@ -331,14 +271,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     color: '#121212',
-  },
-  helperText: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: '#8e8e93',
-  },
-  providerList: {
-    gap: 12,
   },
   providerRow: {
     flexDirection: 'row',

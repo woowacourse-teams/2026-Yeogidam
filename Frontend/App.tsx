@@ -11,17 +11,13 @@ import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal'
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
+import type { OAuthProvider } from './src/entities/user/types';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
   signInWithApple,
 } from './src/lib/auth/signInWithApple';
-import {
-  deleteAccount,
-  getLinkedDeletionProviders,
-  type AccountDeletionProvider,
-  type DeleteAccountRequest,
-} from './src/lib/auth/deleteAccount';
+import { deleteAccount } from './src/lib/auth/deleteAccount';
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { logout } from './src/lib/auth/tokenClient';
@@ -170,9 +166,8 @@ function App() {
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
-  const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
-    AccountDeletionProvider[]
-  >([]);
+  const [deletionProvider, setDeletionProvider] =
+    useState<OAuthProvider | null>(null);
   const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
@@ -643,12 +638,11 @@ function App() {
   };
 
   const handleOpenAccountDeletion = async () => {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+    try {
+      const profile = await getCurrentProfile();
 
-    if (error || !user) {
+      setDeletionProvider(profile.oauthProvider);
+    } catch {
       Alert.alert(
         '로그인이 필요해요',
         '회원탈퇴를 진행하려면 다시 로그인해주세요.',
@@ -656,18 +650,16 @@ function App() {
       return;
     }
 
-    setLinkedDeletionProviders(getLinkedDeletionProviders(user));
     setMyPageOverlay('accountDeletion');
   };
 
-  const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
-    await deleteAccount(payload);
+  const handleDeleteAccount = async (authorizationCode: string) => {
+    await deleteAccount(authorizationCode);
 
     setCurrentProfile(null);
     setProfileError(null);
     setMyPageOverlay(null);
 
-    await supabase.auth.signOut({ scope: 'local' });
     setFlowState(INITIAL_FLOW_STATE);
     Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
@@ -696,10 +688,10 @@ function App() {
       return <TermsAgreementScreen onBack={() => setMyPageOverlay(null)} />;
     }
 
-    if (myPageOverlay === 'accountDeletion') {
+    if (myPageOverlay === 'accountDeletion' && deletionProvider) {
       return (
         <AccountDeletionScreen
-          linkedProviders={linkedDeletionProviders}
+          provider={deletionProvider}
           onBack={() => setMyPageOverlay(null)}
           onDeleteAccount={handleDeleteAccount}
         />

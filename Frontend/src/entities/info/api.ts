@@ -1,5 +1,6 @@
 import { createApiClient, type ApiClientOptions } from '../../lib/api/client';
 import { toIdString } from '../../lib/api/values';
+import type { OAuthProvider } from '../user/types';
 import { frontendInfoDomainMock } from './mocks';
 import type {
   CurrentProfileRepository,
@@ -11,30 +12,7 @@ import type {
   SavedPlacesRepository,
 } from './types';
 
-const PROFILE_SELECT = [
-  'id',
-  'nickname',
-  'description',
-  'avatar_url',
-  'created_at',
-  'updated_at',
-].join(',');
-
-type SupabaseApiOptions = {
-  baseUrl: string;
-  /** Supabase 프로젝트의 공개 publishable key입니다. service_role key는 앱에 넣지 않습니다. */
-  publishableKey?: string;
-  getAccessToken?: () => Promise<string | null>;
-  getUserId?: () => Promise<string | null>;
-  getProfileSeed?: () => Promise<{
-    nickname?: string | null;
-    description?: string | null;
-    avatarUrl?: string | null;
-  } | null>;
-  refreshSession?: () => Promise<boolean>;
-};
-
-type ProfileApiOptions = SupabaseApiOptions;
+type ProfileApiOptions = ApiClientOptions;
 type SavedPlacesApiOptions = ApiClientOptions;
 type PlaceReelsApiOptions = SavedPlacesApiOptions;
 
@@ -45,55 +23,22 @@ const profileError = (
   retryable: boolean,
 ): ProfileApiError => ({ status, errorCode, message, retryable });
 
-function fallbackProfileError(status: number | null): ProfileApiError {
-  if (status === 400)
-    return profileError(
-      'COMMON400_001',
-      400,
-      '요청 내용을 확인해주세요.',
-      false,
-    );
-  if (status === 401)
-    return profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
-  if (status === 403)
-    return profileError(
-      'AUTH403_001',
-      403,
-      '이 작업을 수행할 권한이 없어요.',
-      false,
-    );
-  if (status !== null && status >= 500)
-    return profileError(
-      'DATA500_001',
-      500,
-      '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
-      true,
-    );
-  return profileError(
-    'CLIENT000_003',
-    null,
-    '응답을 처리하지 못했어요.',
-    false,
-  );
-}
-
-type SupabaseProfileResponse = {
-  id: string;
+/** GET /api/v1/members/me 응답입니다. */
+type ServerMemberResponse = {
+  id: number;
   nickname: string | null;
-  description: string | null;
-  avatar_url: string | null;
-  created_at: string;
-  updated_at: string;
+  email: string | null;
+  imageUrl: string | null;
+  oauthProvider: OAuthProvider;
 };
 
-function toProfileInfo(profile: SupabaseProfileResponse): ProfileInfo {
+function toProfileInfo(member: ServerMemberResponse): ProfileInfo {
   return {
-    id: profile.id,
-    nickname: profile.nickname,
-    description: profile.description,
-    avatarUrl: profile.avatar_url,
-    createdAt: profile.created_at,
-    updatedAt: profile.updated_at,
+    id: toIdString(member.id),
+    nickname: member.nickname,
+    email: member.email,
+    avatarUrl: member.imageUrl,
+    oauthProvider: member.oauthProvider,
   };
 }
 
@@ -106,198 +51,16 @@ function createProfileNotFoundError(): ProfileApiError {
   );
 }
 
-type SupabaseProfileInsertRequest = {
-  id: string;
-  nickname?: string | null;
-  description?: string | null;
-  avatar_url?: string | null;
-};
-
-function toSupabaseProfileInsert(
-  userId: string,
-  seed: {
-    nickname?: string | null;
-    description?: string | null;
-    avatarUrl?: string | null;
-  } | null,
-): SupabaseProfileInsertRequest {
-  return {
-    id: userId,
-    ...(seed?.nickname !== undefined ? {nickname: seed.nickname} : {}),
-    ...(seed?.description !== undefined
-      ? {description: seed.description}
-      : {}),
-    ...(seed?.avatarUrl !== undefined ? {avatar_url: seed.avatarUrl} : {}),
-  };
-}
-
-export function createSupabaseCurrentProfileRepository(
+export function createServerCurrentProfileRepository(
   options: ProfileApiOptions,
 ): CurrentProfileRepository {
-  const createCurrentProfileOnce = async () => {
-    if (!options.baseUrl) throw fallbackProfileError(null);
-
-    const userId = await options.getUserId?.();
-
-    if (!userId) {
-      throw profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
-    }
-
-    const token = await options.getAccessToken?.();
-    const seed = (await options.getProfileSeed?.()) ?? null;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    let response: Response;
-    try {
-      response = await fetch(`${options.baseUrl.replace(/\/$/, '')}/rest/v1/profiles`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates,return=representation',
-          ...(options.publishableKey
-            ? {apikey: options.publishableKey}
-            : {}),
-          ...(token ? {Authorization: `Bearer ${token}`} : {}),
-        },
-        body: JSON.stringify(toSupabaseProfileInsert(userId, seed)),
-        signal: controller.signal,
-      });
-    } catch {
-      throw controller.signal.aborted
-        ? profileError(
-            'CLIENT000_002',
-            null,
-            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-            true,
-          )
-        : profileError(
-            'CLIENT000_001',
-            null,
-            '인터넷 연결을 확인해주세요.',
-            true,
-          );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (response.ok) {
-      return;
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      throw fallbackProfileError(null);
-    }
-
-    const normalized = body as Partial<ProfileApiError>;
-    const fallback = fallbackProfileError(response.status);
-    throw {
-      ...fallback,
-      ...normalized,
-      status: normalized.status ?? fallback.status,
-    };
-  };
-
-  const getCurrentProfileOnce = async (): Promise<ProfileInfo> => {
-    if (!options.baseUrl) throw fallbackProfileError(null);
-
-    const userId = await options.getUserId?.();
-
-    if (!userId) {
-      throw profileError('AUTH401_001', 401, '로그인이 필요해요.', true);
-    }
-
-    const token = await options.getAccessToken?.();
-    const query = [
-      `id=eq.${encodeURIComponent(userId)}`,
-      `select=${encodeURIComponent(PROFILE_SELECT)}`,
-    ].join('&');
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/profiles?${query}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            ...(options.publishableKey
-              ? { apikey: options.publishableKey }
-              : {}),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          signal: controller.signal,
-        },
-      );
-    } catch {
-      throw controller.signal.aborted
-        ? profileError(
-            'CLIENT000_002',
-            null,
-            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-            true,
-          )
-        : profileError(
-            'CLIENT000_001',
-            null,
-            '인터넷 연결을 확인해주세요.',
-            true,
-          );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      throw fallbackProfileError(null);
-    }
-
-    if (!response.ok) {
-      const normalized = body as Partial<ProfileApiError>;
-      const fallback = fallbackProfileError(response.status);
-      throw {
-        ...fallback,
-        ...normalized,
-        status: normalized.status ?? fallback.status,
-      };
-    }
-
-    const currentProfile = (body as SupabaseProfileResponse[]).map(toProfileInfo)[0];
-
-    if (!currentProfile) {
-      throw createProfileNotFoundError();
-    }
-
-    return currentProfile;
-  };
+  const request = createApiClient(options);
 
   return {
     async getCurrentProfile() {
-      try {
-        return await getCurrentProfileOnce();
-      } catch (error) {
-        if ((error as ProfileApiError).errorCode === 'PROFILE404_001') {
-          await createCurrentProfileOnce();
+      const body = await request('/api/v1/members/me');
 
-          return getCurrentProfileOnce();
-        }
-
-        if (
-          (error as ProfileApiError).errorCode === 'AUTH401_002' &&
-          (await options.refreshSession?.())
-        ) {
-          return getCurrentProfileOnce();
-        }
-
-        throw error;
-      }
+      return toProfileInfo(body as ServerMemberResponse);
     },
   };
 }
@@ -327,7 +90,7 @@ export function configureCurrentProfileRepository(
 
 export function configureProfilesApi(options: ProfileApiOptions) {
   configureCurrentProfileRepository(
-    createSupabaseCurrentProfileRepository(options),
+    createServerCurrentProfileRepository(options),
   );
 }
 

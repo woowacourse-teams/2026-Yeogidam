@@ -10,7 +10,6 @@ const DEFAULT_NICKNAME = '여기담 사용자';
 const UNAVAILABLE_PROFILE: User = {
   id: 'profile-unavailable',
   nickname: DEFAULT_NICKNAME,
-  description: '',
   avatarUrl: null,
 };
 
@@ -55,7 +54,6 @@ export function MyPageScreen({
     ? {
         id: currentProfile.id,
         nickname: currentProfile.nickname?.trim() || DEFAULT_NICKNAME,
-        description: currentProfile.description?.trim() || '',
         avatarUrl: currentProfile.avatarUrl?.trim() || null,
       }
     : null;
