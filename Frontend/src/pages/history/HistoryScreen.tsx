@@ -22,18 +22,20 @@ import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
 import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
 import {
-  getHistoryReelDetail,
+  getHistoryReelPlaces,
   getHistoryReels,
   reportHistoryReel,
-  saveContent,
+  retryHistoryExtraction,
 } from '../../entities/content/api';
 import type {
+  ExtractionFailureReason,
   HistoryCursor,
   HistoryPlace,
   HistoryReel,
-  HistoryReelDetail,
 } from '../../entities/content/types';
 import {normalizeReelTitle} from '../../entities/content/title';
+import { ApiError } from '../../lib/api/errors';
+import { parseServerDateTime } from '../../lib/api/values';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
 type HistoryScreenProps = { onBack: () => void };
@@ -46,40 +48,26 @@ const emptyCharacter =
 const placeThumbnail =
   'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
 function getHistoryTitle(reel: HistoryReel) {
-  return normalizeReelTitle(reel.instagram_description, reel.instagram_title);
+  return normalizeReelTitle(reel.caption, null);
 }
 
 function hasResolvedHistoryTitle(reel: HistoryReel) {
   return getHistoryTitle(reel) !== '저장한 콘텐츠';
 }
 
-function getFailureCode(reason: string | null) {
-  return reason?.split(' | ', 1)[0]?.trim() || null;
-}
-
-function getHistoryFailureMessage(reason: string | null) {
-  switch (getFailureCode(reason)) {
-    case 'CLIENT000_001':
-      return '인터넷 연결이 불안정해요.';
-    case 'CLIENT000_002':
-      return '응답이 늦어져 분석하지 못했어요.';
-    case 'AUTH401_001':
-      return '로그인이 필요해요.';
-    case 'AUTH401_002':
-      return '로그인이 만료됐어요.';
-    case 'AUTH403_001':
-      return '분석할 권한이 없어요.';
-    case 'IG_CAPTION_NOT_FOUND':
+export function getHistoryFailureMessage(
+  reason: ExtractionFailureReason | null,
+) {
+  switch (reason) {
+    case 'CONTENT_UNAVAILABLE':
       return '릴스 내용을 읽지 못했어요.';
-    case 'GEMINI_PLACE_NOT_FOUND':
+    case 'PLACE_NOT_EXTRACTED':
       return '캡션에서 장소를 찾지 못했어요.';
-    case 'KAKAO_PLACE_NOT_FOUND':
+    case 'PLACE_NOT_MATCHED':
       return '지도에서 일치하는 장소를 찾지 못했어요.';
-    case 'PLACE_NOT_FOUND':
-      return '장소를 찾지 못했어요.';
-    case 'DATA500_001':
-    case 'COMMON500_001':
+    case 'PROCESSING_FAILED':
       return '서버에서 분석을 처리하지 못했어요.';
+    case 'UNEXPECTED':
     default:
       return '장소 분석에 실패했어요. 잠시 후 다시 시도해주세요.';
   }
@@ -96,14 +84,11 @@ function HistoryItem({
   onPress?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
-  const completed = reel.processing_status === 'COMPLETED';
-  const processing =
-    reel.processing_status === 'PENDING' ||
-    reel.processing_status === 'PROCESSING';
+  const completed = reel.extractionStatus === 'SUCCEEDED';
+  const processing = reel.extractionStatus === 'EXTRACTING';
   const title = getHistoryTitle(reel);
   const metadataPending =
-    processing &&
-    (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel));
+    processing && (!reel.thumbnailUrl || !hasResolvedHistoryTitle(reel));
   const showSkeleton = skeleton || metadataPending;
   const label = completed ? '성공' : processing ? '처리중' : '실패';
   const pulse = useRef(new Animated.Value(0.45)).current;
@@ -144,7 +129,7 @@ function HistoryItem({
         <View style={[styles.thumbnail, styles.skeletonBlock]} />
       ) : (
         <Image
-          source={{ uri: reel.instagram_thumbnail_url ?? thumbnail }}
+          source={{ uri: reel.thumbnailUrl ?? thumbnail }}
           resizeMode="cover"
           style={styles.thumbnail}
         />
@@ -207,7 +192,7 @@ function HistoryItem({
 }
 
 function formatHistoryDate(createdAt: string) {
-  const date = new Date(createdAt);
+  const date = parseServerDateTime(createdAt);
   if (Number.isNaN(date.getTime())) {
     return createdAt;
   }
@@ -218,21 +203,21 @@ function formatHistoryDate(createdAt: string) {
   return `${year}.${month}.${day}`;
 }
 
-function useHistoryReelDetail(reelId: string) {
-  const [detail, setDetail] = useState<HistoryReelDetail | null>(null);
+function useHistoryReelPlaces(sharedMediaId: string) {
+  const [places, setPlaces] = useState<HistoryPlace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     setError(false);
-    getHistoryReelDetail(reelId)
-      .then(setDetail)
+    getHistoryReelPlaces(sharedMediaId)
+      .then(setPlaces)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [reelId]);
+  }, [sharedMediaId]);
 
-  return { detail, loading, error };
+  return { places, loading, error };
 }
 
 function HistorySuccessDetail({
@@ -244,15 +229,10 @@ function HistorySuccessDetail({
 }) {
   const posthog = usePostHog();
   useEffect(() => {
-    trackHistoryContentDetailViewed(posthog, reel.id, 'success');
-  }, [posthog, reel.id]);
-  const { detail, loading, error } = useHistoryReelDetail(reel.id);
-  const displayReel = detail ?? reel;
-  const places =
-    detail?.extraction?.extraction_places
-      .map(item => item.place)
-      .filter((place): place is HistoryPlace => Boolean(place)) ?? [];
-  const originalUrl = displayReel.instagram_url;
+    trackHistoryContentDetailViewed(posthog, reel.sharedMediaId, 'success');
+  }, [posthog, reel.sharedMediaId]);
+  const { places, loading, error } = useHistoryReelPlaces(reel.sharedMediaId);
+  const originalUrl = reel.sharedUrl;
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -274,7 +254,7 @@ function HistorySuccessDetail({
       >
         <View style={styles.detailHero}>
           <Image
-            source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
+            source={{ uri: reel.thumbnailUrl ?? thumbnail }}
             resizeMode="cover"
             style={styles.detailThumbnail}
           />
@@ -312,16 +292,16 @@ function HistorySuccessDetail({
             <Text style={styles.placeState}>발견한 장소가 없어요.</Text>
           ) : (
             places.map(place => (
-              <View key={place.id} style={styles.placeCard}>
+              <View key={place.placeId} style={styles.placeCard}>
                 <Image
-                  source={{ uri: place.thumbnail_url ?? placeThumbnail }}
+                  source={{ uri: place.thumbnailUrl ?? placeThumbnail }}
                   style={styles.placeImage}
                 />
                 <Text numberOfLines={1} style={styles.placeName}>
                   {place.name}
                 </Text>
                 <Text numberOfLines={1} style={styles.placeAddress}>
-                  {place.road_address ?? place.address ?? ''}
+                  {place.roadAddress ?? place.landLotAddress}
                 </Text>
               </View>
             ))
@@ -344,12 +324,10 @@ function HistoryFailureDetail({
 }) {
   const posthog = usePostHog();
   useEffect(() => {
-    trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
-  }, [posthog, reel.id]);
+    trackHistoryContentDetailViewed(posthog, reel.sharedMediaId, 'failed');
+  }, [posthog, reel.sharedMediaId]);
   const [reported, setReported] = useState(false);
-  const { detail } = useHistoryReelDetail(reel.id);
-  const displayReel = detail ?? reel;
-  const originalUrl = displayReel.instagram_url;
+  const originalUrl = reel.sharedUrl;
 
   return (
     <View style={styles.container}>
@@ -369,13 +347,13 @@ function HistoryFailureDetail({
       <ScrollView contentContainerStyle={styles.failureContent}>
         <View style={styles.failureHero}>
           <Image
-            source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
+            source={{ uri: reel.thumbnailUrl ?? thumbnail }}
             resizeMode="cover"
             style={styles.detailThumbnail}
           />
           <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
           <Text style={styles.failureDescription}>
-            {getHistoryFailureMessage(displayReel.failure_reason)}
+            {getHistoryFailureMessage(reel.failureReason)}
           </Text>
         </View>
         <Pressable
@@ -418,8 +396,15 @@ function HistoryFailureDetail({
                 text: '확인',
                 onPress: () => {
                   setReported(true);
-                  reportHistoryReel(reel.id)
-                    .catch(() => {
+                  reportHistoryReel(reel.sharedMediaId)
+                    .catch(reportError => {
+                      if (
+                        reportError instanceof ApiError &&
+                        reportError.errorCode === 'MEDIA409_001'
+                      ) {
+                        Alert.alert('이미 제보한 이력이에요');
+                        return;
+                      }
                       setReported(false);
                       Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
                     });
@@ -468,13 +453,13 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     () => new Set(),
   );
 
-  cardStatesRef.current = new Map(reels.filter(reel => !reel.id.startsWith('retry-')).map(reel => {
-    const processing = reel.processing_status === 'PENDING' || reel.processing_status === 'PROCESSING';
-    const state: HistoryVisibleState = retrySkeletonIds.has(reel.id) ||
-      (processing && (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel)))
-      ? 'loading' : reel.processing_status === 'COMPLETED' ? 'success'
-      : reel.processing_status === 'FAILED' ? 'failed' : 'processing';
-    return [reel.id, state];
+  cardStatesRef.current = new Map(reels.filter(reel => !reel.sharedMediaId.startsWith('retry-')).map(reel => {
+    const processing = reel.extractionStatus === 'EXTRACTING';
+    const state: HistoryVisibleState = retrySkeletonIds.has(reel.sharedMediaId) ||
+      (processing && (!reel.thumbnailUrl || !hasResolvedHistoryTitle(reel)))
+      ? 'loading' : reel.extractionStatus === 'SUCCEEDED' ? 'success'
+      : reel.extractionStatus === 'FAILED' ? 'failed' : 'processing';
+    return [reel.sharedMediaId, state];
   }));
 
   const evaluateVisibleCards = useCallback(() => {
@@ -538,30 +523,30 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       // already seen by the user and must not create a badge on exit.
       if (!nextCursor && result.reels[0]) {
         await setLastSeenHistorySnapshot({
-          id: result.reels[0].id,
-          status: result.reels[0].processing_status,
+          id: result.reels[0].sharedMediaId,
+          status: result.reels[0].extractionStatus,
         });
       }
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         result.reels.forEach(reel => {
-          if (next.has(reel.id) && hasResolvedHistoryTitle(reel)) {
-            next.delete(reel.id);
+          if (next.has(reel.sharedMediaId) && hasResolvedHistoryTitle(reel)) {
+            next.delete(reel.sharedMediaId);
           }
         });
         return next;
       });
       setReels(current => {
-        const temporaryReels = current.filter(item => item.id.startsWith('retry-'));
+        const temporaryReels = current.filter(item => item.sharedMediaId.startsWith('retry-'));
         const temporaryUrls = new Set(
           temporaryReels
-            .map(item => item.instagram_url)
+            .map(item => item.sharedUrl)
             .filter((url): url is string => Boolean(url)),
         );
         const knownReelIds = new Set(
           current
-            .filter(item => !item.id.startsWith('retry-'))
-            .map(item => item.id),
+            .filter(item => !item.sharedMediaId.startsWith('retry-'))
+            .map(item => item.sharedMediaId),
         );
         const refreshedReels = nextCursor
           ? [...current, ...result.reels]
@@ -571,9 +556,9 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           ...temporaryReels,
           ...refreshedReels.filter(
             item =>
-              !temporaryReels.some(temporary => temporary.id === item.id) &&
-              (!temporaryUrls.has(item.instagram_url ?? '') ||
-                knownReelIds.has(item.id)),
+              !temporaryReels.some(temporary => temporary.sharedMediaId === item.sharedMediaId) &&
+              (!temporaryUrls.has(item.sharedUrl) ||
+                knownReelIds.has(item.sharedMediaId)),
           ),
         ];
       });
@@ -595,17 +580,13 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   }, [posthog]);
 
   const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
-    if (!reel.instagram_url) {
-      return;
-    }
-
-    const temporaryId = `retry-${reel.id}-${Date.now()}`;
+    const temporaryId = `retry-${reel.sharedMediaId}-${Date.now()}`;
     const temporaryReel: HistoryReel = {
       ...reel,
-      id: temporaryId,
-      processing_status: 'PENDING',
-      failure_reason: null,
-      created_at: new Date().toISOString(),
+      sharedMediaId: temporaryId,
+      extractionStatus: 'EXTRACTING',
+      failureReason: null,
+      createdAt: new Date().toISOString(),
     };
 
     // A retry adds a new item at the top, so the list should start at the top
@@ -620,79 +601,47 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     setSelectedReel(null);
 
     try {
-      const response = await saveContent(reel.instagram_url, 'url_input');
-      // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
-      // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
+      const result = await retryHistoryExtraction(reel.sharedMediaId);
       // The newly created retry is already visible in this screen, so it
       // should not appear as an unread history when returning to the inbox.
       await setLastSeenHistorySnapshot({
-        id: response.reelId,
-        status: response.status,
+        id: result.sharedMediaId,
+        status: result.extractionStatus,
       });
-      // Retry creates a new history record on the backend. Keep the original
-      // failed record and add the new attempt to the top of the list.
-      const retriedReel = await getHistoryReelDetail(response.reelId);
-      if (!retriedReel) {
-        setReels(current =>
-          current.map(item =>
-            item.id === temporaryId
-              ? {
-                  ...item,
-                  id: response.reelId,
-                  processing_status: response.status,
-                  failure_reason: response.failureReason ?? null,
-                }
-              : item,
-          ),
-        );
-        setRetrySkeletonIds(current => {
-          const next = new Set(current);
-          next.delete(temporaryId);
-          return next;
-        });
-        return;
-      }
-
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         next.delete(temporaryId);
         return next;
       });
-
-      setReels(current => {
-        const nextReel = {
-          ...retriedReel,
-          instagram_title:
-            retriedReel.instagram_title ??
-            current.find(item => item.id === temporaryId)?.instagram_title ??
-            null,
-          instagram_description:
-            retriedReel.instagram_description ??
-            current.find(item => item.id === temporaryId)?.instagram_description ??
-            null,
-          instagram_thumbnail_url:
-            retriedReel.instagram_thumbnail_url ??
-            current.find(item => item.id === temporaryId)
-              ?.instagram_thumbnail_url ??
-            null,
-          processing_status: response.status,
-          failure_reason: response.failureReason ?? retriedReel.failure_reason,
-        };
-        return [
-          nextReel,
-          ...current.filter(
-            item => item.id !== temporaryId && item.id !== retriedReel.id,
-          ),
-        ];
-      });
-    } catch {
-      setReels(current => current.filter(item => item.id !== temporaryId));
+      // Retry returns a new history record, or the record that is already
+      // extracting the same post. Keep the original failed record and show the
+      // returned record at the top with the failed record's post information.
+      setReels(current => [
+        {
+          ...temporaryReel,
+          sharedMediaId: result.sharedMediaId,
+          extractionStatus: result.extractionStatus,
+        },
+        ...current.filter(
+          item =>
+            item.sharedMediaId !== temporaryId &&
+            item.sharedMediaId !== result.sharedMediaId,
+        ),
+      ]);
+    } catch (retryError) {
+      setReels(current => current.filter(item => item.sharedMediaId !== temporaryId));
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         next.delete(temporaryId);
         return next;
       });
-      Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
+      // A 400 carries the server's reason why this history cannot be retried.
+      Alert.alert(
+        '다시 시도하지 못했어요',
+        retryError instanceof ApiError && retryError.status === 400
+          ? retryError.message
+          : '잠시 후 다시 시도해주세요.',
+      );
     }
   }, []);
 
@@ -707,54 +656,6 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
 
     return () => clearInterval(refresh);
   }, [load]);
-
-  useEffect(() => {
-    if (
-      !reels.some(
-        reel =>
-          reel.processing_status === 'PENDING' ||
-          reel.processing_status === 'PROCESSING',
-      )
-    ) {
-      return;
-    }
-
-    const poll = setInterval(() => {
-      reels
-        .filter(
-          reel =>
-            reel.processing_status === 'PENDING' ||
-            reel.processing_status === 'PROCESSING',
-        )
-        .forEach(reel => {
-          getHistoryReelDetail(reel.id)
-            .then(detail => {
-              if (!detail) return;
-              if (hasResolvedHistoryTitle(detail)) {
-                setRetrySkeletonIds(current => {
-                  if (!current.has(detail.id)) return current;
-                  const next = new Set(current);
-                  next.delete(detail.id);
-                  return next;
-                });
-              }
-              setReels(current =>
-                current.map(item =>
-                  item.id === detail.id
-                    ? {
-                        ...item,
-                        ...detail,
-                      }
-                    : item,
-                ),
-              );
-            })
-            .catch(() => undefined);
-        });
-    }, 3000);
-
-    return () => clearInterval(poll);
-  }, [reels]);
 
   useEffect(() => {
     if (
@@ -780,7 +681,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
 
   const groupedReels = reels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
-      const date = formatHistoryDate(reel.created_at);
+      const date = formatHistoryDate(reel.createdAt);
       groups[date] = groups[date] ? [...groups[date], reel] : [reel];
       return groups;
     },
@@ -877,11 +778,11 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
               <Text style={styles.date}>{date}</Text>
               {dateReels.map(reel => (
                 <HistoryItem
-                  key={reel.id}
+                  key={reel.sharedMediaId}
                   reel={reel}
-                  skeleton={retrySkeletonIds.has(reel.id)}
+                  skeleton={retrySkeletonIds.has(reel.sharedMediaId)}
                   onLayout={event => {
-                    cardLayoutsRef.current.set(reel.id, {
+                    cardLayoutsRef.current.set(reel.sharedMediaId, {
                       group: date,
                       y: event.nativeEvent.layout.y,
                       height: event.nativeEvent.layout.height,
@@ -889,12 +790,12 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
                     evaluateVisibleCards();
                   }}
                   onPress={
-                    reel.processing_status === 'COMPLETED'
+                    reel.extractionStatus === 'SUCCEEDED'
                       ? () => {
                           setSelectedReel(reel);
                           setSelectedSuccess(true);
                         }
-                      : reel.processing_status === 'FAILED'
+                      : reel.extractionStatus === 'FAILED'
                       ? () => {
                           setSelectedReel(reel);
                           setSelectedFailure(true);

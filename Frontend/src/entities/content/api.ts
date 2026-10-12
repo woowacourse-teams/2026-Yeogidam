@@ -7,88 +7,176 @@ import type {
   ReelProcessingStatus,
   HistoryCursor,
   HistoryReel,
-  HistoryReelDetail,
+  ExtractionFailureReason,
+  ExtractionRetryResult,
+  ExtractionStatus,
+  HistoryPlace,
+  HistoryRepository,
 } from './types';
 import {normalizeReelStatusError, reelErrorFromEnvelope, ReelApiError} from './errors';
+import { createApiClient, type ApiClientOptions } from '../../lib/api/client';
+import { ApiError } from '../../lib/api/errors';
+import { toIdString } from '../../lib/api/values';
 
 const REEL_STATUS_SELECT =
   'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
-const HISTORY_SELECT =
-  'id,instagram_url,instagram_title,instagram_description,instagram_author_username,instagram_thumbnail_url,processing_status,failure_reason,save_mode,created_at';
-const HISTORY_DETAIL_SELECT = `${HISTORY_SELECT},extraction:reel_extractions!reels_extraction_id_fkey(extraction_places:reel_extraction_places(id,position,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)))`;
 
-export async function getHistoryReelDetail(
-  reelId: string,
-): Promise<HistoryReelDetail | null> {
-  const request = () =>
-    supabase
-      .from('reels')
-      .select(HISTORY_DETAIL_SELECT)
-      .eq('id', reelId)
-      .order('position', {
-        ascending: true,
-        referencedTable: 'extraction.extraction_places',
-      })
-      .limit(1)
-      .returns<HistoryReelDetail[]>();
+type ServerShareHistoryResponse = {
+  sharedMediaId: number;
+  createdAt: string;
+  thumbnailUrl: string | null;
+  caption: string | null;
+  author: string | null;
+  extractionStatus: ExtractionStatus;
+  failureReason: ExtractionFailureReason | null;
+  sharedUrl: string;
+};
 
-  let {data, error} = await request();
-  if ((error as {status?: number} | null)?.status === 401) {
-    const {error: refreshError} = await supabase.auth.refreshSession();
-    if (!refreshError) ({data, error} = await request());
-  }
-  if (error) throw error;
-  return data?.[0] ?? null;
+type ServerShareHistoryResponses = {
+  sharedMedias: ServerShareHistoryResponse[];
+  nextCursor: { createdAt: string; id: number } | null;
+};
+
+type ServerShareHistoryPlaceResponse = {
+  placeId: number;
+  thumbnailUrl: string | null;
+  name: string;
+  category: string | null;
+  landLotAddress: string;
+  roadAddress: string | null;
+};
+
+type ServerShareHistoryPlaceResponses = {
+  places: ServerShareHistoryPlaceResponse[];
+};
+
+type ServerExtractionRetryResponse = {
+  sharedMediaId: number;
+  extractionStatus: ExtractionStatus;
+};
+
+/** 서버 공유 이력을 앱 모델로 바꿉니다. 식별자만 문자열로 바꾸고 빠진 값은 null로 둡니다. */
+function toHistoryReel(item: ServerShareHistoryResponse): HistoryReel {
+  return {
+    sharedMediaId: toIdString(item.sharedMediaId),
+    createdAt: item.createdAt,
+    thumbnailUrl: item.thumbnailUrl ?? null,
+    caption: item.caption ?? null,
+    author: item.author ?? null,
+    extractionStatus: item.extractionStatus,
+    failureReason: item.failureReason ?? null,
+    sharedUrl: item.sharedUrl,
+  };
 }
 
-export async function reportHistoryReel(reelId: string): Promise<void> {
-  const {error} = await supabase
-    .from('reel_reports')
-    .upsert({reel_id: reelId}, {onConflict: 'user_id,reel_id', ignoreDuplicates: true});
-
-  if (error) throw error;
+function toHistoryPlace(place: ServerShareHistoryPlaceResponse): HistoryPlace {
+  return {
+    placeId: toIdString(place.placeId),
+    thumbnailUrl: place.thumbnailUrl ?? null,
+    name: place.name,
+    category: place.category ?? null,
+    landLotAddress: place.landLotAddress,
+    roadAddress: place.roadAddress ?? null,
+  };
 }
 
-export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
+export function createServerHistoryRepository(
+  options: ApiClientOptions,
+): HistoryRepository {
+  const request = createApiClient(options);
+
+  return {
+    async getHistoryReels(cursor) {
+      const body = (await request('/api/v1/shares', {
+        query: { cursorCreatedAt: cursor?.createdAt, cursorId: cursor?.id },
+      })) as ServerShareHistoryResponses;
+
+      return {
+        reels: body.sharedMedias.map(toHistoryReel),
+        nextCursor: body.nextCursor
+          ? {
+              createdAt: body.nextCursor.createdAt,
+              id: toIdString(body.nextCursor.id),
+            }
+          : null,
+      };
+    },
+    async getHistoryReelPlaces(sharedMediaId) {
+      const body = (await request(
+        `/api/v1/shares/${sharedMediaId}/places`,
+      )) as ServerShareHistoryPlaceResponses;
+
+      return body.places.map(toHistoryPlace);
+    },
+    async retryHistoryExtraction(sharedMediaId) {
+      const body = (await request(
+        `/api/v1/shares/${sharedMediaId}/extraction-retries`,
+        { method: 'POST' },
+      )) as ServerExtractionRetryResponse;
+
+      return {
+        sharedMediaId: toIdString(body.sharedMediaId),
+        extractionStatus: body.extractionStatus,
+      };
+    },
+    async reportHistoryReel(sharedMediaId) {
+      await request(`/api/v1/shares/${sharedMediaId}/reports`, {
+        method: 'POST',
+      });
+    },
+  };
+}
+
+/** 서버 주소가 없을 때 쓰는 구현체입니다. 공유 이력이 하나도 없는 회원처럼 동작합니다. */
+function createMockHistoryRepository(): HistoryRepository {
+  const notFound = async (): Promise<never> => {
+    throw new ApiError({
+      status: 404,
+      errorCode: 'MEDIA404_002',
+      message: '존재하지 않는 공유입니다.',
+      requestId: null,
+    });
+  };
+
+  return {
+    async getHistoryReels() {
+      return { reels: [], nextCursor: null };
+    },
+    getHistoryReelPlaces: notFound,
+    retryHistoryExtraction: notFound,
+    reportHistoryReel: notFound,
+  };
+}
+
+let historyRepository: HistoryRepository = createMockHistoryRepository();
+
+/** 앱 시작 시 서버 구현체를 등록합니다. */
+export function configureHistoryApi(options: ApiClientOptions) {
+  historyRepository = createServerHistoryRepository(options);
+}
+
+export function getHistoryReels(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
   nextCursor: HistoryCursor | null;
 }> {
-  const request = () => {
-    let query = supabase
-      .from('reels')
-      .select(HISTORY_SELECT)
-      .order('created_at', {ascending: false})
-      .order('id', {ascending: false})
-      .limit(51);
+  return historyRepository.getHistoryReels(cursor);
+}
 
-    if (cursor) {
-      query = query.or(
-        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`,
-      );
-    }
+export function getHistoryReelPlaces(
+  sharedMediaId: string,
+): Promise<HistoryPlace[]> {
+  return historyRepository.getHistoryReelPlaces(sharedMediaId);
+}
 
-    return query.returns<HistoryReel>();
-  };
+export function retryHistoryExtraction(
+  sharedMediaId: string,
+): Promise<ExtractionRetryResult> {
+  return historyRepository.retryHistoryExtraction(sharedMediaId);
+}
 
-  let {data, error} = await request();
-  if (error?.code === 'PGRST301' || error?.message?.includes('401')) {
-    const {error: refreshError} = await supabase.auth.refreshSession();
-    if (!refreshError) {
-      ({data, error} = await request());
-    }
-  }
-
-  if (error) {
-    throw error;
-  }
-
-  const rows = (data ?? []) as unknown as HistoryReel[];
-  const reels = rows.slice(0, 50);
-  const last = reels.length === 50 ? reels[reels.length - 1] : null;
-  return {
-    reels,
-    nextCursor: last ? {created_at: last.created_at, id: last.id} : null,
-  };
+/** 같은 이력을 다시 제보하면 서버가 409 MEDIA409_001로 거절합니다. */
+export function reportHistoryReel(sharedMediaId: string): Promise<void> {
+  return historyRepository.reportHistoryReel(sharedMediaId);
 }
 
 export function detectContentType(url: string): ContentType {
@@ -186,23 +274,6 @@ export async function getReelProcessingStatus(
     .from('reels')
     .select(REEL_STATUS_SELECT)
     .eq('id', reelId)
-    .maybeSingle<ReelProcessingStatus>();
-
-  if (error) {
-    throw normalizeReelStatusError(error);
-  }
-
-  return data;
-}
-
-/** 현재 로그인한 사용자의 최신 처리중 릴스를 복원합니다. */
-export async function getLatestProcessingReel(): Promise<ReelProcessingStatus | null> {
-  const {data, error} = await supabase
-    .from('reels')
-    .select(REEL_STATUS_SELECT)
-    .in('processing_status', ['PENDING', 'PROCESSING'])
-    .order('created_at', {ascending: false})
-    .limit(1)
     .maybeSingle<ReelProcessingStatus>();
 
   if (error) {
