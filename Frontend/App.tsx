@@ -729,10 +729,7 @@ function App() {
 
     if (myPageOverlay === 'guide') {
       return (
-        <AppGuideScreen
-          onClose={() => setMyPageOverlay(null)}
-          onComplete={() => setMyPageOverlay(null)}
-        />
+        <AppGuideScreen onComplete={() => setMyPageOverlay(null)} />
       );
     }
 
