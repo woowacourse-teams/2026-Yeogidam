@@ -351,6 +351,34 @@ p{margin:0}
 .vis .shots.one{justify-content:center}
 .vis .shots.one img{width:58%;border-radius:18px 18px 0 0}
 .hist{background:#fff;padding:0 2px;color:var(--ink)}
+.histv{padding:0 16px 110px}
+.hist-title{font-size:20px;font-weight:800;padding:4px 2px 6px}
+.hist-item{display:flex;align-items:center;gap:16px;width:100%;height:94px;border:0;border-bottom:1px solid #f8f3f3;background:none;text-align:left;padding:0}
+.hist-item .thumb{width:58px;height:73px;border-radius:8px;overflow:hidden;flex:none;display:grid;place-items:center;font-size:26px;background:#eee}
+.hist-item .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.hist-text{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.hist-text .badge{margin-top:0}
+.hist-text b{font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.hist-chev{font-size:30px;line-height:1;color:var(--ink);padding-right:4px}
+.histv.hist{padding-top:0}
+.histv .hist-head{height:36px;font-size:17px}
+.chev-btn{background:none;border:0;font-size:26px;line-height:1;padding:0 6px 0 0;color:var(--ink)}
+.histv .hist-hero{margin-top:18px}
+.hist-thumb{overflow:hidden;display:grid;place-items:center;font-size:40px}
+.hist-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.histv .hist-thumb{width:150px;height:188px;border-radius:12px}
+.histv .hist-hero b{font-size:18px;margin-top:16px}
+.histv .hist-hero small{font-size:13px}
+.histv .hist-orig{height:50px;margin:22px 0 0;font-size:14px;text-decoration:none;color:var(--ink);border-radius:18px}
+.histv .hist-orig svg{width:22px;height:22px}
+.hist-fail{display:flex;gap:8px;margin-top:14px}
+.hist-fail button{flex:1;border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px;font-weight:700;font-size:13px}
+.histv .hist-label{font-size:18px;margin:22px 0 8px}
+.histv .hist-row{padding-left:0}
+.histv .hpc{width:92px}
+.histv .hpc img{width:92px;height:92px}
+.histv .hpc b{font-size:12px}
+.histv .hpc small{font-size:10px}
 .hist-head{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;height:28px}
 .hist-head .chev{font-size:24px;line-height:1;color:var(--ink);font-weight:400}
 .hist-hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:10px}
@@ -508,18 +536,25 @@ p{margin:0}
                 <!-- 보관함 -->
                 <div class="lib" id="lib">
                   <div class="lib-tools">편집</div>
-                  <div class="hcard" id="hcard" hidden>
-                    <div class="thumb tile t1" id="hthumb">🍰</div>
-                    <div style="min-width:0;flex:1">
-                      <b id="htitle">군자역 디저트 저장각 🍰</b>
-                      <span class="badge wait" id="hbadge">처리중</span>
-                      <div class="sub" id="hsub">장소를 확인하고 있어요.</div>
-                      <ul class="logs" id="hlogs"></ul>
-                      <div class="acts" id="hacts" hidden><button type="button" id="btnRetry">다시 시도하기</button><button type="button" id="btnReport">제보하기</button></div>
-                    </div>
-                  </div>
                   <div class="empty" id="empty"><img src="assets/character.png" alt=""><b>아직 저장된 장소가 없어요</b><p>인스타그램 릴스에서 공유하기로<br>여기담에 저장해 보세요.</p></div>
                   <div class="grid" id="grid"></div>
+                </div>
+                <!-- 히스토리 -->
+                <div class="histv" id="histList" hidden>
+                  <div class="hist-title">히스토리</div>
+                  <button type="button" class="hist-item" id="histItem">
+                    <span class="thumb" id="hiThumb"></span>
+                    <span class="hist-text"><span class="badge wait" id="hiBadge">처리중</span><b id="hiTitle">군자역 디저트 저장각 🍰</b></span>
+                    <span class="hist-chev" id="hiChev" hidden>&#8250;</span>
+                  </button>
+                </div>
+                <div class="histv hist" id="histDetail" hidden>
+                  <div class="hist-head"><button type="button" class="chev-btn" id="btnHistBack" aria-label="뒤로">&#8249;</button>히스토리</div>
+                  <div class="hist-hero"><span class="thumb hist-thumb" id="hdThumb"></span><b id="hdTitle">장소 분석이 완료되었어요!</b><small id="hdSub">총 5개의 장소를 찾았어요</small></div>
+                  <a class="hist-orig" id="hdOrig" href="https://www.instagram.com/p/Db4gRWqkuUg/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ig2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#8a3ab9"/></linearGradient></defs><path fill="url(#ig2)" d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path fill="url(#ig2)" d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg><span class="lbl">원본 릴스로 이동</span><span class="chev2">&#8250;</span></a>
+                  <div class="hist-fail" id="hdFail" hidden><button type="button" id="btnRetry">다시 시도하기</button><button type="button" id="btnReport">제보하기</button></div>
+                  <div class="hist-label" id="hdFound">발견한 장소</div>
+                  <div class="hist-row" id="hdRow"></div>
                 </div>
                 <!-- 지도 -->
                 <div class="map" id="mapScr" hidden>
@@ -539,7 +574,8 @@ p{margin:0}
               <button type="button" class="fab" id="fab" aria-label="링크로 직접 추가">+</button>
               <div class="fade"></div>
               <div class="tabbar" id="tabbar">
-                <button type="button" class="tab on" data-tab="lib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>보관함</button>
+                <button type="button" class="tab" data-tab="history" id="tabHistory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>히스토리</button>
+                <button type="button" class="tab on" data-tab="lib" id="tabLib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>보관함</button>
                 <button type="button" class="tab" data-tab="map" id="tabMap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>지도</button>
                 <button type="button" class="tab" data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" stroke-linecap="round"/></svg>내 정보</button>
               </div>
@@ -632,7 +668,7 @@ p{margin:0}
         <h3>여기담이 영상 속 장소를 찾아요</h3>
         <p>AI가 영상과 캡션을 읽어 장소 이름을 뽑고, 카카오 지도에서 실제 장소와 맞춰요. 잠시 뒤 처리중 표시가 성공으로 바뀌어요.</p>
         <div class="vis">
-          <span class="tag soft">예시 화면</span>
+          <span class="tag">실제 앱 화면</span>
           <div class="hist">
             <div class="hist-head"><span class="chev">&#8249;</span>히스토리</div>
             <div class="hist-hero"><img class="hist-thumb" src="assets/reel-gunja.jpg" alt="" loading="lazy"><b>장소 분석이 완료되었어요!</b><small>총 5개의 장소를 찾았어요</small></div>
@@ -751,7 +787,7 @@ p{margin:0}
       id:'gunja', chip:'군자역 디저트 5곳', author:'@yeogidamm', av:'담', likes:'1.2만', comments:'36',
       title:'군자역 디저트 저장각 🍰', emoji:'🍰', tone:'t1', theme:'pink',
       caption:'군자역 디저트 저장각 🍰 📍오픈 한 달 만에 방문자리뷰 500개 넘긴 후르츠산도 맛집, 윤숲 📍다이닝코드 맛 평가 4.6, 과일 크레이프가 유명한, FCC 📍군자역 도보 3분, 책 읽기 좋은 북카페, 책방 고즈넉 📍에그타르트로 후기 많은 골목 디저트 카페, 윤키 📍필터커피 후기가 좋은 카페, 연필',
-      link:'instagram.com/p/Db4gRWqkuUg', thumb:'assets/reel-gunja.jpg', scatter:['🍰','🍓','🥞','☕','🥧','🍰','📚','🍓'],
+      link:'instagram.com/p/Db4gRWqkuUg', post:'https://www.instagram.com/p/Db4gRWqkuUg/', thumb:'assets/reel-gunja.jpg', scatter:['🍰','🍓','🥞','☕','🥧','🍰','📚','🍓'],
       logs:['영상과 캡션을 읽고 있어요','장소 이름 후보 5개를 찾았어요','카카오 지도에서 장소를 확인하고 있어요'],
       mapLabel:'군자역', sea:false,
       places:[
@@ -789,7 +825,8 @@ p{margin:0}
   var scrReel=$('scrReel'), reelBg=$('reelBg'), reelCap=$('reelCap'), reelAuthor=$('reelAuthor'), reelAv=$('reelAv'), reelLikes=$('reelLikes'), reelComments=$('reelComments');
   var scrim=$('scrim'), sheet=$('sheet'), sheetThumb=$('sheetThumb'), sheetLink=$('sheetLink');
   var rwrap=$('rwrap'), rspin=$('rspin'), rtext=$('rtext'), btnOpen=$('btnOpen');
-  var scrApp=$('scrApp'), appHead=$('appHead'), lib=$('lib'), hcard=$('hcard'), hthumb=$('hthumb'), htitle=$('htitle'), hbadge=$('hbadge'), hsub=$('hsub'), hlogs=$('hlogs'), hacts=$('hacts');
+  var scrApp=$('scrApp'), appHead=$('appHead'), lib=$('lib');
+  var histList=$('histList'), histDetail=$('histDetail'), histItem=$('histItem'), hiThumb=$('hiThumb'), hiBadge=$('hiBadge'), hiTitle=$('hiTitle'), hiChev=$('hiChev'), hdThumb=$('hdThumb'), hdTitle=$('hdTitle'), hdSub=$('hdSub'), hdOrig=$('hdOrig'), hdFound=$('hdFound'), hdRow=$('hdRow'), hdFail=$('hdFail');
   var empty=$('empty'), grid=$('grid'), fab=$('fab'), tabbar=$('tabbar');
   var mapScr=$('mapScr'), mapSvg=$('mapSvg'), pins=$('pins'), msheet=$('msheet'), mlist=$('mlist'), mcount=$('mcount');
   var scrDetail=$('scrDetail'), dhero=$('dhero'), dname=$('dname'), dcat=$('dcat'), daddr=$('daddr'), dposts=$('dposts'), dinfo=$('dinfo'), dcta=$('dcta');
@@ -797,7 +834,7 @@ p{margin:0}
   var ptoast=$('ptoast'), hint=$('hint'), hintText=$('hintText');
   var steps=$('steps'), btnReset=$('btnReset'), btnAuto=$('btnAuto'), btnFinish=$('btnFinish'), chips=$('chips');
 
-  var reel=REELS[0], auto=false, run=0, timers=[], state='feed', analysed=false, tab='lib', hintTarget=null, toastTimer=null, mapRun=0;
+  var reel=REELS[0], auto=false, run=0, timers=[], state='feed', analysed=false, tab='lib', hintTarget=null, toastTimer=null, mapRun=0, gridRevealed=false;
 
   /* ---------- 유틸 ---------- */
   function later(ms, fn){ var id=setTimeout(fn, ms); timers.push(id); return id; }
@@ -857,7 +894,7 @@ p{margin:0}
     else { reelBg.className='reel-bg '+r.theme; reelBg.innerHTML=r.scatter.map(function(e,i){ var p=spots[i%spots.length]; return '<span style="left:'+p[0]+'%;top:'+p[1]+'%;font-size:'+(34+(i%3)*10)+'px">'+e+'</span>'; }).join(''); }
     reelCap.textContent=r.caption; reelAuthor.textContent=r.author; reelAv.textContent=r.av; reelLikes.textContent=r.likes; reelComments.textContent=r.comments;
     fillThumb(sheetThumb, r.thumb, r.tone, r.emoji); sheetLink.textContent=r.link;
-    fillThumb(hthumb, r.thumb, r.tone, r.emoji); htitle.textContent=r.title;
+    fillThumb(hiThumb, r.thumb, r.tone, r.emoji); fillThumb(hdThumb, r.thumb, r.tone, r.emoji); hiTitle.textContent=r.title; hdOrig.href=r.post||'#';
     var cs=chips.querySelectorAll('.chip'); for (var i=0;i<cs.length;i++) cs[i].classList.toggle('on', cs[i].dataset.id===r.id);
   }
 
@@ -866,8 +903,8 @@ p{margin:0}
     run++; clearTimers(); hideHint(); analysed=false; tab='lib';
     setReel(r||reel);
     scrim.classList.remove('on'); sheet.classList.remove('on'); rwrap.hidden=true; rspin.hidden=false; btnOpen.hidden=true; rtext.textContent='공유한 내용을 확인하고 있어요.';
-    hcard.hidden=true; hacts.hidden=true; hlogs.innerHTML=''; grid.innerHTML=''; empty.hidden=false; pins.innerHTML=''; mlist.innerHTML=''; msheet.classList.remove('on');
-    hbadge.className='badge wait'; hbadge.textContent='처리중'; hsub.textContent='장소를 확인하고 있어요.'; hcard.style.opacity='';
+    grid.innerHTML=''; empty.hidden=false; pins.innerHTML=''; mlist.innerHTML=''; msheet.classList.remove('on'); gridRevealed=false;
+    hiBadge.className='badge wait'; hiBadge.textContent='처리중'; hiChev.hidden=true; histDetail.hidden=true; hdFail.hidden=true;
     endcard.hidden=true; btnFinish.hidden=true; ptoast.classList.remove('on'); $('btnReport').textContent='제보하기'; mapRun++;
     showTab('lib', true); showScreen('reel'); state='feed'; setStep(0);
     var id=run;
@@ -900,49 +937,64 @@ p{margin:0}
   }
   function openApp(){
     if (state!=='receiving') return;
-    state='analyzing'; hideHint(); rwrap.hidden=true; showScreen('app'); showTab('lib', true);
-    hcard.hidden=false; empty.hidden=false;
-    var id=run, t=300;
-    reel.logs.forEach(function(line){
-      t+=900;
-      later(t, function(){ if (id!==run) return; var li=document.createElement('li'); li.textContent=line; hlogs.appendChild(li); requestAnimationFrame(function(){ li.classList.add('in'); }); });
-    });
-    t+=1100;
-    later(t, function(){ if (id!==run) return; reel.places.length ? succeed(id) : fail(id); });
+    state='history'; hideHint(); rwrap.hidden=true; showScreen('app'); showTab('history', true);
+    hiBadge.className='badge wait'; hiBadge.textContent='처리중'; hiChev.hidden=true;
+    var id=run;
+    later(3400, function(){ if (id!==run) return; analysisDone(id); });
   }
-  function succeed(id){
-    analysed=true; state='lib';
-    hbadge.className='badge ok'; hbadge.textContent='성공';
-    hsub.textContent='장소 분석이 완료되었어요! 총 '+reel.places.length+'개의 장소를 찾았어요';
+  function analysisDone(id){
+    analysed=true;
+    if (reel.places.length){
+      hiBadge.className='badge ok'; hiBadge.textContent='성공';
+      grid.innerHTML='';
+      reel.places.forEach(function(p){
+        var b=document.createElement('button'); b.type='button'; b.className='pcard';
+        b.innerHTML=imgOrTile(p.img, p.tone, p.emoji, 'timg')+'<span class="cap"><b>'+esc(p.name)+'</b><small>'+esc(p.road)+'</small></span>';
+        b.addEventListener('click', function(){ openDetail(p); });
+        grid.appendChild(b);
+      });
+    } else { hiBadge.className='badge ng'; hiBadge.textContent='실패'; }
+    hiChev.hidden=false;
+    later(600, function(){ if (id!==run||state!=='history') return; showHint(histItem, '눌러서 결과를 봐요', 'bottom'); });
+    autoLater(1800, openHistDetail);
+  }
+  function openHistDetail(){
+    if (!analysed || state!=='history') return;
+    state='historyDetail'; hideHint(); histList.hidden=true; histDetail.hidden=false;
+    var ok=reel.places.length>0;
+    hdTitle.textContent= ok ? '장소 분석이 완료되었어요!' : '장소 분석에 실패했어요ㅠ';
+    hdSub.textContent= ok ? '총 '+reel.places.length+'개의 장소를 찾았어요' : reel.fail;
+    hdFound.hidden=!ok; hdRow.hidden=!ok; hdFail.hidden=ok;
+    hdRow.innerHTML=reel.places.map(function(p){ return '<div class="hpc">'+(p.img ? '<img src="'+p.img+'" alt="">' : '<span class="tile '+p.tone+'" style="display:grid;width:92px;height:92px;border-radius:3px;font-size:36px">'+p.emoji+'</span>')+'<b>'+esc(p.name)+'</b><small>'+esc(p.road)+'</small></div>'; }).join('');
+    var id=run;
+    if (ok){
+      later(2500, function(){ if (id!==run||state!=='historyDetail') return; showHint($('tabLib'), '보관함에서 꺼내 봐요', 'top'); });
+      autoLater(3200, function(){ if (state==='historyDetail') showTab('lib'); });
+    } else {
+      later(3200, function(){ if (id!==run) return; finish('장소가 없으면 이렇게 알려 드려요', '실패한 릴스는 히스토리에 남아요. 다시 시도하거나 제보 버튼으로 팀에 알릴 수 있어요.'); });
+    }
+  }
+  function backFromHistDetail(){ if (state!=='historyDetail') return; hideHint(); histDetail.hidden=true; histList.hidden=false; state='history'; }
+  function revealGrid(){
+    if (gridRevealed) return; gridRevealed=true; empty.hidden=true;
+    var cards=grid.querySelectorAll('.pcard'), id=run;
     toast('보관함에 저장됐어요');
-    empty.hidden=true; grid.innerHTML='';
-    reel.places.forEach(function(p,i){
-      var b=document.createElement('button'); b.type='button'; b.className='pcard';
-      b.innerHTML=imgOrTile(p.img, p.tone, p.emoji, 'timg')+'<span class="cap"><b>'+esc(p.name)+'</b><small>'+esc(p.road)+'</small></span>';
-      b.addEventListener('click', function(){ openDetail(p); });
-      grid.appendChild(b);
-      later(200+stagger(i*160), function(){ if (id===run) b.classList.add('in'); });
-    });
-    var tabMap=$('tabMap');
-    later(200+reel.places.length*160+300, function(){ if (id!==run) return; hcard.style.opacity='.75'; hlogs.innerHTML=''; if (state==='lib') setStep(2); });
-    later(200+reel.places.length*160+1000, function(){ if (id!==run||state!=='lib') return; showHint(tabMap, '지도 탭을 눌러 보세요', 'top'); });
-    autoLater(200+reel.places.length*160+2400, function(){ if (state==='lib') showTab('map'); });
-  }
-  function fail(id){
-    analysed=true; state='lib';
-    hbadge.className='badge ng'; hbadge.textContent='실패';
-    htitle.textContent='장소 분석에 실패했어요ㅠ'; hsub.textContent=reel.fail; hacts.hidden=false; setStep(2);
-    later(2600, function(){ if (id!==run) return; finish('장소가 없으면 이렇게 알려 드려요', '실패한 릴스는 히스토리에 남아요. 다시 시도하거나 제보 버튼으로 팀에 알릴 수 있어요.'); });
+    for (var i=0;i<cards.length;i++) (function(b,i){ later(150+stagger(i*160), function(){ if (id===run) b.classList.add('in'); }); })(cards[i], i);
+    setStep(2);
+    later(400+cards.length*160+900, function(){ if (id!==run||state!=='lib') return; showHint($('tabMap'), '지도 탭을 눌러 보세요', 'top'); });
+    autoLater(400+cards.length*160+2300, function(){ if (state==='lib') showTab('map'); });
   }
   function showTab(name, silent){
     tab=name;
     lib.hidden = name!=='lib'; mapScr.hidden = name!=='map'; $('profile').hidden = name!=='profile';
-    fab.hidden = name!=='lib'; appHead.hidden = name==='profile';
+    histList.hidden = name!=='history'; histDetail.hidden = true;
+    fab.hidden = name!=='lib'; appHead.hidden = (name==='profile'||name==='history');
     var ts=tabbar.querySelectorAll('.tab'); for (var i=0;i<ts.length;i++) ts[i].classList.toggle('on', ts[i].dataset.tab===name);
     if (silent) return;
     hideHint();
     if (name==='map'){ state='map'; setStep(3); renderMap(); }
-    else if (name==='lib'){ state='lib'; }
+    else if (name==='lib'){ state='lib'; if (analysed && reel.places.length) revealGrid(); }
+    else if (name==='history'){ state='history'; }
     else { state='profile'; }
   }
   function renderMap(){
@@ -1027,12 +1079,15 @@ p{margin:0}
   $('btnBack').addEventListener('click', backFromDetail);
   $('btnReport').addEventListener('click', function(){ toast('데모에서는 바로 제보 완료로 표시해요'); $('btnReport').textContent='제보 완료'; });
   $('btnRetry').addEventListener('click', function(){ toast('데모에서는 다시 시도해도 같은 결과예요'); });
+  histItem.addEventListener('click', openHistDetail);
+  $('btnHistBack').addEventListener('click', backFromHistDetail);
+  hdOrig.addEventListener('click', function(e){ if (!reel.post){ e.preventDefault(); toast('예시 릴스라 원본이 없어요'); } });
   $('btnFinishIn').addEventListener('click', function(){ finish(); });
   fab.addEventListener('click', function(){ toast('링크를 붙여 넣어 직접 추가할 수도 있어요'); });
   screen.addEventListener('click', function(e){ var b=e.target.closest('.reel-acts button:not(#btnShare), .apps .app-ic:not(.me), .sheet-row, .pedit, .plist div, .locbtn'); if (b) toast('데모에서는 여기담 흐름만 눌러 볼 수 있어요'); });
   tabbar.addEventListener('click', function(e){
     var t=e.target.closest('.tab'); if (!t) return;
-    if (!analysed && t.dataset.tab!=='lib'){ toast('장소를 확인하는 중이에요. 잠시만요'); return; }
+    if (!analysed && (t.dataset.tab==='lib'||t.dataset.tab==='map')){ toast('장소를 확인하는 중이에요. 잠시만요'); return; }
     showTab(t.dataset.tab);
   });
   scrDetail.querySelector('.dtabs').addEventListener('click', function(e){ var b=e.target.closest('button'); if (b) setDTab(b.dataset.dtab); });
