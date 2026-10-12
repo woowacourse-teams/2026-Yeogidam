@@ -393,7 +393,7 @@ function App() {
 
       await syncShareSession(data.session);
       setIsAuthenticated(true);
-      void resumeWaitingShares();
+      resumeWaitingShares().catch(() => undefined);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -449,7 +449,7 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (session || event === 'SIGNED_OUT') {
-        void syncShareSession(session)
+        syncShareSession(session)
           .then(() => {
             if (session) return resumeWaitingShares();
           })
@@ -643,7 +643,7 @@ function App() {
       'change',
       nextState => {
         if (nextState === 'active') {
-          void reconcileShareSession()
+          reconcileShareSession()
             .then(resumeWaitingShares)
             .then(consumePendingSharedContent)
             .catch(consumePendingSharedContent);

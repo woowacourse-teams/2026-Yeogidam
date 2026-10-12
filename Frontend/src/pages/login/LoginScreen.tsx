@@ -82,7 +82,7 @@ export function LoginScreen({
         return true;
       }
       if (!onCancelShareLogin) return false;
-      void Promise.resolve(onCancelShareLogin())
+      Promise.resolve(onCancelShareLogin())
         .then(() => BackHandler.exitApp())
         .catch(() => Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'));
       return true;
@@ -110,7 +110,7 @@ export function LoginScreen({
         {onCancelShareLogin ? (
           <Pressable
             onPress={() => {
-              void Promise.resolve(onCancelShareLogin()).catch(() =>
+              Promise.resolve(onCancelShareLogin()).catch(() =>
                 Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'),
               );
             }}
