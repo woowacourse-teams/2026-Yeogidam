@@ -316,7 +316,7 @@ p{margin:0}
 .how .num{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-size:14px;font-weight:800}
 .how h3{font-size:20px;font-weight:800;margin-top:14px}
 .how p{font-size:15px;color:var(--ink-2);margin-top:10px;flex:1}
-.how .vis{margin-top:22px;border-radius:22px 22px 0 0;background:#fff;box-shadow:0 -6px 24px rgba(26,26,46,.08);padding:14px 14px 0;height:360px;overflow:hidden;position:relative}
+.how .vis{margin-top:22px;border-radius:22px 22px 0 0;background:#fff;box-shadow:0 -6px 24px rgba(26,26,46,.08);padding:14px 14px 0;height:450px;overflow:hidden;position:relative}
 .vis .tag.soft{background:var(--bg-soft);color:var(--ink-2)}
 .vis .mini-sheet{border-radius:18px 18px 0 0;background:#fff;height:100%;box-shadow:0 -4px 20px rgba(0,0,0,.08);padding:10px 12px}
 .vis .mini-sheet .apps{padding-top:10px}
@@ -350,21 +350,23 @@ p{margin:0}
 .tip .tag.small{display:inline-block;margin-top:10px;margin-bottom:0;background:var(--bg-soft);color:var(--ink-2);font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}
 .vis .shots.one{justify-content:center}
 .vis .shots.one img{width:58%;border-radius:18px 18px 0 0}
-.hist{background:#fff;border-radius:18px 18px 0 0;padding:4px 2px 0;font-size:13px;color:var(--ink)}
-.hist-head{display:flex;align-items:center;gap:8px;font-size:15px;margin-bottom:10px}
-.hist-head .chev{font-size:22px;line-height:1;color:var(--ink-2)}
-.hist-item{display:flex;gap:10px;align-items:flex-start;padding:10px;background:var(--bg-soft);border-radius:14px}
-.hist-item .thumb{width:48px;height:62px;border-radius:10px;overflow:hidden;flex:none}
-.hist-item .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.hist-body{min-width:0}
-.hist-body b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hist-body .sub{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5}
-.hist-label{font-size:12px;font-weight:700;color:var(--ink-2);margin:12px 2px 4px}
-.hp{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
-.hp img{width:40px;height:40px;border-radius:10px;object-fit:cover;flex:none}
-.hp b{display:block;font-size:13px}
-.hp small{display:block;font-size:11px;color:var(--muted)}
-.hist-link{font-size:12px;font-weight:700;color:var(--brand-ink);padding:10px 2px}
+.hist{background:#fff;padding:0 2px;color:var(--ink)}
+.hist-head{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:700;height:28px}
+.hist-head .chev{font-size:24px;line-height:1;color:var(--ink);font-weight:400}
+.hist-hero{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:10px}
+.hist-thumb{width:100px;height:126px;border-radius:10px;object-fit:cover;display:block}
+.hist-hero b{font-size:15px;font-weight:800;margin-top:12px}
+.hist-hero small{font-size:11px;color:var(--muted);margin-top:4px}
+.hist-orig{display:flex;align-items:center;gap:8px;height:40px;margin:14px 6px 0;border:1px solid rgba(0,0,0,.14);border-radius:14px;padding:0 12px;font-size:12px;font-weight:600}
+.hist-orig svg{width:18px;height:18px;flex:none}
+.hist-orig .lbl{flex:1;text-align:center}
+.hist-orig .chev2{font-size:20px;line-height:1}
+.hist-label{font-size:15px;font-weight:700;margin:16px 6px 6px}
+.hist-row{display:flex;gap:6px;padding-left:6px;overflow:hidden}
+.hpc{width:80px;flex:none}
+.hpc img{width:80px;height:80px;border-radius:3px;object-fit:cover;display:block}
+.hpc b{display:block;font-size:11px;font-weight:800;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hpc small{display:block;font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (min-width:860px){.how-grid{grid-template-columns:repeat(3,1fr)}}
 
 /* ---------- 기능 ---------- */
@@ -632,20 +634,17 @@ p{margin:0}
         <div class="vis">
           <span class="tag soft">예시 화면</span>
           <div class="hist">
-            <div class="hist-head"><span class="chev">&#8249;</span><b>히스토리</b></div>
-            <div class="hist-item">
-              <div class="thumb"><img src="assets/reel-gunja.jpg" alt="" loading="lazy"></div>
-              <div class="hist-body"><b>군자역 디저트 저장각 🍰</b><span class="badge ok">성공</span><div class="sub">장소 분석이 완료되었어요!<br>총 5개의 장소를 찾았어요</div></div>
-            </div>
+            <div class="hist-head"><span class="chev">&#8249;</span>히스토리</div>
+            <div class="hist-hero"><img class="hist-thumb" src="assets/reel-gunja.jpg" alt="" loading="lazy"><b>장소 분석이 완료되었어요!</b><small>총 5개의 장소를 찾았어요</small></div>
+            <div class="hist-orig"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#8a3ab9"/></linearGradient></defs><path fill="url(#ig)" d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path fill="url(#ig)" d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg><span class="lbl">원본 릴스로 이동</span><span class="chev2">&#8250;</span></div>
             <div class="hist-label">발견한 장소</div>
-            <div class="hist-places">
-              <div class="hp"><img src="assets/place-1775568752.jpg" alt="" loading="lazy"><div><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div></div>
-              <div class="hp"><img src="assets/place-137070444.jpg" alt="" loading="lazy"><div><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div></div>
-              <div class="hp"><img src="assets/place-337953507.jpg" alt="" loading="lazy"><div><b>책방고즈넉</b><small>서울 광진구 동일로60길 41-13</small></div></div>
-              <div class="hp"><img src="assets/place-98016856.jpg" alt="" loading="lazy"><div><b>윤키</b><small>서울 광진구 능동로38길 27</small></div></div>
-              <div class="hp"><img src="assets/place-1107844606.jpg" alt="" loading="lazy"><div><b>연필</b><small>서울 광진구 면목로 12</small></div></div>
+            <div class="hist-row">
+              <div class="hpc"><img src="assets/place-1775568752.jpg" alt="" loading="lazy"><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div>
+              <div class="hpc"><img src="assets/place-137070444.jpg" alt="" loading="lazy"><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div>
+              <div class="hpc"><img src="assets/place-337953507.jpg" alt="" loading="lazy"><b>책방고즈넉</b><small>서울 광진구 동일로60길 41-13</small></div>
+              <div class="hpc"><img src="assets/place-98016856.jpg" alt="" loading="lazy"><b>윤키</b><small>서울 광진구 능동로38길 27</small></div>
+              <div class="hpc"><img src="assets/place-1107844606.jpg" alt="" loading="lazy"><b>연필</b><small>서울 광진구 면목로 12</small></div>
             </div>
-            <div class="hist-link">원본 릴스로 이동 &#8250;</div>
           </div>
         </div>
       </article>
