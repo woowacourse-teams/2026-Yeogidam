@@ -539,10 +539,12 @@ function App() {
             currentShareState?.source === 'instagram_share'
               ? currentShareState.shareResultId
               : undefined;
-          const result = activeRequestId
-            ? results.find(item => item.requestId === activeRequestId) ??
-              results[results.length - 1]
-            : results[results.length - 1];
+          const latestResult = results[results.length - 1];
+          const result = latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
+            ? latestResult
+            : activeRequestId
+              ? results.find(item => item.requestId === activeRequestId) ?? latestResult
+              : latestResult;
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
@@ -590,6 +592,16 @@ function App() {
               reused: result.reused ?? null,
               saveMode: result.saveMode ?? null,
             });
+          }
+          if (result.transferStatus === 'GUEST_LOGIN_PROMPT') {
+            clearShareResult(result.requestId).catch(() => undefined);
+            setSharedSaveState(null);
+            setIsGuestLoginPromptVisible(false);
+            setMyPageOverlay(null);
+            setIsHistoryVisible(false);
+            guestReturnFlowRef.current = GUEST_MAIN_FLOW_STATE;
+            setFlowState(INITIAL_FLOW_STATE);
+            return;
           }
           if (result.transferStatus === 'GUEST_PREVIEW' || result.transferStatus === 'LOGIN_REQUIRED') {
             clearShareResult(result.requestId).catch(() => undefined);

@@ -109,13 +109,16 @@ class ShareActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
+                    if (auth.reason == "never_logged_in") loginButton.text = "로그인하기"
                     loginButton.visibility = android.view.View.VISIBLE
                     loginButton.setOnClickListener {
                         val saved = ShareResultStore.saveResult(
                             this,
                             ShareReelResult(
                                 requestId = requestId, url = normalizedUrl, rawSharedText = rawText,
-                                status = "PENDING", transferStatus = "LOGIN_HANDOFF",
+                                status = "PENDING",
+                                transferStatus = if (auth.reason == "never_logged_in")
+                                    "GUEST_LOGIN_PROMPT" else "LOGIN_HANDOFF",
                                 authReason = auth.reason, retryable = false,
                                 release = BuildConfig.VERSION_NAME,
                             ),

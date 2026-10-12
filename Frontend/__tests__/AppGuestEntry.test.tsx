@@ -200,6 +200,30 @@ test('구버전의 로그인 유도 결과가 남아도 비회원 홈으로 이�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이동하고 취소하면 예시 홈으로 돌아온다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'other-post-request',
+    url: 'https://www.instagram.com/p/anotherPost/',
+    status: 'PENDING',
+    transferStatus: 'GUEST_LOGIN_PROMPT',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+
+  const renderer = await renderAfterSplash();
+
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  expect(clearShareResult).toHaveBeenCalledWith('other-post-request');
+  expect(resumeWaitingShares).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
+  });
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('온보딩을 완료한 비회원은 재실행 시 메인으로 진입하고 로그인 후 돌아올 수 있다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
   const renderer = await renderAfterSplash();
