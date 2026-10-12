@@ -327,3 +327,56 @@ describe('history report', () => {
     });
   });
 });
+
+describe('share creation', () => {
+  it.each(['EXTRACTING', 'SUCCEEDED', 'FAILED'])(
+    'posts the link with a client request id and returns the %s response',
+    async extractionStatus => {
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(202, { sharedMediaId: 30, extractionStatus }),
+        );
+      globalThis.fetch = fetchMock;
+
+      await expect(
+        createRepository().createShare(
+          'https://www.instagram.com/reel/C1seongsu/',
+        ),
+      ).resolves.toEqual({ sharedMediaId: '30', extractionStatus });
+      expect(fetchMock).toHaveBeenCalledWith(`${BASE_URL}/api/v1/shares`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer access-token',
+        },
+        // clientRequestId는 jest.setup.js의 uuid 목 값입니다.
+        body: JSON.stringify({
+          instagramUrl: 'https://www.instagram.com/reel/C1seongsu/',
+          clientRequestId: 'test-uuid',
+        }),
+      });
+    },
+  );
+
+  it('keeps the server message when the link is rejected so the dialog can show it', async () => {
+    globalThis.fetch = jest.fn().mockResolvedValue(
+      jsonResponse(400, {
+        message: '올바른 인스타그램 링크 형식이 아닙니다.',
+        errorCode: 'MEDIA400_010',
+      }),
+    );
+
+    const error = await rejectionOf(
+      createRepository().createShare('https://www.instagram.com/reel/C1$/'),
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 400,
+      errorCode: 'MEDIA400_010',
+      message: '올바른 인스타그램 링크 형식이 아닙니다.',
+    });
+  });
+});
