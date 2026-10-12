@@ -18,6 +18,7 @@ import {InBoxScreen} from '../src/pages/inBox/inBoxScreen';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
+import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
 
 jest.mock('react-native-safe-area-context', () => {
   const ReactModule = require('react');
@@ -146,9 +147,80 @@ test('온보딩을 마친 비회원이 회원 API 요청 없이 메인에 진입
 
   const saved = renderer.root.findByType(SavedPlacesScreen);
   expect(saved.props.isGuest).toBe(true);
-  expect(saved.props.places).toEqual([]);
+  expect(saved.props.places.map((place: {kakaoPlaceId: string}) => place.kakaoPlaceId)).toEqual([
+    '1775568752',
+    '137070444',
+    '337953507',
+    '98016856',
+    '1107844606',
+  ]);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(getCurrentProfile).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('구버전의 체험 결과가 남아도 예시 데이터가 있는 홈으로 이동한다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'guest-practice-request',
+    url: 'https://www.instagram.com/p/Db4gRWqkuUg/',
+    status: 'COMPLETED',
+    transferStatus: 'GUEST_PREVIEW',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+
+  const renderer = await renderAfterSplash();
+
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
+  expect(renderer.root.findAllByType(BottomNavigationBar)).toHaveLength(1);
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+  expect(clearShareResult).toHaveBeenCalledWith('guest-practice-request');
+  expect(getCurrentProfile).not.toHaveBeenCalled();
+  expect(resumeWaitingShares).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('구버전의 로그인 유도 결과가 남아도 비회원 홈으로 이동한다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'guest-login-request',
+    url: 'https://www.instagram.com/p/Db4gRWqkuUg/',
+    status: 'PENDING',
+    transferStatus: 'LOGIN_REQUIRED',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+
+  const renderer = await renderAfterSplash();
+
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+  expect(clearShareResult).toHaveBeenCalledWith('guest-login-request');
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이동하고 취소하면 예시 홈으로 돌아온다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'other-post-request',
+    url: 'https://www.instagram.com/p/anotherPost/',
+    status: 'PENDING',
+    transferStatus: 'GUEST_LOGIN_PROMPT',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+
+  const renderer = await renderAfterSplash();
+
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  expect(clearShareResult).toHaveBeenCalledWith('other-post-request');
+  expect(resumeWaitingShares).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
+  });
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -184,6 +256,7 @@ test('비회원 지도는 탭을 떠나도 유지되고 로그인 취소 후 다
     isActive: true,
     isGuest: true,
   });
+  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(MapScreen).props.onAuthenticationRequired();

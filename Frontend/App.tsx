@@ -14,6 +14,10 @@ import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type {InboxReel} from './src/entities/content/inbox-api';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
+import {
+  ONBOARDING_PLACES,
+  ONBOARDING_PLACE_REELS,
+} from './src/entities/onboarding/data';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -103,7 +107,6 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   activeTab: 'saved',
   detailSource: null,
 };
-const EMPTY_GUEST_PLACES: Place[] = [];
 const EMPTY_GUEST_INBOX: InboxReel[] = [];
 const EMPTY_GUEST_HISTORY: HistoryReel[] = [];
 const SPLASH_MIN_DURATION_MS = 2000;
@@ -536,10 +539,12 @@ function App() {
             currentShareState?.source === 'instagram_share'
               ? currentShareState.shareResultId
               : undefined;
-          const result = activeRequestId
-            ? results.find(item => item.requestId === activeRequestId) ??
-              results[results.length - 1]
-            : results[results.length - 1];
+          const latestResult = results[results.length - 1];
+          const result = latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
+            ? latestResult
+            : activeRequestId
+              ? results.find(item => item.requestId === activeRequestId) ?? latestResult
+              : latestResult;
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
@@ -588,7 +593,25 @@ function App() {
               saveMode: result.saveMode ?? null,
             });
           }
-          if (result.transferStatus === 'LOGIN_HANDOFF' || result.transferStatus === 'LOGIN_REQUIRED') {
+          if (result.transferStatus === 'GUEST_LOGIN_PROMPT') {
+            clearShareResult(result.requestId).catch(() => undefined);
+            setSharedSaveState(null);
+            setIsGuestLoginPromptVisible(false);
+            setMyPageOverlay(null);
+            setIsHistoryVisible(false);
+            guestReturnFlowRef.current = GUEST_MAIN_FLOW_STATE;
+            setFlowState(INITIAL_FLOW_STATE);
+            return;
+          }
+          if (result.transferStatus === 'GUEST_PREVIEW' || result.transferStatus === 'LOGIN_REQUIRED') {
+            clearShareResult(result.requestId).catch(() => undefined);
+            setIsGuestLoginPromptVisible(false);
+            setMyPageOverlay(null);
+            setIsHistoryVisible(false);
+            openMainScreen('saved', 'auto');
+            return;
+          }
+          if (result.transferStatus === 'LOGIN_HANDOFF') {
             supabase.auth.getSession().then(({data}) => {
               if (data.session) {
                 resumeWaitingShares().catch(() => undefined);
@@ -925,7 +948,7 @@ function App() {
           key={isAuthenticated === false ? 'guest-saved' : 'member-saved'}
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? EMPTY_GUEST_PLACES : undefined}
+          places={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
           onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
@@ -963,6 +986,11 @@ function App() {
           onBack={closeDetail}
           onAuthenticationRequired={handleRequireLogin}
           place={selectedPlace}
+          guestReels={
+            isAuthenticated === false
+              ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
+              : undefined
+          }
           viewContext={selectedPlaceViewContext ?? undefined}
         />
       );
@@ -988,6 +1016,7 @@ function App() {
 
   const showTabBar =
     flowState.kind === 'main' &&
+    flowState.detailSource === null &&
     myPageOverlay === null &&
     !isHistoryVisible &&
     !isSavedPlacesEditing &&
@@ -1045,6 +1074,7 @@ function App() {
                 key={isAuthenticated === false ? 'guest-map' : 'member-map'}
                 isActive={isMapScreen}
                 isGuest={isAuthenticated === false}
+                guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
                 onAuthenticationRequired={handleRequireLogin}
               />
             </View>

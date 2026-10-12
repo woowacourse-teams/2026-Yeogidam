@@ -25,6 +25,7 @@ type PlaceDetailScreenProps = {
   place: Place;
   viewContext?: SavedPlaceViewContext;
   onAuthenticationRequired?: () => void;
+  guestReels?: PlaceReel[];
 };
 
 export function PlaceDetailScreen({
@@ -32,6 +33,7 @@ export function PlaceDetailScreen({
   place,
   viewContext,
   onAuthenticationRequired,
+  guestReels,
 }: PlaceDetailScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const posthog = usePostHog();
@@ -60,6 +62,12 @@ export function PlaceDetailScreen({
   }, [place.savedAt, posthog, viewContext]);
 
   const loadPosts = useCallback(async () => {
+    if (guestReels !== undefined) {
+      setReels(guestReels);
+      setError(null);
+      setIsReelsLoading(false);
+      return;
+    }
     setIsReelsLoading(true);
     setError(null);
     try {
@@ -73,7 +81,7 @@ export function PlaceDetailScreen({
     } finally {
       setIsReelsLoading(false);
     }
-  }, [onAuthenticationRequired, place.id]);
+  }, [guestReels, onAuthenticationRequired, place.id]);
 
   useEffect(() => {
     loadPosts();
@@ -155,13 +163,13 @@ export function PlaceDetailScreen({
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
-        onPressMore={() => {
+        onPressMore={guestReels === undefined ? () => {
           setDeleteError(null);
           setIsActionSheetVisible(true);
-        }}
+        } : undefined}
       />
       <PlaceDetailActionSheet
-        visible={isActionSheetVisible}
+        visible={isActionSheetVisible && guestReels === undefined}
         onClose={() => {
           setDeleteError(null);
           setIsActionSheetVisible(false);

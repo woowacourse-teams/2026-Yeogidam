@@ -9,6 +9,7 @@ final class ShareViewController: UIViewController {
   private let loginButton = UIButton(type: .system)
   private let closeButton = UIButton(type: .system)
   private var pendingLoginPayload: ShareIntentPayload?
+  private var pendingGuestLogin = false
   private var hasSelectedLogin = false
 
   override func loadView() {
@@ -67,9 +68,20 @@ final class ShareViewController: UIViewController {
 
   private func prepareTransfer(_ payload: ShareIntentPayload) async throws -> Bool {
     let auth = await ShareAuth.ensureAccessToken()
-    if case .loginRequired = auth {
+    if case .loginRequired = auth, payload.text == ShareIntentConstants.guestPracticePostURL {
+      ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
+        properties: ["outcome": "guest_practice_success"])
+      statusLabel.text = "공유에 성공했어요."
+      showStatusLabel(feedbackType: "received")
+      try? await Task.sleep(nanoseconds: 2_000_000_000)
+      extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+      return false
+    }
+    if case .loginRequired(let reason) = auth {
       pendingLoginPayload = payload
+      pendingGuestLogin = reason == "never_logged_in"
       statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
+      if pendingGuestLogin { loginButton.setTitle("로그인하기", for: .normal) }
       loginButton.isHidden = false
       showStatusLabel(feedbackType: "login_required")
       return false
@@ -126,34 +138,38 @@ final class ShareViewController: UIViewController {
     do {
       try ShareIntentStorage.saveResult(ShareReelResult(
         requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
-        status: "PENDING", transferStatus: "LOGIN_HANDOFF", reelId: nil,
+        status: "PENDING", transferStatus: pendingGuestLogin ? "GUEST_LOGIN_PROMPT" : "LOGIN_HANDOFF", reelId: nil,
         failureReason: nil, retryable: false, updatedAt: Date().timeIntervalSince1970 * 1000,
         release: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
       ))
       ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
         properties: ["outcome": "saved"])
       loginButton.isHidden = true
-      closeButton.isHidden = false
-      statusLabel.text = "여기담 앱을 여는 중이에요.\n열리지 않으면 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
-      guard let extensionContext else {
-        statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
-        return
-      }
-      extensionContext.open(ShareIntentConstants.shareExtensionOpenURL) { [weak self] opened in
-        DispatchQueue.main.async {
-          guard let self else { return }
-          if opened {
-            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
-          } else {
-            self.statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
-          }
-        }
-      }
+      openAppForLogin()
     } catch {
       hasSelectedLogin = false
       statusLabel.text = "링크를 저장하지 못했어요. 다시 시도해 주세요."
       ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
         properties: ["outcome": "storage_failed"])
+    }
+  }
+
+  private func openAppForLogin() {
+    closeButton.isHidden = false
+    statusLabel.text = "여기담 앱을 여는 중이에요.\n열리지 않으면 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
+    guard let extensionContext else {
+      statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
+      return
+    }
+    extensionContext.open(ShareIntentConstants.shareExtensionOpenURL) { [weak self] opened in
+      DispatchQueue.main.async {
+        guard let self else { return }
+        if opened {
+          self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+        } else {
+          self.statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
+        }
+      }
     }
   }
 

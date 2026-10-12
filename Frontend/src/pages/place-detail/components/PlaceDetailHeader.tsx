@@ -50,16 +50,20 @@ export function PlaceDetailHeader({
       ) : hideBack ? (
         <View style={styles.backPlaceholder} />
       ) : null}
-      <Pressable
-        accessibilityLabel="더보기"
-        accessibilityRole="button"
-        hitSlop={8}
-        onPressIn={onInteractivePressIn}
-        onPress={onPressMore}
-        style={[styles.moreButton, compact && styles.compactMoreButton]}
-      >
-        <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
-      </Pressable>
+      {onPressMore ? (
+        <Pressable
+          accessibilityLabel="더보기"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPressIn={onInteractivePressIn}
+          onPress={onPressMore}
+          style={[styles.moreButton, compact && styles.compactMoreButton]}
+        >
+          <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
+        </Pressable>
+      ) : (
+        <View style={styles.morePlaceholder} />
+      )}
     </View>
   );
 }
@@ -122,6 +126,10 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowRadius: 10,
     elevation: 4,
+  },
+  morePlaceholder: {
+    width: 40,
+    height: 40,
   },
   compactMoreButton: {
     backgroundColor: 'transparent',

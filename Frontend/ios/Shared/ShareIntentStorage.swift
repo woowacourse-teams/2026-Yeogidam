@@ -5,6 +5,7 @@ import Network
 
 enum ShareIntentConstants {
   static let appGroupIdentifier = "group.com.yeogidamm.app.shared"
+  static let guestPracticePostURL = "https://www.instagram.com/p/Db4gRWqkuUg/"
   static let userDefaultsKey = "share_intent_payload"
   static let shareExtensionHost = "share-extension"
   static let shareExtensionOpenURL = URL(string: "com.yeogidamm.app://share-extension")!
