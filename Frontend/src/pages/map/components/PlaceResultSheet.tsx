@@ -70,6 +70,7 @@ type PlaceResultSheetProps = {
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
+  guestReelsByPlace?: Record<string, PlaceReel[]>;
 };
 
 export const COLLAPSED_SHEET_HEIGHT = 84;
@@ -120,6 +121,7 @@ export function PlaceResultSheet({
   onDetailViewChange,
   onAuthenticationRequired,
   onSavedPlaceDeleted,
+  guestReelsByPlace,
 }: PlaceResultSheetProps) {
   const posthog = usePostHog();
   const { width: windowWidth } = useWindowDimensions();
@@ -292,6 +294,13 @@ export function PlaceResultSheet({
       return;
     }
 
+    if (guestReelsByPlace !== undefined) {
+      setSelectedPlaceReels(guestReelsByPlace[selectedPlace.id] ?? []);
+      setReelsError(null);
+      setIsReelsLoading(false);
+      return;
+    }
+
     setIsReelsLoading(true);
     setReelsError(null);
     try {
@@ -301,7 +310,7 @@ export function PlaceResultSheet({
     } finally {
       setIsReelsLoading(false);
     }
-  }, [selectedPlace]);
+  }, [guestReelsByPlace, selectedPlace]);
 
   useEffect(() => {
     loadSelectedPlaceReels();
@@ -686,7 +695,8 @@ export function PlaceResultSheet({
   useEffect(() => {
     if (
       detailMoreSignal === handledDetailMoreSignal.current ||
-      !selectedPlace
+      !selectedPlace ||
+      guestReelsByPlace !== undefined
     ) {
       return;
     }
@@ -694,7 +704,7 @@ export function PlaceResultSheet({
     handledDetailMoreSignal.current = detailMoreSignal;
     setDeleteError(null);
     setIsActionSheetVisible(true);
-  }, [detailMoreSignal, selectedPlace]);
+  }, [detailMoreSignal, guestReelsByPlace, selectedPlace]);
 
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
@@ -807,10 +817,10 @@ export function PlaceResultSheet({
               actionsUnderTitle={!isPageMode && activeSnapIndex === 2}
               titleInHeader
               onInteractivePressIn={ignoreCollapsedBodyTapOnPressIn}
-              onPressMore={() => {
+              onPressMore={guestReelsByPlace === undefined ? () => {
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
-              }}
+              } : undefined}
               headerTopInset={isPageMode ? expandedDetailHeaderHeight : 0}
               compactHeader
               scrollEnabled={activeSnapIndex !== 2}
@@ -824,7 +834,7 @@ export function PlaceResultSheet({
               }
             />
             <PlaceDetailActionSheet
-              visible={isActionSheetVisible}
+              visible={isActionSheetVisible && guestReelsByPlace === undefined}
               onClose={() => {
                 setDeleteError(null);
                 setIsActionSheetVisible(false);

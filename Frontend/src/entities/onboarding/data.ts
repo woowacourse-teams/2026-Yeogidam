@@ -1,7 +1,10 @@
+import type {PlaceReel} from '../info/types';
 import type {Place} from '../place/types';
 
 // Backend/src/main/resources/data-onboarding.sql (origin/be-dev, #317)의
 // kakao_place_id, 이름, 주소, 좌표와 동일하게 유지합니다.
+export const ONBOARDING_POST_URL = 'https://www.instagram.com/p/Db4gRWqkuUg/';
+
 export const ONBOARDING_PLACES: Place[] = [
   {
     id: 'onboarding-1775568752',
@@ -74,3 +77,15 @@ export const ONBOARDING_MAP_CENTER = {
   latitude: 37.557427,
   longitude: 127.078807,
 };
+
+const ONBOARDING_POST: PlaceReel = {
+  id: 'onboarding-Db4gRWqkuUg',
+  instagramUrl: ONBOARDING_POST_URL,
+  instagramAuthorUsername: 'yeogidamm',
+  instagramDescription: '군자역 디저트 맛집 5곳',
+  instagramThumbnailUrl: null,
+  createdAt: '2026-10-12T00:00:00+09:00',
+};
+
+export const ONBOARDING_PLACE_REELS: Record<string, PlaceReel[]> =
+  Object.fromEntries(ONBOARDING_PLACES.map(place => [place.id, [ONBOARDING_POST]]));

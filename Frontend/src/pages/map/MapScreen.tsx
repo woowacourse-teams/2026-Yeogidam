@@ -28,7 +28,7 @@ import {
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
-import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
+import { ONBOARDING_MAP_CENTER, ONBOARDING_PLACE_REELS } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
 import {
   SEARCH_BAR_HEIGHT,
@@ -432,6 +432,7 @@ export function MapScreen({
               setSelectedPlaceId(placeId);
               setIsPlaceDetailVisible(isDetailView);
             }}
+            guestReelsByPlace={isGuest ? ONBOARDING_PLACE_REELS : undefined}
             onAuthenticationRequired={onAuthenticationRequired}
             onSavedPlaceDeleted={savedPlaceId => {
               setSavedPlaces(current =>
@@ -539,15 +540,19 @@ export function MapScreen({
               <Text numberOfLines={1} style={styles.expandedDetailTitle}>
                 {selectedPlaceForHeader.name}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="더보기"
-                hitSlop={8}
-                onPress={() => setDetailMoreSignal(signal => signal + 1)}
-                style={styles.expandedDetailMore}
-              >
-                <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
-              </Pressable>
+              {!isGuest ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="더보기"
+                  hitSlop={8}
+                  onPress={() => setDetailMoreSignal(signal => signal + 1)}
+                  style={styles.expandedDetailMore}
+                >
+                  <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
+                </Pressable>
+              ) : (
+                <View style={styles.expandedDetailMore} />
+              )}
             </Animated.View>
           ) : null}
         </View>

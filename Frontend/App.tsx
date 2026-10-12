@@ -14,7 +14,10 @@ import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type {InboxReel} from './src/entities/content/inbox-api';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
-import {ONBOARDING_PLACES} from './src/entities/onboarding/data';
+import {
+  ONBOARDING_PLACES,
+  ONBOARDING_PLACE_REELS,
+} from './src/entities/onboarding/data';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -963,6 +966,11 @@ function App() {
           onBack={closeDetail}
           onAuthenticationRequired={handleRequireLogin}
           place={selectedPlace}
+          guestReels={
+            isAuthenticated === false
+              ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
+              : undefined
+          }
           viewContext={selectedPlaceViewContext ?? undefined}
         />
       );
@@ -988,6 +996,7 @@ function App() {
 
   const showTabBar =
     flowState.kind === 'main' &&
+    flowState.detailSource === null &&
     myPageOverlay === null &&
     !isHistoryVisible &&
     !isSavedPlacesEditing &&
