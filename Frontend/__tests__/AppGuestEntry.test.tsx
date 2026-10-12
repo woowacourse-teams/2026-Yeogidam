@@ -146,7 +146,13 @@ test('온보딩을 마친 비회원이 회원 API 요청 없이 메인에 진입
 
   const saved = renderer.root.findByType(SavedPlacesScreen);
   expect(saved.props.isGuest).toBe(true);
-  expect(saved.props.places).toEqual([]);
+  expect(saved.props.places.map((place: {kakaoPlaceId: string}) => place.kakaoPlaceId)).toEqual([
+    '1775568752',
+    '137070444',
+    '337953507',
+    '98016856',
+    '1107844606',
+  ]);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(getCurrentProfile).not.toHaveBeenCalled();
   await ReactTestRenderer.act(async () => renderer.unmount());

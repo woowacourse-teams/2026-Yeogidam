@@ -1040,14 +1040,16 @@ export function SavedPlacesScreen({
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
               >
-                <SavedPlacesEditAction
-                  isEditing={isEditing}
-                  onPress={handlePressEdit}
-                />
+                {!isGuest ? (
+                  <SavedPlacesEditAction
+                    isEditing={isEditing}
+                    onPress={handlePressEdit}
+                  />
+                ) : null}
                 <SavedPlaceGrid
                   isEditing={isEditing}
                   places={places}
-                  onLongPressPlace={enterEditMode}
+                  onLongPressPlace={isGuest ? undefined : enterEditMode}
                   onPressPlace={(place, position) =>
                     openPlaceDetail(place, 'saved_places_grid', position)
                   }

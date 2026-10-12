@@ -14,6 +14,7 @@ import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type {InboxReel} from './src/entities/content/inbox-api';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
+import {ONBOARDING_PLACES} from './src/entities/onboarding/data';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -103,7 +104,6 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   activeTab: 'saved',
   detailSource: null,
 };
-const EMPTY_GUEST_PLACES: Place[] = [];
 const EMPTY_GUEST_INBOX: InboxReel[] = [];
 const EMPTY_GUEST_HISTORY: HistoryReel[] = [];
 const SPLASH_MIN_DURATION_MS = 2000;
@@ -925,7 +925,7 @@ function App() {
           key={isAuthenticated === false ? 'guest-saved' : 'member-saved'}
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? EMPTY_GUEST_PLACES : undefined}
+          places={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
           onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
