@@ -1,8 +1,6 @@
 import type { OAuthProvider } from '../../entities/user/types';
 import { createApiClient, type ApiClientOptions } from '../api/client';
 import { ApiError } from '../api/errors';
-import { createProcessingAuthError } from './errors';
-import { reauthenticateWithApple } from './signInWithApple';
 
 /** 탈퇴 화면이 보여 주는 오류입니다. 재인증 오류와 서버 오류(ApiError)가 같은 필드를 씁니다. */
 export type DeleteAccountError = {
@@ -99,23 +97,4 @@ export function reauthenticateDeletionProvider(
 /** 204나 USER404_001(이미 탈퇴함)을 받으면 앱의 로그인 세션까지 지운 뒤 끝납니다. */
 export function deleteAccount(authorizationCode: string): Promise<void> {
   return accountDeletionRepository.deleteAccount(authorizationCode);
-}
-
-/**
- * 서버에 보낼 인가 코드를 받는 로그인 경로가 생기기 전까지 쓰는 기존 Supabase 재인증입니다.
- * 애플은 기기 로그인 창이 준 인가 코드를 돌려줍니다. 카카오와 구글은 Supabase가 제공자 인가 코드를
- * 앱에 넘기지 않아 돌려줄 코드가 없으므로 처리 오류로 끝냅니다.
- */
-export async function requestAuthorizationCodeWithSupabase(
-  provider: OAuthProvider,
-): Promise<string> {
-  if (provider === 'APPLE') {
-    const { authorizationCode } = await reauthenticateWithApple();
-
-    if (authorizationCode) {
-      return authorizationCode;
-    }
-  }
-
-  throw createProcessingAuthError();
 }

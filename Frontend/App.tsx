@@ -20,10 +20,13 @@ import {
 import { deleteAccount } from './src/lib/auth/deleteAccount';
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
-import { logout } from './src/lib/auth/tokenClient';
+import {
+  getAccessToken,
+  logout,
+  subscribeAuthState,
+} from './src/lib/auth/tokenClient';
 import { runFirstRunCleanup } from './src/lib/first-run-cleanup';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
-import { supabase } from './src/lib/auth/supabase';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import {
   consumeRecommendedUpdatePrompt,
@@ -107,8 +110,11 @@ function toLoginFailureType(error: NormalizedAuthError): LoginFailureType {
   }
 
   if (
-    error.errorCode === 'AUTH400_001' ||
-    error.errorCode === 'AUTH502_001'
+    error.errorCode === 'AUTH401_002' ||
+    error.errorCode === 'AUTH502_001' ||
+    error.errorCode === 'AUTH502_002' ||
+    error.errorCode === 'AUTH503_001' ||
+    error.errorCode === 'AUTH503_002'
   ) {
     return 'auth_failed';
   }
@@ -288,13 +294,13 @@ function App() {
 
     const syncFlowState = async () => {
       await runFirstRunCleanup();
-      const { data, error } = await supabase.auth.getSession();
+      const accessToken = await getAccessToken();
 
       if (!isMounted) {
         return;
       }
 
-      if (error || !data.session) {
+      if (!accessToken) {
         if (!hasTrackedAppOpenedRef.current) {
           trackAppOpened(posthog, false);
           hasTrackedAppOpenedRef.current = true;
@@ -359,17 +365,15 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
+    const unsubscribeAuthState = subscribeAuthState(signedIn => {
+      if (signedIn) {
         resumeWaitingShares().catch(() => undefined);
       }
       if (!isMounted) {
         return;
       }
 
-      if (!session) {
+      if (!signedIn) {
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
@@ -396,7 +400,7 @@ function App() {
       if (splashTimer) {
         clearTimeout(splashTimer);
       }
-      subscription.unsubscribe();
+      unsubscribeAuthState();
     };
   }, [posthog]);
 
@@ -491,8 +495,8 @@ function App() {
             });
           }
           if (result.transferStatus === 'LOGIN_REQUIRED') {
-            supabase.auth.getSession().then(({data}) => {
-              if (data.session) {
+            getAccessToken().then(accessToken => {
+              if (accessToken) {
                 resumeWaitingShares().catch(() => undefined);
                 return;
               }

@@ -1,7 +1,5 @@
-import type {Session} from '@supabase/supabase-js';
-
 import {signInWithOAuth} from './signInWithOAuth';
 
-export function signInWithGoogle(): Promise<Session> {
+export function signInWithGoogle(): Promise<void> {
   return signInWithOAuth('google');
 }

@@ -21,8 +21,6 @@ export const SUPABASE_PUBLISHABLE_KEY = requiredEnvironmentValue(
   'SUPABASE_PUBLISHABLE_KEY',
 );
 
-export const AUTH_CALLBACK_URL = 'com.yeogidamm.app://auth-callback';
-
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     ...(Platform.OS !== 'web' ? {storage: secureAuthStorage} : {}),
