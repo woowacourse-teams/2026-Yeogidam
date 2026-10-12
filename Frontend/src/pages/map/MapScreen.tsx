@@ -517,35 +517,33 @@ export function MapScreen({
               style={[
                 styles.expandedDetailHeader,
                 {
-                  height:
-                    topInset + SEARCH_BAR_TOP_GAP + SEARCH_BAR_HEIGHT,
+                  top: topInset + SEARCH_BAR_TOP_GAP,
+                  height: SEARCH_BAR_HEIGHT,
                   opacity: detailHeaderProgress,
                 },
               ]}
             >
-              <View style={styles.expandedDetailHeaderRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="뒤로 가기"
-                  hitSlop={12}
-                  onPress={handleSearchBack}
-                  style={styles.expandedDetailBack}
-                >
-                  <Text style={styles.expandedDetailBackText}>‹</Text>
-                </Pressable>
-                <Text numberOfLines={1} style={styles.expandedDetailTitle}>
-                  {selectedPlaceForHeader.name}
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="더보기"
-                  hitSlop={8}
-                  onPress={() => setDetailMoreSignal(signal => signal + 1)}
-                  style={styles.expandedDetailMore}
-                >
-                  <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
-                </Pressable>
-              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="뒤로 가기"
+                hitSlop={12}
+                onPress={handleSearchBack}
+                style={styles.expandedDetailBack}
+              >
+                <Text style={styles.expandedDetailBackText}>‹</Text>
+              </Pressable>
+              <Text numberOfLines={1} style={styles.expandedDetailTitle}>
+                {selectedPlaceForHeader.name}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="더보기"
+                hitSlop={8}
+                onPress={() => setDetailMoreSignal(signal => signal + 1)}
+                style={styles.expandedDetailMore}
+              >
+                <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
+              </Pressable>
             </Animated.View>
           ) : null}
         </View>
@@ -592,20 +590,12 @@ const styles = StyleSheet.create({
   },
   expandedDetailHeader: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#ffffff',
-    justifyContent: 'flex-end',
-    zIndex: 11,
-  },
-  expandedDetailHeaderRow: {
-    height: SEARCH_BAR_HEIGHT,
-    marginTop: SEARCH_BAR_TOP_GAP,
-    marginHorizontal: 24,
+    left: 24,
+    right: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    zIndex: 11,
   },
   expandedDetailBack: {
     width: SEARCH_BAR_HEIGHT,
