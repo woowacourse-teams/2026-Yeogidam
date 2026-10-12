@@ -31,7 +31,7 @@ python3 -m http.server 8000
 
 ### 폰 데모의 흐름
 
-데모는 `index.html` 끝의 스크립트에 있는 상태 머신 하나로 움직인다. 상태는 `feed → share → receiving → analyzing → lib → map → detail → end` 순서이고, 탭 바로 `lib`, `map`, `profile`을 오갈 수 있다. 각 단계에서 다음에 누를 곳을 힌트 링과 말풍선으로 가리키고, "자동으로 보기"를 켜면 같은 순서를 스스로 진행한다. "처음부터"와 릴스 칩은 상태를 초기화한다.
+데모는 `index.html` 끝의 스크립트에 있는 상태 머신 하나로 움직인다. 상태는 `feed → share → receiving → shared → history → historyDetail → lib → map → mapDetail(또는 보관함 카드에서 detail) → end` 순서이고, 탭 바로 `history`, `lib`, `map`, `profile`을 오갈 수 있다. 화면 구성은 origin/fe-dev 앱 코드와 대조해 맞췄다. 공유 접수 카드는 앱의 공유 확장처럼 2초 뒤 저절로 닫히고 앱 아이콘을 눌러 여는 단계를 거치며, 지도에서 고른 장소는 바텀시트 안에서 상세가 열리고 핀이 주황색으로 바뀐다. 각 단계에서 다음에 누를 곳을 힌트 링과 말풍선으로 가리키고, "자동으로 보기"를 켜면 같은 순서를 스스로 진행한다. "처음부터"와 릴스 칩은 상태를 초기화한다.
 
 데모에 쓰는 릴스와 장소는 스크립트 맨 위 `REELS` 배열에 있다.
 
@@ -46,12 +46,13 @@ python3 -m http.server 8000
 | 파일 | 출처 |
 |---|---|
 | `assets/character.png` | 피그마 화면 명세 파일의 `character` 심벌 원본(투명 배경) |
-| `assets/marker.png` | 같은 파일의 `marker` 심벌 원본 |
+| `assets/marker.png`, `assets/marker-selected.png` | fe-dev의 `map_marker.png`, `map_marker_selected.png`(기본 핀과 선택 핀)를 96px로 줄인 것 |
 | `assets/app-icon.png` | 앱 아이콘(fe-dev의 `AppIcon.appiconset`과 같은 그림). 내비 로고와 192px 파비콘으로 쓴다 |
 | `favicon.ico`, `assets/favicon-16.png`, `assets/favicon-32.png`, `assets/apple-touch-icon.png` | 같은 앱 아이콘을 줄인 파비콘. 브라우저 탭과 iOS 홈 화면 아이콘용 |
 | `assets/app-store-badge.svg` | Apple 배지 생성기에서 받은 한국어 공식 배지 |
 | `assets/google-play-badge.png` | Google Play 한국어 공식 배지 |
 | `assets/screen-library.jpg` | fe-dev `src/assets/guide/intro-library.png`를 줄인 실제 보관함 화면 |
+| `assets/guide-share-sheet.jpg` | fe-dev `src/assets/guide/2page.png`(앱 사용 가이드의 iPhone 공유 시트)를 잘라 줄인 것 |
 | `assets/screen-map.jpg`, `assets/screen-sheet.jpg` | App Store에 올라간 1.1.0 스크린샷 |
 | `assets/place-<카카오 장소 id>.jpg` 5장, `assets/reel-gunja.jpg` | 운영 S3에 저장된 군자역 장소 썸네일과 온보딩 릴스 썸네일(공개 주소에서 받아 480px로 줄임). 장소 사진은 카카오 장소 사진이라 앱 밖에서 오래 쓸 때는 저작권을 한 번 더 확인한다 |
 

@@ -441,6 +441,106 @@ p{margin:0}
   *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   html{scroll-behavior:auto}
 }
+
+/* ---------- fe-dev 앱과 대조해 맞춘 규칙(뒤에 두어 앞 규칙을 덮는다) ---------- */
+.rcard{font-weight:600}
+.scrim-dark{background:rgba(0,0,0,.31)}
+.launch{position:absolute;inset:0;display:grid;place-items:center;z-index:23;background:rgba(0,0,0,.25)}
+.launch-btn{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:8px;color:#fff;font-size:13px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.launch-btn img{width:76px;height:76px;border-radius:18px;box-shadow:0 10px 24px rgba(0,0,0,.35)}
+.app-head{left:24px;right:24px;gap:10px;top:48px}
+.app-head img{width:44px;height:44px;box-shadow:none}
+.hback{width:44px;height:44px;border-radius:50%;background:#fff;border:0;box-shadow:0 4px 12px rgba(0,0,0,.14);font-size:28px;line-height:1;flex:none;color:var(--ink);display:grid;place-items:center;padding:0 0 3px}
+.search{height:44px;padding:0 7px 0 22px;box-shadow:0 4px 14px rgba(26,26,46,.12)}
+.search span:first-child{font-size:16px;font-weight:800;color:#a9a9ae}
+.sact{width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12);display:grid;place-items:center;color:#d8dffe}
+.sact svg{width:18px;height:18px}
+.app.on-map .app-body{top:0}
+.tabbar{left:0;right:0;bottom:0;height:auto;padding:8px 10px 24px;border-radius:0;box-shadow:none;border-top:1px solid #d9dbe0;background:#fff;z-index:12}
+.tab{font-weight:400;margin:0;border-radius:0;gap:3px}
+.tab.on{background:none;color:#1f2238;font-weight:800}
+.tab svg.f{display:none}
+.tab.on svg.f{display:block}
+.tab.on svg.o{display:none}
+.fab{width:56px;height:56px;background:rgba(219,224,249,.82);border:1px solid rgba(255,255,255,.52);font-size:30px;font-weight:300;color:#000;box-shadow:0 6px 14px rgba(0,0,0,.16);bottom:104px}
+.lib{padding:0 12px 120px}
+.lib-tools{font-size:14px;color:#7b7d8b;font-weight:700;padding:2px 10px 8px}
+.empty img{width:130px;border-radius:20px}
+.pcard{aspect-ratio:178/248;transition:opacity .35s;transform:none}
+.pcard .cap{padding:40px 10px 10px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.22) 38%,rgba(0,0,0,.58) 72%,rgba(0,0,0,.86) 100%)}
+.pcard .cap b{font-size:15px;font-weight:900}
+.pcard .cap small{font-size:10px;opacity:1;margin-top:2px}
+.histv{padding-bottom:120px}
+.hist-date{font-size:15px;font-weight:600;color:#727070;margin:12px 2px 4px}
+.hist-item{gap:22px}
+.hist-text .badge{width:34px;height:19px;padding:0;border-width:1px;font-size:10px;font-weight:400;display:grid;place-items:center;border-radius:10px;line-height:1}
+.hist-fail{flex-direction:column;gap:13px;margin-top:40px}
+.hist-fail button{position:relative;height:40px;border:1px solid rgba(0,0,0,.16);border-radius:10px;font-size:14px;font-weight:600;padding:0 0 0 24px}
+.hist-fail button svg{position:absolute;left:14px;top:50%;width:18px;height:18px;transform:translateY(-50%)}
+.pin,.pin img{width:28px;height:28px}
+.pin img{filter:drop-shadow(0 2px 3px rgba(0,0,0,.18))}
+.pin.sel,.pin.sel img{width:34px;height:34px}
+.pin.sel{z-index:5}
+.msheet{height:58%;border-radius:28px 28px 0 0;padding-top:8px}
+#msheet .handle{width:97px;height:5px;border-radius:3px;background:rgba(26,26,46,.15);margin:6px auto 7px}
+.msheet .list{height:calc(100% - 18px);padding:0 13px 120px}
+.mitem{border:0;align-items:flex-start;padding:12px 0;gap:14px}
+.mitem .thumb{width:92px;height:92px;border-radius:4px}
+.mitem b{font-size:16px;font-weight:800;display:inline;white-space:nowrap}
+.mcat{display:inline-block;border:1.5px solid #C9C9CE;border-radius:16px;padding:1px 9px;font-size:11px;color:#77777D;margin-left:8px;vertical-align:2px;white-space:nowrap}
+.mitem small{margin-top:7px;color:#8e8e93}
+.locbtn{bottom:calc(58% + 16px);margin-bottom:0;right:18px}
+.mdetail{height:calc(100% - 18px);overflow:hidden;padding:0 0 120px}
+.dtitle{display:flex;align-items:center;justify-content:space-between;padding:2px 22px 6px}
+.dtitle b{font-size:20px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dmore{background:none;border:0;font-size:22px;line-height:1;color:var(--ink);padding:4px 0 4px 10px}
+.dhead{position:absolute;top:48px;left:0;right:0;height:56px;display:flex;align-items:center;gap:8px;padding:0 18px;background:#fff;z-index:5}
+.dhead button{width:36px;height:36px;border-radius:0;background:none;box-shadow:none;font-size:32px;line-height:1;color:var(--ink);display:grid;place-items:center;padding:0 0 4px;border:0}
+.dhead b{flex:1;text-align:center;font-size:20px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dbody{position:absolute;top:104px;left:0;right:0;bottom:0;overflow:hidden;padding:4px 0 110px;flex:none}
+.dmeta{padding:0 22px}
+.drow{display:flex;align-items:center;gap:8px;font-size:13px;color:#66666F;margin-top:6px}
+.drow svg{width:16px;height:16px;color:#85869A;flex:none}
+.drow.addr{font-size:14px;color:#55555F}
+.dacts{display:flex;gap:8px;margin-top:12px}
+.dact{min-height:36px;padding:0 12px;border-radius:18px;display:inline-flex;align-items:center;gap:6px;font-size:13px;border:0;text-decoration:none;cursor:pointer}
+.dact.kakao{background:#E7E9FF;color:#4456C8;font-weight:700}
+.dact.kakao b{font-weight:900;font-size:14px}
+.dact.copy{background:#F1F1F5;color:#1a1a2e;font-weight:600;font-family:inherit}
+.dact svg{width:15px;height:15px}
+.dphoto{margin:14px 24px 0;height:190px;border-radius:16px;overflow:hidden;display:grid;place-items:center;font-size:70px;background:var(--bg-soft)}
+.mdetail .dphoto{height:150px;margin-top:8px}
+.dphoto img{width:100%;height:100%;object-fit:cover;display:block}
+.dtabs{display:flex;margin:14px 0 0;border-bottom:1px solid var(--line)}
+.dtabs button{flex:1;background:none;border:0;padding:18px 10px;font-size:14px;font-weight:400;color:#aeaeb2;border-bottom:0;position:relative;margin:0}
+.dtabs button.on{font-weight:800;color:#1a1a2e;border-color:transparent}
+.dtabs button.on::after{content:"";position:absolute;left:22px;right:22px;bottom:-1px;height:2px;border-radius:4px;background:#1a1a2e}
+.dposts{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 12px 0}
+.dpost{text-decoration:none;color:inherit;display:block;border-radius:14px;overflow:hidden}
+.dpost .pt{aspect-ratio:3/4;display:grid;place-items:center;font-size:40px;overflow:hidden;border-radius:14px}
+.dpost .pt img{width:100%;height:100%;object-fit:cover;display:block}
+.dacc{display:flex;gap:4px;align-items:center;margin-top:6px;font-size:13px;color:#8e8e93}
+.dacc svg{width:16px;height:16px;opacity:.45;flex:none}
+.dcap{display:block;margin-top:2px;font-size:14px;font-weight:700;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dinfo{padding:12px 22px 0}
+.irow{display:flex;align-items:center;gap:10px;padding:8px 0;border:0}
+.irow .iic{width:34px;height:34px;display:grid;place-items:center;color:#85869A;flex:none}
+.irow .iic svg{width:24px;height:24px}
+.ilines{flex:1;display:grid;gap:7px;min-width:0}
+.iline{display:flex;align-items:center;gap:8px;font-size:14px;color:#27272E}
+.iline .k{border:1px solid #D7D9DF;padding:1px 5px;font-size:11px;color:#8E8E93;flex:none;width:auto;border-radius:2px}
+.iline .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iline button{border:0;background:none;color:#5F6FC7;font-size:13px;font-weight:400;padding:4px 0 4px 6px;min-height:0;font-family:inherit}
+.finish-in{position:absolute;right:16px;bottom:104px;z-index:9;border:0;border-radius:999px;padding:9px 14px;background:var(--black);color:#fff;font-size:13px;font-weight:700;box-shadow:0 6px 16px rgba(0,0,0,.25);width:auto;height:auto}
+.map-finish{bottom:auto;top:104px;z-index:6}
+.ptoast{left:16px;right:16px;bottom:106px;height:52px;border-radius:12px;background:#1B1B1B;font-size:14px;display:flex;align-items:center;justify-content:center;transform:translateY(20px);white-space:normal;padding:0 16px;text-align:center}
+.ptoast.on{transform:none}
+.confirm{position:absolute;inset:0;background:rgba(0,0,0,.35);display:grid;place-items:center;z-index:40}
+.cbox{background:#fff;border-radius:14px;padding:20px 18px 10px;width:270px;text-align:center}
+.cbox b{font-size:16px;font-weight:700}
+.cbtns{display:flex;gap:6px;margin-top:14px}
+.cbtns button{flex:1;border:0;background:none;font-size:15px;font-weight:600;color:#4456C8;padding:8px}
+.cbtns #confirmNo{color:#1a1a2e;font-weight:400}
 </style>
 </head>
 <body>
@@ -520,28 +620,28 @@ p{margin:0}
                 <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>링크 복사</div>
                 <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>저장</div>
               </div>
-              <div class="scrim-dark" id="rwrap" hidden>
-                <div class="rcard">
-                  <div class="spinner" id="rspin"></div>
-                  <div id="rtext">공유한 내용을 확인하고 있어요.</div>
-                  <button type="button" class="btn-open" id="btnOpen" hidden>여기담 열기</button>
-                </div>
-              </div>
+              <div class="scrim-dark" id="rwrap" hidden><div class="rcard"><div id="rtext">공유한 내용을 확인하고 있어요.</div></div></div>
+              <div class="launch" id="launch" hidden><button type="button" class="launch-btn" id="btnLaunch"><img src="assets/app-icon.png" alt="">여기담</button></div>
             </div>
 
             <!-- 여기담 앱 -->
             <div class="scr app" id="scrApp" hidden>
-              <div class="app-head" id="appHead"><img src="assets/app-icon.png" alt=""><div class="search"><span>여기담 검색</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div></div>
+              <div class="app-head" id="appHead">
+                <img src="assets/app-icon.png" alt="" id="headAvatar">
+                <button type="button" class="hback" id="btnMapBack" aria-label="목록으로" hidden>&#8249;</button>
+                <div class="search"><span>여기담 검색</span><span class="sact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m19.5 19.5-3.2-3.2"/></svg></span></div>
+              </div>
               <div class="app-body">
                 <!-- 보관함 -->
                 <div class="lib" id="lib">
-                  <div class="lib-tools">편집</div>
+                  <div class="lib-tools" id="libTools" hidden>편집</div>
                   <div class="empty" id="empty"><img src="assets/character.png" alt=""><b>아직 저장된 장소가 없어요</b><p>인스타그램 릴스에서 공유하기로<br>여기담에 저장해 보세요.</p></div>
                   <div class="grid" id="grid"></div>
                 </div>
                 <!-- 히스토리 -->
                 <div class="histv" id="histList" hidden>
                   <div class="hist-title">히스토리</div>
+                  <div class="hist-date" id="hiDate">2026.10.12</div>
                   <button type="button" class="hist-item" id="histItem">
                     <span class="thumb" id="hiThumb"></span>
                     <span class="hist-text"><span class="badge wait" id="hiBadge">처리중</span><b id="hiTitle">군자역 디저트 저장각 🍰</b></span>
@@ -552,7 +652,10 @@ p{margin:0}
                   <div class="hist-head"><button type="button" class="chev-btn" id="btnHistBack" aria-label="뒤로">&#8249;</button>히스토리</div>
                   <div class="hist-hero"><span class="thumb hist-thumb" id="hdThumb"></span><b id="hdTitle">장소 분석이 완료되었어요!</b><small id="hdSub">총 5개의 장소를 찾았어요</small></div>
                   <a class="hist-orig" id="hdOrig" href="https://www.instagram.com/p/Db4gRWqkuUg/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ig2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#8a3ab9"/></linearGradient></defs><path fill="url(#ig2)" d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path fill="url(#ig2)" d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg><span class="lbl">원본 릴스로 이동</span><span class="chev2">&#8250;</span></a>
-                  <div class="hist-fail" id="hdFail" hidden><button type="button" id="btnRetry">다시 시도하기</button><button type="button" id="btnReport">제보하기</button></div>
+                  <div class="hist-fail" id="hdFail" hidden>
+                    <button type="button" id="btnRetry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>다시 시도하기</button>
+                    <button type="button" id="btnReport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>제보하기</button>
+                  </div>
                   <div class="hist-label" id="hdFound">발견한 장소</div>
                   <div class="hist-row" id="hdRow"></div>
                 </div>
@@ -561,7 +664,8 @@ p{margin:0}
                   <div id="mapSvg"></div>
                   <div id="pins"></div>
                   <button type="button" class="locbtn" aria-label="내 위치로 이동"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke-linecap="round"/></svg></button>
-                  <div class="msheet" id="msheet"><div class="handle"></div><div class="mt" id="mcount">저장한 장소 5곳</div><div class="list" id="mlist"></div></div>
+                  <div class="msheet" id="msheet"><div class="handle"></div><div class="list" id="mlist"></div><div class="mdetail" id="mdetail" hidden></div></div>
+                  <button type="button" class="finish-in map-finish" id="btnFinishMap" hidden>데모 마치기</button>
                 </div>
                 <!-- 내 정보 -->
                 <div class="profile" id="profile" hidden>
@@ -572,28 +676,22 @@ p{margin:0}
                 </div>
               </div>
               <button type="button" class="fab" id="fab" aria-label="링크로 직접 추가">+</button>
-              <div class="fade"></div>
-              <div class="tabbar" id="tabbar">
-                <button type="button" class="tab" data-tab="history" id="tabHistory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>히스토리</button>
-                <button type="button" class="tab on" data-tab="lib" id="tabLib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>보관함</button>
-                <button type="button" class="tab" data-tab="map" id="tabMap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>지도</button>
-                <button type="button" class="tab" data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" stroke-linecap="round"/></svg>내 정보</button>
-              </div>
+              <div class="confirm" id="confirm" hidden><div class="cbox"><b id="confirmTitle">다시 시도할까요?</b><div class="cbtns"><button type="button" id="confirmNo">취소</button><button type="button" id="confirmYes">확인</button></div></div></div>
             </div>
 
-            <!-- 장소 상세 -->
+            <!-- 장소 상세(보관함에서 들어온 전체 화면) -->
             <div class="scr detail" id="scrDetail" hidden>
-              <div class="dhead"><button type="button" id="btnBack" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg></button><button type="button" class="finish-in" id="btnFinishIn">데모 마치기</button></div>
-              <div class="dhero tile t1" id="dhero">🥪</div>
-              <div class="dbody">
-                <h4 id="dname">윤숲 후르츠산도점</h4>
-                <div class="dcat" id="dcat">음식점 &gt; 카페</div>
-                <div class="daddr" id="daddr">서울 광진구 면목로7길 8</div>
-                <div class="dtabs"><button type="button" class="on" data-dtab="posts">게시물</button><button type="button" data-dtab="info">정보</button></div>
-                <div class="dposts" id="dposts"></div>
-                <div class="dinfo" id="dinfo" hidden></div>
-              </div>
-              <a class="dcta" id="dcta" href="https://place.map.kakao.com/1775568752" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>카카오맵에서 보기 (새 창)</a>
+              <div class="dhead"><button type="button" id="btnBack" aria-label="뒤로">&#8249;</button><b id="dname">윤숲 후르츠산도점</b><button type="button" id="btnMore" aria-label="더 보기"><svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button></div>
+              <div class="dbody" id="dbody"></div>
+              <button type="button" class="finish-in" id="btnFinishIn">데모 마치기</button>
+            </div>
+
+            <!-- 하단 탭 바(앱 화면과 장소 상세에서 보인다) -->
+            <div class="tabbar" id="tabbar" hidden>
+              <button type="button" class="tab" data-tab="history" id="tabHistory"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><svg class="f" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="currentColor"/><path d="M12 7v5l3 2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>히스토리</button>
+              <button type="button" class="tab on" data-tab="lib" id="tabLib"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg><svg class="f" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z" fill="currentColor"/></svg>보관함</button>
+              <button type="button" class="tab" data-tab="map" id="tabMap"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><svg class="f" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="currentColor"/><path d="M9 4v14M15 6v14" stroke="#fff" stroke-width="1.5"/></svg>지도</button>
+              <button type="button" class="tab" data-tab="profile"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" stroke-linecap="round"/></svg><svg class="f" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M4 21a8 8 0 0 1 16 0z" fill="currentColor"/></svg>내 정보</button>
             </div>
 
             <div class="endcard" id="endcard" hidden>
@@ -788,7 +886,6 @@ p{margin:0}
       title:'군자역 디저트 저장각 🍰', emoji:'🍰', tone:'t1', theme:'pink',
       caption:'군자역 디저트 저장각 🍰 📍오픈 한 달 만에 방문자리뷰 500개 넘긴 후르츠산도 맛집, 윤숲 📍다이닝코드 맛 평가 4.6, 과일 크레이프가 유명한, FCC 📍군자역 도보 3분, 책 읽기 좋은 북카페, 책방 고즈넉 📍에그타르트로 후기 많은 골목 디저트 카페, 윤키 📍필터커피 후기가 좋은 카페, 연필',
       link:'instagram.com/p/Db4gRWqkuUg', post:'https://www.instagram.com/p/Db4gRWqkuUg/', thumb:'assets/reel-gunja.jpg', scatter:['🍰','🍓','🥞','☕','🥧','🍰','📚','🍓'],
-      logs:['영상과 캡션을 읽고 있어요','장소 이름 후보 5개를 찾았어요','카카오 지도에서 장소를 확인하고 있어요'],
       mapLabel:'군자역', sea:false,
       places:[
         {name:'윤숲 후르츠산도점', cat:'음식점 > 카페', road:'서울 광진구 면목로7길 8', lot:'서울 광진구 중곡동 628-7', url:'https://place.map.kakao.com/1775568752', img:'assets/place-1775568752.jpg', emoji:'🥪', tone:'t1', x:33, y:17},
@@ -803,7 +900,6 @@ p{margin:0}
       title:'강릉 바다 보면서 먹는 짬뽕순두부 🌊', emoji:'🍲', tone:'t6', theme:'sea',
       caption:'강릉 바다 보면서 먹는 짬뽕순두부 🌊 해안로 따라가다 보면 나오는 그 집, 최일순짬뽕순두부. 웨이팅은 있지만 창가 자리면 바다가 바로 앞이에요.',
       link:'instagram.com/reel/C9x1Example', scatter:['🌊','🍲','🐚','☀️','🌊','🥢'],
-      logs:['영상과 캡션을 읽고 있어요','장소 이름 후보 1개를 찾았어요','카카오 지도에서 장소를 확인하고 있어요'],
       mapLabel:'강릉 사천', sea:true,
       places:[
         {name:'최일순짬뽕순두부', cat:'음식점 > 한식', road:'강원특별자치도 강릉시 해안로 517', lot:'', url:'https://map.kakao.com/?q=%EC%B5%9C%EC%9D%BC%EC%88%9C%EC%A7%AC%EB%BD%95%EC%88%9C%EB%91%90%EB%B6%80', emoji:'🍲', tone:'t6', x:58, y:24}
@@ -814,7 +910,6 @@ p{margin:0}
       title:'주말 산책 브이로그 🐶', emoji:'🐶', tone:'t5', theme:'green',
       caption:'주말 산책 브이로그 🐶 오늘도 신났다. 공 던지기 100번 하고 집에 와서 바로 잠듦.',
       link:'instagram.com/reel/C9y2Example', scatter:['🐶','🌳','🎾','☀️','🐾','🌳'],
-      logs:['영상과 캡션을 읽고 있어요','장소 이름 후보를 찾지 못했어요'],
       fail:'캡션에서 장소를 찾지 못했어요.',
       places:[]
     }
@@ -824,17 +919,18 @@ p{margin:0}
   var phoneWrap=$('phoneWrap'), phone=$('phone'), screen=$('screen'), sbar=$('sbar');
   var scrReel=$('scrReel'), reelBg=$('reelBg'), reelCap=$('reelCap'), reelAuthor=$('reelAuthor'), reelAv=$('reelAv'), reelLikes=$('reelLikes'), reelComments=$('reelComments');
   var scrim=$('scrim'), sheet=$('sheet'), sheetThumb=$('sheetThumb'), sheetLink=$('sheetLink');
-  var rwrap=$('rwrap'), rspin=$('rspin'), rtext=$('rtext'), btnOpen=$('btnOpen');
-  var scrApp=$('scrApp'), appHead=$('appHead'), lib=$('lib');
-  var histList=$('histList'), histDetail=$('histDetail'), histItem=$('histItem'), hiThumb=$('hiThumb'), hiBadge=$('hiBadge'), hiTitle=$('hiTitle'), hiChev=$('hiChev'), hdThumb=$('hdThumb'), hdTitle=$('hdTitle'), hdSub=$('hdSub'), hdOrig=$('hdOrig'), hdFound=$('hdFound'), hdRow=$('hdRow'), hdFail=$('hdFail');
+  var rwrap=$('rwrap'), rtext=$('rtext'), launch=$('launch'), btnLaunch=$('btnLaunch');
+  var scrApp=$('scrApp'), appHead=$('appHead'), headAvatar=$('headAvatar'), btnMapBack=$('btnMapBack'), lib=$('lib'), libTools=$('libTools');
+  var histList=$('histList'), histDetail=$('histDetail'), histItem=$('histItem'), hiDate=$('hiDate'), hiThumb=$('hiThumb'), hiBadge=$('hiBadge'), hiTitle=$('hiTitle'), hiChev=$('hiChev'), hdThumb=$('hdThumb'), hdTitle=$('hdTitle'), hdSub=$('hdSub'), hdOrig=$('hdOrig'), hdFound=$('hdFound'), hdRow=$('hdRow'), hdFail=$('hdFail');
   var empty=$('empty'), grid=$('grid'), fab=$('fab'), tabbar=$('tabbar');
-  var mapScr=$('mapScr'), mapSvg=$('mapSvg'), pins=$('pins'), msheet=$('msheet'), mlist=$('mlist'), mcount=$('mcount');
-  var scrDetail=$('scrDetail'), dhero=$('dhero'), dname=$('dname'), dcat=$('dcat'), daddr=$('daddr'), dposts=$('dposts'), dinfo=$('dinfo'), dcta=$('dcta');
+  var mapScr=$('mapScr'), mapSvg=$('mapSvg'), pins=$('pins'), msheet=$('msheet'), mlist=$('mlist'), mdetail=$('mdetail'), btnFinishMap=$('btnFinishMap');
+  var scrDetail=$('scrDetail'), dname=$('dname'), dbody=$('dbody'), btnFinishIn=$('btnFinishIn');
+  var confirmBox=$('confirm'), confirmTitle=$('confirmTitle');
   var endcard=$('endcard'), endTitle=$('endTitle'), endText=$('endText');
   var ptoast=$('ptoast'), hint=$('hint'), hintText=$('hintText');
   var steps=$('steps'), btnReset=$('btnReset'), btnAuto=$('btnAuto'), btnFinish=$('btnFinish'), chips=$('chips');
 
-  var reel=REELS[0], auto=false, run=0, timers=[], state='feed', analysed=false, tab='lib', hintTarget=null, toastTimer=null, mapRun=0, gridRevealed=false;
+  var reel=REELS[0], auto=false, run=0, timers=[], state='feed', analysed=false, tab='lib', hintTarget=null, toastTimer=null, mapRun=0, gridRevealed=false, confirmYes=null;
 
   /* ---------- 유틸 ---------- */
   function later(ms, fn){ var id=setTimeout(fn, ms); timers.push(id); return id; }
@@ -868,7 +964,6 @@ p{margin:0}
     var s=scale(), sr=screen.getBoundingClientRect(), tr=target.getBoundingClientRect();
     var x=(tr.left-sr.left)/s + tr.width/s/2, y=(tr.top-sr.top)/s + tr.height/s/2;
     hint.style.left=x+'px'; hint.style.top=y+'px';
-    /* 말풍선이 화면 밖으로 나가지 않게 논리 좌표로 보정한다(transition 중이라 실제 rect는 믿을 수 없다) */
     var w=hintText.offsetWidth, sw=screen.clientWidth, pad=12, shift=0;
     if (pos==='left'){ if (x-40-w < pad){ hint.className='hint top'; pos='top'; } }
     if (pos!=='left'){
@@ -880,11 +975,15 @@ p{margin:0}
   }
   function showScreen(which){
     scrReel.hidden = which!=='reel'; scrApp.hidden = which!=='app'; scrDetail.hidden = which!=='detail';
+    tabbar.hidden = which==='reel';
     sbar.classList.toggle('light', which==='reel');
   }
   function tileHTML(cls, emoji){ return '<span class="tile '+cls+'">'+emoji+'</span>'; }
   function imgOrTile(src, cls, emoji, imgClass){ return src ? '<img class="'+(imgClass||'')+'" src="'+src+'" alt="" loading="lazy">' : tileHTML(cls, emoji); }
   function fillThumb(el, src, cls, emoji){ el.className=el.className.replace(/\btile\b|\bt\d\b/g,'').trim(); if (src){ el.innerHTML='<img src="'+src+'" alt="">'; } else { el.className+=' tile '+cls; el.textContent=emoji; } }
+  function midCat(c){ var a=c.split('>').map(function(s){return s.trim();}).filter(Boolean); return a[1]||a[0]||''; }
+  function todayLabel(){ var d=new Date(); return d.getFullYear()+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0'); }
+  function askConfirm(title, fn){ confirmTitle.textContent=title; confirmYes=fn; confirmBox.hidden=false; }
 
   /* ---------- 릴스 준비 ---------- */
   function setReel(r){
@@ -902,9 +1001,10 @@ p{margin:0}
   function reset(r){
     run++; clearTimers(); hideHint(); analysed=false; tab='lib';
     setReel(r||reel);
-    scrim.classList.remove('on'); sheet.classList.remove('on'); rwrap.hidden=true; rspin.hidden=false; btnOpen.hidden=true; rtext.textContent='공유한 내용을 확인하고 있어요.';
-    grid.innerHTML=''; empty.hidden=false; pins.innerHTML=''; mlist.innerHTML=''; msheet.classList.remove('on'); gridRevealed=false;
-    hiBadge.className='badge wait'; hiBadge.textContent='처리중'; hiChev.hidden=true; histDetail.hidden=true; hdFail.hidden=true;
+    scrim.classList.remove('on'); sheet.classList.remove('on'); rwrap.hidden=true; launch.hidden=true; rtext.textContent='공유한 내용을 확인하고 있어요.';
+    grid.innerHTML=''; empty.hidden=false; libTools.hidden=true; pins.innerHTML=''; mlist.innerHTML=''; mdetail.innerHTML=''; mdetail.hidden=true; mlist.hidden=false; msheet.classList.remove('on'); gridRevealed=false;
+    headAvatar.hidden=false; btnMapBack.hidden=true; btnFinishMap.hidden=true; confirmBox.hidden=true;
+    hiDate.textContent=todayLabel(); hiBadge.className='badge wait'; hiBadge.textContent='처리중'; hiChev.hidden=true; histDetail.hidden=true; hdFail.hidden=true;
     endcard.hidden=true; btnFinish.hidden=true; ptoast.classList.remove('on'); $('btnReport').textContent='제보하기'; mapRun++;
     showTab('lib', true); showScreen('reel'); state='feed'; setStep(0);
     var id=run;
@@ -923,21 +1023,23 @@ p{margin:0}
     state='feed'; hideHint(); scrim.classList.remove('on'); sheet.classList.remove('on');
     var id=run; later(800, function(){ if (id!==run||state!=='feed') return; showHint($('btnShare'), '공유를 눌러 보세요', 'left'); });
   }
+  /* 앱의 공유 확장과 같이 결과 문구를 띄운 뒤 2초가 지나면 스스로 닫힌다 */
   function tapYeogidam(){
     if (state!=='share') return;
     state='receiving'; hideHint(); setStep(1); sheet.classList.remove('on'); scrim.classList.remove('on');
     var id=run;
     later(250, function(){ if (id!==run) return; rwrap.hidden=false; });
-    later(1500, function(){
+    later(1500, function(){ if (id!==run) return; rtext.textContent='링크를 받았어요. 여기담 앱에서 확인해 주세요.'; });
+    later(3500, function(){
       if (id!==run) return;
-      rspin.hidden=true; rtext.textContent='링크를 받았어요. 여기담 앱에서 확인해 주세요.'; btnOpen.hidden=false;
-      autoLater(1600, openApp);
-      if (!auto) later(500, function(){ if (id!==run||state!=='receiving') return; showHint(btnOpen, '여기담을 열어 보세요', 'top'); });
+      rwrap.hidden=true; state='shared'; launch.hidden=false;
+      later(400, function(){ if (id!==run||state!=='shared') return; showHint(btnLaunch, '이제 여기담 앱을 열어 보세요', 'bottom'); });
+      autoLater(1400, openApp);
     });
   }
   function openApp(){
-    if (state!=='receiving') return;
-    state='history'; hideHint(); rwrap.hidden=true; showScreen('app'); showTab('history', true);
+    if (state!=='shared') return;
+    state='history'; hideHint(); launch.hidden=true; showScreen('app'); showTab('history', true);
     hiBadge.className='badge wait'; hiBadge.textContent='처리중'; hiChev.hidden=true;
     var id=run;
     later(3400, function(){ if (id!==run) return; analysisDone(id); });
@@ -976,19 +1078,20 @@ p{margin:0}
   }
   function backFromHistDetail(){ if (state!=='historyDetail') return; hideHint(); histDetail.hidden=true; histList.hidden=false; state='history'; }
   function revealGrid(){
-    if (gridRevealed) return; gridRevealed=true; empty.hidden=true;
+    if (gridRevealed) return; gridRevealed=true; empty.hidden=true; libTools.hidden=false;
     var cards=grid.querySelectorAll('.pcard'), id=run;
-    toast('보관함에 저장됐어요');
-    for (var i=0;i<cards.length;i++) (function(b,i){ later(150+stagger(i*160), function(){ if (id===run) b.classList.add('in'); }); })(cards[i], i);
+    for (var i=0;i<cards.length;i++) (function(b,i){ later(120+stagger(i*90), function(){ if (id===run) b.classList.add('in'); }); })(cards[i], i);
     setStep(2);
-    later(400+cards.length*160+900, function(){ if (id!==run||state!=='lib') return; showHint($('tabMap'), '지도 탭을 눌러 보세요', 'top'); });
-    autoLater(400+cards.length*160+2300, function(){ if (state==='lib') showTab('map'); });
+    later(400+cards.length*90+900, function(){ if (id!==run||state!=='lib') return; showHint($('tabMap'), '지도 탭을 눌러 보세요', 'top'); });
+    autoLater(400+cards.length*90+2300, function(){ if (state==='lib') showTab('map'); });
   }
   function showTab(name, silent){
     tab=name;
     lib.hidden = name!=='lib'; mapScr.hidden = name!=='map'; $('profile').hidden = name!=='profile';
     histList.hidden = name!=='history'; histDetail.hidden = true;
     fab.hidden = name!=='lib'; appHead.hidden = (name==='profile'||name==='history');
+    scrApp.classList.toggle('on-map', name==='map');
+    if (name!=='map') leaveMapDetail();
     var ts=tabbar.querySelectorAll('.tab'); for (var i=0;i<ts.length;i++) ts[i].classList.toggle('on', ts[i].dataset.tab===name);
     if (silent) return;
     hideHint();
@@ -999,17 +1102,16 @@ p{margin:0}
   }
   function renderMap(){
     mapSvg.innerHTML=mapSVG(reel); pins.innerHTML=''; mlist.innerHTML=''; msheet.classList.remove('on');
-    mcount.textContent='저장한 장소 '+reel.places.length+'곳';
     var id=run, mid=++mapRun;
     reel.places.forEach(function(p,i){
-      var b=document.createElement('button'); b.type='button'; b.className='pin'; b.style.left=p.x+'%'; b.style.top=p.y+'%';
+      var b=document.createElement('button'); b.type='button'; b.className='pin'; b.style.left=p.x+'%'; b.style.top=p.y+'%'; b.dataset.i=i;
       b.setAttribute('aria-label', p.name);
-      b.innerHTML='<img src="assets/marker.png" alt=""><span class="pin-label">'+esc(p.name)+'</span>';
+      b.innerHTML='<img src="assets/marker.png" alt="">';
       b.addEventListener('click', function(){ openDetail(p); });
       pins.appendChild(b);
       later(250+stagger(i*140), function(){ if (id===run&&mid===mapRun) b.classList.add('drop'); });
       var m=document.createElement('button'); m.type='button'; m.className='mitem';
-      m.innerHTML=(p.img ? '<span class="thumb"><img src="'+p.img+'" alt="" loading="lazy"></span>' : '<span class="thumb tile '+p.tone+'">'+p.emoji+'</span>')+'<span style="min-width:0;display:block"><b>'+esc(p.name)+'</b><small>'+esc(p.road)+'</small></span>';
+      m.innerHTML=(p.img ? '<span class="thumb"><img src="'+p.img+'" alt="" loading="lazy"></span>' : '<span class="thumb tile '+p.tone+'">'+p.emoji+'</span>')+'<span style="min-width:0;display:block"><b>'+esc(p.name)+'</b><span class="mcat">'+esc(midCat(p.cat))+'</span><small>'+esc(p.road)+'</small></span>';
       m.addEventListener('click', function(){ openDetail(p); });
       mlist.appendChild(m);
     });
@@ -1017,26 +1119,62 @@ p{margin:0}
     later(1200+reel.places.length*140, function(){ if (id!==run||mid!==mapRun||state!=='map') return; var first=pins.querySelector('.pin'); if (first) showHint(first, '핀을 눌러 보세요', 'top'); });
     autoLater(2600+reel.places.length*140, function(){ if (mid===mapRun&&state==='map') openDetail(reel.places[0]); });
   }
+
+  /* ---------- 장소 상세(앱 구성: 카테고리, 주소, 버튼 두 개, 사진, 탭) ---------- */
+  var ICON_TAG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 3h8l10 10-8 8L3 11z"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>';
+  var ICON_PIN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 22s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+  var ICON_COPY='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg>';
+  var ICON_IG='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg>';
+  function detailBody(p){
+    var post = reel.post ? reel.post : '#';
+    var photo = p.img ? '<img src="'+p.img+'" alt="">' : '<span class="tile '+p.tone+'" style="display:grid;width:100%;height:100%;font-size:70px">'+p.emoji+'</span>';
+    var lines = '<div class="iline"><span class="k">도로명</span><span class="v">'+esc(p.road)+'</span><button type="button" data-msg="도로명 주소가 복사되었습니다." data-copy="'+esc(p.road)+'">복사</button></div>';
+    if (p.lot) lines += '<div class="iline"><span class="k">지번</span><span class="v">'+esc(p.lot)+'</span><button type="button" data-msg="지번 주소가 복사되었습니다." data-copy="'+esc(p.lot)+'">복사</button></div>';
+    return '<div class="dmeta">'
+      + '<div class="drow">'+ICON_TAG+'<span>'+esc(midCat(p.cat))+'</span></div>'
+      + '<div class="drow addr">'+ICON_PIN+'<span>'+esc(p.road)+'</span></div>'
+      + '<div class="dacts"><a class="dact kakao" href="'+p.url+'" target="_blank" rel="noopener" aria-label="카카오맵에서 보기(새 창)"><b>K</b>카카오맵</a><button type="button" class="dact copy" data-msg="도로명 주소가 복사되었습니다." data-copy="'+esc(p.road)+'">'+ICON_COPY+'주소 복사</button></div>'
+      + '</div>'
+      + '<div class="dphoto">'+photo+'</div>'
+      + '<div class="dtabs"><button type="button" class="on" data-dtab="posts">게시물</button><button type="button" data-dtab="info">정보</button></div>'
+      + '<div class="dposts"><a class="dpost" href="'+post+'" target="_blank" rel="noopener" data-post="'+(reel.post?'1':'0')+'">'+(reel.thumb ? '<div class="pt"><img src="'+reel.thumb+'" alt=""></div>' : '<div class="pt tile '+reel.tone+'">'+reel.emoji+'</div>')+'<span class="dacc">'+ICON_IG+esc(reel.author)+'</span><b class="dcap">'+esc(reel.title)+'</b></a></div>'
+      + '<div class="dinfo" hidden><div class="irow"><span class="iic">'+ICON_PIN+'</span><div class="ilines">'+lines+'</div></div></div>';
+  }
   function openDetail(p){
+    if (tab==='map') openMapDetail(p); else openFullDetail(p);
+  }
+  function openFullDetail(p){
     state='detail'; hideHint(); setStep(3);
-    if (p.img){ dhero.className='dhero'; dhero.innerHTML='<img src="'+p.img+'" alt="">'; } else { dhero.className='dhero tile '+p.tone; dhero.textContent=p.emoji; }
-    dname.textContent=p.name; dcat.textContent=p.cat; daddr.textContent=p.road;
-    dposts.innerHTML='<div class="dpost">'+(reel.thumb ? '<div class="pt"><img src="'+reel.thumb+'" alt=""></div>' : '<div class="pt tile '+reel.tone+'">'+reel.emoji+'</div>')+'<small>'+esc(reel.author)+' '+esc(reel.title)+'</small></div>';
-    var rows=[['도로명', p.road, '도로명 주소가 복사되었습니다.']]; if (p.lot) rows.push(['지번', p.lot, '지번 주소가 복사되었습니다.']);
-    dinfo.innerHTML=rows.map(function(r){ return '<div class="irow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span><button type="button" data-msg="'+esc(r[2])+'" data-copy="'+esc(r[1])+'">복사</button></div>'; }).join('');
-    dcta.href=p.url;
-    setDTab('posts'); showScreen('detail'); btnFinish.hidden=false;
+    dname.textContent=p.name; dbody.innerHTML=detailBody(p);
+    showScreen('detail'); btnFinish.hidden=false;
     var id=run;
     autoLater(3600, function(){ if (state==='detail') finish(); });
-    if (!auto) later(2500, function(){ if (id!==run||state!=='detail') return; showHint($('btnFinishIn'), '다 봤으면 여기를 눌러요', 'bottom'); });
+    if (!auto) later(2500, function(){ if (id!==run||state!=='detail') return; showHint(btnFinishIn, '다 봤으면 여기를 눌러요', 'top'); });
   }
-  function setDTab(name){
-    var bs=scrDetail.querySelectorAll('.dtabs button'); for (var i=0;i<bs.length;i++) bs[i].classList.toggle('on', bs[i].dataset.dtab===name);
-    dposts.hidden = name!=='posts'; dinfo.hidden = name!=='info';
+  /* 지도에서는 앱처럼 바텀시트 안에서 상세가 열리고 핀이 주황색으로 바뀐다 */
+  function openMapDetail(p){
+    state='mapDetail'; hideHint(); setStep(3);
+    var idx=reel.places.indexOf(p), ps=pins.querySelectorAll('.pin');
+    for (var i=0;i<ps.length;i++){ var sel=(i===idx); ps[i].classList.toggle('sel', sel); ps[i].querySelector('img').src = sel ? 'assets/marker-selected.png' : 'assets/marker.png'; }
+    mdetail.innerHTML='<div class="dtitle"><b>'+esc(p.name)+'</b><button type="button" class="dmore" aria-label="더 보기">⋮</button></div>'+detailBody(p);
+    mlist.hidden=true; mdetail.hidden=false; msheet.classList.add('on');
+    headAvatar.hidden=true; btnMapBack.hidden=false; btnFinishMap.hidden=false; btnFinish.hidden=false;
+    var id=run;
+    autoLater(3600, function(){ if (state==='mapDetail') finish(); });
+    if (!auto) later(2500, function(){ if (id!==run||state!=='mapDetail') return; showHint(btnFinishMap, '다 봤으면 여기를 눌러요', 'bottom'); });
   }
+  function leaveMapDetail(){
+    var ps=pins.querySelectorAll('.pin'); for (var i=0;i<ps.length;i++){ ps[i].classList.remove('sel'); ps[i].querySelector('img').src='assets/marker.png'; }
+    mdetail.hidden=true; mlist.hidden=false; headAvatar.hidden=false; btnMapBack.hidden=true; btnFinishMap.hidden=true;
+  }
+  function backFromMapDetail(){ if (state!=='mapDetail') return; hideHint(); leaveMapDetail(); state='map'; }
   function backFromDetail(){
     if (state!=='detail') return;
-    showScreen('app'); showTab(tab, true); state = tab==='map' ? 'map' : (tab==='lib' ? 'lib' : 'profile');
+    hideHint(); showScreen('app'); showTab(tab, true); state = tab==='map' ? 'map' : (tab==='lib' ? 'lib' : (tab==='history' ? 'history' : 'profile'));
+  }
+  function setDTab(box, name){
+    var bs=box.querySelectorAll('.dtabs button'); for (var i=0;i<bs.length;i++) bs[i].classList.toggle('on', bs[i].dataset.dtab===name);
+    box.querySelector('.dposts').hidden = name!=='posts'; box.querySelector('.dinfo').hidden = name!=='info';
   }
   function finish(title, text){
     hideHint(); clearTimers(); setStep(4); btnFinish.hidden=true;
@@ -1075,27 +1213,33 @@ p{margin:0}
   $('btnShare').addEventListener('click', tapShare);
   $('btnYeogidam').addEventListener('click', tapYeogidam);
   scrim.addEventListener('click', closeSheet);
-  btnOpen.addEventListener('click', openApp);
+  btnLaunch.addEventListener('click', openApp);
   $('btnBack').addEventListener('click', backFromDetail);
-  $('btnReport').addEventListener('click', function(){ toast('데모에서는 바로 제보 완료로 표시해요'); $('btnReport').textContent='제보 완료'; });
-  $('btnRetry').addEventListener('click', function(){ toast('데모에서는 다시 시도해도 같은 결과예요'); });
+  btnMapBack.addEventListener('click', backFromMapDetail);
+  $('btnMore').addEventListener('click', function(){ toast('더 보기에는 삭제하기가 있어요'); });
+  $('btnReport').addEventListener('click', function(){ askConfirm('제보할까요?', function(){ toast('데모에서는 바로 제보 완료로 표시해요'); $('btnReport').textContent='제보 완료'; }); });
+  $('btnRetry').addEventListener('click', function(){ askConfirm('다시 시도할까요?', function(){ toast('데모에서는 다시 시도해도 같은 결과예요'); }); });
+  $('confirmNo').addEventListener('click', function(){ confirmBox.hidden=true; confirmYes=null; });
+  $('confirmYes').addEventListener('click', function(){ confirmBox.hidden=true; var fn=confirmYes; confirmYes=null; if (fn) fn(); });
   histItem.addEventListener('click', openHistDetail);
   $('btnHistBack').addEventListener('click', backFromHistDetail);
   hdOrig.addEventListener('click', function(e){ if (!reel.post){ e.preventDefault(); toast('예시 릴스라 원본이 없어요'); } });
-  $('btnFinishIn').addEventListener('click', function(){ finish(); });
+  btnFinishIn.addEventListener('click', function(){ finish(); });
+  btnFinishMap.addEventListener('click', function(){ finish(); });
   fab.addEventListener('click', function(){ toast('링크를 붙여 넣어 직접 추가할 수도 있어요'); });
-  screen.addEventListener('click', function(e){ var b=e.target.closest('.reel-acts button:not(#btnShare), .apps .app-ic:not(.me), .sheet-row, .pedit, .plist div, .locbtn'); if (b) toast('데모에서는 여기담 흐름만 눌러 볼 수 있어요'); });
+  screen.addEventListener('click', function(e){
+    var b=e.target.closest('.reel-acts button:not(#btnShare), .apps .app-ic:not(.me), .sheet-row, .pedit, .plist div, .locbtn, .dmore, #libTools');
+    if (b){ toast(b.classList.contains('dmore') ? '더 보기에는 삭제하기가 있어요' : '데모에서는 여기담 흐름만 눌러 볼 수 있어요'); return; }
+    var t=e.target.closest('.dtabs button'); if (t){ setDTab(t.closest('.dtabs').parentNode, t.dataset.dtab); return; }
+    var c=e.target.closest('[data-copy]');
+    if (c){ var msg=c.dataset.msg, txt=c.dataset.copy; if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast(msg); }, function(){ toast(msg); }); else toast(msg); return; }
+    var dp=e.target.closest('.dpost'); if (dp && dp.dataset.post==='0'){ e.preventDefault(); toast('예시 릴스라 원본이 없어요'); }
+  });
   tabbar.addEventListener('click', function(e){
     var t=e.target.closest('.tab'); if (!t) return;
     if (!analysed && (t.dataset.tab==='lib'||t.dataset.tab==='map')){ toast('장소를 확인하는 중이에요. 잠시만요'); return; }
+    if (state==='detail'){ hideHint(); showScreen('app'); }
     showTab(t.dataset.tab);
-  });
-  scrDetail.querySelector('.dtabs').addEventListener('click', function(e){ var b=e.target.closest('button'); if (b) setDTab(b.dataset.dtab); });
-  dinfo.addEventListener('click', function(e){
-    var b=e.target.closest('button'); if (!b) return;
-    var msg=b.dataset.msg, txt=b.dataset.copy;
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast(msg); }, function(){ toast(msg); });
-    else toast(msg);
   });
   btnFinish.addEventListener('click', function(){ finish(); });
   $('btnAgain').addEventListener('click', function(){ reset(reel); });
