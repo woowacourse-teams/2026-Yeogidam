@@ -8,6 +8,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   @objc var onMapError: ((NSDictionary) -> Void)?
   @objc var onCameraChanged: ((NSDictionary) -> Void)?
   @objc var onMarkerPressed: ((NSDictionary) -> Void)?
+  @objc var onMapPanStarted: ((NSDictionary) -> Void)?
 
   private let mapContainer = KMViewContainer()
   private var mapController: KMController?
@@ -142,6 +143,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       self.showsCurrentLocation = showsCurrentLocation
       if showsCurrentLocation {
         requestCurrentLocationIfNeeded()
+        if needsCurrentLocationCameraMove, lastKnownLocation != nil {
+          scheduleCameraMove()
+        }
       } else {
         locationManager.stopUpdatingLocation()
         removeCurrentLocationMarker()
@@ -236,6 +240,17 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   func cameraWillMove(kakaoMap: KakaoMap, by: MoveBy) {
+    if by == .pan ||
+      by == .longTapAndDrag ||
+      by == .zoom ||
+      by == .oneFingerZoom ||
+      by == .rotateZoom ||
+      by == .doubleTapZoomIn ||
+      by == .twoFingerTapZoomOut
+    {
+      onMapPanStarted?(["started": true])
+    }
+
     // An inverted range is a lightweight signal over the existing Fabric
     // event: JS clears the previous list while the user is moving the map.
     // `cameraDidStopped` immediately replaces it with the final real bounds.
@@ -538,9 +553,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func centerMapOnCurrentLocation() {
-    guard showsCurrentLocation else { return }
-
     needsCurrentLocationCameraMove = true
+    guard showsCurrentLocation else { return }
     guard lastKnownLocation != nil else {
       requestCurrentLocationIfNeeded()
       return

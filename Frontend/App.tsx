@@ -140,6 +140,7 @@ function App() {
     };
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
+  const [hasVisitedMap, setHasVisitedMap] = useState(false);
   const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
@@ -237,6 +238,10 @@ function App() {
     nextScreen: MainScreen,
     entryType: InboxEntryType = 'direct',
   ) => {
+    if (nextScreen === 'map') {
+      setHasVisitedMap(true);
+    }
+
     if (nextScreen !== 'map') {
       setIsMapPlaceDetailVisible(false);
     }
@@ -824,12 +829,7 @@ function App() {
     }
 
     if (currentScreen === 'map') {
-      return (
-        <MapScreen
-          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
-          onDetailViewChange={setIsMapPlaceDetailVisible}
-        />
-      );
+      return null;
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
@@ -869,6 +869,8 @@ function App() {
     !(currentScreen === 'map' && isMapPlaceDetailVisible);
 
   const isMapScreen = currentScreen === 'map';
+  const shouldKeepMapMounted =
+    flowState.kind === 'main' && (isMapScreen || hasVisitedMap);
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
   if (!isAuthReady || isSplashVisible || hasCompletedGuide === null) {
@@ -906,7 +908,24 @@ function App() {
           translucent={isMapScreen}
         />
         <View style={styles.container}>
-          {renderScreen()}
+          {shouldKeepMapMounted ? (
+            <View
+              pointerEvents={isMapScreen ? 'auto' : 'none'}
+              style={[
+                StyleSheet.absoluteFill,
+                !isMapScreen && styles.hiddenMapLayer,
+              ]}
+            >
+              <MapScreen
+                isActive={isMapScreen}
+                onAuthenticationRequired={() =>
+                  setFlowState(INITIAL_FLOW_STATE)
+                }
+                onDetailViewChange={setIsMapPlaceDetailVisible}
+              />
+            </View>
+          ) : null}
+          {isMapScreen ? null : renderScreen()}
           {showTabBar && activeTab ? (
             <BottomNavigationBar
               active={activeTab}
@@ -931,6 +950,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  hiddenMapLayer: {
+    opacity: 0,
   },
 });
 
