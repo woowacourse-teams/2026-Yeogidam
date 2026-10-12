@@ -296,7 +296,7 @@ p{margin:0}
 .chips .lbl{font-size:12px;color:var(--muted);font-weight:600;width:100%;text-align:center}
 .chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;min-height:44px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .chip.on{border-color:var(--ink);color:var(--ink);background:#fff}
-.demo-foot{text-align:center;font-size:12px;color:var(--muted);margin-top:14px;max-width:36em;margin-inline:auto}
+.demo-foot{text-align:center;font-size:12px;line-height:1.8;color:var(--muted);margin-top:14px;max-width:36em;margin-inline:auto}
 
 /* ---------- 문제 공감 ---------- */
 .pain{background:var(--ink);color:#fff;padding-block:clamp(44px,7vw,80px)}
@@ -370,7 +370,8 @@ p{margin:0}
 .foot{padding-block:40px 60px;font-size:13px;color:var(--muted)}
 .foot .row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between}
 .foot a{color:var(--ink-2);text-decoration:none;font-weight:600}
-.foot .legal{margin-top:18px;line-height:1.7}
+.foot .legal{margin-top:18px;line-height:1.8}
+.foot .legal+.legal{margin-top:10px}
 
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
@@ -555,7 +556,7 @@ p{margin:0}
         <button type="button" class="btn btn-dark btn-sm" id="btnFinish" hidden>마치기</button>
       </div>
       <div class="chips" id="chips"><span class="lbl">다른 릴스로 해 보기</span></div>
-      <p class="demo-foot">데모 속 군자역 장소 다섯 곳과 사진은 여기담이 온보딩용으로 준비한 실제 장소와 앱에 저장된 썸네일이에요. 릴스 화면과 분석 과정은 설명을 위해 직접 그린 예시이고 인스타그램의 실제 화면이 아니에요. 실제 분석은 영상 길이에 따라 더 걸릴 수 있어요.</p>
+      <p class="demo-foot">데모 속 군자역 장소 다섯 곳과 사진은 여기담이 온보딩용으로 준비한 실제 장소와 앱에 저장된 썸네일이에요.<br>릴스 화면과 분석 과정은 설명을 위해 직접 그린 예시이고 인스타그램의 실제 화면이 아니에요.<br>실제 분석은 영상 길이에 따라 더 걸릴 수 있어요.</p>
     </div>
   </div>
 </section>
@@ -636,7 +637,7 @@ p{margin:0}
         </div>
       </article>
     </div>
-    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b> iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.</div></div>
+    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b><br>iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.</div></div>
   </div>
 </section>
 
@@ -703,7 +704,8 @@ p{margin:0}
         <a href="https://play.google.com/store/apps/details?id=com.yeogidamm.app" target="_blank" rel="noopener">Google Play</a>
       </div>
     </div>
-    <p class="legal">문의는 GitHub 이슈나 앱의 내 정보 &gt; 문의하기에서 받고 있어요.<br>Apple과 Apple 로고는 Apple Inc.의 상표이고 App Store는 Apple Inc.의 서비스 마크예요. Google Play와 Google Play 로고는 Google LLC의 상표예요. 인스타그램은 Meta Platforms, Inc.의 상표이며 여기담은 Meta와 관련이 없어요.</p>
+    <p class="legal">문의는 GitHub 이슈나 앱의 내 정보 &gt; 문의하기에서 받고 있어요.</p>
+    <p class="legal">Apple과 Apple 로고는 Apple Inc.의 상표이고 App Store는 Apple Inc.의 서비스 마크예요.<br>Google Play와 Google Play 로고는 Google LLC의 상표예요.<br>인스타그램은 Meta Platforms, Inc.의 상표이며 여기담은 Meta와 관련이 없어요.</p>
   </div>
 </footer>
 
