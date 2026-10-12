@@ -9,6 +9,7 @@ import android.util.Patterns
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.yeogidamm.app.BuildConfig
@@ -17,6 +18,7 @@ import java.util.UUID
 
 class ShareActivity : AppCompatActivity() {
     private lateinit var statusLabel: TextView
+    private lateinit var loginButton: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,8 +44,25 @@ class ShareActivity : AppCompatActivity() {
                 cornerRadius = 16 * density
             }
         }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(statusLabel)
+        }
+        loginButton = TextView(this).apply {
+            text = "로그인하고 장소 추출하기"
+            textSize = 16f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            setPadding((20 * density).toInt(), (14 * density).toInt(), (20 * density).toInt(), (14 * density).toInt())
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(86, 105, 224))
+                cornerRadius = 12 * density
+            }
+            visibility = android.view.View.GONE
+        }
+        content.addView(loginButton)
         root.addView(
-            statusLabel,
+            content,
             FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -65,44 +84,53 @@ class ShareActivity : AppCompatActivity() {
             ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
                 JSONObject().put("outcome", "invalid_link"))
             showResultAndFinish(
-                "공유한 인스타그램 게시물을 확인하지 못했어요. 다시 공유해 주세요.",
+                "인스타그램 릴스 또는 게시물만 공유할 수 있어요.",
                 requestId, "invalid_link",
             )
             return
         }
 
         val isPost = normalizedUrl.contains("/p/")
-        val saved = ShareResultStore.saveResult(
-            this,
-            ShareReelResult(
-                requestId = requestId,
-                url = normalizedUrl,
-                rawSharedText = rawText,
-                status = "PENDING",
-                retryable = true,
-                release = BuildConfig.VERSION_NAME,
-            ),
-        )
-        if (!saved) {
-            ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
-                JSONObject().put("outcome", "storage_failed"))
-            showResultAndFinish(
-                "${if (isPost) "게시물을" else "릴스를"} 전달하지 못했어요. 다시 공유해 주세요.",
-                requestId, "save_failed",
-            )
-            return
-        }
-        ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
-            JSONObject().put("outcome", "saved"))
-
         Thread {
             val auth = ShareAuth.ensureAccessToken(this)
+            if (isFinishing || isDestroyed) return@Thread
+            if (auth is ShareAuthResult.LoginRequired) {
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
+                    loginButton.visibility = android.view.View.VISIBLE
+                    loginButton.setOnClickListener {
+                        val saved = ShareResultStore.saveResult(
+                            this,
+                            ShareReelResult(
+                                requestId = requestId, url = normalizedUrl, rawSharedText = rawText,
+                                status = "PENDING", transferStatus = "LOGIN_HANDOFF",
+                                authReason = auth.reason, retryable = false,
+                                release = BuildConfig.VERSION_NAME,
+                            ),
+                        )
+                        if (!saved) {
+                            showResultAndFinish("링크를 저장하지 못했어요. 다시 공유해 주세요.", requestId, "save_failed")
+                            return@setOnClickListener
+                        }
+                        ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
+                            JSONObject().put("outcome", "saved"))
+                        startActivity(Intent(this, com.yeogidamm.app.MainActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        })
+                        finish()
+                    }
+                }
+                return@Thread
+            }
+            val hasNetwork = ShareNetwork.isAvailable(this)
             val transferStatus = when (auth) {
-                is ShareAuthResult.LoginRequired -> "LOGIN_REQUIRED"
                 ShareAuthResult.WaitingForNetwork -> "WAITING_FOR_NETWORK"
                 ShareAuthResult.WaitingForAuth -> "WAITING_FOR_AUTH"
-                is ShareAuthResult.Ready -> "SAVED"
+                is ShareAuthResult.Ready -> if (hasNetwork) "SAVED" else "WAITING_FOR_NETWORK"
+                is ShareAuthResult.LoginRequired -> return@Thread
             }
+            if (isFinishing || isDestroyed) return@Thread
             val updated = ShareResultStore.saveResult(
                 this,
                 ShareReelResult(
@@ -112,27 +140,31 @@ class ShareActivity : AppCompatActivity() {
                     status = "PENDING",
                     transferStatus = transferStatus,
                     authReason = (auth as? ShareAuthResult.LoginRequired)?.reason,
-                    retryable = auth !is ShareAuthResult.LoginRequired,
+                    retryable = true,
+                    release = BuildConfig.VERSION_NAME,
                 ),
             )
-            val queued = updated && auth !is ShareAuthResult.LoginRequired &&
-                runCatching { ShareSaveWorker.enqueue(this, requestId, normalizedUrl, rawText) }
+            val queued = updated && transferStatus == "SAVED" &&
+                runCatching { ShareSaveWorker.enqueue(this, requestId) }
                     .getOrDefault(false)
             if (auth is ShareAuthResult.WaitingForNetwork) {
                 ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", "network_unavailable")
             } else if (auth is ShareAuthResult.WaitingForAuth) {
                 ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", "auth_pending")
             }
-            if (!queued) {
+            if (!updated || (transferStatus == "SAVED" && !queued)) {
                 val reason = when {
                     !updated -> "queue_registration_failed"
-                    auth is ShareAuthResult.LoginRequired -> "login_required"
                     else -> "queue_registration_failed"
                 }
                 ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", reason)
             }
             runOnUiThread {
-                showResultAndFinish("링크를 받았어요. 여기담 앱에서 확인해 주세요.", requestId, "received")
+                showResultAndFinish(
+                    if (updated) "링크를 받았어요. 여기담 앱에서 확인해 주세요."
+                    else "${if (isPost) "게시물을" else "릴스를"} 전달하지 못했어요. 다시 공유해 주세요.",
+                    requestId, if (updated) "received" else "save_failed",
+                )
             }
         }.start()
     }

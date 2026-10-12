@@ -1,6 +1,7 @@
 import Foundation
 import Security
 import Darwin
+import Network
 
 enum ShareIntentConstants {
   static let appGroupIdentifier = "group.com.yeogidamm.app.shared"
@@ -22,13 +23,14 @@ enum ShareIntentConstants {
 struct ShareReelResult: Codable {
   var requestId: String? = nil
   var requestSentAt: Double? = nil
-  let url: String
+  var url: String
   var rawSharedText: String?
   var status: String
   var transferStatus: String? = nil
   var authReason: String? = nil
   var reelId: String?
   var failureReason: String?
+  var responseStatus: Int? = nil
   var retryable: Bool
   var updatedAt: Double
   var reused: Bool? = nil
@@ -115,6 +117,7 @@ enum ShareIntentStorageError: LocalizedError {
 }
 
 enum ShareIntentStorage {
+  private static let loginHandoffTTL: Double = 30 * 60 * 1000
   private static var defaults: UserDefaults? {
     UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier)
   }
@@ -261,6 +264,14 @@ enum ShareIntentStorage {
       results.append(legacyResult)
     }
 
+    results = results.filter { result in
+      let expired = result.transferStatus == "LOGIN_HANDOFF" &&
+        Date().timeIntervalSince1970 * 1000 - result.updatedAt > loginHandoffTTL
+      if expired, let requestId = result.requestId {
+        clearResult(expectedRequestId: requestId)
+      }
+      return !expired
+    }
     return results.sorted {
       ($0.requestSentAt ?? $0.updatedAt) < ($1.requestSentAt ?? $1.updatedAt)
     }
@@ -414,6 +425,28 @@ enum ShareIntentStorage {
     }
 
     return match.url == nil ? "text" : "url"
+  }
+}
+
+enum ShareNetwork {
+  static func isAvailable() async -> Bool {
+    await withCheckedContinuation { continuation in
+      let monitor = NWPathMonitor()
+      let queue = DispatchQueue(label: "com.yeogidamm.app.share-network")
+      let lock = NSLock()
+      var resolved = false
+      let complete: (Bool) -> Void = { available in
+        lock.lock()
+        defer { lock.unlock() }
+        guard !resolved else { return }
+        resolved = true
+        monitor.cancel()
+        continuation.resume(returning: available)
+      }
+      monitor.pathUpdateHandler = { path in complete(path.status == .satisfied) }
+      monitor.start(queue: queue)
+      queue.asyncAfter(deadline: .now() + 2) { complete(false) }
+    }
   }
 }
 
@@ -775,6 +808,7 @@ enum ShareAuth {
 final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessionTaskDelegate {
   static let shared = ShareBackgroundTransfer()
   static let identifier = "com.yeogidamm.app.instagram-share-upload"
+  @MainActor private var isResuming = false
   private var responseData: [Int: Data] = [:]
   private var eventsCompletion: (() -> Void)?
 
@@ -827,11 +861,24 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     _ = session
   }
 
-  func resumeWaitingShares() async {
+  @MainActor func resumeWaitingShares() async {
+    guard !isResuming else { return }
+    isResuming = true
+    defer { isResuming = false }
+    let hasSession = (try? ShareIntentStorage.loadSession()) != nil
+    if hasSession {
+      for var result in ShareIntentStorage.loadResults() where result.transferStatus == "LOGIN_HANDOFF" {
+        result.transferStatus = "WAITING_FOR_NETWORK"
+        result.retryable = true
+        try? ShareIntentStorage.saveResult(result)
+      }
+    }
+    guard await ShareNetwork.isAvailable() else { return }
     let waiting = ShareIntentStorage.loadResults().filter {
-      ["SAVED", "WAITING_FOR_NETWORK", "WAITING_FOR_AUTH", "LOGIN_REQUIRED"].contains($0.transferStatus ?? "")
+      ["SAVED", "WAITING_FOR_NETWORK", "WAITING_FOR_AUTH", "LOGIN_HANDOFF"].contains($0.transferStatus ?? "")
     }
     for result in waiting {
+      if !hasSession && result.transferStatus == "LOGIN_HANDOFF" { continue }
       guard let requestId = result.requestId, !result.url.isEmpty else { continue }
       let auth = await ShareAuth.ensureAccessToken(
         forceRefresh: result.failureReason == "AUTH401_002"
@@ -845,7 +892,7 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
         }
       case .loginRequired(let reason):
         var updated = result
-        updated.transferStatus = "LOGIN_REQUIRED"
+        updated.transferStatus = "LOGIN_HANDOFF"
         updated.authReason = reason
         updated.updatedAt = Date().timeIntervalSince1970 * 1000
         try? ShareIntentStorage.saveResult(updated)
@@ -861,11 +908,14 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
   func urlSession(_ session: URLSession, task: URLSessionTask,
                   didSendBodyData bytesSent: Int64, totalBytesSent: Int64,
                   totalBytesExpectedToSend: Int64) {
-    guard let requestId = task.taskDescription,
+    guard bytesSent > 0,
+          let requestId = task.taskDescription,
           var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == requestId }),
           result.requestSentAt == nil else { return }
     result.requestSentAt = Date().timeIntervalSince1970 * 1000
     result.transferStatus = "REQUESTING"
+    result.url = ""
+    result.rawSharedText = nil
     result.updatedAt = result.requestSentAt ?? result.updatedAt
     try? ShareIntentStorage.saveResult(result)
     ShareAnalyticsStore.record(
@@ -893,7 +943,15 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     result.updatedAt = Date().timeIntervalSince1970 * 1000
     var analyticsOutcome: String?
     var analyticsProperties: [String: Any] = [:]
-    if let error {
+    if error != nil, result.requestSentAt == nil, task.response == nil {
+      result.status = "PENDING"
+      result.transferStatus = "WAITING_FOR_NETWORK"
+      result.failureReason = nil
+      result.retryable = true
+      try? ShareIntentStorage.saveResult(result)
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "network_unavailable", release: result.release)
+      return
+    } else if let error {
       result.status = "FAILED"
       result.transferStatus = "API_FAILED"
       result.failureReason = "CLIENT000_002 | \((error as NSError).code)"
@@ -901,6 +959,7 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
       analyticsOutcome = "request_failed"
       analyticsProperties["failure_type"] = (error as NSError).code == NSURLErrorTimedOut ? "timeout" : "network_error"
     } else if let http = task.response as? HTTPURLResponse {
+      result.responseStatus = http.statusCode
       let json = (try? JSONSerialization.jsonObject(with: responseData[task.taskIdentifier] ?? Data())) as? [String: Any] ?? [:]
       let nested = json["error"] as? [String: Any] ?? [:]
       if (200..<300).contains(http.statusCode) {
@@ -913,20 +972,25 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
         result.retryable = json["retryable"] as? Bool ?? false
         result.reused = json["reused"] as? Bool
         result.saveMode = json["saveMode"] as? String
+        if result.reelId?.isEmpty != false {
+          result.status = "FAILED"
+          result.transferStatus = "API_FAILED"
+          result.failureReason = "MISSING_REEL_ID"
+          analyticsOutcome = "request_failed"
+          analyticsProperties["failure_type"] = "invalid_response"
+        }
       } else {
         let code = json["errorCode"] as? String ?? nested["errorCode"] as? String ?? "HTTP_\(http.statusCode)"
         result.status = "FAILED"
-        result.transferStatus = code == "AUTH401_002" ? "WAITING_FOR_AUTH" : "API_FAILED"
+        result.transferStatus = "API_FAILED"
         result.failureReason = code
         result.reelId = json["reelId"] as? String ?? nested["reelId"] as? String
-        result.retryable = json["retryable"] as? Bool ?? (http.statusCode >= 500)
-        if result.transferStatus == "API_FAILED" {
-          analyticsOutcome = "request_failed"
-          analyticsProperties["response_status"] = http.statusCode
-          analyticsProperties["failure_type"] = [401, 403].contains(http.statusCode) ? "auth_failed" :
-            [408, 504].contains(http.statusCode) ? "timeout" :
-            http.statusCode >= 500 ? "server_error" : "invalid_request"
-        }
+        result.retryable = false
+        analyticsOutcome = "request_failed"
+        analyticsProperties["response_status"] = http.statusCode
+        analyticsProperties["failure_type"] = [401, 403].contains(http.statusCode) ? "auth_failed" :
+          [408, 504].contains(http.statusCode) ? "timeout" :
+          http.statusCode >= 500 ? "server_error" : "invalid_request"
       }
     } else {
       result.status = "FAILED"
@@ -936,10 +1000,10 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
       analyticsOutcome = "request_failed"
       analyticsProperties["failure_type"] = "network_error"
     }
+    result.url = ""
+    result.rawSharedText = nil
+    result.retryable = false
     try? ShareIntentStorage.saveResult(result)
-    if result.transferStatus == "WAITING_FOR_AUTH" {
-      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "auth_pending", release: result.release)
-    }
     if let analyticsOutcome {
       analyticsProperties["outcome"] = analyticsOutcome
       if let contentId = result.reelId { analyticsProperties["content_id"] = contentId }

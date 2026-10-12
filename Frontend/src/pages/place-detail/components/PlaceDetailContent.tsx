@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type {
@@ -21,10 +21,13 @@ type PlaceDetailContentProps = {
   onRetryReels?: () => void;
   onBack: () => void;
   onPressMore?: () => void;
+  hideHeader?: boolean;
+  hideBack?: boolean;
+  showTitle?: boolean;
+  titleInHeader?: boolean;
   scrollEnabled?: boolean;
   contentBottomPadding?: number;
   headerTopInset?: number;
-  stickyHeaderTopInset?: number;
   compactHeader?: boolean;
 };
 
@@ -36,79 +39,49 @@ export function PlaceDetailContent({
   onRetryReels,
   onBack,
   onPressMore,
+  hideHeader = false,
+  hideBack = false,
+  showTitle = true,
+  titleInHeader = false,
   scrollEnabled = true,
   contentBottomPadding = 100,
   headerTopInset = 0,
-  stickyHeaderTopInset = 0,
   compactHeader = false,
 }: PlaceDetailContentProps) {
-  const scrollViewRef = useRef<ScrollView>(null);
-  const tabsOffsetY = useRef(0);
   const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
-  const [isTabsSticky, setIsTabsSticky] = useState(false);
-
-  const scrollToTabs = () => {
-    scrollViewRef.current?.scrollTo({
-      y: tabsOffsetY.current,
-      animated: true,
-    });
-  };
 
   const handleTabPress = (tab: PlaceTab) => {
     setActiveTab(tab);
-    requestAnimationFrame(scrollToTabs);
   };
 
   return (
     <ScrollView
-      ref={scrollViewRef}
       style={styles.container}
       contentContainerStyle={[
         styles.content,
         { paddingBottom: contentBottomPadding },
       ]}
-      onScroll={event => {
-        if (stickyHeaderTopInset <= 0) {
-          return;
-        }
-
-        const nextIsTabsSticky =
-          event.nativeEvent.contentOffset.y >=
-          tabsOffsetY.current - stickyHeaderTopInset;
-
-        setIsTabsSticky(current =>
-          current === nextIsTabsSticky ? current : nextIsTabsSticky,
-        );
-      }}
       scrollEnabled={scrollEnabled}
       nestedScrollEnabled
-      scrollEventThrottle={16}
-      stickyHeaderIndices={[2]}
       showsVerticalScrollIndicator={false}
     >
-      <PlaceDetailHeader
-        onBack={onBack}
-        onPressMore={onPressMore}
-        topInset={headerTopInset}
-        compact={compactHeader}
-      />
-      <View
-        onLayout={event => {
-          const { y, height } = event.nativeEvent.layout;
-
-          tabsOffsetY.current = y + height;
-        }}
-      >
-        <PlaceInfo place={place} />
+      {hideHeader ? (
+        <View style={{ height: headerTopInset }} />
+      ) : (
+        <PlaceDetailHeader
+          onBack={onBack}
+          onPressMore={onPressMore}
+          hideBack={hideBack}
+          title={place.name}
+          titleInHeader={titleInHeader}
+          topInset={headerTopInset}
+          compact={compactHeader}
+        />
+      )}
+      <View>
+        <PlaceInfo place={place} showTitle={showTitle} />
       </View>
-      <View
-        style={[
-          styles.stickyTabsContainer,
-          isTabsSticky && stickyHeaderTopInset > 0
-            ? { paddingTop: stickyHeaderTopInset }
-            : null,
-        ]}
-      >
+      <View style={styles.tabsContainer}>
         <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />
       </View>
       {activeTab === '게시물' ? (
@@ -133,7 +106,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
   },
-  stickyTabsContainer: {
+  tabsContainer: {
     backgroundColor: '#ffffff',
   },
 });

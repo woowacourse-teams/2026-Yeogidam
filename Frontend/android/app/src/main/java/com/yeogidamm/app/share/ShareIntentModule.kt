@@ -68,15 +68,18 @@ class ShareIntentModule(reactContext: ReactApplicationContext) :
         Thread {
             val session = ShareAuthStore.load(reactApplicationContext)
             if (session != null) {
-                ShareResultStore.loadResults(reactApplicationContext)
-                    .filter { it.transferStatus in setOf("SAVED", "LOGIN_REQUIRED", "WAITING_FOR_AUTH", "WAITING_FOR_NETWORK") }
-                    .forEach { result ->
+                val waiting = ShareResultStore.loadResults(reactApplicationContext)
+                    .filter { it.transferStatus in setOf("SAVED", "LOGIN_HANDOFF", "WAITING_FOR_AUTH", "WAITING_FOR_NETWORK") }
+                waiting.filter { it.transferStatus == "LOGIN_HANDOFF" }.forEach { result ->
+                    ShareResultStore.saveResult(reactApplicationContext, result.copy(
+                        transferStatus = "WAITING_FOR_NETWORK", retryable = true,
+                    ))
+                }
+                if (ShareNetwork.isAvailable(reactApplicationContext)) waiting.forEach { result ->
                         runCatching {
                             ShareSaveWorker.enqueue(
                                 reactApplicationContext,
                                 result.requestId,
-                                result.url,
-                                result.rawSharedText.orEmpty(),
                             )
                         }
                     }

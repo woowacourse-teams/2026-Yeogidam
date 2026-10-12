@@ -140,6 +140,7 @@ function App() {
     };
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
+  const [hasVisitedMap, setHasVisitedMap] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
@@ -154,6 +155,7 @@ function App() {
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
+  const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
   const lastHandledShareResultRef = useRef<string | null>(null);
@@ -235,6 +237,10 @@ function App() {
     nextScreen: MainScreen,
     entryType: InboxEntryType = 'direct',
   ) => {
+    if (nextScreen === 'map') {
+      setHasVisitedMap(true);
+    }
+
     setFlowState({
       kind: 'main',
       activeTab: nextScreen,
@@ -380,6 +386,7 @@ function App() {
       }
 
       setSocialLoginError(null);
+      setHasPendingShareLogin(false);
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
       setFlowState({
@@ -428,6 +435,7 @@ function App() {
           if (!isMounted) {
             return;
           }
+          setHasPendingShareLogin(results.some(item => item.transferStatus === 'LOGIN_HANDOFF'));
           const currentShareState = getSharedSaveState();
           const activeRequestId =
             currentShareState?.source === 'instagram_share'
@@ -485,7 +493,7 @@ function App() {
               saveMode: result.saveMode ?? null,
             });
           }
-          if (result.transferStatus === 'LOGIN_REQUIRED') {
+          if (result.transferStatus === 'LOGIN_HANDOFF' || result.transferStatus === 'LOGIN_REQUIRED') {
             supabase.auth.getSession().then(({data}) => {
               if (data.session) {
                 resumeWaitingShares().catch(() => undefined);
@@ -493,6 +501,14 @@ function App() {
               }
               setFlowState(INITIAL_FLOW_STATE);
             }).catch(() => undefined);
+            return;
+          }
+          if (
+            (result.transferStatus === 'API_FAILED' || result.transferStatus === 'API_SUCCEEDED') &&
+            !result.reelId
+          ) {
+            clearShareResult(result.requestId).catch(() => undefined);
+            Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
           if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
@@ -628,6 +644,14 @@ function App() {
     }
   };
 
+  const handleCancelShareLogin = async () => {
+    const results = await getShareResults();
+    await Promise.all(results
+      .filter(result => result.transferStatus === 'LOGIN_HANDOFF')
+      .map(result => clearShareResult(result.requestId)));
+    setHasPendingShareLogin(false);
+  };
+
   const handleCompleteGuide = () => {
     setHasCompletedGuide(true);
     completeAppGuide();
@@ -723,10 +747,7 @@ function App() {
 
     if (myPageOverlay === 'guide') {
       return (
-        <AppGuideScreen
-          onClose={() => setMyPageOverlay(null)}
-          onComplete={() => setMyPageOverlay(null)}
-        />
+        <AppGuideScreen onComplete={() => setMyPageOverlay(null)} />
       );
     }
 
@@ -741,6 +762,7 @@ function App() {
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
+          onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
         />
       );
     }
@@ -801,11 +823,7 @@ function App() {
     }
 
     if (currentScreen === 'map') {
-      return (
-        <MapScreen
-          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
-        />
-      );
+      return null;
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
@@ -843,6 +861,8 @@ function App() {
     !isInBoxSelecting;
 
   const isMapScreen = currentScreen === 'map';
+  const shouldKeepMapMounted =
+    flowState.kind === 'main' && (isMapScreen || hasVisitedMap);
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
   if (!isAuthReady || isSplashVisible || hasCompletedGuide === null) {
@@ -880,7 +900,23 @@ function App() {
           translucent={isMapScreen}
         />
         <View style={styles.container}>
-          {renderScreen()}
+          {shouldKeepMapMounted ? (
+            <View
+              pointerEvents={isMapScreen ? 'auto' : 'none'}
+              style={[
+                StyleSheet.absoluteFill,
+                !isMapScreen && styles.hiddenMapLayer,
+              ]}
+            >
+              <MapScreen
+                isActive={isMapScreen}
+                onAuthenticationRequired={() =>
+                  setFlowState(INITIAL_FLOW_STATE)
+                }
+              />
+            </View>
+          ) : null}
+          {isMapScreen ? null : renderScreen()}
           {showTabBar && activeTab ? (
             <BottomNavigationBar
               active={activeTab}
@@ -905,6 +941,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  hiddenMapLayer: {
+    opacity: 0,
   },
 });
 

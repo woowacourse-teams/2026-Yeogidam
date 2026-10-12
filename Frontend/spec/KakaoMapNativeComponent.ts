@@ -24,6 +24,9 @@ export interface NativeProps extends ViewProps {
   onMarkerPressed?: CodegenTypes.DirectEventHandler<{
     id: string;
   }> | null;
+  onMapPanStarted?: CodegenTypes.DirectEventHandler<{
+    started: boolean;
+  }> | null;
   onCameraChanged?: CodegenTypes.DirectEventHandler<{
     latitude: CodegenTypes.Double;
     longitude: CodegenTypes.Double;

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  BackHandler,
   Image,
   Pressable,
   StyleSheet,
@@ -21,6 +23,7 @@ type LoginScreenProps = {
   onContinueWithGoogle: () => void;
   socialLoginError: NormalizedAuthError | null;
   pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
+  onCancelShareLogin?: () => void | Promise<void>;
 };
 
 type SocialButton =
@@ -65,8 +68,19 @@ export function LoginScreen({
   onContinueWithGoogle,
   socialLoginError,
   pendingSocialProvider,
+  onCancelShareLogin,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
+  useEffect(() => {
+    if (!onCancelShareLogin) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      void Promise.resolve(onCancelShareLogin())
+        .then(() => BackHandler.exitApp())
+        .catch(() => Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'));
+      return true;
+    });
+    return () => subscription.remove();
+  }, [onCancelShareLogin]);
   const visibleSocialButtons = isAppleLoginAvailable
     ? socialButtons
     : socialButtons.filter(button => button.variant !== 'apple');
@@ -83,6 +97,17 @@ export function LoginScreen({
   return (
     <AuthScaffold contentStyle={styles.main}>
       <View style={styles.buttonList}>
+        {onCancelShareLogin ? (
+          <Pressable
+            onPress={() => {
+              void Promise.resolve(onCancelShareLogin()).catch(() =>
+                Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'),
+              );
+            }}
+            style={styles.cancelShareButton}>
+            <Text style={styles.cancelShareText}>공유 취소</Text>
+          </Pressable>
+        ) : null}
         {visibleSocialButtons.map(button => (
           <Pressable
             key={button.label}
@@ -154,6 +179,15 @@ const styles = StyleSheet.create({
   },
   buttonList: {
     gap: 14,
+  },
+  cancelShareButton: {
+    alignSelf: 'flex-end',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  cancelShareText: {
+    color: '#52525b',
+    fontSize: 14,
   },
   socialButton: {
     height: 54,

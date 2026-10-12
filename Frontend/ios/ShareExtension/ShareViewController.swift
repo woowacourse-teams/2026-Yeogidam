@@ -6,6 +6,10 @@ final class ShareViewController: UIViewController {
   private let shareId = UUID().uuidString
   private let statusContainerView = UIView()
   private let statusLabel = UILabel()
+  private let loginButton = UIButton(type: .system)
+  private let closeButton = UIButton(type: .system)
+  private var pendingLoginPayload: ShareIntentPayload?
+  private var hasSelectedLogin = false
 
   override func loadView() {
     let view = UIView(frame: .zero)
@@ -39,15 +43,7 @@ final class ShareViewController: UIViewController {
       do {
         let payload = try await self.extractPayload()
         extractedPayload = payload
-        try ShareIntentStorage.saveResult(ShareReelResult(
-          requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
-          status: "PENDING", transferStatus: "SAVED", reelId: nil,
-          failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000,
-          release: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-        ))
-        ShareAnalyticsStore.record("share_local_save_resolved", shareId: self.shareId,
-          properties: ["outcome": "saved"])
-        await self.prepareTransfer(payload)
+        guard try await self.prepareTransfer(payload) else { return }
         self.statusLabel.text = "링크를 받았어요. 여기담 앱에서 확인해 주세요."
         self.showStatusLabel(feedbackType: "received")
         try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -57,7 +53,7 @@ final class ShareViewController: UIViewController {
           let object = payload.text.contains("/p/") ? "게시물을" : "릴스를"
           self.statusLabel.text = "\(object) 전달하지 못했어요. 다시 공유해 주세요."
         } else {
-          self.statusLabel.text = "공유한 인스타그램 게시물을 확인하지 못했어요. 다시 공유해 주세요."
+          self.statusLabel.text = "인스타그램 릴스 또는 게시물만 공유할 수 있어요."
         }
         let failure = extractedPayload == nil ? "invalid_link" : "storage_failed"
         ShareAnalyticsStore.record("share_local_save_resolved", shareId: self.shareId,
@@ -69,30 +65,47 @@ final class ShareViewController: UIViewController {
     }
   }
 
-  private func prepareTransfer(_ payload: ShareIntentPayload) async {
+  private func prepareTransfer(_ payload: ShareIntentPayload) async throws -> Bool {
     let auth = await ShareAuth.ensureAccessToken()
+    if case .loginRequired = auth {
+      pendingLoginPayload = payload
+      statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
+      loginButton.isHidden = false
+      showStatusLabel(feedbackType: "login_required")
+      return false
+    }
+    try ShareIntentStorage.saveResult(ShareReelResult(
+      requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
+      status: "PENDING", transferStatus: "SAVED", reelId: nil,
+      failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000,
+      release: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    ))
+    ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
+      properties: ["outcome": "saved"])
     guard var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == payload.id }) else {
       ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "queue_registration_failed")
-      return
+      return true
     }
     switch auth {
     case .ready(let token):
+      guard await ShareNetwork.isAvailable() else {
+        result.transferStatus = "WAITING_FOR_NETWORK"
+        result.updatedAt = Date().timeIntervalSince1970 * 1000
+        try? ShareIntentStorage.saveResult(result)
+        ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "network_unavailable", release: result.release)
+        return true
+      }
       do {
         try ShareBackgroundTransfer.shared.enqueue(
           requestId: payload.id, url: payload.text, rawText: payload.rawText, token: token
         )
-        return
+        return true
       } catch {
         ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "queue_registration_failed", release: result.release)
-        return
+        return true
       }
-    case .loginRequired(let reason):
-      result.transferStatus = "LOGIN_REQUIRED"
-      result.authReason = reason
-      result.retryable = false
-      result.updatedAt = Date().timeIntervalSince1970 * 1000
-      try? ShareIntentStorage.saveResult(result)
-      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "login_required", release: result.release)
+    case .loginRequired:
+      return false
     case .waitingForNetwork:
       result.transferStatus = "WAITING_FOR_NETWORK"
       result.updatedAt = Date().timeIntervalSince1970 * 1000
@@ -104,6 +117,48 @@ final class ShareViewController: UIViewController {
       try? ShareIntentStorage.saveResult(result)
       ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "auth_pending", release: result.release)
     }
+    return true
+  }
+
+  @objc private func handleLoginButton() {
+    guard !hasSelectedLogin, let payload = pendingLoginPayload else { return }
+    hasSelectedLogin = true
+    do {
+      try ShareIntentStorage.saveResult(ShareReelResult(
+        requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
+        status: "PENDING", transferStatus: "LOGIN_HANDOFF", reelId: nil,
+        failureReason: nil, retryable: false, updatedAt: Date().timeIntervalSince1970 * 1000,
+        release: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+      ))
+      ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
+        properties: ["outcome": "saved"])
+      loginButton.isHidden = true
+      closeButton.isHidden = false
+      statusLabel.text = "여기담 앱을 여는 중이에요.\n열리지 않으면 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
+      guard let extensionContext else {
+        statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
+        return
+      }
+      extensionContext.open(ShareIntentConstants.shareExtensionOpenURL) { [weak self] opened in
+        DispatchQueue.main.async {
+          guard let self else { return }
+          if opened {
+            self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
+          } else {
+            self.statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
+          }
+        }
+      }
+    } catch {
+      hasSelectedLogin = false
+      statusLabel.text = "링크를 저장하지 못했어요. 다시 시도해 주세요."
+      ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
+        properties: ["outcome": "storage_failed"])
+    }
+  }
+
+  @objc private func handleCloseButton() {
+    extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
   }
 
   private func configureStatusLabel() {
@@ -121,7 +176,24 @@ final class ShareViewController: UIViewController {
     statusLabel.lineBreakMode = .byWordWrapping
     statusLabel.alpha = 0
 
-    statusContainerView.addSubview(statusLabel)
+    loginButton.translatesAutoresizingMaskIntoConstraints = false
+    loginButton.setTitle("로그인하고 장소 추출하기", for: .normal)
+    loginButton.setTitleColor(.white, for: .normal)
+    loginButton.backgroundColor = UIColor(red: 0.34, green: 0.41, blue: 0.88, alpha: 1)
+    loginButton.layer.cornerRadius = 12
+    loginButton.isHidden = true
+    loginButton.addTarget(self, action: #selector(handleLoginButton), for: .touchUpInside)
+
+    closeButton.translatesAutoresizingMaskIntoConstraints = false
+    closeButton.setTitle("공유 화면 닫기", for: .normal)
+    closeButton.isHidden = true
+    closeButton.addTarget(self, action: #selector(handleCloseButton), for: .touchUpInside)
+
+    let stack = UIStackView(arrangedSubviews: [statusLabel, loginButton, closeButton])
+    stack.axis = .vertical
+    stack.spacing = 16
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    statusContainerView.addSubview(stack)
     view.addSubview(statusContainerView)
 
     NSLayoutConstraint.activate([
@@ -131,11 +203,13 @@ final class ShareViewController: UIViewController {
       statusContainerView.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
       statusContainerView.heightAnchor.constraint(greaterThanOrEqualToConstant: 64),
 
-      statusLabel.topAnchor.constraint(equalTo: statusContainerView.topAnchor, constant: 20),
-      statusLabel.bottomAnchor.constraint(equalTo: statusContainerView.bottomAnchor, constant: -20),
-      statusLabel.leadingAnchor.constraint(equalTo: statusContainerView.leadingAnchor, constant: 24),
-      statusLabel.trailingAnchor.constraint(equalTo: statusContainerView.trailingAnchor, constant: -24),
-      statusLabel.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -96),
+      stack.topAnchor.constraint(equalTo: statusContainerView.topAnchor, constant: 20),
+      stack.bottomAnchor.constraint(equalTo: statusContainerView.bottomAnchor, constant: -20),
+      stack.leadingAnchor.constraint(equalTo: statusContainerView.leadingAnchor, constant: 24),
+      stack.trailingAnchor.constraint(equalTo: statusContainerView.trailingAnchor, constant: -24),
+      stack.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -96),
+      loginButton.heightAnchor.constraint(equalToConstant: 48),
+      closeButton.heightAnchor.constraint(equalToConstant: 44),
     ])
   }
 
