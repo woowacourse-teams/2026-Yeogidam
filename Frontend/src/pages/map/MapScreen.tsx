@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {usePostHog} from 'posthog-react-native';
-import {v4 as uuidv4} from 'uuid';
+import { usePostHog } from 'posthog-react-native';
+import { v4 as uuidv4 } from 'uuid';
 
 import {
   captureSavedPlaceSelected,
@@ -48,6 +48,7 @@ import {
 
 type MapScreenProps = {
   isActive?: boolean;
+  isGuest?: boolean;
   onAuthenticationRequired?: () => void;
 };
 
@@ -59,6 +60,7 @@ type MapCamera = {
 
 export function MapScreen({
   isActive = true,
+  isGuest = false,
   onAuthenticationRequired,
 }: MapScreenProps) {
   const posthog = usePostHog();
@@ -109,7 +111,7 @@ export function MapScreen({
     place: Place | null;
     viewContext: SavedPlaceViewContext | null;
     signal: number;
-  }>({place: null, viewContext: null, signal: 0});
+  }>({ place: null, viewContext: null, signal: 0 });
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailHeaderProgress = useRef(new Animated.Value(0)).current;
   const [collapseSignal, setCollapseSignal] = useState(0);
@@ -147,11 +149,17 @@ export function MapScreen({
     eastLongitude: number;
   } | null>(null);
   useEffect(() => {
-    let isSubscribed = true;
+    if (isGuest) {
+      setSavedPlaces([]);
+      setSavedPlacesLoadFailed(false);
+      setIsSavedPlacesLoading(false);
+      return;
+    }
+    let isMounted = true;
 
     getSavedPlaces()
       .then(savedPlaceItems => {
-        if (!isSubscribed) return;
+        if (!isMounted) return;
 
         setSavedPlaces(
           Array.from(
@@ -164,21 +172,21 @@ export function MapScreen({
         );
       })
       .catch(error => {
-        if (isSubscribed) {
+        if (isMounted) {
           setSavedPlacesLoadFailed(true);
           setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
         }
       })
       .finally(() => {
-        if (isSubscribed) {
+        if (isMounted) {
           setIsSavedPlacesLoading(false);
         }
       });
 
     return () => {
-      isSubscribed = false;
+      isMounted = false;
     };
-  }, []);
+  }, [isGuest]);
   const placesWithCoordinates = useMemo(
     () =>
       savedPlaces.filter(
@@ -226,17 +234,14 @@ export function MapScreen({
     [searchedPlaces],
   );
 
-  const handleSheetVisibleHeightChange = useCallback(
-    (height: number) => {
-      if (sheetVisibleHeightRef.current === height) {
-        return;
-      }
+  const handleSheetVisibleHeightChange = useCallback((height: number) => {
+    if (sheetVisibleHeightRef.current === height) {
+      return;
+    }
 
-      sheetVisibleHeightRef.current = height;
-      setSheetVisibleHeight(height);
-    },
-    [],
-  );
+    sheetVisibleHeightRef.current = height;
+    setSheetVisibleHeight(height);
+  }, []);
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();

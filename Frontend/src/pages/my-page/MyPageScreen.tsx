@@ -13,9 +13,16 @@ const UNAVAILABLE_PROFILE: User = {
   description: '',
   avatarUrl: null,
 };
+const GUEST_PROFILE: User = {
+  id: 'guest',
+  nickname: '비회원',
+  description: '',
+  avatarUrl: null,
+};
 
 type MyPageScreenProps = {
   currentProfile: ProfileInfo | null;
+  isGuest?: boolean;
   profileError?: ProfileApiError | null;
   isProfileLoading?: boolean;
   onOpenEditProfile?: () => void;
@@ -24,6 +31,7 @@ type MyPageScreenProps = {
   onOpenTerms?: () => void;
   onWithdraw?: () => void;
   onLogout?: () => void;
+  onLogin?: () => void;
   onRetryProfile?: () => void;
   onReauthenticate?: () => void;
   isLogoutPending?: boolean;
@@ -31,6 +39,7 @@ type MyPageScreenProps = {
 
 export function MyPageScreen({
   currentProfile,
+  isGuest = false,
   profileError,
   isProfileLoading = false,
   onOpenEditProfile,
@@ -39,6 +48,7 @@ export function MyPageScreen({
   onOpenTerms,
   onWithdraw,
   onLogout,
+  onLogin,
   onRetryProfile,
   onReauthenticate,
   isLogoutPending = false,
@@ -47,8 +57,12 @@ export function MyPageScreen({
     {label: '사용 가이드', onPress: onOpenGuide},
     {label: '약관 동의', onPress: onOpenTerms},
     {label: '문의하기', onPress: onOpenContact},
-    {label: '회원탈퇴', onPress: onWithdraw},
-    {label: isLogoutPending ? '로그아웃 중...' : '로그아웃', onPress: onLogout},
+    ...(isGuest
+      ? [{label: '로그인', onPress: onLogin}]
+      : [
+          {label: '회원탈퇴', onPress: onWithdraw},
+          {label: isLogoutPending ? '로그아웃 중...' : '로그아웃', onPress: onLogout},
+        ]),
   ];
 
   const user: User | null = currentProfile
@@ -61,8 +75,10 @@ export function MyPageScreen({
     : null;
 
   const showReauthenticateAction = profileError?.errorCode === 'PROFILE404_001';
-  const isProfileUnavailable = !user && Boolean(profileError);
-  const displayedUser = user ?? (isProfileUnavailable ? UNAVAILABLE_PROFILE : null);
+  const isProfileUnavailable = !isGuest && !user && Boolean(profileError);
+  const displayedUser = isGuest
+    ? GUEST_PROFILE
+    : user ?? (isProfileUnavailable ? UNAVAILABLE_PROFILE : null);
   const unavailableNotice = isProfileUnavailable ? (
     <View style={styles.errorBanner}>
       <Text style={styles.errorBannerText}>잠시 후 다시 시도해주세요</Text>

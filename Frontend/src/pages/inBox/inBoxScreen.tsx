@@ -76,22 +76,26 @@ const ANALYSIS_POLL_INTERVAL_MS = 5000;
 
 type InBoxScreenProps = {
   onOpenHistory: () => void;
+  onRequireLogin?: () => void;
   onSelectionChange: (hasSelection: boolean) => void;
   entryType?: InboxEntryType;
+  guestItems?: InboxReel[];
 };
 
 export function InBoxScreen({
   onOpenHistory,
+  onRequireLogin,
   onSelectionChange,
   entryType = 'direct',
+  guestItems,
 }: InBoxScreenProps) {
   const posthog = usePostHog();
   const {bottom: bottomInset} = useSafeAreaInsets();
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
-  const [items, setItems] = useState<InboxReel[]>([]);
+  const [items, setItems] = useState<InboxReel[]>(guestItems ?? []);
   const [expandedIds, setExpandedIds] = useState<string[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(guestItems === undefined);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -128,6 +132,14 @@ export function InBoxScreen({
   useEffect(() => () => onSelectionChange(false), [onSelectionChange]);
 
   const loadInbox = useCallback(async (isRefresh = false, silently = false) => {
+    if (guestItems !== undefined) {
+      setItems(guestItems);
+      setErrorMessage(null);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
     if (!silently) {
       if (isRefresh) setIsRefreshing(true);
       else setIsLoading(true);
@@ -156,10 +168,11 @@ export function InBoxScreen({
         setIsRefreshing(false);
       }
     }
-  }, [entryType, posthog]);
+  }, [entryType, guestItems, posthog]);
 
   useEffect(() => {
     loadInbox();
+    if (guestItems !== undefined) return;
     syncHistoryNotification();
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
@@ -168,9 +181,10 @@ export function InBoxScreen({
       }
     });
     return () => subscription.remove();
-  }, [loadInbox, syncHistoryNotification]);
+  }, [guestItems, loadInbox, syncHistoryNotification]);
 
   useEffect(() => {
+    if (guestItems !== undefined) return;
     const intervalId = setInterval(
       () => {
         loadInbox(true, true);
@@ -179,7 +193,7 @@ export function InBoxScreen({
       ANALYSIS_POLL_INTERVAL_MS,
     );
     return () => clearInterval(intervalId);
-  }, [loadInbox, syncHistoryNotification]);
+  }, [guestItems, loadInbox, syncHistoryNotification]);
 
   const openHistory = async () => {
     if (latestHistoryId && latestHistoryStatus) {
@@ -233,6 +247,10 @@ export function InBoxScreen({
         .filter(id => selectedPlaceIds.includes(id)),
     );
   const resolveSelectedItems = async (action: QueueResolutionAction) => {
+    if (guestItems !== undefined) {
+      onRequireLogin?.();
+      return;
+    }
     if (isResolving) {
       return;
     }
@@ -305,6 +323,10 @@ export function InBoxScreen({
     }
   };
   const confirmResolveSelectedItems = (action: QueueResolutionAction) => {
+    if (guestItems !== undefined) {
+      onRequireLogin?.();
+      return;
+    }
     const label = action === 'SAVE' ? '저장' : '삭제';
     Alert.alert(
       `선택한 장소를 ${label}할까요?`,

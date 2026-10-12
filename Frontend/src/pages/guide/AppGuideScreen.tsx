@@ -223,25 +223,26 @@ function PulseRing({ size, radius }: { size: number; radius: number }) {
   return (
     <Animated.View
       pointerEvents="none"
-      style={{
-        position: 'absolute',
-        width: size,
-        height: size,
-        borderRadius: radius,
-        backgroundColor: '#4f6ef7',
-        opacity: pulse.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.55, 0],
-        }),
-        transform: [
-          {
-            scale: pulse.interpolate({
-              inputRange: [0, 1],
-              outputRange: [1, 1.5],
-            }),
-          },
-        ],
-      }}
+      style={[
+        styles.pulseRing,
+        {
+          width: size,
+          height: size,
+          borderRadius: radius,
+          opacity: pulse.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.55, 0],
+          }),
+          transform: [
+            {
+              scale: pulse.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.5],
+              }),
+            },
+          ],
+        },
+      ]}
     />
   );
 }
@@ -1028,6 +1029,10 @@ export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  pulseRing: {
+    position: 'absolute',
+    backgroundColor: '#4f6ef7',
+  },
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
