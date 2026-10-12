@@ -63,7 +63,7 @@ internal class ShareSaveWorker(
         var requestSentAt: Long? = null
         var outputStreamAcquired = false
         return try {
-            connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/save-instagram-reel-v2")
+            connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/save-instagram-reel")
                 .openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 30_000

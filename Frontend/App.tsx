@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type {Session} from '@supabase/supabase-js';
 import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
@@ -18,6 +19,11 @@ import {
   ONBOARDING_PLACES,
   ONBOARDING_PLACE_REELS,
 } from './src/entities/onboarding/data';
+import {
+  beginGuestOnboardingTransfer,
+  cancelGuestOnboardingTransfer,
+  resumeGuestOnboardingTransfer,
+} from './src/entities/onboarding/transfer';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
@@ -165,7 +171,10 @@ function App() {
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [memberDataRevision, setMemberDataRevision] = useState(0);
   const hasSignedInOnThisInstallRef = useRef(false);
+  const transferErrorShownRef = useRef(false);
+  const activeUserIdRef = useRef<string | null>(null);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
     null,
@@ -176,6 +185,7 @@ function App() {
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
+  const loginAttemptInFlightRef = useRef(false);
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
@@ -361,6 +371,32 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
+    const resumeOnboardingTransfer = (session: Session) => {
+      resumeGuestOnboardingTransfer(session)
+        .then(completed => {
+          if (
+            !isMounted ||
+            !completed ||
+            activeUserIdRef.current !== session.user.id
+          ) return;
+          transferErrorShownRef.current = false;
+          setMemberDataRevision(revision => revision + 1);
+        })
+        .catch(error => {
+          console.warn('군자역 게시물 저장 실패', error);
+          if (
+            !isMounted ||
+            activeUserIdRef.current !== session.user.id ||
+            transferErrorShownRef.current
+          ) return;
+          transferErrorShownRef.current = true;
+          Alert.alert(
+            '군자역 게시물을 저장하지 못했어요',
+            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
+          );
+        });
+    };
+
     const syncFlowState = async () => {
       await reconcileShareSession().catch(() => undefined);
       const [{data, error}, signedInOnThisInstall] = await Promise.all([
@@ -374,6 +410,7 @@ function App() {
       hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
 
       if (error || !data.session) {
+        activeUserIdRef.current = null;
         setIsAuthenticated(false);
         if (!hasTrackedAppOpenedRef.current) {
           trackAppOpened(posthog, false);
@@ -395,8 +432,10 @@ function App() {
       }
 
       await syncShareSession(data.session);
+      activeUserIdRef.current = data.session.user.id;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
+      resumeOnboardingTransfer(data.session);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -468,6 +507,8 @@ function App() {
       }
 
       if (!session) {
+        activeUserIdRef.current = null;
+        transferErrorShownRef.current = false;
         setIsAuthenticated(false);
         setFlowState(
           hasSignedInOnThisInstallRef.current
@@ -483,7 +524,11 @@ function App() {
       }
 
       setSocialLoginError(null);
+      activeUserIdRef.current = session.user.id;
       setIsAuthenticated(true);
+      setSelectedPlace(null);
+      setSelectedPlaceViewContext(null);
+      savedPlacesScrollOffsetRef.current = 0;
       setHasPendingShareLogin(false);
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
@@ -493,6 +538,7 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
+      resumeOnboardingTransfer(session);
     });
 
     return () => {
@@ -503,6 +549,33 @@ function App() {
       subscription.unsubscribe();
     };
   }, [posthog]);
+
+  useEffect(() => {
+    if (isAuthenticated !== true) return;
+
+    let isActive = true;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') return;
+      supabase.auth.getSession()
+        .then(({data}) => {
+          if (!data.session) return;
+          resumeGuestOnboardingTransfer(data.session)
+            .then(completed => {
+              if (
+                isActive &&
+                completed &&
+                activeUserIdRef.current === data.session?.user.id
+              ) setMemberDataRevision(revision => revision + 1);
+            })
+            .catch(error => console.warn('군자역 게시물 재시도 실패', error));
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      isActive = false;
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextState => {
@@ -727,15 +800,25 @@ function App() {
   }, [flowState.kind, isAuthenticated]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
-    if (pendingSocialProvider) {
+    if (pendingSocialProvider || loginAttemptInFlightRef.current) {
       return;
     }
-
-    setSocialLoginError(null);
-    setPendingSocialProvider(provider);
-    trackLoginStarted(posthog, provider);
+    loginAttemptInFlightRef.current = true;
+    let loginStarted = false;
 
     try {
+      if (
+        isAuthenticated === false &&
+        hasCompletedGuide === true &&
+        !hasSignedInOnThisInstallRef.current
+      ) {
+        await beginGuestOnboardingTransfer();
+      }
+
+      setSocialLoginError(null);
+      setPendingSocialProvider(provider);
+      trackLoginStarted(posthog, provider);
+      loginStarted = true;
       if (provider === 'apple') {
         await signInWithApple();
         trackLoginFinished(posthog, {provider, outcome: 'success'});
@@ -751,6 +834,11 @@ function App() {
       await signInWithGoogle();
       trackLoginFinished(posthog, {provider, outcome: 'success'});
     } catch (error) {
+      cancelGuestOnboardingTransfer().catch(() => undefined);
+      if (!loginStarted) {
+        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+        return;
+      }
       const normalizedError = error as NormalizedAuthError;
       trackLoginFinished(posthog, {
         provider,
@@ -759,6 +847,8 @@ function App() {
       });
       setSocialLoginError(normalizedError);
       setPendingSocialProvider(null);
+    } finally {
+      loginAttemptInFlightRef.current = false;
     }
   };
 
@@ -795,6 +885,7 @@ function App() {
     const previousFlow = guestReturnFlowRef.current;
     if (!previousFlow) return;
 
+    cancelGuestOnboardingTransfer().catch(() => undefined);
     guestReturnFlowRef.current = null;
     setFlowState(previousFlow);
   };
@@ -945,7 +1036,11 @@ function App() {
     if (currentScreen === 'saved') {
       return (
         <SavedPlacesScreen
-          key={isAuthenticated === false ? 'guest-saved' : 'member-saved'}
+          key={
+            isAuthenticated === false
+              ? 'guest-saved'
+              : `member-saved-${memberDataRevision}`
+          }
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
           places={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
@@ -1071,7 +1166,11 @@ function App() {
               ]}
             >
               <MapScreen
-                key={isAuthenticated === false ? 'guest-map' : 'member-map'}
+                key={
+                  isAuthenticated === false
+                    ? 'guest-map'
+                    : `member-map-${memberDataRevision}`
+                }
                 isActive={isMapScreen}
                 isGuest={isAuthenticated === false}
                 guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
