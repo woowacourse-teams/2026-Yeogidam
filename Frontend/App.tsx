@@ -202,7 +202,7 @@ function App() {
   );
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
-  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
+  const historyReturnScreenRef = useRef<MainScreen>('saved');
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -312,6 +312,14 @@ function App() {
     nextScreen: MainScreen,
     entryType: InboxEntryType = 'direct',
   ) => {
+    if (
+      nextScreen === 'history' &&
+      flowState.kind === 'main' &&
+      flowState.activeTab !== 'history'
+    ) {
+      historyReturnScreenRef.current = flowState.activeTab;
+    }
+
     if (nextScreen === 'map') {
       setHasVisitedMap(true);
     }
@@ -389,7 +397,6 @@ function App() {
           signedInOnThisInstall ? INITIAL_FLOW_STATE : GUEST_MAIN_FLOW_STATE,
         );
         setMyPageOverlay(null);
-        setIsHistoryVisible(false);
         setIsAuthReady(true);
         return;
       }
@@ -475,7 +482,6 @@ function App() {
             : GUEST_MAIN_FLOW_STATE,
         );
         setMyPageOverlay(null);
-        setIsHistoryVisible(false);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
         setIsAuthReady(true);
@@ -869,11 +875,11 @@ function App() {
   };
 
   const renderScreen = () => {
-    if (isHistoryVisible) {
+    if (currentScreen === 'history') {
       return (
         <HistoryScreen
           guestReels={isAuthenticated === false ? EMPTY_GUEST_HISTORY : undefined}
-          onBack={() => setIsHistoryVisible(false)}
+          onBack={() => openMainScreen(historyReturnScreenRef.current)}
           onRequireLogin={handleRequireLogin}
         />
       );
@@ -969,7 +975,7 @@ function App() {
         <InBoxScreen
           entryType={inBoxEntryType}
           guestItems={isAuthenticated === false ? EMPTY_GUEST_INBOX : undefined}
-          onOpenHistory={() => setIsHistoryVisible(true)}
+          onOpenHistory={() => openMainScreen('history')}
           onRequireLogin={handleRequireLogin}
           onSelectionChange={setIsInBoxSelecting}
         />
@@ -1018,7 +1024,6 @@ function App() {
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
     myPageOverlay === null &&
-    !isHistoryVisible &&
     !isSavedPlacesEditing &&
     !isInBoxSelecting;
 
