@@ -456,6 +456,8 @@ p{margin:0}
 .sact{width:30px;height:30px;border-radius:50%;background:#fff;box-shadow:0 4px 10px rgba(0,0,0,.12);display:grid;place-items:center;color:#d8dffe}
 .sact svg{width:18px;height:18px}
 .app.on-map .app-body{top:0}
+.app.on-history .app-body{top:54px}
+.hist-title{padding:14px 2px 4px}
 .tabbar{left:0;right:0;bottom:0;height:auto;padding:8px 10px 24px;border-radius:0;box-shadow:none;border-top:1px solid #d9dbe0;background:#fff;z-index:12}
 .tab{font-weight:400;margin:0;border-radius:0;gap:3px}
 .tab.on{background:none;color:#1f2238;font-weight:800}
@@ -1089,7 +1091,7 @@ p{margin:0}
     lib.hidden = name!=='lib'; mapScr.hidden = name!=='map'; $('profile').hidden = name!=='profile';
     histList.hidden = name!=='history'; histDetail.hidden = true;
     fab.hidden = name!=='lib'; appHead.hidden = (name==='profile'||name==='history');
-    scrApp.classList.toggle('on-map', name==='map');
+    scrApp.classList.toggle('on-map', name==='map'); scrApp.classList.toggle('on-history', name==='history');
     if (name!=='map') leaveMapDetail();
     var ts=tabbar.querySelectorAll('.tab'); for (var i=0;i<ts.length;i++) ts[i].classList.toggle('on', ts[i].dataset.tab===name);
     if (silent) return;
