@@ -25,7 +25,10 @@ import { runFirstRunCleanup } from './src/lib/first-run-cleanup';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
-import { getAppUpdatePolicy } from './src/lib/app-update-policy';
+import {
+  consumeRecommendedUpdatePrompt,
+  getAppUpdatePolicy,
+} from './src/lib/app-update-policy';
 import {
   trackAppOpened,
   trackLoginFinished,
@@ -147,6 +150,9 @@ function App() {
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
+  const [recommendedUpdateStoreUrl, setRecommendedUpdateStoreUrl] = useState<
+    string | null
+  >(null);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -183,7 +189,8 @@ function App() {
     !isSplashVisible &&
     hasCompletedGuide === true &&
     flowState.kind === 'main' &&
-    !requiredUpdateStoreUrl;
+    !requiredUpdateStoreUrl &&
+    !recommendedUpdateStoreUrl;
   useEffect(() => {
     if (!canRequestLocation) return;
     const request = () => {
@@ -321,6 +328,10 @@ function App() {
       if (isMounted && policy?.updateRequired) {
         setRequiredUpdateStoreUrl(policy.storeUrl);
       }
+
+      if (isMounted && policy && consumeRecommendedUpdatePrompt(policy)) {
+        setRecommendedUpdateStoreUrl(policy.storeUrl);
+      }
     };
 
     const loadGuideCompletion = async () => {
@@ -398,6 +409,10 @@ function App() {
       getAppUpdatePolicy().then(policy => {
         if (policy?.updateRequired) {
           setRequiredUpdateStoreUrl(policy.storeUrl);
+        }
+
+        if (policy && consumeRecommendedUpdatePrompt(policy)) {
+          setRecommendedUpdateStoreUrl(policy.storeUrl);
         }
       });
     });
@@ -870,8 +885,12 @@ function App() {
         </View>
       </SafeAreaView>
       <RequiredAppUpdateModal
-        storeUrl={requiredUpdateStoreUrl ?? ''}
-        visible={requiredUpdateStoreUrl !== null}
+        onClose={() => setRecommendedUpdateStoreUrl(null)}
+        storeUrl={requiredUpdateStoreUrl ?? recommendedUpdateStoreUrl ?? ''}
+        variant={requiredUpdateStoreUrl !== null ? 'required' : 'recommended'}
+        visible={
+          requiredUpdateStoreUrl !== null || recommendedUpdateStoreUrl !== null
+        }
       />
     </SafeAreaProvider>
   );

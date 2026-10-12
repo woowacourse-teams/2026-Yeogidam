@@ -6,6 +6,7 @@ import {
   configureProfilesApi,
   configureSavedPlacesApi,
 } from '../entities/info/api';
+import { configureAppUpdatePolicyApi } from '../lib/app-update-policy';
 import {
   configureAccountDeletionApi,
   requestAuthorizationCodeWithSupabase,
@@ -67,4 +68,5 @@ export function configureDataSources() {
       await supabase.auth.signOut({ scope: 'local' });
     },
   });
+  configureAppUpdatePolicyApi({ baseUrl: API_BASE_URL });
 }
