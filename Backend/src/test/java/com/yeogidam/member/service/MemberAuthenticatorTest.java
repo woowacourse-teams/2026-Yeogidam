@@ -2,6 +2,7 @@ package com.yeogidam.member.service;
 
 import static com.yeogidam.support.fixture.MemberFixture.kakaoAccount;
 import static com.yeogidam.support.fixture.MemberFixture.profile;
+import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
@@ -40,13 +41,13 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
                 () -> assertThat(saved.id()).isEqualTo(member.id()),
-                () -> assertThat(saved.nickname()).isEqualTo("빈"),
+                () -> assertThat(saved.profile().nickname()).isEqualTo("빈"),
                 () -> assertThat(saved.profile().email()).isEqualTo("빈@example.com")
         );
     }
 
     @Test
-    void 있는_계정이면_회원을_다시_만들지_않고_최신_프로필로_갱신한다() {
+    void 있는_계정이면_회원을_다시_만들지_않고_닉네임은_두고_이메일과_이미지를_갱신한다() {
         // given
         Member created = memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
 
@@ -57,13 +58,15 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
                 () -> assertThat(again.id()).isEqualTo(created.id()),
-                () -> assertThat(saved.nickname()).isEqualTo("새이름"),
+                () -> assertThat(saved.profile().nickname()).isEqualTo("빈"),
+                () -> assertThat(saved.profile().email()).isEqualTo("새이름@example.com"),
+                () -> assertThat(saved.profile().imageUrl()).isEqualTo("https://img.example.com/새이름"),
                 () -> assertThat(memberCount()).isEqualTo(1)
         );
     }
 
     @Test
-    void 재로그인에_선택_정보가_없으면_DB의_프로필도_비운다() {
+    void 재로그인에_제공자가_정보를_주지_않으면_이메일과_이미지만_비우고_닉네임은_둔다() {
         // given
         memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
 
@@ -73,10 +76,33 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
         // then
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
         assertAll(
-                () -> assertThat(saved.nickname()).isNull(),
+                () -> assertThat(saved.profile().nickname()).isEqualTo("빈"),
                 () -> assertThat(saved.profile().email()).isNull(),
                 () -> assertThat(saved.profile().imageUrl()).isNull()
         );
+    }
+
+    @Test
+    void 제공자가_닉네임을_주지_않으면_담이_닉네임으로_가입한다() {
+        // when
+        memberAuthenticator.authenticate(ACCOUNT, new MemberProfile(null, "빈@example.com", null));
+
+        // then
+        Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
+        assertThat(saved.profile().nickname()).matches("담이 \\d{4}");
+    }
+
+    @Test
+    void 닉네임이_비어_있던_기존_회원은_다시_로그인할_때_닉네임을_채운다() {
+        // given: 랜덤 닉네임을 넣기 전에 닉네임 없이 가입한 회원이다
+        insertKakaoMember(jdbcTemplate, 1L, "kakao-1", null, null, null);
+
+        // when
+        memberAuthenticator.authenticate(ACCOUNT, new MemberProfile(null, null, null));
+
+        // then
+        Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
+        assertThat(saved.profile().nickname()).matches("담이 \\d{4}");
     }
 
     @Test

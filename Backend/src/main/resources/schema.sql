@@ -1,7 +1,6 @@
 DROP TABLE IF EXISTS shared_media_reports;
 DROP TABLE IF EXISTS shared_media_saved_places;
 DROP TABLE IF EXISTS saved_places;
-DROP TABLE IF EXISTS place_candidates;
 DROP TABLE IF EXISTS media_places;
 DROP TABLE IF EXISTS shared_media;
 DROP TABLE IF EXISTS media;
@@ -37,7 +36,7 @@ CREATE TABLE refresh_sessions
         ON DELETE CASCADE
 );
 
--- 게시물. shortcode로 유일하며 추출 상태와 결과의 주인이다. 사용자와 공유 사건을 모른다.
+-- 게시물. shortcode로 유일하며 현재 추출 상태와 장소 결과를 공유한다.
 CREATE TABLE media
 (
     id                 BIGINT      NOT NULL AUTO_INCREMENT,
@@ -56,6 +55,9 @@ CREATE TABLE media
         CHECK (extraction_status IN ('EXTRACTING', 'SUCCEEDED', 'FAILED')),
     CONSTRAINT chk_media_source_type
         CHECK (source_type IN ('EXTRACTED', 'SEEDED')),
+    CONSTRAINT chk_media_seeded_succeeded
+        CHECK (source_type <> 'SEEDED'
+            OR (extraction_status = 'SUCCEEDED' AND failure_reason IS NULL)),
     CONSTRAINT chk_media_failure_reason
         CHECK (failure_reason IN (
             'CONTENT_UNAVAILABLE', 'PLACE_NOT_EXTRACTED', 'PLACE_NOT_MATCHED', 'PROCESSING_FAILED', 'UNEXPECTED'
@@ -71,12 +73,26 @@ CREATE TABLE media
 -- 공유 사건. 같은 게시물을 다시 공유해도 새 행이 생겨 이력이 쌓인다.
 CREATE TABLE shared_media
 (
-    id         BIGINT       NOT NULL AUTO_INCREMENT,
-    member_id  BIGINT       NOT NULL,
-    media_id   BIGINT       NOT NULL,
-    shared_url VARCHAR(512) NOT NULL,
-    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    id                  BIGINT       NOT NULL AUTO_INCREMENT,
+    member_id           BIGINT       NOT NULL,
+    media_id            BIGINT       NOT NULL,
+    shared_url          VARCHAR(512) NOT NULL,
+    created_at          TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    extraction_status   VARCHAR(20)  NOT NULL,
+    failure_reason      VARCHAR(40),
+    extraction_version  INT          NOT NULL,
     PRIMARY KEY (id),
+    CONSTRAINT chk_shared_media_extraction_status
+        CHECK (extraction_status IN ('EXTRACTING', 'SUCCEEDED', 'FAILED')),
+    CONSTRAINT chk_shared_media_failure_reason
+        CHECK (failure_reason IN (
+            'CONTENT_UNAVAILABLE', 'PLACE_NOT_EXTRACTED', 'PLACE_NOT_MATCHED', 'PROCESSING_FAILED', 'UNEXPECTED'
+        )),
+    CONSTRAINT chk_shared_media_extraction_snapshot CHECK (
+        (extraction_status = 'FAILED' AND failure_reason IS NOT NULL)
+            OR
+        (extraction_status <> 'FAILED' AND failure_reason IS NULL)
+    ),
     CONSTRAINT fk_shared_media_member FOREIGN KEY (member_id)
         REFERENCES members (id)
         ON DELETE CASCADE,
@@ -103,7 +119,7 @@ CREATE TABLE places
     CONSTRAINT uk_places_kakao_place_id UNIQUE (kakao_place_id)
 );
 
--- 추출 사실. 이 게시물에서 이 장소가 나왔다는 것만 들고 결정은 모른다.
+-- 추출 사실. 이 게시물에서 이 장소가 나왔다는 것만 들고, 누가 보관했는지는 saved_places가 안다.
 CREATE TABLE media_places
 (
     id       BIGINT NOT NULL AUTO_INCREMENT,
@@ -114,25 +130,6 @@ CREATE TABLE media_places
     CONSTRAINT fk_media_places_media FOREIGN KEY (media_id)
         REFERENCES media (id),
     CONSTRAINT fk_media_places_place FOREIGN KEY (place_id)
-        REFERENCES places (id)
-);
-
--- 공유 건에 발급된 후보와 사용자 결정. 결정 전이는 조건부 UPDATE가 guard를 겸한다.
-CREATE TABLE place_candidates
-(
-    id              BIGINT      NOT NULL AUTO_INCREMENT,
-    shared_media_id BIGINT      NOT NULL,
-    place_id        BIGINT      NOT NULL,
-    decision_status VARCHAR(20) NOT NULL DEFAULT 'UNDECIDED',
-    decided_at      TIMESTAMP(6),
-    PRIMARY KEY (id),
-    CONSTRAINT uk_place_candidates_shared_media_place UNIQUE (shared_media_id, place_id),
-    CONSTRAINT chk_place_candidates_decision_status
-        CHECK (decision_status IN ('UNDECIDED', 'SAVED', 'DISCARDED', 'SUPERSEDED')),
-    CONSTRAINT fk_place_candidates_shared_media FOREIGN KEY (shared_media_id)
-        REFERENCES shared_media (id)
-        ON DELETE CASCADE,
-    CONSTRAINT fk_place_candidates_place FOREIGN KEY (place_id)
         REFERENCES places (id)
 );
 

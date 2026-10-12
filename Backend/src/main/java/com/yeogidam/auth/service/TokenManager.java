@@ -10,6 +10,7 @@ import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.exception.RefreshTokenMismatchException;
 import com.yeogidam.auth.infrastructure.jwt.JwtTokenProvider;
 import com.yeogidam.auth.repository.RefreshSessionDao;
+import com.yeogidam.auth.repository.RotatedRefreshTokens;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -28,6 +29,7 @@ public class TokenManager {
     private final Clock clock;
     private final JwtTokenProvider tokenProvider;
     private final RefreshSessionDao refreshSessionDao;
+    private final RotatedRefreshTokens rotatedRefreshTokens;
 
     @Transactional
     public TokenResponse createTokens(Long memberId) {
@@ -44,6 +46,10 @@ public class TokenManager {
         RefreshTokenClaims claims = tokenProvider.parseRefreshToken(request.refreshToken());
         RefreshSession session = getActiveSession(claims);
         String tokenHash = hashToken(request.refreshToken());
+        if (session.isTokenMismatch(tokenHash)
+                && rotatedRefreshTokens.isInGracePeriod(session.getSessionId(), tokenHash)) {
+            throw new AuthException(AuthErrorCode.REFRESH_TOKEN_ROTATED);
+        }
         if (session.isTokenMismatch(tokenHash)) {
             refreshSessionDao.update(session.revoke());
             throw new RefreshTokenMismatchException();
@@ -52,6 +58,7 @@ public class TokenManager {
                 session.getMemberId(), session.getSessionId(), session.getExpiresAt());
         TokenResponse tokens = TokenResponse.from(tokenProvider.createAccessToken(session.getMemberId()), refreshToken);
         refreshSessionDao.update(session.rotate(hashToken(tokens.refreshToken())));
+        rotatedRefreshTokens.record(session.getSessionId(), tokenHash);
         return tokens;
     }
 

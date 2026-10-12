@@ -18,6 +18,11 @@ spring:
     init:
       mode: never
 
+media:
+  thumbnail:
+    instagram-key-prefix: yeogidam/dev/instagram-thumbnails
+    place-key-prefix: yeogidam/dev/place-thumbnails
+
 # 로그를 JSON 한 줄로 찍는다. CloudWatch Logs에서 level 키로 ERROR 건수를 세는 지표 필터를 걸기 위해서다.
 # logstash 형식은 level, logger_name, message가 점 없는 평평한 키라 지표 필터 { $.level = "ERROR" }가 그대로 먹고,
 # MDC 항목(requestId, httpMethod, path, status, durationMs)이 최상위 키로 들어간다. ecs 형식은 "log.level"처럼

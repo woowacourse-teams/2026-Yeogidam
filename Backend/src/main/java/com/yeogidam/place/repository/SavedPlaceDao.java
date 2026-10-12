@@ -1,5 +1,8 @@
 package com.yeogidam.place.repository;
 
+import com.yeogidam.place.domain.SavedPlace;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -42,6 +45,43 @@ public class SavedPlaceDao {
 
     private final JdbcTemplate jdbcTemplate;
 
+    public void saveOrUpdate(SavedPlace savedPlace) {
+        String sql = """
+                INSERT INTO saved_places (member_id, place_id, last_saved_at)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE last_saved_at = VALUES(last_saved_at)
+                """;
+        jdbcTemplate.update(
+                sql,
+                savedPlace.getMemberId(),
+                savedPlace.getPlaceId(),
+                Timestamp.from(savedPlace.getLastSavedAt())
+        );
+    }
+
+    public Long getIdByMemberAndPlace(Long memberId, Long placeId) {
+        String sql = """
+                SELECT id
+                FROM saved_places
+                WHERE member_id = ?
+                  AND place_id = ?
+                """;
+        return jdbcTemplate.queryForObject(sql, Long.class, memberId, placeId);
+    }
+
+    public void saveShareIfAbsent(
+            Long savedPlaceId,
+            Long sharedMediaId,
+            Instant savedAt
+    ) {
+        String sql = """
+                INSERT INTO shared_media_saved_places (saved_place_id, shared_media_id, created_at)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE id = id
+                """;
+        jdbcTemplate.update(sql, savedPlaceId, sharedMediaId, Timestamp.from(savedAt));
+    }
+
     /**
      * 회원의 보관함 전량을 최근 저장 순으로 읽는다.
      */
@@ -68,7 +108,6 @@ public class SavedPlaceDao {
         return jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, memberId);
     }
 
-    /**
     /**
      * 회원의 보관함 항목인지 본다. 없는 항목이거나 남의 항목이면 false다.
      */

@@ -1,5 +1,6 @@
 package com.yeogidam.member;
 
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,7 +102,6 @@ class MemberE2eTest extends E2eTestSupport {
         assertThat(count("refresh_sessions")).isZero();
         assertThat(count("shared_media")).isZero();
         assertThat(count("saved_places")).isZero();
-        assertThat(count("place_candidates")).isZero();
         assertThat(count("shared_media_saved_places")).isZero();
         assertThat(count("shared_media_reports")).isZero();
 
@@ -192,18 +192,13 @@ class MemberE2eTest extends E2eTestSupport {
                 )
                 VALUES (301, 'delete-place', '탈퇴 테스트 장소', '서울시 마포구', 37.5500000000, 126.9000000000)
                 """);
+        insertMediaPlace(jdbcTemplate, 401L, 201L, 301L);
         jdbcTemplate.update("""
-                INSERT INTO media_places (id, media_id, place_id)
-                VALUES (401, 201, 301)
-                """);
-        jdbcTemplate.update("""
-                INSERT INTO shared_media (id, member_id, media_id, shared_url)
-                VALUES (101, ?, 201, 'https://www.instagram.com/reel/delete-test/')
+                INSERT INTO shared_media (
+                    id, member_id, media_id, shared_url, extraction_status, failure_reason, extraction_version
+                )
+                VALUES (101, ?, 201, 'https://www.instagram.com/reel/delete-test/', 'SUCCEEDED', NULL, 1)
                 """, memberId);
-        jdbcTemplate.update("""
-                INSERT INTO place_candidates (id, shared_media_id, place_id)
-                VALUES (501, 101, 301)
-                """);
         jdbcTemplate.update("""
                 INSERT INTO saved_places (id, member_id, place_id)
                 VALUES (601, ?, 301)

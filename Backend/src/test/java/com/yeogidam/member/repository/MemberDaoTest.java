@@ -40,7 +40,7 @@ class MemberDaoTest extends JdbcTestSupport {
         // then
         assertAll(
                 () -> assertThat(member.id()).isEqualTo(1L),
-                () -> assertThat(member.nickname()).isEqualTo("빈"),
+                () -> assertThat(member.profile().nickname()).isEqualTo("빈"),
                 () -> assertThat(member.profile().email()).isEqualTo("bean@example.com"),
                 () -> assertThat(member.profile().imageUrl()).isEqualTo("https://img.example.com/bean"),
                 () -> assertThat(member.oauthAccount()).isEqualTo(KAKAO_ACCOUNT)
@@ -73,7 +73,7 @@ class MemberDaoTest extends JdbcTestSupport {
         // then
         assertAll(
                 () -> assertThat(member.id()).isEqualTo(1L),
-                () -> assertThat(member.nickname()).isEqualTo("빈"),
+                () -> assertThat(member.profile().nickname()).isEqualTo("빈"),
                 () -> assertThat(member.profile().email()).isEqualTo("bean@example.com"),
                 () -> assertThat(member.profile().imageUrl()).isEqualTo("https://img.example.com/bean"),
                 () -> assertThat(member.oauthAccount()).isEqualTo(KAKAO_ACCOUNT)
@@ -99,7 +99,7 @@ class MemberDaoTest extends JdbcTestSupport {
         assertAll(
                 () -> assertThat(saved.id()).isNotNull(),
                 () -> assertThat(found.id()).isEqualTo(saved.id()),
-                () -> assertThat(found.nickname()).isEqualTo("kakao-2")
+                () -> assertThat(found.profile().nickname()).isEqualTo("kakao-2")
         );
     }
 
@@ -107,16 +107,16 @@ class MemberDaoTest extends JdbcTestSupport {
     void 갱신하면_프로필_세_열이_바뀐다() {
         // given
         insertBean();
-        Member member = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();
-        member.updateProfile(profile("새이름"));
+        Member saved = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();
+        Member changed = new Member(saved.id(), profile("새이름"), saved.oauthAccount());
 
         // when
-        memberDao.update(member);
+        memberDao.update(changed);
 
         // then
         Member updated = memberDao.findByOAuthAccount(KAKAO_ACCOUNT).orElseThrow();
         assertAll(
-                () -> assertThat(updated.nickname()).isEqualTo("새이름"),
+                () -> assertThat(updated.profile().nickname()).isEqualTo("새이름"),
                 () -> assertThat(updated.profile().email()).isEqualTo("새이름@example.com"),
                 () -> assertThat(updated.profile().imageUrl()).isEqualTo("https://img.example.com/새이름")
         );

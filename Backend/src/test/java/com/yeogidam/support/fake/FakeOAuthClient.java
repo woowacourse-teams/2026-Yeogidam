@@ -9,7 +9,8 @@ import com.yeogidam.member.domain.OAuthAccount;
 
 /**
  * E2E에서 제공자를 대신하는 클라이언트. 인가 코드를 제공자 사용자 식별자로 그대로 받고,
- * 약속된 코드 두 개로 제공자 거부와 제공자 장애를 흉내 낸다. 실제 제공자 HTTP는 각 클라이언트 단위 테스트가 맡는다.
+ * 약속된 코드 두 개로 제공자 거부와 제공자 장애를 흉내 낸다. 애플은 실제처럼 닉네임을 주지 않는다.
+ * 실제 제공자 HTTP는 각 클라이언트 단위 테스트가 맡는다.
  */
 public final class FakeOAuthClient implements OAuthClient {
 
@@ -48,6 +49,9 @@ public final class FakeOAuthClient implements OAuthClient {
     }
 
     private String nicknameOf(String authorizationCode) {
+        if (provider == OAuthProvider.APPLE) {
+            return null;
+        }
         return provider.name().toLowerCase() + "-" + authorizationCode;
     }
 }

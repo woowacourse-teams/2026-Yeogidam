@@ -16,18 +16,23 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberAuthenticator {
 
     private final MemberDao memberDao;
+    private final RandomNicknameGenerator randomNicknameGenerator;
 
+    /**
+     * 제공자가 닉네임을 주지 않으면 랜덤 닉네임으로 가입시킨다. 이미 가입한 회원은 닉네임을 바꾸지 않는다.
+     */
     @Transactional
     public Member authenticate(OAuthAccount account, MemberProfile profile) {
+        MemberProfile profileWithNickname = profile.withNicknameIfAbsent(randomNicknameGenerator.generate());
         Optional<Member> existingMember = memberDao.findByOAuthAccount(account);
         if (existingMember.isPresent()) {
-            return updateExistingMember(account, profile);
+            return updateExistingMember(account, profileWithNickname);
         }
 
         try {
-            return memberDao.save(new Member(profile, account));
+            return memberDao.save(new Member(profileWithNickname, account));
         } catch (DuplicateKeyException exception) {
-            return updateExistingMember(account, profile);
+            return updateExistingMember(account, profileWithNickname);
         }
     }
 
