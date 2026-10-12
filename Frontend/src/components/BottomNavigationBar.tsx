@@ -1,5 +1,6 @@
-import React from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
+  AppState,
   Platform,
   Pressable,
   StyleSheet,
@@ -11,6 +12,11 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getHistoryReels } from '../entities/content/api';
+import {
+  getLastSeenHistorySnapshot,
+  setLastSeenHistorySnapshot,
+} from '../lib/history-notification-storage';
 
 import type { MainScreen } from '../types/navigation';
 
@@ -48,10 +54,10 @@ export const bottomNavigationBarContainerStyle: ViewStyle = {
 
 const navigationItems: {
   id: MainScreen;
-  icon: 'bookmark' | 'map' | 'person' | 'inventory-2';
+  icon: 'bookmark' | 'map' | 'person' | 'history';
   label: string;
 }[] = [
-  { id: 'inBox', icon: 'inventory-2', label: '대기함' },
+  { id: 'history', icon: 'history', label: '히스토리' },
   { id: 'saved', icon: 'bookmark', label: '보관함' },
   { id: 'map', icon: 'map', label: '지도' },
   { id: 'my', icon: 'person', label: '내 정보' },
@@ -62,6 +68,44 @@ export function BottomNavigationBar({
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
+  const [isHistoryUnread, setIsHistoryUnread] = useState(false);
+  const syncHistoryNotification = useCallback(async () => {
+    try {
+      const {reels} = await getHistoryReels();
+      const latest = reels[0];
+      if (!latest) {
+        setIsHistoryUnread(false);
+        return;
+      }
+      const lastSeen = await getLastSeenHistorySnapshot();
+      if (lastSeen === null) {
+        await setLastSeenHistorySnapshot({
+          id: latest.id,
+          status: latest.processing_status,
+        });
+        setIsHistoryUnread(false);
+        return;
+      }
+      setIsHistoryUnread(
+        lastSeen.id !== latest.id ||
+          lastSeen.status !== latest.processing_status,
+      );
+    } catch {
+      // Keep the navigation usable if the history request fails.
+    }
+  }, []);
+
+  useEffect(() => {
+    syncHistoryNotification();
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') syncHistoryNotification();
+    });
+    const interval = setInterval(syncHistoryNotification, 5000);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
+  }, [syncHistoryNotification]);
 
   return (
     <View
@@ -89,7 +133,23 @@ export function BottomNavigationBar({
         {navigationItems.map(navigation => (
           <Pressable
             key={navigation.id}
-            onPress={() => onNavigate(navigation.id)}
+            onPress={() => {
+              if (navigation.id === 'history') {
+                void getHistoryReels()
+                  .then(async ({reels}) => {
+                    const latest = reels[0];
+                    if (latest) {
+                      await setLastSeenHistorySnapshot({
+                        id: latest.id,
+                        status: latest.processing_status,
+                      });
+                      setIsHistoryUnread(false);
+                    }
+                  })
+                  .catch(() => {});
+              }
+              onNavigate(navigation.id);
+            }}
             style={({ pressed }) => [
               styles.navigation,
               pressed && styles.pressedNavigation,
@@ -123,19 +183,49 @@ export function BottomNavigationBar({
                     strokeWidth={0.3}
                   />
                 </Svg>
-              ) : navigation.id === 'inBox' && active !== navigation.id ? (
-                <Svg height={24} viewBox="0 0 24 24" width={24}>
-                  <Path
-                    d="M20 2H4c-1 0-2 .9-2 2v3.01c0 .72.43 1.34 1 1.69V20c0 1.1 1.1 2 2 2h14c.9 0 2-.9 2-2V8.7c.57-.35 1-.97 1-1.69V4c0-1.1-1-2-2-2zm-1 18H5V9h14v11zm1-13H4V4h16v3z"
-                    fill="#666b79"
-                  />
-                  <Path
-                    d="M9 12h6v2H9z"
-                    fill="none"
-                    stroke="#666b79"
-                    strokeWidth={1}
-                  />
-                </Svg>
+              ) : navigation.id === 'history' ? (
+                <View>
+                  <Svg height={24} viewBox="0 0 24 24" width={24}>
+                    {active === navigation.id ? (
+                      <>
+                        <Path
+                          d="M12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15Z"
+                          fill="#000000"
+                          stroke="#000000"
+                          strokeWidth={2}
+                        />
+                        <Path
+                          fill="none"
+                          d="M12 8v4.3l3 1.8"
+                          stroke="#ffffff"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.8}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <Path
+                          d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Z"
+                          fill="none"
+                          stroke="#666b79"
+                          strokeWidth={2}
+                        />
+                        <Path
+                          d="M12 7.5v4.8l3.2 1.9"
+                          fill="none"
+                          stroke="#666b79"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                        />
+                      </>
+                    )}
+                  </Svg>
+                  {isHistoryUnread && active !== navigation.id ? (
+                    <View style={styles.historyBadge} />
+                  ) : null}
+                </View>
               ) : (
                 <MaterialIcons
                   color={active === navigation.id ? '#1f2238' : '#666b79'}
@@ -203,6 +293,17 @@ const styles = StyleSheet.create({
   navigationText: {
     fontSize: 10,
     color: '#666b79',
+  },
+  historyBadge: {
+    position: 'absolute',
+    right: -2,
+    top: -1,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#f04438',
+    borderWidth: 1,
+    borderColor: '#ffffff',
   },
   activeText: {
     color: '#1f2238',
