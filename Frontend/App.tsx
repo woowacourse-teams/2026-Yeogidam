@@ -1046,10 +1046,6 @@ function App() {
                 isActive={isMapScreen}
                 isGuest={isAuthenticated === false}
                 onAuthenticationRequired={handleRequireLogin}
-                onDetailViewChange={setIsMapPlaceDetailVisible}
-                onAuthenticationRequired={() =>
-                  setFlowState(INITIAL_FLOW_STATE)
-                }
               />
             </View>
           ) : null}
