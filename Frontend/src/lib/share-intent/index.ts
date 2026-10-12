@@ -45,8 +45,8 @@ export type NativeShareAnalyticsEvent = {
 };
 
 export type NativeShareSession = {accessToken: string; refreshToken: string; expiresAt: number; userId: string};
-export type ShareTransferStatus = 'SAVED' | 'WAITING_FOR_AUTH' | 'WAITING_FOR_NETWORK' | 'LOGIN_REQUIRED' | 'QUEUED' | 'REQUESTING' | 'API_SUCCEEDED' | 'API_FAILED';
-export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; transferStatus?: ShareTransferStatus; authReason?: string; reelId?: string; failureReason?: string; retryable?: boolean; updatedAt: number; receivedAt?: number; queuedAt?: number; apiAcceptedAt?: number; transferFinishedAt?: number; reused?: boolean; saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE'};
+export type ShareTransferStatus = 'SAVED' | 'WAITING_FOR_AUTH' | 'WAITING_FOR_NETWORK' | 'LOGIN_REQUIRED' | 'LOGIN_HANDOFF' | 'QUEUED' | 'REQUESTING' | 'API_SUCCEEDED' | 'API_FAILED';
+export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; transferStatus?: ShareTransferStatus; authReason?: string; reelId?: string; failureReason?: string; responseStatus?: number; retryable?: boolean; updatedAt: number; receivedAt?: number; queuedAt?: number; apiAcceptedAt?: number; transferFinishedAt?: number; reused?: boolean; saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE'};
 
 export type SharedContentSubscription = {
   remove: () => void;

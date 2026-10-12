@@ -15,6 +15,7 @@ internal data class ShareReelResult(
     val authReason: String? = null,
     val reelId: String? = null,
     val failureReason: String? = null,
+    val responseStatus: Int? = null,
     val retryable: Boolean,
     val updatedAt: Long = System.currentTimeMillis(),
     val reused: Boolean? = null,
@@ -36,6 +37,7 @@ internal data class ShareReelResult(
             put("authReason", authReason ?: JSONObject.NULL)
             put("reelId", reelId ?: JSONObject.NULL)
             put("failureReason", failureReason ?: JSONObject.NULL)
+            put("responseStatus", responseStatus ?: JSONObject.NULL)
             put("retryable", retryable)
             put("updatedAt", updatedAt)
             put("reused", reused ?: JSONObject.NULL)
@@ -58,6 +60,7 @@ internal data class ShareReelResult(
             authReason?.let { putString("authReason", it) }
             reelId?.let { putString("reelId", it) }
             failureReason?.let { putString("failureReason", it) }
+            responseStatus?.let { putInt("responseStatus", it) }
             putBoolean("retryable", retryable)
             putDouble("updatedAt", updatedAt.toDouble())
             reused?.let { putBoolean("reused", it) }
@@ -82,6 +85,7 @@ internal data class ShareReelResult(
                     authReason = json.optStringOrNull("authReason"),
                     reelId = json.optStringOrNull("reelId"),
                     failureReason = json.optStringOrNull("failureReason"),
+                    responseStatus = json.optIntOrNull("responseStatus"),
                     retryable = json.optBoolean("retryable", false),
                     updatedAt = json.getLong("updatedAt"),
                     reused = if (json.isNull("reused")) null else json.getBoolean("reused"),
@@ -99,6 +103,7 @@ internal data class ShareReelResult(
 internal object ShareResultStore {
     private const val PREFERENCES_NAME = "share_intent_storage"
     private const val RESULT_KEY_PREFIX = "share_reel_result."
+    private const val LOGIN_HANDOFF_TTL_MS = 30 * 60 * 1000L
 
     private fun preferences(context: Context) =
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -143,12 +148,18 @@ internal object ShareResultStore {
             .asSequence()
             .filter { (key, _) -> key.startsWith(RESULT_KEY_PREFIX) }
             .mapNotNull { (_, value) -> (value as? String)?.let(ShareReelResult::fromJson) }
+            .filter { result ->
+                val expired = result.transferStatus == "LOGIN_HANDOFF" &&
+                    System.currentTimeMillis() - result.updatedAt > LOGIN_HANDOFF_TTL_MS
+                if (expired) clearResult(context, result.requestId)
+                !expired
+            }
             .sortedBy { it.requestSentAt ?: it.updatedAt }
             .toList()
 
     fun clearResult(context: Context, requestId: String?) {
         if (requestId.isNullOrBlank()) return
-        preferences(context).edit().remove("$RESULT_KEY_PREFIX$requestId").apply()
+        preferences(context).edit().remove("$RESULT_KEY_PREFIX$requestId").commit()
     }
 }
 
@@ -157,3 +168,6 @@ private fun JSONObject.optStringOrNull(key: String): String? =
 
 private fun JSONObject.optLongOrNull(key: String): Long? =
     if (isNull(key)) null else optLong(key)
+
+private fun JSONObject.optIntOrNull(key: String): Int? =
+    if (isNull(key)) null else optInt(key)
