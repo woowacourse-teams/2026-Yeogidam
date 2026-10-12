@@ -7,6 +7,7 @@ import { ensureLocationPermission } from './src/lib/location-permission';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
+import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
@@ -30,6 +31,7 @@ import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy } from './src/lib/app-update-policy';
+import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   trackAppOpened,
   trackLoginFinished,
@@ -105,6 +107,7 @@ const EMPTY_GUEST_PLACES: Place[] = [];
 const EMPTY_GUEST_INBOX: InboxReel[] = [];
 const EMPTY_GUEST_HISTORY: HistoryReel[] = [];
 const SPLASH_MIN_DURATION_MS = 2000;
+const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
@@ -172,6 +175,17 @@ function App() {
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
+  const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
+    useState(false);
+  const [isAppActive, setIsAppActive] = useState(
+    AppState.currentState === 'active',
+  );
+  const [guestLoginPromptTimer] = useState(
+    () =>
+      new ForegroundElapsedTimer(GUEST_LOGIN_PROMPT_DELAY_MS, () => {
+        setIsGuestLoginPromptVisible(true);
+      }),
+  );
   const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
@@ -202,11 +216,40 @@ function App() {
       ? 'detail'
       : flowState.activeTab;
 
+  const isGuestBrowsing =
+    isAuthReady &&
+    !isSplashVisible &&
+    hasCompletedGuide === true &&
+    flowState.kind === 'main' &&
+    isAuthenticated === false &&
+    !hasPendingShareLogin &&
+    myPageOverlay === null &&
+    requiredUpdateStoreUrl === null;
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      setIsAppActive(state === 'active');
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (isGuestBrowsing && isAppActive) {
+      guestLoginPromptTimer.start();
+    } else {
+      guestLoginPromptTimer.pause();
+    }
+  }, [guestLoginPromptTimer, isAppActive, isGuestBrowsing]);
+
   useEffect(() => {
     if (isAuthenticated) {
+      guestLoginPromptTimer.cancel();
+      setIsGuestLoginPromptVisible(false);
       guestReturnFlowRef.current = null;
     }
-  }, [isAuthenticated]);
+  }, [guestLoginPromptTimer, isAuthenticated]);
+
+  useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
 
   useEffect(() => {
     if (isAuthenticated === true && hasCompletedGuide === true) {
@@ -718,6 +761,7 @@ function App() {
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
+    setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
     setFlowState(INITIAL_FLOW_STATE);
   };
@@ -1026,6 +1070,11 @@ function App() {
       <RequiredAppUpdateModal
         storeUrl={requiredUpdateStoreUrl ?? ''}
         visible={requiredUpdateStoreUrl !== null}
+      />
+      <GuestLoginPrompt
+        visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}
+        onLogin={handleOpenGuestLogin}
+        onContinueBrowsing={() => setIsGuestLoginPromptVisible(false)}
       />
     </SafeAreaProvider>
   );
