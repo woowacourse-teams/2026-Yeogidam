@@ -1,10 +1,16 @@
-import { createNetworkApiError, toApiError } from './errors';
+import { ApiError, createNetworkApiError, toApiError } from './errors';
 
 export type ApiClientOptions = {
   /** 서버 주소입니다. 경로 `/api/v1` 앞까지 받습니다. */
   baseUrl: string;
   /** 요청마다 부르는 토큰 접근자입니다. 토큰이 있으면 Authorization: Bearer로 싣습니다. */
   getAccessToken?: () => Promise<string | null>;
+  /**
+   * 토큰을 실은 요청이 AUTH401_001을 받으면 거절된 토큰을 넘겨 한 번 부릅니다. true를 돌려주면
+   * getAccessToken으로 토큰을 다시 받아 같은 요청을 한 번만 더 보냅니다.
+   * 던지면 원래의 401 대신 던진 오류가 요청의 결과가 됩니다.
+   */
+  refreshSession?: (rejectedAccessToken: string) => Promise<boolean>;
   /**
    * 429를 받으면 요청의 path 인수로 한 번 부릅니다. nginx가 끝낸 429는 서버 로그에
    * 남지 않으므로 trackApiRateLimited를 넘겨 분석 이벤트로 남깁니다.
@@ -50,15 +56,17 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 /**
- * 서버를 부르는 요청 함수를 만듭니다. 토큰 갱신과 401 재시도는 여기서 하지 않고,
- * 요청 전에 받은 토큰을 싣기만 합니다. 실패는 모두 ApiError로 던집니다.
+ * 서버를 부르는 요청 함수를 만듭니다. 요청 전에 받은 토큰을 싣고, AUTH401_001이면
+ * refreshSession 뒤 한 번만 다시 보냅니다. 실패는 모두 ApiError로 던집니다.
  */
 export function createApiClient(options: ApiClientOptions): ApiRequest {
   const baseUrl = options.baseUrl.replace(/\/$/, '');
 
-  return async (path, { method = 'GET', query, body } = {}) => {
-    const token = await options.getAccessToken?.();
-
+  const requestOnce = async (
+    path: string,
+    { method = 'GET', query, body }: ApiRequestOptions,
+    token: string | null | undefined,
+  ) => {
     let response: Response;
     try {
       response = await fetch(`${baseUrl}${path}${toQueryString(query)}`, {
@@ -99,6 +107,29 @@ export function createApiClient(options: ApiClientOptions): ApiRequest {
     } catch {
       // 성공 응답인데 본문이 JSON이 아니면 상태 코드 분류의 기본값인 CLIENT000_003이 됩니다.
       throw toApiError(response.status, null, requestId);
+    }
+  };
+
+  return async (path, requestOptions = {}) => {
+    const token = await options.getAccessToken?.();
+
+    try {
+      return await requestOnce(path, requestOptions, token);
+    } catch (error) {
+      if (
+        token &&
+        error instanceof ApiError &&
+        error.errorCode === 'AUTH401_001' &&
+        (await options.refreshSession?.(token))
+      ) {
+        return requestOnce(
+          path,
+          requestOptions,
+          await options.getAccessToken?.(),
+        );
+      }
+
+      throw error;
     }
   };
 }
