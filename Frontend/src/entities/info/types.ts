@@ -1,9 +1,3 @@
-export type ThumbnailSource =
-  | 'google_places'
-  | 'instagram'
-  | 'kakao'
-  | 'manual';
-
 export type ReelSource = 'instagram_share' | 'url_input';
 
 export type ReelProcessingStatus =
@@ -78,15 +72,15 @@ export type InfoPlace = {
   name: string;
   category?: string | null;
   roadAddress?: string | null;
-  address?: string | null;
+  landLotAddress: string;
   latitude?: number | null;
   longitude?: number | null;
   kakaoPlaceUrl?: string | null;
   telephone?: string | null;
   thumbnailUrl?: string | null;
-  thumbnailSource?: ThumbnailSource | null;
+  /** 서버 코드가 쓰는 값은 'KAKAO', 'INSTAGRAM'이지만 열이 자유 문자열이라 string으로 받습니다. */
+  thumbnailSource?: string | null;
   photoAttribution?: string | null;
-  sourceAddress?: string | null;
   createdAt: string;
 };
 
@@ -128,7 +122,7 @@ export type PlaceReelsApiError = {
 };
 
 export type PlaceReelsRepository = {
-  getPlaceReels: (placeId: string) => Promise<PlaceReel[]>;
+  getPlaceReels: (savedPlaceId: string) => Promise<PlaceReel[]>;
 };
 
 export type SavedPlaceInfo = {
@@ -140,25 +134,31 @@ export type SavedPlaceInfo = {
   lastSavedAt?: string;
 };
 
-/** `saved_places`와 `places` 조인 조회에 사용하는 목록 항목입니다. */
-export type SavedPlaceListItem = Pick<
-  SavedPlaceInfo,
-  'id' | 'thumbnailUrl' | 'createdAt' | 'lastSavedAt'
-> & {
+/**
+ * `GET /api/v1/saved-places`의 항목 하나를 옮긴 목록 항목입니다. 서버 식별자(Long)는 문자열로 바꾸고,
+ * 썸네일처럼 비어 있는 값은 null 그대로 둡니다.
+ */
+export type SavedPlaceListItem = {
+  /** 보관함 항목 id(savedPlaceId)입니다. 삭제와 장소별 릴스 조회가 이 값을 씁니다. */
+  id: string;
+  lastSavedAt: string;
   place: Pick<
     InfoPlace,
     | 'id'
     | 'name'
     | 'category'
-    | 'sourceAddress'
+    | 'landLotAddress'
     | 'roadAddress'
-    | 'address'
     | 'latitude'
     | 'longitude'
     | 'kakaoPlaceUrl'
+    | 'telephone'
     | 'thumbnailUrl'
-    | 'photoAttribution'
-  >;
+    | 'thumbnailSource'
+  > & {
+    /** 카드에 쓰는 짧은 주소입니다. 서버가 내리지 않아 지번 주소의 앞 두 어절로 만듭니다. */
+    shortAddress: string;
+  };
 };
 
 export type SavedPlacesApiError = {

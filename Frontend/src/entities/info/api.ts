@@ -1,23 +1,15 @@
+import { createApiClient, type ApiClientOptions } from '../../lib/api/client';
+import { toIdString } from '../../lib/api/values';
 import { frontendInfoDomainMock } from './mocks';
 import type {
   CurrentProfileRepository,
   PlaceReel,
-  PlaceReelsApiError,
   PlaceReelsRepository,
   ProfileApiError,
   ProfileInfo,
   SavedPlaceListItem,
-  SavedPlacesApiError,
   SavedPlacesRepository,
 } from './types';
-
-const SAVED_PLACES_SELECT = [
-  'id',
-  'thumbnail_url',
-  'created_at',
-  'last_saved_at',
-  'place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)',
-].join(',');
 
 const PROFILE_SELECT = [
   'id',
@@ -27,15 +19,6 @@ const PROFILE_SELECT = [
   'created_at',
   'updated_at',
 ].join(',');
-
-const PLACE_REELS_SELECT = [
-  'id',
-  'instagram_url',
-  'instagram_thumbnail_url',
-  'created_at',
-].join(',');
-
-const SAVED_PLACES_REQUEST_TIMEOUT_MS = 10_000;
 
 type SupabaseApiOptions = {
   baseUrl: string;
@@ -52,7 +35,7 @@ type SupabaseApiOptions = {
 };
 
 type ProfileApiOptions = SupabaseApiOptions;
-type SavedPlacesApiOptions = SupabaseApiOptions;
+type SavedPlacesApiOptions = ApiClientOptions;
 type PlaceReelsApiOptions = SavedPlacesApiOptions;
 
 const profileError = (
@@ -352,248 +335,79 @@ export function getCurrentProfile(): Promise<ProfileInfo> {
   return currentProfileRepository.getCurrentProfile();
 }
 
-const savedPlacesError = (
-  errorCode: string,
-  status: number | null,
-  message: string,
-  retryable: boolean,
-): SavedPlacesApiError => ({ status, errorCode, message, retryable });
-
-function fallbackSavedPlacesError(status: number | null) {
-  if (status === 400)
-    return savedPlacesError(
-      'COMMON400_001',
-      400,
-      '요청 내용을 확인해주세요.',
-      false,
-    );
-  if (status === 401)
-    return savedPlacesError('AUTH401_001', 401, '로그인이 필요해요.', true);
-  if (status === 403)
-    return savedPlacesError(
-      'AUTH403_001',
-      403,
-      '이 작업을 수행할 권한이 없어요.',
-      false,
-    );
-  if (status !== null && status >= 500)
-    return savedPlacesError(
-      'DATA500_001',
-      500,
-      '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
-      true,
-    );
-  return savedPlacesError(
-    'CLIENT000_003',
-    null,
-    '응답을 처리하지 못했어요.',
-    false,
-  );
+/** 카드에 쓰는 짧은 주소입니다. 서버가 내리지 않아 지번 주소의 앞 두 어절로 만듭니다. */
+function toShortAddress(landLotAddress: string) {
+  return landLotAddress.split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
 }
 
-type SupabaseSavedPlaceResponse = {
-  id: string;
-  thumbnail_url: string | null;
-  created_at: string;
-  last_saved_at: string;
-  place: {
-    id: string;
-    name: string;
-    category: string | null;
-    source_address: string | null;
-    road_address: string | null;
-    address: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    kakao_place_url: string | null;
-    thumbnail_url: string | null;
-    photo_attribution: string | null;
-  };
+type ServerSavedPlaceResponse = {
+  savedPlaceId: number;
+  placeId: number;
+  name: string;
+  category: string | null;
+  landLotAddress: string;
+  roadAddress: string | null;
+  latitude: number;
+  longitude: number;
+  kakaoPlaceUrl: string | null;
+  telephone: string | null;
+  thumbnailUrl: string | null;
+  thumbnailSource: string | null;
+  lastSavedAt: string;
 };
 
-/** Supabase 전용 JSON을 앱의 `SavedPlaceListItem` 계약으로 바꿉니다. */
+type ServerSavedPlaceResponses = {
+  savedPlaces: ServerSavedPlaceResponse[];
+};
+
+/** 서버 JSON을 앱의 `SavedPlaceListItem` 계약으로 바꿉니다. */
 function toSavedPlaceListItem(
-  item: SupabaseSavedPlaceResponse,
+  item: ServerSavedPlaceResponse,
 ): SavedPlaceListItem {
   return {
-    id: item.id,
-    thumbnailUrl: item.thumbnail_url,
-    createdAt: item.created_at,
-    lastSavedAt: item.last_saved_at,
+    id: toIdString(item.savedPlaceId),
+    lastSavedAt: item.lastSavedAt,
     place: {
-      id: item.place.id,
-      name: item.place.name,
-      category: item.place.category,
-      sourceAddress: item.place.source_address,
-      roadAddress: item.place.road_address,
-      address: item.place.address,
-      latitude: item.place.latitude,
-      longitude: item.place.longitude,
-      kakaoPlaceUrl: item.place.kakao_place_url,
-      thumbnailUrl: item.place.thumbnail_url,
-      photoAttribution: item.place.photo_attribution,
+      id: toIdString(item.placeId),
+      name: item.name,
+      category: item.category,
+      landLotAddress: item.landLotAddress,
+      roadAddress: item.roadAddress,
+      shortAddress: toShortAddress(item.landLotAddress),
+      latitude: item.latitude,
+      longitude: item.longitude,
+      kakaoPlaceUrl: item.kakaoPlaceUrl,
+      telephone: item.telephone,
+      thumbnailUrl: item.thumbnailUrl,
+      thumbnailSource: item.thumbnailSource,
     },
   };
 }
 
-/**
- * 현재 Data API 구현체입니다. 향후 자체 서버가 생기면 이 구현체 대신
- * `configureSavedPlacesRepository({getSavedPlaces: ...})`만 교체합니다.
- */
-export function createSupabaseSavedPlacesRepository(
+/** 서버 보관함 API 구현체입니다. 실패는 `ApiError`로 던집니다. */
+export function createServerSavedPlacesRepository(
   options: SavedPlacesApiOptions,
 ): SavedPlacesRepository {
-  const getSavedPlacesOnce = async (): Promise<SavedPlaceListItem[]> => {
-    if (!options.baseUrl) throw fallbackSavedPlacesError(null);
-
-    const token = await options.getAccessToken?.();
-    const query = `?select=${encodeURIComponent(
-      SAVED_PLACES_SELECT,
-    )}&order=last_saved_at.desc,id.desc`;
-    let response: Response;
-    try {
-      response = await fetch(
-        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/saved_places${query}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            ...(options.publishableKey
-              ? { apikey: options.publishableKey }
-              : {}),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
-      );
-    } catch {
-      throw savedPlacesError(
-        'CLIENT000_001',
-        null,
-        '인터넷 연결을 확인해주세요.',
-        true,
-      );
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      throw fallbackSavedPlacesError(null);
-    }
-    if (!response.ok) {
-      const normalized = body as Partial<SavedPlacesApiError>;
-      const fallback = fallbackSavedPlacesError(response.status);
-      throw {
-        ...fallback,
-        ...normalized,
-        status: normalized.status ?? fallback.status,
-      };
-    }
-
-    return (body as SupabaseSavedPlaceResponse[]).map(toSavedPlaceListItem);
-  };
-
-  const deleteSavedPlaceOnce = async (savedPlaceId: string): Promise<void> => {
-    if (!options.baseUrl) throw fallbackSavedPlacesError(null);
-
-    const token = await options.getAccessToken?.();
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      SAVED_PLACES_REQUEST_TIMEOUT_MS,
-    );
-    const query = `id=eq.${encodeURIComponent(savedPlaceId)}`;
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/saved_places?${query}`,
-        {
-          method: 'DELETE',
-          headers: {
-            Accept: 'application/json',
-            ...(options.publishableKey
-              ? { apikey: options.publishableKey }
-              : {}),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          signal: controller.signal,
-        },
-      );
-    } catch {
-      throw controller.signal.aborted
-        ? savedPlacesError(
-            'CLIENT000_002',
-            null,
-            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-            true,
-          )
-        : savedPlacesError(
-            'CLIENT000_001',
-            null,
-            '인터넷 연결을 확인해주세요.',
-            true,
-          );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    if (response.ok) {
-      return;
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
-
-    const normalized = body as Partial<SavedPlacesApiError>;
-    const fallback = fallbackSavedPlacesError(response.status);
-    throw {
-      ...fallback,
-      ...normalized,
-      status: normalized.status ?? fallback.status,
-    };
-  };
-
-  const deleteSavedPlacesOnce = async (savedPlaceIds: string[]) => {
-    for (const savedPlaceId of savedPlaceIds) {
-      await deleteSavedPlaceOnce(savedPlaceId);
-    }
-  };
+  const request = createApiClient(options);
 
   return {
     async getSavedPlaces() {
-      try {
-        return await getSavedPlacesOnce();
-      } catch (error) {
-        if (
-          (error as { errorCode?: string }).errorCode === 'AUTH401_002' &&
-          (await options.refreshSession?.())
-        ) {
-          return getSavedPlacesOnce();
-        }
-        throw error;
-      }
+      const body = (await request(
+        '/api/v1/saved-places',
+      )) as ServerSavedPlaceResponses;
+
+      return body.savedPlaces.map(toSavedPlaceListItem);
     },
     async deleteSavedPlaces(savedPlaceIds) {
+      // 빈 목록은 서버가 PLACE400_001로 거절하므로 보내지 않습니다.
       if (savedPlaceIds.length === 0) {
         return;
       }
 
-      try {
-        await deleteSavedPlacesOnce(savedPlaceIds);
-      } catch (error) {
-        if (
-          (error as { errorCode?: string }).errorCode === 'AUTH401_002' &&
-          (await options.refreshSession?.())
-        ) {
-          await deleteSavedPlacesOnce(savedPlaceIds);
-          return;
-        }
-        throw error;
-      }
+      await request('/api/v1/saved-places', {
+        method: 'DELETE',
+        query: { savedPlaceIds: savedPlaceIds.join(',') },
+      });
     },
   };
 }
@@ -614,9 +428,11 @@ export function createMockSavedPlacesRepository(): SavedPlacesRepository {
             ? [
                 {
                   id: savedPlace.id,
-                  thumbnailUrl: savedPlace.thumbnailUrl,
-                  createdAt: savedPlace.createdAt,
-                  place,
+                  lastSavedAt: savedPlace.lastSavedAt ?? savedPlace.createdAt,
+                  place: {
+                    ...place,
+                    shortAddress: toShortAddress(place.landLotAddress),
+                  },
                 },
               ]
             : [];
@@ -633,7 +449,7 @@ export function createMockSavedPlacesRepository(): SavedPlacesRepository {
   };
 }
 
-// Supabase 설정 전에도 저장됨 화면은 기존 info 목 데이터로 표시합니다.
+// 서버 설정 전에도 저장됨 화면은 기존 info 목 데이터로 표시합니다.
 let savedPlacesRepository: SavedPlacesRepository =
   createMockSavedPlacesRepository();
 
@@ -643,9 +459,9 @@ export function configureSavedPlacesRepository(
   savedPlacesRepository = repository;
 }
 
-/** 앱 시작 시 현재 Supabase 구현체를 등록합니다. */
+/** 앱 시작 시 서버 구현체를 등록합니다. */
 export function configureSavedPlacesApi(options: SavedPlacesApiOptions) {
-  configureSavedPlacesRepository(createSupabaseSavedPlacesRepository(options));
+  configureSavedPlacesRepository(createServerSavedPlacesRepository(options));
 }
 
 /** 화면은 이 함수만 사용하며 Supabase/자체 서버를 알 필요가 없습니다. */
@@ -657,178 +473,63 @@ export function deleteSavedPlaces(savedPlaceIds: string[]): Promise<void> {
   return savedPlacesRepository.deleteSavedPlaces(savedPlaceIds);
 }
 
-type SupabasePlaceReelResponse = {
-  id: string;
-  instagram_url: string;
-  instagram_thumbnail_url: string | null;
-  created_at: string;
+type ServerSavedPlaceMediaResponse = {
+  sharedMediaId: number;
+  thumbnailUrl: string | null;
+  author: string | null;
+  caption: string | null;
+  sharedUrl: string;
+  createdAt: string;
 };
 
-const placeReelsError = (
-  errorCode: string,
-  status: number | null,
-  message: string,
-  retryable: boolean,
-): PlaceReelsApiError => ({ status, errorCode, message, retryable });
+type ServerSavedPlaceMediaResponses = {
+  media: ServerSavedPlaceMediaResponse[];
+};
 
-function fallbackPlaceReelsError(status: number | null): PlaceReelsApiError {
-  if (status === 400)
-    return placeReelsError(
-      'COMMON400_001',
-      400,
-      '요청 내용을 확인해주세요.',
-      false,
-    );
-  if (status === 401)
-    return placeReelsError('AUTH401_001', 401, '로그인이 필요해요.', true);
-  if (status === 403)
-    return placeReelsError(
-      'AUTH403_001',
-      403,
-      '이 작업을 수행할 권한이 없어요.',
-      false,
-    );
-  if (status !== null && status >= 500)
-    return placeReelsError(
-      'DATA500_001',
-      500,
-      '데이터를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
-      true,
-    );
-  return placeReelsError(
-    'CLIENT000_003',
-    null,
-    '응답을 처리하지 못했어요.',
-    false,
-  );
-}
-
-function toPlaceReel(reel: SupabasePlaceReelResponse): PlaceReel {
+function toPlaceReel(media: ServerSavedPlaceMediaResponse): PlaceReel {
   return {
-    id: reel.id,
-    instagramUrl: reel.instagram_url,
-    instagramAuthorUsername: null,
-    instagramDescription: null,
-    instagramThumbnailUrl: reel.instagram_thumbnail_url,
-    createdAt: reel.created_at,
+    id: toIdString(media.sharedMediaId),
+    instagramUrl: media.sharedUrl,
+    instagramAuthorUsername: media.author,
+    instagramDescription: media.caption,
+    instagramThumbnailUrl: media.thumbnailUrl,
+    createdAt: media.createdAt,
   };
 }
 
-export function createSupabasePlaceReelsRepository(
+/** 서버 장소별 릴스 API 구현체입니다. 보관함 항목 id로 릴스를 한 번에 읽습니다. */
+export function createServerPlaceReelsRepository(
   options: PlaceReelsApiOptions,
 ): PlaceReelsRepository {
-  const getPlaceReelsOnce = async (placeId: string): Promise<PlaceReel[]> => {
-    if (!options.baseUrl) throw fallbackPlaceReelsError(null);
-    const token = await options.getAccessToken?.();
-    const query = [
-      `select=${encodeURIComponent(PLACE_REELS_SELECT)}`,
-      `place_id=eq.${encodeURIComponent(placeId)}`,
-      'order=created_at.desc,id.desc',
-    ].join('&');
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    let response: Response;
-    try {
-      response = await fetch(
-        `${options.baseUrl.replace(/\/$/, '')}/rest/v1/user_related_reels?${query}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            ...(options.publishableKey
-              ? { apikey: options.publishableKey }
-              : {}),
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          signal: controller.signal,
-        },
-      );
-    } catch {
-      throw controller.signal.aborted
-        ? placeReelsError(
-            'CLIENT000_002',
-            null,
-            '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-            true,
-          )
-        : placeReelsError(
-            'CLIENT000_001',
-            null,
-            '인터넷 연결을 확인해주세요.',
-            true,
-          );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      throw fallbackPlaceReelsError(null);
-    }
-    if (!response.ok) {
-      const normalized = body as Partial<PlaceReelsApiError>;
-      const fallback = fallbackPlaceReelsError(response.status);
-      throw {
-        ...fallback,
-        ...normalized,
-        status: normalized.status ?? fallback.status,
-      };
-    }
-    const relatedReels = body as SupabasePlaceReelResponse[];
-    if (relatedReels.length === 0) return [];
-
-    const reelIds = relatedReels.map(reel => reel.id).join(',');
-    const descriptionsResponse = await fetch(
-      `${options.baseUrl.replace(/\/$/, '')}/rest/v1/reels?select=id,instagram_description&id=in.(${encodeURIComponent(reelIds)})`,
-      {
-        headers: {
-          Accept: 'application/json',
-          ...(options.publishableKey ? { apikey: options.publishableKey } : {}),
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      },
-    );
-    const descriptions = descriptionsResponse.ok
-      ? ((await descriptionsResponse.json()) as Array<{
-          id: string;
-          instagram_description: string | null;
-        }>)
-      : [];
-    const descriptionById = new Map(
-      descriptions.map(reel => [reel.id, reel.instagram_description]),
-    );
-
-    return relatedReels.map(reel => ({
-      ...toPlaceReel(reel),
-      instagramDescription: descriptionById.get(reel.id) ?? null,
-    }));
-  };
+  const request = createApiClient(options);
 
   return {
-    async getPlaceReels(placeId) {
-      try {
-        return await getPlaceReelsOnce(placeId);
-      } catch (error) {
-        if (
-          (error as PlaceReelsApiError).errorCode === 'AUTH401_002' &&
-          (await options.refreshSession?.())
-        ) {
-          return getPlaceReelsOnce(placeId);
-        }
-        throw error;
-      }
+    async getPlaceReels(savedPlaceId) {
+      const body = (await request(
+        `/api/v1/saved-places/${encodeURIComponent(savedPlaceId)}/media`,
+      )) as ServerSavedPlaceMediaResponses;
+
+      return body.media.map(toPlaceReel);
     },
   };
 }
 
 export function createMockPlaceReelsRepository(): PlaceReelsRepository {
   return {
-    async getPlaceReels(placeId) {
+    async getPlaceReels(savedPlaceId) {
+      const savedPlace = frontendInfoDomainMock.savedPlaces.find(
+        candidate => candidate.id === savedPlaceId,
+      );
+
+      if (!savedPlace) {
+        return [];
+      }
+
       return frontendInfoDomainMock.reels
         .filter(
           reel =>
-            reel.placeId === placeId && reel.processingStatus === 'COMPLETED',
+            reel.placeId === savedPlace.placeId &&
+            reel.processingStatus === 'COMPLETED',
         )
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
         .map(reel => ({
@@ -856,11 +557,11 @@ export function configurePlaceReelsRepository(
   placeReelsRepository = repository;
 }
 
-/** 앱 시작 시 Supabase 구현체를 등록합니다. */
+/** 앱 시작 시 서버 구현체를 등록합니다. */
 export function configurePlaceReelsApi(options: PlaceReelsApiOptions) {
-  configurePlaceReelsRepository(createSupabasePlaceReelsRepository(options));
+  configurePlaceReelsRepository(createServerPlaceReelsRepository(options));
 }
 
-export function getPlaceReels(placeId: string): Promise<PlaceReel[]> {
-  return placeReelsRepository.getPlaceReels(placeId);
+export function getPlaceReels(savedPlaceId: string): Promise<PlaceReel[]> {
+  return placeReelsRepository.getPlaceReels(savedPlaceId);
 }
