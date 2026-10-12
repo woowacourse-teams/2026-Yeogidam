@@ -10,6 +10,8 @@ import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
+import type {InboxReel} from './src/entities/content/inbox-api';
+import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import type { NormalizedAuthError } from './src/lib/auth/errors';
 import {
@@ -38,6 +40,8 @@ import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
+  hasSignedInOnThisInstall,
+  rememberSignInOnThisInstall,
 } from './src/lib/app-guide-storage';
 import { AppGuideScreen } from './src/pages/guide/AppGuideScreen';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
@@ -64,6 +68,7 @@ import {
 import type {
   AppFlowState,
   AuthScreen,
+  MainFlowState,
   MainScreen,
   Screen,
 } from './src/types/navigation';
@@ -91,6 +96,14 @@ const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
   stack: ['login'],
 };
+const GUEST_MAIN_FLOW_STATE: MainFlowState = {
+  kind: 'main',
+  activeTab: 'saved',
+  detailSource: null,
+};
+const EMPTY_GUEST_PLACES: Place[] = [];
+const EMPTY_GUEST_INBOX: InboxReel[] = [];
+const EMPTY_GUEST_HISTORY: HistoryReel[] = [];
 const SPLASH_MIN_DURATION_MS = 2000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
@@ -146,6 +159,8 @@ function App() {
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const hasSignedInOnThisInstallRef = useRef(false);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
     null,
@@ -157,6 +172,7 @@ function App() {
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
+  const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
   const lastHandledShareResultRef = useRef<string | null>(null);
@@ -185,6 +201,19 @@ function App() {
       : flowState.detailSource
       ? 'detail'
       : flowState.activeTab;
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      guestReturnFlowRef.current = null;
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated === true && hasCompletedGuide === true) {
+      hasSignedInOnThisInstallRef.current = true;
+      rememberSignInOnThisInstall().catch(() => undefined);
+    }
+  }, [hasCompletedGuide, isAuthenticated]);
 
   const canRequestLocation =
     isAuthReady &&
@@ -293,13 +322,18 @@ function App() {
 
     const syncFlowState = async () => {
       await reconcileShareSession().catch(() => undefined);
-      const { data, error } = await supabase.auth.getSession();
+      const [{data, error}, signedInOnThisInstall] = await Promise.all([
+        supabase.auth.getSession(),
+        hasSignedInOnThisInstall(),
+      ]);
 
       if (!isMounted) {
         return;
       }
+      hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
 
       if (error || !data.session) {
+        setIsAuthenticated(false);
         if (!hasTrackedAppOpenedRef.current) {
           trackAppOpened(posthog, false);
           hasTrackedAppOpenedRef.current = true;
@@ -310,7 +344,9 @@ function App() {
           if (!sharedSession?.refreshToken) await syncShareSession(null);
         }
 
-        setFlowState(INITIAL_FLOW_STATE); 
+        setFlowState(
+          signedInOnThisInstall ? INITIAL_FLOW_STATE : GUEST_MAIN_FLOW_STATE,
+        );
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
         setIsAuthReady(true);
@@ -318,6 +354,7 @@ function App() {
       }
 
       await syncShareSession(data.session);
+      setIsAuthenticated(true);
       void resumeWaitingShares();
 
       if (!hasTrackedAppOpenedRef.current) {
@@ -342,10 +379,14 @@ function App() {
     };
 
     const loadGuideCompletion = async () => {
-      const completed = await hasCompletedAppGuide();
+      const [completed, signedInOnThisInstall] = await Promise.all([
+        hasCompletedAppGuide(),
+        hasSignedInOnThisInstall(),
+      ]);
 
       if (isMounted) {
-        setHasCompletedGuide(completed);
+        hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
+        setHasCompletedGuide(completed || signedInOnThisInstall);
       }
     };
 
@@ -380,8 +421,18 @@ function App() {
         return;
       }
 
+      // 첫 세션 판정은 syncFlowState에서 설치 내 로그인 기록과 함께 처리합니다.
+      if (event === 'INITIAL_SESSION' && !session) {
+        return;
+      }
+
       if (!session) {
-        setFlowState(INITIAL_FLOW_STATE);
+        setIsAuthenticated(false);
+        setFlowState(
+          hasSignedInOnThisInstallRef.current
+            ? INITIAL_FLOW_STATE
+            : GUEST_MAIN_FLOW_STATE,
+        );
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
         setIsMapPlaceDetailVisible(false);
@@ -392,6 +443,7 @@ function App() {
       }
 
       setSocialLoginError(null);
+      setIsAuthenticated(true);
       setHasPendingShareLogin(false);
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
@@ -573,7 +625,7 @@ function App() {
   }, [isAuthReady]);
 
   useEffect(() => {
-    if (flowState.kind !== 'main') {
+    if (flowState.kind !== 'main' || isAuthenticated !== true) {
       setCurrentProfile(null);
       setProfileError(null);
       setIsProfileLoading(false);
@@ -612,7 +664,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [flowState.kind]);
+  }, [flowState.kind, isAuthenticated]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider) {
@@ -661,6 +713,29 @@ function App() {
   const handleCompleteGuide = () => {
     setHasCompletedGuide(true);
     completeAppGuide();
+  };
+
+  const handleOpenGuestLogin = () => {
+    if (flowState.kind !== 'main' || isAuthenticated !== false) return;
+
+    guestReturnFlowRef.current = flowState;
+    setFlowState(INITIAL_FLOW_STATE);
+  };
+
+  const handleRequireLogin = () => {
+    if (isAuthenticated === false) {
+      handleOpenGuestLogin();
+      return;
+    }
+    setFlowState(INITIAL_FLOW_STATE);
+  };
+
+  const handleContinueBrowsing = () => {
+    const previousFlow = guestReturnFlowRef.current;
+    if (!previousFlow) return;
+
+    guestReturnFlowRef.current = null;
+    setFlowState(previousFlow);
   };
 
   const showPreparingAlert = (featureName: string) => {
@@ -734,7 +809,13 @@ function App() {
 
   const renderScreen = () => {
     if (isHistoryVisible) {
-      return <HistoryScreen onBack={() => setIsHistoryVisible(false)} />;
+      return (
+        <HistoryScreen
+          guestReels={isAuthenticated === false ? EMPTY_GUEST_HISTORY : undefined}
+          onBack={() => setIsHistoryVisible(false)}
+          onRequireLogin={handleRequireLogin}
+        />
+      );
     }
 
     if (myPageOverlay === 'terms') {
@@ -769,6 +850,7 @@ function App() {
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
+          onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
         />
       );
     }
@@ -802,8 +884,11 @@ function App() {
     if (currentScreen === 'saved') {
       return (
         <SavedPlacesScreen
+          key={isAuthenticated === false ? 'guest-saved' : 'member-saved'}
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
-          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          isGuest={isAuthenticated === false}
+          places={isAuthenticated === false ? EMPTY_GUEST_PLACES : undefined}
+          onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
             openDetailFrom('saved', place, context)
@@ -811,7 +896,7 @@ function App() {
           onScrollOffsetChange={offset => {
             savedPlacesScrollOffsetRef.current = offset;
           }}
-          onRequireLogin={() => setFlowState(INITIAL_FLOW_STATE)}
+          onRequireLogin={handleRequireLogin}
           onOpenInbox={() => openMainScreen('inBox')}
           onSharedResultConsumed={clearShareResult}
         />
@@ -822,7 +907,9 @@ function App() {
       return (
         <InBoxScreen
           entryType={inBoxEntryType}
+          guestItems={isAuthenticated === false ? EMPTY_GUEST_INBOX : undefined}
           onOpenHistory={() => setIsHistoryVisible(true)}
+          onRequireLogin={handleRequireLogin}
           onSelectionChange={setIsInBoxSelecting}
         />
       );
@@ -836,7 +923,7 @@ function App() {
       return (
         <PlaceDetailScreen
           onBack={closeDetail}
-          onAuthenticationRequired={() => setFlowState(INITIAL_FLOW_STATE)}
+          onAuthenticationRequired={handleRequireLogin}
           place={selectedPlace}
           viewContext={selectedPlaceViewContext ?? undefined}
         />
@@ -846,11 +933,13 @@ function App() {
     return (
       <MyPageScreen
         currentProfile={currentProfile}
+        isGuest={isAuthenticated === false}
         isProfileLoading={isProfileLoading}
         isLogoutPending={isLogoutPending}
         onOpenContact={openKakaoChannelChat}
         onOpenGuide={() => setMyPageOverlay('guide')}
         onLogout={handleLogout}
+        onLogin={handleOpenGuestLogin}
         onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={handleRetryProfile}
         onWithdraw={handleOpenAccountDeletion}
@@ -917,10 +1006,10 @@ function App() {
               ]}
             >
               <MapScreen
+                key={isAuthenticated === false ? 'guest-map' : 'member-map'}
                 isActive={isMapScreen}
-                onAuthenticationRequired={() =>
-                  setFlowState(INITIAL_FLOW_STATE)
-                }
+                isGuest={isAuthenticated === false}
+                onAuthenticationRequired={handleRequireLogin}
                 onDetailViewChange={setIsMapPlaceDetailVisible}
               />
             </View>
