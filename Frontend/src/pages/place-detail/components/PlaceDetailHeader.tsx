@@ -5,6 +5,7 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 type PlaceDetailHeaderProps = {
   onBack: () => void;
   onPressMore?: () => void;
+  onInteractivePressIn?: () => void;
   hideBack?: boolean;
   title?: string;
   titleInHeader?: boolean;
@@ -15,6 +16,7 @@ type PlaceDetailHeaderProps = {
 export function PlaceDetailHeader({
   onBack,
   onPressMore,
+  onInteractivePressIn,
   hideBack = false,
   title,
   titleInHeader = false,
@@ -34,6 +36,7 @@ export function PlaceDetailHeader({
           accessibilityRole="button"
           accessibilityLabel="뒤로 가기"
           hitSlop={12}
+          onPressIn={onInteractivePressIn}
           onPress={onBack}
           style={[styles.backButton, compact && styles.compactBackButton]}
         >
@@ -51,6 +54,7 @@ export function PlaceDetailHeader({
         accessibilityLabel="더보기"
         accessibilityRole="button"
         hitSlop={8}
+        onPressIn={onInteractivePressIn}
         onPress={onPressMore}
         style={[styles.moreButton, compact && styles.compactMoreButton]}
       >
@@ -67,6 +71,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#ffffff',
   },
   compactContainer: {
     minHeight: 44,

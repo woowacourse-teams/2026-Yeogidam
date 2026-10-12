@@ -147,11 +147,11 @@ export function MapScreen({
     eastLongitude: number;
   } | null>(null);
   useEffect(() => {
-    let isActive = true;
+    let isSubscribed = true;
 
     getSavedPlaces()
       .then(savedPlaceItems => {
-        if (!isActive) return;
+        if (!isSubscribed) return;
 
         setSavedPlaces(
           Array.from(
@@ -164,19 +164,19 @@ export function MapScreen({
         );
       })
       .catch(error => {
-        if (isActive) {
+        if (isSubscribed) {
           setSavedPlacesLoadFailed(true);
           setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
         }
       })
       .finally(() => {
-        if (isActive) {
+        if (isSubscribed) {
           setIsSavedPlacesLoading(false);
         }
       });
 
     return () => {
-      isActive = false;
+      isSubscribed = false;
     };
   }, []);
   const placesWithCoordinates = useMemo(

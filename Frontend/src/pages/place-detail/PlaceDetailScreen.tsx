@@ -19,7 +19,6 @@ import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
-import { PlaceMapButton } from './components/PlaceMapButton';
 
 type PlaceDetailScreenProps = {
   onBack: () => void;
@@ -142,11 +141,13 @@ export function PlaceDetailScreen({
   }, [handleDelete, isDeleting]);
 
   return (
-    <CopyToastProvider>
+    <CopyToastProvider bottomOffset={BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 16}>
       <PlaceDetailContent
         onBack={onBack}
         place={place}
+        viewContext={viewContext}
         showTitle={false}
+        stickyHeader
         titleInHeader
         compactHeader
         headerTopInset={SEARCH_BAR_TOP_GAP}
@@ -159,14 +160,6 @@ export function PlaceDetailScreen({
           setIsActionSheetVisible(true);
         }}
       />
-      {place.placeUrl ? (
-        <PlaceMapButton
-          savedAt={place.savedAt}
-          url={place.placeUrl}
-          viewContext={viewContext}
-          bottomOffset={BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 16}
-        />
-      ) : null}
       <PlaceDetailActionSheet
         visible={isActionSheetVisible}
         onClose={() => {

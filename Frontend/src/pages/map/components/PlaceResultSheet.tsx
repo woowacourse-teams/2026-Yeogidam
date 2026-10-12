@@ -16,6 +16,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type GestureResponderEvent,
 } from 'react-native';
 import { usePostHog } from 'posthog-react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -43,7 +44,6 @@ import {
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
 import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
-import { PlaceMapButton } from '../../place-detail/components/PlaceMapButton';
 
 type PlaceResultSheetProps = {
   places: Place[];
@@ -73,15 +73,16 @@ type PlaceResultSheetProps = {
 };
 
 export const COLLAPSED_SHEET_HEIGHT = 84;
-const DETAIL_PEEK_HEIGHT = 84;
-const MIDDLE_VISIBLE_RATIO = 0.5;
+const COLLAPSED_HANDLE_HEIGHT = 44;
+const COLLAPSED_CONTENT_VISIBLE_HEIGHT = 91;
+const MIDDLE_VISIBLE_RATIO = 0.58;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const MIDDLE_TO_EXPANDED_DRAG_THRESHOLD = 48;
 const MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD = 0.35;
 const BOTTOM_TAB_CLEARANCE = 92;
 const EXPANDED_RESULTS_TOP_GAP = 16;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
-const DETAIL_ACTION_BOTTOM_PADDING = 76;
+const DETAIL_ACTION_BOTTOM_PADDING = 24;
 const RESULT_ITEM_HEIGHT = 116;
 
 function getMiddleCategory(category?: string) {
@@ -134,10 +135,10 @@ export function PlaceResultSheet({
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
     null,
   );
-  const detailPeekHeight = Math.max(DETAIL_PEEK_HEIGHT, bottomTabOffset);
-  const collapsedHeight = selectedPlace
-    ? COLLAPSED_SHEET_HEIGHT + detailPeekHeight
-    : COLLAPSED_SHEET_HEIGHT;
+  const collapsedHeight =
+    COLLAPSED_HANDLE_HEIGHT +
+    COLLAPSED_CONTENT_VISIBLE_HEIGHT +
+    (selectedPlace ? bottomTabOffset : 0);
   const sheetHeight = Math.max(collapsedHeight, height);
   const collapsedOffset = sheetHeight - collapsedHeight;
   // The results sheet sits above the bottom navigation, while the detail
@@ -165,6 +166,8 @@ export function PlaceResultSheet({
   }
   const currentOffset = useRef(middleOffset);
   const dragStartOffset = useRef(middleOffset);
+  const collapsedBodyTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const ignoreCollapsedBodyTap = useRef(false);
   const previousSelectedPlaceId = useRef<string | null>(selectedPlace?.id ?? null);
   const pendingBackSnapIndex = useRef<number | null>(null);
   const startedInPageMode = useRef(false);
@@ -193,7 +196,9 @@ export function PlaceResultSheet({
   const listBottomClearance = BOTTOM_TAB_CLEARANCE + hiddenSheetHeight;
   const detailVisibleHeight = Math.max(
     0,
-    sheetHeight - hiddenSheetHeight - (isPageMode ? 0 : COLLAPSED_SHEET_HEIGHT),
+    sheetHeight -
+      hiddenSheetHeight -
+      (isPageMode ? 0 : COLLAPSED_HANDLE_HEIGHT),
   );
   const expandedHeaderHeight =
     topInset +
@@ -541,6 +546,11 @@ export function PlaceResultSheet({
             return;
           }
 
+          if (dragStartSnapIndex.current === 2 && gesture.dy < -4) {
+            snapTo(snapOffsets[1]);
+            return;
+          }
+
           if (dragStartSnapIndex.current === 1 && gesture.dy < 0) {
             const shouldExpand =
               Math.abs(gesture.dy) >= MIDDLE_TO_EXPANDED_DRAG_THRESHOLD ||
@@ -576,6 +586,40 @@ export function PlaceResultSheet({
     }
 
     snapTo(tapDirection === 'up' ? snapOffsets[0] : snapOffsets[2]);
+  };
+
+  const expandCollapsedSheet = () => {
+    if (activeSnapIndex === 2) {
+      snapTo(snapOffsets[1]);
+    }
+  };
+
+  const handleCollapsedBodyTouchStart = (event: GestureResponderEvent) => {
+    if (activeSnapIndex !== 2) return;
+    collapsedBodyTouchStart.current = {
+      x: event.nativeEvent.pageX,
+      y: event.nativeEvent.pageY,
+    };
+    ignoreCollapsedBodyTap.current = false;
+  };
+
+  const handleCollapsedBodyTouchEnd = (event: GestureResponderEvent) => {
+    const start = collapsedBodyTouchStart.current;
+    collapsedBodyTouchStart.current = null;
+    if (
+      activeSnapIndex === 2 &&
+      !ignoreCollapsedBodyTap.current &&
+      start !== null &&
+      Math.abs(event.nativeEvent.pageY - start.y) < 10 &&
+      Math.abs(event.nativeEvent.pageX - start.x) < 10
+    ) {
+      expandCollapsedSheet();
+    }
+    ignoreCollapsedBodyTap.current = false;
+  };
+
+  const ignoreCollapsedBodyTapOnPressIn = () => {
+    ignoreCollapsedBodyTap.current = true;
   };
 
   const selectPlace = (place: Place, position: number) => {
@@ -738,22 +782,31 @@ export function PlaceResultSheet({
         ) : null}
       </View>
       {selectedPlace ? (
-        <View style={[styles.detailArea, { height: detailVisibleHeight }]}>
-          <CopyToastProvider>
+        <View
+          {...(activeSnapIndex === 2 ? panResponder.panHandlers : {})}
+          onResponderStart={handleCollapsedBodyTouchStart}
+          onResponderEnd={handleCollapsedBodyTouchEnd}
+          style={[styles.detailArea, { height: detailVisibleHeight }]}
+        >
+          <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
             <PlaceDetailContent
               // Keep the detail content mounted across snap changes so its
               // scroll position and header do not jump during expansion.
               key={selectedPlace.id}
               onBack={backToPlaceList}
               place={selectedPlace}
+              viewContext={selectedPlaceViewContext ?? undefined}
               reels={selectedPlaceReels}
               reelsError={reelsError}
               isReelsLoading={isReelsLoading}
               onRetryReels={loadSelectedPlaceReels}
-              hideHeader={isPageMode}
+              hideHeader={isPageMode || activeSnapIndex === 0}
               hideBack
-              showTitle={false}
+              showTitle={!isPageMode && activeSnapIndex === 0}
+              showMetadata={activeSnapIndex !== 2}
+              actionsUnderTitle={!isPageMode && activeSnapIndex === 2}
               titleInHeader
+              onInteractivePressIn={ignoreCollapsedBodyTapOnPressIn}
               onPressMore={() => {
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
@@ -770,19 +823,6 @@ export function PlaceResultSheet({
                   : DETAIL_ACTION_BOTTOM_PADDING
               }
             />
-            {selectedPlace.placeUrl ? (
-              <PlaceMapButton
-                bottomOffset={
-                  Math.max(
-                    16,
-                    bottomTabOffset - COLLAPSED_SHEET_HEIGHT + 16,
-                  )
-                }
-                savedAt={selectedPlace.savedAt}
-                url={selectedPlace.placeUrl}
-                viewContext={selectedPlaceViewContext ?? undefined}
-              />
-            ) : null}
             <PlaceDetailActionSheet
               visible={isActionSheetVisible}
               onClose={() => {
@@ -796,7 +836,13 @@ export function PlaceResultSheet({
           </CopyToastProvider>
         </View>
       ) : (
-        <FlatList
+        <View
+          {...(activeSnapIndex === 2 ? panResponder.panHandlers : {})}
+          onResponderStart={handleCollapsedBodyTouchStart}
+          onResponderEnd={handleCollapsedBodyTouchEnd}
+          style={styles.expansionTapArea}
+        >
+          <FlatList
           ref={resultsListRef}
           data={places}
           style={styles.resultsScroll}
@@ -838,6 +884,7 @@ export function PlaceResultSheet({
                 accessibilityRole="button"
                 accessibilityLabel={`${place.name} 상세 보기`}
                 onPress={() => selectPlace(place, index + 1)}
+                onPressIn={ignoreCollapsedBodyTapOnPressIn}
                 style={styles.resultCard}
               >
                 {place.image ? (
@@ -926,7 +973,8 @@ export function PlaceResultSheet({
               )}
             </View>
           }
-        />
+          />
+        </View>
       )}
     </Animated.View>
   );
@@ -955,6 +1003,9 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: 'hidden',
   },
+  expansionTapArea: {
+    flex: 1,
+  },
   pill: {
     alignSelf: 'center',
     width: 97,
@@ -968,7 +1019,7 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingHorizontal: 14,
     paddingBottom: 2,
-    minHeight: 44,
+    minHeight: COLLAPSED_HANDLE_HEIGHT,
   },
   title: {
     fontSize: 15,
