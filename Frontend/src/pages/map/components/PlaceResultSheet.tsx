@@ -211,6 +211,10 @@ export function PlaceResultSheet({
     topInset +
     SEARCH_BAR_TOP_GAP +
     SEARCH_BAR_HEIGHT;
+  const expandedDetailSpacerStyle = useMemo(
+    () => ({ height: expandedDetailHeaderHeight }),
+    [expandedDetailHeaderHeight],
+  );
 
   const reportVisibleHeight = useCallback(
     (offset: number) => {
@@ -799,6 +803,11 @@ export function PlaceResultSheet({
           style={[styles.detailArea, { height: detailVisibleHeight }]}
         >
           <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
+            {isPageMode ? (
+              <View
+                style={[styles.detailPageHeaderSpacer, expandedDetailSpacerStyle]}
+              />
+            ) : null}
             <PlaceDetailContent
               // Keep the detail content mounted across snap changes so its
               // scroll position and header do not jump during expansion.
@@ -821,7 +830,7 @@ export function PlaceResultSheet({
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
               } : undefined}
-              headerTopInset={isPageMode ? expandedDetailHeaderHeight : 0}
+              headerTopInset={0}
               compactHeader
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
@@ -1012,6 +1021,10 @@ const styles = StyleSheet.create({
   detailArea: {
     minHeight: 0,
     overflow: 'hidden',
+  },
+  detailPageHeaderSpacer: {
+    flexShrink: 0,
+    backgroundColor: '#ffffff',
   },
   expansionTapArea: {
     flex: 1,
