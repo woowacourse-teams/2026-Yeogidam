@@ -190,6 +190,7 @@ test('비회원 지도는 탭을 떠나도 유지되고 로그인 취소 후 다
     isActive: true,
     isGuest: true,
   });
+  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(MapScreen).props.onAuthenticationRequired();

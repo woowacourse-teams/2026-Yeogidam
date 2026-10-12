@@ -69,3 +69,8 @@ export const ONBOARDING_PLACES: Place[] = [
     image: require('../../assets/onboarding/place-1107844606.jpg'),
   },
 ];
+
+export const ONBOARDING_MAP_CENTER = {
+  latitude: 37.557427,
+  longitude: 127.078807,
+};

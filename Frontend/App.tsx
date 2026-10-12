@@ -1045,6 +1045,7 @@ function App() {
                 key={isAuthenticated === false ? 'guest-map' : 'member-map'}
                 isActive={isMapScreen}
                 isGuest={isAuthenticated === false}
+                guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
                 onAuthenticationRequired={handleRequireLogin}
               />
             </View>

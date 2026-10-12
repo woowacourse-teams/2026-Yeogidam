@@ -28,6 +28,7 @@ import {
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
+import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
 import {
   SEARCH_BAR_HEIGHT,
@@ -49,6 +50,7 @@ import {
 type MapScreenProps = {
   isActive?: boolean;
   isGuest?: boolean;
+  guestPlaces?: Place[];
   onAuthenticationRequired?: () => void;
 };
 
@@ -61,6 +63,7 @@ type MapCamera = {
 export function MapScreen({
   isActive = true,
   isGuest = false,
+  guestPlaces,
   onAuthenticationRequired,
 }: MapScreenProps) {
   const posthog = usePostHog();
@@ -94,10 +97,9 @@ export function MapScreen({
   const [searchResultSignal, setSearchResultSignal] = useState(0);
   const [backToPlaceListSignal, setBackToPlaceListSignal] = useState(0);
   const [detailMoreSignal, setDetailMoreSignal] = useState(0);
-  const [mapCenter, setMapCenter] = useState({
-    latitude: 37.5448,
-    longitude: 127.0557,
-  });
+  const [mapCenter, setMapCenter] = useState(
+    isGuest ? ONBOARDING_MAP_CENTER : {latitude: 37.5448, longitude: 127.0557},
+  );
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
   const lastMapCameraRef = useRef<MapCamera>({
     latitude: 37.5448,
@@ -123,13 +125,13 @@ export function MapScreen({
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
   useEffect(() => {
-    if (!locationGranted || didRequestInitialCurrentLocation.current) {
+    if (isGuest || !locationGranted || didRequestInitialCurrentLocation.current) {
       return;
     }
 
     didRequestInitialCurrentLocation.current = true;
     setCurrentLocationRequestId(requestId => requestId + 1);
-  }, [locationGranted]);
+  }, [isGuest, locationGranted]);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const [isSavedPlacesLoading, setIsSavedPlacesLoading] = useState(true);
@@ -150,7 +152,7 @@ export function MapScreen({
   } | null>(null);
   useEffect(() => {
     if (isGuest) {
-      setSavedPlaces([]);
+      setSavedPlaces(guestPlaces ?? []);
       setSavedPlacesLoadFailed(false);
       setIsSavedPlacesLoading(false);
       return;
@@ -186,7 +188,7 @@ export function MapScreen({
     return () => {
       isMounted = false;
     };
-  }, [isGuest]);
+  }, [guestPlaces, isGuest]);
   const placesWithCoordinates = useMemo(
     () =>
       savedPlaces.filter(
