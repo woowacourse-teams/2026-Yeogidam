@@ -1,0 +1,1055 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>여기담, 릴스 속 장소를 지도에 담는 앱</title>
+<meta name="description" content="릴스 속 장소를 기억하고 싶을 땐, 여기담">
+<meta property="og:title" content="여기담, 릴스 속 장소를 지도에 담는 앱">
+<meta property="og:description" content="릴스 속 장소를 기억하고 싶을 땐, 여기담">
+<meta property="og:type" content="website">
+<!-- og:image는 1200x630 이미지를 따로 만들어 두면 카카오톡 미리보기가 더 깔끔하다. -->
+<meta property="og:url" content="https://yeogidam.vercel.app/">
+<meta property="og:image" content="https://yeogidam.vercel.app/assets/app-icon.png">
+<meta name="theme-color" content="#dbe0f9">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/app-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"></noscript>
+<style>
+/* ---------- 토큰 ---------- */
+:root{
+  color-scheme: light;
+  --bg:#ffffff; --bg-soft:#f3f4fb; --bg-cream:#f5f3ee;
+  --brand:#dbe0f9; --brand-deep:#c1cbfe; --brand-ink:#4a5bd6;
+  --ink:#1a1a2e; --ink-2:#596275; --muted:#6e6e73; --line:#e5e5ea;
+  --success:#34c759; --fail:#fb6f6f; --kakao:#fee500; --black:#121212;
+  --radius:20px;
+  --shadow:0 10px 30px rgba(26,26,46,.08);
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-x:hidden}
+[hidden]{display:none!important}
+img{max-width:100%;display:block}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+h1,h2,h3{margin:0;line-height:1.25;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+.wrap{max-width:1120px;margin-inline:auto;padding-inline:max(clamp(16px,4vw,32px),env(safe-area-inset-left,0px)) max(clamp(16px,4vw,32px),env(safe-area-inset-right,0px))}
+#demo,#how,#features,#faq,#start{scroll-margin-top:72px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--brand-ink);background:var(--bg-soft);border-radius:999px;padding:6px 12px}
+.sec{padding-block:clamp(56px,9vw,112px)}
+.sec-head{max-width:640px;margin-bottom:clamp(28px,4vw,48px)}
+.sec-head h2{font-size:clamp(26px,4vw,40px);font-weight:800;margin-top:14px}
+.sec-head p{margin-top:14px;color:var(--ink-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- 내비 ---------- */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid rgba(26,26,46,.06)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;text-decoration:none}
+.brand img{width:34px;height:34px;border-radius:10px}
+.nav-links{display:none;gap:4px}
+.nav-links a{text-decoration:none;font-size:15px;font-weight:600;color:var(--ink-2);padding:8px 12px;border-radius:999px}
+.nav-links a:hover{background:var(--bg-soft);color:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:999px;padding:12px 20px;font-weight:700;font-size:15px;text-decoration:none;transition:transform .15s ease,background .15s ease}
+.btn:active{transform:scale(.97)}
+.btn-dark{background:var(--black);color:#fff}
+.btn-dark:hover{background:#2a2a44}
+.btn-soft{background:var(--brand);color:var(--ink)}
+.btn-soft:hover{background:var(--brand-deep)}
+.btn-ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+.btn-ghost:hover{background:var(--bg-soft)}
+.btn-sm{padding:9px 14px;font-size:14px;min-height:44px}
+@media (min-width:860px){.nav-links{display:flex}}
+
+/* ---------- 히어로 ---------- */
+.hero{padding-block:clamp(32px,6vw,80px) clamp(40px,6vw,72px);background:
+  radial-gradient(900px 500px at 10% -10%,rgba(219,224,249,.9),transparent 60%),
+  radial-gradient(700px 420px at 100% 20%,rgba(245,243,238,1),transparent 60%),var(--bg)}
+.hero .wrap{display:grid;gap:clamp(32px,5vw,56px);align-items:center}
+.hero h1{font-size:clamp(30px,6.4vw,50px);font-weight:800;margin-top:18px}
+.hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--brand) 62%)}
+.hero .lead{margin-top:18px;font-size:clamp(16px,2vw,19px);color:var(--ink-2);max-width:34em}
+.badges{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:26px}
+.badges a{display:inline-flex;border-radius:8px;transition:transform .15s ease}
+.badges a:hover{transform:translateY(-2px)}
+.badges img{height:48px;width:auto}
+.badges .play img{height:58px;margin:-5px}
+.hero-note{margin-top:14px;font-size:14px;color:var(--muted)}
+.hero-note a{color:var(--brand-ink);font-weight:600}
+.hero-char{position:relative;display:none}
+@media (min-width:960px){
+  .hero .wrap{grid-template-columns:1.05fr .95fr}
+}
+
+/* ---------- 데모 패널 ---------- */
+.demo{position:relative}
+.demo-title{display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink-2);margin-bottom:14px}
+.demo-title .dot{width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 4px rgba(52,199,89,.18)}
+.phone-wrap{width:min(360px,100%);margin-inline:auto;aspect-ratio:360/720;position:relative}
+.demo-badge{position:absolute;top:46px;left:50%;transform:translateX(-50%);z-index:31;font-size:10px;font-weight:700;letter-spacing:.02em;background:rgba(18,18,18,.55);color:#fff;border-radius:999px;padding:2px 8px;pointer-events:none}
+.phone{position:absolute;left:0;top:0;width:360px;height:720px;transform-origin:top left;transform:scale(var(--s,1));user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+.shell{position:absolute;inset:0;border-radius:52px;background:#0f0f14;box-shadow:0 30px 60px rgba(26,26,46,.28),0 0 0 2px #2b2b35 inset}
+.screen{position:absolute;inset:10px;border-radius:44px;background:#fff;overflow:hidden;font-size:14px;line-height:1.4;isolation:isolate;-webkit-mask-image:-webkit-radial-gradient(white,black)}
+.island{position:absolute;top:11px;left:50%;width:100px;height:28px;background:#0f0f14;border-radius:999px;transform:translateX(-50%);z-index:30}
+.sbar{position:absolute;top:0;left:0;right:0;height:48px;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 28px 0;font-weight:700;font-size:15px;z-index:29;pointer-events:none;color:var(--ink)}
+.sbar.light{color:#fff}
+.sbar .ic{display:flex;gap:5px;align-items:center}
+.scr{position:absolute;inset:0;background:#fff}
+.hint{position:absolute;z-index:40;pointer-events:none;transform:translate(-50%,-50%);transition:left .25s ease,top .25s ease;opacity:0}
+.hint.on{opacity:1}
+.hint-ring{display:block;width:60px;height:60px;border-radius:50%;border:3px solid var(--brand-ink);margin:-30px 0 0 -30px;position:absolute;left:0;top:0;animation:ring 1.4s ease-out infinite}
+.hint-ring::after{content:"";position:absolute;inset:10px;border-radius:50%;background:rgba(86,105,224,.28)}
+.hint-bubble{position:absolute;left:50%;transform:translateX(-50%);background:var(--black);color:#fff;font-size:12px;font-weight:700;white-space:nowrap;padding:7px 11px;border-radius:999px;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+.hint.top .hint-bubble{bottom:40px}
+.hint.bottom .hint-bubble{top:40px}
+.hint.left .hint-bubble{left:auto;right:40px;top:-15px;transform:none}
+@keyframes ring{0%{transform:scale(.7);opacity:1}100%{transform:scale(1.35);opacity:0}}
+
+/* 릴스 화면 */
+.reel{color:#fff;overflow:hidden}
+.reel-bg{position:absolute;inset:0;transition:background .3s}
+.reel-bg.pink{background:linear-gradient(160deg,#ffd6e0 0%,#f7c8d8 40%,#5a3b4a 100%)}
+.reel-bg.sea{background:linear-gradient(160deg,#bfe3ff 0%,#5aa8e6 45%,#133a62 100%)}
+.reel-bg.green{background:linear-gradient(160deg,#d8f3d0 0%,#8ccf8c 45%,#214a2a 100%)}
+.reel-bg span{position:absolute;font-size:40px;opacity:.9;filter:drop-shadow(0 6px 10px rgba(0,0,0,.18));animation:floaty 6s ease-in-out infinite}
+.reel-bg span:nth-child(2n){animation-duration:7.5s}
+.reel-bg span:nth-child(3n){animation-delay:-2s}
+@keyframes floaty{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-10px) rotate(5deg)}}
+.reel-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,transparent 25%,transparent 55%,rgba(0,0,0,.65) 100%)}
+.reel-top{position:absolute;top:54px;left:18px;right:18px;display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:20px}
+.reel-acts{position:absolute;right:12px;bottom:120px;display:flex;flex-direction:column;gap:18px;align-items:center}
+.reel-acts button{background:none;border:0;color:#fff;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:6px;border-radius:12px}
+.reel-acts button:active{background:rgba(255,255,255,.15)}
+.reel-acts svg{width:28px;height:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
+.reel-meta{position:absolute;left:16px;right:70px;bottom:34px}
+.reel-user{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px}
+.reel-user .av{width:30px;height:30px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:14px;color:var(--ink)}
+.reel-user .follow{font-size:11px;font-weight:600;border:1px solid rgba(255,255,255,.8);border-radius:6px;padding:2px 7px}
+.reel-cap{margin-top:8px;font-size:13px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.reel-audio{margin-top:8px;font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px}
+
+/* 공유 시트 */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);opacity:0;transition:opacity .25s;z-index:20;pointer-events:none}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:26px 26px 0 0;padding:10px 16px 28px;transform:translateY(105%);transition:transform .32s cubic-bezier(.2,.8,.2,1);z-index:21;color:var(--ink)}
+.sheet.on{transform:translateY(0)}
+.handle{width:40px;height:5px;border-radius:999px;background:#d1d1d6;margin:0 auto 14px}
+.sheet-head{display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.sheet-thumb{width:44px;height:56px;border-radius:10px;flex:none;display:grid;place-items:center;font-size:22px;overflow:hidden}
+.sheet-head b{display:block;font-size:15px}
+.sheet-head small{color:var(--muted);font-size:12px}
+.apps{display:flex;gap:14px;padding:14px 2px 10px;overflow-x:auto;scrollbar-width:none}
+.apps::-webkit-scrollbar{display:none}
+.app-ic{flex:none;width:64px;background:none;border:0;padding:0;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--ink-2);border-radius:12px}
+.app-ic i{width:58px;height:58px;border-radius:15px;display:grid;place-items:center;font-style:normal;font-size:24px;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.app-ic img{width:58px;height:58px;border-radius:15px}
+.app-ic.me{color:var(--ink);font-weight:700}
+.sheet-row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-top:1px solid var(--line);font-size:15px;font-weight:600}
+.sheet-row svg{width:22px;height:22px;color:var(--ink-2)}
+
+/* 여기담 수신 카드 */
+.scrim-dark{position:absolute;inset:0;background:rgba(0,0,0,.8);display:grid;place-items:center;z-index:22;color:var(--ink)}
+.rcard{background:#fafafa;border-radius:16px;padding:26px 22px 22px;width:290px;text-align:center;font-size:17px;line-height:1.5;color:#1e1e1e;box-shadow:0 20px 40px rgba(0,0,0,.3)}
+.spinner{width:28px;height:28px;border-radius:50%;border:3px solid #ddd;border-top-color:var(--brand-ink);margin:0 auto 14px;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.rcard .btn-open{margin-top:16px;width:100%;background:var(--brand-ink);color:#fff;border:0;border-radius:12px;padding:13px;font-weight:700;font-size:15px}
+
+/* 앱 셸 */
+.app{color:var(--ink)}
+.app-head{position:absolute;top:52px;left:14px;right:14px;display:flex;align-items:center;gap:10px;z-index:5}
+.app-head img{width:40px;height:40px;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.search{flex:1;height:42px;border-radius:999px;background:#fff;box-shadow:0 4px 14px rgba(26,26,46,.12);display:flex;align-items:center;padding:0 16px;color:var(--muted);font-size:14px;justify-content:space-between}
+.search svg{width:18px;height:18px}
+.app-body{position:absolute;top:104px;left:0;right:0;bottom:0;overflow:hidden}
+.lib{padding:0 14px 110px}
+.lib-tools{display:flex;justify-content:flex-end;font-size:13px;color:var(--ink-2);font-weight:600;padding:2px 4px 8px}
+.hcard{background:var(--bg-soft);border-radius:18px;padding:12px;display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;transition:opacity .3s}
+.hcard .thumb{width:54px;height:70px;border-radius:12px;flex:none;display:grid;place-items:center;font-size:24px;overflow:hidden}
+.hcard b{display:block;font-size:14px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hcard .sub{font-size:12px;color:var(--ink-2);margin-top:3px}
+.badge{display:inline-block;font-size:11px;font-weight:700;border:1.5px solid;border-radius:999px;padding:1px 8px;line-height:1.5;margin-top:4px}
+.badge.wait{color:var(--muted);border-color:var(--muted);animation:pulse 1.4s ease-in-out infinite}
+.badge.ok{color:var(--success);border-color:var(--success)}
+.badge.ng{color:var(--fail);border-color:var(--fail)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.logs{list-style:none;margin:8px 0 0;padding:0;font-size:12px;color:var(--ink-2)}
+.logs li{display:flex;gap:6px;align-items:center;opacity:0;transform:translateY(4px);transition:opacity .3s,transform .3s}
+.logs li.in{opacity:1;transform:none}
+.logs li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--brand-ink);flex:none}
+.hcard .acts{display:flex;gap:8px;margin-top:8px}
+.hcard .acts button{font-size:12px;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pcard{aspect-ratio:3/4;border-radius:20px;overflow:hidden;position:relative;border:0;padding:0;text-align:left;color:#fff;opacity:0;transform:scale(.8) translateY(14px);transition:opacity .35s,transform .35s cubic-bezier(.2,.9,.3,1.3)}
+.pcard.in{opacity:1;transform:none}
+.tile{display:grid;place-items:center}
+.pcard .tile{position:absolute;inset:0;font-size:54px}
+.tile.t1{background:linear-gradient(150deg,#ffe3ea,#f7b8c9)}
+.tile.t2{background:linear-gradient(150deg,#fff1c9,#f3cf7a)}
+.tile.t3{background:linear-gradient(150deg,#e3e9ff,#b9c4f5)}
+.tile.t4{background:linear-gradient(150deg,#ffe9d6,#f0b98a)}
+.tile.t5{background:linear-gradient(150deg,#e6f2e3,#a9d4a4)}
+.tile.t6{background:linear-gradient(150deg,#d6ecff,#86b8e8)}
+.pcard .cap{position:absolute;left:0;right:0;bottom:0;padding:34px 12px 12px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.65));display:block}
+.pcard .timg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.sheet-thumb img,.hcard .thumb img,.mitem .thumb img,.dpost .pt img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+.dhero img{width:100%;height:100%;object-fit:cover;display:block}
+.reel-bg.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pcard .cap b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .cap small{display:block;font-size:11px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.empty{text-align:center;padding:36px 20px 20px}
+.empty img{width:120px;margin:0 auto 14px}
+.empty b{display:block;font-size:16px}
+.empty p{font-size:12px;color:var(--muted);margin-top:6px}
+.fab{position:absolute;right:18px;bottom:96px;width:50px;height:50px;border-radius:50%;background:#fff;border:0;box-shadow:0 6px 18px rgba(26,26,46,.18);font-size:26px;display:grid;place-items:center;z-index:6}
+.tabbar{position:absolute;left:16px;right:16px;bottom:16px;height:62px;background:#fff;border-radius:999px;box-shadow:0 8px 24px rgba(26,26,46,.16);display:flex;padding:6px;z-index:7}
+.tab{flex:1;border:0;background:none;border-radius:999px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;color:#666b79;font-weight:600}
+.tab svg{width:22px;height:22px}
+.tab.on{background:rgba(0,0,0,.07);color:#1f2238;font-weight:800}
+.tab[disabled]{opacity:.5;cursor:default}
+.fade{position:absolute;left:0;right:0;bottom:0;height:110px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff 75%);pointer-events:none;z-index:6}
+
+/* 지도 */
+.map{position:absolute;inset:0;overflow:hidden}
+#mapSvg svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.pin{position:absolute;width:44px;height:44px;border:0;background:none;padding:0;transform:translate(-50%,-100%);z-index:3;opacity:0}
+.pin.drop{animation:drop .55s cubic-bezier(.2,.9,.3,1.25) forwards}
+.pin img{width:44px;height:44px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.25))}
+.pin .pin-label{position:absolute;top:100%;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:700;background:#fff;border-radius:999px;padding:2px 7px;box-shadow:0 2px 6px rgba(0,0,0,.15);margin-top:-2px;color:var(--ink)}
+@keyframes drop{0%{opacity:0;transform:translate(-50%,-160%)}70%{opacity:1;transform:translate(-50%,-96%)}100%{opacity:1;transform:translate(-50%,-100%)}}
+.locbtn{position:absolute;right:16px;bottom:50%;margin-bottom:14px;width:44px;height:44px;border-radius:50%;background:#fff;border:0;box-shadow:0 4px 14px rgba(0,0,0,.15);display:grid;place-items:center;z-index:4}
+.locbtn svg{position:static;width:20px;height:20px}
+.msheet{position:absolute;left:0;right:0;bottom:0;height:48%;background:#fff;border-radius:26px 26px 0 0;box-shadow:0 -8px 30px rgba(26,26,46,.12);padding:10px 0 0;z-index:5;transform:translateY(100%);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.msheet.on{transform:none}
+.msheet .list{overflow:hidden;height:calc(100% - 20px);padding:0 16px 100px}
+.mitem{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left}
+.mitem .thumb{width:52px;height:52px;border-radius:12px;flex:none;display:grid;place-items:center;font-size:24px;overflow:hidden}
+.mitem b{display:block;font-size:14px}
+.mitem small{display:block;font-size:12px;color:var(--muted)}
+.msheet .mt{font-size:12px;color:var(--muted);padding:0 16px 6px;font-weight:600}
+
+/* 장소 상세 */
+.detail{color:var(--ink);display:flex;flex-direction:column}
+.dhead{position:absolute;top:52px;left:12px;right:12px;display:flex;justify-content:space-between;z-index:5}
+.dhead button{width:38px;height:38px;border-radius:50%;background:#fff;border:0;box-shadow:0 2px 8px rgba(0,0,0,.15);display:grid;place-items:center}
+.dhead .finish-in{width:auto;border-radius:999px;padding:0 14px;background:var(--black);color:#fff;font-size:13px;font-weight:700}
+.dhead svg{width:20px;height:20px}
+.dhero{height:230px;display:grid;place-items:center;font-size:86px;overflow:hidden}
+.dbody{padding:16px 18px 0;flex:1;overflow:hidden}
+.dbody h4{margin:0;font-size:20px;font-weight:800}
+.dcat{font-size:12px;color:var(--muted);margin-top:3px}
+.daddr{font-size:13px;color:var(--ink-2);margin-top:4px}
+.dtabs{display:flex;margin-top:14px;border-bottom:1px solid var(--line)}
+.dtabs button{flex:1;border:0;background:none;padding:10px;font-size:14px;font-weight:700;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.dtabs button.on{color:var(--ink);border-color:var(--ink)}
+.dposts{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-top:12px}
+.dpost{border-radius:14px;overflow:hidden}
+.dpost .pt{aspect-ratio:3/4;display:grid;place-items:center;font-size:40px;overflow:hidden;border-radius:14px}
+.dpost small{display:block;font-size:11px;color:var(--ink-2);padding:6px 2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dinfo{padding-top:6px}
+.irow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:13px}
+.irow .k{width:44px;color:var(--muted);flex:none}
+.irow .v{flex:1;min-width:0}
+.irow button{border:1px solid var(--line);background:#fff;border-radius:999px;font-size:12px;font-weight:700;padding:8px 12px;min-height:34px}
+.dcta{position:absolute;left:16px;right:16px;bottom:22px;background:var(--brand);color:var(--ink);text-decoration:none;text-align:center;font-weight:800;font-size:15px;padding:14px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:8px}
+.dcta svg{width:18px;height:18px}
+
+/* 내 정보 */
+.profile{padding:70px 18px 0}
+.pavatar{width:76px;height:76px;border-radius:50%;background:var(--brand);display:grid;place-items:center;font-size:30px;font-weight:800;margin:0 auto}
+.pname{text-align:center;font-size:18px;font-weight:800;margin-top:12px}
+.pedit{display:block;margin:8px auto 0;border:1px solid var(--line);background:#fff;border-radius:999px;font-size:12px;padding:5px 12px;font-weight:600}
+.plist{margin-top:22px;border-top:1px solid var(--line)}
+.plist div{padding:14px 4px;border-bottom:1px solid var(--line);font-size:15px;font-weight:600;display:flex;justify-content:space-between;color:var(--ink)}
+.plist div span{color:var(--muted)}
+
+/* 토스트, 엔드 카드 */
+.ptoast{position:absolute;left:50%;bottom:100px;pointer-events:none;transform:translate(-50%,10px);background:rgba(18,18,18,.92);color:#fff;font-size:13px;font-weight:600;padding:10px 16px;border-radius:999px;opacity:0;transition:opacity .25s,transform .25s;z-index:45;white-space:nowrap}
+.ptoast.on{opacity:1;transform:translate(-50%,0)}
+.endcard{position:absolute;inset:0;background:rgba(26,26,46,.55);display:grid;place-items:center;z-index:44;padding:24px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.ecard{background:#fff;border-radius:24px;padding:26px 20px 20px;text-align:center;width:100%;color:var(--ink);box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.ecard img.char{width:92px;margin:0 auto 10px}
+.ecard h5{margin:0;font-size:20px;font-weight:800;line-height:1.3}
+.ecard p{font-size:13px;color:var(--ink-2);margin-top:8px}
+.ecard .badges{justify-content:center;margin-top:16px;gap:8px}
+.ecard .badges img{height:40px}
+.ecard .ebtns{display:flex;gap:8px;margin-top:14px}
+.ecard .ebtns button{flex:1;border-radius:12px;padding:11px;font-weight:700;font-size:14px;border:1px solid var(--line);background:#fff}
+.ecard .ebtns button.primary{background:var(--black);color:#fff;border-color:var(--black)}
+
+/* 데모 컨트롤 */
+.steps{display:flex;justify-content:center;gap:6px;margin:18px 0 0;padding:0;list-style:none;flex-wrap:wrap}
+.step{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);background:var(--bg-soft);border-radius:999px;padding:6px 10px 6px 6px}
+.step i{width:20px;height:20px;border-radius:50%;background:#fff;display:grid;place-items:center;font-style:normal;font-size:11px;border:1.5px solid var(--line)}
+.step.on{color:var(--ink);background:var(--brand)}
+.step.on i{border-color:var(--brand-ink);color:var(--brand-ink)}
+.step.done{color:var(--ink-2)}
+.step.done i{background:var(--success);border-color:var(--success);color:#fff}
+.ctrl{display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.chips{display:flex;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.chips .lbl{font-size:12px;color:var(--muted);font-weight:600;width:100%;text-align:center}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;min-height:44px;font-size:13px;font-weight:600;color:var(--ink-2)}
+.chip.on{border-color:var(--ink);color:var(--ink);background:#fff}
+.demo-foot{text-align:center;font-size:12px;color:var(--muted);margin-top:14px;max-width:36em;margin-inline:auto}
+
+/* ---------- 문제 공감 ---------- */
+.pain{background:var(--ink);color:#fff;padding-block:clamp(44px,7vw,80px)}
+.pain h2{font-size:clamp(22px,3.4vw,32px);font-weight:800}
+.pain-grid{display:grid;gap:14px;margin-top:28px}
+.pain-card{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:20px 20px 18px}
+.pain-card .n{font-size:28px;line-height:1;margin-bottom:12px}
+.pain-card p{font-size:16px;color:rgba(255,255,255,.88)}
+.pain-foot{margin-top:28px;font-size:16px;color:var(--brand)}
+@media (min-width:720px){.pain-grid{grid-template-columns:repeat(3,1fr)}}
+
+/* ---------- 사용법 ---------- */
+.how-grid{display:grid;gap:22px}
+.how{background:var(--bg-soft);border-radius:28px;padding:24px 22px 0;overflow:hidden;display:flex;flex-direction:column}
+.how .num{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-size:14px;font-weight:800}
+.how h3{font-size:20px;font-weight:800;margin-top:14px}
+.how p{font-size:15px;color:var(--ink-2);margin-top:10px;flex:1}
+.how .vis{margin-top:22px;border-radius:22px 22px 0 0;background:#fff;box-shadow:0 -6px 24px rgba(26,26,46,.08);padding:14px 14px 0;height:250px;overflow:hidden;position:relative}
+.how .vis.tall{height:330px}
+.vis .tag.soft{background:var(--bg-soft);color:var(--ink-2)}
+.vis .mini-sheet{border-radius:18px 18px 0 0;background:#fff;height:100%;box-shadow:0 -4px 20px rgba(0,0,0,.08);padding:10px 12px}
+.vis .mini-sheet .apps{padding-top:10px}
+.vis .mini-sheet .app-ic{width:56px;font-size:10px}
+.vis .mini-sheet .app-ic i,.vis .mini-sheet .app-ic img{width:50px;height:50px;border-radius:13px;font-size:20px}
+.vis .mini-sheet .app-ic.me{position:relative}
+.vis .ring{position:absolute;width:60px;height:60px;border-radius:50%;border:3px solid var(--brand-ink);left:50%;top:50%;margin:-30px 0 0 -30px;animation:ring 1.4s ease-out infinite;pointer-events:none}
+.vis .hcard{margin:0}
+.vis .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.vis .mini-grid .pcard{opacity:1;transform:none;border-radius:16px}
+.vis .shots{display:flex;gap:10px;justify-content:center;align-items:flex-start;height:100%}
+.vis .shots img{width:46%;border-radius:18px 18px 0 0;box-shadow:0 6px 20px rgba(26,26,46,.18)}
+.vis .tag{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--black);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;z-index:2}
+.tip{margin-top:22px;background:var(--bg-cream);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:flex-start;font-size:15px;color:var(--ink-2)}
+.tip b{color:var(--ink)}
+.tip .ico{font-size:22px;line-height:1}
+@media (min-width:860px){.how-grid{grid-template-columns:repeat(3,1fr)}}
+
+/* ---------- 기능 ---------- */
+.feat{background:var(--bg-cream)}
+.feat-grid{display:grid;gap:16px}
+.fcard{background:#fff;border-radius:24px;padding:24px 22px;box-shadow:var(--shadow)}
+.fcard .ico{width:48px;height:48px;border-radius:14px;background:var(--brand);display:grid;place-items:center;margin-bottom:16px}
+.fcard .ico svg{width:24px;height:24px}
+.fcard h3{font-size:18px;font-weight:800}
+.fcard p{font-size:15px;color:var(--ink-2);margin-top:8px}
+@media (min-width:720px){.feat-grid{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1000px){.feat-grid{grid-template-columns:repeat(4,1fr)}}
+
+/* ---------- FAQ ---------- */
+.faq{max-width:760px}
+.faq details{border-bottom:1px solid var(--line)}
+.faq summary{list-style:none;cursor:pointer;padding:18px 0;font-size:17px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-size:22px;color:var(--muted);flex:none;width:28px;text-align:center;transition:transform .2s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details p{padding:0 0 18px;color:var(--ink-2);font-size:16px;max-width:40em}
+
+/* ---------- 시작하기 ---------- */
+.start{background:linear-gradient(180deg,var(--brand) 0%,#eef0fc 100%);text-align:center}
+.start .char{width:min(180px,40vw);margin:0 auto 10px;animation:walk 2.6s ease-in-out infinite}
+@keyframes walk{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-8px) rotate(2deg)}}
+.start h2{font-size:clamp(26px,4.4vw,42px);font-weight:800}
+.start p{margin-top:14px;color:var(--ink-2);font-size:17px}
+.start .badges{justify-content:center}
+.qr-row{display:none;justify-content:center;gap:28px;margin-top:28px}
+.qr{background:#fff;border-radius:18px;padding:14px;box-shadow:var(--shadow);font-size:13px;font-weight:700;color:var(--ink-2)}
+.qr svg{width:120px;height:120px;display:block;margin:0 auto 8px}
+@media (min-width:900px){.qr-row.ready{display:flex}}
+
+/* ---------- 푸터 ---------- */
+.foot{padding-block:40px 60px;font-size:13px;color:var(--muted)}
+.foot .row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between}
+.foot a{color:var(--ink-2);text-decoration:none;font-weight:600}
+.foot .legal{margin-top:18px;line-height:1.7}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/app-icon.png" alt="" width="34" height="34">여기담</a>
+    <nav class="nav-links" aria-label="페이지 안 이동">
+      <a href="#demo">직접 해 보기</a>
+      <a href="#how">사용법</a>
+      <a href="#features">기능</a>
+      <a href="#faq">질문</a>
+    </nav>
+    <a class="btn btn-dark btn-sm" href="#start">앱 받기</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ========== 히어로 + 데모 ========== -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-copy">
+      <span class="eyebrow">맛집 릴스를 저장만 해 두는 사람을 위한 앱</span>
+      <h1>저장만 해 둔 맛집 릴스,<br>여기담이 <em>지도에 담아요</em></h1>
+      <p class="lead">인스타그램 릴스를 여기담에 공유하면 AI가 영상 속 가게를 찾아 보관함과 지도에 저장해요. 저장 탭에 쌓아 두고 잊어버린 곳을 바로 꺼내 보세요.</p>
+      <div class="badges">
+        <a class="ios" href="https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355" target="_blank" rel="noopener"><img src="assets/app-store-badge.svg" alt="App Store에서 다운로드"></a>
+        <a class="play" href="https://play.google.com/store/apps/details?id=com.yeogidamm.app" target="_blank" rel="noopener"><img src="assets/google-play-badge.png" alt="Google Play에서 다운로드"></a>
+      </div>
+      <p class="hero-note">무료예요. 설치 전에 <a href="#demo">이 페이지에서 먼저 써 볼 수 있어요.</a></p>
+    </div>
+
+    <div class="demo" id="demo">
+      <div class="demo-title"><span class="dot"></span>지금 바로 해 보세요. 화면 속 릴스의 공유 버튼부터 눌러 보세요.</div>
+      <div class="phone-wrap" id="phoneWrap">
+        <div class="phone" id="phone">
+          <div class="shell"></div>
+          <div class="screen" id="screen">
+            <div class="island"></div>
+            <span class="demo-badge">예시 화면</span>
+            <div class="sbar" id="sbar"><span>9:41</span><span class="ic">
+              <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="1"/><rect x="9" y="3" width="3" height="9" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+              <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 9.5a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zM8 6c1.6 0 3 .6 4.1 1.6l-1.3 1.4A4 4 0 0 0 8 8a4 4 0 0 0-2.8 1l-1.3-1.4C5 6.6 6.4 6 8 6zm0-3.5c2.6 0 5 1 6.8 2.7l-1.3 1.3A8 8 0 0 0 8 4.5a8 8 0 0 0-5.5 2L1.2 5.2A9.9 9.9 0 0 1 8 2.5z"/></svg>
+              <svg width="26" height="12" viewBox="0 0 26 12" fill="none" stroke="currentColor"><rect x=".5" y=".5" width="22" height="11" rx="3"/><rect x="2.5" y="2.5" width="16" height="7" rx="1.5" fill="currentColor" stroke="none"/><path d="M24 4v4" stroke-width="1.5"/></svg>
+            </span></div>
+
+            <!-- 릴스 -->
+            <div class="scr reel" id="scrReel">
+              <div class="reel-bg pink" id="reelBg"></div>
+              <div class="reel-shade"></div>
+              <div class="reel-top"><span>릴스</span>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+              </div>
+              <div class="reel-acts">
+                <button type="button" aria-label="좋아요"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-9.5-9A5.2 5.2 0 0 1 12 6.3a5.2 5.2 0 0 1 9.5 5.7c-2 4.4-9.5 9-9.5 9z"/></svg><span id="reelLikes">1.2만</span></button>
+                <button type="button" aria-label="댓글"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.5-4.6A8 8 0 1 1 21 12z"/></svg><span id="reelComments">36</span></button>
+                <button type="button" id="btnShare" aria-label="공유"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="m7 8 5-5 5 5"/><path d="M5 13v7h14v-7"/></svg><span>공유</span></button>
+                <button type="button" aria-label="더 보기"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+              </div>
+              <div class="reel-meta">
+                <div class="reel-user"><span class="av" id="reelAv">담</span><span id="reelAuthor">@yeogidamm</span><span class="follow">팔로우</span></div>
+                <div class="reel-cap" id="reelCap"></div>
+                <div class="reel-audio"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.6a4 4 0 1 0 2 3.4V7h4V3z"/></svg>원본 오디오</div>
+              </div>
+              <div class="scrim" id="scrim"></div>
+              <div class="sheet" id="sheet" role="dialog" aria-label="공유 시트">
+                <div class="handle"></div>
+                <div class="sheet-head"><div class="sheet-thumb tile t1" id="sheetThumb">🍰</div><div><b>릴스</b><small id="sheetLink">instagram.com/p/Db4gRWqkuUg</small></div></div>
+                <div class="apps">
+                  <button type="button" class="app-ic me" id="btnYeogidam"><img src="assets/app-icon.png" alt="">여기담</button>
+                  <button type="button" class="app-ic"><i style="background:#34c759">💬</i>메시지</button>
+                  <button type="button" class="app-ic"><i style="background:#f5c518">📝</i>메모</button>
+                  <button type="button" class="app-ic"><i style="background:#ff7a6b">⏰</i>미리알림</button>
+                  <button type="button" class="app-ic"><i style="background:#2f8cf0">✉️</i>메일</button>
+                  <button type="button" class="app-ic"><i style="background:#e9e9ee;color:#333">…</i>더 보기</button>
+                </div>
+                <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>링크 복사</div>
+                <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>저장</div>
+              </div>
+              <div class="scrim-dark" id="rwrap" hidden>
+                <div class="rcard">
+                  <div class="spinner" id="rspin"></div>
+                  <div id="rtext">공유한 내용을 확인하고 있어요.</div>
+                  <button type="button" class="btn-open" id="btnOpen" hidden>여기담 열기</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 여기담 앱 -->
+            <div class="scr app" id="scrApp" hidden>
+              <div class="app-head" id="appHead"><img src="assets/app-icon.png" alt=""><div class="search"><span>여기담 검색</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div></div>
+              <div class="app-body">
+                <!-- 보관함 -->
+                <div class="lib" id="lib">
+                  <div class="lib-tools">편집</div>
+                  <div class="hcard" id="hcard" hidden>
+                    <div class="thumb tile t1" id="hthumb">🍰</div>
+                    <div style="min-width:0;flex:1">
+                      <b id="htitle">군자역 디저트 저장각 🍰</b>
+                      <span class="badge wait" id="hbadge">처리중</span>
+                      <div class="sub" id="hsub">장소를 확인하고 있어요.</div>
+                      <ul class="logs" id="hlogs"></ul>
+                      <div class="acts" id="hacts" hidden><button type="button" id="btnRetry">다시 시도하기</button><button type="button" id="btnReport">제보하기</button></div>
+                    </div>
+                  </div>
+                  <div class="empty" id="empty"><img src="assets/character.png" alt=""><b>아직 저장된 장소가 없어요</b><p>인스타그램 릴스에서 공유하기로<br>여기담에 저장해 보세요.</p></div>
+                  <div class="grid" id="grid"></div>
+                </div>
+                <!-- 지도 -->
+                <div class="map" id="mapScr" hidden>
+                  <div id="mapSvg"></div>
+                  <div id="pins"></div>
+                  <button type="button" class="locbtn" aria-label="내 위치로 이동"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke-linecap="round"/></svg></button>
+                  <div class="msheet" id="msheet"><div class="handle"></div><div class="mt" id="mcount">저장한 장소 5곳</div><div class="list" id="mlist"></div></div>
+                </div>
+                <!-- 내 정보 -->
+                <div class="profile" id="profile" hidden>
+                  <div class="pavatar">담</div>
+                  <div class="pname">담이 3432</div>
+                  <button type="button" class="pedit">프로필 수정하기</button>
+                  <div class="plist"><div>사용 가이드<span>›</span></div><div>약관 동의<span>›</span></div><div>문의하기<span>›</span></div><div>로그아웃<span>›</span></div></div>
+                </div>
+              </div>
+              <button type="button" class="fab" id="fab" aria-label="링크로 직접 추가">+</button>
+              <div class="fade"></div>
+              <div class="tabbar" id="tabbar">
+                <button type="button" class="tab on" data-tab="lib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>보관함</button>
+                <button type="button" class="tab" data-tab="map" id="tabMap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>지도</button>
+                <button type="button" class="tab" data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" stroke-linecap="round"/></svg>내 정보</button>
+              </div>
+            </div>
+
+            <!-- 장소 상세 -->
+            <div class="scr detail" id="scrDetail" hidden>
+              <div class="dhead"><button type="button" id="btnBack" aria-label="뒤로"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5-7 7 7 7"/></svg></button><button type="button" class="finish-in" id="btnFinishIn">데모 마치기</button></div>
+              <div class="dhero tile t1" id="dhero">🥪</div>
+              <div class="dbody">
+                <h4 id="dname">윤숲 후르츠산도점</h4>
+                <div class="dcat" id="dcat">음식점 &gt; 카페</div>
+                <div class="daddr" id="daddr">서울 광진구 면목로7길 8</div>
+                <div class="dtabs"><button type="button" class="on" data-dtab="posts">게시물</button><button type="button" data-dtab="info">정보</button></div>
+                <div class="dposts" id="dposts"></div>
+                <div class="dinfo" id="dinfo" hidden></div>
+              </div>
+              <a class="dcta" id="dcta" href="https://place.map.kakao.com/1775568752" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>카카오맵에서 보기 (새 창)</a>
+            </div>
+
+            <div class="endcard" id="endcard" hidden>
+              <div class="ecard">
+                <img class="char" src="assets/character.png" alt="">
+                <h5 id="endTitle">진짜 내 릴스로 해 보세요</h5>
+                <p id="endText">저장해 둔 릴스를 여기담에 공유하면 지금처럼 지도에 담겨요.</p>
+                <div class="badges">
+                  <a class="ios" href="https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355" target="_blank" rel="noopener"><img src="assets/app-store-badge.svg" alt="App Store에서 다운로드"></a>
+                  <a class="play" href="https://play.google.com/store/apps/details?id=com.yeogidamm.app" target="_blank" rel="noopener"><img src="assets/google-play-badge.png" alt="Google Play에서 다운로드"></a>
+                </div>
+                <div class="ebtns"><button type="button" id="btnAgain">다시 해 보기</button><button type="button" class="primary" id="btnOther">다른 릴스로</button></div>
+              </div>
+            </div>
+
+            <div class="ptoast" id="ptoast" role="status" aria-live="polite"></div>
+            <div class="hint top" id="hint"><span class="hint-ring"></span><span class="hint-bubble" id="hintText"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <ol class="steps" id="steps" aria-label="데모 진행 단계">
+        <li class="step on" data-step="0" aria-current="step"><i>1</i>공유</li>
+        <li class="step" data-step="1"><i>2</i>분석</li>
+        <li class="step" data-step="2"><i>3</i>보관함</li>
+        <li class="step" data-step="3"><i>4</i>지도</li>
+      </ol>
+      <div class="ctrl">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnReset">처음부터</button>
+        <button type="button" class="btn btn-soft btn-sm" id="btnAuto">자동으로 보기</button>
+        <button type="button" class="btn btn-dark btn-sm" id="btnFinish" hidden>마치기</button>
+      </div>
+      <div class="chips" id="chips"><span class="lbl">다른 릴스로 해 보기</span></div>
+      <p class="demo-foot">데모 속 군자역 장소 다섯 곳과 사진은 여기담이 온보딩용으로 준비한 실제 장소와 앱에 저장된 썸네일이에요. 릴스 화면과 분석 과정은 설명을 위해 직접 그린 예시이고 인스타그램의 실제 화면이 아니에요. 실제 분석은 영상 길이에 따라 더 걸릴 수 있어요.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 문제 공감 ========== -->
+<section class="pain">
+  <div class="wrap">
+    <h2>저장 탭에 쌓인 릴스, 정작 갈 때는 못 찾고 있지 않나요?</h2>
+    <div class="pain-grid">
+      <div class="pain-card"><div class="n">📥</div><p>맛집 릴스를 수백 개 저장했는데, 막상 약속 장소를 정할 때는 어느 영상이었는지 기억이 안 나요.</p></div>
+      <div class="pain-card"><div class="n">🔍</div><p>가게 이름이 영상 어디에도 없어서 댓글과 캡션을 한참 뒤지고, 지도 앱에 다시 검색해요.</p></div>
+      <div class="pain-card"><div class="n">📍</div><p>근처까지 왔는데도 바로 옆 동네 카페였다는 걸 집에 가서야 알아요.</p></div>
+    </div>
+    <p class="pain-foot">여기담은 공유 한 번으로 이런 번거로움을 대신해요. 영상 속 장소를 찾아서 지도에 꽂아 두니까요.</p>
+  </div>
+</section>
+
+<!-- ========== 사용법 ========== -->
+<section class="sec" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">사용법</span>
+      <h2>공유하고, 기다리고, 꺼내 보면 끝이에요</h2>
+      <p>링크를 복사하거나 주소를 검색할 필요 없이 세 단계면 돼요.</p>
+    </div>
+    <div class="how-grid">
+      <article class="how">
+        <span class="num">1</span>
+        <h3>릴스에서 공유를 누르고 여기담을 골라요</h3>
+        <p>인스타그램 공유 목록에서 여기담을 고르면 링크가 바로 넘어가요. 링크나 주소를 복사할 필요가 없어요. 결과는 여기담 앱의 보관함에서 확인해요.</p>
+        <div class="vis">
+          <span class="tag soft">예시 화면</span>
+          <div class="mini-sheet">
+            <div class="handle"></div>
+            <div class="sheet-head"><div class="sheet-thumb"><img src="assets/reel-gunja.jpg" alt="" loading="lazy"></div><div><b>릴스</b><small>instagram.com/p/Db4gRWqkuUg</small></div></div>
+            <div class="apps">
+              <span class="app-ic me"><img src="assets/app-icon.png" alt="">여기담<span class="ring"></span></span>
+              <span class="app-ic"><i style="background:#34c759">💬</i>메시지</span>
+              <span class="app-ic"><i style="background:#f5c518">📝</i>메모</span>
+              <span class="app-ic"><i style="background:#ff7a6b">⏰</i>미리알림</span>
+              <span class="app-ic"><i style="background:#2f8cf0">✉️</i>메일</span>
+            </div>
+            <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>링크 복사</div>
+          </div>
+        </div>
+      </article>
+      <article class="how">
+        <span class="num">2</span>
+        <h3>여기담이 영상 속 장소를 찾아요</h3>
+        <p>AI가 영상과 캡션을 읽어 장소 이름을 뽑고, 카카오 지도에서 실제 장소와 맞춰요. 잠시 뒤 처리중 표시가 성공으로 바뀌어요.</p>
+        <div class="vis">
+          <span class="tag soft">예시 화면</span>
+          <div class="hcard">
+            <div class="thumb"><img src="assets/reel-gunja.jpg" alt="" loading="lazy"></div>
+            <div style="min-width:0;flex:1">
+              <b>군자역 디저트 저장각 🍰</b>
+              <span class="badge ok">성공</span>
+              <div class="sub">총 5개의 장소를 찾았어요</div>
+              <ul class="logs"><li class="in">영상과 캡션을 읽었어요</li><li class="in">장소 이름 후보 5개를 찾았어요</li><li class="in">카카오 지도에서 장소를 확인했어요</li></ul>
+            </div>
+          </div>
+          <div class="mini-grid">
+            <div class="pcard"><img class="timg" src="assets/place-1775568752.jpg" alt="" loading="lazy"><div class="cap"><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div></div>
+            <div class="pcard"><img class="timg" src="assets/place-137070444.jpg" alt="" loading="lazy"><div class="cap"><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div></div>
+          </div>
+        </div>
+      </article>
+      <article class="how">
+        <span class="num">3</span>
+        <h3>보관함과 지도에서 꺼내 봐요</h3>
+        <p>찾은 장소는 보관함에 카드로, 지도에는 핀으로 쌓여요. 장소를 누르면 주소를 복사하고 카카오맵으로 바로 넘어갈 수 있어요.</p>
+        <div class="vis tall">
+          <span class="tag">실제 앱 화면</span>
+          <div class="shots">
+            <img src="assets/screen-library.jpg" alt="여기담 보관함 화면. 저장한 카페가 사진 카드로 보여요." loading="lazy">
+            <img src="assets/screen-map.jpg" alt="여기담 지도 화면. 저장한 장소가 캐릭터 핀으로 보여요." loading="lazy">
+          </div>
+        </div>
+      </article>
+    </div>
+    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b> iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.</div></div>
+  </div>
+</section>
+
+<!-- ========== 기능 ========== -->
+<section class="sec feat" id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">저장한 뒤에도</span>
+      <h2>꺼내 볼 때 편하도록 만들었어요</h2>
+      <p>장소를 모으는 데서 끝나지 않고, 실제로 찾아갈 때 필요한 것들을 한 화면에 뒀어요.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="fcard"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg></div><h3>지도에서 모아 보기</h3><p>저장한 장소가 캐릭터 핀으로 보여요. 지도를 움직이면 보이는 영역의 장소만 아래 목록에 나와요.</p></div>
+      <div class="fcard"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="3"/></svg></div><h3>주소 복사와 카카오맵 바로가기</h3><p>도로명과 지번 주소를 각각 복사하고, 카카오맵으로 넘어가 길찾기를 이어서 해요.</p></div>
+      <div class="fcard"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg></div><h3>어느 릴스에서 왔는지 기억</h3><p>장소마다 출처 릴스가 함께 남아요. 원본 영상으로 돌아가 다시 볼 수 있어요.</p></div>
+      <div class="fcard"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div><h3>검색과 정리</h3><p>보관함에서 이름으로 찾고, 편집 모드에서 여러 장소를 한 번에 지워요. 링크를 직접 붙여 넣어 추가할 수도 있어요.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== FAQ ========== -->
+<section class="sec" id="faq">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">자주 묻는 질문</span>
+      <h2>설치 전에 궁금한 것들</h2>
+    </div>
+    <div class="faq">
+      <details><summary>무료인가요?</summary><p>네, 무료예요. 카카오, Apple, Google 로그인이나 이메일 계정으로 바로 시작할 수 있어요.</p></details>
+      <details><summary>어떤 영상이 되나요?</summary><p>인스타그램 릴스와 게시물 링크를 지원해요. 영상이나 캡션에 장소 이름이 드러나 있을수록 잘 찾아요. 유튜브 쇼츠는 아직 지원하지 않아요.</p></details>
+      <details><summary>장소를 못 찾으면 어떻게 되나요?</summary><p>히스토리에 실패로 표시되고 이유를 함께 알려 드려요. 다시 시도하거나 제보 버튼으로 알려 주시면 팀이 확인해요.</p></details>
+      <details><summary>영상이 저장되나요?</summary><p>영상 자체는 저장하지 않아요. 릴스 링크와 썸네일, 찾아낸 장소 정보만 보관해요.</p></details>
+      <details><summary>어떤 기기에서 쓸 수 있나요?</summary><p>iPhone과 Android 모두 돼요. 공유 목록에 여기담이 안 보이면 앱 안의 사용 가이드를 따라 한 번만 추가하면 돼요.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 시작하기 ========== -->
+<section class="sec start" id="start">
+  <div class="wrap">
+    <img class="char" src="assets/character.png" alt="">
+    <h2>이제 저장한 맛집에 진짜 가 보세요</h2>
+    <p>릴스를 공유하는 순간부터 여기담이 기억해요. 무료로 시작할 수 있어요.</p>
+    <div class="badges">
+      <a class="ios" href="https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355" target="_blank" rel="noopener"><img src="assets/app-store-badge.svg" alt="App Store에서 다운로드"></a>
+      <a class="play" href="https://play.google.com/store/apps/details?id=com.yeogidamm.app" target="_blank" rel="noopener"><img src="assets/google-play-badge.png" alt="Google Play에서 다운로드"></a>
+    </div>
+    <div class="qr-row" id="qrRow">
+      <div class="qr"><div id="qrIos"></div>iPhone으로 받기</div>
+      <div class="qr"><div id="qrAndroid"></div>Android로 받기</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="row">
+      <div><b style="color:var(--ink)">여기담</b>은 우아한테크코스 2026 여기담 팀이 만들었어요.</div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap">
+        <a href="https://github.com/woowacourse-teams/2026-Yeogidam" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355" target="_blank" rel="noopener">App Store</a>
+        <a href="https://play.google.com/store/apps/details?id=com.yeogidamm.app" target="_blank" rel="noopener">Google Play</a>
+      </div>
+    </div>
+    <p class="legal">문의는 GitHub 이슈나 앱의 내 정보 &gt; 문의하기에서 받고 있어요.<br>Apple과 Apple 로고는 Apple Inc.의 상표이고 App Store는 Apple Inc.의 서비스 마크예요. Google Play와 Google Play 로고는 Google LLC의 상표예요. 인스타그램은 Meta Platforms, Inc.의 상표이며 여기담은 Meta와 관련이 없어요.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+  var $ = function(id){ return document.getElementById(id); };
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- 데모 데이터 ---------- */
+  var REELS = [
+    {
+      id:'gunja', chip:'군자역 디저트 5곳', author:'@yeogidamm', av:'담', likes:'1.2만', comments:'36',
+      title:'군자역 디저트 저장각 🍰', emoji:'🍰', tone:'t1', theme:'pink',
+      caption:'군자역 디저트 저장각 🍰 📍오픈 한 달 만에 방문자리뷰 500개 넘긴 후르츠산도 맛집, 윤숲 📍다이닝코드 맛 평가 4.6, 과일 크레이프가 유명한, FCC 📍군자역 도보 3분, 책 읽기 좋은 북카페, 책방 고즈넉 📍에그타르트로 후기 많은 골목 디저트 카페, 윤키 📍필터커피 후기가 좋은 카페, 연필',
+      link:'instagram.com/p/Db4gRWqkuUg', thumb:'assets/reel-gunja.jpg', scatter:['🍰','🍓','🥞','☕','🥧','🍰','📚','🍓'],
+      logs:['영상과 캡션을 읽고 있어요','장소 이름 후보 5개를 찾았어요','카카오 지도에서 장소를 확인하고 있어요'],
+      mapLabel:'군자역', sea:false,
+      places:[
+        {name:'윤숲 후르츠산도점', cat:'음식점 > 카페', road:'서울 광진구 면목로7길 8', lot:'서울 광진구 중곡동 628-7', url:'https://place.map.kakao.com/1775568752', img:'assets/place-1775568752.jpg', emoji:'🥪', tone:'t1', x:33, y:17},
+        {name:'에프씨씨', cat:'음식점 > 카페', road:'서울 광진구 용마산로3길 88', lot:'서울 광진구 중곡동 134-1', url:'https://place.map.kakao.com/137070444', img:'assets/place-137070444.jpg', emoji:'🥞', tone:'t2', x:80, y:28},
+        {name:'책방고즈넉', cat:'음식점 > 카페', road:'서울 광진구 동일로60길 41-13', lot:'서울 광진구 군자동 467-15', url:'https://place.map.kakao.com/337953507', img:'assets/place-337953507.jpg', emoji:'📚', tone:'t3', x:25, y:25},
+        {name:'윤키', cat:'음식점 > 카페 > 테마카페 > 디저트카페', road:'서울 광진구 능동로38길 27', lot:'서울 광진구 중곡동 142-21', url:'https://place.map.kakao.com/98016856', img:'assets/place-98016856.jpg', emoji:'🥧', tone:'t4', x:65, y:27},
+        {name:'연필', cat:'음식점 > 카페 > 커피전문점', road:'서울 광진구 면목로 12', lot:'서울 광진구 군자동 49-17', url:'https://place.map.kakao.com/1107844606', img:'assets/place-1107844606.jpg', emoji:'☕', tone:'t5', x:20, y:37}
+      ]
+    },
+    {
+      id:'gangneung', chip:'강릉 바다 앞 순두부', author:'@seaside_log', av:'🌊', likes:'8,204', comments:'51',
+      title:'강릉 바다 보면서 먹는 짬뽕순두부 🌊', emoji:'🍲', tone:'t6', theme:'sea',
+      caption:'강릉 바다 보면서 먹는 짬뽕순두부 🌊 해안로 따라가다 보면 나오는 그 집, 최일순짬뽕순두부. 웨이팅은 있지만 창가 자리면 바다가 바로 앞이에요.',
+      link:'instagram.com/reel/C9x1Example', scatter:['🌊','🍲','🐚','☀️','🌊','🥢'],
+      logs:['영상과 캡션을 읽고 있어요','장소 이름 후보 1개를 찾았어요','카카오 지도에서 장소를 확인하고 있어요'],
+      mapLabel:'강릉 사천', sea:true,
+      places:[
+        {name:'최일순짬뽕순두부', cat:'음식점 > 한식', road:'강원특별자치도 강릉시 해안로 517', lot:'', url:'https://map.kakao.com/?q=%EC%B5%9C%EC%9D%BC%EC%88%9C%EC%A7%AC%EB%BD%95%EC%88%9C%EB%91%90%EB%B6%80', emoji:'🍲', tone:'t6', x:58, y:24}
+      ]
+    },
+    {
+      id:'dog', chip:'장소가 없는 영상', author:'@puppy_days', av:'🐶', likes:'3,920', comments:'128',
+      title:'주말 산책 브이로그 🐶', emoji:'🐶', tone:'t5', theme:'green',
+      caption:'주말 산책 브이로그 🐶 오늘도 신났다. 공 던지기 100번 하고 집에 와서 바로 잠듦.',
+      link:'instagram.com/reel/C9y2Example', scatter:['🐶','🌳','🎾','☀️','🐾','🌳'],
+      logs:['영상과 캡션을 읽고 있어요','장소 이름 후보를 찾지 못했어요'],
+      fail:'캡션에서 장소를 찾지 못했어요.',
+      places:[]
+    }
+  ];
+
+  /* ---------- 요소 ---------- */
+  var phoneWrap=$('phoneWrap'), phone=$('phone'), screen=$('screen'), sbar=$('sbar');
+  var scrReel=$('scrReel'), reelBg=$('reelBg'), reelCap=$('reelCap'), reelAuthor=$('reelAuthor'), reelAv=$('reelAv'), reelLikes=$('reelLikes'), reelComments=$('reelComments');
+  var scrim=$('scrim'), sheet=$('sheet'), sheetThumb=$('sheetThumb'), sheetLink=$('sheetLink');
+  var rwrap=$('rwrap'), rspin=$('rspin'), rtext=$('rtext'), btnOpen=$('btnOpen');
+  var scrApp=$('scrApp'), appHead=$('appHead'), lib=$('lib'), hcard=$('hcard'), hthumb=$('hthumb'), htitle=$('htitle'), hbadge=$('hbadge'), hsub=$('hsub'), hlogs=$('hlogs'), hacts=$('hacts');
+  var empty=$('empty'), grid=$('grid'), fab=$('fab'), tabbar=$('tabbar');
+  var mapScr=$('mapScr'), mapSvg=$('mapSvg'), pins=$('pins'), msheet=$('msheet'), mlist=$('mlist'), mcount=$('mcount');
+  var scrDetail=$('scrDetail'), dhero=$('dhero'), dname=$('dname'), dcat=$('dcat'), daddr=$('daddr'), dposts=$('dposts'), dinfo=$('dinfo'), dcta=$('dcta');
+  var endcard=$('endcard'), endTitle=$('endTitle'), endText=$('endText');
+  var ptoast=$('ptoast'), hint=$('hint'), hintText=$('hintText');
+  var steps=$('steps'), btnReset=$('btnReset'), btnAuto=$('btnAuto'), btnFinish=$('btnFinish'), chips=$('chips');
+
+  var reel=REELS[0], auto=false, run=0, timers=[], state='feed', analysed=false, tab='lib', hintTarget=null, toastTimer=null, mapRun=0;
+
+  /* ---------- 유틸 ---------- */
+  function later(ms, fn){ var id=setTimeout(fn, ms); timers.push(id); return id; }
+  function autoLater(ms, fn){ var id=run; later(ms, function(){ if (auto && id===run) fn(); }); }
+  function stagger(ms){ return reduce ? 0 : ms; }
+  function clearTimers(){ timers.forEach(clearTimeout); timers=[]; }
+  function scale(){ return parseFloat(getComputedStyle(phone).getPropertyValue('--s'))||1; }
+  function fit(){
+    var avail=phoneWrap.parentNode.clientWidth;
+    var vh=window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    var byHeight=Math.max(0.8, Math.min(1, (vh-130)/720));
+    var s=Math.min(1, avail/360, byHeight);
+    phone.style.setProperty('--s', s);
+    phoneWrap.style.width=(360*s)+'px'; phoneWrap.style.height=(720*s)+'px';
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function toast(msg){
+    ptoast.textContent=msg; ptoast.classList.add('on');
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ ptoast.classList.remove('on'); }, 1800);
+  }
+  function setStep(n){
+    var items=steps.querySelectorAll('.step');
+    for (var i=0;i<items.length;i++){ items[i].classList.toggle('on', i===n); items[i].classList.toggle('done', i<n); if (i===n) items[i].setAttribute('aria-current','step'); else items[i].removeAttribute('aria-current'); }
+    if (n>=4) for (var j=0;j<items.length;j++){ items[j].classList.add('done'); items[j].classList.remove('on'); }
+  }
+  function hideHint(){ hint.classList.remove('on'); hintTarget=null; }
+  function showHint(target, text, pos){
+    if (!target || target.hidden) return;
+    hintTarget=target; hintText.textContent=text;
+    hint.className='hint '+(pos||'top');
+    var s=scale(), sr=screen.getBoundingClientRect(), tr=target.getBoundingClientRect();
+    var x=(tr.left-sr.left)/s + tr.width/s/2, y=(tr.top-sr.top)/s + tr.height/s/2;
+    hint.style.left=x+'px'; hint.style.top=y+'px';
+    /* 말풍선이 화면 밖으로 나가지 않게 논리 좌표로 보정한다(transition 중이라 실제 rect는 믿을 수 없다) */
+    var w=hintText.offsetWidth, sw=screen.clientWidth, pad=12, shift=0;
+    if (pos==='left'){ if (x-40-w < pad){ hint.className='hint top'; pos='top'; } }
+    if (pos!=='left'){
+      if (x - w/2 < pad) shift = pad - (x - w/2);
+      else if (x + w/2 > sw - pad) shift = (sw - pad) - (x + w/2);
+    }
+    hintText.style.marginLeft = shift+'px';
+    hint.classList.add('on');
+  }
+  function showScreen(which){
+    scrReel.hidden = which!=='reel'; scrApp.hidden = which!=='app'; scrDetail.hidden = which!=='detail';
+    sbar.classList.toggle('light', which==='reel');
+  }
+  function tileHTML(cls, emoji){ return '<span class="tile '+cls+'">'+emoji+'</span>'; }
+  function imgOrTile(src, cls, emoji, imgClass){ return src ? '<img class="'+(imgClass||'')+'" src="'+src+'" alt="" loading="lazy">' : tileHTML(cls, emoji); }
+  function fillThumb(el, src, cls, emoji){ el.className=el.className.replace(/\btile\b|\bt\d\b/g,'').trim(); if (src){ el.innerHTML='<img src="'+src+'" alt="">'; } else { el.className+=' tile '+cls; el.textContent=emoji; } }
+
+  /* ---------- 릴스 준비 ---------- */
+  function setReel(r){
+    reel=r;
+    var spots=[[8,16],[62,12],[80,30],[18,40],[48,48],[72,58],[28,66],[58,74]];
+    if (r.thumb){ reelBg.className='reel-bg photo'; reelBg.innerHTML='<img src="'+r.thumb+'" alt="">'; }
+    else { reelBg.className='reel-bg '+r.theme; reelBg.innerHTML=r.scatter.map(function(e,i){ var p=spots[i%spots.length]; return '<span style="left:'+p[0]+'%;top:'+p[1]+'%;font-size:'+(34+(i%3)*10)+'px">'+e+'</span>'; }).join(''); }
+    reelCap.textContent=r.caption; reelAuthor.textContent=r.author; reelAv.textContent=r.av; reelLikes.textContent=r.likes; reelComments.textContent=r.comments;
+    fillThumb(sheetThumb, r.thumb, r.tone, r.emoji); sheetLink.textContent=r.link;
+    fillThumb(hthumb, r.thumb, r.tone, r.emoji); htitle.textContent=r.title;
+    var cs=chips.querySelectorAll('.chip'); for (var i=0;i<cs.length;i++) cs[i].classList.toggle('on', cs[i].dataset.id===r.id);
+  }
+
+  /* ---------- 상태 전이 ---------- */
+  function reset(r){
+    run++; clearTimers(); hideHint(); analysed=false; tab='lib';
+    setReel(r||reel);
+    scrim.classList.remove('on'); sheet.classList.remove('on'); rwrap.hidden=true; rspin.hidden=false; btnOpen.hidden=true; rtext.textContent='공유한 내용을 확인하고 있어요.';
+    hcard.hidden=true; hacts.hidden=true; hlogs.innerHTML=''; grid.innerHTML=''; empty.hidden=false; pins.innerHTML=''; mlist.innerHTML=''; msheet.classList.remove('on');
+    hbadge.className='badge wait'; hbadge.textContent='처리중'; hsub.textContent='장소를 확인하고 있어요.'; hcard.style.opacity='';
+    endcard.hidden=true; btnFinish.hidden=true; ptoast.classList.remove('on'); $('btnReport').textContent='제보하기'; mapRun++;
+    showTab('lib', true); showScreen('reel'); state='feed'; setStep(0);
+    var id=run;
+    later(900, function(){ if (id!==run||state!=='feed') return; showHint($('btnShare'), '공유를 눌러 보세요', 'left'); });
+    autoLater(2300, tapShare);
+  }
+  function tapShare(){
+    if (state!=='feed') return;
+    state='share'; hideHint(); scrim.classList.add('on'); sheet.classList.add('on');
+    var id=run;
+    later(700, function(){ if (id!==run||state!=='share') return; showHint($('btnYeogidam'), '여기담을 눌러 보세요', 'top'); });
+    autoLater(1900, tapYeogidam);
+  }
+  function closeSheet(){
+    if (state!=='share') return;
+    state='feed'; hideHint(); scrim.classList.remove('on'); sheet.classList.remove('on');
+    var id=run; later(800, function(){ if (id!==run||state!=='feed') return; showHint($('btnShare'), '공유를 눌러 보세요', 'left'); });
+  }
+  function tapYeogidam(){
+    if (state!=='share') return;
+    state='receiving'; hideHint(); setStep(1); sheet.classList.remove('on'); scrim.classList.remove('on');
+    var id=run;
+    later(250, function(){ if (id!==run) return; rwrap.hidden=false; });
+    later(1500, function(){
+      if (id!==run) return;
+      rspin.hidden=true; rtext.textContent='링크를 받았어요. 여기담 앱에서 확인해 주세요.'; btnOpen.hidden=false;
+      autoLater(1600, openApp);
+      if (!auto) later(500, function(){ if (id!==run||state!=='receiving') return; showHint(btnOpen, '여기담을 열어 보세요', 'top'); });
+    });
+  }
+  function openApp(){
+    if (state!=='receiving') return;
+    state='analyzing'; hideHint(); rwrap.hidden=true; showScreen('app'); showTab('lib', true);
+    hcard.hidden=false; empty.hidden=false;
+    var id=run, t=300;
+    reel.logs.forEach(function(line){
+      t+=900;
+      later(t, function(){ if (id!==run) return; var li=document.createElement('li'); li.textContent=line; hlogs.appendChild(li); requestAnimationFrame(function(){ li.classList.add('in'); }); });
+    });
+    t+=1100;
+    later(t, function(){ if (id!==run) return; reel.places.length ? succeed(id) : fail(id); });
+  }
+  function succeed(id){
+    analysed=true; state='lib';
+    hbadge.className='badge ok'; hbadge.textContent='성공';
+    hsub.textContent='장소 분석이 완료되었어요! 총 '+reel.places.length+'개의 장소를 찾았어요';
+    toast('보관함에 저장됐어요');
+    empty.hidden=true; grid.innerHTML='';
+    reel.places.forEach(function(p,i){
+      var b=document.createElement('button'); b.type='button'; b.className='pcard';
+      b.innerHTML=imgOrTile(p.img, p.tone, p.emoji, 'timg')+'<span class="cap"><b>'+esc(p.name)+'</b><small>'+esc(p.road)+'</small></span>';
+      b.addEventListener('click', function(){ openDetail(p); });
+      grid.appendChild(b);
+      later(200+stagger(i*160), function(){ if (id===run) b.classList.add('in'); });
+    });
+    var tabMap=$('tabMap');
+    later(200+reel.places.length*160+300, function(){ if (id!==run) return; hcard.style.opacity='.75'; hlogs.innerHTML=''; if (state==='lib') setStep(2); });
+    later(200+reel.places.length*160+1000, function(){ if (id!==run||state!=='lib') return; showHint(tabMap, '지도 탭을 눌러 보세요', 'top'); });
+    autoLater(200+reel.places.length*160+2400, function(){ if (state==='lib') showTab('map'); });
+  }
+  function fail(id){
+    analysed=true; state='lib';
+    hbadge.className='badge ng'; hbadge.textContent='실패';
+    htitle.textContent='장소 분석에 실패했어요ㅠ'; hsub.textContent=reel.fail; hacts.hidden=false; setStep(2);
+    later(2600, function(){ if (id!==run) return; finish('장소가 없으면 이렇게 알려 드려요', '실패한 릴스는 히스토리에 남아요. 다시 시도하거나 제보 버튼으로 팀에 알릴 수 있어요.'); });
+  }
+  function showTab(name, silent){
+    tab=name;
+    lib.hidden = name!=='lib'; mapScr.hidden = name!=='map'; $('profile').hidden = name!=='profile';
+    fab.hidden = name!=='lib'; appHead.hidden = name==='profile';
+    var ts=tabbar.querySelectorAll('.tab'); for (var i=0;i<ts.length;i++) ts[i].classList.toggle('on', ts[i].dataset.tab===name);
+    if (silent) return;
+    hideHint();
+    if (name==='map'){ state='map'; setStep(3); renderMap(); }
+    else if (name==='lib'){ state='lib'; }
+    else { state='profile'; }
+  }
+  function renderMap(){
+    mapSvg.innerHTML=mapSVG(reel); pins.innerHTML=''; mlist.innerHTML=''; msheet.classList.remove('on');
+    mcount.textContent='저장한 장소 '+reel.places.length+'곳';
+    var id=run, mid=++mapRun;
+    reel.places.forEach(function(p,i){
+      var b=document.createElement('button'); b.type='button'; b.className='pin'; b.style.left=p.x+'%'; b.style.top=p.y+'%';
+      b.setAttribute('aria-label', p.name);
+      b.innerHTML='<img src="assets/marker.png" alt=""><span class="pin-label">'+esc(p.name)+'</span>';
+      b.addEventListener('click', function(){ openDetail(p); });
+      pins.appendChild(b);
+      later(250+stagger(i*140), function(){ if (id===run&&mid===mapRun) b.classList.add('drop'); });
+      var m=document.createElement('button'); m.type='button'; m.className='mitem';
+      m.innerHTML=(p.img ? '<span class="thumb"><img src="'+p.img+'" alt="" loading="lazy"></span>' : '<span class="thumb tile '+p.tone+'">'+p.emoji+'</span>')+'<span style="min-width:0;display:block"><b>'+esc(p.name)+'</b><small>'+esc(p.road)+'</small></span>';
+      m.addEventListener('click', function(){ openDetail(p); });
+      mlist.appendChild(m);
+    });
+    later(400+reel.places.length*140, function(){ if (id===run&&mid===mapRun) msheet.classList.add('on'); });
+    later(1200+reel.places.length*140, function(){ if (id!==run||mid!==mapRun||state!=='map') return; var first=pins.querySelector('.pin'); if (first) showHint(first, '핀을 눌러 보세요', 'top'); });
+    autoLater(2600+reel.places.length*140, function(){ if (mid===mapRun&&state==='map') openDetail(reel.places[0]); });
+  }
+  function openDetail(p){
+    state='detail'; hideHint(); setStep(3);
+    if (p.img){ dhero.className='dhero'; dhero.innerHTML='<img src="'+p.img+'" alt="">'; } else { dhero.className='dhero tile '+p.tone; dhero.textContent=p.emoji; }
+    dname.textContent=p.name; dcat.textContent=p.cat; daddr.textContent=p.road;
+    dposts.innerHTML='<div class="dpost">'+(reel.thumb ? '<div class="pt"><img src="'+reel.thumb+'" alt=""></div>' : '<div class="pt tile '+reel.tone+'">'+reel.emoji+'</div>')+'<small>'+esc(reel.author)+' '+esc(reel.title)+'</small></div>';
+    var rows=[['도로명', p.road, '도로명 주소가 복사되었습니다.']]; if (p.lot) rows.push(['지번', p.lot, '지번 주소가 복사되었습니다.']);
+    dinfo.innerHTML=rows.map(function(r){ return '<div class="irow"><span class="k">'+r[0]+'</span><span class="v">'+esc(r[1])+'</span><button type="button" data-msg="'+esc(r[2])+'" data-copy="'+esc(r[1])+'">복사</button></div>'; }).join('');
+    dcta.href=p.url;
+    setDTab('posts'); showScreen('detail'); btnFinish.hidden=false;
+    var id=run;
+    autoLater(3600, function(){ if (state==='detail') finish(); });
+    if (!auto) later(2500, function(){ if (id!==run||state!=='detail') return; showHint($('btnFinishIn'), '다 봤으면 여기를 눌러요', 'bottom'); });
+  }
+  function setDTab(name){
+    var bs=scrDetail.querySelectorAll('.dtabs button'); for (var i=0;i<bs.length;i++) bs[i].classList.toggle('on', bs[i].dataset.dtab===name);
+    dposts.hidden = name!=='posts'; dinfo.hidden = name!=='info';
+  }
+  function backFromDetail(){
+    if (state!=='detail') return;
+    showScreen('app'); showTab(tab, true); state = tab==='map' ? 'map' : (tab==='lib' ? 'lib' : 'profile');
+  }
+  function finish(title, text){
+    hideHint(); clearTimers(); setStep(4); btnFinish.hidden=true;
+    endTitle.textContent = title || '진짜 내 릴스로 해 보세요';
+    endText.textContent = text || '저장해 둔 릴스를 여기담에 공유하면 지금처럼 지도에 담겨요.';
+    endcard.hidden=false; state='end';
+    if (auto){ auto=false; btnAuto.textContent='자동으로 보기'; btnAuto.classList.remove('btn-dark'); btnAuto.classList.add('btn-soft'); }
+    endcard.querySelector('.ecard').scrollIntoView({block:'nearest'});
+  }
+
+  /* ---------- 지도 그림 ---------- */
+  function mapSVG(r){
+    var s='<svg viewBox="0 0 360 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도">';
+    s+='<rect width="360" height="720" fill="#f3f2ec"/>';
+    for (var y=-20;y<720;y+=64) for (var x=-20;x<360;x+=62) s+='<rect x="'+(x+6)+'" y="'+(y+6)+'" width="50" height="52" rx="6" fill="#e8e6de"/>';
+    s+='<ellipse cx="300" cy="420" rx="90" ry="60" fill="#cfe3cf"/><ellipse cx="40" cy="120" rx="50" ry="40" fill="#cfe3cf"/>';
+    var roads=[[0,210,360,210],[178,0,178,720],[0,330,360,330],[90,0,90,720],[270,0,270,720],[0,80,360,80],[0,520,360,520]];
+    roads.forEach(function(rd){ s+='<line x1="'+rd[0]+'" y1="'+rd[1]+'" x2="'+rd[2]+'" y2="'+rd[3]+'" stroke="#d9d6cc" stroke-width="14"/><line x1="'+rd[0]+'" y1="'+rd[1]+'" x2="'+rd[2]+'" y2="'+rd[3]+'" stroke="#ffffff" stroke-width="10"/>'; });
+    if (r.sea){
+      s+='<path d="M250,-10 C280,90 230,170 262,260 C295,350 240,430 268,520 C290,600 250,660 275,730 L370,730 L370,-10 Z" fill="#b9d7f0"/>';
+      s+='<path d="M250,-10 C280,90 230,170 262,260 C295,350 240,430 268,520 C290,600 250,660 275,730" fill="none" stroke="#ffffff" stroke-width="8"/>';
+      s+='<text x="300" y="300" font-size="13" fill="#4a6f90" font-weight="700" text-anchor="middle">동해</text>';
+      s+='<text x="60" y="120" font-size="13" fill="#5b5b66" font-weight="700">사천진</text><text x="60" y="560" font-size="13" fill="#5b5b66" font-weight="700">강릉</text>';
+      s+='<text x="150" y="265" font-size="11" fill="#8a8a94" transform="rotate(-78 150 265)">해안로</text>';
+    } else {
+      s+='<path d="M310,-10 C330,120 300,260 330,400 C350,520 320,640 340,730" fill="none" stroke="#b9d7f0" stroke-width="18"/>';
+      s+='<line x1="0" y1="210" x2="360" y2="210" stroke="#996cac" stroke-width="4"/><line x1="178" y1="0" x2="178" y2="720" stroke="#747f00" stroke-width="4"/>';
+      s+='<circle cx="178" cy="210" r="9" fill="#fff" stroke="#1a1a2e" stroke-width="3"/>';
+      s+='<rect x="146" y="226" width="64" height="20" rx="10" fill="#fff" stroke="#e5e5ea"/><text x="178" y="240" font-size="12" fill="#1a1a2e" font-weight="800" text-anchor="middle">'+esc(r.mapLabel)+'</text>';
+      s+='<text x="300" y="130" font-size="13" fill="#5b5b66" font-weight="700" text-anchor="middle">중곡동</text><text x="60" y="440" font-size="13" fill="#5b5b66" font-weight="700">군자동</text><text x="300" y="424" font-size="12" fill="#4f7a4f" font-weight="700" text-anchor="middle">어린이대공원</text>';
+    }
+    return s+'</svg>';
+  }
+
+  /* ---------- 이벤트 ---------- */
+  $('btnShare').addEventListener('click', tapShare);
+  $('btnYeogidam').addEventListener('click', tapYeogidam);
+  scrim.addEventListener('click', closeSheet);
+  btnOpen.addEventListener('click', openApp);
+  $('btnBack').addEventListener('click', backFromDetail);
+  $('btnReport').addEventListener('click', function(){ toast('데모에서는 바로 제보 완료로 표시해요'); $('btnReport').textContent='제보 완료'; });
+  $('btnRetry').addEventListener('click', function(){ toast('데모에서는 다시 시도해도 같은 결과예요'); });
+  $('btnFinishIn').addEventListener('click', function(){ finish(); });
+  fab.addEventListener('click', function(){ toast('링크를 붙여 넣어 직접 추가할 수도 있어요'); });
+  screen.addEventListener('click', function(e){ var b=e.target.closest('.reel-acts button:not(#btnShare), .apps .app-ic:not(.me), .sheet-row, .pedit, .plist div, .locbtn'); if (b) toast('데모에서는 여기담 흐름만 눌러 볼 수 있어요'); });
+  tabbar.addEventListener('click', function(e){
+    var t=e.target.closest('.tab'); if (!t) return;
+    if (!analysed && t.dataset.tab!=='lib'){ toast('장소를 확인하는 중이에요. 잠시만요'); return; }
+    showTab(t.dataset.tab);
+  });
+  scrDetail.querySelector('.dtabs').addEventListener('click', function(e){ var b=e.target.closest('button'); if (b) setDTab(b.dataset.dtab); });
+  dinfo.addEventListener('click', function(e){
+    var b=e.target.closest('button'); if (!b) return;
+    var msg=b.dataset.msg, txt=b.dataset.copy;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(function(){ toast(msg); }, function(){ toast(msg); });
+    else toast(msg);
+  });
+  btnFinish.addEventListener('click', function(){ finish(); });
+  $('btnAgain').addEventListener('click', function(){ reset(reel); });
+  $('btnOther').addEventListener('click', function(){ var i=REELS.indexOf(reel); reset(REELS[(i+1)%REELS.length]); });
+  btnReset.addEventListener('click', function(){ reset(reel); });
+  btnAuto.addEventListener('click', function(){
+    auto=!auto;
+    btnAuto.textContent = auto ? '자동 재생 멈추기' : '자동으로 보기';
+    btnAuto.classList.toggle('btn-dark', auto); btnAuto.classList.toggle('btn-soft', !auto);
+    if (auto) reset(reel);
+  });
+  REELS.forEach(function(r){
+    var c=document.createElement('button'); c.type='button'; c.className='chip'; c.dataset.id=r.id; c.textContent=r.chip;
+    c.addEventListener('click', function(){ reset(r); phoneWrap.scrollIntoView({block:'center', behavior:'smooth'}); });
+    chips.appendChild(c);
+  });
+
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(phoneWrap.parentNode);
+  window.addEventListener('resize', fit);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
+  fit();
+  window.addEventListener('resize', function(){ if (hintTarget) showHint(hintTarget, hintText.textContent, hint.classList.contains('left')?'left':(hint.classList.contains('bottom')?'bottom':'top')); });
+  reset(REELS[0]);
+
+  /* ---------- QR (데스크톱에서만 라이브러리를 뒤늦게 불러온다) ---------- */
+  function makeQR(){
+    try {
+      if (typeof qrcode !== 'function') return;
+      var make=function(el, url){ var q=qrcode(0,'M'); q.addData(url); q.make(); el.innerHTML=q.createSvgTag({cellSize:3, margin:0, scalable:true}); };
+      make($('qrIos'), 'https://apps.apple.com/kr/app/id6801408355');
+      make($('qrAndroid'), 'https://play.google.com/store/apps/details?id=com.yeogidamm.app');
+      $('qrRow').classList.add('ready');
+    } catch (e) {}
+  }
+  if (window.matchMedia && window.matchMedia('(min-width:900px)').matches){
+    var qs=document.createElement('script');
+    qs.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    qs.async=true; qs.onload=makeQR;
+    document.head.appendChild(qs);
+  }
+})();
+</script>
+</body>
+</html>
