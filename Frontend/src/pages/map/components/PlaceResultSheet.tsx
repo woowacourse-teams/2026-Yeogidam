@@ -16,6 +16,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type GestureResponderEvent,
 } from 'react-native';
 import { usePostHog } from 'posthog-react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -593,9 +594,7 @@ export function PlaceResultSheet({
     }
   };
 
-  const handleCollapsedBodyTouchStart = (event: {
-    nativeEvent: { pageX: number; pageY: number };
-  }) => {
+  const handleCollapsedBodyTouchStart = (event: GestureResponderEvent) => {
     if (activeSnapIndex !== 2) return;
     collapsedBodyTouchStart.current = {
       x: event.nativeEvent.pageX,
@@ -604,9 +603,7 @@ export function PlaceResultSheet({
     ignoreCollapsedBodyTap.current = false;
   };
 
-  const handleCollapsedBodyTouchEnd = (event: {
-    nativeEvent: { pageX: number; pageY: number };
-  }) => {
+  const handleCollapsedBodyTouchEnd = (event: GestureResponderEvent) => {
     const start = collapsedBodyTouchStart.current;
     collapsedBodyTouchStart.current = null;
     if (
@@ -787,8 +784,8 @@ export function PlaceResultSheet({
       {selectedPlace ? (
         <View
           {...(activeSnapIndex === 2 ? panResponder.panHandlers : {})}
-          onTouchStartCapture={handleCollapsedBodyTouchStart}
-          onTouchEnd={handleCollapsedBodyTouchEnd}
+          onResponderStart={handleCollapsedBodyTouchStart}
+          onResponderEnd={handleCollapsedBodyTouchEnd}
           style={[styles.detailArea, { height: detailVisibleHeight }]}
         >
           <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
@@ -838,8 +835,8 @@ export function PlaceResultSheet({
       ) : (
         <View
           {...(activeSnapIndex === 2 ? panResponder.panHandlers : {})}
-          onTouchStartCapture={handleCollapsedBodyTouchStart}
-          onTouchEnd={handleCollapsedBodyTouchEnd}
+          onResponderStart={handleCollapsedBodyTouchStart}
+          onResponderEnd={handleCollapsedBodyTouchEnd}
           style={styles.expansionTapArea}
         >
           <FlatList
