@@ -200,7 +200,9 @@ p{margin:0}
 .pcard .timg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
 .sheet-thumb img,.hcard .thumb img,.mitem .thumb img,.dpost .pt img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
 .dhero img{width:100%;height:100%;object-fit:cover;display:block}
-.reel-bg.photo img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.reel-bg.photo{background:#111}
+.reel-bg.photo img.blur{position:absolute;inset:-24px;width:calc(100% + 48px);height:calc(100% + 48px);object-fit:cover;filter:blur(18px) brightness(.55)}
+.reel-bg.photo img.fit{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .pcard .cap b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pcard .cap small{display:block;font-size:11px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .empty{text-align:center;padding:36px 20px 20px}
@@ -823,7 +825,7 @@ p{margin:0}
   function setReel(r){
     reel=r;
     var spots=[[8,16],[62,12],[80,30],[18,40],[48,48],[72,58],[28,66],[58,74]];
-    if (r.thumb){ reelBg.className='reel-bg photo'; reelBg.innerHTML='<img src="'+r.thumb+'" alt="">'; }
+    if (r.thumb){ reelBg.className='reel-bg photo'; reelBg.innerHTML='<img class="blur" src="'+r.thumb+'" alt=""><img class="fit" src="'+r.thumb+'" alt="">'; }
     else { reelBg.className='reel-bg '+r.theme; reelBg.innerHTML=r.scatter.map(function(e,i){ var p=spots[i%spots.length]; return '<span style="left:'+p[0]+'%;top:'+p[1]+'%;font-size:'+(34+(i%3)*10)+'px">'+e+'</span>'; }).join(''); }
     reelCap.textContent=r.caption; reelAuthor.textContent=r.author; reelAv.textContent=r.av; reelLikes.textContent=r.likes; reelComments.textContent=r.comments;
     fillThumb(sheetThumb, r.thumb, r.tone, r.emoji); sheetLink.textContent=r.link;
