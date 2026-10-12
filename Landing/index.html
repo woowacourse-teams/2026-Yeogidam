@@ -73,7 +73,7 @@ p{margin:0}
   radial-gradient(900px 500px at 10% -10%,rgba(219,224,249,.9),transparent 60%),
   radial-gradient(700px 420px at 100% 20%,rgba(245,243,238,1),transparent 60%),var(--bg)}
 .hero .wrap{display:grid;gap:clamp(32px,5vw,56px);align-items:center}
-.hero h1{font-size:clamp(30px,6.4vw,50px);font-weight:800;margin-top:18px}
+.hero h1{font-size:clamp(30px,6.4vw,50px);font-weight:800;margin-top:0}
 .hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--brand) 62%)}
 .hero .lead{margin-top:18px;font-size:clamp(16px,2vw,19px);color:var(--ink-2);max-width:34em}
 .badges{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:26px}
@@ -316,8 +316,7 @@ p{margin:0}
 .how .num{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-size:14px;font-weight:800}
 .how h3{font-size:20px;font-weight:800;margin-top:14px}
 .how p{font-size:15px;color:var(--ink-2);margin-top:10px;flex:1}
-.how .vis{margin-top:22px;border-radius:22px 22px 0 0;background:#fff;box-shadow:0 -6px 24px rgba(26,26,46,.08);padding:14px 14px 0;height:250px;overflow:hidden;position:relative}
-.how .vis.tall{height:330px}
+.how .vis{margin-top:22px;border-radius:22px 22px 0 0;background:#fff;box-shadow:0 -6px 24px rgba(26,26,46,.08);padding:14px 14px 0;height:360px;overflow:hidden;position:relative}
 .vis .tag.soft{background:var(--bg-soft);color:var(--ink-2)}
 .vis .mini-sheet{border-radius:18px 18px 0 0;background:#fff;height:100%;box-shadow:0 -4px 20px rgba(0,0,0,.08);padding:10px 12px}
 .vis .mini-sheet .apps{padding-top:10px}
@@ -330,10 +329,42 @@ p{margin:0}
 .vis .mini-grid .pcard{opacity:1;transform:none;border-radius:16px}
 .vis .shots{display:flex;gap:10px;justify-content:center;align-items:flex-start;height:100%}
 .vis .shots img{width:46%;border-radius:18px 18px 0 0;box-shadow:0 6px 20px rgba(26,26,46,.18)}
-.vis .tag{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--black);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;z-index:2}
+.vis .tag{display:inline-block;background:var(--black);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;margin-bottom:10px}
 .tip{margin-top:22px;background:var(--bg-cream);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:flex-start;font-size:15px;color:var(--ink-2)}
 .tip b{color:var(--ink)}
 .tip .ico{font-size:22px;line-height:1}
+.tip-shots{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;max-width:460px}
+.tip-shots figure{margin:0}
+.tip-shots figcaption{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.4}
+.mini{background:#fff;border-radius:14px;padding:10px;box-shadow:0 4px 14px rgba(26,26,46,.08);font-size:12px;color:var(--ink);min-height:118px}
+.mini-title{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.mini-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid var(--line);color:var(--muted)}
+.mini-row.on{color:var(--ink);font-weight:700}
+.mini-row img{width:24px;height:24px;border-radius:7px}
+.mini-row i{width:24px;height:24px;border-radius:7px;background:var(--line);display:inline-block}
+.mini-row .plus{width:18px;height:18px;border-radius:50%;background:var(--success);color:#fff;display:inline-grid;place-items:center;font-size:13px;font-weight:800;line-height:1}
+.mini.center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.mini.center .app-ic{width:auto;font-size:11px}
+.mini.center .app-ic img{width:44px;height:44px;border-radius:12px}
+.mini .pop{background:var(--black);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}
+.tip .tag.small{display:inline-block;margin-top:10px;margin-bottom:0;background:var(--bg-soft);color:var(--ink-2);font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}
+.vis .shots.one{justify-content:center}
+.vis .shots.one img{width:58%;border-radius:18px 18px 0 0}
+.hist{background:#fff;border-radius:18px 18px 0 0;padding:4px 2px 0;font-size:13px;color:var(--ink)}
+.hist-head{display:flex;align-items:center;gap:8px;font-size:15px;margin-bottom:10px}
+.hist-head .chev{font-size:22px;line-height:1;color:var(--ink-2)}
+.hist-item{display:flex;gap:10px;align-items:flex-start;padding:10px;background:var(--bg-soft);border-radius:14px}
+.hist-item .thumb{width:48px;height:62px;border-radius:10px;overflow:hidden;flex:none}
+.hist-item .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.hist-body{min-width:0}
+.hist-body b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-body .sub{font-size:12px;color:var(--ink-2);margin-top:4px;line-height:1.5}
+.hist-label{font-size:12px;font-weight:700;color:var(--ink-2);margin:12px 2px 4px}
+.hp{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.hp img{width:40px;height:40px;border-radius:10px;object-fit:cover;flex:none}
+.hp b{display:block;font-size:13px}
+.hp small{display:block;font-size:11px;color:var(--muted)}
+.hist-link{font-size:12px;font-weight:700;color:var(--brand-ink);padding:10px 2px}
 @media (min-width:860px){.how-grid{grid-template-columns:repeat(3,1fr)}}
 
 /* ---------- 기능 ---------- */
@@ -403,7 +434,6 @@ p{margin:0}
 <section class="hero">
   <div class="wrap">
     <div class="hero-copy">
-      <span class="eyebrow">맛집 릴스를 저장만 해 두는 사람을 위한 앱</span>
       <h1>저장만 해 둔 맛집 릴스,<br>여기담이 <em>지도에 담아요</em></h1>
       <p class="lead">인스타그램 릴스를 여기담에 공유하면 AI가 영상 속 가게를 찾아 보관함과 지도에 저장해요. 저장 탭에 쌓아 두고 잊어버린 곳을 바로 꺼내 보세요.</p>
       <div class="badges">
@@ -414,7 +444,7 @@ p{margin:0}
     </div>
 
     <div class="demo" id="demo">
-      <div class="demo-title"><span class="dot"></span>지금 바로 해 보세요. 화면 속 릴스의 공유 버튼부터 눌러 보세요.</div>
+      <div class="demo-title"><span class="dot"></span>릴스의 공유 버튼부터 눌러 보세요</div>
       <div class="phone-wrap" id="phoneWrap">
         <div class="phone" id="phone">
           <div class="shell"></div>
@@ -591,19 +621,8 @@ p{margin:0}
         <h3>릴스에서 공유를 누르고 여기담을 골라요</h3>
         <p>인스타그램 공유 목록에서 여기담을 고르면 링크가 바로 넘어가요. 링크나 주소를 복사할 필요가 없어요. 결과는 여기담 앱의 보관함에서 확인해요.</p>
         <div class="vis">
-          <span class="tag soft">예시 화면</span>
-          <div class="mini-sheet">
-            <div class="handle"></div>
-            <div class="sheet-head"><div class="sheet-thumb"><img src="assets/reel-gunja.jpg" alt="" loading="lazy"></div><div><b>릴스</b><small>instagram.com/p/Db4gRWqkuUg</small></div></div>
-            <div class="apps">
-              <span class="app-ic me"><img src="assets/app-icon.png" alt="">여기담<span class="ring"></span></span>
-              <span class="app-ic"><i style="background:#34c759">💬</i>메시지</span>
-              <span class="app-ic"><i style="background:#f5c518">📝</i>메모</span>
-              <span class="app-ic"><i style="background:#ff7a6b">⏰</i>미리알림</span>
-              <span class="app-ic"><i style="background:#2f8cf0">✉️</i>메일</span>
-            </div>
-            <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>링크 복사</div>
-          </div>
+          <span class="tag">앱 가이드 화면</span>
+          <div class="shots one"><img src="assets/guide-share-sheet.jpg" alt="iPhone 공유 시트에서 여기담을 고르는 화면이에요." loading="lazy"></div>
         </div>
       </article>
       <article class="how">
@@ -612,18 +631,21 @@ p{margin:0}
         <p>AI가 영상과 캡션을 읽어 장소 이름을 뽑고, 카카오 지도에서 실제 장소와 맞춰요. 잠시 뒤 처리중 표시가 성공으로 바뀌어요.</p>
         <div class="vis">
           <span class="tag soft">예시 화면</span>
-          <div class="hcard">
-            <div class="thumb"><img src="assets/reel-gunja.jpg" alt="" loading="lazy"></div>
-            <div style="min-width:0;flex:1">
-              <b>군자역 디저트 저장각 🍰</b>
-              <span class="badge ok">성공</span>
-              <div class="sub">총 5개의 장소를 찾았어요</div>
-              <ul class="logs"><li class="in">영상과 캡션을 읽었어요</li><li class="in">장소 이름 후보 5개를 찾았어요</li><li class="in">카카오 지도에서 장소를 확인했어요</li></ul>
+          <div class="hist">
+            <div class="hist-head"><span class="chev">&#8249;</span><b>히스토리</b></div>
+            <div class="hist-item">
+              <div class="thumb"><img src="assets/reel-gunja.jpg" alt="" loading="lazy"></div>
+              <div class="hist-body"><b>군자역 디저트 저장각 🍰</b><span class="badge ok">성공</span><div class="sub">장소 분석이 완료되었어요!<br>총 5개의 장소를 찾았어요</div></div>
             </div>
-          </div>
-          <div class="mini-grid">
-            <div class="pcard"><img class="timg" src="assets/place-1775568752.jpg" alt="" loading="lazy"><div class="cap"><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div></div>
-            <div class="pcard"><img class="timg" src="assets/place-137070444.jpg" alt="" loading="lazy"><div class="cap"><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div></div>
+            <div class="hist-label">발견한 장소</div>
+            <div class="hist-places">
+              <div class="hp"><img src="assets/place-1775568752.jpg" alt="" loading="lazy"><div><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div></div>
+              <div class="hp"><img src="assets/place-137070444.jpg" alt="" loading="lazy"><div><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div></div>
+              <div class="hp"><img src="assets/place-337953507.jpg" alt="" loading="lazy"><div><b>책방고즈넉</b><small>서울 광진구 동일로60길 41-13</small></div></div>
+              <div class="hp"><img src="assets/place-98016856.jpg" alt="" loading="lazy"><div><b>윤키</b><small>서울 광진구 능동로38길 27</small></div></div>
+              <div class="hp"><img src="assets/place-1107844606.jpg" alt="" loading="lazy"><div><b>연필</b><small>서울 광진구 면목로 12</small></div></div>
+            </div>
+            <div class="hist-link">원본 릴스로 이동 &#8250;</div>
           </div>
         </div>
       </article>
@@ -631,7 +653,7 @@ p{margin:0}
         <span class="num">3</span>
         <h3>보관함과 지도에서 꺼내 봐요</h3>
         <p>찾은 장소는 보관함에 카드로, 지도에는 핀으로 쌓여요. 장소를 누르면 주소를 복사하고 카카오맵으로 바로 넘어갈 수 있어요.</p>
-        <div class="vis tall">
+        <div class="vis">
           <span class="tag">실제 앱 화면</span>
           <div class="shots">
             <img src="assets/screen-library.jpg" alt="여기담 보관함 화면. 저장한 카페가 사진 카드로 보여요." loading="lazy">
@@ -640,7 +662,12 @@ p{margin:0}
         </div>
       </article>
     </div>
-    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b><br>iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.</div></div>
+    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b><br>iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.
+      <div class="tip-shots">
+        <figure><div class="mini"><div class="mini-title">앱 편집</div><div class="mini-row on"><span class="plus">+</span><img src="assets/app-icon.png" alt=""><span>여기담</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div></div><figcaption>iPhone은 편집 목록에서 여기담 옆 +</figcaption></figure>
+        <figure><div class="mini center"><div class="app-ic me"><img src="assets/app-icon.png" alt="">여기담</div><span class="pop">📌 고정</span></div><figcaption>Android는 아이콘을 길게 눌러 고정</figcaption></figure>
+      </div>
+      <span class="tag soft small">예시 화면</span></div></div>
   </div>
 </section>
 
