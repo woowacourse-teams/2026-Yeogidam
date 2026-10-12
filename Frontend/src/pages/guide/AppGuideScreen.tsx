@@ -23,6 +23,7 @@ type GuideStep = 'intro' | 'share' | 'check' | 'help' | 'done';
 type DeviceTab = 'ios' | 'android';
 
 const BRAND_MARK = require('../../assets/icons/brand-mark.png');
+const PRACTICE_POST_IMAGE = require('../../assets/guide/practice-post.jpg');
 
 const MOCK_SLIDES = [
   {
@@ -815,6 +816,44 @@ function IntroDemo() {
   );
 }
 
+// 연습 게시물을 인스타그램 게시물처럼 보여준다.
+function PracticePostCard() {
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.min(width - 48, 300);
+  const imageWidth = cardWidth - 2;
+
+  return (
+    <View style={[styles.post, styles.practicePost, { width: cardWidth }]}>
+      <View style={styles.postHeader}>
+        <Image source={BRAND_MARK} style={styles.avatar} />
+        <Text style={styles.postUser}>yeogidamm</Text>
+        <MaterialIcons name="more-vert" size={20} color="#141c2d" />
+      </View>
+
+      <Image
+        source={PRACTICE_POST_IMAGE}
+        resizeMode="cover"
+        style={{ width: imageWidth, height: (imageWidth * 667) / 538 }}
+      />
+
+      <View style={styles.postActions}>
+        <MaterialIcons name="favorite-border" size={26} color="#141c2d" />
+        <MaterialIcons name="chat-bubble-outline" size={24} color="#141c2d" />
+        <View style={styles.shareWrap}>
+          <View style={styles.shareRing} />
+          <MaterialIcons name="send" size={22} color="#141c2d" />
+        </View>
+        <View style={styles.dots} />
+        <MaterialIcons name="bookmark-border" size={26} color="#141c2d" />
+      </View>
+
+      <Text style={styles.practiceCaption} numberOfLines={1}>
+        <Text style={styles.postUser}>yeogidamm</Text> 군자역 디저트 저장각 🍰
+      </Text>
+    </View>
+  );
+}
+
 export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
   const [step, setStep] = useState<GuideStep>('intro');
 
@@ -918,12 +957,12 @@ export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
       case 'done':
         return (
           <>
-            <StepHeader step={3} title="이제 공유만 하면 저장돼요" />
-            <View style={styles.doneCard}>
-              <Text style={styles.doneFlow}>
-                공유 버튼 → 여기담 선택 → 보관함 확인
-              </Text>
-            </View>
+            <StepHeader
+              step={3}
+              title="이 게시물로 직접 해볼까요?"
+              description="인스타그램에서 이 게시물이 열려요. 공유 버튼을 눌러 여기담을 선택해보세요."
+            />
+            <PracticePostCard />
           </>
         );
     }
@@ -1457,17 +1496,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
-  doneCard: {
-    padding: 20,
-    borderRadius: 14,
-    backgroundColor: '#f3f5fd',
-    gap: 12,
+  practicePost: {
+    alignSelf: 'center',
+    borderColor: '#d0d3dc',
   },
-  doneFlow: {
+  practiceCaption: {
+    paddingHorizontal: 12,
+    paddingBottom: 14,
     color: '#141c2d',
-    fontSize: 16,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontSize: 14,
   },
   footer: {
     position: 'absolute',

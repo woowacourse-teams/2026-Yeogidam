@@ -6,6 +6,7 @@ import type {
   PlaceReelsApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
+import type { SavedPlaceViewContext } from '../../../analytics/savedPlaceEvents';
 import { PlaceDetailHeader } from './PlaceDetailHeader';
 import { PlaceInformation } from './PlaceInformation';
 import { PlaceInfo } from './PlaceInfo';
@@ -21,14 +22,19 @@ type PlaceDetailContentProps = {
   onRetryReels?: () => void;
   onBack: () => void;
   onPressMore?: () => void;
+  onInteractivePressIn?: () => void;
   hideHeader?: boolean;
   hideBack?: boolean;
   showTitle?: boolean;
+  showMetadata?: boolean;
+  actionsUnderTitle?: boolean;
+  stickyHeader?: boolean;
   titleInHeader?: boolean;
   scrollEnabled?: boolean;
   contentBottomPadding?: number;
   headerTopInset?: number;
   compactHeader?: boolean;
+  viewContext?: SavedPlaceViewContext;
 };
 
 export function PlaceDetailContent({
@@ -39,14 +45,19 @@ export function PlaceDetailContent({
   onRetryReels,
   onBack,
   onPressMore,
+  onInteractivePressIn,
   hideHeader = false,
   hideBack = false,
   showTitle = true,
+  showMetadata = true,
+  actionsUnderTitle = false,
+  stickyHeader = false,
   titleInHeader = false,
   scrollEnabled = true,
   contentBottomPadding = 100,
   headerTopInset = 0,
   compactHeader = false,
+  viewContext,
 }: PlaceDetailContentProps) {
   const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
 
@@ -63,6 +74,7 @@ export function PlaceDetailContent({
       ]}
       scrollEnabled={scrollEnabled}
       nestedScrollEnabled
+      stickyHeaderIndices={stickyHeader && !hideHeader ? [0] : undefined}
       showsVerticalScrollIndicator={false}
     >
       {hideHeader ? (
@@ -71,6 +83,7 @@ export function PlaceDetailContent({
         <PlaceDetailHeader
           onBack={onBack}
           onPressMore={onPressMore}
+          onInteractivePressIn={onInteractivePressIn}
           hideBack={hideBack}
           title={place.name}
           titleInHeader={titleInHeader}
@@ -79,7 +92,15 @@ export function PlaceDetailContent({
         />
       )}
       <View>
-        <PlaceInfo place={place} showTitle={showTitle} />
+        <PlaceInfo
+          place={place}
+          showTitle={showTitle}
+          showCategory={showMetadata}
+          showAddress={showMetadata}
+          actionsUnderTitle={actionsUnderTitle}
+          viewContext={viewContext}
+          onInteractivePressIn={onInteractivePressIn}
+        />
       </View>
       <View style={styles.tabsContainer}>
         <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />

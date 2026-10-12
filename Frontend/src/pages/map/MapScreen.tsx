@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {usePostHog} from 'posthog-react-native';
-import {v4 as uuidv4} from 'uuid';
+import { usePostHog } from 'posthog-react-native';
+import { v4 as uuidv4 } from 'uuid';
 
 import {
   captureSavedPlaceSelected,
@@ -49,7 +49,6 @@ import {
 type MapScreenProps = {
   isActive?: boolean;
   isGuest?: boolean;
-  onDetailViewChange?: (isDetailView: boolean) => void;
   onAuthenticationRequired?: () => void;
 };
 
@@ -62,7 +61,6 @@ type MapCamera = {
 export function MapScreen({
   isActive = true,
   isGuest = false,
-  onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
   const posthog = usePostHog();
@@ -113,7 +111,7 @@ export function MapScreen({
     place: Place | null;
     viewContext: SavedPlaceViewContext | null;
     signal: number;
-  }>({place: null, viewContext: null, signal: 0});
+  }>({ place: null, viewContext: null, signal: 0 });
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailHeaderProgress = useRef(new Animated.Value(0)).current;
   const [collapseSignal, setCollapseSignal] = useState(0);
@@ -236,17 +234,14 @@ export function MapScreen({
     [searchedPlaces],
   );
 
-  const handleSheetVisibleHeightChange = useCallback(
-    (height: number) => {
-      if (sheetVisibleHeightRef.current === height) {
-        return;
-      }
+  const handleSheetVisibleHeightChange = useCallback((height: number) => {
+    if (sheetVisibleHeightRef.current === height) {
+      return;
+    }
 
-      sheetVisibleHeightRef.current = height;
-      setSheetVisibleHeight(height);
-    },
-    [],
-  );
+    sheetVisibleHeightRef.current = height;
+    setSheetVisibleHeight(height);
+  }, []);
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
@@ -434,7 +429,6 @@ export function MapScreen({
             onDetailViewChange={(isDetailView, placeId) => {
               setSelectedPlaceId(placeId);
               setIsPlaceDetailVisible(isDetailView);
-              onDetailViewChange?.(isDetailView);
             }}
             onAuthenticationRequired={onAuthenticationRequired}
             onSavedPlaceDeleted={savedPlaceId => {
