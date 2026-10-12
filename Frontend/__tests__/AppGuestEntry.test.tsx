@@ -10,6 +10,11 @@ import {
   rememberSignInOnThisInstall,
 } from '../src/lib/app-guide-storage';
 import {getCurrentProfile} from '../src/entities/info/api';
+import {
+  beginGuestOnboardingTransfer,
+  resumeGuestOnboardingTransfer,
+} from '../src/entities/onboarding/transfer';
+import {signInWithGoogle} from '../src/lib/auth/signInWithGoogle';
 import {AppGuideScreen} from '../src/pages/guide/AppGuideScreen';
 import {LoginScreen} from '../src/pages/login/LoginScreen';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
@@ -67,6 +72,16 @@ jest.mock('../src/lib/share-intent', () => ({
 
 jest.mock('../src/entities/info/api', () => ({
   getCurrentProfile: jest.fn(() => Promise.resolve(null)),
+}));
+
+jest.mock('../src/entities/onboarding/transfer', () => ({
+  beginGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
+  cancelGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
+  resumeGuestOnboardingTransfer: jest.fn(() => Promise.resolve(false)),
+}));
+
+jest.mock('../src/lib/auth/signInWithGoogle', () => ({
+  signInWithGoogle: jest.fn(() => Promise.resolve({user: {id: 'new-user'}})),
 }));
 
 jest.mock('../src/pages/guide/AppGuideScreen', () => ({
@@ -129,6 +144,9 @@ beforeEach(() => {
   (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(false);
   (rememberSignInOnThisInstall as jest.Mock).mockResolvedValue(undefined);
   (getCurrentProfile as jest.Mock).mockClear();
+  (beginGuestOnboardingTransfer as jest.Mock).mockResolvedValue(undefined);
+  (resumeGuestOnboardingTransfer as jest.Mock).mockResolvedValue(false);
+  (signInWithGoogle as jest.Mock).mockResolvedValue({user: {id: 'new-user'}});
 });
 
 afterEach(() => {
@@ -338,6 +356,32 @@ test('비회원이 로그인하면 이번 설치의 로그인 기록을 저장�
     authChangeHandler('SIGNED_IN', {access_token: 'token', user: {id: 'user'}});
   });
   expect(rememberSignInOnThisInstall).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하고 회원 데이터로 다시 읽는다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (resumeGuestOnboardingTransfer as jest.Mock).mockResolvedValue(true);
+  const renderer = await renderAfterSplash();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onRequireLogin();
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
+  });
+  expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
+
+  const session = {access_token: 'token', user: {id: 'new-user'}};
+  await ReactTestRenderer.act(async () => {
+    authChangeHandler('SIGNED_IN', session);
+    await Promise.resolve();
+  });
+
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith(session);
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
