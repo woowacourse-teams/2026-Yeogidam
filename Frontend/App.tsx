@@ -334,6 +334,9 @@ function App() {
     }
   };
 
+  const openMainScreenRef = useRef(openMainScreen);
+  openMainScreenRef.current = openMainScreen;
+
   const openDetailFrom = (
     sourceScreen: 'saved' | 'map',
     place: Place,
@@ -604,7 +607,6 @@ function App() {
             setSharedSaveState(null);
             setIsGuestLoginPromptVisible(false);
             setMyPageOverlay(null);
-            setIsHistoryVisible(false);
             guestReturnFlowRef.current = GUEST_MAIN_FLOW_STATE;
             setFlowState(INITIAL_FLOW_STATE);
             return;
@@ -613,8 +615,7 @@ function App() {
             clearShareResult(result.requestId).catch(() => undefined);
             setIsGuestLoginPromptVisible(false);
             setMyPageOverlay(null);
-            setIsHistoryVisible(false);
-            openMainScreen('saved', 'auto');
+            openMainScreenRef.current('saved', 'auto');
             return;
           }
           if (result.transferStatus === 'LOGIN_HANDOFF') {
@@ -654,7 +655,7 @@ function App() {
               created_at: new Date(result.updatedAt).toISOString(),
             },
           });
-          openMainScreen(
+          openMainScreenRef.current(
             result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox',
             'auto',
           );

@@ -211,6 +211,10 @@ export function PlaceResultSheet({
     topInset +
     SEARCH_BAR_TOP_GAP +
     SEARCH_BAR_HEIGHT;
+  const expandedDetailSpacerStyle = useMemo(
+    () => ({ height: expandedDetailHeaderHeight }),
+    [expandedDetailHeaderHeight],
+  );
 
   const reportVisibleHeight = useCallback(
     (offset: number) => {
@@ -801,11 +805,7 @@ export function PlaceResultSheet({
           <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
             {isPageMode ? (
               <View
-                style={{
-                  height: expandedDetailHeaderHeight,
-                  flexShrink: 0,
-                  backgroundColor: '#ffffff',
-                }}
+                style={[styles.detailPageHeaderSpacer, expandedDetailSpacerStyle]}
               />
             ) : null}
             <PlaceDetailContent
@@ -1021,6 +1021,10 @@ const styles = StyleSheet.create({
   detailArea: {
     minHeight: 0,
     overflow: 'hidden',
+  },
+  detailPageHeaderSpacer: {
+    flexShrink: 0,
+    backgroundColor: '#ffffff',
   },
   expansionTapArea: {
     flex: 1,

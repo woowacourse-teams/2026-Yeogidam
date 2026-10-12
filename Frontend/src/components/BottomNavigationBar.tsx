@@ -135,7 +135,7 @@ export function BottomNavigationBar({
             key={navigation.id}
             onPress={() => {
               if (navigation.id === 'history') {
-                void getHistoryReels()
+                getHistoryReels()
                   .then(async ({reels}) => {
                     const latest = reels[0];
                     if (latest) {
@@ -146,7 +146,7 @@ export function BottomNavigationBar({
                       setIsHistoryUnread(false);
                     }
                   })
-                  .catch(() => {});
+                  .catch(() => undefined);
               }
               onNavigate(navigation.id);
             }}
