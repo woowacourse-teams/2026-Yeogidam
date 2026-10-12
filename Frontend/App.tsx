@@ -141,7 +141,6 @@ function App() {
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
   const [hasVisitedMap, setHasVisitedMap] = useState(false);
-  const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
@@ -240,10 +239,6 @@ function App() {
   ) => {
     if (nextScreen === 'map') {
       setHasVisitedMap(true);
-    }
-
-    if (nextScreen !== 'map') {
-      setIsMapPlaceDetailVisible(false);
     }
 
     setFlowState({
@@ -384,7 +379,6 @@ function App() {
         setFlowState(INITIAL_FLOW_STATE);
         setMyPageOverlay(null);
         setIsHistoryVisible(false);
-        setIsMapPlaceDetailVisible(false);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
         setIsAuthReady(true);
@@ -861,12 +855,10 @@ function App() {
 
   const showTabBar =
     flowState.kind === 'main' &&
-    flowState.detailSource === null &&
     myPageOverlay === null &&
     !isHistoryVisible &&
     !isSavedPlacesEditing &&
-    !isInBoxSelecting &&
-    !(currentScreen === 'map' && isMapPlaceDetailVisible);
+    !isInBoxSelecting;
 
   const isMapScreen = currentScreen === 'map';
   const shouldKeepMapMounted =
@@ -921,7 +913,6 @@ function App() {
                 onAuthenticationRequired={() =>
                   setFlowState(INITIAL_FLOW_STATE)
                 }
-                onDetailViewChange={setIsMapPlaceDetailVisible}
               />
             </View>
           ) : null}

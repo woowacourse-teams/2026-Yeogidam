@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
 
 import {
@@ -13,9 +14,8 @@ import type {
   SavedPlacesApiError,
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
-import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
@@ -33,8 +33,8 @@ export function PlaceDetailScreen({
   viewContext,
   onAuthenticationRequired,
 }: PlaceDetailScreenProps) {
-  const posthog = usePostHog();
   const { bottom: bottomInset } = useSafeAreaInsets();
+  const posthog = usePostHog();
   const capturedPlaceViewIdRef = useRef<string | null>(null);
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);

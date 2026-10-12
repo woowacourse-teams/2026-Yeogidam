@@ -816,7 +816,10 @@ export function PlaceResultSheet({
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
                 isPageMode
-                  ? DETAIL_PAGE_BOTTOM_PADDING
+                  ? Math.max(
+                      DETAIL_PAGE_BOTTOM_PADDING,
+                      bottomTabOffset + 12,
+                    )
                   : DETAIL_ACTION_BOTTOM_PADDING
               }
             />
