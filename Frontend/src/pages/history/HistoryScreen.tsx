@@ -36,7 +36,12 @@ import type {
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
-type HistoryScreenProps = { onBack: () => void };
+type HistoryScreenProps = {
+  onBack: () => void;
+  guestReels?: HistoryReel[];
+  guestDetails?: Record<string, HistoryReelDetail>;
+  onRequireLogin?: () => void;
+};
 
 const thumbnail =
   'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
@@ -218,19 +223,28 @@ function formatHistoryDate(createdAt: string) {
   return `${year}.${month}.${day}`;
 }
 
-function useHistoryReelDetail(reelId: string) {
-  const [detail, setDetail] = useState<HistoryReelDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+function useHistoryReelDetail(
+  reelId: string,
+  guestDetail?: HistoryReelDetail | null,
+) {
+  const [detail, setDetail] = useState<HistoryReelDetail | null>(guestDetail ?? null);
+  const [loading, setLoading] = useState(guestDetail === undefined);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (guestDetail !== undefined) {
+      setDetail(guestDetail);
+      setLoading(false);
+      setError(false);
+      return;
+    }
     setLoading(true);
     setError(false);
     getHistoryReelDetail(reelId)
       .then(setDetail)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [reelId]);
+  }, [guestDetail, reelId]);
 
   return { detail, loading, error };
 }
@@ -238,15 +252,17 @@ function useHistoryReelDetail(reelId: string) {
 function HistorySuccessDetail({
   onBack,
   reel,
+  guestDetail,
 }: {
   onBack: () => void;
   reel: HistoryReel;
+  guestDetail?: HistoryReelDetail | null;
 }) {
   const posthog = usePostHog();
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'success');
   }, [posthog, reel.id]);
-  const { detail, loading, error } = useHistoryReelDetail(reel.id);
+  const { detail, loading, error } = useHistoryReelDetail(reel.id, guestDetail);
   const displayReel = detail ?? reel;
   const places =
     detail?.extraction?.extraction_places
@@ -337,17 +353,21 @@ function HistoryFailureDetail({
   onBack,
   reel,
   onRetry,
+  guestDetail,
+  onRequireLogin,
 }: {
   onBack: () => void;
   reel: HistoryReel;
   onRetry: () => Promise<void>;
+  guestDetail?: HistoryReelDetail | null;
+  onRequireLogin?: () => void;
 }) {
   const posthog = usePostHog();
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
   }, [posthog, reel.id]);
   const [reported, setReported] = useState(false);
-  const { detail } = useHistoryReelDetail(reel.id);
+  const { detail } = useHistoryReelDetail(reel.id, guestDetail);
   const displayReel = detail ?? reel;
   const originalUrl = displayReel.instagram_url;
 
@@ -394,6 +414,10 @@ function HistoryFailureDetail({
         <Pressable
           disabled={!originalUrl}
           onPress={() => {
+            if (guestDetail !== undefined) {
+              onRequireLogin?.();
+              return;
+            }
             Alert.alert('다시 시도할까요?', '', [
               { text: '취소', style: 'cancel' },
               {
@@ -411,7 +435,11 @@ function HistoryFailureDetail({
         </Pressable>
         <Pressable
           disabled={reported}
-          onPress={() =>
+          onPress={() => {
+            if (guestDetail !== undefined) {
+              onRequireLogin?.();
+              return;
+            }
             Alert.alert('제보할까요?', '', [
               { text: '취소', style: 'cancel' },
               {
@@ -425,8 +453,8 @@ function HistoryFailureDetail({
                     });
                 },
               },
-            ])
-          }
+            ]);
+          }}
           style={[
             styles.actionButton,
             styles.reportActionButton,
@@ -444,7 +472,12 @@ function HistoryFailureDetail({
   );
 }
 
-export function HistoryScreen({ onBack }: HistoryScreenProps) {
+export function HistoryScreen({
+  onBack,
+  guestReels,
+  guestDetails,
+  onRequireLogin,
+}: HistoryScreenProps) {
   const posthog = usePostHog();
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
@@ -456,9 +489,9 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
   const historyViewedRef = useRef(false);
   const shouldRestoreScrollRef = useRef(false);
-  const [reels, setReels] = useState<HistoryReel[]>([]);
+  const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(guestReels === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
@@ -529,6 +562,14 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   }, [selectedSuccess, selectedFailure]);
 
   const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
+    if (guestReels !== undefined) {
+      setReels(guestReels);
+      setCursor(null);
+      setError(false);
+      setLoading(false);
+      setLoadingMore(false);
+      return;
+    }
     setError(false);
     if (nextCursor) setLoadingMore(true);
     else if (!silent) setLoading(true);
@@ -592,7 +633,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [posthog]);
+  }, [guestReels, posthog]);
 
   const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
     if (!reel.instagram_url) {
@@ -701,14 +742,16 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   }, [load]);
 
   useEffect(() => {
+    if (guestReels !== undefined) return;
     const refresh = setInterval(() => {
       load(undefined, true).catch(() => undefined);
     }, 5000);
 
     return () => clearInterval(refresh);
-  }, [load]);
+  }, [guestReels, load]);
 
   useEffect(() => {
+    if (guestReels !== undefined) return;
     if (
       !reels.some(
         reel =>
@@ -754,7 +797,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     }, 3000);
 
     return () => clearInterval(poll);
-  }, [reels]);
+  }, [guestReels, reels]);
 
   useEffect(() => {
     if (
@@ -786,6 +829,9 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     },
     {},
   );
+  const selectedGuestDetail = guestReels === undefined
+    ? undefined
+    : guestDetails?.[selectedReel?.id ?? ''] ?? null;
 
   if (selectedSuccess) {
     return (
@@ -796,6 +842,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           setSelectedReel(null);
         }}
         reel={selectedReel as HistoryReel}
+        guestDetail={selectedGuestDetail}
       />
     );
   }
@@ -808,7 +855,15 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           setSelectedReel(null);
         }}
         reel={selectedReel as HistoryReel}
-        onRetry={() => retryHistoryReel(selectedReel as HistoryReel)}
+        guestDetail={selectedGuestDetail}
+        onRequireLogin={onRequireLogin}
+        onRetry={async () => {
+          if (guestReels !== undefined) {
+            onRequireLogin?.();
+            return;
+          }
+          await retryHistoryReel(selectedReel as HistoryReel);
+        }}
       />
     );
   }

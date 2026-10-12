@@ -83,6 +83,7 @@ type ShareApiDiagnostics = {
 
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
+  isGuest?: boolean;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
@@ -120,6 +121,7 @@ function SavedPlacesEditAction({
 
 export function SavedPlacesScreen({
   onOpenDetail,
+  isGuest = false,
   initialScrollOffset = 0,
   onScrollOffsetChange,
   onAuthenticationRequired,
@@ -205,6 +207,9 @@ export function SavedPlacesScreen({
 
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
+      if (isGuest) {
+        cachedSavedPlaces = null;
+      }
       setPlaces(providedPlaces);
       return providedPlaces;
     }
@@ -227,7 +232,7 @@ export function SavedPlacesScreen({
     } finally {
       setIsLoading(false);
     }
-  }, [onAuthenticationRequired, providedPlaces]);
+  }, [isGuest, onAuthenticationRequired, providedPlaces]);
 
   const refreshSavedPlaces = useCallback(async () => {
     if (isRefreshingRef.current) {
@@ -283,6 +288,9 @@ export function SavedPlacesScreen({
   }, [isRecentSearchesHydrated, recentSearches]);
 
   useEffect(() => {
+    if (isGuest) {
+      return;
+    }
     let isActive = true;
     const verifiedKeys = new Set<string>();
     const verificationInFlight = new Set<string>();
@@ -474,9 +482,13 @@ export function SavedPlacesScreen({
       isActive = false;
       unsubscribe();
     };
-  }, [loadSavedPlaces, onSharedResultConsumed]);
+  }, [isGuest, loadSavedPlaces, onSharedResultConsumed]);
 
   const openDialog = () => {
+    if (isGuest) {
+      onRequireLogin?.();
+      return;
+    }
     setLinkError(null);
     setIsDialogVisible(true);
   };

@@ -48,6 +48,7 @@ import {
 
 type MapScreenProps = {
   isActive?: boolean;
+  isGuest?: boolean;
   onDetailViewChange?: (isDetailView: boolean) => void;
   onAuthenticationRequired?: () => void;
 };
@@ -60,6 +61,7 @@ type MapCamera = {
 
 export function MapScreen({
   isActive = true,
+  isGuest = false,
   onDetailViewChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
@@ -149,11 +151,17 @@ export function MapScreen({
     eastLongitude: number;
   } | null>(null);
   useEffect(() => {
-    let isActive = true;
+    if (isGuest) {
+      setSavedPlaces([]);
+      setSavedPlacesLoadFailed(false);
+      setIsSavedPlacesLoading(false);
+      return;
+    }
+    let isMounted = true;
 
     getSavedPlaces()
       .then(savedPlaceItems => {
-        if (!isActive) return;
+        if (!isMounted) return;
 
         setSavedPlaces(
           Array.from(
@@ -166,21 +174,21 @@ export function MapScreen({
         );
       })
       .catch(error => {
-        if (isActive) {
+        if (isMounted) {
           setSavedPlacesLoadFailed(true);
           setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
         }
       })
       .finally(() => {
-        if (isActive) {
+        if (isMounted) {
           setIsSavedPlacesLoading(false);
         }
       });
 
     return () => {
-      isActive = false;
+      isMounted = false;
     };
-  }, []);
+  }, [isGuest]);
   const placesWithCoordinates = useMemo(
     () =>
       savedPlaces.filter(
