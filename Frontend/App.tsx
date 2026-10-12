@@ -591,7 +591,15 @@ function App() {
               saveMode: result.saveMode ?? null,
             });
           }
-          if (result.transferStatus === 'LOGIN_HANDOFF' || result.transferStatus === 'LOGIN_REQUIRED') {
+          if (result.transferStatus === 'GUEST_PREVIEW' || result.transferStatus === 'LOGIN_REQUIRED') {
+            clearShareResult(result.requestId).catch(() => undefined);
+            setIsGuestLoginPromptVisible(false);
+            setMyPageOverlay(null);
+            setIsHistoryVisible(false);
+            openMainScreen('saved', 'auto');
+            return;
+          }
+          if (result.transferStatus === 'LOGIN_HANDOFF') {
             supabase.auth.getSession().then(({data}) => {
               if (data.session) {
                 resumeWaitingShares().catch(() => undefined);
