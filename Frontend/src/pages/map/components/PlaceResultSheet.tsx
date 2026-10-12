@@ -799,6 +799,15 @@ export function PlaceResultSheet({
           style={[styles.detailArea, { height: detailVisibleHeight }]}
         >
           <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
+            {isPageMode ? (
+              <View
+                style={{
+                  height: expandedDetailHeaderHeight,
+                  flexShrink: 0,
+                  backgroundColor: '#ffffff',
+                }}
+              />
+            ) : null}
             <PlaceDetailContent
               // Keep the detail content mounted across snap changes so its
               // scroll position and header do not jump during expansion.
@@ -821,7 +830,7 @@ export function PlaceResultSheet({
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
               } : undefined}
-              headerTopInset={isPageMode ? expandedDetailHeaderHeight : 0}
+              headerTopInset={0}
               compactHeader
               scrollEnabled={activeSnapIndex !== 2}
               contentBottomPadding={
