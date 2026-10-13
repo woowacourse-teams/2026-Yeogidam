@@ -814,11 +814,7 @@ function App() {
     let loginStarted = false;
 
     try {
-      if (
-        isAuthenticated === false &&
-        hasCompletedGuide === true &&
-        !hasSignedInOnThisInstallRef.current
-      ) {
+      if (isAuthenticated === false && hasCompletedGuide === true) {
         await beginGuestOnboardingTransfer();
       }
 
@@ -947,6 +943,8 @@ function App() {
     setMyPageOverlay(null);
 
     await supabase.auth.signOut({ scope: 'local' });
+    activeUserIdRef.current = null;
+    setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
     Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };

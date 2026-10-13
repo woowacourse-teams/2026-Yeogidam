@@ -20,7 +20,9 @@ import {LoginScreen} from '../src/pages/login/LoginScreen';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 import {MapScreen} from '../src/pages/map/MapScreen';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
+import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
+import {deleteAccount} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
@@ -47,6 +49,7 @@ jest.mock('../src/lib/auth/supabase', () => ({
   supabase: {
     auth: {
       getSession: jest.fn(),
+      getUser: jest.fn(),
       onAuthStateChange: jest.fn(),
       signOut: jest.fn(),
     },
@@ -84,6 +87,11 @@ jest.mock('../src/lib/auth/signInWithGoogle', () => ({
   signInWithGoogle: jest.fn(() => Promise.resolve({user: {id: 'new-user'}})),
 }));
 
+jest.mock('../src/lib/auth/deleteAccount', () => ({
+  deleteAccount: jest.fn(() => Promise.resolve()),
+  getLinkedDeletionProviders: jest.fn(() => []),
+}));
+
 jest.mock('../src/pages/guide/AppGuideScreen', () => ({
   AppGuideScreen: () => null,
 }));
@@ -112,6 +120,10 @@ jest.mock('../src/pages/my-page/MyPageScreen', () => ({
   MyPageScreen: () => null,
 }));
 
+jest.mock('../src/pages/my-page/AccountDeletionScreen', () => ({
+  AccountDeletionScreen: () => null,
+}));
+
 type AuthChangeHandler = (event: string, session: unknown) => void;
 let authChangeHandler: AuthChangeHandler;
 
@@ -133,6 +145,7 @@ beforeEach(() => {
     data: {session: null},
     error: null,
   });
+  (supabase.auth.signOut as jest.Mock).mockResolvedValue({error: null});
   (supabase.auth.onAuthStateChange as jest.Mock).mockImplementation(
     (handler: AuthChangeHandler) => {
       authChangeHandler = handler;
@@ -404,6 +417,58 @@ test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하�
   expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith(session);
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('이전에 로그인한 기기에서도 새 계정 로그인 시 군자역 전환을 시작한다', async () => {
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  const renderer = await renderAfterSplash();
+
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
+  });
+  expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
+
+  const session = {access_token: 'token', user: {id: 'another-new-user'}};
+  await ReactTestRenderer.act(async () => {
+    authChangeHandler('SIGNED_IN', session);
+    await Promise.resolve();
+  });
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith(session);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다', async () => {
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+    data: {session: {access_token: 'old-token', user: {id: 'deleted-user'}}},
+    error: null,
+  });
+  (supabase.auth.getUser as jest.Mock).mockResolvedValue({
+    data: {user: {id: 'deleted-user'}},
+    error: null,
+  });
+  const renderer = await renderAfterSplash();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(MyPageScreen).props.onWithdraw();
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(AccountDeletionScreen).props.onDeleteAccount({
+      confirmation: 'DELETE',
+    });
+  });
+  expect(deleteAccount).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
+  });
+  expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
