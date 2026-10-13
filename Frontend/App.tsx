@@ -165,7 +165,6 @@ function App() {
     };
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
-  const [hasVisitedMap, setHasVisitedMap] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
@@ -328,10 +327,6 @@ function App() {
       flowState.activeTab !== 'history'
     ) {
       historyReturnScreenRef.current = flowState.activeTab;
-    }
-
-    if (nextScreen === 'map') {
-      setHasVisitedMap(true);
     }
 
     setFlowState({
@@ -1079,7 +1074,18 @@ function App() {
     }
 
     if (currentScreen === 'map') {
-      return null;
+      return (
+        <MapScreen
+          key={
+            isAuthenticated === false
+              ? 'guest-map'
+              : `member-map-${memberDataRevision}`
+          }
+          isGuest={isAuthenticated === false}
+          guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
+          onAuthenticationRequired={handleRequireLogin}
+        />
+      );
     }
 
     if (currentScreen === 'detail' && selectedPlace) {
@@ -1124,8 +1130,6 @@ function App() {
     !isInBoxSelecting;
 
   const isMapScreen = currentScreen === 'map';
-  const shouldKeepMapMounted =
-    flowState.kind === 'main' && (isMapScreen || hasVisitedMap);
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
   if (!isAuthReady || isSplashVisible || hasCompletedGuide === null) {
@@ -1163,28 +1167,7 @@ function App() {
           translucent={isMapScreen}
         />
         <View style={styles.container}>
-          {shouldKeepMapMounted ? (
-            <View
-              pointerEvents={isMapScreen ? 'auto' : 'none'}
-              style={[
-                StyleSheet.absoluteFill,
-                !isMapScreen && styles.hiddenMapLayer,
-              ]}
-            >
-              <MapScreen
-                key={
-                  isAuthenticated === false
-                    ? 'guest-map'
-                    : `member-map-${memberDataRevision}`
-                }
-                isActive={isMapScreen}
-                isGuest={isAuthenticated === false}
-                guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
-                onAuthenticationRequired={handleRequireLogin}
-              />
-            </View>
-          ) : null}
-          {isMapScreen ? null : renderScreen()}
+          {renderScreen()}
           {showTabBar && activeTab ? (
             <BottomNavigationBar
               active={activeTab}
@@ -1214,9 +1197,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
-  },
-  hiddenMapLayer: {
-    opacity: 0,
   },
 });
 
