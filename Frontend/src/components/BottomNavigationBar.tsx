@@ -58,6 +58,8 @@ const navigationItems: {
   label: string;
 }[] = [
   { id: 'history', icon: 'history', label: '히스토리' },
+  // 대기함 흐름을 다시 사용할 때 복원합니다.
+  // { id: 'inBox', icon: 'inventory-2', label: '대기함' },
   { id: 'saved', icon: 'bookmark', label: '보관함' },
   { id: 'map', icon: 'map', label: '지도' },
   { id: 'my', icon: 'person', label: '내 정보' },

@@ -19,7 +19,6 @@ import {AppGuideScreen} from '../src/pages/guide/AppGuideScreen';
 import {LoginScreen} from '../src/pages/login/LoginScreen';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 import {MapScreen} from '../src/pages/map/MapScreen';
-import {InBoxScreen} from '../src/pages/inBox/inBoxScreen';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
@@ -293,19 +292,14 @@ test('비회원 지도는 탭을 떠나도 유지되고 로그인 취소 후 다
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원도 대기함, 히스토리, 내 정보 화면을 열 수 있다', async () => {
+test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
   const renderer = await renderAfterSplash();
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('inBox');
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('history');
   });
-  expect(renderer.root.findByType(InBoxScreen).props.guestItems).toEqual([]);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
-
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(InBoxScreen).props.onOpenHistory();
-  });
   expect(renderer.root.findByType(HistoryScreen).props.guestReels).toEqual([]);
 
   await ReactTestRenderer.act(async () => {
@@ -334,6 +328,29 @@ test('로그아웃하면 회원 메인에서 로그인 화면으로 이동한다
   });
   expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(0);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('v1 공유 추출이 완료되고 saveMode가 없어도 보관함을 연다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+    data: {session: {access_token: 'token', user: {id: 'user'}}},
+    error: null,
+  });
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'v1-share-request',
+    url: 'https://www.instagram.com/reel/abc/',
+    status: 'COMPLETED',
+    transferStatus: 'API_SUCCEEDED',
+    reelId: 'reel-1',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+
+  const renderer = await renderAfterSplash();
+
+  expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(1);
+  expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(0);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

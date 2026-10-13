@@ -90,7 +90,7 @@ type SavedPlacesScreenProps = {
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
-  onOpenInbox?: () => void;
+  // onOpenInbox?: () => void;
   places?: Place[];
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
 };
@@ -127,7 +127,7 @@ export function SavedPlacesScreen({
   onAuthenticationRequired,
   onEditModeChange,
   onRequireLogin,
-  onOpenInbox,
+  // onOpenInbox,
   places: providedPlaces,
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
@@ -549,15 +549,13 @@ export function SavedPlacesScreen({
         status: response.status,
         source: 'url_input',
         reused: response.reused,
-        saveMode: response.saveMode,
         reel: nextReel,
       });
       handleSaveResponse(response, normalizedUrl, 'url_input');
       setIsDialogVisible(false);
       setLinkValue('');
-      if (response.saveMode === 'REVIEW_QUEUE') {
-        onOpenInbox?.();
-      }
+      // v2 대기함 흐름 복원 시:
+      // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
       } catch (submitError) {
         const normalizedError = normalizeReelError(submitError);
       setLastRequestId(normalizedError.requestId ?? null);
