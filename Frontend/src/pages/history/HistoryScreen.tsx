@@ -149,7 +149,7 @@ function HistoryItem({
         <View style={[styles.thumbnail, styles.skeletonBlock]} />
       ) : (
         <Image
-          source={{ uri: reel.instagram_thumbnail_url ?? thumbnail }}
+          source={reel.local_thumbnail_source ?? { uri: reel.instagram_thumbnail_url ?? thumbnail }}
           resizeMode="cover"
           style={styles.thumbnail}
         />
@@ -274,7 +274,7 @@ function HistorySuccessDetail({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="대기함으로 돌아가기"
+          accessibilityLabel="히스토리 목록으로 돌아가기"
           hitSlop={12}
           onPress={onBack}
           style={styles.backButton}
@@ -290,7 +290,7 @@ function HistorySuccessDetail({
       >
         <View style={styles.detailHero}>
           <Image
-            source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
+            source={displayReel.local_thumbnail_source ?? { uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
             resizeMode="cover"
             style={styles.detailThumbnail}
           />
@@ -330,7 +330,7 @@ function HistorySuccessDetail({
             places.map(place => (
               <View key={place.id} style={styles.placeCard}>
                 <Image
-                  source={{ uri: place.thumbnail_url ?? placeThumbnail }}
+                  source={place.local_thumbnail_source ?? { uri: place.thumbnail_url ?? placeThumbnail }}
                   style={styles.placeImage}
                 />
                 <Text numberOfLines={1} style={styles.placeName}>

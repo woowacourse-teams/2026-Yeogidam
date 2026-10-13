@@ -22,6 +22,7 @@ import type { MainScreen } from '../types/navigation';
 
 type BottomNavigationBarProps = {
   active: MainScreen;
+  isGuest: boolean;
   onNavigate: (screen: MainScreen) => void;
 };
 
@@ -58,6 +59,8 @@ const navigationItems: {
   label: string;
 }[] = [
   { id: 'history', icon: 'history', label: '히스토리' },
+  // 대기함 흐름을 다시 사용할 때 복원합니다.
+  // { id: 'inBox', icon: 'inventory-2', label: '대기함' },
   { id: 'saved', icon: 'bookmark', label: '보관함' },
   { id: 'map', icon: 'map', label: '지도' },
   { id: 'my', icon: 'person', label: '내 정보' },
@@ -65,11 +68,16 @@ const navigationItems: {
 
 export function BottomNavigationBar({
   active,
+  isGuest,
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
   const [isHistoryUnread, setIsHistoryUnread] = useState(false);
   const syncHistoryNotification = useCallback(async () => {
+    if (isGuest) {
+      setIsHistoryUnread(false);
+      return;
+    }
     try {
       const {reels} = await getHistoryReels();
       const latest = reels[0];
@@ -93,7 +101,7 @@ export function BottomNavigationBar({
     } catch {
       // Keep the navigation usable if the history request fails.
     }
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     syncHistoryNotification();
@@ -134,7 +142,7 @@ export function BottomNavigationBar({
           <Pressable
             key={navigation.id}
             onPress={() => {
-              if (navigation.id === 'history') {
+              if (navigation.id === 'history' && !isGuest) {
                 getHistoryReels()
                   .then(async ({reels}) => {
                     const latest = reels[0];

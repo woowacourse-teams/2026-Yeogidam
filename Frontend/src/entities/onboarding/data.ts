@@ -1,4 +1,5 @@
 import type {PlaceReel} from '../info/types';
+import type {HistoryReel, HistoryReelDetail} from '../content/types';
 import type {Place} from '../place/types';
 
 // Backend/src/main/resources/data-onboarding.sql (origin/be-dev, #317)의
@@ -89,3 +90,41 @@ const ONBOARDING_POST: PlaceReel = {
 
 export const ONBOARDING_PLACE_REELS: Record<string, PlaceReel[]> =
   Object.fromEntries(ONBOARDING_PLACES.map(place => [place.id, [ONBOARDING_POST]]));
+
+export const ONBOARDING_HISTORY_REEL: HistoryReel = {
+  id: ONBOARDING_POST.id,
+  instagram_url: ONBOARDING_POST_URL,
+  instagram_title: null,
+  instagram_description: ONBOARDING_POST.instagramDescription ?? null,
+  instagram_author_username: ONBOARDING_POST.instagramAuthorUsername,
+  instagram_thumbnail_url: null,
+  processing_status: 'COMPLETED',
+  failure_reason: null,
+  save_mode: 'url_input',
+  created_at: ONBOARDING_POST.createdAt,
+  local_thumbnail_source: require('../../assets/guide/practice-post.jpg'),
+};
+
+export const ONBOARDING_HISTORY_DETAIL: HistoryReelDetail = {
+  ...ONBOARDING_HISTORY_REEL,
+  extraction: {
+    extraction_places: ONBOARDING_PLACES.map((place, position) => ({
+      id: `onboarding-extraction-place-${place.kakaoPlaceId}`,
+      position,
+      place: {
+        id: place.id,
+        name: place.name,
+        category: place.category ?? null,
+        source_address: place.address,
+        road_address: place.fullAddress,
+        address: place.address,
+        latitude: place.latitude ?? null,
+        longitude: place.longitude ?? null,
+        kakao_place_url: place.placeUrl ?? null,
+        thumbnail_url: null,
+        photo_attribution: null,
+        local_thumbnail_source: place.image,
+      },
+    })),
+  },
+};

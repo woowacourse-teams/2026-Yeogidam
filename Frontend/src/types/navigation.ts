@@ -1,6 +1,6 @@
 export type AuthScreen = 'login' | 'emailLogin' | 'signup' | 'terms';
 
-export type MainScreen = 'saved' | 'map' | 'my' | 'inBox' | 'history';
+export type MainScreen = 'saved' | 'map' | 'my' | 'history'; // | 'inBox'
 
 export type DetailSource = 'saved' | 'map';
 

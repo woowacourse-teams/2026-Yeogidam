@@ -12,10 +12,12 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
-import type {InboxReel} from './src/entities/content/inbox-api';
+// import type {InboxReel} from './src/entities/content/inbox-api';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
+  ONBOARDING_HISTORY_DETAIL,
+  ONBOARDING_HISTORY_REEL,
   ONBOARDING_PLACES,
   ONBOARDING_PLACE_REELS,
 } from './src/entities/onboarding/data';
@@ -48,7 +50,7 @@ import {
   trackLoginStarted,
   type LoginFailureType,
 } from './src/analytics/userEntryEvents';
-import type {InboxEntryType} from './src/analytics/placeSavingEvents';
+// import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -60,7 +62,8 @@ import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
-import { InBoxScreen } from './src/pages/inBox/inBoxScreen';
+// 대기함 흐름을 다시 사용할 때 복원합니다.
+// import { InBoxScreen } from './src/pages/inBox/inBoxScreen';
 import { HistoryScreen } from './src/pages/history/HistoryScreen';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
@@ -113,8 +116,11 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   activeTab: 'saved',
   detailSource: null,
 };
-const EMPTY_GUEST_INBOX: InboxReel[] = [];
-const EMPTY_GUEST_HISTORY: HistoryReel[] = [];
+// const EMPTY_GUEST_INBOX: InboxReel[] = [];
+const GUEST_HISTORY_REELS: HistoryReel[] = [ONBOARDING_HISTORY_REEL];
+const GUEST_HISTORY_DETAILS = {
+  [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
+};
 const SPLASH_MIN_DURATION_MS = 2000;
 const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
@@ -214,11 +220,11 @@ function App() {
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
-  const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
+  // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
-  const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
+  // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
   const currentScreen: Screen =
@@ -318,10 +324,8 @@ function App() {
     });
   };
 
-  const openMainScreen = (
-    nextScreen: MainScreen,
-    entryType: InboxEntryType = 'direct',
-  ) => {
+  const openMainScreen = (nextScreen: MainScreen) => {
+    // 대기함 복원 시 entryType: InboxEntryType = 'direct' 인자를 다시 받습니다.
     if (
       nextScreen === 'history' &&
       flowState.kind === 'main' &&
@@ -339,9 +343,7 @@ function App() {
       activeTab: nextScreen,
       detailSource: null,
     });
-    if (nextScreen === 'inBox') {
-      setInBoxEntryType(entryType);
-    }
+    // if (nextScreen === 'inBox') setInBoxEntryType(entryType);
   };
 
   const openMainScreenRef = useRef(openMainScreen);
@@ -688,7 +690,7 @@ function App() {
             clearShareResult(result.requestId).catch(() => undefined);
             setIsGuestLoginPromptVisible(false);
             setMyPageOverlay(null);
-            openMainScreenRef.current('saved', 'auto');
+            openMainScreenRef.current('saved');
             return;
           }
           if (result.transferStatus === 'LOGIN_HANDOFF') {
@@ -728,10 +730,8 @@ function App() {
               created_at: new Date(result.updatedAt).toISOString(),
             },
           });
-          openMainScreenRef.current(
-            result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox',
-            'auto',
-          );
+          // v2 대기함 흐름 복원 시: openMainScreenRef.current(result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox');
+          openMainScreenRef.current('saved');
         })
         .catch(error => {
           if (__DEV__) {
@@ -814,11 +814,7 @@ function App() {
     let loginStarted = false;
 
     try {
-      if (
-        isAuthenticated === false &&
-        hasCompletedGuide === true &&
-        !hasSignedInOnThisInstallRef.current
-      ) {
+      if (isAuthenticated === false && hasCompletedGuide === true) {
         await beginGuestOnboardingTransfer();
       }
 
@@ -950,6 +946,8 @@ function App() {
     setMyPageOverlay(null);
 
     await supabase.auth.signOut({ scope: 'local' });
+    activeUserIdRef.current = null;
+    setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
     Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
@@ -973,7 +971,8 @@ function App() {
     if (currentScreen === 'history') {
       return (
         <HistoryScreen
-          guestReels={isAuthenticated === false ? EMPTY_GUEST_HISTORY : undefined}
+          guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
+          guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
           onBack={() => openMainScreen(historyReturnScreenRef.current)}
           onRequireLogin={handleRequireLogin}
         />
@@ -1044,6 +1043,7 @@ function App() {
     }
 
     if (currentScreen === 'saved') {
+      // 대기함 복원 시 onOpenInbox={() => openMainScreen('inBox')} 연결을 되살립니다.
       return (
         <SavedPlacesScreen
           key={
@@ -1063,12 +1063,13 @@ function App() {
             savedPlacesScrollOffsetRef.current = offset;
           }}
           onRequireLogin={handleRequireLogin}
-          onOpenInbox={() => openMainScreen('inBox')}
           onSharedResultConsumed={clearShareResult}
         />
       );
     }
 
+    // 대기함 흐름을 다시 사용할 때 복원합니다.
+    /*
     if (currentScreen === 'inBox') {
       return (
         <InBoxScreen
@@ -1080,6 +1081,8 @@ function App() {
         />
       );
     }
+
+    */
 
     if (currentScreen === 'map') {
       return null;
@@ -1123,8 +1126,7 @@ function App() {
     flowState.kind === 'main' &&
     flowState.detailSource === null &&
     myPageOverlay === null &&
-    !isSavedPlacesEditing &&
-    !isInBoxSelecting;
+    !isSavedPlacesEditing;
 
   const isMapScreen = currentScreen === 'map';
   const shouldKeepMapMounted =
@@ -1191,6 +1193,7 @@ function App() {
           {showTabBar && activeTab ? (
             <BottomNavigationBar
               active={activeTab}
+              isGuest={isAuthenticated === false}
               onNavigate={openMainScreen}
             />
           ) : null}
