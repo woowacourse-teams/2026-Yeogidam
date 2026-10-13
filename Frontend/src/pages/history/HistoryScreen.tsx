@@ -1129,7 +1129,7 @@ const styles = StyleSheet.create({
   actionButton: {
     height: 40,
     marginHorizontal: 22,
-    marginTop: 70,
+    marginTop: 24,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,.16)',
     borderRadius: 10,
