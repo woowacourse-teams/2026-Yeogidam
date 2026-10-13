@@ -276,7 +276,7 @@ test('온보딩을 완료한 비회원은 재실행 시 메인으로 진입하�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원 지도는 탭을 떠나도 유지되고 로그인 취소 후 다시 보인다', async () => {
+test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 시 새로 표시된다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
   const renderer = await renderAfterSplash();
 
@@ -284,7 +284,6 @@ test('비회원 지도는 탭을 떠나도 유지되고 로그인 취소 후 다
     renderer.root.findByType(BottomNavigationBar).props.onNavigate('map');
   });
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
-    isActive: true,
     isGuest: true,
   });
   expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
@@ -297,12 +296,21 @@ test('비회원 지도는 탭을 떠나도 유지되고 로그인 취소 후 다
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
   });
-  expect(renderer.root.findByType(MapScreen).props.isActive).toBe(true);
+  expect(renderer.root.findByType(MapScreen).props.isGuest).toBe(true);
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(BottomNavigationBar).props.onNavigate('saved');
   });
-  expect(renderer.root.findByType(MapScreen).props.isActive).toBe(false);
+  expect(renderer.root.findAllByType(MapScreen)).toHaveLength(0);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('map');
+  });
+  expect(renderer.root.findByType(MapScreen).props).toMatchObject({
+    isGuest: true,
+    guestPlaces: expect.any(Array),
+  });
+  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
