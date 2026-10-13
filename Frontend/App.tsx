@@ -908,7 +908,10 @@ function App() {
 
     setIsLogoutPending(true);
 
+    // 공유 확장이 남은 세션으로 추출 API를 호출하지 않도록 공유 세션부터 즉시 만료한다.
+    await syncShareSession(null).catch(() => undefined);
     const { error } = await supabase.auth.signOut();
+    await syncShareSession(null).catch(() => undefined);
 
     if (!error) {
       return;

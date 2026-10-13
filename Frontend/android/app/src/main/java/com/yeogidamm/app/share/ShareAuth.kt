@@ -47,8 +47,10 @@ internal object ShareAuth {
             }.getOrDefault(JSONObject())
 
             if (code in 200..299) {
+                // 갱신 중 로그아웃으로 세션이 지워졌다면 새 토큰을 다시 저장하지 않는다.
                 val latest = ShareAuthStore.load(context)
-                if (latest?.refreshToken != session.refreshToken && latest != null) {
+                    ?: return ShareAuthResult.LoginRequired("refresh_token_missing")
+                if (latest.refreshToken != session.refreshToken) {
                     return if (latest.accessToken.isNotBlank()) ShareAuthResult.Ready(latest.accessToken)
                     else ShareAuthResult.WaitingForAuth
                 }
