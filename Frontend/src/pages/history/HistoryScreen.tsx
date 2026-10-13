@@ -890,8 +890,17 @@ export function HistoryScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={onBack} style={styles.backButton}>
-          <Text style={styles.back}>‹</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="대기함으로 돌아가기"
+          hitSlop={12}
+          onPress={onBack}
+          style={styles.backButton}
+        >
+          <Image
+            source={require('../../assets/icons/brand-mark.png')}
+            style={styles.brandMark}
+          />
         </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
@@ -1002,6 +1011,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  brandMark: { width: 44, height: 44, borderRadius: 22 },
   back: {
     fontSize: 30,
     lineHeight: 34,
