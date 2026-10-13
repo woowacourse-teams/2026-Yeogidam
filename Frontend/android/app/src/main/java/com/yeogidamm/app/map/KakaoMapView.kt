@@ -8,6 +8,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -610,21 +612,37 @@ class KakaoMapView(
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        paint.color = Color.argb(55, 92, 117, 255)
+        paint.shader = RadialGradient(
+            center,
+            center,
+            center,
+            intArrayOf(
+                Color.argb(87, 92, 117, 255),
+                Color.argb(77, 92, 117, 255),
+                Color.argb(51, 92, 117, 255),
+                Color.argb(20, 92, 117, 255),
+                Color.TRANSPARENT,
+            ),
+            floatArrayOf(0f, 0.35f, 0.6f, 0.82f, 1f),
+            Shader.TileMode.CLAMP,
+        )
         canvas.drawCircle(center, center, center, paint)
 
+        paint.shader = null
         paint.color = Color.WHITE
-        canvas.drawCircle(center, center, center * 0.7f, paint)
+        canvas.drawCircle(center, center, 6.6f * density, paint)
 
         paint.color = Color.rgb(92, 117, 255)
-        canvas.drawCircle(center, center, center * 0.5f, paint)
+        canvas.drawCircle(center, center, 5 * density, paint)
 
         return bitmap
     }
 
     private fun createSavedPlaceMarker(selected: Boolean): Bitmap {
         val density = resources.displayMetrics.density
-        val markerSizeDp = if (selected) SAVED_PLACE_MARKER_SIZE_DP + 4 else SAVED_PLACE_MARKER_SIZE_DP
+        val markerSizeDp =
+            if (selected) SAVED_PLACE_SELECTED_MARKER_SIZE_DP
+            else SAVED_PLACE_MARKER_SIZE_DP
         val size = (markerSizeDp * density).roundToInt()
         val resourceId = if (selected) R.drawable.map_marker_selected else R.drawable.map_marker
         BitmapFactory.decodeResource(resources, resourceId)?.let { markerBitmap ->
@@ -684,8 +702,9 @@ class KakaoMapView(
 
     private companion object {
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
-        const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
-        const val SAVED_PLACE_MARKER_SIZE_DP = 18
+        const val CURRENT_LOCATION_MARKER_SIZE_DP = 44
+        const val SAVED_PLACE_MARKER_SIZE_DP = 26
+        const val SAVED_PLACE_SELECTED_MARKER_SIZE_DP = 32
         const val SEARCH_RESULT_CAMERA_PADDING = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
