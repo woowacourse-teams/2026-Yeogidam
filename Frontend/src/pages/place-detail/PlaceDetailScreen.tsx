@@ -1,6 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {usePostHog} from 'posthog-react-native';
 
+import {
+  captureSavedPlaceOpened,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
 import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
 import type {
   PlaceReel,
@@ -8,22 +14,30 @@ import type {
   SavedPlacesApiError,
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
+import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
+import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
-import { PlaceMapButton } from './components/PlaceMapButton';
 
 type PlaceDetailScreenProps = {
   onBack: () => void;
   place: Place;
+  viewContext?: SavedPlaceViewContext;
   onAuthenticationRequired?: () => void;
+  guestReels?: PlaceReel[];
 };
 
 export function PlaceDetailScreen({
   onBack,
   place,
+  viewContext,
   onAuthenticationRequired,
+  guestReels,
 }: PlaceDetailScreenProps) {
+  const { bottom: bottomInset } = useSafeAreaInsets();
+  const posthog = usePostHog();
+  const capturedPlaceViewIdRef = useRef<string | null>(null);
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
@@ -31,7 +45,29 @@ export function PlaceDetailScreen({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
 
+  useEffect(() => {
+    if (
+      !viewContext ||
+      !place.savedAt ||
+      capturedPlaceViewIdRef.current === viewContext.placeViewId
+    ) {
+      return;
+    }
+
+    capturedPlaceViewIdRef.current = viewContext.placeViewId;
+    captureSavedPlaceOpened(posthog, {
+      ...viewContext,
+      savedAt: place.savedAt,
+    });
+  }, [place.savedAt, posthog, viewContext]);
+
   const loadPosts = useCallback(async () => {
+    if (guestReels !== undefined) {
+      setReels(guestReels);
+      setError(null);
+      setIsReelsLoading(false);
+      return;
+    }
     setIsReelsLoading(true);
     setError(null);
     try {
@@ -45,7 +81,7 @@ export function PlaceDetailScreen({
     } finally {
       setIsReelsLoading(false);
     }
-  }, [onAuthenticationRequired, place.id]);
+  }, [guestReels, onAuthenticationRequired, place.id]);
 
   useEffect(() => {
     loadPosts();
@@ -113,22 +149,27 @@ export function PlaceDetailScreen({
   }, [handleDelete, isDeleting]);
 
   return (
-    <CopyToastProvider>
+    <CopyToastProvider bottomOffset={BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 16}>
       <PlaceDetailContent
         onBack={onBack}
         place={place}
+        viewContext={viewContext}
+        showTitle={false}
+        stickyHeader
+        titleInHeader
+        compactHeader
+        headerTopInset={SEARCH_BAR_TOP_GAP}
         reels={reels}
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
-        onPressMore={() => {
+        onPressMore={guestReels === undefined ? () => {
           setDeleteError(null);
           setIsActionSheetVisible(true);
-        }}
+        } : undefined}
       />
-      {place.placeUrl ? <PlaceMapButton url={place.placeUrl} /> : null}
       <PlaceDetailActionSheet
-        visible={isActionSheetVisible}
+        visible={isActionSheetVisible && guestReels === undefined}
         onClose={() => {
           setDeleteError(null);
           setIsActionSheetVisible(false);

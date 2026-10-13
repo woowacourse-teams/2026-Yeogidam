@@ -1,3 +1,5 @@
+import type {ImageSourcePropType} from 'react-native';
+
 export type SaveSource = 'url_input' | 'instagram_share';
 
 export type ContentType = 'instagram_reel' | 'unsupported';
@@ -5,7 +7,6 @@ export type ContentType = 'instagram_reel' | 'unsupported';
 export type SaveInstagramReelResponse = {
   reelId: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  saveMode: 'REVIEW_QUEUE' | 'AUTO_SAVE';
   placeId?: string;
   placeIds?: string[];
   failureReason?: string;
@@ -31,6 +32,7 @@ export type HistoryReel = {
   failure_reason: string | null;
   save_mode: string | null;
   created_at: string;
+  local_thumbnail_source?: ImageSourcePropType;
 };
 
 export type HistoryCursor = Pick<HistoryReel, 'created_at' | 'id'>;
@@ -47,6 +49,7 @@ export type HistoryPlace = {
   kakao_place_url: string | null;
   thumbnail_url: string | null;
   photo_attribution: string | null;
+  local_thumbnail_source?: ImageSourcePropType;
 };
 
 export type HistoryReelPlace = {

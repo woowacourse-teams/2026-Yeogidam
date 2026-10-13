@@ -101,6 +101,8 @@ jobs:
           ANDROID_UPLOAD_STORE_PASSWORD: android
           ANDROID_UPLOAD_KEY_ALIAS: androiddebugkey
           ANDROID_UPLOAD_KEY_PASSWORD: android
+          SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+          SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
         run: ./gradlew :app:assembleRelease --no-daemon
         working-directory: Frontend/android
 
@@ -143,6 +145,9 @@ jobs:
       # Release 설정을 iOS Simulator SDK로 빌드한다. 특정 시뮬레이터를 실행하지는 않는다.
       # 중간 결과물은 runner 임시 폴더에 두고, 시뮬레이터 빌드의 코드 서명은 끈다.
       - name: Build iOS release simulator app
+        env:
+          SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+          SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
         run: |
           xcodebuild \
             -workspace ios/Frontend.xcworkspace \
@@ -169,6 +174,7 @@ jobs:
     env:
       APP_VERSION: ${{ inputs.app_version }}
       APP_BUILD_NUMBER: ${{ inputs.build_number }}
+      APP_ENV: production
     defaults:
       run:
         working-directory: Frontend
@@ -203,21 +209,26 @@ jobs:
           ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
           ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           for key in APP_VERSION APP_BUILD_NUMBER KAKAO_NATIVE_APP_KEY SUPABASE_URL \
             SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
-            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD; do
+            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD SENTRY_AUTH_TOKEN; do
             if [[ -z "${!key}" ]]; then
               echo "Missing beta build setting: $key" >&2
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
             "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
-            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
+          echo "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN" >> "$GITHUB_ENV"
+          echo "SENTRY_ORG=yeogidam" >> "$GITHUB_ENV"
+          echo "SENTRY_PROJECT=react-native" >> "$GITHUB_ENV"
+          echo "SENTRY_URL=https://sentry.io/" >> "$GITHUB_ENV"
           printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-upload.jks"
           echo "ANDROID_UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/android-upload.jks" >> "$GITHUB_ENV"
       - name: Build signed Android AAB
@@ -244,6 +255,7 @@ jobs:
     env:
       APP_VERSION: ${{ inputs.app_version }}
       APP_BUILD_NUMBER: ${{ inputs.build_number }}
+      APP_ENV: production
     defaults:
       run:
         working-directory: Frontend
@@ -273,21 +285,26 @@ jobs:
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           for key in APP_VERSION APP_BUILD_NUMBER KAKAO_NATIVE_APP_KEY SUPABASE_URL \
             SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
-            APP_STORE_CONNECT_ISSUER_ID; do
+            APP_STORE_CONNECT_ISSUER_ID SENTRY_AUTH_TOKEN; do
             if [[ -z "${!key}" ]]; then
               echo "Missing beta build setting: $key" >&2
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\n' \
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
             "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" \
-            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" > "$RUNNER_TEMP/frontend-beta-config"
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
+          echo "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN" >> "$GITHUB_ENV"
+          echo "SENTRY_ORG=yeogidam" >> "$GITHUB_ENV"
+          echo "SENTRY_PROJECT=react-native" >> "$GITHUB_ENV"
+          echo "SENTRY_URL=https://sentry.io/" >> "$GITHUB_ENV"
           printf '%s' "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/AuthKey.p8"
       - name: Install CocoaPods
@@ -295,6 +312,8 @@ jobs:
       - name: Archive signed iOS app
         env:
           KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
@@ -311,6 +330,9 @@ jobs:
             "MARKETING_VERSION=$APP_VERSION" \
             "CURRENT_PROJECT_VERSION=$APP_BUILD_NUMBER" \
             "KAKAO_NATIVE_APP_KEY=$KAKAO_NATIVE_APP_KEY" \
+            "POSTHOG_PROJECT_TOKEN=$POSTHOG_PROJECT_TOKEN" \
+            "POSTHOG_HOST=$POSTHOG_HOST" \
+            "APP_ENV=$APP_ENV" \
             "ENVFILE=$ENVFILE" \
             archive
       # 아카이브의 심볼릭 링크와 파일 권한을 보존해 업로드 job으로 전달한다.

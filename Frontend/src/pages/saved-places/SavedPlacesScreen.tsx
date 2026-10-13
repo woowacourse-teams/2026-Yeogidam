@@ -14,10 +14,16 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
+import {usePostHog} from 'posthog-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {v4 as uuidv4} from 'uuid';
 import { supabase } from '../../lib/auth/supabase';
 
+import {
+  captureSavedPlaceSelected,
+  captureSavedPlacesViewed,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   bottomNavigationBarContainerStyle,
@@ -76,14 +82,15 @@ type ShareApiDiagnostics = {
 };
 
 type SavedPlacesScreenProps = {
-  onOpenDetail: (place: Place) => void;
+  onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
+  isGuest?: boolean;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
-  onOpenInbox?: () => void;
+  // onOpenInbox?: () => void;
   places?: Place[];
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
 };
@@ -114,15 +121,17 @@ function SavedPlacesEditAction({
 
 export function SavedPlacesScreen({
   onOpenDetail,
+  isGuest = false,
   initialScrollOffset = 0,
   onScrollOffsetChange,
   onAuthenticationRequired,
   onEditModeChange,
   onRequireLogin,
-  onOpenInbox,
+  // onOpenInbox,
   places: providedPlaces,
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
+  const posthog = usePostHog();
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -157,12 +166,25 @@ export function SavedPlacesScreen({
     useState<ShareApiDiagnostics | null>(null);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const hasCapturedViewRef = useRef(false);
   const isRefreshingRef = useRef(false);
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
+
+  useEffect(() => {
+    if (isLoading || error || hasCapturedViewRef.current) {
+      return;
+    }
+
+    hasCapturedViewRef.current = true;
+    captureSavedPlacesViewed(posthog, {
+      placeCount: places.length,
+      entryType: 'direct',
+    });
+  }, [error, isLoading, places.length, posthog]);
 
   useEffect(() => {
     if (isLoading || !hasSavedPlaces || initialScrollOffset <= 0) {
@@ -185,6 +207,9 @@ export function SavedPlacesScreen({
 
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
+      if (isGuest) {
+        cachedSavedPlaces = null;
+      }
       setPlaces(providedPlaces);
       return providedPlaces;
     }
@@ -207,7 +232,7 @@ export function SavedPlacesScreen({
     } finally {
       setIsLoading(false);
     }
-  }, [onAuthenticationRequired, providedPlaces]);
+  }, [isGuest, onAuthenticationRequired, providedPlaces]);
 
   const refreshSavedPlaces = useCallback(async () => {
     if (isRefreshingRef.current) {
@@ -263,6 +288,9 @@ export function SavedPlacesScreen({
   }, [isRecentSearchesHydrated, recentSearches]);
 
   useEffect(() => {
+    if (isGuest) {
+      return;
+    }
     let isActive = true;
     const verifiedKeys = new Set<string>();
     const verificationInFlight = new Set<string>();
@@ -454,9 +482,13 @@ export function SavedPlacesScreen({
       isActive = false;
       unsubscribe();
     };
-  }, [loadSavedPlaces, onSharedResultConsumed]);
+  }, [isGuest, loadSavedPlaces, onSharedResultConsumed]);
 
   const openDialog = () => {
+    if (isGuest) {
+      onRequireLogin?.();
+      return;
+    }
     setLinkError(null);
     setIsDialogVisible(true);
   };
@@ -517,15 +549,13 @@ export function SavedPlacesScreen({
         status: response.status,
         source: 'url_input',
         reused: response.reused,
-        saveMode: response.saveMode,
         reel: nextReel,
       });
       handleSaveResponse(response, normalizedUrl, 'url_input');
       setIsDialogVisible(false);
       setLinkValue('');
-      if (response.saveMode === 'REVIEW_QUEUE') {
-        onOpenInbox?.();
-      }
+      // v2 대기함 흐름 복원 시:
+      // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
       } catch (submitError) {
         const normalizedError = normalizeReelError(submitError);
       setLastRequestId(normalizedError.requestId ?? null);
@@ -912,6 +942,34 @@ export function SavedPlacesScreen({
     });
   }, []);
 
+  const openPlaceDetail = useCallback(
+    (
+      place: Place,
+      source: SavedPlaceViewContext['source'],
+      position: number,
+      searchId?: string,
+    ) => {
+      if (!place.savedPlaceId) {
+        onOpenDetail(place);
+        return;
+      }
+
+      const context: SavedPlaceViewContext = {
+        placeId: place.id,
+        savedPlaceId: place.savedPlaceId,
+        placeViewId: uuidv4(),
+        source,
+      };
+      captureSavedPlaceSelected(posthog, {
+        ...context,
+        searchId,
+        position,
+      });
+      onOpenDetail(place, context);
+    },
+    [onOpenDetail, posthog],
+  );
+
   return (
     <View style={styles.container}>
       {isSearchOpen ? (
@@ -920,7 +978,14 @@ export function SavedPlacesScreen({
             places={places}
             recentSearches={recentSearches}
             onCloseSearch={() => setIsSearchOpen(false)}
-            onPressPlace={onOpenDetail}
+            onPressPlace={(place, selection) =>
+              openPlaceDetail(
+                place,
+                'saved_places_search',
+                selection.position,
+                selection.searchId,
+              )
+            }
             onSaveSearchTerm={saveRecentSearch}
           />
         </>
@@ -973,15 +1038,19 @@ export function SavedPlacesScreen({
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
               >
-                <SavedPlacesEditAction
-                  isEditing={isEditing}
-                  onPress={handlePressEdit}
-                />
+                {!isGuest ? (
+                  <SavedPlacesEditAction
+                    isEditing={isEditing}
+                    onPress={handlePressEdit}
+                  />
+                ) : null}
                 <SavedPlaceGrid
                   isEditing={isEditing}
                   places={places}
-                  onLongPressPlace={enterEditMode}
-                  onPressPlace={onOpenDetail}
+                  onLongPressPlace={isGuest ? undefined : enterEditMode}
+                  onPressPlace={(place, position) =>
+                    openPlaceDetail(place, 'saved_places_grid', position)
+                  }
                   onTogglePlaceSelection={togglePlaceSelection}
                   selectedPlaceIds={selectedPlaceIds}
                 />

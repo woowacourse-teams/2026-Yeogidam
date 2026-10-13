@@ -1,15 +1,30 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   Image,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
   Animated,
+  type LayoutChangeEvent,
 } from 'react-native';
+import {usePostHog} from 'posthog-react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {
+  BOTTOM_NAVIGATION_BAR_HEIGHT,
+  getBottomNavigationBarOffset,
+} from '../../components/BottomNavigationBar';
+import {
+  trackHistoryContentDetailViewed,
+  trackHistoryContentViewed,
+  trackHistoryViewed,
+  type HistoryVisibleState,
+} from '../../analytics/placeExtractionEvents';
 import RetryIcon from '../../assets/icons/actions/retry.svg';
 import ReportIcon from '../../assets/icons/actions/report.svg';
 import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
@@ -25,10 +40,17 @@ import type {
   HistoryReel,
   HistoryReelDetail,
 } from '../../entities/content/types';
+import type {Place} from '../../entities/place/types';
+import {PlaceDetailScreen} from '../place-detail/PlaceDetailScreen';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
-type HistoryScreenProps = { onBack: () => void };
+type HistoryScreenProps = {
+  onBack: () => void;
+  guestReels?: HistoryReel[];
+  guestDetails?: Record<string, HistoryReelDetail>;
+  onRequireLogin?: () => void;
+};
 
 const thumbnail =
   'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
@@ -81,10 +103,12 @@ function HistoryItem({
   reel,
   skeleton = false,
   onPress,
+  onLayout,
 }: {
   reel: HistoryReel;
   skeleton?: boolean;
   onPress?: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const completed = reel.processing_status === 'COMPLETED';
   const processing =
@@ -127,13 +151,14 @@ function HistoryItem({
       accessibilityRole="button"
       accessibilityLabel={showSkeleton ? '새 히스토리를 불러오는 중' : undefined}
       onPress={showSkeleton ? undefined : onPress}
+      onLayout={onLayout}
       style={styles.item}
     >
       {showSkeleton ? (
         <View style={[styles.thumbnail, styles.skeletonBlock]} />
       ) : (
         <Image
-          source={{ uri: reel.instagram_thumbnail_url ?? thumbnail }}
+          source={reel.local_thumbnail_source ?? { uri: reel.instagram_thumbnail_url ?? thumbnail }}
           resizeMode="cover"
           style={styles.thumbnail}
         />
@@ -207,19 +232,28 @@ function formatHistoryDate(createdAt: string) {
   return `${year}.${month}.${day}`;
 }
 
-function useHistoryReelDetail(reelId: string) {
-  const [detail, setDetail] = useState<HistoryReelDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+function useHistoryReelDetail(
+  reelId: string,
+  guestDetail?: HistoryReelDetail | null,
+) {
+  const [detail, setDetail] = useState<HistoryReelDetail | null>(guestDetail ?? null);
+  const [loading, setLoading] = useState(guestDetail === undefined);
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    if (guestDetail !== undefined) {
+      setDetail(guestDetail);
+      setLoading(false);
+      setError(false);
+      return;
+    }
     setLoading(true);
     setError(false);
     getHistoryReelDetail(reelId)
       .then(setDetail)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [reelId]);
+  }, [guestDetail, reelId]);
 
   return { detail, loading, error };
 }
@@ -227,23 +261,60 @@ function useHistoryReelDetail(reelId: string) {
 function HistorySuccessDetail({
   onBack,
   reel,
+  guestDetail,
+  onRequireLogin,
 }: {
   onBack: () => void;
   reel: HistoryReel;
+  guestDetail?: HistoryReelDetail | null;
+  onRequireLogin?: () => void;
 }) {
-  const { detail, loading, error } = useHistoryReelDetail(reel.id);
+  const posthog = usePostHog();
+  const {bottom: bottomInset} = useSafeAreaInsets();
+  const detailBottomPadding =
+    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 24;
+  useEffect(() => {
+    trackHistoryContentDetailViewed(posthog, reel.id, 'success');
+  }, [posthog, reel.id]);
+  const { detail, loading, error } = useHistoryReelDetail(reel.id, guestDetail);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  useEffect(() => {
+    if (!selectedPlace) {
+      return undefined;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        setSelectedPlace(null);
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [selectedPlace]);
   const displayReel = detail ?? reel;
   const places =
     detail?.extraction?.extraction_places
       .map(item => item.place)
       .filter((place): place is HistoryPlace => Boolean(place)) ?? [];
   const originalUrl = displayReel.instagram_url;
+
+  if (selectedPlace) {
+    return (
+      <PlaceDetailScreen
+        onBack={() => setSelectedPlace(null)}
+        onAuthenticationRequired={onRequireLogin}
+        place={selectedPlace}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="대기함으로 돌아가기"
+          accessibilityLabel="히스토리 목록으로 돌아가기"
           hitSlop={12}
           onPress={onBack}
           style={styles.backButton}
@@ -254,12 +325,15 @@ function HistorySuccessDetail({
         <View style={styles.headerSpacer} />
       </View>
       <ScrollView
-        contentContainerStyle={styles.detailContent}
+        contentContainerStyle={[
+          styles.detailContent,
+          {paddingBottom: detailBottomPadding},
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.detailHero}>
           <Image
-            source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
+            source={displayReel.local_thumbnail_source ?? { uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
             resizeMode="cover"
             style={styles.detailThumbnail}
           />
@@ -297,9 +371,37 @@ function HistorySuccessDetail({
             <Text style={styles.placeState}>발견한 장소가 없어요.</Text>
           ) : (
             places.map(place => (
-              <View key={place.id} style={styles.placeCard}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${place.name} 상세 보기`}
+                key={place.id}
+                onPress={() =>
+                  setSelectedPlace({
+                    id: place.id,
+                    name: place.name,
+                    category: place.category ?? undefined,
+                    address:
+                      place.road_address ??
+                      place.address ??
+                      place.source_address ??
+                      '',
+                    fullAddress:
+                      place.address ??
+                      place.road_address ??
+                      place.source_address ??
+                      '',
+                    latitude: place.latitude ?? undefined,
+                    longitude: place.longitude ?? undefined,
+                    placeUrl: place.kakao_place_url ?? undefined,
+                    image: place.thumbnail_url
+                      ? {uri: place.thumbnail_url}
+                      : undefined,
+                  })
+                }
+                style={styles.placeCard}
+              >
                 <Image
-                  source={{ uri: place.thumbnail_url ?? placeThumbnail }}
+                  source={place.local_thumbnail_source ?? { uri: place.thumbnail_url ?? placeThumbnail }}
                   style={styles.placeImage}
                 />
                 <Text numberOfLines={1} style={styles.placeName}>
@@ -308,7 +410,7 @@ function HistorySuccessDetail({
                 <Text numberOfLines={1} style={styles.placeAddress}>
                   {place.road_address ?? place.address ?? ''}
                 </Text>
-              </View>
+              </Pressable>
             ))
           )}
         </ScrollView>
@@ -322,18 +424,43 @@ function HistoryFailureDetail({
   onBack,
   reel,
   onRetry,
+  guestDetail,
+  onRequireLogin,
 }: {
   onBack: () => void;
   reel: HistoryReel;
   onRetry: () => Promise<void>;
+  guestDetail?: HistoryReelDetail | null;
+  onRequireLogin?: () => void;
 }) {
+  const posthog = usePostHog();
+  const {bottom: bottomInset} = useSafeAreaInsets();
+  const detailBottomPadding =
+    BOTTOM_NAVIGATION_BAR_HEIGHT +
+    getBottomNavigationBarOffset(bottomInset) +
+    (Platform.OS === 'android' ? 48 : 24);
+  const [containerHeight, setContainerHeight] = useState(0);
+  const availableBodyHeight = Math.max(
+    0,
+    containerHeight - 84 - detailBottomPadding,
+  );
+  const compactScale =
+    containerHeight === 0
+      ? 1
+      : Math.max(0.5, Math.min(1, (availableBodyHeight - 187) / 337));
+  useEffect(() => {
+    trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
+  }, [posthog, reel.id]);
   const [reported, setReported] = useState(false);
-  const { detail } = useHistoryReelDetail(reel.id);
+  const { detail } = useHistoryReelDetail(reel.id, guestDetail);
   const displayReel = detail ?? reel;
   const originalUrl = displayReel.instagram_url;
 
   return (
-    <View style={styles.container}>
+    <View
+      onLayout={event => setContainerHeight(event.nativeEvent.layout.height)}
+      style={styles.container}
+    >
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -347,15 +474,32 @@ function HistoryFailureDetail({
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
       </View>
-      <ScrollView contentContainerStyle={styles.failureContent}>
-        <View style={styles.failureHero}>
+      <View
+        style={[
+          styles.failureContent,
+          {paddingBottom: detailBottomPadding},
+        ]}
+      >
+        <View style={[styles.failureHero, {marginTop: 44 * compactScale}]}>
           <Image
             source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
             resizeMode="cover"
-            style={styles.detailThumbnail}
+            style={[
+              styles.detailThumbnail,
+              {
+                width: 180 * compactScale,
+                height: 226 * compactScale,
+              },
+            ]}
           />
-          <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
-          <Text style={styles.failureDescription}>
+          <Text
+            style={[styles.detailTitle, {marginTop: 24 * compactScale}]}
+          >
+            장소 분석에 실패했어요ㅠ
+          </Text>
+          <Text
+            style={[styles.failureDescription, {marginTop: 6 * compactScale}]}
+          >
             {getHistoryFailureMessage(displayReel.failure_reason)}
           </Text>
         </View>
@@ -366,72 +510,100 @@ function HistoryFailureDetail({
               Linking.openURL(originalUrl).catch(() => undefined);
             }
           }}
-          style={[styles.originalButton, !originalUrl && styles.disabledButton]}
+          style={[
+            styles.originalButton,
+            styles.failureOriginalButton,
+            !originalUrl && styles.disabledButton,
+          ]}
         >
           <InstagramIcon width={28} height={27} />
           <Text style={styles.originalText}>원본 릴스로 이동</Text>
           <Text style={styles.detailChevron}>›</Text>
         </Pressable>
-        <Pressable
-          disabled={!originalUrl}
-          onPress={() => {
-            Alert.alert('다시 시도할까요?', '', [
-              { text: '취소', style: 'cancel' },
-              {
-                text: '확인',
-                onPress: () => {
-                  onRetry().catch(() => undefined);
+        <View style={styles.failureActions}>
+          <Pressable
+            disabled={!originalUrl}
+            onPress={() => {
+              if (guestDetail !== undefined) {
+                onRequireLogin?.();
+                return;
+              }
+              Alert.alert('다시 시도할까요?', '', [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '확인',
+                  onPress: () => {
+                    onRetry().catch(() => undefined);
+                  },
                 },
-              },
-            ]);
-          }}
-          style={styles.actionButton}
-        >
-          <RetryIcon width={20} height={20} style={styles.actionIcon} />
-          <Text style={styles.actionText}>다시 시도하기</Text>
-        </Pressable>
-        <Pressable
-          disabled={reported}
-          onPress={() =>
-            Alert.alert('제보할까요?', '', [
-              { text: '취소', style: 'cancel' },
-              {
-                text: '확인',
-                onPress: () => {
-                  setReported(true);
-                  reportHistoryReel(reel.id)
-                    .catch(() => {
-                      setReported(false);
-                      Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
-                    });
+              ]);
+            }}
+            style={[styles.actionButton, {marginTop: 24 * compactScale}]}
+          >
+            <RetryIcon width={20} height={20} style={styles.actionIcon} />
+            <Text style={styles.actionText}>다시 시도하기</Text>
+          </Pressable>
+          <Pressable
+            disabled={reported}
+            onPress={() => {
+              if (guestDetail !== undefined) {
+                onRequireLogin?.();
+                return;
+              }
+              Alert.alert('제보할까요?', '', [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '확인',
+                  onPress: () => {
+                    setReported(true);
+                    reportHistoryReel(reel.id)
+                      .catch(() => {
+                        setReported(false);
+                        Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
+                      });
+                  },
                 },
-              },
-            ])
-          }
-          style={[
-            styles.actionButton,
-            styles.reportActionButton,
-            reported && styles.disabledButton,
-          ]}
-        >
-          <ReportIcon width={20} height={20} style={styles.actionIcon} />
-          <Text style={styles.actionText}>
-            {reported ? '제보 완료' : '제보하기'}
-          </Text>
-        </Pressable>
-      </ScrollView>
+              ]);
+            }}
+            style={[
+              styles.actionButton,
+              styles.reportActionButton,
+              {marginTop: 13 * compactScale},
+              reported && styles.disabledButton,
+            ]}
+          >
+            <ReportIcon width={20} height={20} style={styles.actionIcon} />
+            <Text style={styles.actionText}>
+              {reported ? '제보 완료' : '제보하기'}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
       <View style={styles.homeIndicator} />
     </View>
   );
 }
 
-export function HistoryScreen({ onBack }: HistoryScreenProps) {
+export function HistoryScreen({
+  onBack,
+  guestReels,
+  guestDetails,
+  onRequireLogin,
+}: HistoryScreenProps) {
+  const posthog = usePostHog();
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
+  const viewportHeightRef = useRef(0);
+  const groupOffsetsRef = useRef(new Map<string, number>());
+  const cardLayoutsRef = useRef(new Map<string, {group: string; y: number; height: number}>());
+  const seenCardsRef = useRef(new Set<string>());
+  const visibleTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
+  const historyViewedRef = useRef(false);
   const shouldRestoreScrollRef = useRef(false);
-  const [reels, setReels] = useState<HistoryReel[]>([]);
+  const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(guestReels === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
@@ -441,7 +613,75 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     () => new Set(),
   );
 
+  cardStatesRef.current = new Map(reels.filter(reel => !reel.id.startsWith('retry-')).map(reel => {
+    const processing = reel.processing_status === 'PENDING' || reel.processing_status === 'PROCESSING';
+    const state: HistoryVisibleState = retrySkeletonIds.has(reel.id) ||
+      (processing && (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel)))
+      ? 'loading' : reel.processing_status === 'COMPLETED' ? 'success'
+      : reel.processing_status === 'FAILED' ? 'failed' : 'processing';
+    return [reel.id, state];
+  }));
+
+  const evaluateVisibleCards = useCallback(() => {
+    if (selectedSuccess || selectedFailure) return;
+    const top = scrollOffsetRef.current;
+    const bottom = top + viewportHeightRef.current;
+    for (const [contentId, layout] of cardLayoutsRef.current) {
+      const state = cardStatesRef.current.get(contentId);
+      const groupY = groupOffsetsRef.current.get(layout.group);
+      if (!state || groupY === undefined || viewportHeightRef.current === 0) continue;
+      const cardTop = groupY + layout.y;
+      const overlap = Math.max(0, Math.min(cardTop + layout.height, bottom) - Math.max(cardTop, top));
+      const key = `${contentId}.${state}`;
+      if (overlap >= layout.height / 2 && !seenCardsRef.current.has(key)) {
+        if (!visibleTimersRef.current.has(key)) {
+          const timer = setTimeout(() => {
+            visibleTimersRef.current.delete(key);
+            const latest = cardLayoutsRef.current.get(contentId);
+            const latestY = latest && groupOffsetsRef.current.get(latest.group);
+            if (!latest || latestY === undefined || cardStatesRef.current.get(contentId) !== state) return;
+            const visible = Math.max(0, Math.min(latestY + latest.y + latest.height,
+              scrollOffsetRef.current + viewportHeightRef.current) - Math.max(latestY + latest.y, scrollOffsetRef.current));
+            if (visible >= latest.height / 2 && !seenCardsRef.current.has(key)) {
+              seenCardsRef.current.add(key);
+              trackHistoryContentViewed(posthog, contentId, state);
+            }
+          }, 500);
+          visibleTimersRef.current.set(key, timer);
+        }
+      } else {
+        const timer = visibleTimersRef.current.get(key);
+        if (timer) clearTimeout(timer);
+        visibleTimersRef.current.delete(key);
+      }
+    }
+  }, [posthog, selectedSuccess, selectedFailure]);
+
+  useEffect(() => {
+    evaluateVisibleCards();
+  }, [evaluateVisibleCards, reels, retrySkeletonIds]);
+
+  useEffect(() => () => {
+    visibleTimersRef.current.forEach(clearTimeout);
+    visibleTimersRef.current.clear();
+  }, []);
+
+  useEffect(() => {
+    if (selectedSuccess || selectedFailure) {
+      visibleTimersRef.current.forEach(clearTimeout);
+      visibleTimersRef.current.clear();
+    }
+  }, [selectedSuccess, selectedFailure]);
+
   const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
+    if (guestReels !== undefined) {
+      setReels(guestReels);
+      setCursor(null);
+      setError(false);
+      setLoading(false);
+      setLoadingMore(false);
+      return;
+    }
     setError(false);
     if (nextCursor) setLoadingMore(true);
     else if (!silent) setLoading(true);
@@ -491,13 +731,21 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
         ];
       });
       setCursor(result.nextCursor);
+      if (!nextCursor && !silent && !historyViewedRef.current) {
+        historyViewedRef.current = true;
+        requestAnimationFrame(() => trackHistoryViewed(posthog, result.reels.length ? 'list' : 'empty'));
+      }
     } catch {
       setError(true);
+      if (!nextCursor && !silent && !historyViewedRef.current) {
+        historyViewedRef.current = true;
+        requestAnimationFrame(() => trackHistoryViewed(posthog, 'error'));
+      }
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [guestReels, posthog]);
 
   const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
     if (!reel.instagram_url) {
@@ -606,14 +854,16 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   }, [load]);
 
   useEffect(() => {
+    if (guestReels !== undefined) return;
     const refresh = setInterval(() => {
       load(undefined, true).catch(() => undefined);
     }, 5000);
 
     return () => clearInterval(refresh);
-  }, [load]);
+  }, [guestReels, load]);
 
   useEffect(() => {
+    if (guestReels !== undefined) return;
     if (
       !reels.some(
         reel =>
@@ -659,7 +909,7 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     }, 3000);
 
     return () => clearInterval(poll);
-  }, [reels]);
+  }, [guestReels, reels]);
 
   useEffect(() => {
     if (
@@ -691,6 +941,9 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
     },
     {},
   );
+  const selectedGuestDetail = guestReels === undefined
+    ? undefined
+    : guestDetails?.[selectedReel?.id ?? ''] ?? null;
 
   if (selectedSuccess) {
     return (
@@ -701,6 +954,8 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           setSelectedReel(null);
         }}
         reel={selectedReel as HistoryReel}
+        guestDetail={selectedGuestDetail}
+        onRequireLogin={onRequireLogin}
       />
     );
   }
@@ -713,7 +968,15 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           setSelectedReel(null);
         }}
         reel={selectedReel as HistoryReel}
-        onRetry={() => retryHistoryReel(selectedReel as HistoryReel)}
+        guestDetail={selectedGuestDetail}
+        onRequireLogin={onRequireLogin}
+        onRetry={async () => {
+          if (guestReels !== undefined) {
+            onRequireLogin?.();
+            return;
+          }
+          await retryHistoryReel(selectedReel as HistoryReel);
+        }}
       />
     );
   }
@@ -721,20 +984,34 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={onBack} style={styles.backButton}>
-          <Text style={styles.back}>‹</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="대기함으로 돌아가기"
+          hitSlop={12}
+          onPress={onBack}
+          style={styles.backButton}
+        >
+          <Image
+            source={require('../../assets/icons/brand-mark.png')}
+            style={styles.brandMark}
+          />
         </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
       </View>
       <ScrollView
         ref={scrollViewRef}
+        onLayout={event => {
+          viewportHeightRef.current = event.nativeEvent.layout.height;
+          evaluateVisibleCards();
+        }}
         contentContainerStyle={[
           styles.content,
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
           scrollOffsetRef.current = nativeEvent.contentOffset.y;
+          evaluateVisibleCards();
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
@@ -770,13 +1047,24 @@ export function HistoryScreen({ onBack }: HistoryScreenProps) {
           </View>
         ) : (
           Object.entries(groupedReels).map(([date, dateReels]) => (
-            <View key={date} style={styles.group}>
+            <View key={date} style={styles.group} onLayout={event => {
+              groupOffsetsRef.current.set(date, event.nativeEvent.layout.y);
+              evaluateVisibleCards();
+            }}>
               <Text style={styles.date}>{date}</Text>
               {dateReels.map(reel => (
                 <HistoryItem
                   key={reel.id}
                   reel={reel}
                   skeleton={retrySkeletonIds.has(reel.id)}
+                  onLayout={event => {
+                    cardLayoutsRef.current.set(reel.id, {
+                      group: date,
+                      y: event.nativeEvent.layout.y,
+                      height: event.nativeEvent.layout.height,
+                    });
+                    evaluateVisibleCards();
+                  }}
                   onPress={
                     reel.processing_status === 'COMPLETED'
                       ? () => {
@@ -817,6 +1105,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  brandMark: { width: 44, height: 44, borderRadius: 22 },
   back: {
     fontSize: 30,
     lineHeight: 34,
@@ -922,8 +1211,10 @@ const styles = StyleSheet.create({
   },
   placeAddress: { fontSize: 9, color: '#8e8e93', marginTop: 3 },
   placeState: { fontSize: 13, color: '#8e8e93', paddingTop: 24 },
-  failureContent: { paddingBottom: 60 },
-  failureHero: { alignItems: 'center', marginTop: 44 },
+  failureContent: { flex: 1 },
+  failureHero: { alignItems: 'center' },
+  failureOriginalButton: { marginTop: 49 },
+  failureActions: { marginTop: 'auto' },
   failureDescription: {
     fontSize: 14,
     lineHeight: 22.4,
@@ -934,7 +1225,7 @@ const styles = StyleSheet.create({
   actionButton: {
     height: 40,
     marginHorizontal: 22,
-    marginTop: 70,
+    marginTop: 24,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,.16)',
     borderRadius: 10,

@@ -1,8 +1,4 @@
-import {
-  capture,
-  getCommonAnalyticsProperties,
-  type AnalyticsClient,
-} from './analytics';
+import {capture, type AnalyticsClient} from './analytics';
 
 export type LoginProvider = 'apple' | 'kakao' | 'google';
 export type LoginOutcome = 'success' | 'failure';
@@ -18,7 +14,6 @@ export function trackAppOpened(
   isLoggedIn: boolean,
 ) {
   capture(client, 'app_opened', {
-    ...getCommonAnalyticsProperties(),
     is_logged_in: isLoggedIn,
   });
 }
@@ -28,7 +23,6 @@ export function trackLoginStarted(
   provider: LoginProvider,
 ) {
   capture(client, 'login_started', {
-    ...getCommonAnalyticsProperties(),
     provider,
   });
 }
@@ -42,7 +36,6 @@ export function trackLoginFinished(
   },
 ) {
   capture(client, 'login_finished', {
-    ...getCommonAnalyticsProperties(),
     provider: params.provider,
     outcome: params.outcome,
     ...(params.outcome === 'failure' && params.failureType

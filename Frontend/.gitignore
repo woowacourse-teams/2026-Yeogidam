@@ -15,6 +15,10 @@ lerna-debug.log*
 .env.local
 .env.*.local
 
+### Sentry credentials ###
+android/sentry.properties
+ios/sentry.properties
+
 ### React Native / native builds ###
 .bundle/
 build/

@@ -1,6 +1,8 @@
 package com.yeogidamm.app.share
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.yeogidamm.app.BuildConfig
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -20,6 +22,7 @@ internal object ShareAuth {
             ?: return ShareAuthResult.LoginRequired(
                 if (ShareAuthStore.hadSession(context)) "refresh_token_missing" else "never_logged_in",
             )
+        if (session.refreshToken.isBlank()) return ShareAuthResult.LoginRequired("refresh_token_missing")
         if (!forceRefresh && session.accessToken.isNotBlank() &&
             session.expiresAt > System.currentTimeMillis() / 1000 + 60
         ) {
@@ -44,8 +47,10 @@ internal object ShareAuth {
             }.getOrDefault(JSONObject())
 
             if (code in 200..299) {
+                // 갱신 중 로그아웃으로 세션이 지워졌다면 새 토큰을 다시 저장하지 않는다.
                 val latest = ShareAuthStore.load(context)
-                if (latest?.refreshToken != session.refreshToken && latest != null) {
+                    ?: return ShareAuthResult.LoginRequired("refresh_token_missing")
+                if (latest.refreshToken != session.refreshToken) {
                     return if (latest.accessToken.isNotBlank()) ShareAuthResult.Ready(latest.accessToken)
                     else ShareAuthResult.WaitingForAuth
                 }
@@ -79,5 +84,14 @@ internal object ShareAuth {
         } finally {
             connection?.disconnect()
         }
+    }
+}
+
+internal object ShareNetwork {
+    fun isAvailable(context: Context): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = manager.activeNetwork ?: return false
+        return manager.getNetworkCapabilities(network)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
     }
 }

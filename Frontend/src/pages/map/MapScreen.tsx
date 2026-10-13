@@ -13,16 +13,28 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePostHog } from 'posthog-react-native';
+import { v4 as uuidv4 } from 'uuid';
 
+import {
+  captureSavedPlaceSelected,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
+import { ONBOARDING_MAP_CENTER, ONBOARDING_PLACE_REELS } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
-import { SearchBar } from '../../components/SearchBar';
+import {
+  SEARCH_BAR_HEIGHT,
+  SEARCH_BAR_TOP_GAP,
+  SearchBar,
+} from '../../components/SearchBar';
 import {
   COLLAPSED_SHEET_HEIGHT,
   PlaceResultSheet,
@@ -36,7 +48,9 @@ import {
 } from '../../lib/location-permission';
 
 type MapScreenProps = {
-  onDetailViewChange?: (isDetailView: boolean) => void;
+  isActive?: boolean;
+  isGuest?: boolean;
+  guestPlaces?: Place[];
   onAuthenticationRequired?: () => void;
 };
 
@@ -47,10 +61,14 @@ type MapCamera = {
 };
 
 export function MapScreen({
-  onDetailViewChange,
+  isActive = true,
+  isGuest = false,
+  guestPlaces,
   onAuthenticationRequired,
 }: MapScreenProps) {
+  const posthog = usePostHog();
   const [locationGranted, setLocationGranted] = useState(false);
+  const didRequestInitialCurrentLocation = useRef(false);
   useEffect(() => {
     const unsubscribe = subscribeLocationPermission(setLocationGranted);
     const refresh = () => {
@@ -77,10 +95,11 @@ export function MapScreen({
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [searchedPlaces, setSearchedPlaces] = useState<Place[] | null>(null);
   const [searchResultSignal, setSearchResultSignal] = useState(0);
-  const [mapCenter, setMapCenter] = useState({
-    latitude: 37.5448,
-    longitude: 127.0557,
-  });
+  const [backToPlaceListSignal, setBackToPlaceListSignal] = useState(0);
+  const [detailMoreSignal, setDetailMoreSignal] = useState(0);
+  const [mapCenter, setMapCenter] = useState(
+    isGuest ? ONBOARDING_MAP_CENTER : {latitude: 37.5448, longitude: 127.0557},
+  );
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
   const lastMapCameraRef = useRef<MapCamera>({
     latitude: 37.5448,
@@ -89,21 +108,34 @@ export function MapScreen({
   });
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
+    viewContext: SavedPlaceViewContext | null;
     signal: number;
-  }>({ place: null, signal: 0 });
+  }>({ place: null, viewContext: null, signal: 0 });
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const detailHeaderProgress = useRef(new Animated.Value(0)).current;
   const [collapseSignal, setCollapseSignal] = useState(0);
+  const [mapPanCollapseSignal, setMapPanCollapseSignal] = useState(0);
   const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
     COLLAPSED_SHEET_HEIGHT,
   );
+  const sheetVisibleHeightRef = useRef(COLLAPSED_SHEET_HEIGHT);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
-  // Request the initial camera position from the user's location. The native
-  // map waits for the permission/location callback before moving the camera.
-  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(1);
+  const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
+  useEffect(() => {
+    if (isGuest || !locationGranted || didRequestInitialCurrentLocation.current) {
+      return;
+    }
+
+    didRequestInitialCurrentLocation.current = true;
+    setCurrentLocationRequestId(requestId => requestId + 1);
+  }, [isGuest, locationGranted]);
   const [mapMessage, setMapMessage] = useState<string | null>(null);
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
+  const [isSavedPlacesLoading, setIsSavedPlacesLoading] = useState(true);
+  const [savedPlacesLoadFailed, setSavedPlacesLoadFailed] = useState(false);
   const bottomNavigationOffset =
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
 
@@ -119,11 +151,17 @@ export function MapScreen({
     eastLongitude: number;
   } | null>(null);
   useEffect(() => {
-    let isActive = true;
+    if (isGuest) {
+      setSavedPlaces(guestPlaces ?? []);
+      setSavedPlacesLoadFailed(false);
+      setIsSavedPlacesLoading(false);
+      return;
+    }
+    let isMounted = true;
 
     getSavedPlaces()
       .then(savedPlaceItems => {
-        if (!isActive) return;
+        if (!isMounted) return;
 
         setSavedPlaces(
           Array.from(
@@ -136,15 +174,21 @@ export function MapScreen({
         );
       })
       .catch(error => {
-        if (isActive) {
+        if (isMounted) {
+          setSavedPlacesLoadFailed(true);
           setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsSavedPlacesLoading(false);
         }
       });
 
     return () => {
-      isActive = false;
+      isMounted = false;
     };
-  }, []);
+  }, [guestPlaces, isGuest]);
   const placesWithCoordinates = useMemo(
     () =>
       savedPlaces.filter(
@@ -168,6 +212,19 @@ export function MapScreen({
     );
   }, [placesWithCoordinates, searchedPlaces, visibleBounds]);
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
+  const selectedPlaceForHeader = selectedPlaceId
+    ? markerPlaces.find(place => place.id === selectedPlaceId) ??
+      resultPlaces.find(place => place.id === selectedPlaceId)
+    : undefined;
+  const showExpandedDetailHeader = isPlaceDetailVisible && isSheetExpanded;
+
+  useEffect(() => {
+    Animated.timing(detailHeaderProgress, {
+      toValue: showExpandedDetailHeader ? 1 : 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [detailHeaderProgress, showExpandedDetailHeader]);
   const cameraFitPointsJson = useMemo(
     () =>
       JSON.stringify(
@@ -179,19 +236,14 @@ export function MapScreen({
     [searchedPlaces],
   );
 
-  const handleSheetVisibleHeightChange = useCallback(
-    (height: number) => {
-      setSheetVisibleHeight(currentHeight =>
-        currentHeight === height ? currentHeight : height,
-      );
+  const handleSheetVisibleHeightChange = useCallback((height: number) => {
+    if (sheetVisibleHeightRef.current === height) {
+      return;
+    }
 
-      // The sheet can cover a different part of the map before the native map
-      // reports its new camera bounds. Do not keep rendering the previous area's
-      // results during that short interval.
-      setVisibleBounds(null);
-    },
-    [],
-  );
+    sheetVisibleHeightRef.current = height;
+    setSheetVisibleHeight(height);
+  }, []);
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
@@ -234,6 +286,13 @@ export function MapScreen({
     }
   };
   const handleSearchBack = () => {
+    if (isPlaceDetailVisible) {
+      setBackToPlaceListSignal(signal => signal + 1);
+      setIsSearchFocused(false);
+      Keyboard.dismiss();
+      return;
+    }
+
     if (isSheetExpanded) {
       setCollapseSignal(signal => signal + 1);
       setIsSearchFocused(false);
@@ -257,7 +316,10 @@ export function MapScreen({
 
   return (
     <View
-      style={styles.container}
+      style={[
+        styles.container,
+        !isActive && [styles.inactiveContainer, { top: -topInset }],
+      ]}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
       <View style={styles.mapStage}>
@@ -275,6 +337,7 @@ export function MapScreen({
                 markerPlaces.map(({ id, name, latitude, longitude }) => ({
                   id,
                   name,
+                  selected: id === selectedPlaceId,
                   latitude,
                   longitude,
                 })),
@@ -293,10 +356,26 @@ export function MapScreen({
                 );
                 if (!place) return;
 
+                const viewContext = place.savedPlaceId
+                  ? {
+                      placeId: place.id,
+                      savedPlaceId: place.savedPlaceId,
+                      placeViewId: uuidv4(),
+                      source: 'map_marker' as const,
+                    }
+                  : null;
+                if (viewContext) {
+                  captureSavedPlaceSelected(posthog, viewContext);
+                }
+
                 setOpenedMarker(current => ({
                   place,
+                  viewContext,
                   signal: current.signal + 1,
                 }));
+              }}
+              onMapPanStarted={() => {
+                setMapPanCollapseSignal(signal => signal + 1);
               }}
               onCameraChanged={event => {
                 const {
@@ -337,15 +416,23 @@ export function MapScreen({
             topInset={topInset}
             bottomTabOffset={bottomNavigationOffset}
             places={resultPlaces}
+            hasSavedPlaces={savedPlaces.length > 0}
+            isSavedPlacesLoading={isSavedPlacesLoading}
+            savedPlacesLoadFailed={savedPlacesLoadFailed}
             isSearchActive={hasActiveSearch}
             expandSignal={searchResultSignal}
             openPlace={openedMarker.place}
+            openPlaceContext={openedMarker.viewContext}
             openPlaceSignal={openedMarker.signal}
+            backToPlaceListSignal={backToPlaceListSignal}
+            detailMoreSignal={detailMoreSignal}
             collapseSignal={collapseSignal}
-            onDetailViewChange={isDetailView => {
+            mapPanCollapseSignal={mapPanCollapseSignal}
+            onDetailViewChange={(isDetailView, placeId) => {
+              setSelectedPlaceId(placeId);
               setIsPlaceDetailVisible(isDetailView);
-              onDetailViewChange?.(isDetailView);
             }}
+            guestReelsByPlace={isGuest ? ONBOARDING_PLACE_REELS : undefined}
             onAuthenticationRequired={onAuthenticationRequired}
             onSavedPlaceDeleted={savedPlaceId => {
               setSavedPlaces(current =>
@@ -393,25 +480,82 @@ export function MapScreen({
             </Pressable>
           </Animated.View>
         ) : null}
-        {!isPlaceDetailVisible ? (
-          <SearchBar
-            backButtonPosition={
-              hasActiveSearch || isSearchFocused ? 'leading' : 'inside'
-            }
-            value={searchKeyword}
-            onChangeText={handleSearchKeywordChange}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-            onSubmitEditing={handleSearch}
-            onPressSearchAction={handleSearch}
-            topInset={topInset}
-            onPressBack={
-              hasActiveSearch || isSearchFocused || isSheetExpanded
-                ? handleSearchBack
-                : undefined
-            }
-          />
-        ) : null}
+        <View pointerEvents="box-none" style={styles.searchOverlay}>
+          <Animated.View
+            pointerEvents={showExpandedDetailHeader ? 'none' : 'auto'}
+            style={{
+              opacity: detailHeaderProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0],
+              }),
+            }}
+          >
+            <SearchBar
+              backButtonPosition={
+                hasActiveSearch ||
+                isSearchFocused ||
+                isSheetExpanded ||
+                isPlaceDetailVisible
+                  ? 'leading'
+                  : 'inside'
+              }
+              value={searchKeyword}
+              onChangeText={handleSearchKeywordChange}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+              onSubmitEditing={handleSearch}
+              onPressSearchAction={handleSearch}
+              topInset={topInset}
+              onPressBack={
+                hasActiveSearch ||
+                isSearchFocused ||
+                isSheetExpanded ||
+                isPlaceDetailVisible
+                  ? handleSearchBack
+                  : undefined
+              }
+            />
+          </Animated.View>
+          {selectedPlaceForHeader ? (
+            <Animated.View
+              pointerEvents={showExpandedDetailHeader ? 'auto' : 'none'}
+              style={[
+                styles.expandedDetailHeader,
+                {
+                  top: topInset + SEARCH_BAR_TOP_GAP,
+                  height: SEARCH_BAR_HEIGHT,
+                  opacity: detailHeaderProgress,
+                },
+              ]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="뒤로 가기"
+                hitSlop={12}
+                onPress={handleSearchBack}
+                style={styles.expandedDetailBack}
+              >
+                <Text style={styles.expandedDetailBackText}>‹</Text>
+              </Pressable>
+              <Text numberOfLines={1} style={styles.expandedDetailTitle}>
+                {selectedPlaceForHeader.name}
+              </Text>
+              {!isGuest ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="더보기"
+                  hitSlop={8}
+                  onPress={() => setDetailMoreSignal(signal => signal + 1)}
+                  style={styles.expandedDetailMore}
+                >
+                  <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />
+                </Pressable>
+              ) : (
+                <View style={styles.expandedDetailMore} />
+              )}
+            </Animated.View>
+          ) : null}
+        </View>
         {mapMessage ? (
           <Pressable
             accessibilityRole="button"
@@ -432,11 +576,61 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fafafa',
   },
+  inactiveContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   mapStage: {
     flex: 1,
   },
   map: {
     flex: 1,
+  },
+  searchOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 20,
+    elevation: 20,
+  },
+  expandedDetailHeader: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 11,
+  },
+  expandedDetailBack: {
+    width: SEARCH_BAR_HEIGHT,
+    height: SEARCH_BAR_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedDetailBackText: {
+    marginTop: -4,
+    fontSize: 31,
+    lineHeight: 35,
+    color: '#202124',
+  },
+  expandedDetailTitle: {
+    flex: 1,
+    flexShrink: 1,
+    fontSize: 23,
+    lineHeight: 28,
+    fontWeight: '800',
+    color: '#1a1a2e',
+  },
+  expandedDetailMore: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   mapViewport: {
     position: 'absolute',

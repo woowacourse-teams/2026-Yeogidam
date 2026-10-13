@@ -122,7 +122,7 @@ export async function saveInstagramReel(
   clientRequestId = uuidv4(),
 ): Promise<SaveInstagramReelResponse> {
   const {data, error} = await supabase.functions.invoke<SaveInstagramReelResponse>(
-    'save-instagram-reel-v2',
+    'save-instagram-reel',
     {
       body: {
         instagramUrl,

@@ -15,6 +15,11 @@ final class ShareIntentModule: RCTEventEmitter {
     true
   }
 
+  override func constantsToExport() -> [AnyHashable: Any]! {
+    guard let installationId = ShareAnalyticsInstallationIdentity.id() else { return [:] }
+    return ["installationId": installationId]
+  }
+
   override func supportedEvents() -> [String]! {
     [ShareIntentConstants.eventName]
   }
@@ -96,6 +101,17 @@ final class ShareIntentModule: RCTEventEmitter {
     resolve(nil)
   }
 
+  @objc(setPostHogConfiguration:host:resolver:rejecter:)
+  func setPostHogConfiguration(
+    _ projectToken: String,
+    host: String,
+    resolver resolve: RCTPromiseResolveBlock,
+    rejecter reject: RCTPromiseRejectBlock
+  ) {
+    ShareAnalyticsStore.setConfiguration(projectToken: projectToken, host: host)
+    resolve(nil)
+  }
+
   @objc(getShareResult:rejecter:)
   func getShareResult(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
     guard let result = ShareIntentStorage.loadResult(), let data = try? JSONEncoder().encode(result), let object = try? JSONSerialization.jsonObject(with: data) else { resolve(nil); return }
@@ -122,6 +138,19 @@ final class ShareIntentModule: RCTEventEmitter {
     rejecter reject: RCTPromiseRejectBlock
   ) {
     ShareIntentStorage.clearResult(expectedRequestId: requestId)
+    resolve(nil)
+  }
+
+  @objc(getPendingShareAnalyticsEvents:rejecter:)
+  func getPendingShareAnalyticsEvents(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    resolve(ShareAnalyticsStore.pending())
+  }
+
+  @objc(acknowledgeShareAnalyticsEvent:resolver:rejecter:)
+  func acknowledgeShareAnalyticsEvent(
+    _ id: String, resolver resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock
+  ) {
+    ShareAnalyticsStore.acknowledge(id)
     resolve(nil)
   }
 
