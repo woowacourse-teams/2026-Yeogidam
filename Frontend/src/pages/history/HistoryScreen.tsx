@@ -3,6 +3,7 @@ import {
   Alert,
   Image,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -376,7 +377,18 @@ function HistoryFailureDetail({
   const posthog = usePostHog();
   const {bottom: bottomInset} = useSafeAreaInsets();
   const detailBottomPadding =
-    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 24;
+    BOTTOM_NAVIGATION_BAR_HEIGHT +
+    getBottomNavigationBarOffset(bottomInset) +
+    (Platform.OS === 'android' ? 48 : 24);
+  const [containerHeight, setContainerHeight] = useState(0);
+  const availableBodyHeight = Math.max(
+    0,
+    containerHeight - 84 - detailBottomPadding,
+  );
+  const compactScale =
+    containerHeight === 0
+      ? 1
+      : Math.max(0.5, Math.min(1, (availableBodyHeight - 187) / 337));
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
   }, [posthog, reel.id]);
@@ -386,7 +398,10 @@ function HistoryFailureDetail({
   const originalUrl = displayReel.instagram_url;
 
   return (
-    <View style={styles.container}>
+    <View
+      onLayout={event => setContainerHeight(event.nativeEvent.layout.height)}
+      style={styles.container}
+    >
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -400,20 +415,32 @@ function HistoryFailureDetail({
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
       </View>
-      <ScrollView
-        contentContainerStyle={[
+      <View
+        style={[
           styles.failureContent,
           {paddingBottom: detailBottomPadding},
         ]}
       >
-        <View style={styles.failureHero}>
+        <View style={[styles.failureHero, {marginTop: 44 * compactScale}]}>
           <Image
             source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
             resizeMode="cover"
-            style={styles.detailThumbnail}
+            style={[
+              styles.detailThumbnail,
+              {
+                width: 180 * compactScale,
+                height: 226 * compactScale,
+              },
+            ]}
           />
-          <Text style={styles.detailTitle}>장소 분석에 실패했어요ㅠ</Text>
-          <Text style={styles.failureDescription}>
+          <Text
+            style={[styles.detailTitle, {marginTop: 24 * compactScale}]}
+          >
+            장소 분석에 실패했어요ㅠ
+          </Text>
+          <Text
+            style={[styles.failureDescription, {marginTop: 6 * compactScale}]}
+          >
             {getHistoryFailureMessage(displayReel.failure_reason)}
           </Text>
         </View>
@@ -424,68 +451,75 @@ function HistoryFailureDetail({
               Linking.openURL(originalUrl).catch(() => undefined);
             }
           }}
-          style={[styles.originalButton, !originalUrl && styles.disabledButton]}
+          style={[
+            styles.originalButton,
+            styles.failureOriginalButton,
+            !originalUrl && styles.disabledButton,
+          ]}
         >
           <InstagramIcon width={28} height={27} />
           <Text style={styles.originalText}>원본 릴스로 이동</Text>
           <Text style={styles.detailChevron}>›</Text>
         </Pressable>
-        <Pressable
-          disabled={!originalUrl}
-          onPress={() => {
-            if (guestDetail !== undefined) {
-              onRequireLogin?.();
-              return;
-            }
-            Alert.alert('다시 시도할까요?', '', [
-              { text: '취소', style: 'cancel' },
-              {
-                text: '확인',
-                onPress: () => {
-                  onRetry().catch(() => undefined);
+        <View style={styles.failureActions}>
+          <Pressable
+            disabled={!originalUrl}
+            onPress={() => {
+              if (guestDetail !== undefined) {
+                onRequireLogin?.();
+                return;
+              }
+              Alert.alert('다시 시도할까요?', '', [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '확인',
+                  onPress: () => {
+                    onRetry().catch(() => undefined);
+                  },
                 },
-              },
-            ]);
-          }}
-          style={styles.actionButton}
-        >
-          <RetryIcon width={20} height={20} style={styles.actionIcon} />
-          <Text style={styles.actionText}>다시 시도하기</Text>
-        </Pressable>
-        <Pressable
-          disabled={reported}
-          onPress={() => {
-            if (guestDetail !== undefined) {
-              onRequireLogin?.();
-              return;
-            }
-            Alert.alert('제보할까요?', '', [
-              { text: '취소', style: 'cancel' },
-              {
-                text: '확인',
-                onPress: () => {
-                  setReported(true);
-                  reportHistoryReel(reel.id)
-                    .catch(() => {
-                      setReported(false);
-                      Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
-                    });
+              ]);
+            }}
+            style={[styles.actionButton, {marginTop: 24 * compactScale}]}
+          >
+            <RetryIcon width={20} height={20} style={styles.actionIcon} />
+            <Text style={styles.actionText}>다시 시도하기</Text>
+          </Pressable>
+          <Pressable
+            disabled={reported}
+            onPress={() => {
+              if (guestDetail !== undefined) {
+                onRequireLogin?.();
+                return;
+              }
+              Alert.alert('제보할까요?', '', [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '확인',
+                  onPress: () => {
+                    setReported(true);
+                    reportHistoryReel(reel.id)
+                      .catch(() => {
+                        setReported(false);
+                        Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
+                      });
+                  },
                 },
-              },
-            ]);
-          }}
-          style={[
-            styles.actionButton,
-            styles.reportActionButton,
-            reported && styles.disabledButton,
-          ]}
-        >
-          <ReportIcon width={20} height={20} style={styles.actionIcon} />
-          <Text style={styles.actionText}>
-            {reported ? '제보 완료' : '제보하기'}
-          </Text>
-        </Pressable>
-      </ScrollView>
+              ]);
+            }}
+            style={[
+              styles.actionButton,
+              styles.reportActionButton,
+              {marginTop: 13 * compactScale},
+              reported && styles.disabledButton,
+            ]}
+          >
+            <ReportIcon width={20} height={20} style={styles.actionIcon} />
+            <Text style={styles.actionText}>
+              {reported ? '제보 완료' : '제보하기'}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
       <View style={styles.homeIndicator} />
     </View>
   );
@@ -1117,8 +1151,10 @@ const styles = StyleSheet.create({
   },
   placeAddress: { fontSize: 9, color: '#8e8e93', marginTop: 3 },
   placeState: { fontSize: 13, color: '#8e8e93', paddingTop: 24 },
-  failureContent: { paddingBottom: 60 },
-  failureHero: { alignItems: 'center', marginTop: 44 },
+  failureContent: { flex: 1 },
+  failureHero: { alignItems: 'center' },
+  failureOriginalButton: { marginTop: 49 },
+  failureActions: { marginTop: 'auto' },
   failureDescription: {
     fontSize: 14,
     lineHeight: 22.4,
