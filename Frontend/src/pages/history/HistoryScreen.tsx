@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  BackHandler,
   Image,
   Linking,
   Platform,
@@ -39,6 +40,8 @@ import type {
   HistoryReel,
   HistoryReelDetail,
 } from '../../entities/content/types';
+import type {Place} from '../../entities/place/types';
+import {PlaceDetailScreen} from '../place-detail/PlaceDetailScreen';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
@@ -259,10 +262,12 @@ function HistorySuccessDetail({
   onBack,
   reel,
   guestDetail,
+  onRequireLogin,
 }: {
   onBack: () => void;
   reel: HistoryReel;
   guestDetail?: HistoryReelDetail | null;
+  onRequireLogin?: () => void;
 }) {
   const posthog = usePostHog();
   const {bottom: bottomInset} = useSafeAreaInsets();
@@ -272,12 +277,38 @@ function HistorySuccessDetail({
     trackHistoryContentDetailViewed(posthog, reel.id, 'success');
   }, [posthog, reel.id]);
   const { detail, loading, error } = useHistoryReelDetail(reel.id, guestDetail);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  useEffect(() => {
+    if (!selectedPlace) {
+      return undefined;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        setSelectedPlace(null);
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [selectedPlace]);
   const displayReel = detail ?? reel;
   const places =
     detail?.extraction?.extraction_places
       .map(item => item.place)
       .filter((place): place is HistoryPlace => Boolean(place)) ?? [];
   const originalUrl = displayReel.instagram_url;
+
+  if (selectedPlace) {
+    return (
+      <PlaceDetailScreen
+        onBack={() => setSelectedPlace(null)}
+        onAuthenticationRequired={onRequireLogin}
+        place={selectedPlace}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -340,7 +371,35 @@ function HistorySuccessDetail({
             <Text style={styles.placeState}>발견한 장소가 없어요.</Text>
           ) : (
             places.map(place => (
-              <View key={place.id} style={styles.placeCard}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${place.name} 상세 보기`}
+                key={place.id}
+                onPress={() =>
+                  setSelectedPlace({
+                    id: place.id,
+                    name: place.name,
+                    category: place.category ?? undefined,
+                    address:
+                      place.road_address ??
+                      place.address ??
+                      place.source_address ??
+                      '',
+                    fullAddress:
+                      place.address ??
+                      place.road_address ??
+                      place.source_address ??
+                      '',
+                    latitude: place.latitude ?? undefined,
+                    longitude: place.longitude ?? undefined,
+                    placeUrl: place.kakao_place_url ?? undefined,
+                    image: place.thumbnail_url
+                      ? {uri: place.thumbnail_url}
+                      : undefined,
+                  })
+                }
+                style={styles.placeCard}
+              >
                 <Image
                   source={{ uri: place.thumbnail_url ?? placeThumbnail }}
                   style={styles.placeImage}
@@ -351,7 +410,7 @@ function HistorySuccessDetail({
                 <Text numberOfLines={1} style={styles.placeAddress}>
                   {place.road_address ?? place.address ?? ''}
                 </Text>
-              </View>
+              </Pressable>
             ))
           )}
         </ScrollView>
@@ -896,6 +955,7 @@ export function HistoryScreen({
         }}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
+        onRequireLogin={onRequireLogin}
       />
     );
   }
