@@ -22,6 +22,7 @@ import {MapScreen} from '../src/pages/map/MapScreen';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
+import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
 
 jest.mock('react-native-safe-area-context', () => {
@@ -300,7 +301,11 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
     renderer.root.findByType(BottomNavigationBar).props.onNavigate('history');
   });
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
-  expect(renderer.root.findByType(HistoryScreen).props.guestReels).toEqual([]);
+  expect(renderer.root.findByType(BottomNavigationBar).props.isGuest).toBe(true);
+  const historyProps = renderer.root.findByType(HistoryScreen).props;
+  expect(historyProps.guestReels).toEqual([ONBOARDING_HISTORY_REEL]);
+  expect(historyProps.guestReels[0].processing_status).toBe('COMPLETED');
+  expect(historyProps.guestDetails[ONBOARDING_HISTORY_REEL.id].extraction.extraction_places).toHaveLength(5);
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(HistoryScreen).props.onBack();

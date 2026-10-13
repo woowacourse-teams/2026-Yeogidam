@@ -22,6 +22,7 @@ import type { MainScreen } from '../types/navigation';
 
 type BottomNavigationBarProps = {
   active: MainScreen;
+  isGuest: boolean;
   onNavigate: (screen: MainScreen) => void;
 };
 
@@ -67,11 +68,16 @@ const navigationItems: {
 
 export function BottomNavigationBar({
   active,
+  isGuest,
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
   const [isHistoryUnread, setIsHistoryUnread] = useState(false);
   const syncHistoryNotification = useCallback(async () => {
+    if (isGuest) {
+      setIsHistoryUnread(false);
+      return;
+    }
     try {
       const {reels} = await getHistoryReels();
       const latest = reels[0];
@@ -95,7 +101,7 @@ export function BottomNavigationBar({
     } catch {
       // Keep the navigation usable if the history request fails.
     }
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     syncHistoryNotification();
@@ -136,7 +142,7 @@ export function BottomNavigationBar({
           <Pressable
             key={navigation.id}
             onPress={() => {
-              if (navigation.id === 'history') {
+              if (navigation.id === 'history' && !isGuest) {
                 getHistoryReels()
                   .then(async ({reels}) => {
                     const latest = reels[0];
