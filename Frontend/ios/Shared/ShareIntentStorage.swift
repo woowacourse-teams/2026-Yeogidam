@@ -772,8 +772,11 @@ enum ShareAuth {
       guard let http = response as? HTTPURLResponse else { return .waitingForAuth }
       let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
       if (200..<300).contains(http.statusCode) {
-        if let latest = try? ShareIntentStorage.loadSession(),
-           latest.refreshToken != session.refreshToken {
+        // 갱신 중 로그아웃으로 세션이 지워졌다면 새 토큰을 다시 저장하지 않는다.
+        guard let latest = try? ShareIntentStorage.loadSession() else {
+          return .loginRequired("refresh_token_missing")
+        }
+        if latest.refreshToken != session.refreshToken {
           return latest.accessToken.isEmpty ? .waitingForAuth : .ready(latest.accessToken)
         }
         guard let access = json["access_token"] as? String, !access.isEmpty,
