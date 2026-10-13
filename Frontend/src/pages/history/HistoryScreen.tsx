@@ -12,6 +12,11 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {
+  BOTTOM_NAVIGATION_BAR_HEIGHT,
+  getBottomNavigationBarOffset,
+} from '../../components/BottomNavigationBar';
 import {
   trackHistoryContentDetailViewed,
   trackHistoryContentViewed,
@@ -259,6 +264,9 @@ function HistorySuccessDetail({
   guestDetail?: HistoryReelDetail | null;
 }) {
   const posthog = usePostHog();
+  const {bottom: bottomInset} = useSafeAreaInsets();
+  const detailBottomPadding =
+    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 24;
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'success');
   }, [posthog, reel.id]);
@@ -285,7 +293,10 @@ function HistorySuccessDetail({
         <View style={styles.headerSpacer} />
       </View>
       <ScrollView
-        contentContainerStyle={styles.detailContent}
+        contentContainerStyle={[
+          styles.detailContent,
+          {paddingBottom: detailBottomPadding},
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.detailHero}>
@@ -363,6 +374,9 @@ function HistoryFailureDetail({
   onRequireLogin?: () => void;
 }) {
   const posthog = usePostHog();
+  const {bottom: bottomInset} = useSafeAreaInsets();
+  const detailBottomPadding =
+    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 24;
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
   }, [posthog, reel.id]);
@@ -386,7 +400,12 @@ function HistoryFailureDetail({
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
       </View>
-      <ScrollView contentContainerStyle={styles.failureContent}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.failureContent,
+          {paddingBottom: detailBottomPadding},
+        ]}
+      >
         <View style={styles.failureHero}>
           <Image
             source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
