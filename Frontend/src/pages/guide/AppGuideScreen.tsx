@@ -1019,6 +1019,7 @@ export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
+        scrollEnabled={false}
         showsVerticalScrollIndicator={false}
       >
         {renderBody()}
