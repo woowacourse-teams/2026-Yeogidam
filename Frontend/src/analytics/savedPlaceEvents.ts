@@ -1,4 +1,5 @@
 import type {AnalyticsClient} from './analytics';
+import {isOnboardingSampleId} from '../entities/onboarding/data';
 import {capture} from './analytics';
 
 export type SavedPlacesEntryType = 'direct' | 'after_save';
@@ -24,6 +25,13 @@ export type SavedPlaceViewContext = SavedPlaceIdentity & {
   placeViewId: string;
   source: SavedPlaceSource;
 };
+
+function isSampleSavedPlace(identity: SavedPlaceIdentity) {
+  return (
+    isOnboardingSampleId(identity.placeId) ||
+    isOnboardingSampleId(identity.savedPlaceId)
+  );
+}
 
 export function getSavedPlaceRevisit(
   savedAt: string,
@@ -91,6 +99,8 @@ export function captureSavedPlaceSelected(
     position?: number;
   },
 ) {
+  if (isSampleSavedPlace(properties)) return;
+
   capture(client, 'saved_place_selected', {
     place_id: properties.placeId,
     saved_place_id: properties.savedPlaceId,
@@ -112,6 +122,8 @@ export function captureSavedPlaceOpened(
     viewedAt?: Date;
   },
 ) {
+  if (isSampleSavedPlace(properties)) return;
+
   const revisit = getSavedPlaceRevisit(
     properties.savedAt,
     properties.viewedAt,
@@ -134,6 +146,8 @@ export function capturePlaceMapViewed(
     viewedAt?: Date;
   },
 ) {
+  if (isSampleSavedPlace(properties)) return;
+
   const {isRevisit} = getSavedPlaceRevisit(
     properties.savedAt,
     properties.viewedAt,

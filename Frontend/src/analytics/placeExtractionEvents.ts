@@ -1,3 +1,4 @@
+import {isOnboardingSampleId} from '../entities/onboarding/data';
 import {
   capture,
   getAnalyticsEnvironment,
@@ -88,6 +89,7 @@ export function trackHistoryContentViewed(
   contentId: string,
   visibleState: HistoryVisibleState,
 ) {
+  if (isOnboardingSampleId(contentId)) return;
   capture(client, 'history_content_viewed', {
     ...getCommonAnalyticsProperties(),
     content_id: contentId,
@@ -100,6 +102,7 @@ export function trackHistoryContentDetailViewed(
   contentId: string,
   result: HistoryDetailResult,
 ) {
+  if (isOnboardingSampleId(contentId)) return;
   capture(client, 'history_content_detail_viewed', {
     ...getCommonAnalyticsProperties(),
     content_id: contentId,

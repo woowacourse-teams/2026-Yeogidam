@@ -12,6 +12,8 @@ Android와 iOS의 공유 화면, 기기 전송 작업, 앱 히스토리에 적�
 
 URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 않는다. 네이티브 공유 이벤트에는 `share_id`, `platform`, `release`, `environment`, 가능한 경우 `installation_id`와 발생 시각을 포함한다. 앱 SDK의 자동 이벤트에도 `environment`와 가능한 경우 `installation_id`를 포함한다. 로컬 앱은 `.env`의 `APP_ENV`를 사용하고, 값이 없으면 `development`로 기록한다. 내부 스토어 배포와 공개 앱 모두 `APP_ENV=production`을 사용한다. 이 속성은 실행 환경 필터이며 내부 배포 여부를 뜻하지 않는다.
 
+앱 이벤트에는 로그인 상태가 확정된 뒤 `is_guest`(비회원이면 `true`)가 공통 속성으로 붙는다. 인증 상태를 확인하기 전에는 이 속성이 없다. 비회원 체험용 예시 콘텐츠(`ONBOARDING_SAMPLE_IDS`: 예시 릴스와 예시 장소)에 대한 `history_content_viewed`, `history_content_detail_viewed`, `saved_place_selected`, `saved_place_opened`, `place_map_viewed`는 보내지 않는다. 운영 지표를 볼 때는 Funnel에 `is_guest` 필터를 함께 건다.
+
 내부 테스터를 운영 지표에서 제외할 때는 `environment=production`으로 조회한 뒤, 테스터의 `installation_id` **또는** 로그인 계정의 `distinct_id`에 해당하는 이벤트를 제외한다. 설치 ID는 비로그인 앱·공유 이벤트를, 사용자 ID는 로그인 이후 다른 설치본까지 구분한다. 한 설치본을 여러 사람이 함께 쓰면 그 설치본의 이벤트가 모두 제외된다. 테스터 설치 ID는 처음 발생한 앱 또는 공유 이벤트에서 확인해 목록에 등록해야 하므로, 등록 전 첫 비로그인 공유는 자동으로 테스터라고 알 수 없다.
 
 ## 사용자 경험 이벤트
