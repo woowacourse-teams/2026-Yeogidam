@@ -10,6 +10,7 @@ import {
 export const SHARE_EXTRACTION_EVENTS = [
   'reel_share_received',
   'reel_share_feedback_viewed',
+  'reel_share_outcome_viewed',
   'share_local_save_resolved',
   'share_delivery_status_changed',
   'extraction_request_started',
@@ -48,6 +49,7 @@ const COMMON_KEYS = ['platform', 'release', 'environment', 'installation_id'];
 const EVENT_KEYS: Record<ShareExtractionEventName, string[]> = {
   reel_share_received: [],
   reel_share_feedback_viewed: ['feedback_type'],
+  reel_share_outcome_viewed: ['outcome', 'reason'],
   share_local_save_resolved: ['outcome'],
   share_delivery_status_changed: ['delivery_status', 'reason'],
   extraction_request_started: [],

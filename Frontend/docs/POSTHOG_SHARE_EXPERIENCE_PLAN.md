@@ -58,6 +58,30 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 
 `failure_type`은 `auth_failed`, `timeout`, `network_error`, `server_error`, `invalid_request` 중 하나다. 2xx 응답에 `FAILED` 상태가 담겨 있어도 `response_received`로 기록한다.
 
+## 새 명세로의 단계적 전환
+
+공유 흐름을 새 명세(접수 안내 → API 요청 → 추출 결과)의 5개 이벤트로 옮기는 중이다. 기존 이벤트를 바로 지우면 과거 데이터와 단절되고 대시보드가 깨지므로, 새 이벤트를 먼저 **같이** 기록하고 대시보드를 옮긴 뒤 기존 이벤트를 제거한다.
+
+| 새 명세 이벤트 | 현재 상태 | 비고 |
+| --- | --- | --- |
+| `reel_share_received` | 기존 이벤트 그대로 사용 | |
+| `reel_share_outcome_viewed` | **추가됨** (Android·iOS) | `outcome=accepted/login_required/failed`, `reason` |
+| `extraction_request_started` | 기존 이벤트 그대로 사용 | |
+| `extraction_request_finished` | 기존 이벤트 사용, `blocked_before_request` 추가 | Android 작업이 접수 뒤 로그인 필요를 확인한 경우. 선택 속성 `attempt_count`는 미구현 |
+| `extraction_result_resolved` | **미구현** | 서버가 `clientRequestId`와 최종 결과를 연결해 기록해야 함 |
+
+`reel_share_outcome_viewed`는 공유 화면에 실제 표시된 안내 기준이다.
+
+| `outcome` | `reason` | 표시한 안내 |
+| --- | --- | --- |
+| `accepted` | 없음 | 접수 안내 |
+| `login_required` | `no_session`(세션이 처음부터 없음), `refresh_token_missing`, `refresh_token_invalid` | 로그인 필요 안내 |
+| `failed` | `invalid_link`, `save_failed` | 링크 확인·저장 실패 안내 |
+
+- 가입 전 체험 게시물 공유는 실제 추출 요청이 아니므로 이 이벤트를 기록하지 않는다.
+- 현재 앱은 링크만 저장되고 후속 전송 등록이 실패해도 접수 안내를 보여준다. 이때도 `accepted`로 기록된다. 이 불일치는 흐름 통일(후속 처리 등록을 확인한 뒤 접수 안내 표시)에서 해결한다.
+- 기존 `reel_share_feedback_viewed`, `share_local_save_resolved`, `share_delivery_status_changed`는 새 이벤트 기반 대시보드로 옮긴 뒤 제거한다. **전환 시점은 `reel_share_outcome_viewed`가 처음 수집된 앱 버전부터이며, 이전 기간에는 이 이벤트가 없다.**
+
 ## 비활성 이벤트 (대기함)
 
 대기함 화면이 제거되어(#379, #389, #390) 아래 이벤트는 **현재 앱에서 발생하지 않는다.** 대기함을 복원할 때 다시 쓰려고 `src/analytics/placeSavingEvents.ts`와 `src/pages/inBox/inBoxScreen.tsx`는 남겨 둔다.

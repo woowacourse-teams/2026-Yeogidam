@@ -1,4 +1,7 @@
-import {buildShareExtractionCapture} from '../src/analytics/placeExtractionEvents';
+import {
+  buildShareExtractionCapture,
+  isShareExtractionEventName,
+} from '../src/analytics/placeExtractionEvents';
 
 describe('native share event forwarding', () => {
   it('uses the logged-in user identity while retaining the share ID and dropping unexpected properties', () => {
@@ -53,5 +56,31 @@ describe('native share event forwarding', () => {
     expect(payload.properties.environment).toBe('development');
     expect(payload.properties).toMatchObject({installation_id: 'install-anonymous'});
     expect(payload.properties.$process_person_profile).toBe(false);
+  });
+
+  it('forwards the outcome the share screen showed with only its allowed properties', () => {
+    expect(isShareExtractionEventName('reel_share_outcome_viewed')).toBe(true);
+
+    const payload = buildShareExtractionCapture({
+      name: 'reel_share_outcome_viewed',
+      share_id: 'share-789',
+      occurred_at: Date.UTC(2026, 9, 14),
+      properties: {
+        platform: 'android',
+        release: '1.2.0',
+        outcome: 'login_required',
+        reason: 'no_session',
+        feedback_type: 'received',
+        instagram_url: 'https://example.invalid/private',
+      },
+    });
+
+    expect(payload.properties).toMatchObject({
+      outcome: 'login_required',
+      reason: 'no_session',
+      share_id: 'share-789',
+    });
+    expect(payload.properties).not.toHaveProperty('feedback_type');
+    expect(payload.properties).not.toHaveProperty('instagram_url');
   });
 });

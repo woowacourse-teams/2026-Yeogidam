@@ -496,6 +496,7 @@ enum ShareAnalyticsStore {
   private static let allowedProperties: [String: Set<String>] = [
     "reel_share_received": [],
     "reel_share_feedback_viewed": ["feedback_type"],
+    "reel_share_outcome_viewed": ["outcome", "reason"],
     "share_local_save_resolved": ["outcome"],
     "share_delivery_status_changed": ["delivery_status", "reason"],
     "extraction_request_started": [],

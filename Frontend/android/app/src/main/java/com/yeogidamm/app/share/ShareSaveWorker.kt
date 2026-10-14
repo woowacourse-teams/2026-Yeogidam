@@ -41,6 +41,7 @@ internal class ShareSaveWorker(
                     ),
                 )
                 ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred", "login_required")
+                recordFinished(requestId, "blocked_before_request", null, "auth_failed")
                 return Result.success()
             }
             ShareAuthResult.WaitingForNetwork, ShareAuthResult.WaitingForAuth -> {
