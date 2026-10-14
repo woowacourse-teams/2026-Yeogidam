@@ -41,6 +41,13 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 
 `extraction_request_finished.failure_type`은 최종 요청 실패에만 쓰며 `auth_failed`, `timeout`, `network_error`, `server_error`, `invalid_request` 중 하나다. `response_received`는 기기가 2xx 응답을 받았다는 뜻이다. 장소 추출의 최종 성공이나 실패는 히스토리의 `processing_status`가 화면에 표시될 때 사용자 경험 이벤트로 확인한다.
 
+## 로그인과 비회원 데이터 이전
+
+- `login_started`는 로그인 버튼을 누른 시점에 기록한다. 비회원 데이터 이전 준비 같은 시작 전 단계가 실패해도 `login_finished(outcome=failure)`와 짝이 맞는다.
+- `login_finished.failure_type`은 `user_cancelled`, `auth_failed`, `network_error`, `app_return_failed`, `unknown` 중 하나다. 인증 후 앱으로 돌아온 응답을 처리하지 못한 경우(`CLIENT000_003`)는 `app_return_failed`, 분류할 수 없는 오류는 `unknown`이다.
+- `login_finished.has_guest_transfer`는 비회원 체험 데이터를 이어받는 로그인이면 `true`다.
+- 이전 결과는 `login_finished`에 담을 수 없다. 이전은 로그인 직후가 아니라 군자역 게시물 추출이 끝날 때까지 이어지고, 앱을 다시 열어 재시도하기도 하기 때문이다. 그래서 `guest_transfer_finished(outcome=success/failure)`를 따로 기록한다. 옮길 데이터가 없던 경우는 기록하지 않으며, 실패 후 재시도하면 시도마다 기록한다.
+
 ## 앱에서 직접 시작한 추출 요청
 
 공유 확장이 아니라 앱 화면에서 분석 API를 호출하는 경로는 같은 `extraction_request_started` / `extraction_request_finished` 이벤트를 쓰되 `source`로 구분한다. 이 이벤트에는 `share_id`가 없고, API의 `clientRequestId`와 같은 값을 `request_id`로 넣어 시작과 종료를 연결한다. 공유 건 기준 지표는 `share_id`가 있는 이벤트만 센다.

@@ -46,10 +46,11 @@ import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy } from './src/lib/app-update-policy';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
+  toLoginFailureType,
   trackAppOpened,
+  trackGuestTransferFinished,
   trackLoginFinished,
   trackLoginStarted,
-  type LoginFailureType,
 } from './src/analytics/userEntryEvents';
 // import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
@@ -127,28 +128,6 @@ const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
-
-function toLoginFailureType(error: NormalizedAuthError): LoginFailureType {
-  if (error.errorCode === 'AUTH000_001') {
-    return 'user_cancelled';
-  }
-
-  if (
-    error.errorCode === 'CLIENT000_001' ||
-    error.errorCode === 'CLIENT000_002'
-  ) {
-    return 'network_error';
-  }
-
-  if (
-    error.errorCode === 'AUTH400_001' ||
-    error.errorCode === 'AUTH502_001'
-  ) {
-    return 'auth_failed';
-  }
-
-  return 'unknown';
-}
 
 configureDataSources();
 
@@ -386,6 +365,7 @@ function App() {
     const resumeOnboardingTransfer = (session: Session) => {
       resumeGuestOnboardingTransfer(session)
         .then(completed => {
+          if (completed) trackGuestTransferFinished(posthog, 'success');
           if (
             !isMounted ||
             !completed ||
@@ -395,6 +375,7 @@ function App() {
           setMemberDataRevision(revision => revision + 1);
         })
         .catch(error => {
+          trackGuestTransferFinished(posthog, 'failure');
           console.warn('군자역 게시물 저장 실패', error);
           if (
             !isMounted ||
@@ -810,43 +791,45 @@ function App() {
       return;
     }
     loginAttemptInFlightRef.current = true;
-    let loginStarted = false;
+    const hasGuestTransfer =
+      isAuthenticated === false && hasCompletedGuide === true;
+    const signIn = {
+      apple: signInWithApple,
+      kakao: signInWithKakao,
+      google: signInWithGoogle,
+    }[provider];
+    let signInStarted = false;
+
+    // 로그인 버튼을 누른 시점에 기록해, 시작 전에 실패해도 로그인 시도로 센다.
+    trackLoginStarted(posthog, provider);
 
     try {
-      if (isAuthenticated === false && hasCompletedGuide === true) {
+      if (hasGuestTransfer) {
         await beginGuestOnboardingTransfer();
       }
 
       setSocialLoginError(null);
       setPendingSocialProvider(provider);
-      trackLoginStarted(posthog, provider);
-      loginStarted = true;
-      if (provider === 'apple') {
-        await signInWithApple();
-        trackLoginFinished(posthog, {provider, outcome: 'success'});
-        return;
-      }
-
-      if (provider === 'kakao') {
-        await signInWithKakao();
-        trackLoginFinished(posthog, {provider, outcome: 'success'});
-        return;
-      }
-
-      await signInWithGoogle();
-      trackLoginFinished(posthog, {provider, outcome: 'success'});
+      signInStarted = true;
+      await signIn();
+      trackLoginFinished(posthog, {
+        provider,
+        outcome: 'success',
+        hasGuestTransfer,
+      });
     } catch (error) {
       cancelGuestOnboardingTransfer().catch(() => undefined);
-      if (!loginStarted) {
-        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
-        return;
-      }
       const normalizedError = error as NormalizedAuthError;
       trackLoginFinished(posthog, {
         provider,
         outcome: 'failure',
         failureType: toLoginFailureType(normalizedError),
+        hasGuestTransfer,
       });
+      if (!signInStarted) {
+        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+        return;
+      }
       setSocialLoginError(normalizedError);
       setPendingSocialProvider(null);
     } finally {
