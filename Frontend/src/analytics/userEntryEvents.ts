@@ -1,3 +1,4 @@
+import {ANALYTICS_EVENTS} from './eventNames';
 import {capture, type AnalyticsClient} from './analytics';
 
 export type LoginProvider = 'apple' | 'kakao' | 'google';
@@ -34,7 +35,7 @@ export function trackAppOpened(
   client: AnalyticsClient | null | undefined,
   isLoggedIn: boolean,
 ) {
-  capture(client, 'app_opened', {
+  capture(client, ANALYTICS_EVENTS.appOpened, {
     is_logged_in: isLoggedIn,
   });
 }
@@ -43,7 +44,7 @@ export function trackLoginStarted(
   client: AnalyticsClient | null | undefined,
   provider: LoginProvider,
 ) {
-  capture(client, 'login_started', {
+  capture(client, ANALYTICS_EVENTS.loginStarted, {
     provider,
   });
 }
@@ -58,7 +59,7 @@ export function trackLoginFinished(
     hasGuestTransfer?: boolean;
   },
 ) {
-  capture(client, 'login_finished', {
+  capture(client, ANALYTICS_EVENTS.loginFinished, {
     provider: params.provider,
     outcome: params.outcome,
     ...(params.hasGuestTransfer === undefined
@@ -79,5 +80,5 @@ export function trackGuestTransferFinished(
   client: AnalyticsClient | null | undefined,
   outcome: 'success' | 'failure',
 ) {
-  capture(client, 'guest_transfer_finished', {outcome});
+  capture(client, ANALYTICS_EVENTS.guestTransferFinished, {outcome});
 }

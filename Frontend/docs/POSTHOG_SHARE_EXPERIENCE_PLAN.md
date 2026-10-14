@@ -22,6 +22,7 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 | --- | --- | --- |
 | `reel_share_received` | 여기담 공유 화면이 열리고 이번 공유 ID가 생성됨 | `share_id` |
 | `reel_share_feedback_viewed` | 최종 안내 문구가 공유 화면에 표시됨 | `share_id`, `feedback_type=received/invalid_link/save_failed` |
+| `reel_share_outcome_viewed` | 접수·로그인 필요·실패 안내가 공유 화면에 표시됨 (새 명세) | `share_id`, `outcome=accepted/login_required/failed`, `reason` |
 | `history_viewed` | 첫 목록 조회 결과가 목록·빈 화면·오류로 표시됨 | `view_state=list/empty/error` |
 | `history_content_viewed` | 카드의 절반 이상이 화면 영역에 0.5초 이상 표시됨 | `content_id`, `visible_state=loading/processing/success/failed` |
 | `history_content_detail_viewed` | 성공 또는 실패 상세 화면을 엶 | `content_id`, `result=success/failed` |
@@ -35,11 +36,32 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 | `share_local_save_resolved` | URL 검증과 기기 보관 완료 | `share_id`, `outcome=saved/invalid_link/storage_failed` |
 | `share_delivery_status_changed` | API 전송 전 대기 사유가 바뀌거나 작업 등록됨 | `share_id`, `delivery_status=deferred/queued`, 대기 시 `reason` |
 | `extraction_request_started` | 기기가 분석 API 요청의 본문 전송을 시도함 | `share_id` |
-| `extraction_request_finished` | 응답을 확인하거나 재시도 후 최종 실패 | `share_id`, `outcome=response_received/request_failed`, 선택적 `response_status`, `failure_type`, `content_id` |
+| `extraction_request_finished` | 응답을 확인하거나 재시도 후 최종 실패 | `share_id`, `outcome=response_received/request_failed/blocked_before_request`, 선택적 `response_status`, `failure_type`, `content_id` |
 
 `deferred.reason`은 `login_required`, `auth_pending`, `network_unavailable`, `queue_registration_failed` 중 하나다. 같은 공유 건이 다른 사유로 다시 대기하거나 `queued`로 바뀌면 상태 변경을 별도 이벤트로 기록한다. 대기는 최종 실패가 아니다. 인증 문제가 해결되면 같은 `share_id`로 다시 전송한다.
 
 `extraction_request_finished.failure_type`은 최종 요청 실패에만 쓰며 `auth_failed`, `timeout`, `network_error`, `server_error`, `invalid_request` 중 하나다. `response_received`는 기기가 2xx 응답을 받았다는 뜻이다. 장소 추출의 최종 성공이나 실패는 히스토리의 `processing_status`가 화면에 표시될 때 사용자 경험 이벤트로 확인한다.
+
+## 앱 화면 이벤트
+
+앱이 직접 기록하는 이벤트다. 모든 이벤트에 `platform`, `release`, `environment`가 붙고, 로그인 상태가 확정된 뒤에는 `is_guest`도 붙는다. 이름은 `src/analytics/eventNames.ts`에서 관리하며 `__tests__/analyticsEventNames.test.ts`가 고정한다. 이름을 바꾸면 기존 Funnel과 대시보드가 끊기므로, 바꿀 때는 이 문서와 대시보드를 함께 고친다.
+
+| 영역 | 이벤트 | 발생 기준 | 주요 속성 |
+| --- | --- | --- | --- |
+| 진입 | `app_opened` | 앱을 열고 로그인 상태가 확인됨 | `is_logged_in` |
+| 진입 | `login_started` | 로그인 버튼을 누름 | `provider` |
+| 진입 | `login_finished` | 로그인이 성공·실패로 끝남 | `provider`, `outcome`, `failure_type`, `has_guest_transfer` |
+| 진입 | `guest_transfer_finished` | 비회원 체험 데이터 이전이 끝남 | `outcome` |
+| 활용 | `saved_places_viewed` | 보관함 목록을 확인함 | `place_count`, `has_places`, `entry_type=direct/after_save` |
+| 활용 | `saved_places_search_submitted` | 보관함 검색 결과가 표시됨 | `search_id`, `search_method=keyboard/recent_search`, `result_count`, `has_result` |
+| 활용 | `saved_place_selected` | 목록·검색·지도에서 장소를 선택함 | `place_id`, `saved_place_id`, `place_view_id`, `source`, `search_id`, `position` |
+| 활용 | `saved_place_opened` | 장소 상세 화면이 열림 | `place_view_id`, `source`, `is_revisit`, `days_since_saved_bucket` |
+| 활용 | `place_map_viewed` | 상세에서 카카오맵 바로가기를 실행함 | `place_view_id`, `source`, `map_provider=kakao`, `is_revisit` |
+
+- `source`는 `saved_places_grid`, `saved_places_search`, `map_marker`, `map_search_result` 중 하나다. 한 번의 장소 탐색은 `place_view_id`로 선택 → 상세 → 지도를 연결한다.
+- `days_since_saved_bucket`은 `same_day`, `1_day`, `2_7_days`, `8_30_days`, `31_plus_days`다. 저장 후 24시간 이상 지나 같은 장소를 다시 열면 `is_revisit=true`다.
+- 검색어 원문, 장소명, 주소, 좌표는 속성에 넣지 않는다.
+- 비회원 체험용 예시 장소·콘텐츠에 대한 이벤트는 보내지 않는다. 자세한 규칙은 위 `is_guest` 설명을 따른다.
 
 ## 로그인과 비회원 데이터 이전
 

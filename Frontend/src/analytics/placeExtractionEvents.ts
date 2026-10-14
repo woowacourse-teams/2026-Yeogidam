@@ -1,3 +1,4 @@
+import {ANALYTICS_EVENTS} from './eventNames';
 import {isOnboardingSampleId} from '../entities/onboarding/data';
 import {
   capture,
@@ -89,7 +90,7 @@ export function trackHistoryViewed(
   client: AnalyticsClient | null | undefined,
   viewState: 'list' | 'empty' | 'error',
 ) {
-  capture(client, 'history_viewed', {
+  capture(client, ANALYTICS_EVENTS.historyViewed, {
     ...getCommonAnalyticsProperties(),
     view_state: viewState,
   });
@@ -101,7 +102,7 @@ export function trackHistoryContentViewed(
   visibleState: HistoryVisibleState,
 ) {
   if (isOnboardingSampleId(contentId)) return;
-  capture(client, 'history_content_viewed', {
+  capture(client, ANALYTICS_EVENTS.historyContentViewed, {
     ...getCommonAnalyticsProperties(),
     content_id: contentId,
     visible_state: visibleState,
@@ -114,7 +115,7 @@ export function trackHistoryContentDetailViewed(
   result: HistoryDetailResult,
 ) {
   if (isOnboardingSampleId(contentId)) return;
-  capture(client, 'history_content_detail_viewed', {
+  capture(client, ANALYTICS_EVENTS.historyContentDetailViewed, {
     ...getCommonAnalyticsProperties(),
     content_id: contentId,
     result,
@@ -160,7 +161,7 @@ export function trackExtractionRequestStarted(
   client: AnalyticsClient | null | undefined,
   params: {requestId: string; source: AppExtractionSource},
 ) {
-  capture(client, 'extraction_request_started', {
+  capture(client, ANALYTICS_EVENTS.extractionRequestStarted, {
     request_id: params.requestId,
     source: params.source,
   });
@@ -178,7 +179,7 @@ export function trackExtractionRequestFinished(
       }
   ),
 ) {
-  capture(client, 'extraction_request_finished', {
+  capture(client, ANALYTICS_EVENTS.extractionRequestFinished, {
     request_id: params.requestId,
     source: params.source,
     outcome: params.outcome,
