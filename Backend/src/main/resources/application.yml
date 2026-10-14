@@ -22,6 +22,9 @@ spring:
 # 루프백에서 온 것만 믿으므로, 127.0.0.1의 nginx는 통과하고 그 밖은 무시한다.
 server:
   forward-headers-strategy: native
+  tomcat:
+    mbeanregistry:
+      enabled: true
 
 oauth:
   # 서버 콜백(/oauth/{kakao,google}/callback)이 인가 코드를 넘겨 줄 앱 주소. 비밀이 아니고 앱의 스킴과 함께 바뀌므로 환경 변수 대신 리터럴로 둔다.
@@ -55,6 +58,13 @@ onboarding:
 media:
   extraction:
     pipeline-version: 1
+    # prod 프로필도 기본 비활성이다. 명시적으로 켠 테스트에서만 전용 공유를 HTTP Fake에 연결한다.
+    load-test:
+      enabled: ${LOAD_TEST_ENABLED:false}
+      fake-base-url: ${LOAD_TEST_FAKE_BASE_URL:}
+      fake-key: ${LOAD_TEST_FAKE_KEY:}
+      shortcode-prefix: ${LOAD_TEST_SHORTCODE_PREFIX:}
+      member-ids: ${LOAD_TEST_MEMBER_IDS:}
     gemini:
       api-key: ${GEMINI_API_KEY}
       model: ${GEMINI_MODEL}
