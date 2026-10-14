@@ -39,6 +39,20 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 
 `extraction_request_finished.failure_type`은 최종 요청 실패에만 쓰며 `auth_failed`, `timeout`, `network_error`, `server_error`, `invalid_request` 중 하나다. `response_received`는 기기가 2xx 응답을 받았다는 뜻이다. 장소 추출의 최종 성공이나 실패는 히스토리의 `processing_status`가 화면에 표시될 때 사용자 경험 이벤트로 확인한다.
 
+## 비활성 이벤트 (대기함)
+
+대기함 화면이 제거되어(#379, #389, #390) 아래 이벤트는 **현재 앱에서 발생하지 않는다.** 대기함을 복원할 때 다시 쓰려고 `src/analytics/placeSavingEvents.ts`와 `src/pages/inBox/inBoxScreen.tsx`는 남겨 둔다.
+
+| 이벤트 | 원래 발생 기준 | 상태 |
+| --- | --- | --- |
+| `pending_places_viewed` | 대기함 화면을 확인함 | 비활성 |
+| `pending_place_save_finished` | 대기함 장소 하나의 저장이 성공·실패로 끝남 | 비활성 |
+| `pending_place_discard_finished` | 대기함 장소 하나의 삭제가 성공·실패로 끝남 | 비활성 |
+| `pending_resolution_completed` | 대기함에서 저장 또는 삭제 처리를 완료함 | 비활성 |
+
+- 이 이벤트들은 Funnel, 대시보드, 지표 계산에 사용하지 않는다. 비활성화 이전에 수집된 데이터만 남아 있다.
+- 대기함을 복원하면 이 표에서 상태를 갱신하고, 그때 `content_id` 등 속성이 현재 기준과 맞는지 다시 확인한다.
+
 ## 해석과 한계
 
 1. 공유 시도 → 기기 보관 → 전송 대기 → 작업 등록 → 실제 요청 → 응답 순서의 건수는 고유 `share_id`로 계산한다. PostHog 도착 순서보다 이벤트 발생 시각을 사용한다.

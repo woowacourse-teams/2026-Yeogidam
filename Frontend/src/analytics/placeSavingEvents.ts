@@ -1,3 +1,8 @@
+/**
+ * 비활성: 대기함 화면이 제거되어(#379, #389, #390) 현재 앱에서 호출되지 않습니다.
+ * 대기함 복원 시 다시 사용하려고 보존하며, Funnel과 지표에는 사용하지 않습니다.
+ * 상태는 docs/POSTHOG_SHARE_EXPERIENCE_PLAN.md의 "비활성 이벤트"에서 관리합니다.
+ */
 import {
   capture,
   getCommonAnalyticsProperties,
