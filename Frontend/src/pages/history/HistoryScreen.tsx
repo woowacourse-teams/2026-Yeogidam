@@ -14,12 +14,16 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
+import {v4 as uuidv4} from 'uuid';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import {
+  toExtractionFailureType,
+  trackExtractionRequestFinished,
+  trackExtractionRequestStarted,
   trackHistoryContentDetailViewed,
   trackHistoryContentViewed,
   trackHistoryViewed,
@@ -42,6 +46,7 @@ import type {
 } from '../../entities/content/types';
 import type {Place} from '../../entities/place/types';
 import {PlaceDetailScreen} from '../place-detail/PlaceDetailScreen';
+import {normalizeReelError} from '../../entities/content/errors';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
@@ -773,7 +778,32 @@ export function HistoryScreen({
     setSelectedReel(null);
 
     try {
-      const response = await saveContent(reel.instagram_url, 'url_input');
+      const requestId = uuidv4();
+      trackExtractionRequestStarted(posthog, {
+        requestId,
+        source: 'history_retry',
+      });
+      let response: Awaited<ReturnType<typeof saveContent>>;
+      try {
+        response = await saveContent(reel.instagram_url, 'url_input', requestId);
+      } catch (requestError) {
+        const normalizedError = normalizeReelError(requestError);
+        trackExtractionRequestFinished(posthog, {
+          requestId,
+          source: 'history_retry',
+          outcome: 'request_failed',
+          failureType: toExtractionFailureType(normalizedError),
+          responseStatus: normalizedError.status,
+        });
+        throw requestError;
+      }
+      // 2xx 응답이면 응답 안의 추출 상태가 FAILED여도 응답 수신으로 기록한다.
+      trackExtractionRequestFinished(posthog, {
+        requestId,
+        source: 'history_retry',
+        outcome: 'response_received',
+        contentId: response.reelId,
+      });
       // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
       // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
       // The newly created retry is already visible in this screen, so it
@@ -847,7 +877,7 @@ export function HistoryScreen({
       });
       Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
     }
-  }, []);
+  }, [posthog]);
 
   useEffect(() => {
     load().catch(() => undefined);

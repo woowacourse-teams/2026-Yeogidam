@@ -41,6 +41,16 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 
 `extraction_request_finished.failure_type`은 최종 요청 실패에만 쓰며 `auth_failed`, `timeout`, `network_error`, `server_error`, `invalid_request` 중 하나다. `response_received`는 기기가 2xx 응답을 받았다는 뜻이다. 장소 추출의 최종 성공이나 실패는 히스토리의 `processing_status`가 화면에 표시될 때 사용자 경험 이벤트로 확인한다.
 
+## 앱에서 직접 시작한 추출 요청
+
+공유 확장이 아니라 앱 화면에서 분석 API를 호출하는 경로는 같은 `extraction_request_started` / `extraction_request_finished` 이벤트를 쓰되 `source`로 구분한다. 이 이벤트에는 `share_id`가 없고, API의 `clientRequestId`와 같은 값을 `request_id`로 넣어 시작과 종료를 연결한다. 공유 건 기준 지표는 `share_id`가 있는 이벤트만 센다.
+
+| `source` | 발생 위치 | 비고 |
+| --- | --- | --- |
+| `history_retry` | 히스토리에서 실패한 항목을 다시 시도함 | `outcome=response_received/request_failed`, 응답을 받으면 `content_id`, 실패하면 `failure_type`, `response_status` |
+
+`failure_type`은 `auth_failed`, `timeout`, `network_error`, `server_error`, `invalid_request` 중 하나다. 2xx 응답에 `FAILED` 상태가 담겨 있어도 `response_received`로 기록한다.
+
 ## 비활성 이벤트 (대기함)
 
 대기함 화면이 제거되어(#379, #389, #390) 아래 이벤트는 **현재 앱에서 발생하지 않는다.** 대기함을 복원할 때 다시 쓰려고 `src/analytics/placeSavingEvents.ts`와 `src/pages/inBox/inBoxScreen.tsx`는 남겨 둔다.
