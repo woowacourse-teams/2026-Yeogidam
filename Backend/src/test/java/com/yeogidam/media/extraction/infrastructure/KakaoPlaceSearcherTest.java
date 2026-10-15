@@ -26,8 +26,8 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.springframework.web.client.RestClient;
 
 class KakaoPlaceSearcherTest {
@@ -266,6 +266,122 @@ class KakaoPlaceSearcherTest {
     }
 
     @Test
+    void 캡션_주소를_좌표로_바꿔_반경_안에서_찾는다() {
+        // given
+        String address = "광주 서구 금화로 278";
+        kakaoServer.respondToAddress(address, "126.85", "35.14");
+        kakaoServer.respondNearby("금호대패삼겹살", documents(
+                document("300", "금호대패삼겹살 금호점", "광주 서구 금호동 1", address)));
+        kakaoServer.respondWith("금호대패삼겹살 서구", documents(
+                document("999", "이가돈", "광주 서구 치평동 1", "광주 서구 상무중앙로 1")));
+        PlaceSearchHint hint = hint("금호대패삼겹살", null, Type.ADDRESS, address);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("300");
+        assertThat(kakaoServer.addressQueries()).containsExactly(address);
+        assertThat(kakaoServer.queries()).containsExactly("금호대패삼겹살");
+        assertThat(kakaoServer.lastKeywordParameters())
+                .containsEntry("x", "126.85")
+                .containsEntry("y", "35.14")
+                .containsEntry("radius", "3000")
+                .doesNotContainKey("sort");
+    }
+
+    @Test
+    void 주소_뒤의_층과_호수를_떼어_가며_좌표를_찾는다() {
+        // given
+        String roadAddress = "서울 마포구 동교로 262-6";
+        kakaoServer.respondToAddress(roadAddress, "126.92", "37.56");
+        kakaoServer.respondNearby("동일", documents(
+                document("1129509773", "동일", "서울 마포구 연남동 387-13", roadAddress)));
+        PlaceSearchHint hint = hint("동일", null, Type.ADDRESS, roadAddress + " 2층 201호");
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("1129509773");
+        assertThat(kakaoServer.addressQueries())
+                .containsExactly(roadAddress + " 2층 201호", roadAddress + " 2층", roadAddress);
+    }
+
+    @Test
+    void 주소를_좌표로_바꾸지_못하면_지역을_붙인_검색으로_돌아간다() {
+        // given
+        String address = "서울 광진구 뚝섬로27길 48";
+        kakaoServer.respondWith("송화산시도삭면 광진구", documents(
+                document("100", "송화산시도삭면", "서울 광진구 자양동 1", address)));
+        PlaceSearchHint hint = hint("송화산시도삭면", null, Type.ADDRESS, address);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("100");
+        assertThat(kakaoServer.addressQueries()).hasSize(4);
+        assertThat(kakaoServer.queries()).containsExactly("송화산시도삭면 광진구");
+    }
+
+    @Test
+    void 반경_안에_결과가_없으면_지역이나_이름만으로_다시_찾지_않고_빈_목록을_반환한다() {
+        // given
+        String address = "부산 남구 수영로 12";
+        kakaoServer.respondToAddress(address, "129.07", "35.14");
+        kakaoServer.respondWith("금빛돼지 남구", documents(
+                document("90134603", "금빛돼지 초읍점", "부산 부산진구 초읍동 215-30", "부산 부산진구 초읍천로 1")));
+        kakaoServer.respondWith("금빛돼지", documents(
+                document("90134603", "금빛돼지 초읍점", "부산 부산진구 초읍동 215-30", "부산 부산진구 초읍천로 1")));
+        PlaceSearchHint hint = hint("금빛돼지", null, Type.ADDRESS, address);
+
+        // when & then
+        assertThat(searcher().search(hint)).isEmpty();
+        assertThat(kakaoServer.queries()).containsExactly("금빛돼지");
+    }
+
+    @Test
+    void 음식점이_아닌_결과는_건너뛰고_음식점만_반환한다() {
+        // given
+        kakaoServer.respondWith("덕수궁", documents(
+                documentWithCategory("1", "덕수궁", "서울 중구 정동 5-1", "여행 > 관광,명소 > 고궁,궁"),
+                documentWithCategory("2", "덕수궁 카페", "서울 중구 정동 6", "음식점 > 카페")));
+        PlaceSearchHint hint = new PlaceSearchHint("덕수궁", null, List.of(), List.of(), null);
+
+        // when & then
+        assertThat(searcher().search(hint))
+                .extracting(place -> place.externalSource().placeId())
+                .containsExactly("2");
+    }
+
+    @Test
+    void 음식점이_아닌_결과만_있으면_빈_목록을_반환한다() {
+        // given
+        kakaoServer.respondWith("청계천", documents(
+                documentWithCategory("1", "청계천", "서울 종로구 서린동 1", "여행 > 관광,명소 > 하천")));
+        PlaceSearchHint hint = new PlaceSearchHint("청계천", null, List.of(), List.of(), null);
+
+        // when & then
+        assertThat(searcher().search(hint)).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"INFERRED", "VIDEO", "IMAGE"})
+    void 영상과_사진에서_읽거나_추론한_주소_근처에_없으면_지역을_붙인_검색으로_돌아간다(String basis) {
+        // given
+        kakaoServer.respondToAddress("용봉동", "126.90", "35.18");
+        kakaoServer.respondWith("미드나잇익스프레스 용봉동", documents(
+                document("500", "미드나잇익스프레스", "광주 남구 양림동 66-38", "광주 남구 양림로 1")));
+        PlaceSearchHint hint = new PlaceSearchHint("미드나잇익스프레스", null, List.of(),
+                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null);
+
+        // when & then
+        assertThat(searcher().search(hint)).extracting(place -> place.externalSource().placeId()).containsExactly("500");
+        assertThat(kakaoServer.queries()).containsExactly("미드나잇익스프레스", "미드나잇익스프레스 용봉동");
+    }
+
+    @Test
     void 카카오가_503을_반환하면_요청_예외가_발생한다() {
         // given
         kakaoServer.respondWithStatus(503);
@@ -328,24 +444,37 @@ class KakaoPlaceSearcherTest {
     }
 
     private String document(String id, String name, String address, String roadAddress) {
+        return documentWithCategory(id, name, address, "음식점 > 중식", roadAddress);
+    }
+
+    private String documentWithCategory(String id, String name, String address, String category) {
+        return documentWithCategory(id, name, address, category, "");
+    }
+
+    private String documentWithCategory(String id, String name, String address, String category, String roadAddress) {
         return """
                 {"id":"%s","place_name":"%s","address_name":"%s","road_address_name":"%s",
-                 "x":"127.0","y":"37.5","category_name":"음식점 > 중식","phone":"",
+                 "x":"127.0","y":"37.5","category_name":"%s","phone":"",
                  "place_url":"https://place.map.kakao.com/%s"}
-                """.formatted(id, name, address, roadAddress, id);
+                """.formatted(id, name, address, roadAddress, category, id);
     }
 
     private static class FakeKakaoServer {
 
         private final HttpServer server;
         private final Map<String, String> responses = new HashMap<>();
+        private final Map<String, String> addressResponses = new HashMap<>();
+        private final Map<String, String> nearbyResponses = new HashMap<>();
         private final List<String> queries = new ArrayList<>();
+        private final List<String> addressQueries = new ArrayList<>();
+        private Map<String, String> lastKeywordParameters = new HashMap<>();
         private String authorization;
         private int status = 200;
 
         private FakeKakaoServer() throws IOException {
             server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
             server.createContext("/v2/local/search/keyword.json", this::handle);
+            server.createContext("/v2/local/search/address.json", this::handleAddress);
             server.start();
         }
 
@@ -353,14 +482,34 @@ class KakaoPlaceSearcherTest {
             String query = readQuery(exchange.getRequestURI());
             int page = readPage(exchange.getRequestURI());
             queries.add(query);
+            lastKeywordParameters = readParameters(exchange.getRequestURI());
             authorization = exchange.getRequestHeaders().getFirst("Authorization");
-            byte[] response = responses.getOrDefault(query + "|" + page, "{\"documents\":[]}")
-                    .getBytes(StandardCharsets.UTF_8);
+            Map<String, String> table = lastKeywordParameters.containsKey("x") ? nearbyResponses : responses;
+            respond(exchange, table.getOrDefault(query + "|" + page, "{\"documents\":[]}"));
+        }
+
+        private void handleAddress(HttpExchange exchange) throws IOException {
+            String query = readQuery(exchange.getRequestURI());
+            addressQueries.add(query);
+            respond(exchange, addressResponses.getOrDefault(query, "{\"documents\":[]}"));
+        }
+
+        private void respond(HttpExchange exchange, String body) throws IOException {
+            byte[] response = body.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(status, response.length);
             try (OutputStream output = exchange.getResponseBody()) {
                 output.write(response);
             }
+        }
+
+        private Map<String, String> readParameters(URI requestUri) {
+            Map<String, String> parameters = new HashMap<>();
+            for (String parameter : requestUri.getRawQuery().split("&")) {
+                String[] pair = parameter.split("=", 2);
+                parameters.put(pair[0], URLDecoder.decode(pair.length > 1 ? pair[1] : "", StandardCharsets.UTF_8));
+            }
+            return parameters;
         }
 
         private String readQuery(URI requestUri) {
@@ -391,6 +540,23 @@ class KakaoPlaceSearcherTest {
 
         private void respondWithStatus(int status) {
             this.status = status;
+        }
+
+        private void respondNearby(String query, String response) {
+            nearbyResponses.put(query + "|1", response);
+        }
+
+        private void respondToAddress(String address, String x, String y) {
+            addressResponses.put(address,
+                    "{\"documents\":[{\"address_name\":\"" + address + "\",\"x\":\"" + x + "\",\"y\":\"" + y + "\"}]}");
+        }
+
+        private List<String> addressQueries() {
+            return addressQueries;
+        }
+
+        private Map<String, String> lastKeywordParameters() {
+            return lastKeywordParameters;
         }
 
         private URI endpoint() {
