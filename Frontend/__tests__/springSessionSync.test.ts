@@ -195,3 +195,26 @@ test('clearSpringSession은 서버 호출 없이 세션을 지운다', async () 
   expect(syncShareSession).toHaveBeenCalledWith(null);
   expect(listener).toHaveBeenCalledWith('SIGNED_OUT', '7');
 });
+
+test('AUTH401_005면 공유 익스텐션이 쓴 새 토큰을 기다렸다가 채택한다', async () => {
+  storeSession(tokens('access-1', 'refresh-1', -1));
+  jest.mocked(refreshSpringTokens).mockImplementation(async () => {
+    // 익스텐션이 같은 토큰을 먼저 회전했고, 조금 뒤 공유 저장소에 새 토큰을 쓴다.
+    setTimeout(() => {
+      nativeSession = {
+        accessToken: 'access-ext',
+        refreshToken: 'refresh-ext',
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+        userId: '7',
+      };
+    }, 100);
+    throw new ApiError({kind: 'http', status: 401, errorCode: 'AUTH401_005', message: 'rotated'});
+  });
+
+  await expect(refreshSpringSession()).resolves.toMatchObject({
+    accessToken: 'access-ext',
+    refreshToken: 'refresh-ext',
+  });
+  expect(stored).not.toBeNull();
+  expect(listener).not.toHaveBeenCalledWith('SIGNED_OUT', expect.anything());
+});

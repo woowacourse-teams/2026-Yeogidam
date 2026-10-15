@@ -210,6 +210,29 @@ async function expireSpringSession(memberId: string | null): Promise<void> {
   emit('SIGNED_OUT', memberId);
 }
 
+const ROTATED_SESSION_POLL_MS = 300;
+const ROTATED_SESSION_POLL_ATTEMPTS = 5;
+
+/**
+ * AUTH401_005는 다른 프로세스(공유 익스텐션)가 방금 같은 리프레시 토큰을 회전했다는 뜻입니다.
+ * 그 프로세스가 새 토큰을 공유 저장소에 쓰기까지 잠시 기다렸다가 채택합니다. 끝내 보이지 않으면
+ * 로그아웃하지 않고 다시 시도할 수 있는 오류로 알립니다.
+ */
+async function waitForRotatedSession(previousRefreshToken: string): Promise<SpringTokenPair> {
+  for (let attempt = 0; attempt < ROTATED_SESSION_POLL_ATTEMPTS; attempt += 1) {
+    await new Promise<void>(resolve => setTimeout(resolve, ROTATED_SESSION_POLL_MS));
+    const stored = await readStoredSession();
+    if (stored && stored.refreshToken !== previousRefreshToken) {
+      return toTokenPair(stored);
+    }
+  }
+
+  throw new ApiError({
+    kind: 'timeout',
+    message: '로그인 정보를 확인하고 있어요. 잠시 후 다시 시도해주세요.',
+  });
+}
+
 async function rotateSpringTokens(): Promise<SpringTokenPair | null> {
   const existing = await readStoredSession();
   if (!existing) return null;
@@ -233,14 +256,14 @@ async function rotateSpringTokens(): Promise<SpringTokenPair | null> {
     return toTokenPair(session);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
-      // AUTH401_005는 다른 프로세스가 방금 회전한 경우라 저장소를 다시 읽습니다.
       const stored = await readStoredSession();
       if (stored && stored.refreshToken !== existing.refreshToken) {
         return toTokenPair(stored);
       }
-      if (error.errorCode !== 'AUTH401_005') {
-        await expireSpringSession(existing.memberId);
+      if (error.errorCode === 'AUTH401_005') {
+        return waitForRotatedSession(existing.refreshToken);
       }
+      await expireSpringSession(existing.memberId);
     }
     throw error;
   }
