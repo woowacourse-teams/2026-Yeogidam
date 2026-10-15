@@ -8,9 +8,25 @@
 <meta property="og:title" content="릴스 속 장소를 기억하고 싶을 땐, 여기담">
 <meta property="og:description" content="인스타그램 릴스를 여기담에 공유하면 AI가 영상 속 장소를 찾아 보관함과 지도에 저장해요.">
 <meta property="og:type" content="website">
-<!-- og:image는 1200x630 이미지를 따로 만들어 두면 카카오톡 미리보기가 더 깔끔하다. -->
+<link rel="canonical" href="https://yeogidam.vercel.app/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:site_name" content="여기담">
+<meta property="og:locale" content="ko_KR">
 <meta property="og:url" content="https://yeogidam.vercel.app/">
-<meta property="og:image" content="https://yeogidam.vercel.app/assets/app-icon.png">
+<meta property="og:image" content="https://yeogidam.vercel.app/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="릴스 속 장소를 기억하고 싶을 땐, 여기담">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="릴스 속 장소를 기억하고 싶을 땐, 여기담">
+<meta name="twitter:description" content="인스타그램 릴스를 여기담에 공유하면 AI가 영상 속 장소를 찾아 보관함과 지도에 저장해요.">
+<meta name="twitter:image" content="https://yeogidam.vercel.app/assets/og.png">
+<meta name="apple-itunes-app" content="app-id=6801408355">
+<meta name="google-play-app" content="app-id=com.yeogidamm.app">
+<meta property="al:ios:app_store_id" content="6801408355">
+<meta property="al:ios:app_name" content="여기담">
+<meta property="al:android:package" content="com.yeogidamm.app">
+<meta property="al:android:app_name" content="여기담">
 <meta name="theme-color" content="#dbe0f9">
 <link rel="icon" href="favicon.ico" sizes="16x16 32x32">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
@@ -328,7 +344,7 @@ p{margin:0}
 .vis .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .vis .mini-grid .pcard{opacity:1;transform:none;border-radius:16px}
 .vis .shots{display:flex;gap:10px;justify-content:center;align-items:flex-start;height:100%}
-.vis .shots img{width:46%;border-radius:18px 18px 0 0;box-shadow:0 6px 20px rgba(26,26,46,.18)}
+.vis .shots img{width:46%;height:auto;border-radius:18px 18px 0 0;box-shadow:0 6px 20px rgba(26,26,46,.18)}
 .vis .tag{display:inline-block;background:var(--black);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;margin-bottom:10px}
 .tip{margin-top:22px;background:var(--bg-cream);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:flex-start;font-size:15px;color:var(--ink-2)}
 .tip b{color:var(--ink)}
@@ -349,7 +365,7 @@ p{margin:0}
 .mini .pop{background:var(--black);color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}
 .tip .tag.small{display:inline-block;margin-top:10px;margin-bottom:0;background:var(--bg-soft);color:var(--ink-2);font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px}
 .vis .shots.one{justify-content:center}
-.vis .shots.one img{width:58%;border-radius:18px 18px 0 0}
+.vis .shots.one img{width:58%;height:auto;border-radius:18px 18px 0 0}
 .hist{background:#fff;padding:0 2px;color:var(--ink)}
 .histv{padding:0 16px 110px}
 .hist-title{font-size:20px;font-weight:800;padding:4px 2px 6px}
@@ -419,7 +435,7 @@ p{margin:0}
 
 /* ---------- 시작하기 ---------- */
 .start{background:linear-gradient(180deg,var(--brand) 0%,#eef0fc 100%);text-align:center}
-.start .char{width:min(180px,40vw);margin:0 auto 10px;animation:walk 2.6s ease-in-out infinite}
+.start .char{width:min(180px,40vw);height:auto;margin:0 auto 10px;animation:walk 2.6s ease-in-out infinite}
 @keyframes walk{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-8px) rotate(2deg)}}
 .start h2{font-size:clamp(26px,4.4vw,42px);font-weight:800}
 .start p{margin-top:14px;color:var(--ink-2);font-size:17px}
@@ -759,7 +775,7 @@ p{margin:0}
         <p>인스타그램 공유 목록에서 여기담을 고르면 링크가 바로 넘어가요. 링크나 주소를 복사할 필요가 없어요. 결과는 여기담 앱의 보관함에서 확인해요.</p>
         <div class="vis">
           <span class="tag">앱 가이드 화면</span>
-          <div class="shots one"><img src="assets/guide-share-sheet.jpg" alt="iPhone 공유 시트에서 여기담을 고르는 화면이에요." loading="lazy"></div>
+          <div class="shots one"><img src="assets/guide-share-sheet.jpg" alt="iPhone 공유 시트에서 여기담을 고르는 화면이에요." loading="lazy" width="354" height="520"></div>
         </div>
       </article>
       <article class="how">
@@ -790,8 +806,8 @@ p{margin:0}
         <div class="vis">
           <span class="tag">실제 앱 화면</span>
           <div class="shots">
-            <img src="assets/screen-library.jpg" alt="여기담 보관함 화면. 저장한 카페가 사진 카드로 보여요." loading="lazy">
-            <img src="assets/screen-map.jpg" alt="여기담 지도 화면. 저장한 장소가 캐릭터 핀으로 보여요." loading="lazy">
+            <img src="assets/screen-library.jpg" alt="여기담 보관함 화면. 저장한 카페가 사진 카드로 보여요." loading="lazy" width="413" height="720">
+            <img src="assets/screen-map.jpg" alt="여기담 지도 화면. 저장한 장소가 캐릭터 핀으로 보여요." loading="lazy" width="444" height="960">
           </div>
         </div>
       </article>
@@ -842,7 +858,7 @@ p{margin:0}
 <!-- ========== 시작하기 ========== -->
 <section class="sec start" id="start">
   <div class="wrap">
-    <img class="char" src="assets/character.png" alt="">
+    <img class="char" src="assets/character.png" alt="" width="512" height="512" loading="lazy">
     <h2>이제 저장한 맛집에 진짜 가 보세요</h2>
     <p>릴스를 공유하는 순간부터 여기담이 기억해요. 무료로 시작할 수 있어요.</p>
     <div class="badges">
@@ -874,6 +890,9 @@ p{margin:0}
   </div>
 </footer>
 
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "MobileApplication", "name": "여기담", "alternateName": "Yeogidam", "url": "https://yeogidam.vercel.app/", "description": "인스타그램 릴스를 여기담에 공유하면 AI가 영상 속 장소를 찾아 보관함과 지도에 저장하는 앱", "applicationCategory": "LifestyleApplication", "operatingSystem": "iOS, Android", "image": "https://yeogidam.vercel.app/assets/og.png", "installUrl": ["https://apps.apple.com/kr/app/id6801408355", "https://play.google.com/store/apps/details?id=com.yeogidamm.app"], "offers": {"@type": "Offer", "price": "0", "priceCurrency": "KRW"}, "author": {"@type": "Organization", "name": "여기담 팀", "url": "https://github.com/woowacourse-teams/2026-Yeogidam"}, "inLanguage": "ko"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "무료인가요?", "acceptedAnswer": {"@type": "Answer", "text": "네, 무료예요. 카카오, Apple, Google 로그인이나 이메일 계정으로 바로 시작할 수 있어요."}}, {"@type": "Question", "name": "어떤 영상이 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "인스타그램 릴스와 게시물 링크를 지원해요. 영상이나 캡션에 장소 이름이 드러나 있을수록 잘 찾아요. 유튜브 쇼츠는 아직 지원하지 않아요."}}, {"@type": "Question", "name": "장소를 못 찾으면 어떻게 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "히스토리에 실패로 표시되고 이유를 함께 알려 드려요. 다시 시도하거나 제보 버튼으로 알려 주시면 팀이 확인해요."}}, {"@type": "Question", "name": "영상이 저장되나요?", "acceptedAnswer": {"@type": "Answer", "text": "영상 자체는 저장하지 않아요. 릴스 링크와 썸네일, 찾아낸 장소 정보만 보관해요."}}, {"@type": "Question", "name": "어떤 기기에서 쓸 수 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "iPhone과 Android 모두 돼요. 공유 목록에 여기담이 안 보이면 앱 안의 사용 가이드를 따라 한 번만 추가하면 돼요."}}]}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "여기담", "url": "https://yeogidam.vercel.app/", "inLanguage": "ko"}</script>
 <script>
 (function(){
   'use strict';
