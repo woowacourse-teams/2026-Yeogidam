@@ -4,6 +4,8 @@ import Config from 'react-native-config';
 
 import {secureAuthStorage} from './authStorage';
 
+export {AUTH_CALLBACK_URL} from './callback';
+
 function requiredEnvironmentValue(
   name: 'SUPABASE_URL' | 'SUPABASE_PUBLISHABLE_KEY',
 ): string {
@@ -20,8 +22,6 @@ export const SUPABASE_URL = requiredEnvironmentValue('SUPABASE_URL');
 export const SUPABASE_PUBLISHABLE_KEY = requiredEnvironmentValue(
   'SUPABASE_PUBLISHABLE_KEY',
 );
-
-export const AUTH_CALLBACK_URL = 'com.yeogidamm.app://auth-callback';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
