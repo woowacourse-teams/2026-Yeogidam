@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type {Session} from '@supabase/supabase-js';
 import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -9,7 +9,7 @@ import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
-import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
+import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 // import type {InboxReel} from './src/entities/content/inbox-api';
@@ -42,7 +42,7 @@ import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
-import { getAppUpdatePolicy } from './src/lib/app-update-policy';
+import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   trackAppOpened,
@@ -187,6 +187,11 @@ function App() {
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
+  const [recommendedUpdate, setRecommendedUpdate] = useState<{
+    latestVersion: string;
+    storeUrl: string;
+  } | null>(null);
+  const dismissedRecommendedVersionRef = useRef<string | null>(null);
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -226,6 +231,28 @@ function App() {
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
+  const applyUpdatePolicy = useCallback((policy: AppUpdatePolicy | null) => {
+    if (!policy) return;
+
+    if (policy.updateRequired) {
+      setRecommendedUpdate(null);
+      setRequiredUpdateStoreUrl(policy.storeUrl);
+      return;
+    }
+
+    if (
+      policy.updateRecommended &&
+      dismissedRecommendedVersionRef.current !== policy.latestVersion
+    ) {
+      setRecommendedUpdate({
+        latestVersion: policy.latestVersion,
+        storeUrl: policy.storeUrl,
+      });
+    } else {
+      setRecommendedUpdate(null);
+    }
+  }, []);
+
   const currentScreen: Screen =
     flowState.kind === 'auth'
       ? flowState.stack[flowState.stack.length - 1]
@@ -241,7 +268,8 @@ function App() {
     isAuthenticated === false &&
     !hasPendingShareLogin &&
     myPageOverlay === null &&
-    requiredUpdateStoreUrl === null;
+    requiredUpdateStoreUrl === null &&
+    recommendedUpdate === null;
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
@@ -460,9 +488,7 @@ function App() {
     const checkUpdatePolicy = async () => {
       const policy = await getAppUpdatePolicy();
 
-      if (isMounted && policy?.updateRequired) {
-        setRequiredUpdateStoreUrl(policy.storeUrl);
-      }
+      if (isMounted) applyUpdatePolicy(policy);
     };
 
     const loadGuideCompletion = async () => {
@@ -554,7 +580,7 @@ function App() {
       }
       subscription.unsubscribe();
     };
-  }, [posthog]);
+  }, [posthog, applyUpdatePolicy]);
 
   useEffect(() => {
     if (isAuthenticated !== true) return;
@@ -584,20 +610,22 @@ function App() {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    let isMounted = true;
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState !== 'active') {
         return;
       }
 
       getAppUpdatePolicy().then(policy => {
-        if (policy?.updateRequired) {
-          setRequiredUpdateStoreUrl(policy.storeUrl);
-        }
+        if (isMounted) applyUpdatePolicy(policy);
       });
     });
 
-    return () => subscription.remove();
-  }, []);
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [applyUpdatePolicy]);
 
   useEffect(() => {
     if (!isAuthReady) {
@@ -1182,9 +1210,19 @@ function App() {
           ) : null}
         </View>
       </SafeAreaView>
-      <RequiredAppUpdateModal
+      <AppUpdateModal
+        mode="required"
         storeUrl={requiredUpdateStoreUrl ?? ''}
         visible={requiredUpdateStoreUrl !== null}
+      />
+      <AppUpdateModal
+        mode="recommended"
+        storeUrl={recommendedUpdate?.storeUrl ?? ''}
+        visible={recommendedUpdate !== null && requiredUpdateStoreUrl === null}
+        onDismiss={() => {
+          dismissedRecommendedVersionRef.current = recommendedUpdate?.latestVersion ?? null;
+          setRecommendedUpdate(null);
+        }}
       />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}

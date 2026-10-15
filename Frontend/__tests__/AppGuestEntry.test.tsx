@@ -26,6 +26,8 @@ import {deleteAccount} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
+import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
+import {AppUpdateModal} from '../src/components/AppUpdateModal';
 
 jest.mock('react-native-safe-area-context', () => {
   const ReactModule = require('react');
@@ -141,6 +143,7 @@ async function renderAfterSplash() {
 
 beforeEach(() => {
   jest.useFakeTimers();
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue(null);
   (supabase.auth.getSession as jest.Mock).mockResolvedValue({
     data: {session: null},
     error: null,
@@ -166,6 +169,30 @@ afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   jest.clearAllMocks();
+});
+
+test('권장 업데이트를 보여주고 나중에 선택하면 계속 이용한다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
+    updateRequired: false,
+    updateRecommended: true,
+    minimumSupportedVersion: '1.1.0',
+    latestVersion: '1.2.0',
+    storeUrl: 'https://example.com/store',
+  });
+
+  const renderer = await renderAfterSplash();
+  const recommendedModal = renderer.root.findAllByType(AppUpdateModal).find(
+    modal => modal.props.mode === 'recommended',
+  );
+  expect(recommendedModal?.props.visible).toBe(true);
+  expect(recommendedModal?.props.storeUrl).toBe('https://example.com/store');
+
+  await ReactTestRenderer.act(async () => recommendedModal?.props.onDismiss());
+
+  expect(recommendedModal?.props.visible).toBe(false);
+  expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('온보딩을 마친 비회원이 회원 API 요청 없이 메인에 진입한다', async () => {
