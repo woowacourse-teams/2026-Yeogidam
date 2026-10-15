@@ -29,9 +29,9 @@
 
 | 화면(피그마) | API | 응답 요지 | 상태 |
 |---|---|---|---|
-| P-1 로그인 | POST /auth/logins/{kakao,google,apple}, GET /oauth/{kakao,google}/authorize, GET /oauth/{kakao,google}/callback(/oauth는 /api/v1 밖, #331) | 토큰 쌍 + 회원. 제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 정하고, 다시 로그인해도 닉네임은 바뀌지 않는다. 애플은 앱이 첫 인증 때 받은 이름을 `fullName`(선택)으로 보내면 닉네임으로 쓴다(#276) | 완료(#150), 닉네임 규칙은 #286 진행 중 |
+| P-1 로그인 | POST /auth/logins/{kakao,google,apple}, GET /oauth/{kakao,google}/authorize, GET /oauth/{kakao,google}/callback(/oauth는 /api/v1 밖, #331) | 토큰 쌍 + 회원 + isNewMember(이번 요청으로 가입했으면 true, 기존 회원이거나 같은 계정의 동시 가입 경합에서 늦은 요청이면 false, #403). 제공자가 닉네임을 주지 않으면 서버가 "담이 3432"처럼 "담이"와 네 자리 숫자로 정하고, 다시 로그인해도 닉네임은 바뀌지 않는다. 애플은 앱이 첫 인증 때 받은 이름을 `fullName`(선택)으로 보내면 닉네임으로 쓴다(#276) | 완료(#150), 닉네임 규칙은 #286 진행 중, isNewMember는 #403 진행 중 |
 | (세션) | POST /auth/token-refreshes, POST /auth/logouts | 회전, 폐기 | 완료(#150) |
-| 온보딩(가입 직후) | POST /onboarding/saved-places {kakaoPlaceIds} | 201 {sharedMediaId}. 온보딩에서 보관함에 담아 둔 장소를 가입한 회원의 보관함으로 옮긴다. 설정 `onboarding.instagram-url`의 온보딩 릴스(SEEDED, SUCCEEDED)로 공유 이력을 하나 만들고 받은 장소만 보관함에 넣어 그 이력에 묶는다. 빈 배열이면 이력만 만들고, 이미 옮긴 회원이 다시 부르면 같은 이력 ID를 돌려준다. 추출되지 않은 장소가 섞이면 400(PLACE400_002), 릴스가 시드 데이터에 없으면 503(MEDIA503_001). 앱은 응답 뒤 GET /saved-places로 다시 읽는다 | PR #315. 시드 데이터는 FE와 kakaoPlaceId를 맞춘 뒤 |
+| 온보딩(가입 직후) | POST /onboarding/saved-places {kakaoPlaceIds} | 201 {sharedMediaId}. 온보딩에서 보관함에 담아 둔 장소를 가입한 회원의 보관함으로 옮긴다. 설정 `onboarding.instagram-url`의 온보딩 릴스(SEEDED, SUCCEEDED)로 공유 이력을 하나 만들고 받은 장소만 보관함에 넣어 그 이력에 묶는다. 빈 배열이면 이력만 만들고, 이미 옮긴 회원이 다시 부르면 같은 이력 ID를 돌려준다. 추출되지 않은 장소가 섞이면 400(PLACE400_002), 릴스가 시드 데이터에 없으면 503(MEDIA503_001). 앱은 로그인 응답의 isNewMember가 true이고 기기에 체험 데이터가 있을 때 부르고, 실패하면 다음 실행 때 다시 보낸다. 앱은 응답 뒤 GET /saved-places로 다시 읽는다 | PR #315. 시드 데이터는 FE와 kakaoPlaceId를 맞춘 뒤 |
 | P-5 마이 A, A-1 | GET /members/me | id, nickname, email, imageUrl, oauthProvider | 완료(#162) |
 | P-5 회원탈퇴 B | DELETE /members/me {authorizationCode} | 204. 탈퇴 화면의 재인증 코드로 제공자 연결을 끊고 전 세션 폐기 + 회원 데이터 삭제(FK CASCADE) | 완료(#199) |
 | P-2 링크 입력 B, B-1, 공유 확장 | POST /shares {instagramUrl} | 202 {sharedMediaId, extractionStatus}. 히스토리에 공유를 남기고 분석 성공 시 추출된 장소를 보관함에 자동 저장하고 원본 릴스와 연결. 상태는 새로 분석하거나 진행 중인 분석에 합류하면 EXTRACTING, 이미 성공한 릴스를 다시 공유하면 장소를 바로 저장하고 SUCCEEDED, 재시도 조건에 맞지 않는 실패 릴스를 다시 공유하면 FAILED이며 재시도 응답과 모양이 같다(#332) | 완료(#260, #274) |
