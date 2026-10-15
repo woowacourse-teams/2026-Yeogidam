@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 
@@ -101,6 +101,7 @@ import {
   setSharedSaveState,
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
+import Config from 'react-native-config';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
@@ -157,7 +158,6 @@ function describeSocialLoginError(
   error: NormalizedAuthError,
 ): string {
   const providerLabel = SOCIAL_PROVIDER_LABELS[provider];
-  const stageLabel = LOGIN_STAGE_LABELS[error.stage ?? 'unknown'] ?? '로그인 처리';
   const reason =
     error.errorCode === 'CLIENT000_001'
       ? '네트워크 연결 오류'
@@ -170,9 +170,29 @@ function describeSocialLoginError(
             : error.errorCode === 'AUTH502_001'
               ? '로그인 제공자 연결 오류'
               : '로그인 처리 오류';
-  const httpStatus = error.status == null ? '' : `, HTTP ${error.status}`;
+  const rawEnvironment = Config.APP_ENV?.trim() || 'development';
+  const environment = rawEnvironment.toLowerCase() === 'development'
+    ? '개발'
+    : rawEnvironment.toLowerCase() === 'production'
+      ? '운영'
+      : rawEnvironment;
+  const platform = Platform.OS === 'ios' ? 'iOS' : 'Android';
+  const codes = [
+    error.errorCode,
+    error.backendErrorCode && error.backendErrorCode !== error.errorCode
+      ? error.backendErrorCode
+      : null,
+    error.status == null ? null : `HTTP ${error.status}`,
+  ].filter(Boolean).join(', ');
 
-  return `${providerLabel} 로그인 ${stageLabel} 단계에서 ${reason}가 발생했습니다 (${error.errorCode}${httpStatus})`;
+  return `${providerLabel} 로그인 중 오류가 발생했습니다.\n` +
+    `환경·기기: ${environment} · ${platform}\n` +
+    `원인: ${reason} (${codes})`;
+}
+
+function getSocialLoginErrorTitle(error: NormalizedAuthError): string {
+  const stageLabel = LOGIN_STAGE_LABELS[error.stage ?? 'unknown'] ?? '로그인 처리';
+  return `소셜 로그인 오류 · ${stageLabel}`;
 }
 
 function toLoginFailureType(error: NormalizedAuthError): LoginFailureType {
@@ -248,7 +268,7 @@ function captureSocialLoginError(
     ]);
 
     const safeError = new Error(describeSocialLoginError(provider, error));
-    safeError.name = '소셜 로그인 오류';
+    safeError.name = getSocialLoginErrorTitle(error);
     Sentry.captureException(safeError);
   });
 }
