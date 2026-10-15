@@ -65,6 +65,13 @@ python3 -m http.server 8000
 - 외부 리소스는 Pretendard(jsdelivr)와 qrcode-generator(cdnjs) 둘뿐이다. 둘 다 없어도 페이지는 깨지지 않는다.
 - 저장소가 공개이므로 운영 주소, 비밀값, 개인정보를 이 폴더에 두지 않는다.
 
+## 검색과 공유 미리보기
+
+- head에 canonical, robots, Open Graph(`assets/og.png`, 1200x630), 트위터 카드, 앱 링크(`al:*`)와 iOS Smart App Banner(`apple-itunes-app`) 메타가 있다. 주소가 바뀌면 canonical과 `og:url`, `og:image`, `twitter:image`를 같이 고친다.
+- 본문 끝에 JSON-LD 셋이 있다. 앱 정보(MobileApplication), FAQ(FAQPage, FAQ 섹션 문구와 같아야 한다), 사이트(WebSite). FAQ 문구를 고치면 JSON-LD도 같이 고친다.
+- `robots.txt`와 `sitemap.xml`은 루트에 있다. 내용이 크게 바뀌면 sitemap의 `lastmod`를 올린다.
+- 검색 엔진 등록은 사람이 해야 한다. Google Search Console과 네이버 서치어드바이저에 주소를 등록하고 소유 확인 메타를 head에 넣은 뒤 sitemap 주소를 제출한다. 카카오톡 미리보기가 안 바뀌면 카카오 공유 디버거에서 캐시를 지운다.
+
 ## 배포 선택지
 
 지금은 Vercel 프로젝트 `yeogidam`에 배포되어 있다. 주소는 https://yeogidam.vercel.app 이고, 이 폴더에서 `vercel deploy --prod`를 실행하면 다시 배포된다(`.vercel/`에 프로젝트 연결 정보가 있고 git에는 올리지 않는다). 다른 곳으로 옮길 때도 이 폴더를 통째로 올리면 된다. 빌드 단계가 없다.
