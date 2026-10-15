@@ -133,7 +133,11 @@ jest.mock('../src/pages/my-page/AccountDeletionScreen', () => ({
   AccountDeletionScreen: () => null,
 }));
 
-type AuthChangeHandler = (event: string, memberId: string | null) => void;
+type AuthChangeHandler = (
+  event: string,
+  memberId: string | null,
+  details?: {isNewMember?: boolean},
+) => void;
 
 const SPRING_TOKENS = {
   accessToken: 'token',
@@ -507,11 +511,11 @@ test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하�
   expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
 
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', 'new-user');
+    authChangeHandler('SIGNED_IN', 'new-user', {isNewMember: true});
     await Promise.resolve();
   });
 
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('new-user');
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('new-user', true);
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -562,7 +566,8 @@ test('이전에 로그인한 기기에서도 새 계정 로그인 시 군자역 
     authChangeHandler('SIGNED_IN', 'another-new-user');
     await Promise.resolve();
   });
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('another-new-user');
+  // 신규 여부를 내리기 전 서버 응답이면 전환 모듈이 공유 이력으로 판별한다.
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('another-new-user', undefined);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

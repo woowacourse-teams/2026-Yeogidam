@@ -63,10 +63,10 @@ export async function cancelGuestOnboardingTransfer(): Promise<void> {
 }
 
 /**
- * 로그인 응답에 신규 가입 여부가 없어 공유 이력이 하나도 없는 회원을 새 회원으로 봅니다.
- * 기존 회원이 다시 로그인했을 때 온보딩 장소가 보관함에 섞이지 않게 합니다.
+ * 로그인 응답에 isNewMember가 없을 때(필드 추가 전 서버)만 씁니다. 공유 이력이 하나도 없는
+ * 회원을 새 회원으로 봅니다. 공유한 적 없는 기존 회원도 새 회원으로 잡히는 한계가 있습니다.
  */
-async function isNewMember(): Promise<boolean> {
+async function hasNoShareHistory(): Promise<boolean> {
   const response = await client.request<{sharedMedias: unknown[] | null}>(
     '/api/v1/shares',
   );
@@ -82,7 +82,7 @@ function isPermanentFailure(error: unknown): boolean {
   );
 }
 
-async function transfer(memberId: string): Promise<boolean> {
+async function transfer(memberId: string, isNewMember?: boolean): Promise<boolean> {
   let record = await readRecord();
   if (!record) return false;
   if (record.memberId && record.memberId !== memberId) return false;
@@ -96,7 +96,9 @@ async function transfer(memberId: string): Promise<boolean> {
   }
 
   if (!record.memberId) {
-    if (!(await isNewMember())) {
+    // 로그인 응답의 isNewMember로 정합니다. 이 필드를 내리기 전 서버면 공유 이력으로 추측합니다.
+    const isNew = isNewMember ?? (await hasNoShareHistory());
+    if (!isNew) {
       await clearRecord();
       return false;
     }
@@ -119,15 +121,22 @@ async function transfer(memberId: string): Promise<boolean> {
   return true;
 }
 
-/** 옮겼으면 true를 돌려줍니다. 화면은 이때 회원 데이터를 다시 읽습니다. */
-export function resumeGuestOnboardingTransfer(memberId: string): Promise<boolean> {
+/**
+ * 옮겼으면 true를 돌려줍니다. 화면은 이때 회원 데이터를 다시 읽습니다.
+ * isNewMember는 로그인 직후에만 넘깁니다. 한 번 새 회원으로 정하면 기록에 회원 ID를 남겨
+ * 실패 후 다시 보낼 때는 다시 판별하지 않습니다(이관 API는 회원마다 멱등).
+ */
+export function resumeGuestOnboardingTransfer(
+  memberId: string,
+  isNewMember?: boolean,
+): Promise<boolean> {
   if (activeTransfer) {
     return activeTransfer.memberId === memberId
       ? activeTransfer.promise
       : Promise.resolve(false);
   }
 
-  const promise = transfer(memberId).finally(() => {
+  const promise = transfer(memberId, isNewMember).finally(() => {
     if (activeTransfer?.promise === promise) activeTransfer = null;
   });
   activeTransfer = {memberId, promise};

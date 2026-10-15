@@ -163,3 +163,35 @@ test('장소 목록이 없는 이전 버전 기록은 온보딩 장소 전체를
     body: {kakaoPlaceIds: ONBOARDING_KAKAO_PLACE_IDS},
   });
 });
+
+test('로그인 응답이 새 회원이라고 하면 공유 이력을 조회하지 않고 옮긴다', async () => {
+  await beginGuestOnboardingTransfer(ONBOARDING_KAKAO_PLACE_IDS);
+  respond({shares: [{sharedMediaId: 1}]});
+
+  await expect(resumeGuestOnboardingTransfer('7', true)).resolves.toBe(true);
+  expect(mockRequest).not.toHaveBeenCalledWith('/api/v1/shares');
+  expect(transferCalls()).toHaveLength(1);
+});
+
+test('로그인 응답이 기존 회원이라고 하면 아무 요청 없이 기록을 지운다', async () => {
+  await beginGuestOnboardingTransfer(ONBOARDING_KAKAO_PLACE_IDS);
+  respond();
+
+  await expect(resumeGuestOnboardingTransfer('7', false)).resolves.toBe(false);
+  expect(mockRequest).not.toHaveBeenCalled();
+  expect(await AsyncStorage.getItem(STORAGE_KEY)).toBeNull();
+});
+
+test('새 회원으로 정한 뒤 이관이 실패하면 다음 실행에 다시 판별하지 않고 다시 보낸다', async () => {
+  await beginGuestOnboardingTransfer(ONBOARDING_KAKAO_PLACE_IDS);
+  respond({transfer: () => Promise.reject(new ApiError({kind: 'network', message: 'offline'}))});
+
+  await expect(resumeGuestOnboardingTransfer('7', true)).rejects.toBeInstanceOf(ApiError);
+  expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY))!)).toMatchObject({memberId: '7'});
+
+  // 다음 실행에는 로그인 응답이 없어 신규 여부를 넘기지 않는다.
+  respond({shares: [{sharedMediaId: 1}]});
+  await expect(resumeGuestOnboardingTransfer('7')).resolves.toBe(true);
+  expect(mockRequest).not.toHaveBeenCalledWith('/api/v1/shares');
+  expect(transferCalls()).toHaveLength(2);
+});

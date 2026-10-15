@@ -22,6 +22,8 @@ export type SpringMember = {
 
 export type SpringLoginResponse = SpringTokenPair & {
   member: SpringMember;
+  /** 이번 로그인에서 회원이 새로 만들어졌는지입니다. 이 필드를 내리기 전 서버에는 없습니다. */
+  isNewMember?: boolean;
 };
 
 export async function getSpringAuthorizationUrl(

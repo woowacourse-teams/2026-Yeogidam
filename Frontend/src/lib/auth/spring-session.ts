@@ -19,9 +19,13 @@ const KEYCHAIN_SERVICE = 'com.yeogidamm.app.spring-auth';
 const REFRESH_EARLY_MS = 30_000;
 
 export type SpringSessionEvent = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED';
+/** SIGNED_IN에만 담깁니다. 서버가 신규 여부를 내리지 않으면 isNewMember는 undefined입니다. */
+export type SpringSignInDetails = {isNewMember?: boolean};
+
 export type SpringSessionListener = (
   event: SpringSessionEvent,
   memberId: string | null,
+  details?: SpringSignInDetails,
 ) => void;
 
 /** Keychain 레코드는 토큰 쌍과 함께 공유 익스텐션 세션 대조용 회원 ID를 보관합니다. */
@@ -77,10 +81,15 @@ function toNativeShareSession(session: StoredSpringSession): NativeShareSession 
   };
 }
 
-function emit(event: SpringSessionEvent, memberId: string | null): void {
+function emit(
+  event: SpringSessionEvent,
+  memberId: string | null,
+  details?: SpringSignInDetails,
+): void {
   listeners.forEach(listener => {
     try {
-      listener(event, memberId);
+      if (details) listener(event, memberId, details);
+      else listener(event, memberId);
     } catch {
       // 구독자 오류가 세션 저장 흐름을 막지 않게 합니다.
     }
@@ -192,7 +201,10 @@ export async function loginWithSpringAuthorizationCode(
   };
   await saveStoredRecord(session);
   await syncNativeShareSession(session);
-  emit('SIGNED_IN', session.memberId);
+  emit('SIGNED_IN', session.memberId, {
+    isNewMember:
+      typeof response.isNewMember === 'boolean' ? response.isNewMember : undefined,
+  });
   return response;
 }
 

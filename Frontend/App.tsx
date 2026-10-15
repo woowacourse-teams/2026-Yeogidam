@@ -450,8 +450,8 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const resumeOnboardingTransfer = (memberId: string) => {
-      resumeGuestOnboardingTransfer(memberId)
+    const resumeOnboardingTransfer = (memberId: string, isNewMember?: boolean) => {
+      resumeGuestOnboardingTransfer(memberId, isNewMember)
         .then(completed => {
           if (
             !isMounted ||
@@ -560,7 +560,7 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const unsubscribe = onSpringSessionChange((event, memberId) => {
+    const unsubscribe = onSpringSessionChange((event, memberId, details) => {
       if (event === 'SIGNED_IN') {
         resumeWaitingShares().catch(() => undefined);
       }
@@ -600,7 +600,7 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
-      if (memberId) resumeOnboardingTransfer(memberId);
+      if (memberId) resumeOnboardingTransfer(memberId, details?.isNewMember);
     });
 
     return () => {

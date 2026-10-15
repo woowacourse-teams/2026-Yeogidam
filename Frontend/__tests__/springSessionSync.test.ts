@@ -97,7 +97,20 @@ test('로그인하면 회원 ID를 저장하고 공유 세션을 epoch초로 동
     expiresAt: Math.floor(Date.parse(pair.expiresAt) / 1000),
     userId: '7',
   });
-  expect(listener).toHaveBeenCalledWith('SIGNED_IN', '7');
+  // 신규 여부를 내리기 전 서버 응답이면 판단하지 않고 넘긴다.
+  expect(listener).toHaveBeenCalledWith('SIGNED_IN', '7', {isNewMember: undefined});
+});
+
+test('로그인 응답의 신규 회원 여부를 SIGNED_IN에 담아 보낸다', async () => {
+  jest.mocked(exchangeSpringAuthorizationCode).mockResolvedValue({
+    ...tokens('access-1', 'refresh-1', 60),
+    member: {id: 7, nickname: null, email: null, imageUrl: null, oauthProvider: 'GOOGLE'},
+    isNewMember: true,
+  });
+
+  await loginWithSpringAuthorizationCode('google', 'code');
+
+  expect(listener).toHaveBeenCalledWith('SIGNED_IN', '7', {isNewMember: true});
 });
 
 test('공유 익스텐션이 먼저 회전한 같은 회원의 토큰을 채택한다', async () => {
