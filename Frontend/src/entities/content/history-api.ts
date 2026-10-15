@@ -1,82 +1,146 @@
-import {supabase} from '../../lib/auth/supabase';
-import type {HistoryCursor, HistoryReel, HistoryReelDetail} from './types';
+import {ApiError} from '../../lib/api/errors';
+import {createSpringApiClient} from '../../lib/api/spring-client';
+import {toReelApiError, toReelStatus, type SpringShareHistoryItem} from './api';
+import type {
+  HistoryCursor,
+  HistoryReel,
+  HistoryReelDetail,
+  HistoryReelPlace,
+} from './types';
 
-// TODO(spring-migration): 히스토리 화면은 아직 Supabase를 씁니다. Spring의 GET /api/v1/shares,
-// GET /api/v1/shares/{id}/places, POST /api/v1/shares/{id}/reports로 옮길 때 이 파일을 교체합니다.
-const HISTORY_SELECT =
-  'id,instagram_url,instagram_title,instagram_description,instagram_author_username,instagram_thumbnail_url,processing_status,failure_reason,save_mode,created_at';
-const HISTORY_DETAIL_SELECT = `${HISTORY_SELECT},extraction:reel_extractions!reels_extraction_id_fkey(extraction_places:reel_extraction_places(id,position,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)))`;
+const client = createSpringApiClient();
+const SHARES_PATH = '/api/v1/shares';
 
-export async function getHistoryReelDetail(
-  reelId: string,
-): Promise<HistoryReelDetail | null> {
-  const request = () =>
-    supabase
-      .from('reels')
-      .select(HISTORY_DETAIL_SELECT)
-      .eq('id', reelId)
-      .order('position', {
-        ascending: true,
-        referencedTable: 'extraction.extraction_places',
-      })
-      .limit(1)
-      .returns<HistoryReelDetail[]>();
+type SpringShareHistoryResponse = {
+  sharedMedias: SpringShareHistoryItem[] | null;
+  nextCursor: {createdAt: string; id: number} | null;
+};
 
-  let {data, error} = await request();
-  if ((error as {status?: number} | null)?.status === 401) {
-    const {error: refreshError} = await supabase.auth.refreshSession();
-    if (!refreshError) ({data, error} = await request());
-  }
-  if (error) throw error;
-  return data?.[0] ?? null;
+/** 서버 ShareHistoryPlaceResponse. 좌표·카카오 URL·사진 출처는 내려오지 않습니다. */
+type SpringShareHistoryPlace = {
+  placeId: number;
+  thumbnailUrl: string | null;
+  name: string;
+  category: string | null;
+  landLotAddress: string | null;
+  roadAddress: string | null;
+};
+
+type SpringShareHistoryPlacesResponse = {
+  places: SpringShareHistoryPlace[] | null;
+};
+
+export function toHistoryReel(item: SpringShareHistoryItem): HistoryReel {
+  return {
+    id: String(item.sharedMediaId),
+    instagram_url: item.sharedUrl,
+    instagram_title: null,
+    instagram_description: item.caption,
+    instagram_author_username: item.author,
+    instagram_thumbnail_url: item.thumbnailUrl,
+    processing_status: toReelStatus(item.extractionStatus),
+    failure_reason: item.failureReason,
+    save_mode: null,
+    created_at: item.createdAt,
+  };
 }
 
-export async function reportHistoryReel(reelId: string): Promise<void> {
-  const {error} = await supabase
-    .from('reel_reports')
-    .upsert({reel_id: reelId}, {onConflict: 'user_id,reel_id', ignoreDuplicates: true});
+export function toHistoryReelPlace(
+  place: SpringShareHistoryPlace,
+  position: number,
+): HistoryReelPlace {
+  return {
+    id: String(place.placeId),
+    position,
+    place: {
+      id: String(place.placeId),
+      name: place.name,
+      category: place.category,
+      source_address: null,
+      road_address: place.roadAddress,
+      address: place.landLotAddress,
+      latitude: null,
+      longitude: null,
+      kakao_place_url: null,
+      thumbnail_url: place.thumbnailUrl,
+      photo_attribution: null,
+    },
+  };
+}
 
-  if (error) throw error;
+async function requestShares(cursor?: HistoryCursor): Promise<SpringShareHistoryResponse> {
+  try {
+    return await client.request<SpringShareHistoryResponse>(SHARES_PATH, {
+      query: cursor
+        ? {cursorCreatedAt: cursor.created_at, cursorId: cursor.id}
+        : undefined,
+    });
+  } catch (error) {
+    throw toReelApiError(error);
+  }
 }
 
 export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
   nextCursor: HistoryCursor | null;
 }> {
-  const request = () => {
-    let query = supabase
-      .from('reels')
-      .select(HISTORY_SELECT)
-      .order('created_at', {ascending: false})
-      .order('id', {ascending: false})
-      .limit(51);
-
-    if (cursor) {
-      query = query.or(
-        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`,
-      );
-    }
-
-    return query.returns<HistoryReel>();
-  };
-
-  let {data, error} = await request();
-  if (error?.code === 'PGRST301' || error?.message?.includes('401')) {
-    const {error: refreshError} = await supabase.auth.refreshSession();
-    if (!refreshError) {
-      ({data, error} = await request());
-    }
-  }
-
-  if (error) {
-    throw error;
-  }
-
-  const rows = (data ?? []) as unknown as HistoryReel[];
-  const reels = rows.slice(0, 50);
-  const last = reels.length === 50 ? reels[reels.length - 1] : null;
+  const response = await requestShares(cursor);
+  const nextCursor = response?.nextCursor;
   return {
-    reels,
-    nextCursor: last ? {created_at: last.created_at, id: last.id} : null,
+    reels: (response?.sharedMedias ?? []).map(toHistoryReel),
+    nextCursor: nextCursor
+      ? {created_at: nextCursor.createdAt, id: String(nextCursor.id)}
+      : null,
   };
+}
+
+/**
+ * 서버에 단건 공유 조회 API가 없어 최근 공유 첫 페이지에서 찾습니다. 장소는 추출에
+ * 성공한 공유만 조회합니다(추출 중·실패 공유는 서버가 400을 돌려줍니다).
+ */
+export async function getHistoryReelDetail(
+  reelId: string,
+): Promise<HistoryReelDetail | null> {
+  const response = await requestShares();
+  const item = response?.sharedMedias?.find(
+    share => String(share.sharedMediaId) === reelId,
+  );
+  if (!item) return null;
+
+  const reel = toHistoryReel(item);
+  if (reel.processing_status !== 'COMPLETED') {
+    return {...reel, extraction: null};
+  }
+
+  let places: SpringShareHistoryPlacesResponse;
+  try {
+    places = await client.request<SpringShareHistoryPlacesResponse>(
+      `${SHARES_PATH}/${encodeURIComponent(reelId)}/places`,
+    );
+  } catch (error) {
+    throw toReelApiError(error);
+  }
+
+  return {
+    ...reel,
+    extraction: {
+      extraction_places: (places?.places ?? []).map(toHistoryReelPlace),
+    },
+  };
+}
+
+/** 이미 신고한 공유(MEDIA409_001)는 성공으로 봅니다. */
+export async function reportHistoryReel(reelId: string): Promise<void> {
+  try {
+    await client.request<void>(`${SHARES_PATH}/${encodeURIComponent(reelId)}/reports`, {
+      method: 'POST',
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      if (error.errorCode === 'MEDIA409_001') return;
+      // 201 응답은 본문이 비어 있어 공용 클라이언트가 JSON 파싱 실패로 처리합니다.
+      if (error.kind === 'invalid_response' && error.status === 201) return;
+    }
+    throw toReelApiError(error);
+  }
 }
