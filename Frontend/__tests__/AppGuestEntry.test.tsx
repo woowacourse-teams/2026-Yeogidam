@@ -115,10 +115,6 @@ jest.mock('../src/pages/map/MapScreen', () => ({
   MapScreen: () => null,
 }));
 
-jest.mock('../src/pages/inBox/inBoxScreen', () => ({
-  InBoxScreen: () => null,
-}));
-
 jest.mock('../src/pages/history/HistoryScreen', () => ({
   HistoryScreen: () => null,
 }));

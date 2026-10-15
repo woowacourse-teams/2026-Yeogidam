@@ -6,8 +6,7 @@ Copy `Frontend/.env.example` to `Frontend/.env` and fill in the values required
 by the app.
 Set `API_BASE_URL` to the Spring Boot server origin without `/api/v1`:
 `https://yeogidam-dev.duckdns.org` for development or
-`https://yeogidam.duckdns.org` for production builds. The existing Supabase
-values remain necessary until their API calls are migrated.
+`https://yeogidam.duckdns.org` for production builds.
 
 For a local server, use `http://localhost:8080` in the iOS Simulator and
 `http://10.0.2.2:8080` in the Android Emulator. A physical device needs a

@@ -11,7 +11,6 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
-// import type {InboxReel} from './src/entities/content/inbox-api';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -74,8 +73,7 @@ import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
-// 대기함 흐름을 다시 사용할 때 복원합니다.
-// import { InBoxScreen } from './src/pages/inBox/inBoxScreen';
+// 대기함(inBoxScreen, inbox-api)은 Supabase 전용이라 삭제했습니다. 다시 쓰려면 Spring API로 새로 만들어야 합니다.
 import { HistoryScreen } from './src/pages/history/HistoryScreen';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';

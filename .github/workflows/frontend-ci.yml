@@ -92,8 +92,6 @@ jobs:
         run: |
           printf '%s\n' \
             'KAKAO_NATIVE_APP_KEY=ci-placeholder' \
-            'SUPABASE_URL=https://ci.example.invalid' \
-            'SUPABASE_PUBLISHABLE_KEY=ci-placeholder' \
             'API_BASE_URL=https://ci.example.invalid' > .env
       - name: Build Android release app
         # PR에서는 저장소의 개발용 키로 Release 변형을 서명한다. 배포용 AAB는 만들지 않는다.
@@ -138,8 +136,6 @@ jobs:
         run: |
           printf '%s\n' \
             'KAKAO_NATIVE_APP_KEY=ci-placeholder' \
-            'SUPABASE_URL=https://ci.example.invalid' \
-            'SUPABASE_PUBLISHABLE_KEY=ci-placeholder' \
             'API_BASE_URL=https://ci.example.invalid' > .env
       # Podfile에 선언된 iOS 네이티브 라이브러리를 설치해 .xcworkspace를 준비한다.
       - name: Install CocoaPods
@@ -204,8 +200,6 @@ jobs:
       - name: Prepare Android release secrets
         env:
           KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
@@ -214,8 +208,8 @@ jobs:
           ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
-          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY SUPABASE_URL \
-            SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
+          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY \
+            POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
             ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD SENTRY_AUTH_TOKEN; do
             if [[ -z "${!key}" ]]; then
@@ -223,8 +217,8 @@ jobs:
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" "$API_BASE_URL" \
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
+            "$KAKAO_NATIVE_APP_KEY" "$API_BASE_URL" \
             "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
@@ -282,8 +276,6 @@ jobs:
       - name: Prepare iOS release secrets
         env:
           KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
@@ -291,8 +283,8 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
-          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY SUPABASE_URL \
-            SUPABASE_PUBLISHABLE_KEY POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
+          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY \
+            POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
             APP_STORE_CONNECT_ISSUER_ID SENTRY_AUTH_TOKEN; do
             if [[ -z "${!key}" ]]; then
@@ -300,8 +292,8 @@ jobs:
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nSUPABASE_URL=%s\nSUPABASE_PUBLISHABLE_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$SUPABASE_URL" "$SUPABASE_PUBLISHABLE_KEY" "$API_BASE_URL" \
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
+            "$KAKAO_NATIVE_APP_KEY" "$API_BASE_URL" \
             "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
