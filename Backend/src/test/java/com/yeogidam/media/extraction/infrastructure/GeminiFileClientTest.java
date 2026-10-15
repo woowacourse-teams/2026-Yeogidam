@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.instagram.domain.DownloadedMedia;
 import java.io.IOException;
@@ -25,7 +24,8 @@ import org.springframework.web.client.RestClient;
 
 class GeminiFileClientTest {
 
-    private final GeminiProperties properties = new GeminiProperties("test-key", "test-model");
+    private static final String API_KEY = "test-key";
+
     private final List<String> deleted = new ArrayList<>();
     private final AtomicInteger polls = new AtomicInteger();
     private HttpServer server;
@@ -44,7 +44,7 @@ class GeminiFileClientTest {
         var path = Files.createTempFile("yeogidam-file-test-", ".bin");
         Files.writeString(path, "video content");
         media = new DownloadedMedia(path, "video/mp4");
-        client = new GeminiFileClient(RestClient.create(), properties, baseUri, Duration.ofSeconds(3));
+        client = new GeminiFileClient(RestClient.create(), baseUri, Duration.ofSeconds(3));
     }
 
     @AfterEach
@@ -56,8 +56,8 @@ class GeminiFileClientTest {
     @Test
     void 파일_본문을_업로드하고_분석용_참조를_반환한_뒤_삭제한다() {
         // when
-        GeminiUploadedFile uploaded = client.upload(media);
-        client.delete(uploaded.name());
+        GeminiUploadedFile uploaded = client.upload(media, API_KEY);
+        client.delete(uploaded.name(), API_KEY);
 
         // then
         assertAll(
@@ -76,7 +76,7 @@ class GeminiFileClientTest {
         uploadState = "PROCESSING";
 
         // when
-        GeminiUploadedFile uploaded = client.upload(media);
+        GeminiUploadedFile uploaded = client.upload(media, API_KEY);
 
         // then
         assertAll(
@@ -89,10 +89,10 @@ class GeminiFileClientTest {
     void 파일_처리_대기_시간이_초과되면_업로드_파일을_삭제하고_예외가_발생한다() {
         // given
         uploadState = "PROCESSING";
-        GeminiFileClient immediateTimeout = new GeminiFileClient(RestClient.create(), properties, baseUri, Duration.ZERO);
+        GeminiFileClient immediateTimeout = new GeminiFileClient(RestClient.create(), baseUri, Duration.ZERO);
 
         // when & then
-        assertThatThrownBy(() -> immediateTimeout.upload(media)).isInstanceOf(ExtractionFailedException.class);
+        assertThatThrownBy(() -> immediateTimeout.upload(media, API_KEY)).isInstanceOf(ExtractionFailedException.class);
         assertAll(
                 () -> assertThat(deleted).containsExactly("files/1"),
                 () -> assertThat(polls.get()).isZero()

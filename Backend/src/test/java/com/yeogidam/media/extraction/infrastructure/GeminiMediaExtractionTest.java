@@ -16,6 +16,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,10 +55,10 @@ class GeminiMediaExtractionTest {
         server.start();
         downloader = new FakeMediaDownloader(List.of(media("image/jpeg", "first image"), media("video/mp4", "video")));
         RestClient client = RestClient.create();
-        GeminiProperties properties = new GeminiProperties("test-key", "test-model");
-        GeminiFileClient fileClient = new GeminiFileClient(client, properties, baseUri, Duration.ofSeconds(3));
+        GeminiProperties properties = new GeminiProperties("test-key", "test-model", List.of());
+        GeminiFileClient fileClient = new GeminiFileClient(client, baseUri, Duration.ofSeconds(3));
         extractor = new GeminiPlaceNameExtractor(client, properties, mapper, baseUri.resolve("/v1/interactions"),
-                client, downloader, fileClient);
+                Clock.systemUTC(), client, downloader, fileClient);
     }
 
     private DownloadedMedia media(String mime, String bytes) throws IOException {
@@ -93,8 +94,7 @@ class GeminiMediaExtractionTest {
         assertThat(contents.path(2).path("fileData").path("mimeType").asString()).isEqualTo("video/mp4");
         assertThat(request.path("generationConfig").path("responseMimeType").asString())
                 .isEqualTo("application/json");
-        assertThat(request.path("generationConfig").path("mediaResolution").asString())
-                .isEqualTo("MEDIA_RESOLUTION_HIGH");
+        assertThat(request.path("generationConfig").has("mediaResolution")).isFalse();
         assertThat(request.path("generationConfig").path("responseJsonSchema").path("properties").has("places"))
                 .isTrue();
         assertThat(request.path("systemInstruction").path("parts").path(0).path("text").asString())

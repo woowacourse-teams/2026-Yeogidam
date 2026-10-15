@@ -2,11 +2,13 @@ package com.yeogidam.media.extraction.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
+import com.yeogidam.support.fixture.MutableClock;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -14,8 +16,14 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -23,12 +31,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 class GeminiPlaceNameExtractorTest {
 
+    private static final String FREE_KEY = "free-gemini-key";
+    private static final String PAID_KEY = "paid-gemini-key";
+    private static final String RATE_LIMITED = """
+            {"error":{"message":"Rate limit exceeded (limit: 500 requests per day on Free Tier)","code":"too_many_requests"}}
+            """;
     private static final String CAPTION = "📍올드빅\n분위기가 좋아요. #해방촌 @oldbig";
     private static final String EXTRACTED_PLACES = """
             {"places":[
@@ -40,6 +54,7 @@ class GeminiPlaceNameExtractorTest {
             """;
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
+    private final MutableClock clock = new MutableClock(Instant.parse("2026-10-13T00:00:00Z"));
     private FakeGeminiServer geminiServer;
 
     @BeforeEach
@@ -140,10 +155,134 @@ class GeminiPlaceNameExtractorTest {
         assertThat(geminiServer.requestCount()).isZero();
     }
 
+    @Test
+    void 무료_key가_한도에_걸리면_결제_key로_다시_요청한다() throws Exception {
+        // given
+        geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
+        geminiServer.respondToKeyWith(FREE_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
+
+        // when
+        PlaceSearchHints hints = extractor(FREE_KEY, PAID_KEY).extract(CAPTION);
+
+        // then
+        assertAll(
+                () -> assertThat(hints.places()).hasSize(2),
+                () -> assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY)
+        );
+    }
+
+    @Test
+    void 한도에_걸린_key는_Retry_After_동안_건너뛰고_지나면_다시_쓴다() throws Exception {
+        // given
+        geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
+        geminiServer.respondToKeyWith(FREE_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
+        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        extractor.extract(CAPTION);
+
+        // when
+        clock.advance(Duration.ofSeconds(119));
+        extractor.extract(CAPTION);
+        geminiServer.clearKeyResponse(FREE_KEY);
+        clock.advance(Duration.ofSeconds(1));
+        extractor.extract(CAPTION);
+
+        // then
+        assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY, PAID_KEY, FREE_KEY);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 402, 403})
+    void 결제_잔액이_떨어지거나_key가_거절되면_해당_key를_10분_동안_건너뛴다(int status) throws Exception {
+        // given
+        geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
+        geminiServer.respondToKeyWith(FREE_KEY, status, "{}", Map.of());
+        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        extractor.extract(CAPTION);
+
+        // when
+        clock.advance(Duration.ofMinutes(9));
+        extractor.extract(CAPTION);
+
+        // then
+        assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY, PAID_KEY);
+    }
+
+    @Test
+    void 선불_잔액_소진_문구가_담긴_429는_Retry_After와_상관없이_해당_key를_10분_동안_건너뛴다() throws Exception {
+        // given
+        geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
+        geminiServer.respondToKeyWith(FREE_KEY, 429, "{\"error\":{\"message\":\"Your prepayment credits are depleted.\"}}",
+                Map.of("Retry-After", "1"));
+        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        extractor.extract(CAPTION);
+
+        // when
+        clock.advance(Duration.ofMinutes(9));
+        extractor.extract(CAPTION);
+
+        // then
+        assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY, PAID_KEY);
+    }
+
+    @Test
+    void 서버_오류가_나면_다음_key로_넘기되_해당_key를_막아_두지_않는다() throws Exception {
+        // given
+        geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
+        geminiServer.respondToKeyWith(FREE_KEY, 503, "{}", Map.of());
+        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        extractor.extract(CAPTION);
+
+        // when
+        geminiServer.clearKeyResponse(FREE_KEY);
+        extractor.extract(CAPTION);
+
+        // then
+        assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY, FREE_KEY);
+    }
+
+    @Test
+    void 잘못된_요청이면_다른_key로_다시_보내지_않고_추출_예외가_발생한다() throws Exception {
+        // given
+        geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
+        geminiServer.respondToKeyWith(FREE_KEY, 400, "{}", Map.of());
+
+        // when & then
+        assertThatThrownBy(() -> extractor(FREE_KEY, PAID_KEY).extract(CAPTION))
+                .isInstanceOf(ExtractionFailedException.class)
+                .extracting(exception -> ((ExtractionFailedException) exception).reason())
+                .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+        assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY);
+    }
+
+    @Test
+    void 모든_key가_막혀_있으면_요청하지_않고_추출_예외가_발생한다() throws Exception {
+        // given
+        geminiServer.respondToKeyWith(FREE_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
+        geminiServer.respondToKeyWith(PAID_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
+        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        assertThatThrownBy(() -> extractor.extract(CAPTION)).isInstanceOf(ExtractionFailedException.class);
+
+        // when & then
+        assertThatThrownBy(() -> extractor.extract(CAPTION)).isInstanceOf(ExtractionFailedException.class);
+        assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY);
+    }
+
     private GeminiPlaceNameExtractor extractor(String apiKey) {
-        GeminiProperties properties = new GeminiProperties(apiKey, "test-gemini-model");
-        return new GeminiPlaceNameExtractor(RestClient.builder().build(), properties, jsonMapper,
-                geminiServer.endpoint());
+        return extractor(apiKey, List.of());
+    }
+
+    private GeminiPlaceNameExtractor extractor(String apiKey, String fallbackApiKey) {
+        return extractor(apiKey, List.of(fallbackApiKey));
+    }
+
+    private GeminiPlaceNameExtractor extractor(String apiKey, List<String> fallbackApiKeys) {
+        GeminiProperties properties = new GeminiProperties(apiKey, "test-gemini-model", fallbackApiKeys);
+        // 운영의 geminiRestClient처럼 JDK HttpClient를 쓴다. 기본 RestClient가 고르는 Apache HttpClient는
+        // 429와 503을 받으면 Retry-After만큼 기다렸다가 스스로 한 번 더 보내서 key 전환을 가린다.
+        RestClient restClient = RestClient.builder()
+                .requestFactory(new JdkClientHttpRequestFactory())
+                .build();
+        return new GeminiPlaceNameExtractor(restClient, properties, jsonMapper, geminiServer.endpoint(), clock);
     }
 
     private String interactionResponse(String output) throws Exception {
@@ -192,6 +331,8 @@ class GeminiPlaceNameExtractorTest {
         private final AtomicReference<String> requestBody = new AtomicReference<>();
         private final AtomicReference<String> apiKey = new AtomicReference<>();
         private final AtomicInteger requestCount = new AtomicInteger();
+        private final Map<String, KeyResponse> keyResponses = new ConcurrentHashMap<>();
+        private final List<String> requestedKeys = new CopyOnWriteArrayList<>();
 
         private FakeGeminiServer() throws IOException {
             server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
@@ -202,10 +343,14 @@ class GeminiPlaceNameExtractorTest {
         private void handle(HttpExchange exchange) throws IOException {
             requestCount.incrementAndGet();
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            apiKey.set(exchange.getRequestHeaders().getFirst("x-goog-api-key"));
-            byte[] response = responseBody.get().getBytes(StandardCharsets.UTF_8);
+            String requestKey = exchange.getRequestHeaders().getFirst("x-goog-api-key");
+            apiKey.set(requestKey);
+            requestedKeys.add(requestKey);
+            KeyResponse keyResponse = keyResponses.getOrDefault(requestKey, new KeyResponse(200, responseBody.get(), Map.of()));
+            byte[] response = keyResponse.body().getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
-            exchange.sendResponseHeaders(200, response.length);
+            keyResponse.headers().forEach((name, value) -> exchange.getResponseHeaders().set(name, value));
+            exchange.sendResponseHeaders(keyResponse.status(), response.length);
             try (OutputStream output = exchange.getResponseBody()) {
                 output.write(response);
             }
@@ -213,6 +358,19 @@ class GeminiPlaceNameExtractorTest {
 
         private void respondWith(String response) {
             responseBody.set(response);
+        }
+
+        // 특정 key로 온 요청에만 정한 상태와 본문으로 답한다. 나머지 key는 respondWith의 정상 응답을 받는다.
+        private void respondToKeyWith(String key, int status, String body, Map<String, String> headers) {
+            keyResponses.put(key, new KeyResponse(status, body, headers));
+        }
+
+        private void clearKeyResponse(String key) {
+            keyResponses.remove(key);
+        }
+
+        private List<String> requestedKeys() {
+            return List.copyOf(requestedKeys);
         }
 
         private URI endpoint() {
@@ -234,5 +392,12 @@ class GeminiPlaceNameExtractorTest {
         private void close() {
             server.stop(0);
         }
+    }
+
+    private record KeyResponse(
+            int status,
+            String body,
+            Map<String, String> headers
+    ) {
     }
 }

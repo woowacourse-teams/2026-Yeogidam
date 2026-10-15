@@ -1,6 +1,5 @@
 package com.yeogidam.media.extraction.infrastructure;
 
-import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.instagram.domain.DownloadedMedia;
@@ -30,23 +29,20 @@ public class GeminiFileClient {
     private static final long POLL_MILLIS = 1000;
 
     private final RestClient restClient;
-    private final GeminiProperties properties;
     private final URI baseUri;
     private final Duration processingTimeout;
 
     @Autowired
-    public GeminiFileClient(@Qualifier("geminiMediaRestClient") RestClient restClient, GeminiProperties properties) {
-        this(restClient, properties, BASE_URI, PROCESSING_TIMEOUT);
+    public GeminiFileClient(@Qualifier("geminiMediaRestClient") RestClient restClient) {
+        this(restClient, BASE_URI, PROCESSING_TIMEOUT);
     }
 
     GeminiFileClient(
             RestClient restClient,
-            GeminiProperties properties,
             URI baseUri,
             Duration processingTimeout
     ) {
         this.restClient = restClient;
-        this.properties = properties;
         this.baseUri = baseUri;
         this.processingTimeout = processingTimeout;
     }
@@ -66,15 +62,17 @@ public class GeminiFileClient {
      * PROCESSING_FAILED로 전달한다. 대기 중 스레드가 중단되면 인터럽트 상태를 복원한다.
      * 성공한 업로드 파일은 호출자가 분석을 마친 뒤 delete로 정리해야 한다.
      * 로컬 임시 파일의 삭제는 InstagramMediaDownloader가 담당한다.
+     * 올린 파일은 key의 Google 프로젝트에 묶이므로, 호출자가 key를 바꾸면 같은 원본을 새 key로 다시 올려야 한다.
      *
      * @param media 업로드할 로컬 파일 경로와 MIME 유형
+     * @param apiKey 업로드와 분석에 쓸 Gemini key
      * @return ACTIVE 상태가 확인된 Gemini 파일의 이름, 분석용 URI, MIME 유형
      * @throws ExtractionFailedException 업로드, 응답 검증 또는 처리 상태 확인에 실패한 경우
      */
-    public GeminiUploadedFile upload(DownloadedMedia media) {
+    public GeminiUploadedFile upload(DownloadedMedia media, String apiKey) {
         String name = null;
         try {
-            URI uploadUri = startUpload(media);
+            URI uploadUri = startUpload(media, apiKey);
             JsonNode file = restClient.post()
                 .uri(uploadUri)
                     .header("X-Goog-Upload-Offset", "0")
@@ -89,7 +87,7 @@ public class GeminiFileClient {
             file = file.path("file");
             name = file.path("name").asString();
             validateName(name);
-            file = awaitActive(file, name);
+            file = awaitActive(file, name, apiKey);
             String uri = file.path("uri").asString();
             if (uri == null || uri.isBlank()) {
                 throw new IllegalStateException("Gemini 파일 참조가 없습니다.");
@@ -97,7 +95,7 @@ public class GeminiFileClient {
             return new GeminiUploadedFile(name, uri, media.mimeType());
         } catch (Exception exception) {
             if (name != null && name.matches("files/[A-Za-z0-9_-]+")) {
-                delete(name);
+                delete(name, apiKey);
             }
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
@@ -107,10 +105,10 @@ public class GeminiFileClient {
     }
 
     /** 파일 본문을 보내기 전에 업로드 세션을 생성하고, 동일한 Gemini 서버의 업로드용 URL인지 확인한다. */
-    private URI startUpload(DownloadedMedia media) throws java.io.IOException {
+    private URI startUpload(DownloadedMedia media, String apiKey) throws java.io.IOException {
         ResponseEntity<JsonNode> response = restClient.post()
                 .uri(baseUri.resolve("/upload/v1beta/files"))
-                .header("x-goog-api-key", properties.apiKey())
+                .header("x-goog-api-key", apiKey)
                 .header("X-Goog-Upload-Protocol", "resumable")
                 .header("X-Goog-Upload-Command", "start")
                 .header("X-Goog-Upload-Header-Content-Length", String.valueOf(Files.size(media.path())))
@@ -128,7 +126,7 @@ public class GeminiFileClient {
     }
 
     /** PROCESSING 동안 대기하며 상태를 조회하고, ACTIVE 외의 최종 상태는 실패로 처리한다. */
-    private JsonNode awaitActive(JsonNode file, String name) throws InterruptedException {
+    private JsonNode awaitActive(JsonNode file, String name, String apiKey) throws InterruptedException {
         long deadline = System.nanoTime() + processingTimeout.toNanos();
         while ("PROCESSING".equals(file.path("state").asString())) {
             // 조회를 시작하기 전에 대기 기한을 확인하므로, 진행 중인 HTTP 요청이 기한을 넘길 수 있다.
@@ -138,7 +136,7 @@ public class GeminiFileClient {
             Thread.sleep(POLL_MILLIS);
             file = restClient.get()
                 .uri(baseUri.resolve("/v1beta/" + name))
-                    .header("x-goog-api-key", properties.apiKey())
+                    .header("x-goog-api-key", apiKey)
                     .retrieve()
                 .body(JsonNode.class);
             if (file == null) {
@@ -162,13 +160,14 @@ public class GeminiFileClient {
      * 삭제 실패는 경고 로그로 남기며, 호출자의 분석 결과나 원래 예외를 덮어쓰지 않는다.
      *
      * @param name 업로드 응답에서 받은 files/식별자 형식의 파일 이름
+     * @param apiKey 파일을 올릴 때 쓴 Gemini key
      */
-    public void delete(String name) {
+    public void delete(String name, String apiKey) {
         try {
             validateName(name);
             restClient.delete()
                     .uri(baseUri.resolve("/v1beta/" + name))
-                    .header("x-goog-api-key", properties.apiKey())
+                    .header("x-goog-api-key", apiKey)
                     .retrieve()
                     .toBodilessEntity();
         } catch (RuntimeException exception) {
