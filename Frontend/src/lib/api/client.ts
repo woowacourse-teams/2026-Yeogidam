@@ -64,6 +64,13 @@ async function buildHeaders(
   try {
     token = await getAccessToken?.();
   } catch (cause) {
+    // 토큰 재발급 중 연결 실패는 로그인 만료가 아니므로 원래 종류를 유지해 재시도할 수 있게 합니다.
+    if (
+      cause instanceof ApiError &&
+      (cause.kind === 'network' || cause.kind === 'timeout' || cause.kind === 'cancelled')
+    ) {
+      throw cause;
+    }
     throw new ApiError({
       kind: 'auth',
       message: '로그인 정보를 확인하지 못했어요.',

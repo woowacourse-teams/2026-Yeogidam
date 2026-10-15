@@ -1,4 +1,11 @@
 import {createApiClient} from '../src/lib/api/client';
+import {ApiError} from '../src/lib/api/errors';
+import {toScreenApiError} from '../src/lib/api/screen-error';
+import {toReelApiError} from '../src/entities/content/api';
+
+jest.mock('../src/lib/api/spring-client', () => ({
+  createSpringApiClient: jest.fn(() => ({request: jest.fn()})),
+}));
 
 const baseUrl = () => 'https://yeogidam-dev.duckdns.org';
 
@@ -134,6 +141,27 @@ test('토큰 제공 함수의 실패는 원인을 보존한 인증 오류로 전
     .rejects.toMatchObject({kind: 'auth', cause});
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+test.each(['network', 'timeout'] as const)(
+  '토큰 재발급이 %s 오류로 실패하면 로그인 필요가 아닌 연결 오류로 전달한다',
+  async kind => {
+    const fetchMock = jest.fn();
+    const cause = new ApiError({kind, message: '인터넷 연결을 확인해주세요.'});
+    const client = createApiClient({
+      baseUrl,
+      fetchImpl: fetchMock,
+      getAccessToken: async () => { throw cause; },
+    });
+
+    const error = await client.request('/api/v1/saved-places').catch(e => e);
+    expect(error).toBe(cause);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const code = kind === 'network' ? 'CLIENT000_001' : 'CLIENT000_002';
+    expect(toScreenApiError(error)).toMatchObject({errorCode: code, retryable: true});
+    expect(toReelApiError(error)).toMatchObject({errorCode: code, retryable: true});
+  },
+);
 
 test('토큰을 기다리는 동안 취소되면 요청을 전송하지 않는다', async () => {
   const fetchMock = jest.fn();
