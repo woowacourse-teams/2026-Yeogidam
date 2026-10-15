@@ -220,6 +220,67 @@ test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+const hasText = (renderer: ReactTestRenderer.ReactTestRenderer, text: string) =>
+  renderer.root.findAll(node => node.props.children === text).length > 0;
+
+test('목록이 보이는 중에 폴링이 실패하면 오류 화면 대신 목록을 유지한다', async () => {
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: null})
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({reels: page([6, 5, 4, 3]), nextCursor: null});
+  const renderer = await render();
+
+  await tick(3000);
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3']);
+
+  await tick(3000);
+  expect(renderedIds(renderer)).toEqual(['6', '5', '4', '3']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('처음 불러오기에 실패하면 오류 화면을 보인다', async () => {
+  jest.mocked(getHistoryReels).mockRejectedValue(new Error('offline'));
+  const renderer = await render();
+
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(true);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('이전 기록 불러오기가 실패하면 목록은 두고 아래에서 다시 불러온다', async () => {
+  const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: firstCursor})
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({reels: page([2, 1]), nextCursor: null})
+    .mockResolvedValue({reels: page([5, 4, 3]), nextCursor: firstCursor});
+  const renderer = await render();
+
+  await scrollToBottom(renderer);
+  expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(true);
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3']);
+
+  // 실패한 뒤에는 스크롤만으로 다시 요청하지 않는다.
+  const callsAfterFailure = jest.mocked(getHistoryReels).mock.calls.length;
+  await scrollToBottom(renderer);
+  expect(jest.mocked(getHistoryReels).mock.calls).toHaveLength(callsAfterFailure);
+
+  const retry = renderer.root.find(
+    node =>
+      typeof node.props.onPress === 'function' &&
+      node.findAll(child => child.props.children === '다시 불러오기').length > 0,
+  );
+  await ReactTestRenderer.act(async () => retry.props.onPress());
+
+  expect(getHistoryReels).toHaveBeenLastCalledWith(firstCursor);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+  expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer) {
   const failed = renderer.root.find(
     node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',

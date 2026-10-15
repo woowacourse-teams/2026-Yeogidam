@@ -589,10 +589,18 @@ export function HistoryScreen({
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(guestReels === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+
+  // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
+  const hasReelsRef = useRef(false);
+  hasReelsRef.current = reels.length > 0;
+  const showErrorIfEmpty = useCallback(() => {
+    if (!hasReelsRef.current) setError(true);
+  }, []);
 
   cardStatesRef.current = new Map(reels.map(reel => {
     const processing = reel.processing_status === 'PENDING' || reel.processing_status === 'PROCESSING';
@@ -695,8 +703,10 @@ export function HistoryScreen({
     if (nextCursor) {
       if (loadingMoreRef.current) return;
       loadingMoreRef.current = true;
+      setLoadMoreFailed(false);
       setLoadingMore(true);
     } else if (!silent) {
+      setLoadMoreFailed(false);
       hasLoadedMoreRef.current = false;
       setLoading(true);
     }
@@ -724,7 +734,11 @@ export function HistoryScreen({
         requestAnimationFrame(() => trackHistoryViewed(posthog, result.reels.length ? 'list' : 'empty'));
       }
     } catch {
-      setError(true);
+      // 처음 불러올 때만 오류 화면을 보인다. 이전 기록 불러오기 실패는 목록 아래에서,
+      // 폴링·재시도 뒤 다시 읽기 실패는 목록을 유지한 채 다음 폴링에 맡긴다.
+      if (nextCursor) setLoadMoreFailed(true);
+      else if (silent) showErrorIfEmpty();
+      else setError(true);
       if (!nextCursor && !silent && !historyViewedRef.current) {
         historyViewedRef.current = true;
         requestAnimationFrame(() => trackHistoryViewed(posthog, 'error'));
@@ -737,7 +751,7 @@ export function HistoryScreen({
         setLoading(false);
       }
     }
-  }, [applyFirstPage, guestReels, posthog]);
+  }, [applyFirstPage, guestReels, posthog, showErrorIfEmpty]);
 
   /**
    * 재시도도 새 공유와 같은 길을 탄다. 접수에 성공하면 목록으로 돌아가 바로 한 번 읽고,
@@ -797,7 +811,7 @@ export function HistoryScreen({
       onResult: result => {
         applyFirstPage(result, false).catch(() => undefined);
       },
-      onError: () => setError(true),
+      onError: showErrorIfEmpty,
     });
     sharesSubscriptionRef.current = subscription;
 
@@ -805,7 +819,7 @@ export function HistoryScreen({
       subscription.unsubscribe();
       sharesSubscriptionRef.current = null;
     };
-  }, [applyFirstPage, guestReels]);
+  }, [applyFirstPage, guestReels, showErrorIfEmpty]);
 
   useEffect(() => {
     load().catch(() => undefined);
@@ -914,7 +928,8 @@ export function HistoryScreen({
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
-          if (reachedBottom && cursor && !loadingMore) {
+          // 실패했으면 스크롤마다 다시 요청하지 않고 다시 불러오기 버튼을 기다린다.
+          if (reachedBottom && cursor && !loadingMore && !loadMoreFailed) {
             load(cursor).catch(() => undefined);
           }
         }}
@@ -982,6 +997,20 @@ export function HistoryScreen({
           ))
         )}
         {loadingMore ? <Text style={styles.moreLoadingText}>이전 기록을 불러오는 중이에요.</Text> : null}
+        {loadMoreFailed && !loadingMore ? (
+          <View>
+            <Text style={styles.moreLoadingText}>이전 기록을 불러오지 못했어요.</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                load(cursor).catch(() => undefined);
+              }}
+              style={styles.moreButton}
+            >
+              <Text style={styles.retryText}>다시 불러오기</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </ScrollView>
       <View style={styles.homeIndicator} />
     </View>
