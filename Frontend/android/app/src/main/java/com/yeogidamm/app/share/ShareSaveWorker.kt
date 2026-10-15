@@ -163,6 +163,14 @@ internal class ShareSaveWorker(
         } catch (error: Exception) {
             if (!outputStreamAcquired) {
                 val networkFailure = isConnectionFailure(error)
+                if (networkFailure) {
+                    ShareSentryReporter.capture(
+                        applicationContext,
+                        "SHARE_EXTRACTION_REQUEST_FAILED",
+                        "place_extraction_request",
+                        exceptionType = error.javaClass.simpleName,
+                    )
+                }
                 ShareResultStore.saveResult(
                     applicationContext,
                     ShareReelResult(

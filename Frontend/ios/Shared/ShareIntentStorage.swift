@@ -1040,6 +1040,12 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     var analyticsOutcome: String?
     var analyticsProperties: [String: Any] = [:]
     if error != nil, result.requestSentAt == nil, task.response == nil {
+      if let error = error as? URLError, error.code != .cancelled {
+        ShareSentryReporter.capture(
+          "SHARE_EXTRACTION_REQUEST_FAILED", stage: "place_extraction_request",
+          exceptionType: String(error.code.rawValue)
+        )
+      }
       result.status = "PENDING"
       result.transferStatus = "WAITING_FOR_NETWORK"
       result.failureReason = nil
