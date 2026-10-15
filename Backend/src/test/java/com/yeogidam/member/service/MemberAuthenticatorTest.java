@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.member.domain.Member;
+import com.yeogidam.member.domain.MemberAuthentication;
 import com.yeogidam.member.domain.MemberProfile;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
@@ -35,7 +36,7 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
     @Test
     void 없는_계정이면_회원을_만든다() {
         // when
-        Member member = memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
+        Member member = memberAuthenticator.authenticate(ACCOUNT, profile("빈")).member();
 
         // then
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
@@ -49,10 +50,10 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
     @Test
     void 있는_계정이면_회원을_다시_만들지_않고_닉네임은_두고_이메일과_이미지를_갱신한다() {
         // given
-        Member created = memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
+        Member created = memberAuthenticator.authenticate(ACCOUNT, profile("빈")).member();
 
         // when
-        Member again = memberAuthenticator.authenticate(ACCOUNT, profile("새이름"));
+        Member again = memberAuthenticator.authenticate(ACCOUNT, profile("새이름")).member();
 
         // then
         Member saved = memberDao.findByOAuthAccount(ACCOUNT).orElseThrow();
@@ -108,15 +109,36 @@ class MemberAuthenticatorTest extends IntegrationTestSupport {
     @Test
     void 제공자_식별자가_같아도_제공자가_다르면_별도_회원이다() {
         // when
-        Member kakao = memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
+        Member kakao = memberAuthenticator.authenticate(ACCOUNT, profile("빈")).member();
         Member google = memberAuthenticator.authenticate(
-                new OAuthAccount(OAuthProvider.GOOGLE, "kakao-1"), profile("빈"));
+                new OAuthAccount(OAuthProvider.GOOGLE, "kakao-1"), profile("빈")).member();
 
         // then
         assertAll(
                 () -> assertThat(google.id()).isNotEqualTo(kakao.id()),
                 () -> assertThat(memberCount()).isEqualTo(2)
         );
+    }
+
+    @Test
+    void 처음_로그인하면_새_회원이다() {
+        // when
+        MemberAuthentication authentication = memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
+
+        // then
+        assertThat(authentication.isNewMember()).isTrue();
+    }
+
+    @Test
+    void 같은_계정으로_다시_로그인하면_새_회원이_아니다() {
+        // given
+        memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
+
+        // when
+        MemberAuthentication authentication = memberAuthenticator.authenticate(ACCOUNT, profile("빈"));
+
+        // then
+        assertThat(authentication.isNewMember()).isFalse();
     }
 
     private long memberCount() {
