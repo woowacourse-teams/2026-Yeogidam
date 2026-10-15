@@ -139,6 +139,17 @@ function createCancellation(callerSignal: AbortSignal | undefined, timeoutMs: nu
   };
 }
 
+/**
+ * 본문이 비어 있으면 undefined를 돌려줍니다. 서버는 201 Created 등에서 본문 없이 응답합니다.
+ * text()가 없는 응답 객체(테스트 대역 등)는 기존처럼 json()으로 읽습니다.
+ */
+async function readJsonBody(response: Response): Promise<unknown> {
+  if (typeof response.text !== 'function') return response.json();
+
+  const text = await response.text();
+  return text.trim() ? JSON.parse(text) : undefined;
+}
+
 async function readResponse<T>(response: Response, signal: AbortSignal): Promise<T> {
   if (response.status === 204 || response.status === 205) {
     return undefined as T;
@@ -146,7 +157,7 @@ async function readResponse<T>(response: Response, signal: AbortSignal): Promise
 
   let payload: unknown;
   try {
-    payload = await response.json();
+    payload = await readJsonBody(response);
   } catch (cause) {
     if (signal.aborted) throw cause;
     if (response.ok) {

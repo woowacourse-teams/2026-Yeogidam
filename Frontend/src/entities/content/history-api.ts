@@ -138,11 +138,7 @@ export async function reportHistoryReel(reelId: string): Promise<void> {
       method: 'POST',
     });
   } catch (error) {
-    if (error instanceof ApiError) {
-      if (error.errorCode === 'MEDIA409_001') return;
-      // 201 응답은 본문이 비어 있어 공용 클라이언트가 JSON 파싱 실패로 처리합니다.
-      if (error.kind === 'invalid_response' && error.status === 201) return;
-    }
+    if (error instanceof ApiError && error.errorCode === 'MEDIA409_001') return;
     throw toReelApiError(error);
   }
 }

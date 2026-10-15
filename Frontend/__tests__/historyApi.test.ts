@@ -146,11 +146,6 @@ test('제보는 reports API를 호출하고 이미 신고한 공유는 성공으
   expect(mockRequest).toHaveBeenCalledWith('/api/v1/shares/7/reports', {method: 'POST'});
 
   mockRequest.mockRejectedValueOnce(
-    new ApiError({kind: 'invalid_response', status: 201, message: '응답을 처리하지 못했어요.'}),
-  );
-  await expect(reportHistoryReel('7')).resolves.toBeUndefined();
-
-  mockRequest.mockRejectedValueOnce(
     new ApiError({kind: 'http', status: 409, errorCode: 'MEDIA409_001', message: '이미 신고한 공유입니다.'}),
   );
   await expect(reportHistoryReel('7')).resolves.toBeUndefined();
