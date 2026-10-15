@@ -436,6 +436,12 @@ test('로그아웃하면 회원 메인에서 로그인 화면으로 이동한다
   });
   expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(0);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+
+  // 로그인 화면의 "로그인 없이 둘러보기"로 비회원 메인에 들어간다.
+  const onBrowseAsGuest = renderer.root.findByType(LoginScreen).props.onBrowseAsGuest;
+  expect(onBrowseAsGuest).toEqual(expect.any(Function));
+  await ReactTestRenderer.act(async () => onBrowseAsGuest());
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

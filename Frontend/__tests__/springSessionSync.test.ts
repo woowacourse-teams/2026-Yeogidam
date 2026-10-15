@@ -11,6 +11,7 @@ import {
   clearSpringSession,
   getSpringMemberId,
   getSpringTokens,
+  LocalSessionCleanupError,
   loginWithSpringAuthorizationCode,
   logoutSpringSession,
   onSpringSessionChange,
@@ -156,31 +157,42 @@ test('재사용 판정된 리프레시 토큰이면 세션을 지우고 SIGNED_O
   expect(listener).toHaveBeenCalledWith('SIGNED_OUT', '7');
 });
 
-test('로그아웃은 공유 세션을 먼저 지우고 서버 세션을 끝낸다', async () => {
+test('로그아웃은 서버 세션 폐기를 시도한 뒤 앱과 공유 익스텐션의 세션을 모두 지운다', async () => {
   storeSession(tokens('access-1', 'refresh-1', 60));
   nativeSession = {accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: 1, userId: '7'};
-  jest.mocked(revokeSpringSession).mockImplementation(async () => {
-    expect(nativeSession).toBeNull();
-  });
+  jest.mocked(revokeSpringSession).mockResolvedValue(undefined);
 
-  await logoutSpringSession();
+  await expect(logoutSpringSession()).resolves.toEqual({serverConfirmed: true});
 
-  expect(revokeSpringSession).toHaveBeenCalledWith('refresh-1');
+  expect(revokeSpringSession).toHaveBeenCalledWith('refresh-1', {timeoutMs: 5_000});
   expect(stored).toBeNull();
+  expect(nativeSession).toBeNull();
   expect(listener).toHaveBeenCalledWith('SIGNED_OUT', '7');
 });
 
-test('서버 로그아웃이 실패하면 공유 세션을 되돌리고 오류를 전달한다', async () => {
+test('서버 로그아웃이 실패해도 로컬 로그아웃은 끝내고 미확인 결과를 돌려준다', async () => {
   storeSession(tokens('access-1', 'refresh-1', 60));
-  const shared = {accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: 1, userId: '7'};
-  nativeSession = shared;
-  jest.mocked(revokeSpringSession).mockRejectedValue(
-    new ApiError({kind: 'network', message: 'offline'}),
-  );
+  nativeSession = {accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: 1, userId: '7'};
+  const serverError = new ApiError({kind: 'network', message: 'offline'});
+  jest.mocked(revokeSpringSession).mockRejectedValue(serverError);
 
-  await expect(logoutSpringSession()).rejects.toBeInstanceOf(ApiError);
+  await expect(logoutSpringSession()).resolves.toEqual({
+    serverConfirmed: false,
+    serverError,
+  });
 
-  expect(nativeSession).toEqual(shared);
+  expect(stored).toBeNull();
+  expect(nativeSession).toBeNull();
+  expect(listener).toHaveBeenCalledWith('SIGNED_OUT', '7');
+});
+
+test('로컬 정리에 실패하면 로그아웃하지 않고 LocalSessionCleanupError를 던진다', async () => {
+  storeSession(tokens('access-1', 'refresh-1', 60));
+  jest.mocked(revokeSpringSession).mockResolvedValue(undefined);
+  jest.mocked(syncShareSession).mockRejectedValueOnce(new Error('native store failed'));
+
+  await expect(logoutSpringSession()).rejects.toBeInstanceOf(LocalSessionCleanupError);
+
   expect(stored).not.toBeNull();
   expect(listener).not.toHaveBeenCalledWith('SIGNED_OUT', expect.anything());
 });

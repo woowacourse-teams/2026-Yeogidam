@@ -57,10 +57,14 @@ export function refreshSpringTokens(refreshToken: string): Promise<SpringTokenPa
   });
 }
 
-export function revokeSpringSession(refreshToken: string): Promise<void> {
+export function revokeSpringSession(
+  refreshToken: string,
+  options: {timeoutMs?: number} = {},
+): Promise<void> {
   return client.request<void>('/api/v1/auth/logouts', {
     method: 'POST',
     auth: 'none',
     body: {refreshToken},
+    ...(options.timeoutMs ? {timeoutMs: options.timeoutMs} : {}),
   });
 }

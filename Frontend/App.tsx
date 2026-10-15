@@ -44,6 +44,7 @@ import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import {
   clearSpringSession,
   getSpringMemberId,
+  LocalSessionCleanupError,
   getSpringTokens,
   logoutSpringSession,
   onSpringSessionChange,
@@ -945,6 +946,12 @@ function App() {
     setFlowState(INITIAL_FLOW_STATE);
   };
 
+  // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
+  const handleBrowseAsGuest = () => {
+    setSocialLoginError(null);
+    setFlowState(GUEST_MAIN_FLOW_STATE);
+  };
+
   const handleContinueBrowsing = () => {
     const previousFlow = guestReturnFlowRef.current;
     if (!previousFlow) return;
@@ -965,12 +972,18 @@ function App() {
 
     setIsLogoutPending(true);
 
-    // logoutSpringSession이 공유 세션을 먼저 지우고, 서버 로그아웃이 실패하면 되돌린 뒤 throw합니다.
+    // 로컬 중심 로그아웃: 서버 세션 폐기는 best-effort이고, 로컬 정리가 끝나면 SIGNED_OUT으로
+    // 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
     try {
-      await logoutSpringSession();
+      const result = await logoutSpringSession();
+      if (!result.serverConfirmed) {
+        // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
+      }
       return;
-    } catch {
-      // 아래에서 안내합니다.
+    } catch (error) {
+      if (error instanceof LocalSessionCleanupError) {
+        // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
+      }
     }
 
     setIsLogoutPending(false);
@@ -1076,6 +1089,13 @@ function App() {
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
           onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
+          onBrowseAsGuest={
+            isAuthenticated === false &&
+            !guestReturnFlowRef.current &&
+            !hasPendingShareLogin
+              ? handleBrowseAsGuest
+              : undefined
+          }
         />
       );
     }

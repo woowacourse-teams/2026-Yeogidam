@@ -111,8 +111,8 @@ test('로그아웃이 성공하면 서버 세션을 끝낸 뒤 로컬 토큰을 
   stored = JSON.stringify(tokens('access-1', 'refresh-1', 60));
   jest.mocked(revokeSpringSession).mockResolvedValue(undefined);
 
-  await logoutSpringSession();
+  await expect(logoutSpringSession()).resolves.toEqual({serverConfirmed: true});
 
-  expect(revokeSpringSession).toHaveBeenCalledWith('refresh-1');
+  expect(revokeSpringSession).toHaveBeenCalledWith('refresh-1', {timeoutMs: 5_000});
   expect(await getSpringTokens()).toBeNull();
 });
