@@ -161,6 +161,21 @@ function toDeleteAccountApiError(error: unknown): DeleteAccountError {
   };
 }
 
+/**
+ * 서버·네트워크 문제로 탈퇴 결과를 알 수 없는 실패인지 판단합니다.
+ * 이 경우 앱은 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리합니다.
+ * 재인증 코드 만료·다른 계정 재인증처럼 사용자가 고칠 수 있는 실패(4xx)는 해당하지 않습니다.
+ */
+export function isServerSideDeletionFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const {errorCode, status} = error as Partial<DeleteAccountError>;
+  return (
+    errorCode === 'CLIENT000_001' ||
+    errorCode === 'CLIENT000_002' ||
+    (typeof status === 'number' && status >= 500)
+  );
+}
+
 export function getLinkedDeletionProviders(
   oauthProvider: SpringMember['oauthProvider'] | null | undefined,
 ): AccountDeletionProvider[] {

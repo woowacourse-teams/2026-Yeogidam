@@ -35,6 +35,7 @@ import {
 import {
   deleteAccount,
   getLinkedDeletionProviders,
+  isServerSideDeletionFailure,
   type AccountDeletionProvider,
   type DeleteAccountRequest,
 } from './src/lib/auth/deleteAccount';
@@ -1015,14 +1016,30 @@ function App() {
   };
 
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
-    await deleteAccount(payload);
+    try {
+      await deleteAccount(payload);
+    } catch (error) {
+      // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 탈퇴 화면에서 안내한다.
+      if (!isServerSideDeletionFailure(error)) throw error;
+      // 서버·네트워크 실패는 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리한다.
+      // TODO(sentry): 탈퇴 서버 실패 알림 (회원 ID: activeUserIdRef.current, 제공자: currentProfile?.oauthProvider, error)
+    }
+
+    // 서버 회원은 삭제됐거나 수동 삭제 대상이므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지운다.
+    try {
+      await clearSpringSession();
+    } catch {
+      // TODO(analytics): account_deletion_local_cleanup_failed 이벤트 기록
+      Alert.alert(
+        '회원탈퇴를 마무리하지 못했어요',
+        '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
+      );
+      return;
+    }
 
     setCurrentProfile(null);
     setProfileError(null);
     setMyPageOverlay(null);
-
-    // 서버 회원은 이미 삭제됐으므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지웁니다.
-    await clearSpringSession().catch(() => undefined);
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);

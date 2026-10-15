@@ -5,6 +5,7 @@ import {Alert} from 'react-native';
 
 import App from '../App';
 import {
+  clearSpringSession,
   getSpringMemberId,
   getSpringTokens,
   onSpringSessionChange,
@@ -98,6 +99,8 @@ jest.mock('../src/lib/auth/signInWithGoogle', () => ({
 jest.mock('../src/lib/auth/deleteAccount', () => ({
   deleteAccount: jest.fn(() => Promise.resolve()),
   getLinkedDeletionProviders: jest.fn(() => []),
+  isServerSideDeletionFailure: jest.requireActual('../src/lib/auth/deleteAccount')
+    .isServerSideDeletionFailure,
 }));
 
 jest.mock('../src/pages/guide/AppGuideScreen', () => ({
@@ -614,5 +617,70 @@ test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다�
   );
   expect(alertSpy).not.toHaveBeenCalledWith('장소 추출 실패', expect.anything());
   alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+async function openAccountDeletion() {
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession('member-7');
+  (getCurrentProfile as jest.Mock).mockResolvedValue({id: '7', oauthProvider: 'KAKAO'});
+  (getLinkedDeletionProviders as jest.Mock).mockReturnValue(['kakao']);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(MyPageScreen).props.onWithdraw();
+  });
+  return renderer;
+}
+
+test('회원탈퇴가 서버·네트워크 문제로 실패하면 탈퇴된 것처럼 처리한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (deleteAccount as jest.Mock).mockRejectedValueOnce({
+    status: null,
+    errorCode: 'CLIENT000_001',
+    message: '인터넷 연결을 확인해주세요.',
+    retryable: true,
+  });
+  const renderer = await openAccountDeletion();
+
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(AccountDeletionScreen).props.onDeleteAccount({
+      confirmation: 'DELETE',
+      providerTokens: {kakao: 'code'},
+    });
+  });
+
+  expect(clearSpringSession).toHaveBeenCalled();
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  expect(alertSpy).toHaveBeenCalledWith('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('재인증 문제로 회원탈퇴가 실패하면 탈퇴 화면에 오류를 돌려준다', async () => {
+  const reauthError = {
+    status: 401,
+    errorCode: 'USER401_001',
+    message: '계정 보호를 위해 다시 로그인해주세요.',
+    retryable: true,
+  };
+  (deleteAccount as jest.Mock).mockRejectedValueOnce(reauthError);
+  const renderer = await openAccountDeletion();
+
+  let thrown: unknown;
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findByType(AccountDeletionScreen)
+      .props.onDeleteAccount({confirmation: 'DELETE', providerTokens: {kakao: 'code'}})
+      .catch((error: unknown) => {
+        thrown = error;
+      });
+  });
+
+  expect(thrown).toBe(reauthError);
+  expect(clearSpringSession).not.toHaveBeenCalled();
+  expect(renderer.root.findAllByType(AccountDeletionScreen)).toHaveLength(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
