@@ -177,7 +177,7 @@ export function normalizeAuthError(error: unknown): NormalizedAuthError {
   }
 
   if (typeof httpError?.status === 'number') {
-    return createHttpAuthError(httpError.status);
+    return createHttpAuthError(httpError.status, null, null);
   }
 
   return createProcessingAuthError();
