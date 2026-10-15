@@ -23,6 +23,7 @@ import {
   beginGuestOnboardingTransfer,
   cancelGuestOnboardingTransfer,
   resumeGuestOnboardingTransfer,
+  toOnboardingKakaoPlaceIds,
 } from './src/entities/onboarding/transfer';
 import {
   normalizeAuthError,
@@ -887,7 +888,7 @@ function App() {
 
     try {
       if (isAuthenticated === false && hasCompletedGuide === true) {
-        await beginGuestOnboardingTransfer();
+        await beginGuestOnboardingTransfer(toOnboardingKakaoPlaceIds(guestPlaces));
       }
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
       if (!(await getSpringTokens().catch(() => null))) {

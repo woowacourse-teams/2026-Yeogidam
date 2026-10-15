@@ -90,6 +90,8 @@ jest.mock('../src/entities/onboarding/transfer', () => ({
   beginGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
   cancelGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
   resumeGuestOnboardingTransfer: jest.fn(() => Promise.resolve(false)),
+  toOnboardingKakaoPlaceIds: (places: Array<{kakaoPlaceId?: string}>) =>
+    places.flatMap(place => (place.kakaoPlaceId ? [place.kakaoPlaceId] : [])),
 }));
 
 jest.mock('../src/lib/auth/signInWithGoogle', () => ({
@@ -512,6 +514,37 @@ test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하�
   expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('new-user');
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원이 지운 시드 장소는 빼고 남은 장소로 전환을 시작한다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  const renderer = await renderAfterSplash();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root
+      .findByType(SavedPlacesScreen)
+      .props.onDeleteGuestPlaces(['onboarding-1775568752', 'onboarding-137070444']);
+  });
+  expect(
+    renderer.root.findByType(SavedPlacesScreen).props.places.map(
+      (place: {id: string}) => place.id,
+    ),
+  ).not.toContain('onboarding-1775568752');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onRequireLogin();
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
+  });
+
+  expect(beginGuestOnboardingTransfer).toHaveBeenCalledWith([
+    '337953507',
+    '98016856',
+    '1107844606',
+  ]);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

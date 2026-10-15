@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {ApiError} from '../../lib/api/errors';
 import {createSpringApiClient} from '../../lib/api/spring-client';
+import type {Place} from '../place/types';
 import {ONBOARDING_PLACES} from './data';
 
 const STORAGE_KEY = '@yeogidam/guest-onboarding-transfer';
@@ -11,7 +12,14 @@ type TransferRecord = {
   startedAt: number;
   /** 새 회원으로 확인해 이전 대상으로 정한 회원 ID입니다. */
   memberId?: string;
+  /** 로그인을 시작할 때 비회원 보관함에 남아 있던 장소입니다. 이전 버전 기록에는 없습니다. */
+  kakaoPlaceIds?: string[];
 };
+
+/** 장소 목록에서 카카오 장소 ID만 모읍니다. */
+export function toOnboardingKakaoPlaceIds(places: Place[]): string[] {
+  return places.flatMap(place => (place.kakaoPlaceId ? [place.kakaoPlaceId] : []));
+}
 
 let activeTransfer: {memberId: string; promise: Promise<boolean>} | null = null;
 
@@ -21,7 +29,11 @@ async function readRecord(): Promise<TransferRecord | null> {
 
   try {
     const record = JSON.parse(value) as TransferRecord;
-    return Number.isFinite(record.startedAt) ? record : null;
+    if (!Number.isFinite(record.startedAt)) return null;
+    if (record.kakaoPlaceIds !== undefined && !Array.isArray(record.kakaoPlaceIds)) {
+      return {...record, kakaoPlaceIds: undefined};
+    }
+    return record;
   } catch {
     return null;
   }
@@ -35,9 +47,12 @@ function clearRecord(): Promise<void> {
   return AsyncStorage.removeItem(STORAGE_KEY);
 }
 
-/** 비회원이 로그인을 시작할 때 기록합니다. 로그인한 회원이 새 회원이면 온보딩 장소를 옮깁니다. */
-export function beginGuestOnboardingTransfer(): Promise<void> {
-  return writeRecord({startedAt: Date.now()});
+/**
+ * 비회원이 로그인을 시작할 때 그때 보관함에 남아 있던 장소를 기록합니다.
+ * 로그인한 회원이 새 회원이면 기록한 장소만 옮깁니다.
+ */
+export function beginGuestOnboardingTransfer(kakaoPlaceIds: string[]): Promise<void> {
+  return writeRecord({startedAt: Date.now(), kakaoPlaceIds});
 }
 
 export async function cancelGuestOnboardingTransfer(): Promise<void> {
@@ -72,6 +87,14 @@ async function transfer(memberId: string): Promise<boolean> {
   if (!record) return false;
   if (record.memberId && record.memberId !== memberId) return false;
 
+  const kakaoPlaceIds =
+    record.kakaoPlaceIds ?? toOnboardingKakaoPlaceIds(ONBOARDING_PLACES);
+  // 비회원이 장소를 모두 지웠으면 옮길 것이 없습니다.
+  if (kakaoPlaceIds.length === 0) {
+    await clearRecord();
+    return false;
+  }
+
   if (!record.memberId) {
     if (!(await isNewMember())) {
       await clearRecord();
@@ -85,7 +108,7 @@ async function transfer(memberId: string): Promise<boolean> {
   try {
     await client.request<{sharedMediaId: number}>('/api/v1/onboarding/saved-places', {
       method: 'POST',
-      body: {kakaoPlaceIds: ONBOARDING_PLACES.map(place => place.kakaoPlaceId)},
+      body: {kakaoPlaceIds},
     });
   } catch (error) {
     if (isPermanentFailure(error)) await clearRecord();
