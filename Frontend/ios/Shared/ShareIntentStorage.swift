@@ -2,6 +2,61 @@ import Foundation
 import Security
 import Darwin
 import Network
+import Sentry
+
+enum ShareSentryReporter {
+  private static let dsn = "https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256"
+  private static var isStarted = false
+
+  private static let messages = [
+    "SHARE_PAYLOAD_READ_FAILED": "인스타그램에서 공유한 데이터를 읽지 못했습니다. (SHARE_PAYLOAD_READ_FAILED)",
+    "SHARE_PAYLOAD_STORE_FAILED": "인스타그램에서 받은 공유 데이터를 앱에 저장하지 못했습니다. (SHARE_PAYLOAD_STORE_FAILED)",
+    "SHARE_LOGIN_APP_OPEN_FAILED": "로그인을 위해 여기담 앱을 열지 못했습니다. (SHARE_LOGIN_APP_OPEN_FAILED)",
+    "SHARE_TOKEN_REFRESH_FAILED": "공유한 장소를 추출하기 위한 로그인 토큰 갱신에 실패했습니다. (SHARE_TOKEN_REFRESH_FAILED)",
+    "SHARE_EXTRACTION_REQUEST_FAILED": "공유한 장소 추출 요청을 서버에 전달하지 못했습니다. (SHARE_EXTRACTION_REQUEST_FAILED)",
+    "SHARE_EXTRACTION_RESPONSE_INVALID": "장소 추출 요청의 서버 응답을 확인하지 못했습니다. (SHARE_EXTRACTION_RESPONSE_INVALID)",
+  ]
+
+  static func capture(
+    _ errorCode: String,
+    stage: String = "share_intake",
+    httpStatus: Int? = nil,
+    backendErrorCode: String? = nil,
+    exceptionType: String? = nil
+  ) {
+    guard let message = messages[errorCode] else { return }
+    if !isStarted {
+      isStarted = true
+      SentrySDK.start { options in
+        options.dsn = dsn
+        options.environment = Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String ?? "development"
+        options.sendDefaultPii = false
+        options.enableAutoSessionTracking = false
+      }
+    }
+    let error = NSError(
+      domain: "장소 공유 오류",
+      code: 1,
+      userInfo: [NSLocalizedDescriptionKey: message]
+    )
+    SentrySDK.capture(error: error) { scope in
+      scope.setLevel(.error)
+      scope.setTag(value: "instagram_share", key: "feature")
+      scope.setTag(value: stage, key: "share.stage")
+      scope.setTag(value: "instagram", key: "share.source")
+      scope.setTag(value: "ios", key: "share.platform")
+      scope.setTag(value: errorCode, key: "share.error_code")
+      if let httpStatus { scope.setTag(value: String(httpStatus), key: "http.status_code") }
+      if let backendErrorCode, backendErrorCode.range(of: #"^[A-Z0-9_]{3,64}$"#, options: .regularExpression) != nil {
+        scope.setTag(value: backendErrorCode, key: "share.backend_error_code")
+      }
+      if let exceptionType, exceptionType.range(of: #"^[A-Za-z0-9_.$]{1,100}$"#, options: .regularExpression) != nil {
+        scope.setTag(value: exceptionType, key: "share.exception_type")
+      }
+      scope.setFingerprint(["instagram-share", stage, "ios", errorCode])
+    }
+  }
+}
 
 enum ShareIntentConstants {
   static let appGroupIdentifier = "group.com.yeogidamm.app.shared"
@@ -785,7 +840,10 @@ enum ShareAuth {
     request.httpBody = try? JSONSerialization.data(withJSONObject: ["refreshToken": session.refreshToken])
     do {
       let (data, response) = try await URLSession.shared.data(for: request)
-      guard let http = response as? HTTPURLResponse else { return .waitingForAuth }
+      guard let http = response as? HTTPURLResponse else {
+        ShareSentryReporter.capture("SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh")
+        return .waitingForAuth
+      }
       let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
       if (200..<300).contains(http.statusCode) {
         // 갱신 중 로그아웃으로 세션이 지워졌다면 새 토큰을 다시 저장하지 않는다.
@@ -799,6 +857,7 @@ enum ShareAuth {
               let refresh = json["refreshToken"] as? String, !refresh.isEmpty,
               let expiresAtText = json["expiresAt"] as? String,
               let expiresAt = ShareIntentStorage.epochSeconds(fromISO8601: expiresAtText) else {
+          ShareSentryReporter.capture("SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh", httpStatus: http.statusCode)
           return .waitingForAuth
         }
         do {
@@ -806,9 +865,20 @@ enum ShareAuth {
             accessToken: access, refreshToken: refresh, expiresAt: expiresAt, userId: session.userId
           ))
           return .ready(access)
-        } catch { return .waitingForAuth }
+        } catch {
+          ShareSentryReporter.capture("SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh", httpStatus: http.statusCode)
+          return .waitingForAuth
+        }
       }
-      guard (400...401).contains(http.statusCode) else { return .waitingForAuth }
+      guard (400...401).contains(http.statusCode) else {
+        if http.statusCode == 408 || http.statusCode == 429 || http.statusCode == 504 || http.statusCode >= 500 {
+          ShareSentryReporter.capture(
+            "SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh", httpStatus: http.statusCode,
+            backendErrorCode: json["errorCode"] as? String
+          )
+        }
+        return .waitingForAuth
+      }
       // 다른 프로세스(앱)가 같은 토큰을 먼저 회전했다면 저장소에 새 토큰이 있다.
       if let latest = try? ShareIntentStorage.loadSession(),
          latest.refreshToken != session.refreshToken {
@@ -821,6 +891,10 @@ enum ShareAuth {
       try? ShareIntentStorage.saveSession(nil)
       return .loginRequired("refresh_token_invalid")
     } catch {
+      ShareSentryReporter.capture(
+        "SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh",
+        exceptionType: String(describing: type(of: error))
+      )
       return .waitingForNetwork
     }
   }
@@ -980,6 +1054,10 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
       result.retryable = true
       analyticsOutcome = "request_failed"
       analyticsProperties["failure_type"] = (error as NSError).code == NSURLErrorTimedOut ? "timeout" : "network_error"
+      ShareSentryReporter.capture(
+        "SHARE_EXTRACTION_REQUEST_FAILED", stage: "place_extraction_request",
+        exceptionType: String((error as NSError).code)
+      )
     } else if let http = task.response as? HTTPURLResponse {
       result.responseStatus = http.statusCode
       let json = (try? JSONSerialization.jsonObject(with: responseData[task.taskIdentifier] ?? Data())) as? [String: Any] ?? [:]
@@ -995,12 +1073,15 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
         result.retryable = false
         result.reused = extractionStatus == "SUCCEEDED"
         result.saveMode = "AUTO_SAVE"
-        if result.reelId?.isEmpty != false {
+        if result.reelId?.isEmpty != false || extractionStatus == nil {
           result.status = "FAILED"
           result.transferStatus = "API_FAILED"
           result.failureReason = "MISSING_REEL_ID"
           analyticsOutcome = "request_failed"
           analyticsProperties["failure_type"] = "invalid_response"
+          ShareSentryReporter.capture(
+            "SHARE_EXTRACTION_RESPONSE_INVALID", stage: "place_extraction_request", httpStatus: http.statusCode
+          )
         }
       } else {
         // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
@@ -1017,6 +1098,12 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
         analyticsProperties["failure_type"] = [401, 403].contains(http.statusCode) ? "auth_failed" :
           [408, 504].contains(http.statusCode) ? "timeout" :
           http.statusCode >= 500 ? "server_error" : "invalid_request"
+        if http.statusCode == 408 || http.statusCode == 429 || http.statusCode == 504 || http.statusCode >= 500 {
+          ShareSentryReporter.capture(
+            "SHARE_EXTRACTION_REQUEST_FAILED", stage: "place_extraction_request", httpStatus: http.statusCode,
+            backendErrorCode: json["errorCode"] as? String
+          )
+        }
       }
     } else {
       result.status = "FAILED"

@@ -104,6 +104,15 @@ internal class ShareSaveWorker(
                 // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
                 val errorCode = if (responseCode == 401) "AUTH401_001" else response.optNullableString("errorCode")
                 val message = response.optNullableString("message")
+                if (responseCode == 408 || responseCode == 429 || responseCode == 504 || responseCode >= 500) {
+                    ShareSentryReporter.capture(
+                        applicationContext,
+                        "SHARE_EXTRACTION_REQUEST_FAILED",
+                        "place_extraction_request",
+                        responseCode,
+                        errorCode,
+                    )
+                }
                 saveFailure(
                     requestId = requestId,
                     requestSentAt = requestSentAt,
@@ -123,6 +132,14 @@ internal class ShareSaveWorker(
             val reelId = if (response.isNull("sharedMediaId")) null
                 else response.optLong("sharedMediaId", -1L).takeIf { it >= 0 }?.toString()
             val extractionStatus = response.optNullableString("extractionStatus")
+            if (reelId == null || extractionStatus == null) {
+                ShareSentryReporter.capture(
+                    applicationContext,
+                    "SHARE_EXTRACTION_RESPONSE_INVALID",
+                    "place_extraction_request",
+                    responseCode,
+                )
+            }
             ShareResultStore.saveResult(
                 applicationContext,
                 ShareReelResult(
@@ -162,6 +179,12 @@ internal class ShareSaveWorker(
                 requestId = requestId,
                 requestSentAt = requestSentAt,
                 reason = "CLIENT000_002 | ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
+            )
+            ShareSentryReporter.capture(
+                applicationContext,
+                "SHARE_EXTRACTION_REQUEST_FAILED",
+                "place_extraction_request",
+                exceptionType = error.javaClass.simpleName,
             )
             recordFinished(requestId, "request_failed", null,
                 if (error is java.net.SocketTimeoutException) "timeout" else "network_error")

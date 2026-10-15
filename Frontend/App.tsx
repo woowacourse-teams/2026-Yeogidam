@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
+import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
@@ -104,6 +105,7 @@ import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
+  environment: Config.APP_ENV?.trim() || 'development',
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -124,14 +126,18 @@ function captureShareLoginHandoffError(errorCode: string) {
   const message = messages[errorCode];
   if (!message) return;
 
+  const error = new Error(message);
+  error.name = '장소 공유 오류';
+
   Sentry.withScope(scope => {
+    scope.setLevel('error');
     scope.setTag('feature', 'instagram_share');
     scope.setTag('share.stage', 'login_handoff');
     scope.setTag('share.source', 'instagram');
     scope.setTag('share.platform', Platform.OS);
     scope.setTag('share.error_code', errorCode);
     scope.setFingerprint(['instagram-share', 'login_handoff', Platform.OS, errorCode]);
-    Sentry.captureMessage(message, 'error');
+    Sentry.captureException(error);
   });
 }
 

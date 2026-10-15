@@ -1,42 +1,5 @@
 import UIKit
 import UniformTypeIdentifiers
-import Sentry
-
-private enum ShareSentryReporter {
-  private static let dsn = "https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256"
-  private static var isStarted = false
-
-  static func start() {
-    guard !isStarted else { return }
-    isStarted = true
-    SentrySDK.start { options in
-      options.dsn = dsn
-      options.environment = Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String ?? "development"
-      options.sendDefaultPii = false
-      options.enableAutoSessionTracking = false
-    }
-  }
-
-  static func capture(_ errorCode: String, stage: String = "share_intake") {
-    let messages = [
-      "SHARE_PAYLOAD_READ_FAILED": "인스타그램에서 공유한 데이터를 읽지 못했습니다 (SHARE_PAYLOAD_READ_FAILED)",
-      "SHARE_PAYLOAD_STORE_FAILED": "인스타그램에서 받은 공유 데이터를 앱에 저장하지 못했습니다 (SHARE_PAYLOAD_STORE_FAILED)",
-      "SHARE_LOGIN_APP_OPEN_FAILED": "로그인을 위해 공유 화면에서 여기담 앱을 열지 못했습니다 (SHARE_LOGIN_APP_OPEN_FAILED)",
-    ]
-    guard let message = messages[errorCode] else { return }
-    start()
-    SentrySDK.capture(message: message) { scope in
-      scope.setLevel(.error)
-      scope.setTag(value: "instagram_share", key: "feature")
-      scope.setTag(value: stage, key: "share.stage")
-      scope.setTag(value: "instagram", key: "share.source")
-      scope.setTag(value: "ios", key: "share.platform")
-      scope.setTag(value: errorCode, key: "share.error_code")
-      scope.setFingerprint(["instagram-share", stage, "ios", errorCode])
-    }
-  }
-}
-
 final class ShareViewController: UIViewController {
   private var hasProcessedShare = false
   private let shareId = UUID().uuidString
