@@ -36,10 +36,9 @@ python3 -m http.server 8000
 데모에 쓰는 릴스와 장소는 스크립트 맨 위 `REELS` 배열에 있다.
 
 - `gunja`: 군자역 디저트 5곳. `Backend/src/main/resources/data-onboarding.sql`의 온보딩 시드와 같은 실제 장소, 주소, 카카오 장소 URL이고 사진은 운영 S3 썸네일이다. 작성자 `@yeogidamm`도 시드 그대로다.
-- `gangneung`: 강릉 최일순짬뽕순두부 한 곳. 주소는 실제 앱 화면 캡처에 나온 값이고, 작성자와 캡션은 예시다.
-- `dog`: 장소가 없는 영상. 실패 흐름을 보여 주는 예시다.
+- `chabap`: 여기담 계정의 게시물 `instagram.com/p/DebnmRckoy1`(강민경 차밥열끼 시즌8, 장소 8곳). 캡션의 장소 이름을 카카오 로컬 검색으로 맞춘 결과이고, 사진은 각 카카오 장소 페이지의 미리보기 이미지(서버의 `KakaoPlaceMetaReader`와 같은 방법)를 받은 것이다. 동명 가게가 여럿인 곳(홍춘, 보영만두, 김빠)은 가장 그럴듯한 지점을 골랐으므로 앱의 실제 분석 결과와 다를 수 있다.
 
-장소를 바꾸려면 배열의 `name`, `cat`, `road`, `lot`, `url`, 사진 `img`와 지도 위 위치 `x`, `y`(지도 영역 기준 백분율)를 고치면 된다. `img`가 없으면 이모지 타일로 그린다. 지도 그림은 `mapSVG()`가 그리는 추상 지도라 실제 지형과 맞지 않는다.
+장소를 바꾸려면 배열의 `name`, `cat`, `road`, `lot`, `url`, 사진 `img`와 지도 위 위치 `x`, `y`(지도 영역 기준 백분율)를 고치면 된다. `img`가 없으면 이모지 타일로 그린다. 지도 배경은 `map` 값(`gunja` 또는 `metro`)으로 고른다. 지도 그림은 `mapSVG()`가 그리는 추상 지도라 실제 지형과 맞지 않는다.
 
 ## 자산 출처
 
@@ -54,7 +53,7 @@ python3 -m http.server 8000
 | `assets/screen-library.jpg` | fe-dev `src/assets/guide/intro-library.png`를 줄인 실제 보관함 화면 |
 | `assets/guide-share-sheet.jpg` | fe-dev `src/assets/guide/2page.png`(앱 사용 가이드의 iPhone 공유 시트)를 잘라 줄인 것 |
 | `assets/screen-map.jpg`, `assets/screen-sheet.jpg` | App Store에 올라간 1.1.0 스크린샷 |
-| `assets/place-<카카오 장소 id>.jpg` 5장, `assets/reel-gunja.jpg` | 운영 S3에 저장된 군자역 장소 썸네일과 온보딩 릴스 썸네일(공개 주소에서 받아 480px로 줄임). 장소 사진은 카카오 장소 사진이라 앱 밖에서 오래 쓸 때는 저작권을 한 번 더 확인한다 |
+| `assets/place-<카카오 장소 id>.jpg` 13장, `assets/reel-gunja.jpg`, `assets/reel-chabap.jpg` | 군자역 5곳은 운영 S3 썸네일, 차밥열끼 8곳은 카카오 장소 페이지 미리보기 이미지, 릴스 썸네일 둘은 여기담 계정 게시물의 표지(480px로 줄임). 장소 사진은 카카오 장소 사진이라 앱 밖에서 오래 쓸 때는 저작권을 한 번 더 확인한다 |
 
 공식 배지는 비율과 색을 바꾸지 않고 App Store 배지를 먼저 둔다. 푸터에 Apple과 Google 상표 표기가 있다.
 

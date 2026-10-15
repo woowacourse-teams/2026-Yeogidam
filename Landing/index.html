@@ -392,7 +392,8 @@ p{margin:0}
 .hist-fail{display:flex;gap:8px;margin-top:14px}
 .hist-fail button{flex:1;border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px;font-weight:700;font-size:13px}
 .histv .hist-label{font-size:18px;margin:22px 0 8px}
-.histv .hist-row{padding-left:0}
+.histv .hist-row{padding-left:0;overflow-x:auto;scrollbar-width:none}
+.histv .hist-row::-webkit-scrollbar{display:none}
 .histv .hpc{width:92px}
 .histv .hpc img{width:92px;height:92px}
 .histv .hpc b{font-size:12px}
@@ -590,7 +591,6 @@ p{margin:0}
         <a class="ios" href="https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355" target="_blank" rel="noopener"><img src="assets/app-store-badge.svg" alt="App Store에서 다운로드"></a>
         <a class="play" href="https://play.google.com/store/apps/details?id=com.yeogidamm.app" target="_blank" rel="noopener"><img src="assets/google-play-badge.png" alt="Google Play에서 다운로드"></a>
       </div>
-      <p class="hero-note">무료예요. 설치 전에 <a href="#demo">이 페이지에서 먼저 써 볼 수 있어요.</a></p>
     </div>
 
     <div class="demo" id="demo">
@@ -744,7 +744,7 @@ p{margin:0}
         <button type="button" class="btn btn-dark btn-sm" id="btnFinish" hidden>마치기</button>
       </div>
       <div class="chips" id="chips"><span class="lbl">다른 릴스로 해 보기</span></div>
-      <p class="demo-foot">데모 속 군자역 장소 다섯 곳과 사진은 여기담이 온보딩용으로 준비한 실제 장소와 앱에 저장된 썸네일이에요.<br>릴스 화면과 분석 과정은 설명을 위해 직접 그린 예시이고 인스타그램의 실제 화면이 아니에요.<br>실제 분석은 영상 길이에 따라 더 걸릴 수 있어요.</p>
+      <p class="demo-foot">데모 속 릴스 두 개는 여기담 계정의 실제 게시물이고, 장소 정보와 사진은 카카오 지도의 실제 값이에요.<br>릴스 화면과 분석 과정은 설명을 위해 직접 그린 예시이고 인스타그램의 실제 화면이 아니에요.<br>실제 분석은 영상 길이에 따라 더 걸릴 수 있어요.</p>
     </div>
   </div>
 </section>
@@ -908,7 +908,7 @@ p{margin:0}
       title:'군자역 디저트 저장각 🍰', emoji:'🍰', tone:'t1', theme:'pink',
       caption:'군자역 디저트 저장각 🍰 📍오픈 한 달 만에 방문자리뷰 500개 넘긴 후르츠산도 맛집, 윤숲 📍다이닝코드 맛 평가 4.6, 과일 크레이프가 유명한, FCC 📍군자역 도보 3분, 책 읽기 좋은 북카페, 책방 고즈넉 📍에그타르트로 후기 많은 골목 디저트 카페, 윤키 📍필터커피 후기가 좋은 카페, 연필',
       link:'instagram.com/p/Db4gRWqkuUg', post:'https://www.instagram.com/p/Db4gRWqkuUg/', thumb:'assets/reel-gunja.jpg', scatter:['🍰','🍓','🥞','☕','🥧','🍰','📚','🍓'],
-      mapLabel:'군자역', sea:false,
+      mapLabel:'군자역', map:'gunja',
       places:[
         {name:'윤숲 후르츠산도점', cat:'음식점 > 카페', road:'서울 광진구 면목로7길 8', lot:'서울 광진구 중곡동 628-7', url:'https://place.map.kakao.com/1775568752', img:'assets/place-1775568752.jpg', emoji:'🥪', tone:'t1', x:33, y:17},
         {name:'에프씨씨', cat:'음식점 > 카페', road:'서울 광진구 용마산로3길 88', lot:'서울 광진구 중곡동 134-1', url:'https://place.map.kakao.com/137070444', img:'assets/place-137070444.jpg', emoji:'🥞', tone:'t2', x:80, y:28},
@@ -918,22 +918,21 @@ p{margin:0}
       ]
     },
     {
-      id:'gangneung', chip:'강릉 바다 앞 순두부', author:'@seaside_log', av:'🌊', likes:'8,204', comments:'51',
-      title:'강릉 바다 보면서 먹는 짬뽕순두부 🌊', emoji:'🍲', tone:'t6', theme:'sea',
-      caption:'강릉 바다 보면서 먹는 짬뽕순두부 🌊 해안로 따라가다 보면 나오는 그 집, 최일순짬뽕순두부. 웨이팅은 있지만 창가 자리면 바다가 바로 앞이에요.',
-      link:'instagram.com/reel/C9x1Example', scatter:['🌊','🍲','🐚','☀️','🌊','🥢'],
-      mapLabel:'강릉 사천', sea:true,
+      id:'chabap', chip:'강민경 차밥열끼 8곳', author:'@yeogidamm', av:'담', likes:'2,048', comments:'31',
+      title:'먹잘알 강민경의 차밥열끼 시즌8 🚗💨', emoji:'🍱', tone:'t4', theme:'pink',
+      caption:'먹잘알 강민경의 차밥열끼 시즌8 🚗💨 영상 보면서 여긴 꼭 가야겠다 싶었던 맛집 8곳을 싹 정리해왔어요! 🍽️ 📍 키노이에 파티 📍 홍춘 📍 화덕돌곱창 📍 꽃돌이네 📍 수족관 📍 쿠노카츠 강남본점 📍 보영만두 📍 김빠',
+      link:'instagram.com/p/DebnmRckoy1', post:'https://www.instagram.com/p/DebnmRckoy1/', thumb:'assets/reel-chabap.jpg', scatter:['🍱','🥩','🍜','🥟','🍣','🍛','🥢','🍚'],
+      mapLabel:'강남구', map:'metro',
       places:[
-        {name:'최일순짬뽕순두부', cat:'음식점 > 한식', road:'강원특별자치도 강릉시 해안로 517', lot:'', url:'https://map.kakao.com/?q=%EC%B5%9C%EC%9D%BC%EC%88%9C%EC%A7%AC%EB%BD%95%EC%88%9C%EB%91%90%EB%B6%80', emoji:'🍲', tone:'t6', x:58, y:24}
+        {name:'키노이에파티', cat:'음식점 > 일식', road:'서울 강남구 도산대로72길 8', lot:'서울 강남구 청담동 5-7', url:'https://place.map.kakao.com/527159312', img:'assets/place-527159312.jpg', emoji:'🍣', tone:'t1', x:60, y:19},
+        {name:'홍춘', cat:'음식점 > 중식', road:'경기 용인시 수지구 죽전로168번길 29', lot:'경기 용인시 수지구 죽전동 1336-6', url:'https://place.map.kakao.com/18042790', img:'assets/place-18042790.jpg', emoji:'🥟', tone:'t2', x:70, y:37},
+        {name:'화덕돌곱창', cat:'음식점 > 한식 > 육류,고기 > 곱창,막창', road:'충북 청주시 서원구 안뜸로 60', lot:'충북 청주시 서원구 분평동 249-6', url:'https://place.map.kakao.com/2014608758', img:'assets/place-2014608758.jpg', emoji:'🍖', tone:'t3', x:84, y:41},
+        {name:'꽃돌이네', cat:'음식점 > 한식 > 육류,고기', road:'서울 강남구 언주로174길 29', lot:'서울 강남구 신사동 639-7', url:'https://place.map.kakao.com/2033985372', img:'assets/place-2033985372.jpg', emoji:'🥩', tone:'t4', x:40, y:23},
+        {name:'수족관', cat:'음식점 > 한식 > 해물,생선', road:'서울 강남구 도산대로37길 30', lot:'서울 강남구 신사동', url:'https://place.map.kakao.com/969282150', img:'assets/place-969282150.jpg', emoji:'🐟', tone:'t6', x:52, y:29},
+        {name:'쿠노카츠', cat:'음식점 > 일식 > 돈까스,우동', road:'서울 서초구 서운로 226', lot:'서울 서초구 서초동', url:'https://place.map.kakao.com/1513233857', img:'assets/place-1513233857.jpg', emoji:'🍛', tone:'t5', x:30, y:33},
+        {name:'보영만두 북문본점', cat:'음식점 > 분식', road:'경기 수원시 장안구 팔달로 271', lot:'경기 수원시 장안구 영화동 282-3', url:'https://place.map.kakao.com/27135707', img:'assets/place-27135707.jpg', emoji:'🥟', tone:'t2', x:18, y:40},
+        {name:'태양옥김빠', cat:'음식점 > 분식', road:'서울 강동구 성내로 42', lot:'서울 강동구 성내동 550-5', url:'https://place.map.kakao.com/1583503104', img:'assets/place-1583503104.jpg', emoji:'🍙', tone:'t1', x:86, y:21}
       ]
-    },
-    {
-      id:'dog', chip:'장소가 없는 영상', author:'@puppy_days', av:'🐶', likes:'3,920', comments:'128',
-      title:'주말 산책 브이로그 🐶', emoji:'🐶', tone:'t5', theme:'green',
-      caption:'주말 산책 브이로그 🐶 오늘도 신났다. 공 던지기 100번 하고 집에 와서 바로 잠듦.',
-      link:'instagram.com/reel/C9y2Example', scatter:['🐶','🌳','🎾','☀️','🐾','🌳'],
-      fail:'캡션에서 장소를 찾지 못했어요.',
-      places:[]
     }
   ];
 
@@ -1212,15 +1211,19 @@ p{margin:0}
     var s='<svg viewBox="0 0 360 720" preserveAspectRatio="xMidYMid slice" role="img" aria-label="지도">';
     s+='<rect width="360" height="720" fill="#f3f2ec"/>';
     for (var y=-20;y<720;y+=64) for (var x=-20;x<360;x+=62) s+='<rect x="'+(x+6)+'" y="'+(y+6)+'" width="50" height="52" rx="6" fill="#e8e6de"/>';
-    s+='<ellipse cx="300" cy="420" rx="90" ry="60" fill="#cfe3cf"/><ellipse cx="40" cy="120" rx="50" ry="40" fill="#cfe3cf"/>';
+    s+='<ellipse cx="300" cy="420" rx="90" ry="60" fill="#cfe3cf"/>'+(r.map==='metro' ? '' : '<ellipse cx="40" cy="120" rx="50" ry="40" fill="#cfe3cf"/>');
     var roads=[[0,210,360,210],[178,0,178,720],[0,330,360,330],[90,0,90,720],[270,0,270,720],[0,80,360,80],[0,520,360,520]];
     roads.forEach(function(rd){ s+='<line x1="'+rd[0]+'" y1="'+rd[1]+'" x2="'+rd[2]+'" y2="'+rd[3]+'" stroke="#d9d6cc" stroke-width="14"/><line x1="'+rd[0]+'" y1="'+rd[1]+'" x2="'+rd[2]+'" y2="'+rd[3]+'" stroke="#ffffff" stroke-width="10"/>'; });
-    if (r.sea){
-      s+='<path d="M250,-10 C280,90 230,170 262,260 C295,350 240,430 268,520 C290,600 250,660 275,730 L370,730 L370,-10 Z" fill="#b9d7f0"/>';
-      s+='<path d="M250,-10 C280,90 230,170 262,260 C295,350 240,430 268,520 C290,600 250,660 275,730" fill="none" stroke="#ffffff" stroke-width="8"/>';
-      s+='<text x="300" y="300" font-size="13" fill="#4a6f90" font-weight="700" text-anchor="middle">동해</text>';
-      s+='<text x="60" y="120" font-size="13" fill="#5b5b66" font-weight="700">사천진</text><text x="60" y="560" font-size="13" fill="#5b5b66" font-weight="700">강릉</text>';
-      s+='<text x="150" y="265" font-size="11" fill="#8a8a94" transform="rotate(-78 150 265)">해안로</text>';
+    if (r.map==='metro'){
+      s+='<path d="M-10,52 C60,30 120,70 190,48 C260,26 310,60 370,40 L370,-10 L-10,-10 Z" fill="#b9d7f0"/>';
+      s+='<path d="M-10,52 C60,30 120,70 190,48 C260,26 310,60 370,40" fill="none" stroke="#ffffff" stroke-width="6"/>';
+      s+='<text x="180" y="26" font-size="12" fill="#4a6f90" font-weight="700" text-anchor="middle">한강</text>';
+      s+='<text x="262" y="188" font-size="13" fill="#5b5b66" font-weight="700" text-anchor="middle">강남구</text>';
+      s+='<text x="80" y="214" font-size="13" fill="#5b5b66" font-weight="700" text-anchor="middle">서초구</text>';
+      s+='<text x="318" y="124" font-size="13" fill="#5b5b66" font-weight="700" text-anchor="middle">강동구</text>';
+      s+='<text x="52" y="300" font-size="12" fill="#5b5b66" font-weight="700" text-anchor="middle">수원</text>';
+      s+='<text x="240" y="282" font-size="12" fill="#5b5b66" font-weight="700" text-anchor="middle">용인</text>';
+      s+='<text x="320" y="312" font-size="12" fill="#5b5b66" font-weight="700" text-anchor="middle">청주</text>';
     } else {
       s+='<path d="M310,-10 C330,120 300,260 330,400 C350,520 320,640 340,730" fill="none" stroke="#b9d7f0" stroke-width="18"/>';
       s+='<line x1="0" y1="210" x2="360" y2="210" stroke="#996cac" stroke-width="4"/><line x1="178" y1="0" x2="178" y2="720" stroke="#747f00" stroke-width="4"/>';
