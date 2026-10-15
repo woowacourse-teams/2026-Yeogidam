@@ -1,0 +1,207 @@
+import React from 'react';
+import {Alert, ScrollView} from 'react-native';
+import ReactTestRenderer from 'react-test-renderer';
+
+import {
+  getHistoryReelDetail,
+  getHistoryReels,
+  retryHistoryReelExtraction,
+} from '../src/entities/content/history-api';
+import type {HistoryReel} from '../src/entities/content/types';
+import {HistoryScreen} from '../src/pages/history/HistoryScreen';
+
+jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
+}));
+jest.mock('../src/components/BottomNavigationBar', () => ({
+  BOTTOM_NAVIGATION_BAR_HEIGHT: 64,
+  getBottomNavigationBarOffset: () => 0,
+}));
+jest.mock('../src/analytics/placeExtractionEvents', () => ({
+  trackHistoryContentDetailViewed: jest.fn(),
+  trackHistoryContentViewed: jest.fn(),
+  trackHistoryViewed: jest.fn(),
+}));
+jest.mock('../src/assets/icons/actions/retry.svg', () => 'RetryIcon');
+jest.mock('../src/assets/icons/actions/report.svg', () => 'ReportIcon');
+jest.mock('../src/assets/icons/social/instagram-color.svg', () => 'InstagramIcon');
+jest.mock('../src/entities/content/history-api', () => ({
+  getHistoryReels: jest.fn(),
+  getHistoryReelDetail: jest.fn(() => Promise.resolve(null)),
+  reportHistoryReel: jest.fn(),
+  retryHistoryReelExtraction: jest.fn(),
+}));
+
+const reel = (id: number, status: HistoryReel['processing_status'] = 'COMPLETED'): HistoryReel => ({
+  id: String(id),
+  instagram_url: `https://www.instagram.com/reel/${id}/`,
+  instagram_title: null,
+  instagram_description: `게시물 ${id}`,
+  instagram_author_username: 'yeogidam',
+  instagram_thumbnail_url: `https://cdn.example.com/${id}.jpg`,
+  processing_status: status,
+  failure_reason: status === 'FAILED' ? 'PLACE_NOT_MATCHED' : null,
+  save_mode: null,
+  created_at: '2026-10-15T00:00:00Z',
+});
+
+const page = (ids: number[], status?: HistoryReel['processing_status']) =>
+  ids.map(id => reel(id, status));
+
+async function render() {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<HistoryScreen onBack={jest.fn()} />);
+  });
+  return renderer;
+}
+
+const renderedIds = (renderer: ReactTestRenderer.ReactTestRenderer) =>
+  renderer.root
+    .findAll(node => typeof node.props.onLayout === 'function' && node.props.reel)
+    .map(node => node.props.reel.id as string)
+    .filter((id, index, ids) => ids.indexOf(id) === index);
+
+async function tick(ms: number) {
+  await ReactTestRenderer.act(async () => {
+    jest.advanceTimersByTime(ms);
+    await Promise.resolve();
+  });
+}
+
+beforeEach(() => {
+  jest.useFakeTimers();
+  jest.mocked(getHistoryReels).mockReset();
+  jest.mocked(getHistoryReelDetail).mockClear();
+  jest.mocked(retryHistoryReelExtraction).mockReset();
+});
+
+afterEach(() => {
+  jest.clearAllTimers();
+  jest.useRealTimers();
+});
+
+test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱신한다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([3], 'PROCESSING'),
+    nextCursor: null,
+  });
+  const renderer = await render();
+  expect(getHistoryReels).toHaveBeenCalledTimes(1);
+
+  await tick(3000);
+  expect(getHistoryReels).toHaveBeenCalledTimes(2);
+  expect(getHistoryReelDetail).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('폴링은 첫 페이지만 갱신하고 더 보기로 불러온 항목과 커서를 유지한다', async () => {
+  const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
+  const secondCursor = {created_at: '2026-10-13T00:00:00Z', id: '1'};
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: firstCursor})
+    .mockResolvedValueOnce({reels: page([2, 1]), nextCursor: secondCursor})
+    // 폴링: 새 항목 6이 생겨 첫 페이지가 6, 5, 4가 됐다.
+    .mockResolvedValueOnce({reels: page([6, 5, 4]), nextCursor: firstCursor})
+    .mockResolvedValue({reels: [], nextCursor: null});
+  const renderer = await render();
+
+  // 맨 아래까지 스크롤해 더 보기를 부른다.
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ScrollView).props.onScroll({
+      nativeEvent: {
+        contentOffset: {y: 1000},
+        layoutMeasurement: {height: 800},
+        contentSize: {height: 1000},
+      },
+    });
+  });
+  expect(getHistoryReels).toHaveBeenLastCalledWith(firstCursor);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+
+  await tick(3000);
+  expect(renderedIds(renderer)).toEqual(['6', '5', '4', '3', '2', '1']);
+
+  // 폴링이 커서를 덮어쓰지 않았으므로 다음 더 보기는 두 번째 커서로 이어진다.
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ScrollView).props.onScroll({
+      nativeEvent: {
+        contentOffset: {y: 1200},
+        layoutMeasurement: {height: 800},
+        contentSize: {height: 1200},
+      },
+    });
+  });
+  expect(getHistoryReels).toHaveBeenLastCalledWith(secondCursor);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer) {
+  const failed = renderer.root.find(
+    node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => failed.props.onPress());
+  const alertSpy = jest.spyOn(Alert, 'alert');
+  const retryButton = renderer.root.find(
+    node =>
+      typeof node.props.onPress === 'function' &&
+      node.findAll(child => child.props.children === '다시 시도하기').length > 0,
+  );
+  await ReactTestRenderer.act(async () => retryButton.props.onPress());
+  const confirm = alertSpy.mock.calls[0][2]?.find(button => button.text === '확인');
+  alertSpy.mockClear();
+  await ReactTestRenderer.act(async () => {
+    confirm?.onPress?.();
+    await Promise.resolve();
+  });
+  return alertSpy;
+}
+
+test('재시도 접수에 성공하면 임시 카드 없이 목록으로 돌아가 바로 다시 읽는다', async () => {
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([7], 'FAILED'), nextCursor: null})
+    .mockResolvedValue({
+      reels: [reel(8, 'PROCESSING'), reel(7, 'FAILED')],
+      nextCursor: null,
+    });
+  jest.mocked(retryHistoryReelExtraction).mockResolvedValue({
+    reelId: '8',
+    status: 'PROCESSING',
+    reused: false,
+  });
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(retryHistoryReelExtraction).toHaveBeenCalledWith('7');
+  expect(getHistoryReels).toHaveBeenCalledTimes(2);
+  expect(renderedIds(renderer)).toEqual(['8', '7']);
+  expect(renderedIds(renderer).some(id => id.startsWith('retry-'))).toBe(false);
+  expect(alertSpy).not.toHaveBeenCalled();
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([7], 'FAILED'),
+    nextCursor: null,
+  });
+  jest.mocked(retryHistoryReelExtraction).mockRejectedValue(new Error('offline'));
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+
+  expect(alertSpy).toHaveBeenCalledWith('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
+  expect(
+    renderer.root.findAll(node => node.props.children === '장소 분석에 실패했어요ㅠ').length,
+  ).toBeGreaterThan(0);
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
