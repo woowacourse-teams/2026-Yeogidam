@@ -12,9 +12,10 @@ internal object ShareSentryReporter {
     private val messages = mapOf(
         "SHARE_PAYLOAD_READ_FAILED" to "인스타그램에서 공유한 데이터를 읽지 못했습니다 (SHARE_PAYLOAD_READ_FAILED)",
         "SHARE_PAYLOAD_STORE_FAILED" to "인스타그램에서 받은 공유 데이터를 앱에 저장하지 못했습니다 (SHARE_PAYLOAD_STORE_FAILED)",
+        "SHARE_LOGIN_APP_OPEN_FAILED" to "로그인을 위해 공유 화면에서 여기담 앱을 열지 못했습니다 (SHARE_LOGIN_APP_OPEN_FAILED)",
     )
 
-    fun capture(context: Context, errorCode: String) {
+    fun capture(context: Context, errorCode: String, stage: String = "share_intake") {
         val message = messages[errorCode] ?: return
         runCatching {
             if (!Sentry.isEnabled()) {
@@ -27,11 +28,11 @@ internal object ShareSentryReporter {
             }
             Sentry.captureMessage(message, SentryLevel.ERROR) { scope ->
                 scope.setTag("feature", "instagram_share")
-                scope.setTag("share.stage", "share_intake")
+                scope.setTag("share.stage", stage)
                 scope.setTag("share.source", "instagram")
                 scope.setTag("share.platform", "android")
                 scope.setTag("share.error_code", errorCode)
-                scope.fingerprint = listOf("instagram-share", "share_intake", "android", errorCode)
+                scope.fingerprint = listOf("instagram-share", stage, "android", errorCode)
             }
         }
     }

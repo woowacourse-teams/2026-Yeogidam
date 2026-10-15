@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 
@@ -115,6 +115,25 @@ Sentry.init({
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
 });
+
+function captureShareLoginHandoffError(errorCode: string) {
+  const messages: Record<string, string> = {
+    SHARE_LOGIN_STATE_READ_FAILED:
+      '공유 후 로그인 상태를 확인하지 못했습니다 (SHARE_LOGIN_STATE_READ_FAILED)',
+  };
+  const message = messages[errorCode];
+  if (!message) return;
+
+  Sentry.withScope(scope => {
+    scope.setTag('feature', 'instagram_share');
+    scope.setTag('share.stage', 'login_handoff');
+    scope.setTag('share.source', 'instagram');
+    scope.setTag('share.platform', Platform.OS);
+    scope.setTag('share.error_code', errorCode);
+    scope.setFingerprint(['instagram-share', 'login_handoff', Platform.OS, errorCode]);
+    Sentry.captureMessage(message, 'error');
+  });
+}
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -687,7 +706,10 @@ function App() {
                 return;
               }
               setFlowState(INITIAL_FLOW_STATE);
-            }).catch(() => undefined);
+            }).catch(() => {
+              captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
+              setFlowState(INITIAL_FLOW_STATE);
+            });
             return;
           }
           if (

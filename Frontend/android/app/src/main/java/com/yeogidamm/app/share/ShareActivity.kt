@@ -138,16 +138,21 @@ class ShareActivity : AppCompatActivity() {
                             )
                         }.getOrDefault(false)
                         if (!saved) {
-                            ShareSentryReporter.capture(this, "SHARE_PAYLOAD_STORE_FAILED")
+                            ShareSentryReporter.capture(this, "SHARE_PAYLOAD_STORE_FAILED", "login_handoff")
                             showResultAndFinish("링크를 저장하지 못했어요. 다시 공유해 주세요.", requestId, "save_failed")
                             return@setOnClickListener
                         }
                         ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
                             JSONObject().put("outcome", "saved"))
-                        startActivity(Intent(this, com.yeogidamm.app.MainActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        })
-                        finish()
+                        try {
+                            startActivity(Intent(this, com.yeogidamm.app.MainActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            })
+                            finish()
+                        } catch (_: Exception) {
+                            ShareSentryReporter.capture(this, "SHARE_LOGIN_APP_OPEN_FAILED", "login_handoff")
+                            statusLabel.text = "여기담 앱을 열지 못했어요. 앱을 직접 열어 로그인해 주세요."
+                        }
                     }
                 }
                 return@Thread

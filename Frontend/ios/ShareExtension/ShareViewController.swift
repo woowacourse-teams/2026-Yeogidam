@@ -17,21 +17,22 @@ private enum ShareSentryReporter {
     }
   }
 
-  static func capture(_ errorCode: String) {
+  static func capture(_ errorCode: String, stage: String = "share_intake") {
     let messages = [
       "SHARE_PAYLOAD_READ_FAILED": "인스타그램에서 공유한 데이터를 읽지 못했습니다 (SHARE_PAYLOAD_READ_FAILED)",
       "SHARE_PAYLOAD_STORE_FAILED": "인스타그램에서 받은 공유 데이터를 앱에 저장하지 못했습니다 (SHARE_PAYLOAD_STORE_FAILED)",
+      "SHARE_LOGIN_APP_OPEN_FAILED": "로그인을 위해 공유 화면에서 여기담 앱을 열지 못했습니다 (SHARE_LOGIN_APP_OPEN_FAILED)",
     ]
     guard let message = messages[errorCode] else { return }
     start()
     SentrySDK.capture(message: message) { scope in
       scope.setLevel(.error)
       scope.setTag(value: "instagram_share", key: "feature")
-      scope.setTag(value: "share_intake", key: "share.stage")
+      scope.setTag(value: stage, key: "share.stage")
       scope.setTag(value: "instagram", key: "share.source")
       scope.setTag(value: "ios", key: "share.platform")
       scope.setTag(value: errorCode, key: "share.error_code")
-      scope.setFingerprint(["instagram-share", "share_intake", "ios", errorCode])
+      scope.setFingerprint(["instagram-share", stage, "ios", errorCode])
     }
   }
 }
@@ -193,7 +194,7 @@ final class ShareViewController: UIViewController {
       openAppForLogin()
     } catch {
       hasSelectedLogin = false
-      ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED")
+      ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED", stage: "login_handoff")
       statusLabel.text = "링크를 저장하지 못했어요. 다시 시도해 주세요."
       ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
         properties: ["outcome": "storage_failed"])
@@ -204,6 +205,7 @@ final class ShareViewController: UIViewController {
     closeButton.isHidden = false
     statusLabel.text = "여기담 앱을 여는 중이에요.\n열리지 않으면 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
     guard let extensionContext else {
+      ShareSentryReporter.capture("SHARE_LOGIN_APP_OPEN_FAILED", stage: "login_handoff")
       statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
       return
     }
@@ -213,6 +215,7 @@ final class ShareViewController: UIViewController {
         if opened {
           self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
         } else {
+          ShareSentryReporter.capture("SHARE_LOGIN_APP_OPEN_FAILED", stage: "login_handoff")
           self.statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
         }
       }
