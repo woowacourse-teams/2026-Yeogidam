@@ -80,8 +80,20 @@ class ShareActivity : AppCompatActivity() {
     private fun processShare(intent: Intent?) {
         val requestId = UUID.randomUUID().toString()
         ShareAnalyticsStore.record(this, "reel_share_received", requestId)
-        val rawText = intent?.sharedText()
-        val normalizedUrl = rawText?.let(::extractInstagramUrl)
+        val rawText = try {
+            intent?.sharedText()
+        } catch (_: Exception) {
+            ShareSentryReporter.capture(this, "SHARE_PAYLOAD_READ_FAILED")
+            showResultAndFinish("공유한 링크를 확인하지 못했어요. 다시 공유해 주세요.", requestId, "read_failed")
+            return
+        }
+        val normalizedUrl = try {
+            rawText?.let(::extractInstagramUrl)
+        } catch (_: Exception) {
+            ShareSentryReporter.capture(this, "SHARE_PAYLOAD_READ_FAILED")
+            showResultAndFinish("공유한 링크를 확인하지 못했어요. 다시 공유해 주세요.", requestId, "read_failed")
+            return
+        }
         if (normalizedUrl == null) {
             ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
                 JSONObject().put("outcome", "invalid_link"))
@@ -112,18 +124,21 @@ class ShareActivity : AppCompatActivity() {
                     if (auth.reason == "never_logged_in") loginButton.text = "로그인하기"
                     loginButton.visibility = android.view.View.VISIBLE
                     loginButton.setOnClickListener {
-                        val saved = ShareResultStore.saveResult(
-                            this,
-                            ShareReelResult(
-                                requestId = requestId, url = normalizedUrl, rawSharedText = rawText,
-                                status = "PENDING",
-                                transferStatus = if (auth.reason == "never_logged_in")
-                                    "GUEST_LOGIN_PROMPT" else "LOGIN_HANDOFF",
-                                authReason = auth.reason, retryable = false,
-                                release = BuildConfig.VERSION_NAME,
-                            ),
-                        )
+                        val saved = runCatching {
+                            ShareResultStore.saveResult(
+                                this,
+                                ShareReelResult(
+                                    requestId = requestId, url = normalizedUrl, rawSharedText = rawText,
+                                    status = "PENDING",
+                                    transferStatus = if (auth.reason == "never_logged_in")
+                                        "GUEST_LOGIN_PROMPT" else "LOGIN_HANDOFF",
+                                    authReason = auth.reason, retryable = false,
+                                    release = BuildConfig.VERSION_NAME,
+                                ),
+                            )
+                        }.getOrDefault(false)
                         if (!saved) {
+                            ShareSentryReporter.capture(this, "SHARE_PAYLOAD_STORE_FAILED")
                             showResultAndFinish("링크를 저장하지 못했어요. 다시 공유해 주세요.", requestId, "save_failed")
                             return@setOnClickListener
                         }
@@ -145,19 +160,21 @@ class ShareActivity : AppCompatActivity() {
                 is ShareAuthResult.LoginRequired -> return@Thread
             }
             if (isFinishing || isDestroyed) return@Thread
-            val updated = ShareResultStore.saveResult(
-                this,
-                ShareReelResult(
-                    requestId = requestId,
-                    url = normalizedUrl,
-                    rawSharedText = rawText,
-                    status = "PENDING",
-                    transferStatus = transferStatus,
-                    authReason = (auth as? ShareAuthResult.LoginRequired)?.reason,
-                    retryable = true,
-                    release = BuildConfig.VERSION_NAME,
-                ),
-            )
+            val updated = runCatching {
+                ShareResultStore.saveResult(
+                    this,
+                    ShareReelResult(
+                        requestId = requestId,
+                        url = normalizedUrl,
+                        rawSharedText = rawText,
+                        status = "PENDING",
+                        transferStatus = transferStatus,
+                        authReason = (auth as? ShareAuthResult.LoginRequired)?.reason,
+                        retryable = true,
+                        release = BuildConfig.VERSION_NAME,
+                    ),
+                )
+            }.getOrDefault(false)
             val queued = updated && transferStatus == "SAVED" &&
                 runCatching { ShareSaveWorker.enqueue(this, requestId) }
                     .getOrDefault(false)
@@ -167,6 +184,9 @@ class ShareActivity : AppCompatActivity() {
                 ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", "auth_pending")
             }
             if (!updated || (transferStatus == "SAVED" && !queued)) {
+                if (!updated) {
+                    ShareSentryReporter.capture(this, "SHARE_PAYLOAD_STORE_FAILED")
+                }
                 val reason = when {
                     !updated -> "queue_registration_failed"
                     else -> "queue_registration_failed"

@@ -1,5 +1,40 @@
 import UIKit
 import UniformTypeIdentifiers
+import Sentry
+
+private enum ShareSentryReporter {
+  private static let dsn = "https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256"
+  private static var isStarted = false
+
+  static func start() {
+    guard !isStarted else { return }
+    isStarted = true
+    SentrySDK.start { options in
+      options.dsn = dsn
+      options.environment = Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String ?? "development"
+      options.sendDefaultPii = false
+      options.enableAutoSessionTracking = false
+    }
+  }
+
+  static func capture(_ errorCode: String) {
+    let messages = [
+      "SHARE_PAYLOAD_READ_FAILED": "인스타그램에서 공유한 데이터를 읽지 못했습니다 (SHARE_PAYLOAD_READ_FAILED)",
+      "SHARE_PAYLOAD_STORE_FAILED": "인스타그램에서 받은 공유 데이터를 앱에 저장하지 못했습니다 (SHARE_PAYLOAD_STORE_FAILED)",
+    ]
+    guard let message = messages[errorCode] else { return }
+    start()
+    SentrySDK.capture(message: message) { scope in
+      scope.setLevel(.error)
+      scope.setTag(value: "instagram_share", key: "feature")
+      scope.setTag(value: "share_intake", key: "share.stage")
+      scope.setTag(value: "instagram", key: "share.source")
+      scope.setTag(value: "ios", key: "share.platform")
+      scope.setTag(value: errorCode, key: "share.error_code")
+      scope.setFingerprint(["instagram-share", "share_intake", "ios", errorCode])
+    }
+  }
+}
 
 final class ShareViewController: UIViewController {
   private var hasProcessedShare = false
@@ -50,6 +85,16 @@ final class ShareViewController: UIViewController {
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       } catch {
+        if let storageError = error as? ShareIntentStorageError,
+           case .unsupportedContent = storageError {
+          // Unsupported or invalid shared content is expected user input, not an app error.
+        } else {
+          ShareSentryReporter.capture(
+            extractedPayload == nil
+              ? "SHARE_PAYLOAD_READ_FAILED"
+              : "SHARE_PAYLOAD_STORE_FAILED"
+          )
+        }
         if let payload = extractedPayload {
           let object = payload.text.contains("/p/") ? "게시물을" : "릴스를"
           self.statusLabel.text = "\(object) 전달하지 못했어요. 다시 공유해 주세요."
@@ -148,6 +193,7 @@ final class ShareViewController: UIViewController {
       openAppForLogin()
     } catch {
       hasSelectedLogin = false
+      ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED")
       statusLabel.text = "링크를 저장하지 못했어요. 다시 시도해 주세요."
       ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
         properties: ["outcome": "storage_failed"])
