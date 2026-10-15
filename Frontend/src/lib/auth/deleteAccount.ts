@@ -102,11 +102,8 @@ function toDeleteAccountAuthError(
   error: NormalizedAuthError,
 ): DeleteAccountError {
   if (error.errorCode === 'AUTH000_001') {
-    return {
-      ...error,
-      errorCode: 'USER401_001',
-      message: '계정 보호를 위해 다시 로그인해주세요.',
-    };
+    // 사용자가 인증 창을 닫은 경우다. 탈퇴 화면은 이 코드를 오류로 보여주지 않는다.
+    return deletionError('AUTH000_001', null, '인증이 취소됐어요.', true);
   }
 
   if (error.errorCode === 'AUTH400_001') {
@@ -149,8 +146,15 @@ function toDeleteAccountApiError(error: unknown): DeleteAccountError {
   if (error.kind !== 'http') return fallbackDeleteAccountError(null);
 
   const status = error.status ?? null;
-  // 서버가 인가 코드를 거절하면 사용자가 다시 인증해야 합니다.
-  if (error.errorCode === 'AUTH401_002') return createDeleteAccountReauthError();
+  // 서버는 재인증한 계정이 가입 계정과 다르거나 코드가 무효하면 AUTH401_002로 거절합니다.
+  if (error.errorCode === 'AUTH401_002') {
+    return deletionError(
+      'USER401_001',
+      401,
+      '가입한 계정으로 다시 인증해주세요.',
+      true,
+    );
+  }
 
   const fallback = fallbackDeleteAccountError(status);
   return {
