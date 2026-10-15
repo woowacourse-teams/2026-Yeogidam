@@ -6,7 +6,9 @@ import type {
   HistoryReel,
   HistoryReelDetail,
   HistoryReelPlace,
+  SaveInstagramReelResponse,
 } from './types';
+import {ReelApiError} from './errors';
 
 const client = createSpringApiClient();
 const SHARES_PATH = '/api/v1/shares';
@@ -143,4 +145,40 @@ export async function reportHistoryReel(reelId: string): Promise<void> {
     }
     throw toReelApiError(error);
   }
+}
+
+type SpringExtractionRetryResponse = {
+  sharedMediaId: number;
+  extractionStatus: string;
+};
+
+/**
+ * 실패한 공유의 추출을 다시 요청합니다. 서버는 새 공유(또는 이미 추출 중인 공유)의 ID를
+ * 돌려주므로 화면은 응답 ID를 새 히스토리 항목으로 다룹니다.
+ */
+export async function retryHistoryReelExtraction(
+  reelId: string,
+): Promise<SaveInstagramReelResponse> {
+  let response: SpringExtractionRetryResponse;
+  try {
+    response = await client.request<SpringExtractionRetryResponse>(
+      `${SHARES_PATH}/${encodeURIComponent(reelId)}/extraction-retries`,
+      {method: 'POST'},
+    );
+  } catch (error) {
+    throw toReelApiError(error);
+  }
+
+  if (response?.sharedMediaId == null || !response.extractionStatus) {
+    throw new ReelApiError({
+      errorCode: 'CLIENT000_003',
+      message: '응답을 처리하지 못했어요.',
+    });
+  }
+
+  return {
+    reelId: String(response.sharedMediaId),
+    status: toReelStatus(response.extractionStatus),
+    reused: response.extractionStatus === 'SUCCEEDED',
+  };
 }

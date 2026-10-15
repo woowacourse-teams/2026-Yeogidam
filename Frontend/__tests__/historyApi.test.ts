@@ -3,6 +3,7 @@ import {
   getHistoryReelDetail,
   getHistoryReels,
   reportHistoryReel,
+  retryHistoryReelExtraction,
 } from '../src/entities/content/history-api';
 import {ApiError} from '../src/lib/api/errors';
 
@@ -165,4 +166,30 @@ test('그 밖의 서버 오류는 ReelApiError로 바꿔 던진다', async () =>
     status: 404,
   });
   await expect(getHistoryReels()).rejects.toBeInstanceOf(ReelApiError);
+});
+
+test('추출 재시도는 extraction-retries API를 호출하고 새 공유 ID를 돌려준다', async () => {
+  mockRequest.mockResolvedValueOnce({sharedMediaId: 12, extractionStatus: 'EXTRACTING'});
+
+  await expect(retryHistoryReelExtraction('7')).resolves.toEqual({
+    reelId: '12',
+    status: 'PROCESSING',
+    reused: false,
+  });
+  expect(mockRequest).toHaveBeenCalledWith('/api/v1/shares/7/extraction-retries', {
+    method: 'POST',
+  });
+
+  mockRequest.mockRejectedValueOnce(
+    new ApiError({
+      kind: 'http',
+      status: 400,
+      errorCode: 'MEDIA400_016',
+      message: '현재 분석 버전에서는 재시도가 불가능합니다.',
+    }),
+  );
+  await expect(retryHistoryReelExtraction('7')).rejects.toMatchObject({
+    errorCode: 'MEDIA400_016',
+    message: '현재 분석 버전에서는 재시도가 불가능합니다.',
+  });
 });

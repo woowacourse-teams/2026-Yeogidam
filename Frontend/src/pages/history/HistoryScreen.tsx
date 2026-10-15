@@ -32,8 +32,9 @@ import {
   getHistoryReelDetail,
   getHistoryReels,
   reportHistoryReel,
+  retryHistoryReelExtraction,
 } from '../../entities/content/history-api';
-import {saveContent} from '../../entities/content/api';
+import {normalizeReelError} from '../../entities/content/errors';
 import type {
   HistoryCursor,
   HistoryPlace,
@@ -759,9 +760,6 @@ export function HistoryScreen({
   }, [guestReels, posthog]);
 
   const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
-    if (!reel.instagram_url) {
-      return;
-    }
 
     const temporaryId = `retry-${reel.id}-${Date.now()}`;
     const temporaryReel: HistoryReel = {
@@ -784,7 +782,8 @@ export function HistoryScreen({
     setSelectedReel(null);
 
     try {
-      const response = await saveContent(reel.instagram_url, 'url_input');
+      // 서버 재시도 API는 같은 게시물로 새 공유를 만들고(이미 추출 중이면 그 공유를) 돌려준다.
+      const response = await retryHistoryReelExtraction(reel.id);
       // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
       // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
       // The newly created retry is already visible in this screen, so it
@@ -849,14 +848,21 @@ export function HistoryScreen({
           ),
         ];
       });
-    } catch {
+    } catch (retryError) {
       setReels(current => current.filter(item => item.id !== temporaryId));
       setRetrySkeletonIds(current => {
         const next = new Set(current);
         next.delete(temporaryId);
         return next;
       });
-      Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
+      const normalized = normalizeReelError(retryError);
+      // MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
+      Alert.alert(
+        '다시 시도하지 못했어요',
+        normalized.errorCode?.startsWith('MEDIA')
+          ? normalized.message
+          : '잠시 후 다시 시도해주세요.',
+      );
     }
   }, []);
 
