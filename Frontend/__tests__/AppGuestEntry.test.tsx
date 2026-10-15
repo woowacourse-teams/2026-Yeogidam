@@ -503,8 +503,7 @@ test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하�
     await Promise.resolve();
   });
 
-  // TODO(spring-migration): 온보딩 이전 API를 Spring으로 옮기기 전까지 이어 받기는 멈춰 둡니다.
-  expect(resumeGuestOnboardingTransfer).not.toHaveBeenCalled();
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('new-user');
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -524,7 +523,7 @@ test('이전에 로그인한 기기에서도 새 계정 로그인 시 군자역 
     authChangeHandler('SIGNED_IN', 'another-new-user');
     await Promise.resolve();
   });
-  expect(resumeGuestOnboardingTransfer).not.toHaveBeenCalled();
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('another-new-user');
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

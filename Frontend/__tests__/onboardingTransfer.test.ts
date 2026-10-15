@@ -1,206 +1,134 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type {Session} from '@supabase/supabase-js';
-import {v4 as uuidv4} from 'uuid';
 
-import {getReelProcessingStatus} from '../src/entities/content/api';
-import {supabase} from '../src/lib/auth/supabase';
+import {ApiError} from '../src/lib/api/errors';
 import {
   beginGuestOnboardingTransfer,
   cancelGuestOnboardingTransfer,
   resumeGuestOnboardingTransfer,
 } from '../src/entities/onboarding/transfer';
 
-jest.mock('../src/lib/auth/supabase', () => ({
-  supabase: {
-    functions: {invoke: jest.fn()},
-    from: jest.fn(() => ({
-      select: jest.fn().mockReturnThis(),
-      eq: jest.fn().mockReturnThis(),
-      order: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      maybeSingle: jest.fn(() => Promise.resolve({data: null, error: null})),
-    })),
-  },
-}));
+const mockRequest = jest.fn();
 
-jest.mock('../src/entities/content/api', () => ({
-  getReelProcessingStatus: jest.fn(),
+jest.mock('../src/lib/api/spring-client', () => ({
+  createSpringApiClient: jest.fn(() => ({
+    request: (...args: unknown[]) => mockRequest(...args),
+  })),
 }));
 
 const STORAGE_KEY = '@yeogidam/guest-onboarding-transfer';
-const now = '2026-10-12T12:00:00.000Z';
+const ONBOARDING_KAKAO_PLACE_IDS = [
+  '1775568752',
+  '137070444',
+  '337953507',
+  '98016856',
+  '1107844606',
+];
 
-function session(createdAt: string, lastSignInAt = now, id = 'new-user') {
-  return {
-    user: {id, created_at: createdAt, last_sign_in_at: lastSignInAt},
-  } as Session;
+function respond({shares = [] as unknown[], transfer}: {
+  shares?: unknown[];
+  transfer?: () => Promise<unknown>;
+} = {}) {
+  mockRequest.mockImplementation((path: string) => {
+    if (path === '/api/v1/shares') {
+      return Promise.resolve({sharedMedias: shares, nextCursor: null});
+    }
+    if (path === '/api/v1/onboarding/saved-places') {
+      return transfer ? transfer() : Promise.resolve({sharedMediaId: 42});
+    }
+    return Promise.reject(new Error(`unexpected ${path}`));
+  });
 }
 
+const transferCalls = () =>
+  mockRequest.mock.calls.filter(([path]) => path === '/api/v1/onboarding/saved-places');
+
 beforeEach(async () => {
-  jest.spyOn(Date, 'now').mockReturnValue(Date.parse(now));
   await AsyncStorage.removeItem(STORAGE_KEY);
-  jest.clearAllMocks();
-  (uuidv4 as jest.Mock).mockReturnValue('6d8c1b73-5be1-4c29-9241-5da0b829e81a');
+  mockRequest.mockReset();
 });
 
-afterEach(() => jest.restoreAllMocks());
-
-test('신규 회원에게 v1 저장 요청을 보내고 완료 후 전환 기록을 지운다', async () => {
+test('새 회원에게 온보딩 장소 ID를 보내고 전환 기록을 지운다', async () => {
   await beginGuestOnboardingTransfer();
-  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
-    data: {reelId: 'gunja-reel', status: 'COMPLETED'},
-    error: null,
-  });
+  respond();
 
-  expect(await resumeGuestOnboardingTransfer(session(now))).toBe(true);
-  expect(supabase.functions.invoke).toHaveBeenCalledWith('save-instagram-reel', {
-    body: {
-      instagramUrl: 'https://www.instagram.com/p/Db4gRWqkuUg/',
-      source: 'url_input',
-      clientRequestId: '6d8c1b73-5be1-4c29-9241-5da0b829e81a',
-    },
+  await expect(resumeGuestOnboardingTransfer('7')).resolves.toBe(true);
+
+  expect(mockRequest).toHaveBeenCalledWith('/api/v1/onboarding/saved-places', {
+    method: 'POST',
+    body: {kakaoPlaceIds: ONBOARDING_KAKAO_PLACE_IDS},
   });
   expect(await AsyncStorage.getItem(STORAGE_KEY)).toBeNull();
 });
 
-test('기존 회원 로그인에는 군자역 게시물을 요청하지 않는다', async () => {
-  await beginGuestOnboardingTransfer();
+test('비회원 로그인 기록이 없으면 아무것도 보내지 않는다', async () => {
+  respond();
 
-  expect(await resumeGuestOnboardingTransfer(session('2026-09-01T12:00:00.000Z'))).toBe(false);
-  expect(supabase.functions.invoke).not.toHaveBeenCalled();
+  await expect(resumeGuestOnboardingTransfer('7')).resolves.toBe(false);
+  expect(mockRequest).not.toHaveBeenCalled();
+});
+
+test('공유 이력이 있는 기존 회원은 옮기지 않고 기록을 지운다', async () => {
+  await beginGuestOnboardingTransfer();
+  respond({shares: [{sharedMediaId: 1}]});
+
+  await expect(resumeGuestOnboardingTransfer('7')).resolves.toBe(false);
+  expect(transferCalls()).toHaveLength(0);
   expect(await AsyncStorage.getItem(STORAGE_KEY)).toBeNull();
 });
 
-test('탈퇴 후 재가입한 계정은 마지막 로그인 시각과 관계없이 추출을 요청한다', async () => {
+test('네트워크 실패는 기록을 남겨 다음 실행에 같은 회원으로 다시 보낸다', async () => {
   await beginGuestOnboardingTransfer();
-  jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-12T12:03:00.000Z'));
-  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
-    data: {reelId: 'recreated-gunja-reel', status: 'COMPLETED'},
-    error: null,
-  });
+  respond({transfer: () => Promise.reject(new ApiError({kind: 'network', message: 'offline'}))});
 
-  expect(await resumeGuestOnboardingTransfer(
-    session(now, '2026-10-12T12:02:00.000Z', 'recreated-user'),
-  )).toBe(true);
-  expect(supabase.functions.invoke).toHaveBeenCalledWith('save-instagram-reel', {
-    body: expect.objectContaining({
-      instagramUrl: 'https://www.instagram.com/p/Db4gRWqkuUg/',
-      clientRequestId: expect.any(String),
-    }),
-  });
+  await expect(resumeGuestOnboardingTransfer('7')).rejects.toBeInstanceOf(ApiError);
+  expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY))!)).toMatchObject({memberId: '7'});
+
+  // 재시도 전에 다른 공유가 생겨도 이미 새 회원으로 정한 기록을 따른다.
+  respond({shares: [{sharedMediaId: 1}]});
+  await expect(resumeGuestOnboardingTransfer('8')).resolves.toBe(false);
+  await expect(resumeGuestOnboardingTransfer('7')).resolves.toBe(true);
+  // 실패한 첫 요청과 재시도, 두 번 보냈다.
+  expect(transferCalls()).toHaveLength(2);
+  expect(await AsyncStorage.getItem(STORAGE_KEY)).toBeNull();
 });
 
-test('전환 기록이 사라진 최근 신규 계정은 앱을 다시 열 때 누락된 추출을 복구한다', async () => {
-  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
-    data: {reelId: 'recovered-gunja-reel', status: 'COMPLETED'},
-    error: null,
-  });
-
-  expect(await resumeGuestOnboardingTransfer(session(now))).toBe(true);
-  expect(supabase.from).toHaveBeenCalledWith('reels');
-  expect(supabase.functions.invoke).toHaveBeenCalledWith('save-instagram-reel', {
-    body: expect.objectContaining({
-      instagramUrl: 'https://www.instagram.com/p/Db4gRWqkuUg/',
-      clientRequestId: expect.any(String),
-    }),
-  });
-});
-
-test('전환 기록이 없어도 이미 군자역 게시물이 있으면 중복 요청하지 않는다', async () => {
-  (supabase.from as jest.Mock).mockReturnValueOnce({
-    select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    maybeSingle: jest.fn(() => Promise.resolve({
-      data: {id: 'existing-gunja-reel', processing_status: 'COMPLETED'},
-      error: null,
+test('장소 ID가 서버 시드와 다르면(400) 다시 보내지 않도록 기록을 지운다', async () => {
+  await beginGuestOnboardingTransfer();
+  respond({
+    transfer: () => Promise.reject(new ApiError({
+      kind: 'http',
+      status: 400,
+      errorCode: 'PLACE400_002',
+      message: '요청 장소를 찾을 수 없습니다.',
     })),
   });
 
-  expect(await resumeGuestOnboardingTransfer(session(now))).toBe(false);
-  expect(supabase.functions.invoke).not.toHaveBeenCalled();
-});
-
-test('실패한 요청은 같은 회원에 묶어 두고 재실행 시 다시 시도한다', async () => {
-  await beginGuestOnboardingTransfer();
-  (supabase.functions.invoke as jest.Mock)
-    .mockRejectedValueOnce(new Error('offline'))
-    .mockResolvedValueOnce({data: {reelId: 'gunja-reel', status: 'COMPLETED'}, error: null});
-
-  await expect(resumeGuestOnboardingTransfer(session(now))).rejects.toThrow('offline');
-  expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY))!)).toMatchObject({
-    userId: 'new-user',
+  await expect(resumeGuestOnboardingTransfer('7')).rejects.toMatchObject({
+    errorCode: 'PLACE400_002',
   });
-  expect(await resumeGuestOnboardingTransfer(session(now))).toBe(true);
-  expect(supabase.functions.invoke).toHaveBeenCalledTimes(2);
-  expect((supabase.functions.invoke as jest.Mock).mock.calls[0][1].body.clientRequestId)
-    .toBe((supabase.functions.invoke as jest.Mock).mock.calls[1][1].body.clientRequestId);
   expect(await AsyncStorage.getItem(STORAGE_KEY)).toBeNull();
 });
 
-test('처리 중인 게시물은 상태를 확인하고 저장 요청을 중복하지 않는다', async () => {
-  await beginGuestOnboardingTransfer();
-  (supabase.functions.invoke as jest.Mock).mockResolvedValue({
-    data: {reelId: 'gunja-reel', status: 'PROCESSING'},
-    error: null,
-  });
-  (getReelProcessingStatus as jest.Mock).mockResolvedValue({
-    processing_status: 'COMPLETED',
-  });
-
-  const first = resumeGuestOnboardingTransfer(session(now));
-  const second = resumeGuestOnboardingTransfer(session(now));
-  expect(first).toBe(second);
-  expect(await first).toBe(true);
-  expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
-  expect(getReelProcessingStatus).toHaveBeenCalledWith('gunja-reel');
-});
-
-test('실패가 확정된 뒤 다시 요청하면 새 clientRequestId를 사용한다', async () => {
-  (uuidv4 as jest.Mock)
-    .mockReturnValueOnce('6d8c1b73-5be1-4c29-9241-5da0b829e81a')
-    .mockReturnValueOnce('6d8c1b73-5be1-4c29-9241-5da0b829e81b');
-  await beginGuestOnboardingTransfer();
-  (supabase.functions.invoke as jest.Mock)
-    .mockResolvedValueOnce({data: {reelId: 'failed-reel', status: 'FAILED'}, error: null})
-    .mockResolvedValueOnce({data: {reelId: 'completed-reel', status: 'COMPLETED'}, error: null});
-
-  await expect(resumeGuestOnboardingTransfer(session(now))).rejects.toThrow();
-  expect(await resumeGuestOnboardingTransfer(session(now))).toBe(true);
-  expect((supabase.functions.invoke as jest.Mock).mock.calls.map(call => call[1].body.clientRequestId))
-    .toEqual([
-      '6d8c1b73-5be1-4c29-9241-5da0b829e81a',
-      '6d8c1b73-5be1-4c29-9241-5da0b829e81b',
-    ]);
-});
-
-test('응답이 유실된 요청은 서버의 기존 게시물을 찾아 중복 요청하지 않는다', async () => {
-  await beginGuestOnboardingTransfer();
-  (supabase.functions.invoke as jest.Mock).mockRejectedValueOnce(new Error('response lost'));
-  await expect(resumeGuestOnboardingTransfer(session(now))).rejects.toThrow('response lost');
-
-  (supabase.from as jest.Mock).mockReturnValueOnce({
-    select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    maybeSingle: jest.fn(() => Promise.resolve({
-      data: {id: 'existing-gunja-reel', processing_status: 'COMPLETED'},
-      error: null,
-    })),
-  });
-  (getReelProcessingStatus as jest.Mock).mockResolvedValue({
-    processing_status: 'COMPLETED',
-  });
-
-  expect(await resumeGuestOnboardingTransfer(session(now))).toBe(true);
-  expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
-  expect(getReelProcessingStatus).toHaveBeenCalledWith('existing-gunja-reel');
-});
-
-test('로그인을 취소하면 아직 계정에 묶이지 않은 전환 기록을 지운다', async () => {
+test('로그인을 취소하면 회원이 정해지지 않은 기록만 지운다', async () => {
   await beginGuestOnboardingTransfer();
   await cancelGuestOnboardingTransfer();
   expect(await AsyncStorage.getItem(STORAGE_KEY)).toBeNull();
+
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({startedAt: 1, memberId: '7'}));
+  await cancelGuestOnboardingTransfer();
+  expect(await AsyncStorage.getItem(STORAGE_KEY)).not.toBeNull();
+});
+
+test('같은 회원의 동시 호출은 요청을 한 번만 보낸다', async () => {
+  await beginGuestOnboardingTransfer();
+  respond();
+
+  const [first, second] = await Promise.all([
+    resumeGuestOnboardingTransfer('7'),
+    resumeGuestOnboardingTransfer('7'),
+  ]);
+
+  expect(first).toBe(true);
+  expect(second).toBe(true);
+  expect(transferCalls()).toHaveLength(1);
 });

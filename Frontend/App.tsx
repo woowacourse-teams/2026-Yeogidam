@@ -23,6 +23,7 @@ import {
 import {
   beginGuestOnboardingTransfer,
   cancelGuestOnboardingTransfer,
+  resumeGuestOnboardingTransfer,
 } from './src/entities/onboarding/transfer';
 import {
   normalizeAuthError,
@@ -185,8 +186,7 @@ function App() {
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  // TODO(spring-migration): 온보딩 게시물 이전을 Spring으로 옮기면 완료 시 값을 올려 회원 데이터를 다시 읽습니다.
-  const [memberDataRevision] = useState(0);
+  const [memberDataRevision, setMemberDataRevision] = useState(0);
   const hasSignedInOnThisInstallRef = useRef(false);
   const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
@@ -436,8 +436,31 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    // TODO(spring-migration): 온보딩 게시물 이전(entities/onboarding/transfer.ts)은 아직 Supabase 세션을
-    // 전제로 합니다. Spring 이전 전까지 호출하지 않아야 세션 없음 오류 Alert가 반복되지 않습니다.
+    const resumeOnboardingTransfer = (memberId: string) => {
+      resumeGuestOnboardingTransfer(memberId)
+        .then(completed => {
+          if (
+            !isMounted ||
+            !completed ||
+            activeUserIdRef.current !== memberId
+          ) return;
+          transferErrorShownRef.current = false;
+          setMemberDataRevision(revision => revision + 1);
+        })
+        .catch(error => {
+          console.warn('군자역 게시물 저장 실패', error);
+          if (
+            !isMounted ||
+            activeUserIdRef.current !== memberId ||
+            transferErrorShownRef.current
+          ) return;
+          transferErrorShownRef.current = true;
+          Alert.alert(
+            '군자역 게시물을 저장하지 못했어요',
+            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
+          );
+        });
+    };
 
     const syncFlowState = async () => {
       const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
@@ -473,6 +496,7 @@ function App() {
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
+      if (memberId) resumeOnboardingTransfer(memberId);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -562,6 +586,7 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
+      if (memberId) resumeOnboardingTransfer(memberId);
     });
 
     return () => {
@@ -572,6 +597,33 @@ function App() {
       unsubscribe();
     };
   }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
+
+  useEffect(() => {
+    if (isAuthenticated !== true) return;
+
+    let isActive = true;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') return;
+      getSpringMemberId()
+        .then(memberId => {
+          if (!memberId) return;
+          resumeGuestOnboardingTransfer(memberId)
+            .then(completed => {
+              if (
+                isActive &&
+                completed &&
+                activeUserIdRef.current === memberId
+              ) setMemberDataRevision(revision => revision + 1);
+            })
+            .catch(error => console.warn('군자역 게시물 재시도 실패', error));
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      isActive = false;
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
