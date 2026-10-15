@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
-import type {Session} from '@supabase/supabase-js';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
@@ -9,7 +8,7 @@ import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
-import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
+import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 // import type {InboxReel} from './src/entities/content/inbox-api';
@@ -24,9 +23,11 @@ import {
 import {
   beginGuestOnboardingTransfer,
   cancelGuestOnboardingTransfer,
-  resumeGuestOnboardingTransfer,
 } from './src/entities/onboarding/transfer';
-import type { NormalizedAuthError } from './src/lib/auth/errors';
+import {
+  normalizeAuthError,
+  type NormalizedAuthError,
+} from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
   signInWithApple,
@@ -40,9 +41,19 @@ import {
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
-import { supabase } from './src/lib/auth/supabase';
+import {
+  clearSpringSession,
+  getSpringMemberId,
+  getSpringTokens,
+  logoutSpringSession,
+  onSpringSessionChange,
+} from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
-import { getAppUpdatePolicy } from './src/lib/app-update-policy';
+import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
+import {
+  getDismissedRecommendedVersion,
+  rememberDismissedRecommendedVersion,
+} from './src/lib/app-update-policy-storage';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   trackAppOpened,
@@ -74,8 +85,6 @@ import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   clearShareResult,
   getShareResults,
-  getShareSession,
-  reconcileShareSession,
   resumeWaitingShares,
   syncShareAnalyticsConfiguration,
   syncShareSession,
@@ -176,7 +185,8 @@ function App() {
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [memberDataRevision, setMemberDataRevision] = useState(0);
+  // TODO(spring-migration): 온보딩 게시물 이전을 Spring으로 옮기면 완료 시 값을 올려 회원 데이터를 다시 읽습니다.
+  const [memberDataRevision] = useState(0);
   const hasSignedInOnThisInstallRef = useRef(false);
   const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
@@ -187,6 +197,14 @@ function App() {
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
+  const [recommendedUpdate, setRecommendedUpdate] = useState<{
+    latestVersion: string;
+    storeUrl: string;
+  } | null>(null);
+  const dismissedRecommendedVersionRef = useRef<string | null>(null);
+  const dismissedRecommendedVersionLoadRef = useRef<Promise<string | null> | null>(
+    null,
+  );
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -226,6 +244,44 @@ function App() {
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
+  const applyUpdatePolicy = useCallback((policy: AppUpdatePolicy | null) => {
+    if (!policy) return;
+
+    if (policy.updateRequired) {
+      setRecommendedUpdate(null);
+      setRequiredUpdateStoreUrl(policy.storeUrl);
+      return;
+    }
+
+    if (
+      policy.updateRecommended &&
+      dismissedRecommendedVersionRef.current !== policy.latestVersion
+    ) {
+      setRecommendedUpdate({
+        latestVersion: policy.latestVersion,
+        storeUrl: policy.storeUrl,
+      });
+    } else {
+      setRecommendedUpdate(null);
+    }
+  }, []);
+
+  const getUpdatePolicyWithDismissalLoaded = useCallback(async () => {
+    if (!dismissedRecommendedVersionLoadRef.current) {
+      dismissedRecommendedVersionLoadRef.current =
+        getDismissedRecommendedVersion();
+    }
+
+    const [policy, dismissedVersion] = await Promise.all([
+      getAppUpdatePolicy(),
+      dismissedRecommendedVersionLoadRef.current,
+    ]);
+    if (dismissedRecommendedVersionRef.current === null) {
+      dismissedRecommendedVersionRef.current = dismissedVersion;
+    }
+    return policy;
+  }, []);
+
   const currentScreen: Screen =
     flowState.kind === 'auth'
       ? flowState.stack[flowState.stack.length - 1]
@@ -241,7 +297,8 @@ function App() {
     isAuthenticated === false &&
     !hasPendingShareLogin &&
     myPageOverlay === null &&
-    requiredUpdateStoreUrl === null;
+    requiredUpdateStoreUrl === null &&
+    recommendedUpdate === null;
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
@@ -379,36 +436,13 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const resumeOnboardingTransfer = (session: Session) => {
-      resumeGuestOnboardingTransfer(session)
-        .then(completed => {
-          if (
-            !isMounted ||
-            !completed ||
-            activeUserIdRef.current !== session.user.id
-          ) return;
-          transferErrorShownRef.current = false;
-          setMemberDataRevision(revision => revision + 1);
-        })
-        .catch(error => {
-          console.warn('군자역 게시물 저장 실패', error);
-          if (
-            !isMounted ||
-            activeUserIdRef.current !== session.user.id ||
-            transferErrorShownRef.current
-          ) return;
-          transferErrorShownRef.current = true;
-          Alert.alert(
-            '군자역 게시물을 저장하지 못했어요',
-            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
-          );
-        });
-    };
+    // TODO(spring-migration): 온보딩 게시물 이전(entities/onboarding/transfer.ts)은 아직 Supabase 세션을
+    // 전제로 합니다. Spring 이전 전까지 호출하지 않아야 세션 없음 오류 Alert가 반복되지 않습니다.
 
     const syncFlowState = async () => {
-      await reconcileShareSession().catch(() => undefined);
-      const [{data, error}, signedInOnThisInstall] = await Promise.all([
-        supabase.auth.getSession(),
+      const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
+        getSpringTokens().catch(() => null),
+        getSpringMemberId().catch(() => null),
         hasSignedInOnThisInstall(),
       ]);
 
@@ -417,7 +451,7 @@ function App() {
       }
       hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
 
-      if (error || !data.session) {
+      if (!tokens) {
         activeUserIdRef.current = null;
         setIsAuthenticated(false);
         if (!hasTrackedAppOpenedRef.current) {
@@ -425,10 +459,8 @@ function App() {
           hasTrackedAppOpenedRef.current = true;
         }
 
-        if (!error) {
-          const sharedSession = await getShareSession().catch(() => null);
-          if (!sharedSession?.refreshToken) await syncShareSession(null);
-        }
+        // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
+        await syncShareSession(null).catch(() => undefined);
 
         setFlowState(
           signedInOnThisInstall ? INITIAL_FLOW_STATE : GUEST_MAIN_FLOW_STATE,
@@ -438,11 +470,9 @@ function App() {
         return;
       }
 
-      await syncShareSession(data.session);
-      activeUserIdRef.current = data.session.user.id;
+      activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
-      resumeOnboardingTransfer(data.session);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -458,11 +488,9 @@ function App() {
     };
 
     const checkUpdatePolicy = async () => {
-      const policy = await getAppUpdatePolicy();
+      const policy = await getUpdatePolicyWithDismissalLoaded();
 
-      if (isMounted && policy?.updateRequired) {
-        setRequiredUpdateStoreUrl(policy.storeUrl);
-      }
+      if (isMounted) applyUpdatePolicy(policy);
     };
 
     const loadGuideCompletion = async () => {
@@ -494,26 +522,16 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session || event === 'SIGNED_OUT') {
-        syncShareSession(session)
-          .then(() => {
-            if (session) return resumeWaitingShares();
-          })
-          .catch(() => undefined);
+    const unsubscribe = onSpringSessionChange((event, memberId) => {
+      if (event === 'SIGNED_IN') {
+        resumeWaitingShares().catch(() => undefined);
       }
-      if (!isMounted) {
+      // 토큰 회전은 화면 흐름을 바꾸지 않습니다. 공유 세션 동기화는 spring-session이 맡습니다.
+      if (!isMounted || event === 'TOKEN_REFRESHED') {
         return;
       }
 
-      // 첫 세션 판정은 syncFlowState에서 설치 내 로그인 기록과 함께 처리합니다.
-      if (event === 'INITIAL_SESSION' && !session) {
-        return;
-      }
-
-      if (!session) {
+      if (event === 'SIGNED_OUT') {
         activeUserIdRef.current = null;
         transferErrorShownRef.current = false;
         setIsAuthenticated(false);
@@ -530,7 +548,7 @@ function App() {
       }
 
       setSocialLoginError(null);
-      activeUserIdRef.current = session.user.id;
+      activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       setSelectedPlace(null);
       setSelectedPlaceViewContext(null);
@@ -544,7 +562,6 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
-      resumeOnboardingTransfer(session);
     });
 
     return () => {
@@ -552,52 +569,27 @@ function App() {
       if (splashTimer) {
         clearTimeout(splashTimer);
       }
-      subscription.unsubscribe();
+      unsubscribe();
     };
-  }, [posthog]);
+  }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
 
   useEffect(() => {
-    if (isAuthenticated !== true) return;
-
-    let isActive = true;
-    const subscription = AppState.addEventListener('change', state => {
-      if (state !== 'active') return;
-      supabase.auth.getSession()
-        .then(({data}) => {
-          if (!data.session) return;
-          resumeGuestOnboardingTransfer(data.session)
-            .then(completed => {
-              if (
-                isActive &&
-                completed &&
-                activeUserIdRef.current === data.session?.user.id
-              ) setMemberDataRevision(revision => revision + 1);
-            })
-            .catch(error => console.warn('군자역 게시물 재시도 실패', error));
-        })
-        .catch(() => undefined);
-    });
-    return () => {
-      isActive = false;
-      subscription.remove();
-    };
-  }, [isAuthenticated]);
-
-  useEffect(() => {
+    let isMounted = true;
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState !== 'active') {
         return;
       }
 
-      getAppUpdatePolicy().then(policy => {
-        if (policy?.updateRequired) {
-          setRequiredUpdateStoreUrl(policy.storeUrl);
-        }
+      getUpdatePolicyWithDismissalLoaded().then(policy => {
+        if (isMounted) applyUpdatePolicy(policy);
       });
     });
 
-    return () => subscription.remove();
-  }, []);
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
 
   useEffect(() => {
     if (!isAuthReady) {
@@ -689,8 +681,8 @@ function App() {
             return;
           }
           if (result.transferStatus === 'LOGIN_HANDOFF') {
-            supabase.auth.getSession().then(({data}) => {
-              if (data.session) {
+            getSpringTokens().then(tokens => {
+              if (tokens) {
                 resumeWaitingShares().catch(() => undefined);
                 return;
               }
@@ -741,8 +733,7 @@ function App() {
       'change',
       nextState => {
         if (nextState === 'active') {
-          reconcileShareSession()
-            .then(resumeWaitingShares)
+          resumeWaitingShares()
             .then(consumePendingSharedContent)
             .catch(consumePendingSharedContent);
         }
@@ -812,6 +803,10 @@ function App() {
       if (isAuthenticated === false && hasCompletedGuide === true) {
         await beginGuestOnboardingTransfer();
       }
+      // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
+      if (!(await getSpringTokens().catch(() => null))) {
+        await syncShareSession(null).catch(() => undefined);
+      }
 
       setSocialLoginError(null);
       setPendingSocialProvider(provider);
@@ -837,7 +832,7 @@ function App() {
         Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
         return;
       }
-      const normalizedError = error as NormalizedAuthError;
+      const normalizedError = normalizeAuthError(error);
       trackLoginFinished(posthog, {
         provider,
         outcome: 'failure',
@@ -899,13 +894,12 @@ function App() {
 
     setIsLogoutPending(true);
 
-    // 공유 확장이 남은 세션으로 추출 API를 호출하지 않도록 공유 세션부터 즉시 만료한다.
-    await syncShareSession(null).catch(() => undefined);
-    const { error } = await supabase.auth.signOut();
-    await syncShareSession(null).catch(() => undefined);
-
-    if (!error) {
+    // logoutSpringSession이 공유 세션을 먼저 지우고, 서버 로그아웃이 실패하면 되돌린 뒤 throw합니다.
+    try {
+      await logoutSpringSession();
       return;
+    } catch {
+      // 아래에서 안내합니다.
     }
 
     setIsLogoutPending(false);
@@ -916,12 +910,15 @@ function App() {
   };
 
   const handleOpenAccountDeletion = async () => {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+    let oauthProvider: ProfileInfo['oauthProvider'];
+    try {
+      oauthProvider = (currentProfile ?? (await getCurrentProfile())).oauthProvider;
+    } catch {
+      oauthProvider = undefined;
+    }
+    const providers = getLinkedDeletionProviders(oauthProvider);
 
-    if (error || !user) {
+    if (providers.length === 0) {
       Alert.alert(
         '로그인이 필요해요',
         '회원탈퇴를 진행하려면 다시 로그인해주세요.',
@@ -929,7 +926,7 @@ function App() {
       return;
     }
 
-    setLinkedDeletionProviders(getLinkedDeletionProviders(user));
+    setLinkedDeletionProviders(providers);
     setMyPageOverlay('accountDeletion');
   };
 
@@ -940,7 +937,8 @@ function App() {
     setProfileError(null);
     setMyPageOverlay(null);
 
-    await supabase.auth.signOut({ scope: 'local' });
+    // 서버 회원은 이미 삭제됐으므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지웁니다.
+    await clearSpringSession().catch(() => undefined);
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
@@ -1182,9 +1180,24 @@ function App() {
           ) : null}
         </View>
       </SafeAreaView>
-      <RequiredAppUpdateModal
+      <AppUpdateModal
+        mode="required"
         storeUrl={requiredUpdateStoreUrl ?? ''}
         visible={requiredUpdateStoreUrl !== null}
+      />
+      <AppUpdateModal
+        mode="recommended"
+        storeUrl={recommendedUpdate?.storeUrl ?? ''}
+        visible={recommendedUpdate !== null && requiredUpdateStoreUrl === null}
+        onDismiss={() => {
+          if (recommendedUpdate) {
+            dismissedRecommendedVersionRef.current = recommendedUpdate.latestVersion;
+            rememberDismissedRecommendedVersion(
+              recommendedUpdate.latestVersion,
+            ).catch(() => undefined);
+          }
+          setRecommendedUpdate(null);
+        }}
       />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}

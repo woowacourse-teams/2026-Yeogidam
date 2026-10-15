@@ -16,8 +16,7 @@ RCT_EXTERN_METHOD(getShareSession:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(resumeWaitingShares:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
-RCT_EXTERN_METHOD(setSupabaseConfiguration:(NSString *)url
-                  publishableKey:(NSString *)publishableKey
+RCT_EXTERN_METHOD(setApiConfiguration:(NSString *)url
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(setPostHogConfiguration:(NSString *)projectToken

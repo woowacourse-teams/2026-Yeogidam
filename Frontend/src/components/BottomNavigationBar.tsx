@@ -12,7 +12,7 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getHistoryReels } from '../entities/content/api';
+import { getHistoryReels } from '../entities/content/history-api';
 import {
   getLastSeenHistorySnapshot,
   setLastSeenHistorySnapshot,

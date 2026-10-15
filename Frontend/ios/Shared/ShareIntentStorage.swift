@@ -13,8 +13,7 @@ enum ShareIntentConstants {
   static let authTokenKey = "auth_access_token"
   static let authSessionKey = "share_auth_session_v1"
   static let hadSessionKey = "share_had_session"
-  static let supabaseURLKey = "supabase_url"
-  static let supabasePublishableKeyKey = "supabase_publishable_key"
+  static let apiBaseURLKey = "api_base_url"
   // Legacy single-result key. Kept only so existing installed builds can migrate
   // an unconsumed result after updating.
   static let shareResultKey = "share_reel_result"
@@ -108,7 +107,7 @@ enum ShareIntentStorageError: LocalizedError {
     case .unsupportedContent:
       return "No supported shared content was found."
     case .missingConfiguration:
-      return "Missing Supabase configuration."
+      return "Missing API configuration."
     case .secureStoreFailure(let code):
       return "Share credential store failed: \(code)."
     case .resultStoreFailure:
@@ -188,24 +187,41 @@ enum ShareIntentStorage {
     defaults?.bool(forKey: ShareIntentConstants.hadSessionKey) ?? false
   }
 
-  static func saveSupabaseConfiguration(url: String, publishableKey: String) {
+  /// 앱이 Spring API origin을 넘겨주면 공유 익스텐션이 같은 서버를 호출한다.
+  static func saveApiConfiguration(url: String) {
     guard let defaults else { return }
-    defaults.set(url, forKey: ShareIntentConstants.supabaseURLKey)
-    defaults.set(publishableKey, forKey: ShareIntentConstants.supabasePublishableKeyKey)
+    var trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+    while trimmed.hasSuffix("/") { trimmed.removeLast() }
+    defaults.set(trimmed, forKey: ShareIntentConstants.apiBaseURLKey)
     defaults.synchronize()
   }
 
-  static func supabaseConfiguration() -> (url: String, publishableKey: String)? {
-    guard
-      let defaults,
-      let url = defaults.string(forKey: ShareIntentConstants.supabaseURLKey),
-      !url.isEmpty,
-      let publishableKey = defaults.string(forKey: ShareIntentConstants.supabasePublishableKeyKey),
-      !publishableKey.isEmpty
-    else {
+  static func apiBaseURL() -> String? {
+    guard let url = defaults?.string(forKey: ShareIntentConstants.apiBaseURLKey), !url.isEmpty else {
       return nil
     }
-    return (url, publishableKey)
+    return url
+  }
+
+  /// Spring Instant(ISO-8601) 문자열을 epoch초로 바꾼다. 소수 초는 잘라 표준 포맷터로 읽는다.
+  static func epochSeconds(fromISO8601 value: String) -> Double? {
+    var text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let dot = text.firstIndex(of: ".") {
+      let suffixStart = text[dot...].firstIndex(where: { $0 == "Z" || $0 == "+" || $0 == "-" }) ?? text.endIndex
+      text.removeSubrange(dot..<suffixStart)
+    }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: text)?.timeIntervalSince1970
+  }
+
+  /// Spring ExtractionStatus를 앱 처리 상태로 바꾼다.
+  static func reelStatus(fromExtractionStatus status: String?) -> String {
+    switch status {
+    case "SUCCEEDED": return "COMPLETED"
+    case "FAILED": return "FAILED"
+    default: return "PROCESSING"
+    }
   }
 
   static func saveResult(_ result: ShareReelResult) throws {
@@ -758,15 +774,15 @@ enum ShareAuth {
        session.expiresAt > Date().timeIntervalSince1970 + 60 {
       return .ready(session.accessToken)
     }
-    guard let config = ShareIntentStorage.supabaseConfiguration(),
-          let endpoint = URL(string: "\(config.url)/auth/v1/token?grant_type=refresh_token") else {
+    guard let baseURL = ShareIntentStorage.apiBaseURL(),
+          let endpoint = URL(string: "\(baseURL)/api/v1/auth/token-refreshes") else {
       return .waitingForAuth
     }
     var request = URLRequest(url: endpoint, timeoutInterval: 12)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(config.publishableKey, forHTTPHeaderField: "apikey")
-    request.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": session.refreshToken])
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.httpBody = try? JSONSerialization.data(withJSONObject: ["refreshToken": session.refreshToken])
     do {
       let (data, response) = try await URLSession.shared.data(for: request)
       guard let http = response as? HTTPURLResponse else { return .waitingForAuth }
@@ -779,12 +795,12 @@ enum ShareAuth {
         if latest.refreshToken != session.refreshToken {
           return latest.accessToken.isEmpty ? .waitingForAuth : .ready(latest.accessToken)
         }
-        guard let access = json["access_token"] as? String, !access.isEmpty,
-              let refresh = json["refresh_token"] as? String, !refresh.isEmpty else {
+        guard let access = json["accessToken"] as? String, !access.isEmpty,
+              let refresh = json["refreshToken"] as? String, !refresh.isEmpty,
+              let expiresAtText = json["expiresAt"] as? String,
+              let expiresAt = ShareIntentStorage.epochSeconds(fromISO8601: expiresAtText) else {
           return .waitingForAuth
         }
-        let expiresAt = (json["expires_at"] as? Double)
-          ?? (Date().timeIntervalSince1970 + ((json["expires_in"] as? Double) ?? 0))
         do {
           try ShareIntentStorage.saveSession(ShareAuthSession(
             accessToken: access, refreshToken: refresh, expiresAt: expiresAt, userId: session.userId
@@ -792,17 +808,18 @@ enum ShareAuth {
           return .ready(access)
         } catch { return .waitingForAuth }
       }
-      let code = json["error_code"] as? String ?? json["code"] as? String ?? ""
-      if (400...401).contains(http.statusCode),
-         ["refresh_token_not_found", "refresh_token_already_used", "invalid_grant", "session_not_found"].contains(code) {
-        if let latest = try? ShareIntentStorage.loadSession(),
-           latest.refreshToken != session.refreshToken {
-          return latest.accessToken.isEmpty ? .waitingForAuth : .ready(latest.accessToken)
-        }
-        try? ShareIntentStorage.saveSession(nil)
-        return .loginRequired("refresh_token_invalid")
+      guard (400...401).contains(http.statusCode) else { return .waitingForAuth }
+      // 다른 프로세스(앱)가 같은 토큰을 먼저 회전했다면 저장소에 새 토큰이 있다.
+      if let latest = try? ShareIntentStorage.loadSession(),
+         latest.refreshToken != session.refreshToken {
+        return latest.accessToken.isEmpty ? .waitingForAuth : .ready(latest.accessToken)
       }
-      return .waitingForAuth
+      // AUTH401_005: 직전 토큰 재사용(10초 이내). 앱이 새 토큰을 공유할 때까지 기다린다.
+      if json["errorCode"] as? String == "AUTH401_005" {
+        return .waitingForAuth
+      }
+      try? ShareIntentStorage.saveSession(nil)
+      return .loginRequired("refresh_token_invalid")
     } catch {
       return .waitingForNetwork
     }
@@ -829,19 +846,20 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
   }
 
   func enqueue(requestId: String, url: String, rawText: String?, token: String) throws {
-    guard let config = ShareIntentStorage.supabaseConfiguration(),
-          let endpoint = URL(string: "\(config.url)/functions/v1/save-instagram-reel"),
-          let directory = uploadDirectory else { throw ShareIntentStorageError.appGroupUnavailable }
+    guard let baseURL = ShareIntentStorage.apiBaseURL(),
+          let endpoint = URL(string: "\(baseURL)/api/v1/shares") else {
+      throw ShareIntentStorageError.missingConfiguration
+    }
+    guard let directory = uploadDirectory else { throw ShareIntentStorageError.appGroupUnavailable }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let bodyFile = directory.appendingPathComponent("\(requestId).json")
-    let body = try JSONSerialization.data(withJSONObject: [
-      "instagramUrl": url, "source": "instagram_share", "clientRequestId": requestId,
-    ])
+    // 서버에는 멱등키가 없어 instagramUrl만 보낸다.
+    let body = try JSONSerialization.data(withJSONObject: ["instagramUrl": url])
     try body.write(to: bodyFile, options: .atomic)
     var request = URLRequest(url: endpoint)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(config.publishableKey, forHTTPHeaderField: "apikey")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     let task = session.uploadTask(with: request, fromFile: bodyFile)
     task.taskDescription = requestId
@@ -885,7 +903,7 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
       if !hasSession && result.transferStatus == "LOGIN_HANDOFF" { continue }
       guard let requestId = result.requestId, !result.url.isEmpty else { continue }
       let auth = await ShareAuth.ensureAccessToken(
-        forceRefresh: result.failureReason == "AUTH401_002"
+        forceRefresh: result.failureReason == "AUTH401_001"
       )
       switch auth {
       case .ready(let token):
@@ -965,17 +983,18 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     } else if let http = task.response as? HTTPURLResponse {
       result.responseStatus = http.statusCode
       let json = (try? JSONSerialization.jsonObject(with: responseData[task.taskIdentifier] ?? Data())) as? [String: Any] ?? [:]
-      let nested = json["error"] as? [String: Any] ?? [:]
       if (200..<300).contains(http.statusCode) {
+        // Spring 응답(202): {sharedMediaId, extractionStatus}
+        let extractionStatus = json["extractionStatus"] as? String
         analyticsOutcome = "response_received"
         analyticsProperties["response_status"] = http.statusCode
-        result.status = json["status"] as? String ?? "FAILED"
+        result.status = ShareIntentStorage.reelStatus(fromExtractionStatus: extractionStatus)
         result.transferStatus = "API_SUCCEEDED"
-        result.reelId = json["reelId"] as? String
-        result.failureReason = json["failureReason"] as? String
-        result.retryable = json["retryable"] as? Bool ?? false
-        result.reused = json["reused"] as? Bool
-        result.saveMode = json["saveMode"] as? String
+        result.reelId = (json["sharedMediaId"] as? NSNumber)?.stringValue
+        result.failureReason = nil
+        result.retryable = false
+        result.reused = extractionStatus == "SUCCEEDED"
+        result.saveMode = "AUTO_SAVE"
         if result.reelId?.isEmpty != false {
           result.status = "FAILED"
           result.transferStatus = "API_FAILED"
@@ -984,11 +1003,14 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
           analyticsProperties["failure_type"] = "invalid_response"
         }
       } else {
-        let code = json["errorCode"] as? String ?? nested["errorCode"] as? String ?? "HTTP_\(http.statusCode)"
+        // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
+        let code = http.statusCode == 401
+          ? "AUTH401_001"
+          : json["errorCode"] as? String ?? "HTTP_\(http.statusCode)"
         result.status = "FAILED"
         result.transferStatus = "API_FAILED"
         result.failureReason = code
-        result.reelId = json["reelId"] as? String ?? nested["reelId"] as? String
+        result.reelId = nil
         result.retryable = false
         analyticsOutcome = "request_failed"
         analyticsProperties["response_status"] = http.statusCode

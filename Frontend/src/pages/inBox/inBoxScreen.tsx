@@ -31,7 +31,7 @@ import {
 import { normalizeReelError } from '../../entities/content/errors';
 import {normalizeReelTitle} from '../../entities/content/title';
 import { supabase } from '../../lib/auth/supabase';
-import { getHistoryReels } from '../../entities/content/api';
+import { getHistoryReels } from '../../entities/content/history-api';
 import {
   getLastSeenHistorySnapshot,
   setLastSeenHistorySnapshot,

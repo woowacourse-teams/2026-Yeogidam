@@ -32,8 +32,8 @@ import {
   getHistoryReelDetail,
   getHistoryReels,
   reportHistoryReel,
-  saveContent,
-} from '../../entities/content/api';
+} from '../../entities/content/history-api';
+import {saveContent} from '../../entities/content/api';
 import type {
   HistoryCursor,
   HistoryPlace,
@@ -91,6 +91,17 @@ function getHistoryFailureMessage(reason: string | null) {
       return '지도에서 일치하는 장소를 찾지 못했어요.';
     case 'PLACE_NOT_FOUND':
       return '장소를 찾지 못했어요.';
+    // Spring 서버 ExtractionFailureReason
+    case 'CONTENT_UNAVAILABLE':
+      return '원본 릴스를 불러오지 못했어요.';
+    case 'PLACE_NOT_EXTRACTED':
+      return '릴스에서 장소 정보를 찾지 못했어요.';
+    case 'PLACE_NOT_MATCHED':
+      return '지도에서 장소를 찾지 못했어요.';
+    case 'PROCESSING_FAILED':
+      return '장소 정보를 처리하지 못했어요.';
+    case 'UNEXPECTED':
+      return '알 수 없는 문제가 발생했어요.';
     case 'DATA500_001':
     case 'COMMON500_001':
       return '서버에서 분석을 처리하지 못했어요.';

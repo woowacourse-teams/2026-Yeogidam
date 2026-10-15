@@ -1,8 +1,7 @@
 import {NativeEventEmitter, NativeModules} from 'react-native';
-import type {Session} from '@supabase/supabase-js';
 import Config from 'react-native-config';
 
-import {SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase} from '../auth/supabase';
+import {getApiBaseUrl} from '../api/config';
 
 export type SharedContent = {
   type: 'url' | 'text';
@@ -22,10 +21,7 @@ type NativeShareIntentModule = {
   setShareSession?(session: NativeShareSession | null): Promise<void>;
   getShareSession?(): Promise<NativeShareSession | null>;
   resumeWaitingShares?(): Promise<void>;
-  setSupabaseConfiguration?(
-    url: string,
-    publishableKey: string,
-  ): Promise<void>;
+  setApiConfiguration?(baseUrl: string): Promise<void>;
   setPostHogConfiguration?(projectToken: string, host: string): Promise<void>;
   getShareResult?(): Promise<NativeShareResult | null>;
   getShareResults?(): Promise<NativeShareResult[]>;
@@ -109,18 +105,15 @@ export async function getInitialSharedContent(): Promise<SharedContent | null> {
   return normalizeSharedContent(payload);
 }
 
-export async function syncShareSession(session: Session | null) {
-  await syncShareAnalyticsConfiguration();
-  await nativeShareIntentModule?.setSupabaseConfiguration?.(
-    SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY,
-  );
-  await nativeShareIntentModule?.setShareSession?.(session ? {
-    accessToken: session.access_token,
-    refreshToken: session.refresh_token,
-    expiresAt: session.expires_at ?? 0,
-    userId: session.user.id,
-  } : null);
+/** 공유 익스텐션이 Spring API를 직접 부를 수 있도록 API 주소와 세션을 네이티브 저장소에 넣습니다. */
+export async function syncShareSession(session: NativeShareSession | null) {
+  await syncShareAnalyticsConfiguration().catch(() => undefined);
+  try {
+    await nativeShareIntentModule?.setApiConfiguration?.(getApiBaseUrl());
+  } catch {
+    // API 주소를 넣지 못해도 세션 동기화는 계속합니다. 익스텐션은 이전 설정이나 빌드 설정을 씁니다.
+  }
+  await nativeShareIntentModule?.setShareSession?.(session);
 }
 
 export async function syncShareAnalyticsConfiguration(): Promise<void> {
@@ -131,30 +124,6 @@ export async function syncShareAnalyticsConfiguration(): Promise<void> {
 }
 export async function getShareSession(): Promise<NativeShareSession | null> {
   return nativeShareIntentModule?.getShareSession?.() ?? null;
-}
-export async function reconcileShareSession(): Promise<void> {
-  const shared = await getShareSession();
-  if (!shared) return;
-  const {data: {session}} = await supabase.auth.getSession();
-  if (session && session.user.id !== shared.userId) return;
-  if (!shared.accessToken && shared.refreshToken) {
-    if (session?.access_token && (session.expires_at ?? 0) > Date.now() / 1000 + 60) {
-      await syncShareSession(session);
-      return;
-    }
-    const {error} = await supabase.auth.refreshSession({
-      refresh_token: shared.refreshToken,
-    });
-    if (error) throw error;
-    return;
-  }
-  if (!session || shared.expiresAt > (session.expires_at ?? 0)) {
-    const {error} = await supabase.auth.setSession({
-      access_token: shared.accessToken,
-      refresh_token: shared.refreshToken,
-    });
-    if (error) throw error;
-  }
 }
 export async function resumeWaitingShares(): Promise<void> {
   await nativeShareIntentModule?.resumeWaitingShares?.();
