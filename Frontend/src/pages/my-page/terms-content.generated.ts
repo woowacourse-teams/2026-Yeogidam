@@ -381,7 +381,6 @@ export const TERMS_DOCUMENT_BLOCKS: readonly TermsDocumentBlock[] = [
     type: 'table',
     headers: ['제공자', '이용 업무'],
     rows: [
-      ['Supabase, Inc.', '회원 인증, 데이터베이스 저장 및 서비스 인프라 제공'],
       ['Apple Inc.', 'Apple 계정 로그인'],
       ['Google LLC', 'Google 계정 로그인'],
       ['주식회사 카카오', 'Kakao 계정 로그인, 지도 및 장소 정보 표시'],
