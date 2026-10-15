@@ -1,3 +1,4 @@
+import {toScreenApiError} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {SpringMember} from '../../lib/api/spring-auth-api';
 import type {
@@ -7,6 +8,15 @@ import type {
 } from './types';
 
 const client = createSpringApiClient();
+
+/** 화면은 {status, errorCode, message, retryable} 계약으로 오류를 분기합니다. */
+async function withScreenError<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw toScreenApiError(error);
+  }
+}
 
 type SavedPlaceResponse = {
   savedPlaceId: number;
@@ -32,21 +42,21 @@ type SavedPlaceMediaResponse = {
 };
 
 export const springProfileRepository: CurrentProfileRepository = {
-  async getCurrentProfile() {
-    const member = await client.request<SpringMember>('/api/v1/members/me');
-    return {
-      id: String(member.id),
-      nickname: member.nickname,
-      avatarUrl: member.imageUrl,
-      description: null,
-      createdAt: '',
-      updatedAt: '',
-    };
-  },
+  getCurrentProfile: () =>
+    withScreenError(async () => {
+      const member = await client.request<SpringMember>('/api/v1/members/me');
+      return {
+        id: String(member.id),
+        nickname: member.nickname,
+        avatarUrl: member.imageUrl,
+        description: null,
+        oauthProvider: member.oauthProvider,
+      };
+    }),
 };
 
 export const springSavedPlacesRepository: SavedPlacesRepository = {
-  async getSavedPlaces() {
+  getSavedPlaces: () => withScreenError(async () => {
     const response = await client.request<{savedPlaces: SavedPlaceResponse[]}>(
       '/api/v1/saved-places',
     );
@@ -68,18 +78,18 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
         thumbnailUrl: item.thumbnailUrl,
       },
     }));
-  },
-  async deleteSavedPlaces(savedPlaceIds) {
+  }),
+  deleteSavedPlaces: savedPlaceIds => withScreenError(async () => {
     if (savedPlaceIds.length === 0) return;
     await client.request<void>('/api/v1/saved-places', {
       method: 'DELETE',
       query: {savedPlaceIds},
     });
-  },
+  }),
 };
 
 export const springPlaceReelsRepository: PlaceReelsRepository = {
-  async getPlaceReels(placeId) {
+  getPlaceReels: placeId => withScreenError(async () => {
     // 화면은 장소 ID를 전달하지만 서버의 미디어 경로에는 저장 장소 ID가 필요합니다.
     const savedPlaces = await springSavedPlacesRepository.getSavedPlaces();
     const savedPlace = savedPlaces.find(item => item.place.id === placeId);
@@ -96,5 +106,5 @@ export const springPlaceReelsRepository: PlaceReelsRepository = {
       instagramThumbnailUrl: item.thumbnailUrl,
       createdAt: item.createdAt,
     }));
-  },
+  }),
 };

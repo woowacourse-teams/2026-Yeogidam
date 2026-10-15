@@ -1,15 +1,22 @@
-import type {Session, User} from '@supabase/supabase-js';
-
+import type {SpringMember} from '../api/spring-auth-api';
+import {createSpringApiClient} from '../api/spring-client';
+import {ApiError} from '../api/errors';
 import {normalizeAuthError, type NormalizedAuthError} from './errors';
-import {reauthenticateWithApple} from './signInWithApple';
-import {signInWithGoogle} from './signInWithGoogle';
-import {signInWithKakao} from './signInWithKakao';
-import {SUPABASE_URL, supabase} from './supabase';
+import {
+  getSpringAppleCredential,
+  getSpringOAuthAuthorizationCode,
+} from './spring-sign-in';
 
 const DELETE_ACCOUNT_TIMEOUT_MS = 10_000;
 
+const client = createSpringApiClient();
+
 export type AccountDeletionProvider = 'apple' | 'google' | 'kakao';
 
+/**
+ * 탈퇴 화면 계약입니다. Spring 서버는 회원의 소셜 제공자 인가 코드 하나만 받으므로
+ * 카카오/구글은 providerTokens에, 애플은 appleAuthorizationCode에 인가 코드를 담습니다.
+ */
 export type DeleteAccountRequest = {
   confirmation: 'DELETE';
   providerTokens?: {
@@ -29,8 +36,6 @@ export type DeleteAccountError = {
     field?: string;
   };
 };
-
-type SessionSnapshot = Pick<Session, 'access_token' | 'refresh_token' | 'user'>;
 
 const deletionError = (
   errorCode: string,
@@ -56,15 +61,6 @@ function fallbackDeleteAccountError(status: number | null): DeleteAccountError {
 
   if (status === 401) {
     return deletionError('AUTH401_001', 401, '로그인이 필요해요.', true);
-  }
-
-  if (status === 405) {
-    return deletionError(
-      'COMMON405_001',
-      405,
-      '지원하지 않는 요청 방식이에요.',
-      false,
-    );
   }
 
   if (status === 502) {
@@ -114,12 +110,7 @@ function toDeleteAccountAuthError(
   }
 
   if (error.errorCode === 'AUTH400_001') {
-    return deletionError(
-      'USER401_001',
-      401,
-      '계정 보호를 위해 다시 로그인해주세요.',
-      true,
-    );
+    return createDeleteAccountReauthError();
   }
 
   if (error.errorCode === 'AUTH502_001') {
@@ -140,193 +131,96 @@ function toDeleteAccountAuthError(
   };
 }
 
-function getLinkedProviderSet(user: User | null) {
-  const providers = new Set<AccountDeletionProvider>();
+function toDeleteAccountApiError(error: unknown): DeleteAccountError {
+  if (!(error instanceof ApiError)) return fallbackDeleteAccountError(null);
 
-  user?.app_metadata.providers?.forEach(provider => {
-    if (provider === 'apple' || provider === 'google' || provider === 'kakao') {
-      providers.add(provider);
-    }
-  });
-
-  user?.identities?.forEach(identity => {
-    if (
-      identity.provider === 'apple' ||
-      identity.provider === 'google' ||
-      identity.provider === 'kakao'
-    ) {
-      providers.add(identity.provider);
-    }
-  });
-
-  return providers;
-}
-
-export function getLinkedDeletionProviders(user: User | null) {
-  const linkedProviders = getLinkedProviderSet(user);
-
-  return (['google', 'kakao', 'apple'] as AccountDeletionProvider[]).filter(
-    provider => linkedProviders.has(provider),
-  );
-}
-
-async function getCurrentSessionSnapshot(): Promise<SessionSnapshot> {
-  const {
-    data: {session},
-  } = await supabase.auth.getSession();
-
-  if (!session) {
-    throw deletionError('AUTH401_001', 401, '로그인이 필요해요.', true);
+  if (error.kind === 'timeout') {
+    return deletionError(
+      'CLIENT000_002',
+      null,
+      '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+      true,
+    );
   }
+  if (error.kind === 'network') {
+    return deletionError('CLIENT000_001', null, '인터넷 연결을 확인해주세요.', true);
+  }
+  if (error.kind === 'auth') return fallbackDeleteAccountError(401);
+  if (error.kind !== 'http') return fallbackDeleteAccountError(null);
 
+  const status = error.status ?? null;
+  // 서버가 인가 코드를 거절하면 사용자가 다시 인증해야 합니다.
+  if (error.errorCode === 'AUTH401_002') return createDeleteAccountReauthError();
+
+  const fallback = fallbackDeleteAccountError(status);
   return {
-    access_token: session.access_token,
-    refresh_token: session.refresh_token,
-    user: session.user,
+    ...fallback,
+    status: status ?? fallback.status,
+    errorCode: error.errorCode ?? fallback.errorCode,
+    message: error.errorCode ? error.message : fallback.message,
   };
 }
 
-async function restoreSession(snapshot: SessionSnapshot) {
-  await supabase.auth
-    .setSession({
-      access_token: snapshot.access_token,
-      refresh_token: snapshot.refresh_token,
-    })
-    .catch(() => undefined);
-}
-
-async function ensureSameUserSession(
-  snapshot: SessionSnapshot,
-  session: Session,
-) {
-  if (session.user.id === snapshot.user.id) {
-    return;
+export function getLinkedDeletionProviders(
+  oauthProvider: SpringMember['oauthProvider'] | null | undefined,
+): AccountDeletionProvider[] {
+  switch (oauthProvider) {
+    case 'APPLE':
+      return ['apple'];
+    case 'GOOGLE':
+      return ['google'];
+    case 'KAKAO':
+      return ['kakao'];
+    default:
+      return [];
   }
-
-  await restoreSession(snapshot);
-  throw createDeleteAccountReauthError();
 }
 
+/** 로그인 API를 부르지 않고 탈퇴용 제공자 인가 코드만 받습니다. */
 export async function reauthenticateDeletionProvider(
   provider: AccountDeletionProvider,
 ): Promise<DeleteAccountRequest> {
-  const snapshot = await getCurrentSessionSnapshot();
-
   try {
     if (provider === 'apple') {
-      const {authorizationCode, session} = await reauthenticateWithApple();
-
-      await ensureSameUserSession(snapshot, session);
-
-      if (!authorizationCode) {
-        throw deletionError(
-          'CLIENT000_003',
-          null,
-          '응답을 처리하지 못했어요.',
-          false,
-        );
-      }
-
+      const {authorizationCode} = await getSpringAppleCredential();
       return {
         confirmation: 'DELETE',
         appleAuthorizationCode: authorizationCode,
       };
     }
 
-    const session =
-      provider === 'google'
-        ? await signInWithGoogle()
-        : await signInWithKakao();
-
-    await ensureSameUserSession(snapshot, session);
-
-    if (!session.provider_token) {
-      throw deletionError(
-        'CLIENT000_003',
-        null,
-        '응답을 처리하지 못했어요.',
-        false,
-      );
-    }
-
+    const authorizationCode = await getSpringOAuthAuthorizationCode(provider);
     return {
       confirmation: 'DELETE',
       providerTokens: {
-        [provider]: session.provider_token,
+        [provider]: authorizationCode,
       },
     };
   } catch (error) {
-    if ((error as DeleteAccountError).errorCode) {
-      throw error;
-    }
-
     throw toDeleteAccountAuthError(normalizeAuthError(error));
   }
 }
 
+function getAuthorizationCode(payload: DeleteAccountRequest): string | null {
+  return (
+    payload.appleAuthorizationCode ??
+    payload.providerTokens?.google ??
+    payload.providerTokens?.kakao ??
+    null
+  );
+}
+
 export async function deleteAccount(payload: DeleteAccountRequest) {
-  const {
-    data: {session},
-  } = await supabase.auth.getSession();
+  const authorizationCode = getAuthorizationCode(payload);
+  if (!authorizationCode) throw createDeleteAccountReauthError();
 
-  if (!session?.access_token) {
-    throw deletionError('AUTH401_001', 401, '로그인이 필요해요.', true);
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DELETE_ACCOUNT_TIMEOUT_MS);
-
-  let response: Response;
   try {
-    response = await fetch(`${SUPABASE_URL}/functions/v1/delete-account`, {
+    await client.request<void>('/api/v1/members/me', {
       method: 'DELETE',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
+      body: {authorizationCode},
+      timeoutMs: DELETE_ACCOUNT_TIMEOUT_MS,
     });
-  } catch {
-    throw controller.signal.aborted
-      ? deletionError(
-          'CLIENT000_002',
-          null,
-          '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-          true,
-        )
-      : deletionError(
-          'CLIENT000_001',
-          null,
-          '인터넷 연결을 확인해주세요.',
-          true,
-        );
-  } finally {
-    clearTimeout(timeoutId);
+  } catch (error) {
+    throw toDeleteAccountApiError(error);
   }
-
-  if (response.status === 204) {
-    return;
-  }
-
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    throw fallbackDeleteAccountError(null);
-  }
-
-  if (!response.ok) {
-    const normalized = body as Partial<DeleteAccountError>;
-    const fallback = fallbackDeleteAccountError(response.status);
-
-    throw {
-      ...fallback,
-      ...normalized,
-      status: normalized.status ?? fallback.status,
-    };
-  }
-
-  throw fallbackDeleteAccountError(null);
 }

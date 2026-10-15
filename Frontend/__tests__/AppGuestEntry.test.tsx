@@ -3,7 +3,11 @@ import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import App from '../App';
-import {supabase} from '../src/lib/auth/supabase';
+import {
+  getSpringMemberId,
+  getSpringTokens,
+  onSpringSessionChange,
+} from '../src/lib/auth/spring-session';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -23,7 +27,7 @@ import {MapScreen} from '../src/pages/map/MapScreen';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
-import {deleteAccount} from '../src/lib/auth/deleteAccount';
+import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
@@ -52,15 +56,12 @@ jest.mock('../src/app/configureDataSources', () => ({
   configureDataSources: jest.fn(),
 }));
 
-jest.mock('../src/lib/auth/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: jest.fn(),
-      getUser: jest.fn(),
-      onAuthStateChange: jest.fn(),
-      signOut: jest.fn(),
-    },
-  },
+jest.mock('../src/lib/auth/spring-session', () => ({
+  getSpringTokens: jest.fn(),
+  getSpringMemberId: jest.fn(),
+  onSpringSessionChange: jest.fn(),
+  logoutSpringSession: jest.fn(() => Promise.resolve()),
+  clearSpringSession: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('../src/lib/app-guide-storage', () => ({
@@ -71,7 +72,6 @@ jest.mock('../src/lib/app-guide-storage', () => ({
 }));
 
 jest.mock('../src/lib/share-intent', () => ({
-  reconcileShareSession: jest.fn(() => Promise.resolve()),
   syncShareSession: jest.fn(() => Promise.resolve()),
   getShareSession: jest.fn(() => Promise.resolve(null)),
   getShareResults: jest.fn(() => Promise.resolve([])),
@@ -91,7 +91,7 @@ jest.mock('../src/entities/onboarding/transfer', () => ({
 }));
 
 jest.mock('../src/lib/auth/signInWithGoogle', () => ({
-  signInWithGoogle: jest.fn(() => Promise.resolve({user: {id: 'new-user'}})),
+  signInWithGoogle: jest.fn(() => Promise.resolve({member: {id: 1}})),
 }));
 
 jest.mock('../src/lib/auth/deleteAccount', () => ({
@@ -131,7 +131,20 @@ jest.mock('../src/pages/my-page/AccountDeletionScreen', () => ({
   AccountDeletionScreen: () => null,
 }));
 
-type AuthChangeHandler = (event: string, session: unknown) => void;
+type AuthChangeHandler = (event: string, memberId: string | null) => void;
+
+const SPRING_TOKENS = {
+  accessToken: 'token',
+  refreshToken: 'refresh',
+  tokenType: 'Bearer',
+  expiresAt: '2099-01-01T00:00:00Z',
+  refreshTokenExpiresAt: '2099-01-01T00:00:00Z',
+};
+
+function restoreSpringSession(memberId = 'user') {
+  (getSpringTokens as jest.Mock).mockResolvedValue(SPRING_TOKENS);
+  (getSpringMemberId as jest.Mock).mockResolvedValue(memberId);
+}
 let authChangeHandler: AuthChangeHandler;
 
 async function renderAfterSplash() {
@@ -150,25 +163,22 @@ beforeEach(async () => {
   jest.useFakeTimers();
   await AsyncStorage.removeItem(DISMISSED_RECOMMENDED_VERSION_KEY);
   (getAppUpdatePolicy as jest.Mock).mockResolvedValue(null);
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: null},
-    error: null,
-  });
-  (supabase.auth.signOut as jest.Mock).mockResolvedValue({error: null});
-  (supabase.auth.onAuthStateChange as jest.Mock).mockImplementation(
+  (getSpringTokens as jest.Mock).mockResolvedValue(null);
+  (getSpringMemberId as jest.Mock).mockResolvedValue(null);
+  (onSpringSessionChange as jest.Mock).mockImplementation(
     (handler: AuthChangeHandler) => {
       authChangeHandler = handler;
-      return {data: {subscription: {unsubscribe: jest.fn()}}};
+      return jest.fn();
     },
   );
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(false);
   (completeAppGuide as jest.Mock).mockResolvedValue(undefined);
   (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(false);
   (rememberSignInOnThisInstall as jest.Mock).mockResolvedValue(undefined);
-  (getCurrentProfile as jest.Mock).mockClear();
+  (getCurrentProfile as jest.Mock).mockReset().mockResolvedValue(null);
   (beginGuestOnboardingTransfer as jest.Mock).mockResolvedValue(undefined);
   (resumeGuestOnboardingTransfer as jest.Mock).mockResolvedValue(false);
-  (signInWithGoogle as jest.Mock).mockResolvedValue({user: {id: 'new-user'}});
+  (signInWithGoogle as jest.Mock).mockResolvedValue({member: {id: 1}});
 });
 
 afterEach(() => {
@@ -338,7 +348,8 @@ test('온보딩을 완료한 비회원은 재실행 시 메인으로 진입하�
 
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('INITIAL_SESSION', null);
+    // 토큰 회전은 화면 흐름을 바꾸지 않습니다.
+    authChangeHandler('TOKEN_REFRESHED', null);
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => {
@@ -419,10 +430,7 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
 
 test('로그아웃하면 회원 메인에서 로그인 화면으로 이동한다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   const renderer = await renderAfterSplash();
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
 
@@ -436,10 +444,7 @@ test('로그아웃하면 회원 메인에서 로그인 화면으로 이동한다
 
 test('v1 공유 추출이 완료되고 saveMode가 없어도 보관함을 연다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   (getShareResults as jest.Mock).mockResolvedValueOnce([{
     requestId: 'v1-share-request',
     url: 'https://www.instagram.com/reel/abc/',
@@ -473,7 +478,7 @@ test('비회원이 로그인하면 이번 설치의 로그인 기록을 저장�
 
   expect(rememberSignInOnThisInstall).not.toHaveBeenCalled();
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', {access_token: 'token', user: {id: 'user'}});
+    authChangeHandler('SIGNED_IN', 'user');
   });
   expect(rememberSignInOnThisInstall).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -493,13 +498,13 @@ test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하�
   });
   expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
 
-  const session = {access_token: 'token', user: {id: 'new-user'}};
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', session);
+    authChangeHandler('SIGNED_IN', 'new-user');
     await Promise.resolve();
   });
 
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith(session);
+  // TODO(spring-migration): 온보딩 이전 API를 Spring으로 옮기기 전까지 이어 받기는 멈춰 둡니다.
+  expect(resumeGuestOnboardingTransfer).not.toHaveBeenCalled();
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -515,25 +520,22 @@ test('이전에 로그인한 기기에서도 새 계정 로그인 시 군자역 
   });
   expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
 
-  const session = {access_token: 'token', user: {id: 'another-new-user'}};
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', session);
+    authChangeHandler('SIGNED_IN', 'another-new-user');
     await Promise.resolve();
   });
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith(session);
+  expect(resumeGuestOnboardingTransfer).not.toHaveBeenCalled();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다', async () => {
   (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'old-token', user: {id: 'deleted-user'}}},
-    error: null,
+  restoreSpringSession('deleted-user');
+  (getCurrentProfile as jest.Mock).mockResolvedValue({
+    id: 'deleted-user',
+    oauthProvider: 'GOOGLE',
   });
-  (supabase.auth.getUser as jest.Mock).mockResolvedValue({
-    data: {user: {id: 'deleted-user'}},
-    error: null,
-  });
+  (getLinkedDeletionProviders as jest.Mock).mockReturnValue(['google']);
   const renderer = await renderAfterSplash();
 
   await ReactTestRenderer.act(async () => {
@@ -558,10 +560,7 @@ test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다',
 });
 
 test('재설치로 앱 기록이 없으면 세션이 복원되어도 온보딩을 보여준다', async () => {
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   const renderer = await renderAfterSplash();
 
   expect(renderer.root.findAllByType(AppGuideScreen)).toHaveLength(1);
@@ -576,10 +575,7 @@ test('재설치로 앱 기록이 없으면 세션이 복원되어도 온보딩�
 });
 
 test('새 설치에서 복원된 세션이 무효화되면 온보딩 후 비회원 메인으로 간다', async () => {
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   const renderer = await renderAfterSplash();
 
   await ReactTestRenderer.act(async () => {

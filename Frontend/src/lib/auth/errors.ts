@@ -1,3 +1,5 @@
+import {ApiError} from '../api/errors';
+
 export type AuthErrorCode =
   | 'AUTH000_001'
   | 'AUTH400_001'
@@ -14,7 +16,7 @@ export type NormalizedAuthError = {
   requestId?: string;
 };
 
-type SupabaseLikeError = {
+type HttpLikeError = {
   message?: string;
   status?: number;
   code?: string;
@@ -81,6 +83,11 @@ function createNetworkAuthError(): NormalizedAuthError {
 }
 
 function createHttpAuthError(status: number): NormalizedAuthError {
+  if (status === 401) {
+    // Spring 로그인 API는 잘못된 소셜 인가 코드를 AUTH401_002로 돌려줍니다.
+    return {...createHttpAuthError(400), status};
+  }
+
   if (status === 400) {
     return {
       status,
@@ -91,7 +98,7 @@ function createHttpAuthError(status: number): NormalizedAuthError {
     };
   }
 
-  if (status === 502) {
+  if (status === 502 || status === 503) {
     return {
       status,
       errorCode: 'AUTH502_001',
@@ -104,9 +111,22 @@ function createHttpAuthError(status: number): NormalizedAuthError {
   return createProcessingAuthError();
 }
 
+function normalizeApiAuthError(error: ApiError): NormalizedAuthError {
+  if (error.kind === 'timeout') return createTimeoutAuthError();
+  if (error.kind === 'network') return createNetworkAuthError();
+  if (error.kind === 'http' && error.status != null) {
+    return createHttpAuthError(error.status);
+  }
+  return createProcessingAuthError();
+}
+
 export function normalizeAuthError(error: unknown): NormalizedAuthError {
   if (isNormalizedAuthError(error)) {
     return error;
+  }
+
+  if (error instanceof ApiError) {
+    return normalizeApiAuthError(error);
   }
 
   if (error instanceof Error && error.name === 'TimeoutError') {
@@ -117,17 +137,17 @@ export function normalizeAuthError(error: unknown): NormalizedAuthError {
     return createNetworkAuthError();
   }
 
-  const supabaseError = error as SupabaseLikeError | null;
+  const httpError = error as HttpLikeError | null;
 
   if (
-    typeof supabaseError?.message === 'string' &&
-    supabaseError.message.toLowerCase().includes('network')
+    typeof httpError?.message === 'string' &&
+    httpError.message.toLowerCase().includes('network')
   ) {
     return createNetworkAuthError();
   }
 
-  if (typeof supabaseError?.status === 'number') {
-    return createHttpAuthError(supabaseError.status);
+  if (typeof httpError?.status === 'number') {
+    return createHttpAuthError(httpError.status);
   }
 
   return createProcessingAuthError();

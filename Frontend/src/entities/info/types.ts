@@ -49,8 +49,10 @@ export type ProfileInfo = {
   nickname?: string | null;
   description?: string | null;
   avatarUrl?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  /** 회원탈퇴 재인증에 쓰는 로그인 제공자입니다. Spring 회원 응답에만 있습니다. */
+  oauthProvider?: 'KAKAO' | 'GOOGLE' | 'APPLE';
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type ProfileApiError = {

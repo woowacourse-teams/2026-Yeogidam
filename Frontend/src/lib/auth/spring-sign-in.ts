@@ -9,9 +9,16 @@ import {loginWithSpringAuthorizationCode} from './spring-session';
 
 const OAUTH_CALLBACK_TIMEOUT_MS = 120_000;
 
+/** normalizeAuthError가 시간 초과로 분류하도록 이름을 TimeoutError로 둡니다. */
+function oauthTimeoutError(message: string): Error {
+  const error = new Error(message);
+  error.name = 'TimeoutError';
+  return error;
+}
+
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('OAuth request timed out.')), timeoutMs);
+    const timer = setTimeout(() => reject(oauthTimeoutError('OAuth request timed out.')), timeoutMs);
     promise.then(
       value => {
         clearTimeout(timer);
@@ -29,7 +36,7 @@ function waitForDeepLink(authUrl: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       subscription.remove();
-      reject(new Error('OAuth callback timed out.'));
+      reject(oauthTimeoutError('OAuth callback timed out.'));
     }, OAUTH_CALLBACK_TIMEOUT_MS);
     const subscription = Linking.addEventListener('url', ({url}) => {
       clearTimeout(timer);
@@ -96,19 +103,26 @@ export function getSpringOAuthCode(
   }
 }
 
-export async function signInWithSpringOAuth(
+/** 로그인 API를 부르지 않고 제공자 인가 코드만 받습니다. 회원탈퇴 재인증에서도 사용합니다. */
+export async function getSpringOAuthAuthorizationCode(
   provider: 'kakao' | 'google',
-): Promise<SpringLoginResponse> {
+): Promise<string> {
   try {
     const authUrl = await getSpringAuthorizationUrl(provider);
     if (new URL(authUrl).protocol !== 'https:') throw createProcessingAuthError();
 
     const callbackUrl = await openSpringOAuthCallback(authUrl);
-    const code = getSpringOAuthCode(callbackUrl, provider);
-    return await loginWithSpringAuthorizationCode(provider, code);
+    return getSpringOAuthCode(callbackUrl, provider);
   } finally {
     InAppBrowser.closeAuth();
   }
+}
+
+export async function signInWithSpringOAuth(
+  provider: 'kakao' | 'google',
+): Promise<SpringLoginResponse> {
+  const code = await getSpringOAuthAuthorizationCode(provider);
+  return loginWithSpringAuthorizationCode(provider, code);
 }
 
 type AppleFullName = Awaited<ReturnType<typeof appleAuth.performRequest>>['fullName'];
@@ -124,7 +138,13 @@ export function getSpringAppleFullName(fullName: AppleFullName): string | null {
     : [givenName, familyName].filter(Boolean).join(' ');
 }
 
-export async function signInWithSpringApple(): Promise<SpringLoginResponse> {
+type SpringAppleCredential = {
+  authorizationCode: string;
+  fullName: string | null;
+};
+
+/** 애플 인가 코드와 최초 로그인 때만 내려오는 이름을 받습니다. */
+export async function getSpringAppleCredential(): Promise<SpringAppleCredential> {
   if (Platform.OS !== 'ios' || !appleAuth.isSupported) {
     throw createProcessingAuthError();
   }
@@ -139,15 +159,19 @@ export async function signInWithSpringApple(): Promise<SpringLoginResponse> {
     );
     if (!credential.authorizationCode) throw createProcessingAuthError();
 
-    return await loginWithSpringAuthorizationCode(
-      'apple',
-      credential.authorizationCode,
-      getSpringAppleFullName(credential.fullName),
-    );
+    return {
+      authorizationCode: credential.authorizationCode,
+      fullName: getSpringAppleFullName(credential.fullName),
+    };
   } catch (error) {
     if ((error as {code?: string})?.code === appleAuth.Error.CANCELED) {
       throw createCancelledAuthError();
     }
     throw error;
   }
+}
+
+export async function signInWithSpringApple(): Promise<SpringLoginResponse> {
+  const {authorizationCode, fullName} = await getSpringAppleCredential();
+  return loginWithSpringAuthorizationCode('apple', authorizationCode, fullName);
 }

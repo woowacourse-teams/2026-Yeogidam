@@ -1,12 +1,8 @@
 import * as Keychain from 'react-native-keychain';
 import type {SupportedStorage} from '@supabase/supabase-js';
-import {NativeModules} from 'react-native';
 
-type SharedSession = {accessToken: string; refreshToken: string; expiresAt: number; userId: string};
-const shareModule = NativeModules.ShareIntentModule as {
-  setShareSession?: (session: SharedSession | null) => Promise<void>;
-  getShareSession?: () => Promise<SharedSession | null>;
-} | undefined;
+// 공유 익스텐션 세션은 Spring 세션(spring-session.ts)만 동기화합니다. 남은 Supabase 클라이언트가
+// 토큰을 갱신하더라도 Spring 공유 세션을 덮어쓰지 않도록 이 저장소는 네이티브 공유 세션을 건드리지 않습니다.
 
 const STORAGE_USERNAME = 'supabase';
 const STORAGE_SERVICE_PREFIX = 'com.yeogidamm.app.supabase';
@@ -29,63 +25,17 @@ export const secureAuthStorage: SupportedStorage = {
       service: getServiceName(key),
     });
 
-    if (!credentials) {
-      return null;
-    }
-
-    const value = credentials.password;
-    if (key !== SUPABASE_AUTH_STORAGE_KEY) return value;
-    try {
-      const parsed = JSON.parse(value);
-      const shared = await shareModule?.getShareSession?.();
-      if (
-        shared != null &&
-        shared.accessToken.length > 0 &&
-        shared.userId === parsed?.user?.id &&
-        shared.expiresAt > (parsed?.expires_at ?? 0)
-      ) {
-        const updated = JSON.stringify({
-          ...parsed,
-          access_token: shared.accessToken,
-          refresh_token: shared.refreshToken,
-          expires_at: shared.expiresAt,
-          expires_in: Math.max(0, shared.expiresAt - Math.floor(Date.now() / 1000)),
-        });
-        await Keychain.setGenericPassword(STORAGE_USERNAME, updated, {
-          service: getServiceName(key),
-        });
-        return updated;
-      }
-    } catch {
-      // Keep the SDK's persisted session when the native share store is unavailable.
-    }
-    return value;
+    return credentials ? credentials.password : null;
   },
   async setItem(key: string, value: string) {
     await Keychain.setGenericPassword(STORAGE_USERNAME, value, {
       service: getServiceName(key),
     });
-    if (key === SUPABASE_AUTH_STORAGE_KEY) {
-      try {
-        const parsed = JSON.parse(value);
-        if (parsed?.refresh_token && parsed?.user?.id) {
-          await shareModule?.setShareSession?.({
-            accessToken: typeof parsed.access_token === 'string' ? parsed.access_token : '',
-            refreshToken: parsed.refresh_token,
-            expiresAt: parsed.expires_at ?? 0,
-            userId: parsed.user.id,
-          });
-        }
-      } catch {
-        // The app session remains available even if share session sync fails.
-      }
-    }
   },
   async removeItem(key: string) {
     await Keychain.resetGenericPassword({
       service: getServiceName(key),
     });
-    if (key === SUPABASE_AUTH_STORAGE_KEY) await shareModule?.setShareSession?.(null);
   },
 };
 
