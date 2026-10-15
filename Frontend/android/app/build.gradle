@@ -75,21 +75,19 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 // Use the same build configuration that react-native-config loads from ENVFILE.
 def kakaoNativeAppKey = project.env.get("KAKAO_NATIVE_APP_KEY", "").trim()
-def supabaseUrl = project.env.get("SUPABASE_URL", "").trim()
-def supabasePublishableKey = project.env.get("SUPABASE_PUBLISHABLE_KEY", "").trim()
+def apiBaseUrl = project.env.get("API_BASE_URL", "").trim().replaceAll(/\/+$/, "")
 def appEnvironment = project.env.get("APP_ENV", "development").trim() ?: "development"
 if (kakaoNativeAppKey.isEmpty()) {
     throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from the build configuration")
 }
-if (supabaseUrl.isEmpty() || supabasePublishableKey.isEmpty()) {
-    throw new GradleException("SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing from the build configuration")
+if (apiBaseUrl.isEmpty()) {
+    throw new GradleException("API_BASE_URL is missing from the build configuration")
 }
 
 def escapedKakaoNativeAppKey = kakaoNativeAppKey
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
-def escapedSupabaseUrl = supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
-def escapedSupabasePublishableKey = supabasePublishableKey.replace("\\", "\\\\").replace("\"", "\\\"")
+def escapedApiBaseUrl = apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 def escapedAppEnvironment = appEnvironment.replace("\\", "\\\\").replace("\"", "\\\"")
 
 apply from: new File(new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim()).parentFile, "sentry.gradle")
@@ -111,8 +109,8 @@ android {
         // Beta builds receive the manually entered app version; local builds keep their default.
         versionName = System.getenv("APP_VERSION") ?: "1.1.0"
         buildConfigField "String", "KAKAO_NATIVE_APP_KEY", "\"${escapedKakaoNativeAppKey}\""
-        buildConfigField "String", "SUPABASE_URL", "\"${escapedSupabaseUrl}\""
-        buildConfigField "String", "SUPABASE_PUBLISHABLE_KEY", "\"${escapedSupabasePublishableKey}\""
+        // 공유 익스텐션(ShareAuth/ShareSaveWorker)이 Spring API를 직접 호출합니다.
+        buildConfigField "String", "API_BASE_URL", "\"${escapedApiBaseUrl}\""
         buildConfigField "String", "APP_ENV", "\"${escapedAppEnvironment}\""
         // react-native-config creates these resources when the values exist.
         // Keep stable empty resources for CI builds that omit PostHog.

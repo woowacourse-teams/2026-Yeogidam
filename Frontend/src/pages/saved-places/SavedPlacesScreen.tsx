@@ -17,7 +17,6 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import {usePostHog} from 'posthog-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {v4 as uuidv4} from 'uuid';
-import { supabase } from '../../lib/auth/supabase';
 
 import {
   captureSavedPlaceSelected,
@@ -307,16 +306,12 @@ export function SavedPlacesScreen({
         queryFailureReason: null,
       } : current);
       try {
+        // 토큰 갱신과 401 재시도는 Spring API 클라이언트가 처리합니다.
         let currentStatus: ReelProcessingStatus | null;
         try {
           currentStatus = await getReelProcessingStatus(state.reel.id);
         } catch (statusError) {
-          const normalized = normalizeReelError(statusError);
-          if (normalized.errorCode !== 'AUTH401_002') throw normalized;
-
-          const {error: refreshError} = await supabase.auth.refreshSession();
-          if (refreshError) throw normalized;
-          currentStatus = await getReelProcessingStatus(state.reel.id);
+          throw normalizeReelError(statusError);
         }
 
         if (!isActive) {
@@ -502,16 +497,14 @@ export function SavedPlacesScreen({
     setLinkError(null);
   };
 
-  const handleSaveLink = async (isSessionRetry = false) => {
+  const handleSaveLink = async () => {
     if (isSubmitting) {
       return;
     }
 
     const normalizedUrl =
       normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
-    if (!isSessionRetry || !saveRequestIdRef.current) {
-      saveRequestIdRef.current = uuidv4();
-    }
+    saveRequestIdRef.current = uuidv4();
     const clientRequestId = saveRequestIdRef.current;
     const initialReel: ReelProcessingStatus = {
       id: `manual-${Date.now()}`,
@@ -580,17 +573,6 @@ export function SavedPlacesScreen({
         return;
       }
 
-      if (normalizedError.errorCode === 'AUTH401_002' && !isSessionRetry) {
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        if (!refreshError) {
-          setIsSubmitting(false);
-          await handleSaveLink(true);
-          return;
-        }
-        setIsDialogVisible(false);
-        onRequireLogin?.();
-        return;
-      }
 
       setLinkError(normalizedError.message);
     } finally {
@@ -685,17 +667,7 @@ export function SavedPlacesScreen({
         try {
           nextStatus = await getReelProcessingStatus(processingReelId);
         } catch (statusError) {
-          const firstError = normalizeReelError(statusError);
-          if (firstError.errorCode !== 'AUTH401_002') {
-            throw firstError;
-          }
-
-          const { error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError) {
-            throw firstError;
-          }
-
-          nextStatus = await getReelProcessingStatus(processingReelId);
+          throw normalizeReelError(statusError);
         }
 
         if (isActive && !nextStatus) {
