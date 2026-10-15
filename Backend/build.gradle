@@ -46,5 +46,24 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'eval'
+    }
+}
+
+// 골든셋 채점. 인스타그램, Gemini, 카카오를 실제로 부르므로 CI에서는 돌리지 않고 손으로만 돌린다(eval/README.md).
+tasks.register('evalTest', Test) {
+    description = '골든셋 40건을 운영 빈으로 돌려 eval/results/summary.md를 쓴다.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'eval'
+    }
+    outputs.upToDateWhen { false }
+    // ./gradlew evalTest -Deval.cases=C016,C022 처럼 몇 건만 돌릴 수 있다
+    systemProperty 'eval.cases', System.getProperty('eval.cases', '')
+    testLogging {
+        showStandardStreams = true
+    }
 }
