@@ -91,6 +91,8 @@ type SavedPlacesScreenProps = {
   onRequireLogin?: () => void;
   // onOpenInbox?: () => void;
   places?: Place[];
+  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
+  onDeleteGuestPlaces?: (placeIds: string[]) => void;
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
 };
 
@@ -128,6 +130,7 @@ export function SavedPlacesScreen({
   onRequireLogin,
   // onOpenInbox,
   places: providedPlaces,
+  onDeleteGuestPlaces,
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
   const posthog = usePostHog();
@@ -821,6 +824,15 @@ export function SavedPlacesScreen({
       return;
     }
 
+    if (isGuest) {
+      setPlaces(current => current.filter(place => !selectedPlaceIds.has(place.id)));
+      onDeleteGuestPlaces?.([...selectedPlaceIds]);
+      setSelectedPlaceIds(new Set());
+      setIsEditing(false);
+      onEditModeChange?.(false);
+      return;
+    }
+
     const savedPlaceIds = places.flatMap(place =>
       selectedPlaceIds.has(place.id) && place.savedPlaceId
         ? [place.savedPlaceId]
@@ -873,8 +885,10 @@ export function SavedPlacesScreen({
     }
   }, [
     isDeleting,
+    isGuest,
     loadSavedPlaces,
     onAuthenticationRequired,
+    onDeleteGuestPlaces,
     onEditModeChange,
     places,
     selectedPlaceIds,
@@ -1010,16 +1024,14 @@ export function SavedPlacesScreen({
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
               >
-                {!isGuest ? (
-                  <SavedPlacesEditAction
-                    isEditing={isEditing}
-                    onPress={handlePressEdit}
-                  />
-                ) : null}
+                <SavedPlacesEditAction
+                  isEditing={isEditing}
+                  onPress={handlePressEdit}
+                />
                 <SavedPlaceGrid
                   isEditing={isEditing}
                   places={places}
-                  onLongPressPlace={isGuest ? undefined : enterEditMode}
+                  onLongPressPlace={enterEditMode}
                   onPressPlace={(place, position) =>
                     openPlaceDetail(place, 'saved_places_grid', position)
                   }

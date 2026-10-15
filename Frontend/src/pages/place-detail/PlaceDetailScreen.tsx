@@ -26,6 +26,8 @@ type PlaceDetailScreenProps = {
   viewContext?: SavedPlaceViewContext;
   onAuthenticationRequired?: () => void;
   guestReels?: PlaceReel[];
+  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
+  onDeleteGuestPlaces?: (placeIds: string[]) => void;
 };
 
 export function PlaceDetailScreen({
@@ -34,6 +36,7 @@ export function PlaceDetailScreen({
   viewContext,
   onAuthenticationRequired,
   guestReels,
+  onDeleteGuestPlaces,
 }: PlaceDetailScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const posthog = usePostHog();
@@ -91,6 +94,12 @@ export function PlaceDetailScreen({
     if (isDeleting) {
       return;
     }
+    if (onDeleteGuestPlaces) {
+      onDeleteGuestPlaces([place.id]);
+      setIsActionSheetVisible(false);
+      onBack();
+      return;
+    }
     if (!place.savedPlaceId) {
       setDeleteError({
         status: 400,
@@ -129,7 +138,14 @@ export function PlaceDetailScreen({
     } finally {
       setIsDeleting(false);
     }
-  }, [isDeleting, onAuthenticationRequired, onBack, place.savedPlaceId]);
+  }, [
+    isDeleting,
+    onAuthenticationRequired,
+    onBack,
+    onDeleteGuestPlaces,
+    place.id,
+    place.savedPlaceId,
+  ]);
 
   const confirmDelete = useCallback(() => {
     if (isDeleting) {
@@ -163,13 +179,13 @@ export function PlaceDetailScreen({
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
-        onPressMore={guestReels === undefined ? () => {
+        onPressMore={guestReels === undefined || onDeleteGuestPlaces ? () => {
           setDeleteError(null);
           setIsActionSheetVisible(true);
         } : undefined}
       />
       <PlaceDetailActionSheet
-        visible={isActionSheetVisible && guestReels === undefined}
+        visible={isActionSheetVisible && (guestReels === undefined || onDeleteGuestPlaces !== undefined)}
         onClose={() => {
           setDeleteError(null);
           setIsActionSheetVisible(false);

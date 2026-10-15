@@ -186,6 +186,7 @@ function App() {
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
   const [memberDataRevision, setMemberDataRevision] = useState(0);
   const hasSignedInOnThisInstallRef = useRef(false);
   const transferErrorShownRef = useRef(false);
@@ -324,6 +325,18 @@ function App() {
   }, [guestLoginPromptTimer, isAuthenticated]);
 
   useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
+
+  // 비회원이 지운 시드 장소는 메모리에만 두고, 다음 비회원 진입 때 시드로 되돌립니다.
+  useEffect(() => {
+    if (isAuthenticated !== false) {
+      setGuestPlaces(ONBOARDING_PLACES);
+    }
+  }, [isAuthenticated]);
+
+  const deleteGuestPlaces = useCallback((placeIds: string[]) => {
+    const deletedIds = new Set(placeIds);
+    setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated === true && hasCompletedGuide === true) {
@@ -1154,7 +1167,10 @@ function App() {
           }
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
+          places={isAuthenticated === false ? guestPlaces : undefined}
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
+          }
           onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
@@ -1194,7 +1210,10 @@ function App() {
               : `member-map-${memberDataRevision}`
           }
           isGuest={isAuthenticated === false}
-          guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
+          guestPlaces={isAuthenticated === false ? guestPlaces : undefined}
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
+          }
           onAuthenticationRequired={handleRequireLogin}
         />
       );
@@ -1210,6 +1229,9 @@ function App() {
             isAuthenticated === false
               ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
               : undefined
+          }
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
           }
           viewContext={selectedPlaceViewContext ?? undefined}
         />
