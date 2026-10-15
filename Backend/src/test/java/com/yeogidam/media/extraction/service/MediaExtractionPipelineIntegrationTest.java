@@ -367,7 +367,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 카카오에서_장소를_확인하지_못하면_PLACE_NOT_MATCHED로_기록한다() throws Exception {
+    void 캡션_단서로_카카오에서_못_찾으면_첨부를_읽고_그래도_없으면_PLACE_NOT_MATCHED로_기록한다() throws Exception {
         // when
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
         Long mediaId = mediaId();
@@ -378,7 +378,26 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 "SELECT failure_reason FROM media WHERE id = ?", String.class, mediaId))
                 .isEqualTo("PLACE_NOT_MATCHED");
         assertThat(count("places")).isZero();
-        assertThat(placeNameExtractor.mediaRequestCount()).isZero();
+        assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 캡션_단서로_카카오에서_못_찾으면_첨부에서_찾은_장소를_저장한다() throws Exception {
+        // given
+        placeNameExtractor.respondWith(List.of(hint("올드빅")));
+        placeNameExtractor.respondToMediaWith(List.of(hint("Dub.+")));
+        placeSearcher.add("Dub.+", place("200", "Dub.+"));
+
+        // when
+        shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+        awaitStatus(mediaId(), "SUCCEEDED");
+
+        // then
+        assertAll(
+                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1),
+                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(count("saved_places")).isEqualTo(1)
+        );
     }
 
     @ParameterizedTest

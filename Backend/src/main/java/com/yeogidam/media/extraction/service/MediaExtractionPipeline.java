@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
 public class MediaExtractionPipeline {
 
     // 이 계정은 캡션에서 일부 장소를 찾더라도 첨부 콘텐츠의 장소가 누락되지 않도록
-    // 처음부터 캡션과 이미지·영상을 함께 분석한다.
+    // 처음부터 캡션과 이미지, 영상을 함께 분석한다.
     private static final String MEDIA_ANALYSIS_AUTHOR = "with_sol_mate";
 
     private final InstagramMetadataService instagramMetadataService;
@@ -33,32 +33,41 @@ public class MediaExtractionPipeline {
 
     public void extract(Long mediaId, InstagramUrl instagramUrl) {
         MediaMetadata metadata = instagramMetadataService.readAndStore(mediaId, instagramUrl);
-        PlaceSearchHints hints = extractHints(instagramUrl, metadata);
-        if (hints.places().isEmpty()) {
-            throw new ExtractionFailedException(ExtractionFailureReason.PLACE_NOT_EXTRACTED);
-        }
-        PlaceExtractionResult result = searchPlaces(hints, metadata.thumbnailKey());
-        resultWriter.recordSuccess(mediaId, result);
+        List<Place> places = findPlacesFromCaptionThenMedia(instagramUrl, metadata);
+        resultWriter.recordSuccess(mediaId, new PlaceExtractionResult(new ExtractedPlaces(places)));
     }
 
-    private PlaceSearchHints extractHints(InstagramUrl instagramUrl, MediaMetadata metadata) {
-        // 캡션에서 장소를 찾으면 이미지·영상 분석을 생략하는 기본 흐름의 예외 대상
+    // 캡션 단서가 없거나 캡션 단서로 지도에서 장소를 하나도 못 찾으면 캡션과 영상, 사진을 함께 다시 읽는다.
+    private List<Place> findPlacesFromCaptionThenMedia(InstagramUrl instagramUrl, MediaMetadata metadata) {
         if (MEDIA_ANALYSIS_AUTHOR.equals(metadata.author())) {
-            return placeNameExtractor.extractFile(metadata.caption(), instagramUrl);
+            return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
-        PlaceSearchHints hints = placeNameExtractor.extract(metadata.caption());
-        if (hints.places().isEmpty()) {
-            hints = placeNameExtractor.extractFile(metadata.caption(), instagramUrl);
+        PlaceSearchHints captionHints = placeNameExtractor.extract(metadata.caption());
+        if (captionHints.places().isEmpty()) {
+            return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
-        return hints;
+        List<Place> places = findPlaces(captionHints, metadata.thumbnailKey());
+        if (!places.isEmpty()) {
+            return places;
+        }
+        return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_MATCHED);
     }
 
-    private PlaceExtractionResult searchPlaces(PlaceSearchHints hints, String instagramThumbnailKey) {
-        List<Place> places = findPlaces(hints, instagramThumbnailKey);
+    // 첨부에서도 단서가 없으면 noHintsReason으로 실패한다. 캡션 단서가 지도에 없어서 첨부를 읽은 경우라면 PLACE_NOT_MATCHED다.
+    private List<Place> findPlacesInMedia(
+            InstagramUrl instagramUrl,
+            MediaMetadata metadata,
+            ExtractionFailureReason noHintsReason
+    ) {
+        PlaceSearchHints mediaHints = placeNameExtractor.extractFile(metadata.caption(), instagramUrl);
+        if (mediaHints.places().isEmpty()) {
+            throw new ExtractionFailedException(noHintsReason);
+        }
+        List<Place> places = findPlaces(mediaHints, metadata.thumbnailKey());
         if (places.isEmpty()) {
             throw new ExtractionFailedException(ExtractionFailureReason.PLACE_NOT_MATCHED);
         }
-        return new PlaceExtractionResult(new ExtractedPlaces(places));
+        return places;
     }
 
     private List<Place> findPlaces(PlaceSearchHints hints, String instagramThumbnailKey) {
