@@ -112,7 +112,11 @@ final class ShareViewController: UIViewController {
       guard await ShareNetwork.isAvailable() else {
         result.transferStatus = "WAITING_FOR_NETWORK"
         result.updatedAt = Date().timeIntervalSince1970 * 1000
-        try? ShareIntentStorage.saveResult(result)
+        try ShareIntentStorage.saveResult(result)
+        ShareSentryReporter.capture(
+          "SHARE_EXTRACTION_NETWORK_DEFERRED", stage: "place_extraction_request",
+          exceptionType: String(URLError.notConnectedToInternet.rawValue)
+        )
         ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "network_unavailable", release: result.release)
         return true
       }

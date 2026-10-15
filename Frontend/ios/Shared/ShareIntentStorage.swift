@@ -8,13 +8,25 @@ enum ShareSentryReporter {
   private static let dsn = "https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256"
   private static var isStarted = false
 
-  private static let messages = [
-    "SHARE_PAYLOAD_READ_FAILED": "인스타그램에서 공유한 데이터를 읽지 못했습니다. (SHARE_PAYLOAD_READ_FAILED)",
-    "SHARE_PAYLOAD_STORE_FAILED": "인스타그램에서 받은 공유 데이터를 앱에 저장하지 못했습니다. (SHARE_PAYLOAD_STORE_FAILED)",
-    "SHARE_LOGIN_APP_OPEN_FAILED": "로그인을 위해 여기담 앱을 열지 못했습니다. (SHARE_LOGIN_APP_OPEN_FAILED)",
-    "SHARE_TOKEN_REFRESH_FAILED": "공유한 장소를 추출하기 위한 로그인 토큰 갱신에 실패했습니다. (SHARE_TOKEN_REFRESH_FAILED)",
-    "SHARE_EXTRACTION_REQUEST_FAILED": "공유한 장소 추출 요청을 서버에 전달하지 못했습니다. (SHARE_EXTRACTION_REQUEST_FAILED)",
-    "SHARE_EXTRACTION_RESPONSE_INVALID": "장소 추출 요청의 서버 응답을 확인하지 못했습니다. (SHARE_EXTRACTION_RESPONSE_INVALID)",
+  private static let titles = [
+    "SHARE_PAYLOAD_READ_FAILED": "장소 공유 오류 · 공유 내용 확인",
+    "SHARE_PAYLOAD_STORE_FAILED": "장소 공유 오류 · 기기 저장",
+    "SHARE_LOGIN_APP_OPEN_FAILED": "장소 공유 오류 · 로그인 앱 전환",
+    "SHARE_LOGIN_STATE_READ_FAILED": "장소 공유 오류 · 로그인 상태 확인",
+    "SHARE_TOKEN_REFRESH_FAILED": "장소 공유 오류 · 토큰 갱신",
+    "SHARE_EXTRACTION_REQUEST_FAILED": "장소 공유 오류 · 장소 추출 요청",
+    "SHARE_EXTRACTION_NETWORK_DEFERRED": "장소 공유 오류 · 네트워크",
+    "SHARE_EXTRACTION_RESPONSE_INVALID": "장소 공유 오류 · 응답 확인",
+  ]
+
+  private static let descriptions = [
+    "SHARE_PAYLOAD_READ_FAILED": "인스타그램에서 공유한 링크를 읽거나 형식을 확인하지 못했습니다.",
+    "SHARE_PAYLOAD_STORE_FAILED": "공유한 링크를 기기에 저장하지 못했습니다.",
+    "SHARE_LOGIN_APP_OPEN_FAILED": "공유한 링크를 이어서 처리하기 위해 여기담 앱을 열지 못했습니다.",
+    "SHARE_TOKEN_REFRESH_FAILED": "공유한 장소를 추출하기 위한 로그인 토큰을 갱신하지 못했습니다.",
+    "SHARE_EXTRACTION_REQUEST_FAILED": "장소 추출 요청을 서버로 보내거나 처리하지 못했습니다.",
+    "SHARE_EXTRACTION_NETWORK_DEFERRED": "장소 추출 요청 전에 네트워크 연결에 실패했습니다.",
+    "SHARE_EXTRACTION_RESPONSE_INVALID": "장소 추출 요청 후 서버 응답의 필수 정보를 확인하지 못했습니다.",
   ]
 
   static func capture(
@@ -24,22 +36,35 @@ enum ShareSentryReporter {
     backendErrorCode: String? = nil,
     exceptionType: String? = nil
   ) {
-    guard let message = messages[errorCode] else { return }
+    guard let title = titles[errorCode], let description = descriptions[errorCode] else { return }
+    let environment = (Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedEnvironment = (environment?.isEmpty == false ? environment : nil) ?? "development"
+    let deferredHandling = errorCode == "SHARE_EXTRACTION_NETWORK_DEFERRED"
+      ? "\n처리: 공유 링크를 기기에 저장했으며, 앱을 다시 열면 재시도합니다."
+      : ""
+    let message = "\(description)\n" +
+      "환경·기기: \(Self.environmentLabel(normalizedEnvironment)) · iOS\n" +
+      "원인: \(Self.cause(errorCode, httpStatus, backendErrorCode, exceptionType))" +
+      deferredHandling
     if !isStarted {
       isStarted = true
       SentrySDK.start { options in
         options.dsn = dsn
-        options.environment = Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String ?? "development"
+        options.environment = normalizedEnvironment
         options.sendDefaultPii = false
         options.enableAutoSessionTracking = false
       }
     }
-    let error = NSError(
-      domain: "장소 공유 오류",
-      code: 1,
-      userInfo: [NSLocalizedDescriptionKey: message]
-    )
-    SentrySDK.capture(error: error) { scope in
+    // NSError's localized description is stored as context by the SDK. Set the
+    // exception fields explicitly so chat alerts display the title and details.
+    let event = Event(level: .error)
+    let exception = Exception(value: message, type: title)
+    let mechanism = Mechanism(type: "generic")
+    mechanism.handled = true
+    exception.mechanism = mechanism
+    event.exceptions = [exception]
+    SentrySDK.capture(event: event) { scope in
       scope.setLevel(.error)
       scope.setTag(value: "instagram_share", key: "feature")
       scope.setTag(value: stage, key: "share.stage")
@@ -50,10 +75,63 @@ enum ShareSentryReporter {
       if let backendErrorCode, backendErrorCode.range(of: #"^[A-Z0-9_]{3,64}$"#, options: .regularExpression) != nil {
         scope.setTag(value: backendErrorCode, key: "share.backend_error_code")
       }
-      if let exceptionType, exceptionType.range(of: #"^[A-Za-z0-9_.$]{1,100}$"#, options: .regularExpression) != nil {
+      if let exceptionType, exceptionType.range(of: #"^[A-Za-z0-9_.$-]{1,100}$"#, options: .regularExpression) != nil {
         scope.setTag(value: exceptionType, key: "share.exception_type")
       }
       scope.setFingerprint(["instagram-share", stage, "ios", errorCode])
+    }
+  }
+
+  private static func environmentLabel(_ environment: String) -> String {
+    switch environment.lowercased() {
+    case "development": return "개발"
+    case "production": return "운영"
+    default: return environment
+    }
+  }
+
+  private static func cause(
+    _ errorCode: String,
+    _ httpStatus: Int?,
+    _ backendErrorCode: String?,
+    _ exceptionType: String?
+  ) -> String {
+    if let exceptionType {
+      if errorCode == "SHARE_EXTRACTION_NETWORK_DEFERRED" { return networkCause(exceptionType) }
+      return "요청 처리 예외 (\(exceptionType))"
+    }
+    if let backendErrorCode {
+      let details = [httpStatus.map { "HTTP \($0)" }, backendErrorCode].compactMap { $0 }.joined(separator: ", ")
+      return "서버 오류 (\(details))"
+    }
+    if let httpStatus {
+      switch errorCode {
+      case "SHARE_EXTRACTION_RESPONSE_INVALID": return "필수 응답값 누락 (HTTP \(httpStatus))"
+      case "SHARE_TOKEN_REFRESH_FAILED": return "토큰 응답 확인 실패 (HTTP \(httpStatus))"
+      default: return "HTTP \(httpStatus) 응답"
+      }
+    }
+    switch errorCode {
+    case "SHARE_PAYLOAD_READ_FAILED": return "공유 링크 읽기 또는 형식 확인 실패"
+    case "SHARE_PAYLOAD_STORE_FAILED": return "기기 저장 실패"
+    case "SHARE_LOGIN_APP_OPEN_FAILED": return "앱 열기 실패"
+    case "SHARE_TOKEN_REFRESH_FAILED": return "토큰 갱신 네트워크 또는 응답 처리 실패"
+    case "SHARE_EXTRACTION_REQUEST_FAILED", "SHARE_EXTRACTION_NETWORK_DEFERRED":
+      return "네트워크 연결 오류"
+    case "SHARE_EXTRACTION_RESPONSE_INVALID": return "필수 응답값 누락"
+    default: return "원인 분류 필요"
+    }
+  }
+
+  private static func networkCause(_ errorCode: String?) -> String {
+    switch errorCode {
+    case "-1009": return "인터넷 연결 없음"
+    case "-1001": return "요청 시간 초과"
+    case "-1003", "-804": return "DNS 조회 실패"
+    case "-1004": return "서버 연결 실패"
+    case "-1005": return "네트워크 연결 끊김"
+    case "-1020": return "네트워크 데이터 사용 불가"
+    default: return "네트워크 연결 오류\(errorCode.map { " (코드 \($0))" } ?? "")"
     }
   }
 }
@@ -1040,17 +1118,21 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     var analyticsOutcome: String?
     var analyticsProperties: [String: Any] = [:]
     if error != nil, result.requestSentAt == nil, task.response == nil {
-      if let error = error as? URLError, error.code != .cancelled {
-        ShareSentryReporter.capture(
-          "SHARE_EXTRACTION_REQUEST_FAILED", stage: "place_extraction_request",
-          exceptionType: String(error.code.rawValue)
-        )
-      }
       result.status = "PENDING"
       result.transferStatus = "WAITING_FOR_NETWORK"
       result.failureReason = nil
       result.retryable = true
-      try? ShareIntentStorage.saveResult(result)
+      do {
+        try ShareIntentStorage.saveResult(result)
+        if let error = error as? URLError, error.code != .cancelled {
+          ShareSentryReporter.capture(
+            "SHARE_EXTRACTION_NETWORK_DEFERRED", stage: "place_extraction_request",
+            exceptionType: String(error.code.rawValue)
+          )
+        }
+      } catch {
+        ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED", stage: "place_extraction_request")
+      }
       ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "network_unavailable", release: result.release)
       return
     } else if let error {

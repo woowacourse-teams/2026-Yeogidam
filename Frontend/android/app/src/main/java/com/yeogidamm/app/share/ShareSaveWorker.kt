@@ -163,15 +163,7 @@ internal class ShareSaveWorker(
         } catch (error: Exception) {
             if (!outputStreamAcquired) {
                 val networkFailure = isConnectionFailure(error)
-                if (networkFailure) {
-                    ShareSentryReporter.capture(
-                        applicationContext,
-                        "SHARE_EXTRACTION_REQUEST_FAILED",
-                        "place_extraction_request",
-                        exceptionType = error.javaClass.simpleName,
-                    )
-                }
-                ShareResultStore.saveResult(
+                val savedLocally = ShareResultStore.saveResult(
                     applicationContext,
                     ShareReelResult(
                         requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
@@ -179,6 +171,14 @@ internal class ShareSaveWorker(
                         retryable = true,
                     ),
                 )
+                if (networkFailure && savedLocally) {
+                    ShareSentryReporter.capture(
+                        applicationContext,
+                        "SHARE_EXTRACTION_NETWORK_DEFERRED",
+                        "place_extraction_request",
+                        exceptionType = error.javaClass.simpleName,
+                    )
+                }
                 ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred",
                     if (networkFailure) "network_unavailable" else "pre_request_error")
                 return Result.success()

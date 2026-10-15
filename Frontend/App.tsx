@@ -119,15 +119,28 @@ Sentry.init({
 });
 
 function captureShareLoginHandoffError(errorCode: string) {
-  const messages: Record<string, string> = {
-    SHARE_LOGIN_STATE_READ_FAILED:
-      '공유 후 로그인 상태를 확인하지 못했습니다 (SHARE_LOGIN_STATE_READ_FAILED)',
+  const messages: Record<string, {title: string; description: string}> = {
+    SHARE_LOGIN_STATE_READ_FAILED: {
+      title: '장소 공유 오류 · 로그인 상태 확인',
+      description: '공유 후 앱으로 돌아온 뒤 로그인 상태를 확인하지 못했습니다.',
+    },
   };
-  const message = messages[errorCode];
-  if (!message) return;
+  const event = messages[errorCode];
+  if (!event) return;
+
+  const rawEnvironment = Config.APP_ENV?.trim() || 'development';
+  const environment = rawEnvironment.toLowerCase() === 'development'
+    ? '개발'
+    : rawEnvironment.toLowerCase() === 'production'
+      ? '운영'
+      : rawEnvironment;
+  const platform = Platform.OS === 'ios' ? 'iOS' : 'Android';
+  const message = `${event.description}\n` +
+    `환경·기기: ${environment} · ${platform}\n` +
+    `원인: 저장된 로그인 세션 조회 실패 (${errorCode})`;
 
   const error = new Error(message);
-  error.name = '장소 공유 오류';
+  error.name = event.title;
 
   Sentry.withScope(scope => {
     scope.setLevel('error');
