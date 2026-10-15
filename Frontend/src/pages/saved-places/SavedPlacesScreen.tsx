@@ -44,7 +44,8 @@ import {
   normalizeInstagramContentUrl,
   saveContent,
 } from '../../entities/content/api';
-import type {ReelProcessingStatus, SaveSource} from '../../entities/content/types';
+import {subscribeRecentShares} from '../../entities/content/recent-shares-poller';
+import type {HistoryReel, ReelProcessingStatus, SaveSource} from '../../entities/content/types';
 import {
   normalizeReelError,
   ReelApiError,
@@ -59,6 +60,7 @@ import {
   setRecentSearches as persistRecentSearches,
 } from '../../lib/searchHistoryStorage';
 
+const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
 const MAX_RECENT_SEARCHES = 10;
@@ -645,7 +647,8 @@ export function SavedPlacesScreen({
     reelPollStartedAtRef.current ??= Number.isFinite(persistedStartedAt)
       ? Math.min(persistedStartedAt, Date.now())
       : Date.now();
-    const poll = async () => {
+    const poll = async (recentReels: Promise<HistoryReel[]>) => {
+      if (!isActive) return;
       if (Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >= REEL_POLL_TIMEOUT_MS) {
         if (isActive) {
           const timeoutError = new ReelApiError({
@@ -668,7 +671,15 @@ export function SavedPlacesScreen({
         } : current);
         let nextStatus: ReelProcessingStatus | null;
         try {
-          nextStatus = await getReelProcessingStatus(processingReelId);
+          // 서버에 단건 상태 조회 API가 없어 공유 목록 첫 페이지에서 찾습니다.
+          const reel = (await recentReels).find(item => item.id === processingReelId);
+          nextStatus = reel ? {
+            id: reel.id,
+            processing_status: reel.processing_status,
+            failure_reason: reel.failure_reason,
+            instagram_thumbnail_url: reel.instagram_thumbnail_url,
+            created_at: reel.created_at,
+          } : null;
         } catch (statusError) {
           throw normalizeReelError(statusError);
         }
@@ -763,10 +774,19 @@ export function SavedPlacesScreen({
       }
     };
 
-    const intervalId = setInterval(poll, 3000);
+    // 히스토리 화면·배지와 같은 앱 공용 목록 폴러를 3초 주기로 구독합니다.
+    const subscription = subscribeRecentShares({
+      intervalMs: REEL_POLL_INTERVAL_MS,
+      onResult: ({reels}) => {
+        poll(Promise.resolve(reels)).catch(() => undefined);
+      },
+      onError: pollError => {
+        poll(Promise.reject(pollError)).catch(() => undefined);
+      },
+    });
     return () => {
       isActive = false;
-      clearInterval(intervalId);
+      subscription.unsubscribe();
     };
   }, [
     onRequireLogin,

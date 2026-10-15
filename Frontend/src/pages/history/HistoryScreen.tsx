@@ -35,6 +35,11 @@ import {
   retryHistoryReelExtraction,
 } from '../../entities/content/history-api';
 import {normalizeReelError} from '../../entities/content/errors';
+import {
+  subscribeRecentShares,
+  type RecentSharesSnapshot,
+  type RecentSharesSubscription,
+} from '../../entities/content/recent-shares-poller';
 import type {
   HistoryCursor,
   HistoryPlace,
@@ -556,7 +561,7 @@ function HistoryFailureDetail({
   );
 }
 
-/** 처리 중 항목의 상태도 목록 폴링 하나로 갱신한다(단건 폴링 없음). */
+/** 처리 중 항목의 상태도 앱 공용 목록 폴링 하나로 갱신한다(단건 폴링 없음). */
 const LIST_POLL_INTERVAL_MS = 3000;
 
 export function HistoryScreen({
@@ -649,6 +654,35 @@ export function HistoryScreen({
     }
   }, [selectedSuccess, selectedFailure]);
 
+  const sharesSubscriptionRef = useRef<RecentSharesSubscription | null>(null);
+
+  /** 첫 페이지 결과를 반영한다. 폴링(replace=false)은 더 보기로 불러온 이전 항목을 유지한다. */
+  const applyFirstPage = useCallback(async (
+    result: RecentSharesSnapshot,
+    replace: boolean,
+  ) => {
+    // This screen is visible while refreshing, so the newest status is
+    // already seen by the user and must not create a badge on exit.
+    if (result.reels[0]) {
+      await setLastSeenHistorySnapshot({
+        id: result.reels[0].id,
+        status: result.reels[0].processing_status,
+      });
+    }
+    setError(false);
+    setReels(current => {
+      if (replace) return result.reels;
+      const refreshedIds = new Set(result.reels.map(item => item.id));
+      return [
+        ...result.reels,
+        ...current.filter(item => !refreshedIds.has(item.id)),
+      ];
+    });
+    // 폴링은 첫 페이지만 읽은 목록의 커서만 갱신한다. 더 보기로 이어 읽은 뒤에는
+    // 커서가 마지막으로 읽은 페이지를 가리키고, 끝까지 읽어 null이면 그대로 둔다.
+    if (replace || !hasLoadedMoreRef.current) setCursor(result.nextCursor);
+  }, []);
+
   const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
     if (guestReels !== undefined) {
       setReels(guestReels);
@@ -668,36 +702,24 @@ export function HistoryScreen({
     }
     setError(false);
     try {
-      const result = await getHistoryReels(nextCursor ?? undefined);
-      // This screen is visible while refreshing, so the newest status is
-      // already seen by the user and must not create a badge on exit.
-      if (!nextCursor && result.reels[0]) {
-        await setLastSeenHistorySnapshot({
-          id: result.reels[0].id,
-          status: result.reels[0].processing_status,
-        });
-      }
-      setReels(current => {
-        if (nextCursor) {
+      if (nextCursor) {
+        const result = await getHistoryReels(nextCursor);
+        setReels(current => {
           // 폴링으로 첫 페이지 경계가 밀리면 이미 가진 항목이 다음 페이지에 다시 올 수 있다.
           const currentIds = new Set(current.map(item => item.id));
           return [...current, ...result.reels.filter(item => !currentIds.has(item.id))];
-        }
-        if (!silent) return result.reels;
-        // 폴링은 최신 첫 페이지만 갱신하고, 더 보기로 불러온 이전 항목은 유지한다.
-        const refreshedIds = new Set(result.reels.map(item => item.id));
-        return [
-          ...result.reels,
-          ...current.filter(item => !refreshedIds.has(item.id)),
-        ];
-      });
-      // 폴링은 첫 페이지만 읽은 목록의 커서만 갱신한다. 더 보기로 이어 읽은 뒤에는
-      // 커서가 마지막으로 읽은 페이지를 가리키고, 끝까지 읽어 null이면 그대로 둔다.
-      if (nextCursor) hasLoadedMoreRef.current = true;
-      if (nextCursor || !silent || !hasLoadedMoreRef.current) {
+        });
+        hasLoadedMoreRef.current = true;
         setCursor(result.nextCursor);
+        return;
       }
-      if (!nextCursor && !silent && !historyViewedRef.current) {
+
+      // 첫 페이지는 앱 공용 폴러로 읽어 배지 등 다른 구독자와 결과를 나눈다.
+      // 폴링 결과는 구독 콜백이 반영하므로 여기서는 처음 불러올 때만 목록을 바꾼다.
+      const subscription = sharesSubscriptionRef.current;
+      const result = await (subscription ? subscription.refresh() : getHistoryReels());
+      if (!silent || !subscription) await applyFirstPage(result, !silent);
+      if (!silent && !historyViewedRef.current) {
         historyViewedRef.current = true;
         requestAnimationFrame(() => trackHistoryViewed(posthog, result.reels.length ? 'list' : 'empty'));
       }
@@ -715,7 +737,7 @@ export function HistoryScreen({
         setLoading(false);
       }
     }
-  }, [guestReels, posthog]);
+  }, [applyFirstPage, guestReels, posthog]);
 
   /**
    * 재시도도 새 공유와 같은 길을 탄다. 접수에 성공하면 목록으로 돌아가 바로 한 번 읽고,
@@ -753,17 +775,25 @@ export function HistoryScreen({
   }, [load]);
 
   useEffect(() => {
-    load().catch(() => undefined);
-  }, [load]);
+    if (guestReels !== undefined) return;
+    const subscription = subscribeRecentShares({
+      intervalMs: LIST_POLL_INTERVAL_MS,
+      onResult: result => {
+        applyFirstPage(result, false).catch(() => undefined);
+      },
+      onError: () => setError(true),
+    });
+    sharesSubscriptionRef.current = subscription;
+
+    return () => {
+      subscription.unsubscribe();
+      sharesSubscriptionRef.current = null;
+    };
+  }, [applyFirstPage, guestReels]);
 
   useEffect(() => {
-    if (guestReels !== undefined) return;
-    const refresh = setInterval(() => {
-      load(undefined, true).catch(() => undefined);
-    }, LIST_POLL_INTERVAL_MS);
-
-    return () => clearInterval(refresh);
-  }, [guestReels, load]);
+    load().catch(() => undefined);
+  }, [load]);
 
   useEffect(() => {
     if (
