@@ -270,6 +270,41 @@ test('재시도 접수에 성공하면 임시 카드 없이 목록으로 돌아�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카드 내용으로 새 카드를 보여 준다', async () => {
+  let finishListRequest!: (value: Awaited<ReturnType<typeof getHistoryReels>>) => void;
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([7], 'FAILED'), nextCursor: null})
+    // 접수 뒤 목록 조회가 아직 끝나지 않았다.
+    .mockImplementation(() => new Promise(resolve => { finishListRequest = resolve; }));
+  jest.mocked(retryHistoryReelExtraction).mockResolvedValue({
+    reelId: '8',
+    status: 'PROCESSING',
+    reused: false,
+  });
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(renderedIds(renderer)).toEqual(['8', '7']);
+  const accepted = renderer.root.find(node => node.props.reel?.id === '8').props.reel;
+  expect(accepted).toMatchObject({
+    processing_status: 'PROCESSING',
+    failure_reason: null,
+    instagram_description: '게시물 7',
+    instagram_thumbnail_url: 'https://cdn.example.com/7.jpg',
+  });
+  alertSpy.mockRestore();
+  // 앱 공용 폴러의 진행 중 요청을 끝내 다음 테스트로 넘어가지 않게 한다.
+  await ReactTestRenderer.act(async () => {
+    finishListRequest({reels: [reel(8, 'PROCESSING'), reel(7, 'FAILED')], nextCursor: null});
+  });
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다', async () => {
   jest.mocked(getHistoryReels).mockResolvedValue({
     reels: page([7], 'FAILED'),

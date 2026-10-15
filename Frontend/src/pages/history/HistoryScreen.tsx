@@ -771,6 +771,22 @@ export function HistoryScreen({
     shouldRestoreScrollRef.current = false;
     setSelectedFailure(false);
     setSelectedReel(null);
+    // 같은 게시물을 다시 처리하므로 접수된 공유는 실패 카드의 내용으로 바로 보여 준다.
+    // 생성 시각 등 서버 값은 이어지는 목록 조회가 같은 ID로 덮어쓴다.
+    if (!response.reused) {
+      const acceptedReel: HistoryReel = {
+        ...reel,
+        id: response.reelId,
+        processing_status: response.status,
+        failure_reason: null,
+        created_at: new Date().toISOString(),
+      };
+      setReels(current =>
+        current.some(item => item.id === acceptedReel.id)
+          ? current.map(item => (item.id === acceptedReel.id ? acceptedReel : item))
+          : [acceptedReel, ...current],
+      );
+    }
     await load(undefined, true);
   }, [load]);
 
