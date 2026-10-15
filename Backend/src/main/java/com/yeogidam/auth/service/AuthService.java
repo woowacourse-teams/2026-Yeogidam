@@ -11,7 +11,7 @@ import com.yeogidam.auth.dto.response.TokenResponse;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.exception.RefreshTokenMismatchException;
-import com.yeogidam.member.domain.Member;
+import com.yeogidam.member.domain.MemberAuthentication;
 import com.yeogidam.member.domain.MemberProfile;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.domain.OAuthProvider;
@@ -65,8 +65,8 @@ public class AuthService {
     }
 
     private LoginResponse createLoginResponse(OAuthAccount account, MemberProfile profile) {
-        Member member = memberAuthenticator.authenticate(account, profile);
-        TokenResponse tokens = tokenManager.createTokens(member.id());
-        return LoginResponse.from(member, tokens);
+        MemberAuthentication authentication = memberAuthenticator.authenticate(account, profile);
+        TokenResponse tokens = tokenManager.createTokens(authentication.member().id());
+        return LoginResponse.from(authentication, tokens);
     }
 }

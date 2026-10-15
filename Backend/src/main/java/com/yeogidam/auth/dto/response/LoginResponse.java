@@ -1,6 +1,6 @@
 package com.yeogidam.auth.dto.response;
 
-import com.yeogidam.member.domain.Member;
+import com.yeogidam.member.domain.MemberAuthentication;
 import com.yeogidam.member.dto.response.MemberResponse;
 import java.time.Instant;
 
@@ -16,11 +16,14 @@ public record LoginResponse(
 
         Instant refreshTokenExpiresAt,
 
-        MemberResponse member
+        MemberResponse member,
+
+        boolean isNewMember
 ) {
 
-    public static LoginResponse from(Member member, TokenResponse tokens) {
+    public static LoginResponse from(MemberAuthentication authentication, TokenResponse tokens) {
         return new LoginResponse(tokens.accessToken(), tokens.refreshToken(), tokens.tokenType(), tokens.expiresAt(),
-                tokens.refreshTokenExpiresAt(), MemberResponse.from(member));
+                tokens.refreshTokenExpiresAt(), MemberResponse.from(authentication.member()),
+                authentication.isNewMember());
     }
 }
