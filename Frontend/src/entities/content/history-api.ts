@@ -97,19 +97,12 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
 }
 
 /**
- * 서버에 단건 공유 조회 API가 없어 최근 공유 첫 페이지에서 찾습니다. 장소는 추출에
- * 성공한 공유만 조회합니다(추출 중·실패 공유는 서버가 400을 돌려줍니다).
+ * 서버에 단건 공유 조회 API가 없어 목록에서 받은 공유 정보를 그대로 씁니다. 장소는
+ * 추출에 성공한 공유만 조회합니다(추출 중·실패 공유는 서버가 400을 돌려줍니다).
  */
 export async function getHistoryReelDetail(
-  reelId: string,
-): Promise<HistoryReelDetail | null> {
-  const response = await requestShares();
-  const item = response?.sharedMedias?.find(
-    share => String(share.sharedMediaId) === reelId,
-  );
-  if (!item) return null;
-
-  const reel = toHistoryReel(item);
+  reel: HistoryReel,
+): Promise<HistoryReelDetail> {
   if (reel.processing_status !== 'COMPLETED') {
     return {...reel, extraction: null};
   }
@@ -117,7 +110,7 @@ export async function getHistoryReelDetail(
   let places: SpringShareHistoryPlacesResponse;
   try {
     places = await client.request<SpringShareHistoryPlacesResponse>(
-      `${SHARES_PATH}/${encodeURIComponent(reelId)}/places`,
+      `${SHARES_PATH}/${encodeURIComponent(reel.id)}/places`,
     );
   } catch (error) {
     throw toReelApiError(error);

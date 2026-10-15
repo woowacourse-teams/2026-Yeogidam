@@ -1,9 +1,11 @@
+import type {SpringExtractionStatus} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {
   getHistoryReelDetail,
   getHistoryReels,
   reportHistoryReel,
   retryHistoryReelExtraction,
+  toHistoryReel,
 } from '../src/entities/content/history-api';
 import {ApiError} from '../src/lib/api/errors';
 
@@ -17,7 +19,7 @@ jest.mock('../src/lib/api/spring-client', () => ({
 
 const share = (
   sharedMediaId: number,
-  extractionStatus: string,
+  extractionStatus: SpringExtractionStatus,
   failureReason: string | null = null,
 ) => ({
   sharedMediaId,
@@ -74,9 +76,8 @@ test('커서를 cursorCreatedAt과 cursorId로 보내고 마지막 페이지는 
   });
 });
 
-test('추출 성공 공유의 상세는 장소 목록을 순서대로 붙인다', async () => {
+test('추출 성공 공유의 상세는 목록을 다시 읽지 않고 장소 목록을 순서대로 붙인다', async () => {
   mockRequest
-    .mockResolvedValueOnce({sharedMedias: [share(8, 'SUCCEEDED')], nextCursor: null})
     .mockResolvedValueOnce({
       places: [
         {
@@ -98,9 +99,11 @@ test('추출 성공 공유의 상세는 장소 목록을 순서대로 붙인다'
       ],
     });
 
-  const detail = await getHistoryReelDetail('8');
+  // 첫 페이지 밖(51번째 이후)의 공유도 목록에서 받은 정보로 장소를 조회한다.
+  const detail = await getHistoryReelDetail(toHistoryReel(share(8, 'SUCCEEDED')));
 
-  expect(mockRequest).toHaveBeenLastCalledWith('/api/v1/shares/8/places');
+  expect(mockRequest).toHaveBeenCalledTimes(1);
+  expect(mockRequest).toHaveBeenCalledWith('/api/v1/shares/8/places');
   expect(detail?.processing_status).toBe('COMPLETED');
   expect(detail?.extraction?.extraction_places).toEqual([
     {
@@ -124,20 +127,18 @@ test('추출 성공 공유의 상세는 장소 목록을 순서대로 붙인다'
   ]);
 });
 
-test('추출 중·실패 공유의 상세는 장소를 조회하지 않고, 목록에 없으면 null이다', async () => {
-  mockRequest.mockResolvedValue({
-    sharedMedias: [share(9, 'EXTRACTING'), share(7, 'FAILED')],
-    nextCursor: null,
-  });
-
-  await expect(getHistoryReelDetail('9')).resolves.toMatchObject({
+test('추출 중·실패 공유의 상세는 장소를 조회하지 않는다', async () => {
+  await expect(
+    getHistoryReelDetail(toHistoryReel(share(9, 'EXTRACTING'))),
+  ).resolves.toMatchObject({
     id: '9',
     processing_status: 'PROCESSING',
     extraction: null,
   });
-  await expect(getHistoryReelDetail('7')).resolves.toMatchObject({extraction: null});
-  await expect(getHistoryReelDetail('404')).resolves.toBeNull();
-  expect(mockRequest).not.toHaveBeenCalledWith(expect.stringContaining('/places'));
+  await expect(
+    getHistoryReelDetail(toHistoryReel(share(7, 'FAILED'))),
+  ).resolves.toMatchObject({extraction: null});
+  expect(mockRequest).not.toHaveBeenCalled();
 });
 
 test('제보는 reports API를 호출하고 이미 신고한 공유는 성공으로 본다', async () => {

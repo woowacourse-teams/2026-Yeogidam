@@ -138,6 +138,88 @@ test('폴링은 첫 페이지만 갱신하고 더 보기로 불러온 항목과 
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+const scrollToBottom = (renderer: ReactTestRenderer.ReactTestRenderer) =>
+  ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ScrollView).props.onScroll({
+      nativeEvent: {
+        contentOffset: {y: 1000},
+        layoutMeasurement: {height: 800},
+        contentSize: {height: 1000},
+      },
+    });
+  });
+
+test('끝까지 읽은 뒤에는 폴링이 커서를 되살리지 않아 이전 페이지를 다시 붙이지 않는다', async () => {
+  const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: firstCursor})
+    // 마지막 페이지라 다음 커서가 없다.
+    .mockResolvedValueOnce({reels: page([2, 1]), nextCursor: null})
+    // 폴링: 첫 페이지는 여전히 다음 페이지가 있다고 답한다.
+    .mockResolvedValue({reels: page([5, 4, 3]), nextCursor: firstCursor});
+  const renderer = await render();
+
+  await scrollToBottom(renderer);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+
+  await tick(3000);
+  const callsAfterPoll = jest.mocked(getHistoryReels).mock.calls.length;
+  await scrollToBottom(renderer);
+
+  expect(jest.mocked(getHistoryReels).mock.calls).toHaveLength(callsAfterPoll);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('더 보기 중에 폴링이 끝나도 같은 커서로 다시 요청하지 않는다', async () => {
+  const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
+  let resolveMore!: (value: Awaited<ReturnType<typeof getHistoryReels>>) => void;
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: firstCursor})
+    .mockImplementationOnce(() => new Promise(resolve => { resolveMore = resolve; }))
+    .mockResolvedValue({reels: page([5, 4, 3]), nextCursor: firstCursor});
+  const renderer = await render();
+
+  await scrollToBottom(renderer);
+  // 더 보기 응답을 기다리는 동안 폴링이 끝나고 다시 맨 아래에서 스크롤한다.
+  await tick(3000);
+  await scrollToBottom(renderer);
+
+  const moreCalls = jest
+    .mocked(getHistoryReels)
+    .mock.calls.filter(([cursor]) => cursor === firstCursor);
+  expect(moreCalls).toHaveLength(1);
+
+  await ReactTestRenderer.act(async () => {
+    resolveMore({reels: page([2, 1]), nextCursor: null});
+  });
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다', async () => {
+  const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: firstCursor})
+    .mockResolvedValueOnce({reels: page([2, 1]), nextCursor: null})
+    .mockResolvedValue({reels: page([5, 4, 3]), nextCursor: firstCursor});
+  const renderer = await render();
+  await scrollToBottom(renderer);
+
+  const olderItem = renderer.root.find(
+    node => node.props.reel?.id === '1' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => olderItem.props.onPress());
+
+  expect(getHistoryReelDetail).toHaveBeenCalledWith(
+    expect.objectContaining({id: '1', processing_status: 'COMPLETED'}),
+  );
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer) {
   const failed = renderer.root.find(
     node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',

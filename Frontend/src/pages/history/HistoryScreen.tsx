@@ -241,12 +241,15 @@ function formatHistoryDate(createdAt: string) {
 }
 
 function useHistoryReelDetail(
-  reelId: string,
+  reel: HistoryReel,
   guestDetail?: HistoryReelDetail | null,
 ) {
   const [detail, setDetail] = useState<HistoryReelDetail | null>(guestDetail ?? null);
   const [loading, setLoading] = useState(guestDetail === undefined);
   const [error, setError] = useState(false);
+  // 폴링이 같은 항목을 새 객체로 바꿔도 다시 조회하지 않도록 ID가 바뀔 때만 읽는다.
+  const reelRef = useRef(reel);
+  reelRef.current = reel;
 
   useEffect(() => {
     if (guestDetail !== undefined) {
@@ -257,11 +260,11 @@ function useHistoryReelDetail(
     }
     setLoading(true);
     setError(false);
-    getHistoryReelDetail(reelId)
+    getHistoryReelDetail(reelRef.current)
       .then(setDetail)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [guestDetail, reelId]);
+  }, [guestDetail, reel.id]);
 
   return { detail, loading, error };
 }
@@ -282,7 +285,7 @@ function HistorySuccessDetail({
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'success');
   }, [posthog, reel.id]);
-  const { detail, loading, error } = useHistoryReelDetail(reel.id, guestDetail);
+  const { detail, loading, error } = useHistoryReelDetail(reel, guestDetail);
   const displayReel = detail ?? reel;
   const places =
     detail?.extraction?.extraction_places
@@ -407,7 +410,7 @@ function HistoryFailureDetail({
   }, [posthog, reel.id]);
   const [reported, setReported] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const { detail } = useHistoryReelDetail(reel.id, guestDetail);
+  const { detail } = useHistoryReelDetail(reel, guestDetail);
   const displayReel = detail ?? reel;
   const originalUrl = displayReel.instagram_url;
 
@@ -573,6 +576,10 @@ export function HistoryScreen({
   const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
   const historyViewedRef = useRef(false);
   const shouldRestoreScrollRef = useRef(false);
+  // 상태값은 다음 렌더까지 바뀌지 않으므로 같은 커서의 더 보기가 겹치지 않게 ref로 막는다.
+  const loadingMoreRef = useRef(false);
+  // 첫 페이지 다음까지 읽었으면 커서는 더 보기만 갱신한다.
+  const hasLoadedMoreRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(guestReels === undefined);
@@ -651,9 +658,15 @@ export function HistoryScreen({
       setLoadingMore(false);
       return;
     }
+    if (nextCursor) {
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+    } else if (!silent) {
+      hasLoadedMoreRef.current = false;
+      setLoading(true);
+    }
     setError(false);
-    if (nextCursor) setLoadingMore(true);
-    else if (!silent) setLoading(true);
     try {
       const result = await getHistoryReels(nextCursor ?? undefined);
       // This screen is visible while refreshing, so the newest status is
@@ -665,7 +678,11 @@ export function HistoryScreen({
         });
       }
       setReels(current => {
-        if (nextCursor) return [...current, ...result.reels];
+        if (nextCursor) {
+          // 폴링으로 첫 페이지 경계가 밀리면 이미 가진 항목이 다음 페이지에 다시 올 수 있다.
+          const currentIds = new Set(current.map(item => item.id));
+          return [...current, ...result.reels.filter(item => !currentIds.has(item.id))];
+        }
         if (!silent) return result.reels;
         // 폴링은 최신 첫 페이지만 갱신하고, 더 보기로 불러온 이전 항목은 유지한다.
         const refreshedIds = new Set(result.reels.map(item => item.id));
@@ -674,10 +691,12 @@ export function HistoryScreen({
           ...current.filter(item => !refreshedIds.has(item.id)),
         ];
       });
-      // 커서는 더 보기와 처음 불러올 때만 갱신한다. 폴링이 덮어쓰면 더 보기가 끊긴다.
-      // 아직 더 볼 페이지가 없던 목록에 새 항목이 늘어난 경우에만 폴링 결과의 커서를 받는다.
-      if (nextCursor || !silent) setCursor(result.nextCursor);
-      else setCursor(current => current ?? result.nextCursor);
+      // 폴링은 첫 페이지만 읽은 목록의 커서만 갱신한다. 더 보기로 이어 읽은 뒤에는
+      // 커서가 마지막으로 읽은 페이지를 가리키고, 끝까지 읽어 null이면 그대로 둔다.
+      if (nextCursor) hasLoadedMoreRef.current = true;
+      if (nextCursor || !silent || !hasLoadedMoreRef.current) {
+        setCursor(result.nextCursor);
+      }
       if (!nextCursor && !silent && !historyViewedRef.current) {
         historyViewedRef.current = true;
         requestAnimationFrame(() => trackHistoryViewed(posthog, result.reels.length ? 'list' : 'empty'));
@@ -689,8 +708,12 @@ export function HistoryScreen({
         requestAnimationFrame(() => trackHistoryViewed(posthog, 'error'));
       }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (nextCursor) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
   }, [guestReels, posthog]);
 
