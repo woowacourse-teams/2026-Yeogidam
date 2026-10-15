@@ -745,6 +745,27 @@ function App() {
             !result.reelId
           ) {
             clearShareResult(result.requestId).catch(() => undefined);
+            // 공유 익스텐션은 401을 AUTH401_001로 남긴다(Android는 "AUTH401_001 | 메시지 | HTTP_401").
+            // 추출 실패가 아니라 로그인 문제이므로 다시 로그인하거나 다시 공유하도록 안내한다.
+            if (result.failureReason?.startsWith('AUTH401')) {
+              getSpringTokens()
+                .then(tokens => {
+                  if (tokens) {
+                    Alert.alert(
+                      '공유한 게시물을 저장하지 못했어요',
+                      '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+                    );
+                    return;
+                  }
+                  setFlowState(INITIAL_FLOW_STATE);
+                  Alert.alert(
+                    '로그인이 필요해요',
+                    '다시 로그인한 뒤 게시물을 공유해 주세요.',
+                  );
+                })
+                .catch(() => undefined);
+              return;
+            }
             Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }

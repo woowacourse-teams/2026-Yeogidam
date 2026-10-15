@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {Alert} from 'react-native';
 
 import App from '../App';
 import {
@@ -579,5 +580,33 @@ test('새 설치에서 복원된 세션이 무효화되면 온보딩 후 비회�
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다시 공유하도록 안내한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession();
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'expired-share-request',
+    url: '',
+    status: 'FAILED',
+    transferStatus: 'API_FAILED',
+    failureReason: 'AUTH401_001 | 인증 토큰이 유효하지 않습니다. | HTTP_401',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(clearShareResult).toHaveBeenCalledWith('expired-share-request');
+  expect(alertSpy).toHaveBeenCalledWith(
+    '공유한 게시물을 저장하지 못했어요',
+    '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+  );
+  expect(alertSpy).not.toHaveBeenCalledWith('장소 추출 실패', expect.anything());
+  alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
