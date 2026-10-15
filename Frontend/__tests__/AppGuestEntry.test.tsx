@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import App from '../App';
 import {supabase} from '../src/lib/auth/supabase';
@@ -28,6 +29,10 @@ import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
+import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
+
+const DISMISSED_RECOMMENDED_VERSION_KEY =
+  '@yeogidam/dismissed-recommended-update-version';
 
 jest.mock('react-native-safe-area-context', () => {
   const ReactModule = require('react');
@@ -141,8 +146,9 @@ async function renderAfterSplash() {
   return renderer;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.useFakeTimers();
+  await AsyncStorage.removeItem(DISMISSED_RECOMMENDED_VERSION_KEY);
   (getAppUpdatePolicy as jest.Mock).mockResolvedValue(null);
   (supabase.auth.getSession as jest.Mock).mockResolvedValue({
     data: {session: null},
@@ -171,7 +177,7 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
-test('권장 업데이트를 보여주고 나중에 선택하면 계속 이용한다', async () => {
+test('나중에 선택한 버전은 앱 재시작 후에도 숨기고 새 버전은 다시 안내한다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
   (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
     updateRequired: false,
@@ -191,7 +197,51 @@ test('권장 업데이트를 보여주고 나중에 선택하면 계속 이용�
   await ReactTestRenderer.act(async () => recommendedModal?.props.onDismiss());
 
   expect(recommendedModal?.props.visible).toBe(false);
+  expect(await getDismissedRecommendedVersion()).toBe('1.2.0');
   expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+
+  const afterRestart = await renderAfterSplash();
+  expect(
+    afterRestart.root.findAllByType(AppUpdateModal).find(
+      modal => modal.props.mode === 'recommended',
+    )?.props.visible,
+  ).toBe(false);
+  await ReactTestRenderer.act(async () => afterRestart.unmount());
+
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
+    updateRequired: false,
+    updateRecommended: true,
+    minimumSupportedVersion: '1.1.0',
+    latestVersion: '1.3.0',
+    storeUrl: 'https://example.com/store',
+  });
+  const withNewVersion = await renderAfterSplash();
+  expect(
+    withNewVersion.root.findAllByType(AppUpdateModal).find(
+      modal => modal.props.mode === 'recommended',
+    )?.props.visible,
+  ).toBe(true);
+  await ReactTestRenderer.act(async () => withNewVersion.unmount());
+});
+
+test('닫은 버전이어도 필수 업데이트는 표시한다', async () => {
+  await AsyncStorage.setItem(DISMISSED_RECOMMENDED_VERSION_KEY, '1.2.0');
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
+    updateRequired: true,
+    updateRecommended: false,
+    minimumSupportedVersion: '1.3.0',
+    latestVersion: '1.3.0',
+    storeUrl: 'https://example.com/store',
+  });
+
+  const renderer = await renderAfterSplash();
+  expect(
+    renderer.root.findAllByType(AppUpdateModal).find(
+      modal => modal.props.mode === 'required',
+    )?.props.visible,
+  ).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

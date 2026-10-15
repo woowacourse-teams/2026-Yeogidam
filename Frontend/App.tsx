@@ -43,6 +43,10 @@ import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { supabase } from './src/lib/auth/supabase';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
+import {
+  getDismissedRecommendedVersion,
+  rememberDismissedRecommendedVersion,
+} from './src/lib/app-update-policy-storage';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   trackAppOpened,
@@ -192,6 +196,9 @@ function App() {
     storeUrl: string;
   } | null>(null);
   const dismissedRecommendedVersionRef = useRef<string | null>(null);
+  const dismissedRecommendedVersionLoadRef = useRef<Promise<string | null> | null>(
+    null,
+  );
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -251,6 +258,22 @@ function App() {
     } else {
       setRecommendedUpdate(null);
     }
+  }, []);
+
+  const getUpdatePolicyWithDismissalLoaded = useCallback(async () => {
+    if (!dismissedRecommendedVersionLoadRef.current) {
+      dismissedRecommendedVersionLoadRef.current =
+        getDismissedRecommendedVersion();
+    }
+
+    const [policy, dismissedVersion] = await Promise.all([
+      getAppUpdatePolicy(),
+      dismissedRecommendedVersionLoadRef.current,
+    ]);
+    if (dismissedRecommendedVersionRef.current === null) {
+      dismissedRecommendedVersionRef.current = dismissedVersion;
+    }
+    return policy;
   }, []);
 
   const currentScreen: Screen =
@@ -486,7 +509,7 @@ function App() {
     };
 
     const checkUpdatePolicy = async () => {
-      const policy = await getAppUpdatePolicy();
+      const policy = await getUpdatePolicyWithDismissalLoaded();
 
       if (isMounted) applyUpdatePolicy(policy);
     };
@@ -580,7 +603,7 @@ function App() {
       }
       subscription.unsubscribe();
     };
-  }, [posthog, applyUpdatePolicy]);
+  }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
 
   useEffect(() => {
     if (isAuthenticated !== true) return;
@@ -616,7 +639,7 @@ function App() {
         return;
       }
 
-      getAppUpdatePolicy().then(policy => {
+      getUpdatePolicyWithDismissalLoaded().then(policy => {
         if (isMounted) applyUpdatePolicy(policy);
       });
     });
@@ -625,7 +648,7 @@ function App() {
       isMounted = false;
       subscription.remove();
     };
-  }, [applyUpdatePolicy]);
+  }, [applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
 
   useEffect(() => {
     if (!isAuthReady) {
@@ -1220,7 +1243,12 @@ function App() {
         storeUrl={recommendedUpdate?.storeUrl ?? ''}
         visible={recommendedUpdate !== null && requiredUpdateStoreUrl === null}
         onDismiss={() => {
-          dismissedRecommendedVersionRef.current = recommendedUpdate?.latestVersion ?? null;
+          if (recommendedUpdate) {
+            dismissedRecommendedVersionRef.current = recommendedUpdate.latestVersion;
+            rememberDismissedRecommendedVersion(
+              recommendedUpdate.latestVersion,
+            ).catch(() => undefined);
+          }
           setRecommendedUpdate(null);
         }}
       />
