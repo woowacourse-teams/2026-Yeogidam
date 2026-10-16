@@ -1,5 +1,6 @@
 import type {HistoryReel, ReelProcessingStatus} from '../../src/entities/content/types';
 import type {SavedPlaceListItem, SavedPlacesApiError} from '../../src/entities/info/types';
+import {toSavedPlaceDisplayPlace} from '../../src/entities/place/api';
 import type {Place} from '../../src/entities/place/types';
 import type {SharedSaveState} from '../../src/lib/reel-save-state';
 
@@ -22,9 +23,9 @@ export const RESTAURANT = savedPlace(3, '식당');
 export const place = (name: string, savedPlaceId: string): Place =>
   ({id: `place-${savedPlaceId}`, name, savedPlaceId} as Place);
 
-/** CAFE와 BAKERY를 화면과 캐시가 다루는 회원 장소로 바꾼 값입니다. 저장 ID가 응답 항목과 같아 삭제 확인이 같은 장소로 찾습니다. */
-export const CACHED_CAFE = place(CAFE.place.name, CAFE.id);
-export const CACHED_BAKERY = place(BAKERY.place.name, BAKERY.id);
+/** CAFE와 BAKERY를 운영 매퍼로 바꾼 화면 장소입니다. 저장 ID(savedPlaceId)가 응답 항목의 id와 같아 삭제 확인과 캐시 빼기가 같은 장소로 찾습니다. */
+export const CACHED_CAFE = toSavedPlaceDisplayPlace(CAFE);
+export const CACHED_BAKERY = toSavedPlaceDisplayPlace(BAKERY);
 export const CACHED_PLACES: Place[] = [CACHED_CAFE, CACHED_BAKERY];
 
 export const GUEST_PLACES: Place[] = [

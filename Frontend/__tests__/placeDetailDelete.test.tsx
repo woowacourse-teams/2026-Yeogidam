@@ -72,7 +72,7 @@ test('상세에서 지우기에 성공하면 보관함 캐시에서도 빼고 �
   const {renderer, onBack} = await renderDetail(CACHED_CAFE);
   await deleteFromSheet(renderer);
 
-  expect(deleteSavedPlaces).toHaveBeenCalledWith(['saved-1']);
+  expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CACHED_CAFE.savedPlaceId]]]);
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
   expect(onBack).toHaveBeenCalledTimes(1);
 });

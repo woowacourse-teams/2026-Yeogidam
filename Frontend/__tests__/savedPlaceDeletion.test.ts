@@ -34,7 +34,7 @@ test('지우기에 성공하면 목록을 다시 읽지 않고 그 장소를 캐
   expect(cachedNames()).toEqual(['빵집']);
 });
 
-test('캐시가 비어 있어도 지우면 세대를 올려, 지우기 전에 보낸 보관함 조회가 늦게 끝나도 캐시를 채우지 못한다', async () => {
+test('캐시가 비어 있어도 지우면, 지우기 전에 보낸 보관함 조회가 늦게 끝나도 캐시를 채우지 못한다', async () => {
   clearSavedPlacesCache();
   const generationAtRequest = getSavedPlacesCacheGeneration();
 
@@ -46,6 +46,7 @@ test('캐시가 비어 있어도 지우면 세대를 올려, 지우기 전에 �
 
 test('시간 초과로 실패해도 다시 읽은 목록에 없으면 지운 것으로 보고 캐시에서 빼며, 지우기를 다시 보내지는 않는다', async () => {
   jest.mocked(deleteSavedPlaces).mockRejectedValue(TIMEOUT_ERROR);
+  jest.mocked(getSavedPlaces).mockResolvedValue([BAKERY]);
 
   await expect(deleteSavedPlaceAndRemoveFromCache(CAFE.id)).resolves.toBeUndefined();
 
@@ -54,7 +55,7 @@ test('시간 초과로 실패해도 다시 읽은 목록에 없으면 지운 것
   expect(cachedNames()).toEqual(['빵집']);
 });
 
-test('시간 초과 뒤 다시 읽은 목록에서 저장 ID가 아니라 장소 ID만 같은 항목은 지운 장소로 보지 않는다', async () => {
+test('시간 초과 뒤 다시 읽은 목록에 지운 저장 ID와 장소 ID가 같은 다른 항목만 있으면 지운 것으로 보고 캐시에서 뺀다', async () => {
   jest.mocked(deleteSavedPlaces).mockRejectedValue(TIMEOUT_ERROR);
   jest.mocked(getSavedPlaces).mockResolvedValue([{...BAKERY, place: {...BAKERY.place, id: CAFE.id}}]);
 
@@ -91,7 +92,7 @@ test('시간 초과 뒤 다시 읽기가 로그인 필요로 실패해도 로그
   expect(cachedNames()).toEqual(['카페', '빵집']);
 });
 
-test('응답을 받지 못한 실패(네트워크 오류)는 목록을 다시 읽지 않고 그 오류를 던진다', async () => {
+test('시간 초과가 아닌, 응답을 받지 못한 실패(네트워크 오류)는 목록을 다시 읽지 않고 그 오류를 던진다', async () => {
   jest.mocked(deleteSavedPlaces).mockRejectedValue({...NETWORK_ERROR});
 
   await expect(deleteSavedPlaceAndRemoveFromCache(CAFE.id)).rejects.toEqual({...NETWORK_ERROR});
