@@ -7,6 +7,7 @@ import {
   findPolledReel,
   hasReelPollTimedOut,
   INITIAL_REEL_PROCESSING_STATE,
+  isSameSharedSave,
   reelProcessingReducer,
   resolveReelPollTracking,
   toVerificationKey,
@@ -105,6 +106,20 @@ describe('classifySharedSaveState', () => {
     expect(
       classifySharedSaveState(shared({source: 'url_input', reel: reel('8', 'FAILED')}), NO_KEYS),
     ).toMatchObject({type: 'show', pollReelId: null, showSaveSuccess: false, isCompleted: false});
+  });
+});
+
+describe('isSameSharedSave', () => {
+  const verifying = shared({shareResultId: 'request-1', reel: reel('8', 'PENDING')});
+
+  test('출처와 공유 요청과 릴스가 같으면 처리 상태가 달라도 같은 저장이다', () => {
+    expect(isSameSharedSave(shared({shareResultId: 'request-1', reel: reel('8')}), verifying)).toBe(true);
+  });
+
+  test('출처나 공유 요청이나 릴스가 다르면 다른 저장이다', () => {
+    expect(isSameSharedSave(shared({source: 'url_input', shareResultId: 'request-1', reel: reel('8')}), verifying)).toBe(false);
+    expect(isSameSharedSave(shared({shareResultId: 'request-2', reel: reel('8')}), verifying)).toBe(false);
+    expect(isSameSharedSave(shared({shareResultId: 'request-1', reel: reel('9')}), verifying)).toBe(false);
   });
 });
 

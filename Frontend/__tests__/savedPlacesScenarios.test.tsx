@@ -194,21 +194,57 @@ describe('보관함 화면의 겹치는 순서', () => {
     expect(nextOnRequireLogin).toHaveBeenCalledTimes(1);
   });
 
-  test('외부 공유를 확인하는 사이 링크 저장이 응답하면 확인 결과가 링크 저장 상태를 덮고 그 릴스는 폴링하지 않는다', async () => {
+  test('외부 공유를 확인하는 사이 링크 저장이 응답하면 확인 결과는 링크 저장 상태를 덮지 않고 링크 저장 릴스를 폴링한다', async () => {
     const status = deferred<ReelProcessingStatus | null>();
     jest.mocked(getReelProcessingStatus).mockReturnValue(status.promise);
     setSharedSaveState(sharedShare(reelStatus('8', 'PROCESSING')));
-    const renderer = await renderLoaded([CAFE]);
+    const onSharedResultConsumed = jest.fn(() => Promise.resolve());
+    const renderer = await renderLoaded([CAFE], {onSharedResultConsumed});
     jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
     await openDialogAndSave(renderer);
     expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
     await act(async () => status.resolve(reelStatus('8', 'PROCESSING')));
     await flush();
-    expect(getSharedSaveState()).toMatchObject({source: 'instagram_share', reel: {id: '8'}});
+    expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
+
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('9', 'COMPLETED')));
-    for (let i = 0; i < 4; i += 1) await tick(3000);
-    expect(getSavedPlaces).toHaveBeenCalledTimes(1);
-    expect(getHistoryReels).toHaveBeenCalledTimes(3);
+    await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
+    expect(getSharedSaveState()).toBeNull();
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+    // 버린 확인 결과의 외부 공유는 보여 주지 않았으므로 소비하지 않는다.
+    expect(onSharedResultConsumed).not.toHaveBeenCalled();
+  });
+
+  test('외부 공유를 확인하는 사이 같은 공유의 정보가 바뀌면 확인 결과를 바뀐 정보 위에 반영한다', async () => {
+    const status = deferred<ReelProcessingStatus | null>();
+    jest.mocked(getReelProcessingStatus).mockReturnValue(status.promise);
+    setSharedSaveState(sharedShare(reelStatus('8', 'PENDING')));
+    await renderLoaded([CAFE]);
+    await act(async () => setSharedSaveState({...sharedShare(reelStatus('8', 'PENDING')), reused: true}));
+    await act(async () => status.resolve(reelStatus('8', 'PROCESSING')));
+    await flush();
+    expect(getReelProcessingStatus).toHaveBeenCalledTimes(1);
+    expect(getSharedSaveState()).toMatchObject({reused: true, status: 'PROCESSING', reel: {id: '8'}});
+  });
+
+  test('외부 공유를 확인하는 사이 링크 저장이 응답하면 공유를 찾지 못했다는 확인 결과로 링크 저장 상태를 지우지 않는다', async () => {
+    const status = deferred<ReelProcessingStatus | null>();
+    jest.mocked(getReelProcessingStatus).mockReturnValue(status.promise);
+    setSharedSaveState(sharedShare(reelStatus('8', 'PROCESSING')));
+    const onSharedResultConsumed = jest.fn(() => Promise.resolve());
+    const renderer = await renderLoaded([CAFE], {onSharedResultConsumed});
+    jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
+    await openDialogAndSave(renderer);
+    await act(async () => status.resolve(null));
+    await flush();
+    expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
+    expect(onSharedResultConsumed).not.toHaveBeenCalled();
+
+    jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('9', 'COMPLETED')));
+    await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
   });
 
   test('앞 릴스 목록 조회가 끝나기 전에 새 링크를 저장하면 그 응답은 새 릴스 기준으로만 읽힌다', async () => {

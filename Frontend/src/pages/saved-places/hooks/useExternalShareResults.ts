@@ -12,6 +12,7 @@ import {
 } from '../../../lib/reel-save-state';
 import {
   classifySharedSaveState,
+  isSameSharedSave,
   toVerificationKey,
   type ReelProcessingAction,
 } from '../reelProcessing';
@@ -62,6 +63,12 @@ export function useExternalShareResults({
         if (!isActive) {
           return;
         }
+        // 확인하는 사이 링크 저장이나 다른 공유가 공유 상태를 바꿨으면 늦게 온 확인 결과를 버립니다.
+        // 보여 주지 않은 외부 공유는 소비하지 않으므로, 네이티브에 남은 결과를 다음 실행 때 다시 확인합니다.
+        const latestState = getSharedSaveState();
+        if (!latestState || !isSameSharedSave(latestState, state)) {
+          return;
+        }
         if (!currentStatus) {
           if (__DEV__) {
             console.warn('[InstagramShare][status-response]', {
@@ -85,9 +92,8 @@ export function useExternalShareResults({
             failureReason: currentStatus.failure_reason,
           });
         }
-        // TODO(review): 확인을 시작할 때의 state로 덮어써서, 확인하는 사이 새 공유가 들어왔다면 그 상태를 잃습니다.
         setSharedSaveState({
-          ...state,
+          ...latestState,
           status: currentStatus.processing_status,
           reel: currentStatus,
         });
