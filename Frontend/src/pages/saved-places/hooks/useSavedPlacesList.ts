@@ -7,7 +7,19 @@ import type {Place} from '../../../entities/place/types';
 
 // 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
 // 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
+// 회원 한 사람의 목록이므로 세션이 끝나면 clearSavedPlacesCache로 비웁니다.
 let cachedSavedPlaces: Place[] | null = null;
+// 캐시를 비울 때마다 올려, 비우기 전에 보낸 조회가 늦게 끝나도 캐시를 다시 채우지 않게 합니다.
+let savedPlacesCacheGeneration = 0;
+
+/**
+ * 회원 세션이 끝나면(로그아웃, 탈퇴, 세션 만료) 부릅니다.
+ * 다음에 보관함을 열면 이전 회원의 목록 대신 스켈레톤을 보이고 목록을 새로 읽습니다.
+ */
+export function clearSavedPlacesCache() {
+  cachedSavedPlaces = null;
+  savedPlacesCacheGeneration += 1;
+}
 
 /** 목록 읽기 상태입니다. 캐시나 넘겨받은 목록으로 시작하면 success입니다. */
 type SavedPlacesLoadState =
@@ -47,7 +59,7 @@ export function useSavedPlacesList({providedPlaces, isGuest, onAuthenticationReq
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
       if (isGuest) {
-        cachedSavedPlaces = null;
+        clearSavedPlacesCache();
       }
       setPlaces(providedPlaces);
       return providedPlaces;
@@ -55,6 +67,7 @@ export function useSavedPlacesList({providedPlaces, isGuest, onAuthenticationReq
 
     const requestId = loadRequestIdRef.current + 1;
     loadRequestIdRef.current = requestId;
+    const cacheGeneration = savedPlacesCacheGeneration;
     setLoadState(LOADING);
     try {
       const savedPlaces = await getSavedPlaces();
@@ -62,7 +75,9 @@ export function useSavedPlacesList({providedPlaces, isGuest, onAuthenticationReq
         return null;
       }
       const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
-      cachedSavedPlaces = nextPlaces;
+      if (cacheGeneration === savedPlacesCacheGeneration) {
+        cachedSavedPlaces = nextPlaces;
+      }
       setPlaces(nextPlaces);
       setLoadState(SUCCESS);
       return nextPlaces;

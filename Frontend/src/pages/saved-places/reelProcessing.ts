@@ -49,8 +49,21 @@ export function toVerificationKey(reel: Pick<ReelProcessingStatus, 'id' | 'creat
 }
 
 /**
+ * 두 공유 상태가 같은 저장(같은 출처, 같은 공유 요청, 같은 릴스)을 가리키는지 봅니다. 처리 상태는 보지 않습니다.
+ * 확인하는 사이 링크 저장이나 다른 공유가 공유 상태를 바꿨으면 늦게 온 확인 결과를 버릴 때 씁니다.
+ */
+export function isSameSharedSave(current: SharedSaveState, other: SharedSaveState): boolean {
+  return (
+    current.source === other.source &&
+    current.shareResultId === other.shareResultId &&
+    current.reel.id === other.reel.id
+  );
+}
+
+/**
  * 공유 상태를 화면이 할 일 하나로 바꿉니다.
  * 서버 reelId가 아직 없으면(share-로 시작) 기다리고, 확인하지 않은 외부 공유는 확인부터 하며, 나머지는 그대로 보여 줍니다.
+ * share- 임시 ID는 reelId를 받기 전의 외부 공유에 useNativeShareResults가 붙이고, 링크 저장은 서버가 응답한 뒤에만 공유 상태에 적으므로 임시 ID가 없습니다.
  */
 export function classifySharedSaveState(
   state: SharedSaveState | null,
@@ -83,12 +96,10 @@ export function classifySharedSaveState(
 export type ReelProcessingAction =
   /** 공유 상태가 바뀌었습니다. */
   | {type: 'sharedStateChanged'; view: SharedSaveStateView}
-  /** 링크 저장을 시작했습니다. */
-  | {type: 'linkSaveStarted'; reel: ReelProcessingStatus}
+  /** 링크 저장을 시작했습니다. 서버가 응답하기 전에는 지켜볼 릴스가 없습니다. */
+  | {type: 'linkSaveStarted'}
   /** 링크 저장 API가 응답했습니다. createdAt은 처리 중 릴스의 만든 시각으로 씁니다. */
   | {type: 'linkSaveResponded'; response: SaveInstagramReelResponse; createdAt: string}
-  /** 링크 저장 API가 실패했습니다. */
-  | {type: 'linkSaveFailed'; reel: ReelProcessingStatus}
   /** 공용 목록에서 새 상태를 찾았습니다. */
   | {type: 'pollReceived'; reel: ReelProcessingStatus}
   /** 시간 초과, 연속 실패, 멈춰야 하는 오류로 폴링을 멈춥니다. */
@@ -125,7 +136,7 @@ function nextReelProcessingState(
     case 'sharedStateChanged':
       return applySharedSaveStateView(state, action.view);
     case 'linkSaveStarted':
-      return {processingReelId: null, processingReel: action.reel, showSaveSuccess: false};
+      return INITIAL_REEL_PROCESSING_STATE;
     case 'linkSaveResponded':
       if (action.response.status === 'COMPLETED') {
         return {processingReelId: null, processingReel: null, showSaveSuccess: true};
@@ -141,7 +152,6 @@ function nextReelProcessingState(
           created_at: action.createdAt,
         },
       };
-    case 'linkSaveFailed':
     case 'pollReceived':
       return {...state, processingReel: action.reel};
     case 'pollStopped':
@@ -169,20 +179,35 @@ export function reelProcessingReducer(
     : next;
 }
 
+/** 지켜보는 릴스 하나의 폴링 기록입니다. 시작 시각과 놓친 횟수는 이 릴스에만 쓰고, 놓친 횟수는 폴링 훅이 그 자리에서 고칩니다. */
+export type ReelPollTracking = {
+  readonly reelId: string;
+  /** 90초 시간 제한을 재기 시작한 시각입니다. */
+  readonly startedAt: number;
+  /** 목록에서 연달아 놓치거나 목록 조회에 실패한 횟수입니다. */
+  failureCount: number;
+};
+
 /**
- * 폴링 시작 시각을 정합니다. 이미 재고 있으면 그대로 두고, 처음이면 릴스를 만든 시각(지금보다 늦으면 지금)부터 셉니다.
+ * 폴링을 걸 때 쓸 기록을 정합니다. 같은 릴스를 이어서 지켜보면 지금 기록을 그대로 돌려주고,
+ * 처음이거나 다른 릴스면 릴스를 만든 시각(지금보다 늦으면 지금)부터 놓친 횟수 0으로 새로 셉니다.
  * 만든 시각을 읽지 못하면 지금부터 셉니다.
  */
-export function resolvePollStartedAt(
-  current: number | null,
+export function resolveReelPollTracking(
+  current: ReelPollTracking | null,
+  reelId: string,
   reelCreatedAt: string | undefined,
   now: number,
-): number {
-  if (current !== null) {
+): ReelPollTracking {
+  if (current?.reelId === reelId) {
     return current;
   }
   const persistedStartedAt = Date.parse(reelCreatedAt ?? '');
-  return Number.isFinite(persistedStartedAt) ? Math.min(persistedStartedAt, now) : now;
+  return {
+    reelId,
+    startedAt: Number.isFinite(persistedStartedAt) ? Math.min(persistedStartedAt, now) : now,
+    failureCount: 0,
+  };
 }
 
 /** 폴링을 시작한 지 90초가 지났는지 봅니다. 시작 시각이 없으면 지나지 않은 것으로 봅니다. */

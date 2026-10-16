@@ -1,25 +1,41 @@
 import React from 'react';
-import {Alert, RefreshControl, Text} from 'react-native';
-import ReactTestRenderer from 'react-test-renderer';
 
 import {getReelProcessingStatus, saveContent} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {getHistoryReels} from '../src/entities/content/history-api';
 import type {HistoryReel, ReelProcessingStatus} from '../src/entities/content/types';
-import {deleteSavedPlaces, getSavedPlaces} from '../src/entities/info/api';
-import type {SavedPlaceListItem, SavedPlacesApiError} from '../src/entities/info/types';
-import type {Place} from '../src/entities/place/types';
-import {
-  getSharedSaveState,
-  setSharedSaveState,
-  type SharedSaveState,
-} from '../src/lib/reel-save-state';
-import {getRecentSearches, setRecentSearches} from '../src/lib/searchHistoryStorage';
-import {SavedPlaceGrid} from '../src/pages/saved-places/components/SavedPlaceGrid';
+import {getSavedPlaces} from '../src/entities/info/api';
+import type {SavedPlaceListItem} from '../src/entities/info/types';
+import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state';
 import {SavedPlacesEmptyState} from '../src/pages/saved-places/components/SavedPlacesEmptyState';
-import {SavedPlacesLinkDialog} from '../src/pages/saved-places/components/SavedPlacesLinkDialog';
 import {SavedPlacesSkeleton} from '../src/pages/saved-places/components/SavedPlacesSkeleton';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
+import {deferred} from './support/deferred';
+import {
+  BAKERY,
+  CAFE,
+  historyReel,
+  LINK,
+  listing,
+  reelStatus,
+  SERVER_ERROR,
+  sharedShare,
+} from './support/savedPlacesFixtures';
+import {
+  act,
+  dialog,
+  flush,
+  openDialogAndSave,
+  placeNames,
+  pressLabel,
+  refreshControl,
+  render,
+  renderLoaded,
+  setUpSavedPlacesScreenTests,
+  texts,
+  tick,
+  unmount,
+} from './support/savedPlacesHarness';
 
 // 보관함 화면에서 조회, 링크 저장, 폴링, 외부 공유 확인이 겹치는 순서를 고정한다.
 // 지금 동작을 그대로 적은 것이라, 훅의 TODO(review)를 고칠 때는 해당 테스트를 함께 뒤집는다.
@@ -57,178 +73,7 @@ jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
 }));
 
-type Renderer = ReactTestRenderer.ReactTestRenderer;
-type ScreenProps = React.ComponentProps<typeof SavedPlacesScreen>;
-
-const NOW = new Date('2026-10-16T09:00:00Z');
-const CREATED_AT = '2026-10-16T09:00:00Z';
-const LINK = 'https://www.instagram.com/reel/abc/';
-
-const savedPlace = (index: number, name: string): SavedPlaceListItem => ({
-  id: `saved-${index}`,
-  createdAt: '2026-10-01T00:00:00Z',
-  place: {id: `place-${index}`, name, roadAddress: '서울 성동구'},
-});
-const CAFE = savedPlace(1, '카페');
-const BAKERY = savedPlace(2, '빵집');
-
-const SERVER_ERROR: SavedPlacesApiError = {
-  status: 500,
-  errorCode: 'COMMON500_001',
-  message: '잠시 후 다시 시도해주세요.',
-  retryable: true,
-};
-
-const reelStatus = (
-  id: string,
-  status: ReelProcessingStatus['processing_status'],
-  createdAt = CREATED_AT,
-): ReelProcessingStatus => ({
-  id,
-  processing_status: status,
-  failure_reason: null,
-  instagram_thumbnail_url: null,
-  created_at: createdAt,
-});
-
-const sharedShare = (reel: ReelProcessingStatus): SharedSaveState => ({
-  shareResultId: 'request-1',
-  url: LINK,
-  status: reel.processing_status,
-  source: 'instagram_share',
-  reel,
-});
-
-const historyReel = (
-  id: string,
-  status: HistoryReel['processing_status'],
-  createdAt = CREATED_AT,
-): HistoryReel => ({
-  id,
-  instagram_url: LINK,
-  instagram_title: null,
-  instagram_description: '성수 카페 모음',
-  instagram_author_username: 'yeogidam',
-  instagram_thumbnail_url: null,
-  processing_status: status,
-  failure_reason: null,
-  save_mode: null,
-  created_at: createdAt,
-});
-
-const listing = (...reels: HistoryReel[]) => ({reels, nextCursor: null});
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return {promise, resolve, reject};
-}
-
-const act = ReactTestRenderer.act;
-const mounted: Renderer[] = [];
-let alertSpy: jest.SpyInstance<void, Parameters<typeof Alert.alert>>;
-
-async function flush() {
-  await act(async () => {
-    for (let i = 0; i < 5; i += 1) await Promise.resolve();
-  });
-}
-
-async function tick(ms: number) {
-  await act(async () => {
-    jest.advanceTimersByTime(ms);
-    for (let i = 0; i < 5; i += 1) await Promise.resolve();
-  });
-}
-
-async function render(props: Partial<ScreenProps> = {}) {
-  let renderer!: Renderer;
-  await act(async () => {
-    renderer = ReactTestRenderer.create(
-      <SavedPlacesScreen onOpenDetail={jest.fn()} {...props} />,
-    );
-  });
-  mounted.push(renderer);
-  return renderer;
-}
-
-async function renderLoaded(items: SavedPlaceListItem[], props: Partial<ScreenProps> = {}) {
-  jest.mocked(getSavedPlaces).mockResolvedValue(items);
-  const renderer = await render(props);
-  await flush();
-  return renderer;
-}
-
-async function unmount(renderer: Renderer) {
-  mounted.splice(mounted.indexOf(renderer), 1);
-  await act(async () => renderer.unmount());
-}
-
-/** 비회원 화면은 회원 목록 캐시를 비우므로, 테스트마다 한 번 그렸다 내려 캐시 없이 시작합니다. */
-async function startWithoutCache() {
-  await unmount(await render({isGuest: true, places: []}));
-}
-
-const grid = (renderer: Renderer) => renderer.root.findByType(SavedPlaceGrid);
-const placeNames = (renderer: Renderer) =>
-  grid(renderer).props.places.map((place: Place) => place.name);
-const dialog = (renderer: Renderer) => renderer.root.findByType(SavedPlacesLinkDialog);
-const refreshControl = (renderer: Renderer) => renderer.root.findByType(RefreshControl);
-const texts = (renderer: Renderer): string[] =>
-  renderer.root
-    .findAllByType(Text)
-    .flatMap(node => React.Children.toArray(node.props.children))
-    .filter((child): child is string => typeof child === 'string');
-
-async function pressLabel(renderer: Renderer, label: string) {
-  const [target] = renderer.root.findAll(
-    node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function',
-  );
-  await act(async () => {
-    target.props.onPress();
-  });
-  await flush();
-}
-
-async function openDialogAndSave(renderer: Renderer, value = LINK) {
-  await pressLabel(renderer, '장소 링크 추가');
-  await act(async () => dialog(renderer).props.onChangeValue(value));
-  await act(async () => {
-    await dialog(renderer).props.onSubmit();
-  });
-  await flush();
-}
-
-beforeEach(async () => {
-  jest.useFakeTimers({now: NOW});
-  alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-  jest.mocked(getSavedPlaces).mockReset().mockResolvedValue([]);
-  jest.mocked(deleteSavedPlaces).mockReset().mockResolvedValue(undefined);
-  jest.mocked(saveContent).mockReset().mockResolvedValue({
-    reelId: '8',
-    status: 'PROCESSING',
-    reused: false,
-  });
-  jest.mocked(getReelProcessingStatus).mockReset().mockResolvedValue(null);
-  jest.mocked(getHistoryReels).mockReset().mockResolvedValue(listing());
-  jest.mocked(getRecentSearches).mockReset().mockResolvedValue([]);
-  jest.mocked(setRecentSearches).mockReset().mockResolvedValue(undefined);
-  setSharedSaveState(null);
-  await startWithoutCache();
-  jest.clearAllMocks();
-});
-
-afterEach(async () => {
-  for (const renderer of [...mounted]) await unmount(renderer);
-  setSharedSaveState(null);
-  alertSpy.mockRestore();
-  jest.clearAllTimers();
-  jest.useRealTimers();
-});
+setUpSavedPlacesScreenTests();
 
 describe('보관함 화면의 겹치는 순서', () => {
   test('늦게 실패한 이전 조회는 새 목록과 오류 표시, 새로고침 표시를 바꾸지 않는다', async () => {
@@ -317,7 +162,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     expect(getHistoryReels).toHaveBeenCalledTimes(40);
   });
 
-  test('폴링 중에 onRequireLogin 참조가 바뀌면 다음 목록 조회가 그때부터 3초 뒤로 밀린다', async () => {
+  test('폴링 중에 onRequireLogin 참조가 바뀌어도 첫 목록 조회는 저장 3초 뒤에 그대로 나간다', async () => {
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('8', 'PROCESSING')));
     const onOpenDetail = jest.fn();
     const renderer = await renderLoaded([CAFE], {onOpenDetail, onRequireLogin: () => undefined});
@@ -326,27 +171,82 @@ describe('보관함 화면의 겹치는 순서', () => {
     await act(async () =>
       renderer.update(<SavedPlacesScreen onOpenDetail={onOpenDetail} onRequireLogin={() => undefined} />),
     );
-    await tick(1500);
+    await tick(1499);
     expect(getHistoryReels).not.toHaveBeenCalled();
-    await tick(1500);
+    await tick(1);
     expect(getHistoryReels).toHaveBeenCalledTimes(1);
   });
 
-  test('외부 공유를 확인하는 사이 링크 저장이 응답하면 확인 결과가 링크 저장 상태를 덮고 그 릴스는 폴링하지 않는다', async () => {
+  test('폴링 중에 onRequireLogin 참조가 바뀐 뒤 로그인이 필요해지면 새로 받은 onRequireLogin을 부른다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockRejectedValue(new ReelApiError({errorCode: 'AUTH401_001', message: '로그인이 필요해요.'}));
+    const onOpenDetail = jest.fn();
+    const firstOnRequireLogin = jest.fn();
+    const nextOnRequireLogin = jest.fn();
+    const renderer = await renderLoaded([CAFE], {onOpenDetail, onRequireLogin: firstOnRequireLogin});
+    await openDialogAndSave(renderer);
+    await tick(1500);
+    await act(async () =>
+      renderer.update(<SavedPlacesScreen onOpenDetail={onOpenDetail} onRequireLogin={nextOnRequireLogin} />),
+    );
+    await tick(1500);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
+    expect(firstOnRequireLogin).not.toHaveBeenCalled();
+    expect(nextOnRequireLogin).toHaveBeenCalledTimes(1);
+  });
+
+  test('외부 공유를 확인하는 사이 링크 저장이 응답하면 확인 결과는 링크 저장 상태를 덮지 않고 링크 저장 릴스를 폴링한다', async () => {
     const status = deferred<ReelProcessingStatus | null>();
     jest.mocked(getReelProcessingStatus).mockReturnValue(status.promise);
     setSharedSaveState(sharedShare(reelStatus('8', 'PROCESSING')));
-    const renderer = await renderLoaded([CAFE]);
+    const onSharedResultConsumed = jest.fn(() => Promise.resolve());
+    const renderer = await renderLoaded([CAFE], {onSharedResultConsumed});
     jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
     await openDialogAndSave(renderer);
     expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
     await act(async () => status.resolve(reelStatus('8', 'PROCESSING')));
     await flush();
-    expect(getSharedSaveState()).toMatchObject({source: 'instagram_share', reel: {id: '8'}});
+    expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
+
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('9', 'COMPLETED')));
-    for (let i = 0; i < 4; i += 1) await tick(3000);
-    expect(getSavedPlaces).toHaveBeenCalledTimes(1);
-    expect(getHistoryReels).toHaveBeenCalledTimes(3);
+    await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
+    expect(getSharedSaveState()).toBeNull();
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+    // 버린 확인 결과의 외부 공유는 보여 주지 않았으므로 소비하지 않는다.
+    expect(onSharedResultConsumed).not.toHaveBeenCalled();
+  });
+
+  test('외부 공유를 확인하는 사이 같은 공유의 정보가 바뀌면 확인 결과를 바뀐 정보 위에 반영한다', async () => {
+    const status = deferred<ReelProcessingStatus | null>();
+    jest.mocked(getReelProcessingStatus).mockReturnValue(status.promise);
+    setSharedSaveState(sharedShare(reelStatus('8', 'PENDING')));
+    await renderLoaded([CAFE]);
+    await act(async () => setSharedSaveState({...sharedShare(reelStatus('8', 'PENDING')), reused: true}));
+    await act(async () => status.resolve(reelStatus('8', 'PROCESSING')));
+    await flush();
+    expect(getReelProcessingStatus).toHaveBeenCalledTimes(1);
+    expect(getSharedSaveState()).toMatchObject({reused: true, status: 'PROCESSING', reel: {id: '8'}});
+  });
+
+  test('외부 공유를 확인하는 사이 링크 저장이 응답하면 공유를 찾지 못했다는 확인 결과로 링크 저장 상태를 지우지 않는다', async () => {
+    const status = deferred<ReelProcessingStatus | null>();
+    jest.mocked(getReelProcessingStatus).mockReturnValue(status.promise);
+    setSharedSaveState(sharedShare(reelStatus('8', 'PROCESSING')));
+    const onSharedResultConsumed = jest.fn(() => Promise.resolve());
+    const renderer = await renderLoaded([CAFE], {onSharedResultConsumed});
+    jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
+    await openDialogAndSave(renderer);
+    await act(async () => status.resolve(null));
+    await flush();
+    expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
+    expect(onSharedResultConsumed).not.toHaveBeenCalled();
+
+    jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('9', 'COMPLETED')));
+    await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
   });
 
   test('앞 릴스 목록 조회가 끝나기 전에 새 링크를 저장하면 그 응답은 새 릴스 기준으로만 읽힌다', async () => {
@@ -380,5 +280,27 @@ describe('보관함 화면의 겹치는 순서', () => {
     await tick(9000);
     expect(calls).toEqual(['fetch', 'login']);
     expect(getSharedSaveState()).toMatchObject({status: 'PROCESSING', reel: {id: '8'}});
+  });
+
+  test('링크 저장 응답을 기다리는 사이 외부 공유가 오면 저장이 실패해도 그 공유를 지우지 않는다', async () => {
+    const request = deferred<Awaited<ReturnType<typeof saveContent>>>();
+    jest.mocked(saveContent).mockReturnValue(request.promise);
+    const renderer = await renderLoaded([CAFE]);
+    await pressLabel(renderer, '장소 링크 추가');
+    await act(async () => dialog(renderer).props.onChangeValue(LINK));
+    await act(async () => {
+      dialog(renderer).props.onSubmit();
+    });
+    const share = sharedShare(reelStatus('share-1', 'PENDING'));
+    await act(async () => setSharedSaveState(share));
+
+    await act(async () =>
+      request.reject(
+        new ReelApiError({errorCode: 'COMMON500_001', message: '서버가 잠시 불안정해요.', retryable: true}),
+      ),
+    );
+    await flush();
+    expect(dialog(renderer).props.errorMessage).toBe('서버가 잠시 불안정해요.');
+    expect(getSharedSaveState()).toBe(share);
   });
 });

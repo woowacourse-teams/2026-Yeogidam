@@ -1,6 +1,4 @@
-import React from 'react';
-import {Alert, RefreshControl, ScrollView, Text} from 'react-native';
-import ReactTestRenderer from 'react-test-renderer';
+import {Alert, ScrollView} from 'react-native';
 
 import {
   captureSavedPlaceSelected,
@@ -9,24 +7,54 @@ import {
 import {getReelProcessingStatus, saveContent} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {getHistoryReels} from '../src/entities/content/history-api';
-import type {HistoryReel, ReelProcessingStatus} from '../src/entities/content/types';
+import type {HistoryReel} from '../src/entities/content/types';
 import {deleteSavedPlaces, getSavedPlaces} from '../src/entities/info/api';
-import type {SavedPlaceListItem, SavedPlacesApiError} from '../src/entities/info/types';
-import type {Place} from '../src/entities/place/types';
-import {
-  getSharedSaveState,
-  setSharedSaveState,
-  type SharedSaveState,
-} from '../src/lib/reel-save-state';
+import type {SavedPlaceListItem} from '../src/entities/info/types';
+import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state';
 import {getRecentSearches, setRecentSearches} from '../src/lib/searchHistoryStorage';
 import {SavedPlaceGrid} from '../src/pages/saved-places/components/SavedPlaceGrid';
 import {SavedPlacesEmptyState} from '../src/pages/saved-places/components/SavedPlacesEmptyState';
 import {SavedPlacesErrorState} from '../src/pages/saved-places/components/SavedPlacesErrorState';
-import {SavedPlacesHeader} from '../src/pages/saved-places/components/SavedPlacesHeader';
-import {SavedPlacesLinkDialog} from '../src/pages/saved-places/components/SavedPlacesLinkDialog';
 import {SavedPlacesSearchPanel} from '../src/pages/saved-places/components/SavedPlacesSearchPanel';
 import {SavedPlacesSkeleton} from '../src/pages/saved-places/components/SavedPlacesSkeleton';
-import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
+import {clearSavedPlacesCache} from '../src/pages/saved-places/hooks/useSavedPlacesList';
+import {deferred} from './support/deferred';
+import {
+  AUTH_ERROR,
+  BAKERY,
+  CAFE,
+  GUEST_PLACES,
+  historyReel,
+  LINK,
+  listing,
+  reelStatus,
+  SERVER_ERROR,
+  sharedShare,
+  TIMEOUT_ERROR,
+} from './support/savedPlacesFixtures';
+import {
+  act,
+  deleteAction,
+  dialog,
+  flush,
+  grid,
+  header,
+  openDialogAndSave,
+  placeNamed,
+  placeNames,
+  pressAround,
+  pressLabel,
+  pressText,
+  refreshControl,
+  render,
+  renderLoaded,
+  searchPanel,
+  selectAndDelete,
+  setUpSavedPlacesScreenTests,
+  texts,
+  tick,
+  unmount,
+} from './support/savedPlacesHarness';
 
 // 화면을 쪼개기 전에 지금 동작을 고정한다. 이상해 보이는 동작도 고치지 않고 그대로 적는다.
 
@@ -63,233 +91,7 @@ jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
 }));
 
-type Renderer = ReactTestRenderer.ReactTestRenderer;
-type ScreenProps = React.ComponentProps<typeof SavedPlacesScreen>;
-
-const NOW = new Date('2026-10-16T09:00:00Z');
-const CREATED_AT = '2026-10-16T09:00:00Z';
-const LINK = 'https://www.instagram.com/reel/abc/';
-
-const savedPlace = (index: number, name: string): SavedPlaceListItem => ({
-  id: `saved-${index}`,
-  createdAt: '2026-10-01T00:00:00Z',
-  place: {id: `place-${index}`, name, roadAddress: '서울 성동구'},
-});
-const CAFE = savedPlace(1, '카페');
-const BAKERY = savedPlace(2, '빵집');
-
-const GUEST_PLACES: Place[] = [
-  {id: 'guest-1', name: '체험 카페', address: '서울', fullAddress: '서울'},
-  {id: 'guest-2', name: '체험 빵집', address: '서울', fullAddress: '서울'},
-];
-
-const SERVER_ERROR: SavedPlacesApiError = {
-  status: 500,
-  errorCode: 'COMMON500_001',
-  message: '잠시 후 다시 시도해주세요.',
-  retryable: true,
-};
-const AUTH_ERROR: SavedPlacesApiError = {
-  status: 401,
-  errorCode: 'AUTH401_001',
-  message: '로그인이 필요해요.',
-  retryable: false,
-};
-const TIMEOUT_ERROR: SavedPlacesApiError = {
-  status: null,
-  errorCode: 'CLIENT000_002',
-  message: '응답이 늦어지고 있어요.',
-  retryable: true,
-};
-
-const reelStatus = (
-  id: string,
-  status: ReelProcessingStatus['processing_status'],
-  createdAt = CREATED_AT,
-): ReelProcessingStatus => ({
-  id,
-  processing_status: status,
-  failure_reason: null,
-  instagram_thumbnail_url: null,
-  created_at: createdAt,
-});
-
-const sharedShare = (reel: ReelProcessingStatus): SharedSaveState => ({
-  shareResultId: 'request-1',
-  url: LINK,
-  status: reel.processing_status,
-  source: 'instagram_share',
-  reel,
-});
-
-const historyReel = (
-  id: string,
-  status: HistoryReel['processing_status'],
-  createdAt = CREATED_AT,
-): HistoryReel => ({
-  id,
-  instagram_url: LINK,
-  instagram_title: null,
-  instagram_description: '성수 카페 모음',
-  instagram_author_username: 'yeogidam',
-  instagram_thumbnail_url: null,
-  processing_status: status,
-  failure_reason: null,
-  save_mode: null,
-  created_at: createdAt,
-});
-
-const listing = (...reels: HistoryReel[]) => ({reels, nextCursor: null});
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return {promise, resolve, reject};
-}
-
-const act = ReactTestRenderer.act;
-const mounted: Renderer[] = [];
-let alertSpy: jest.SpyInstance<void, Parameters<typeof Alert.alert>>;
-
-async function flush() {
-  await act(async () => {
-    for (let i = 0; i < 5; i += 1) await Promise.resolve();
-  });
-}
-
-async function tick(ms: number) {
-  await act(async () => {
-    jest.advanceTimersByTime(ms);
-    for (let i = 0; i < 5; i += 1) await Promise.resolve();
-  });
-}
-
-async function render(props: Partial<ScreenProps> = {}) {
-  let renderer!: Renderer;
-  await act(async () => {
-    renderer = ReactTestRenderer.create(
-      <SavedPlacesScreen onOpenDetail={jest.fn()} {...props} />,
-    );
-  });
-  mounted.push(renderer);
-  return renderer;
-}
-
-async function renderLoaded(items: SavedPlaceListItem[], props: Partial<ScreenProps> = {}) {
-  jest.mocked(getSavedPlaces).mockResolvedValue(items);
-  const renderer = await render(props);
-  await flush();
-  return renderer;
-}
-
-async function unmount(renderer: Renderer) {
-  mounted.splice(mounted.indexOf(renderer), 1);
-  await act(async () => renderer.unmount());
-}
-
-/** 비회원 화면은 회원 목록 캐시를 비우므로, 테스트마다 한 번 그렸다 내려 캐시 없이 시작합니다. */
-async function startWithoutCache() {
-  await unmount(await render({isGuest: true, places: []}));
-}
-
-const grid = (renderer: Renderer) => renderer.root.findByType(SavedPlaceGrid);
-const placeNames = (renderer: Renderer) =>
-  grid(renderer).props.places.map((place: Place) => place.name);
-const placeNamed = (renderer: Renderer, name: string): Place =>
-  grid(renderer).props.places.find((place: Place) => place.name === name);
-const dialog = (renderer: Renderer) => renderer.root.findByType(SavedPlacesLinkDialog);
-const header = (renderer: Renderer) => renderer.root.findByType(SavedPlacesHeader);
-const searchPanel = (renderer: Renderer) => renderer.root.findByType(SavedPlacesSearchPanel);
-const refreshControl = (renderer: Renderer) => renderer.root.findByType(RefreshControl);
-/** 편집 중 화면 아래에 뜨는 삭제(또는 편집 취소) 버튼입니다. 이 버튼만 disabled를 받습니다. */
-const deleteAction = (renderer: Renderer) =>
-  renderer.root.findAll(
-    node => typeof node.props.onPress === 'function' && typeof node.props.disabled === 'boolean',
-  )[0];
-const texts = (renderer: Renderer): string[] =>
-  renderer.root
-    .findAllByType(Text)
-    .flatMap(node => React.Children.toArray(node.props.children))
-    .filter((child): child is string => typeof child === 'string');
-
-async function pressLabel(renderer: Renderer, label: string) {
-  const [target] = renderer.root.findAll(
-    node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function',
-  );
-  await act(async () => {
-    target.props.onPress();
-  });
-  await flush();
-}
-
-/** 글자나 아이콘을 감싼 가장 가까운 누를 수 있는 요소를 누릅니다. */
-async function pressAround(renderer: Renderer, matches: (props: Record<string, unknown>) => boolean) {
-  let target: ReactTestRenderer.ReactTestInstance | null =
-    renderer.root.findAll(node => matches(node.props))[0] ?? null;
-  while (target && typeof target.props.onPress !== 'function') target = target.parent;
-  await act(async () => {
-    target?.props.onPress();
-  });
-  await flush();
-}
-
-const pressText = (renderer: Renderer, label: string) =>
-  pressAround(renderer, props => props.children === label);
-
-async function confirmDeleteAlert() {
-  const buttons = alertSpy.mock.calls[alertSpy.mock.calls.length - 1][2];
-  await act(async () => {
-    buttons?.find(button => button.text === '삭제')?.onPress?.();
-  });
-  await flush();
-}
-
-async function selectAndDelete(renderer: Renderer, placeId: string) {
-  await pressLabel(renderer, '보관함 편집');
-  await act(async () => grid(renderer).props.onTogglePlaceSelection(placeId));
-  await pressLabel(renderer, '선택한 장소 삭제하기');
-  await confirmDeleteAlert();
-}
-
-async function openDialogAndSave(renderer: Renderer, value = LINK) {
-  await pressLabel(renderer, '장소 링크 추가');
-  await act(async () => dialog(renderer).props.onChangeValue(value));
-  await act(async () => {
-    await dialog(renderer).props.onSubmit();
-  });
-  await flush();
-}
-
-beforeEach(async () => {
-  jest.useFakeTimers({now: NOW});
-  alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-  jest.mocked(getSavedPlaces).mockReset().mockResolvedValue([]);
-  jest.mocked(deleteSavedPlaces).mockReset().mockResolvedValue(undefined);
-  jest.mocked(saveContent).mockReset().mockResolvedValue({
-    reelId: '8',
-    status: 'PROCESSING',
-    reused: false,
-  });
-  jest.mocked(getReelProcessingStatus).mockReset().mockResolvedValue(null);
-  jest.mocked(getHistoryReels).mockReset().mockResolvedValue(listing());
-  jest.mocked(getRecentSearches).mockReset().mockResolvedValue([]);
-  jest.mocked(setRecentSearches).mockReset().mockResolvedValue(undefined);
-  setSharedSaveState(null);
-  await startWithoutCache();
-  jest.clearAllMocks();
-});
-
-afterEach(async () => {
-  for (const renderer of [...mounted]) await unmount(renderer);
-  setSharedSaveState(null);
-  alertSpy.mockRestore();
-  jest.clearAllTimers();
-  jest.useRealTimers();
-});
+setUpSavedPlacesScreenTests();
 
 describe('목록 읽기', () => {
   test('처음 열면 스켈레톤을 보이고, 목록을 읽으면 그리드에 그린다', async () => {
@@ -398,6 +200,34 @@ describe('목록 읽기', () => {
     await flush();
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
   });
+
+  test('세션이 끝나 캐시를 비우면 다시 열 때 지난 목록 대신 스켈레톤을 보인다', async () => {
+    await unmount(await renderLoaded([CAFE]));
+    clearSavedPlacesCache();
+
+    const request = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValue(request.promise);
+    const renderer = await render();
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
+    expect(renderer.root.findAllByType(SavedPlaceGrid)).toHaveLength(0);
+
+    await act(async () => request.resolve([BAKERY]));
+    expect(placeNames(renderer)).toEqual(['빵집']);
+  });
+
+  test('세션이 끝나기 전에 보낸 목록 조회가 늦게 끝나도 비운 캐시를 다시 채우지 않는다', async () => {
+    const lateLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(lateLoad.promise);
+    await unmount(await render());
+    clearSavedPlacesCache();
+    await act(async () => lateLoad.resolve([CAFE]));
+    await flush();
+
+    jest.mocked(getSavedPlaces).mockReturnValue(deferred<SavedPlaceListItem[]>().promise);
+    const renderer = await render();
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
+    expect(renderer.root.findAllByType(SavedPlaceGrid)).toHaveLength(0);
+  });
 });
 
 describe('편집과 삭제', () => {
@@ -434,7 +264,7 @@ describe('편집과 삭제', () => {
     const renderer = await renderLoaded([CAFE, BAKERY], {onEditModeChange});
     await selectAndDelete(renderer, 'place-1');
 
-    expect(alertSpy).toHaveBeenCalledWith(
+    expect(Alert.alert).toHaveBeenCalledWith(
       '선택한 장소를 삭제할까요?',
       '선택한 1곳의 장소가 보관함에서 삭제됩니다.',
       expect.any(Array),
@@ -579,7 +409,8 @@ describe('링크 저장', () => {
     expect(dialog(renderer).props.visible).toBe(true);
     expect(dialog(renderer).props.errorMessage).toBe(message);
     expect(dialog(renderer).props.isSubmitting).toBe(false);
-    expect(getSharedSaveState()).toMatchObject({status: 'FAILED', source: 'url_input'});
+    // 서버 릴스가 없는 실패라 공유 상태에 지켜볼 저장을 남기지 않는다.
+    expect(getSharedSaveState()).toBeNull();
 
     await act(async () => dialog(renderer).props.onChangeValue(LINK));
     expect(dialog(renderer).props.errorMessage).toBeNull();
@@ -689,8 +520,7 @@ describe('링크 저장', () => {
     expect(getHistoryReels).not.toHaveBeenCalled();
   });
 
-  test('폴링 중에 목록 오류가 바뀌면 다음 목록 조회가 그때부터 3초 뒤로 밀린다', async () => {
-    // 지금 동작을 그대로 적는다. 폴링 effect가 쓰지 않는 목록 오류를 의존성으로 둔다.
+  test('폴링 중에 목록 오류가 바뀌어도 첫 목록 조회는 저장 3초 뒤에 그대로 나간다', async () => {
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('8', 'PROCESSING')));
     const renderer = await renderLoaded([CAFE]);
     await openDialogAndSave(renderer);
@@ -700,9 +530,9 @@ describe('링크 저장', () => {
     await flush();
     expect(texts(renderer)).toContain(SERVER_ERROR.message);
 
-    await tick(1500);
+    await tick(1499);
     expect(getHistoryReels).not.toHaveBeenCalled();
-    await tick(1500);
+    await tick(1);
     expect(getHistoryReels).toHaveBeenCalledTimes(1);
   });
 
@@ -743,8 +573,7 @@ describe('링크 저장', () => {
     expect(getHistoryReels).toHaveBeenCalledTimes(30);
   });
 
-  test('폴링 중에 새 링크를 저장하면 90초를 처음 저장한 때부터 센다', async () => {
-    // 지금 동작을 그대로 적는다. 새 저장이 앞 저장의 폴링 시작 시각을 이어받는다.
+  test('폴링 중에 새 링크를 저장하면 90초를 새 저장부터 센다', async () => {
     jest
       .mocked(getHistoryReels)
       .mockResolvedValue(
@@ -760,11 +589,52 @@ describe('링크 저장', () => {
 
     jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
     await openDialogAndSave(renderer);
-    for (let i = 0; i < 10; i += 1) await tick(3000);
-    expect(getHistoryReels).toHaveBeenCalledTimes(30);
+    for (let i = 0; i < 30; i += 1) await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(50);
 
     await tick(9000);
-    expect(getHistoryReels).toHaveBeenCalledTimes(30);
+    expect(getHistoryReels).toHaveBeenCalledTimes(50);
+  });
+
+  test('저장 응답이 6초 걸려도 응답한 릴스는 목록에서 세 번 놓쳐야 폴링을 멈춘다', async () => {
+    const request = deferred<Awaited<ReturnType<typeof saveContent>>>();
+    jest.mocked(saveContent).mockReturnValue(request.promise);
+    const renderer = await renderLoaded([CAFE]);
+    await pressLabel(renderer, '장소 링크 추가');
+    await act(async () => dialog(renderer).props.onChangeValue(LINK));
+    await act(async () => {
+      dialog(renderer).props.onSubmit();
+    });
+    await tick(3000);
+    await tick(3000);
+
+    // 응답 뒤의 목록 조회만 센다.
+    jest.mocked(getHistoryReels).mockClear();
+    await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
+    await flush();
+    for (let i = 0; i < 6; i += 1) await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(3);
+  });
+
+  test('저장 응답을 기다리는 동안에는 공유 목록을 조회하지 않고, 응답한 릴스는 3초 뒤부터 폴링한다', async () => {
+    const request = deferred<Awaited<ReturnType<typeof saveContent>>>();
+    jest.mocked(saveContent).mockReturnValue(request.promise);
+    const renderer = await renderLoaded([CAFE]);
+    await pressLabel(renderer, '장소 링크 추가');
+    await act(async () => dialog(renderer).props.onChangeValue(LINK));
+    await act(async () => {
+      dialog(renderer).props.onSubmit();
+    });
+    await tick(9000);
+    expect(getHistoryReels).not.toHaveBeenCalled();
+    expect(getSharedSaveState()).toBeNull();
+
+    await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
+    await flush();
+    await tick(2999);
+    expect(getHistoryReels).not.toHaveBeenCalled();
+    await tick(1);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
   });
 });
 
