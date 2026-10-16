@@ -2,7 +2,12 @@ import {ApiError} from '../../lib/api/errors';
 import {PROCESSING_ERROR} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import {getSharesPage, toReelApiError, toReelStatus} from './api';
-import {SHARES_PATH, type SpringShareHistoryItem, type SpringSharesCursor} from './shares-request';
+import {
+  SHARES_PATH,
+  isSpringSharesCursor,
+  type SpringShareHistoryItem,
+  type SpringSharesCursor,
+} from './shares-request';
 import type {
   HistoryCursor,
   HistoryReel,
@@ -66,7 +71,10 @@ export function toHistoryReelPlace(
   };
 }
 
-/** 공유 목록 한 쪽을 히스토리 카드와 다음 커서로 바꿉니다. 모양이 어긋난 응답은 빈 목록이 아니라 응답 처리 오류(CLIENT000_003)입니다. */
+/**
+ * 공유 목록 한 쪽을 히스토리 카드와 다음 커서로 바꿉니다. 목록 배열이 없거나 다음 커서 모양이 어긋난 응답은
+ * 빈 목록이나 마지막 쪽으로 보지 않고 응답 처리 오류(CLIENT000_003)입니다.
+ */
 export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
   nextCursor: HistoryCursor | null;
@@ -74,7 +82,7 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   const page = await getSharesPage(cursor ? toSpringSharesCursor(cursor) : undefined);
   return {
     reels: page.sharedMedias.map(toHistoryReel),
-    nextCursor: page.nextCursor ? toHistoryCursor(page.nextCursor) : null,
+    nextCursor: toHistoryCursor(page.nextCursor),
   };
 }
 
@@ -83,8 +91,16 @@ function toSpringSharesCursor(cursor: HistoryCursor): SpringSharesCursor {
   return {createdAt: cursor.created_at, id: Number(cursor.id)};
 }
 
-function toHistoryCursor(cursor: SpringSharesCursor): HistoryCursor {
-  return {created_at: cursor.createdAt, id: String(cursor.id)};
+/**
+ * 받은 다음 커서를 앱 커서로 바꿉니다. null이나 생략은 마지막 쪽이라 null입니다. 모양이 어긋나면 그대로 썼을 때
+ * 더 보기 요청이 cursorId=undefined나 NaN으로 나가므로, 응답 처리 오류로 던집니다. 커서를 쓰는 히스토리만 확인합니다.
+ */
+function toHistoryCursor(nextCursor: unknown): HistoryCursor | null {
+  if (nextCursor == null) return null;
+  if (!isSpringSharesCursor(nextCursor)) {
+    throw new ReelApiError({...PROCESSING_ERROR});
+  }
+  return {created_at: nextCursor.createdAt, id: String(nextCursor.id)};
 }
 
 /**

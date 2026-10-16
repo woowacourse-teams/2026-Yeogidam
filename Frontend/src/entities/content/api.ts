@@ -138,7 +138,8 @@ function toReelProcessingStatus(item: SpringShareHistoryItem): ReelProcessingSta
 
 /**
  * 공유 목록 한 쪽을 읽고, 요청 오류와 응답 처리 오류를 이 모듈의 다른 함수와 같은 ReelApiError로 바꿔 던집니다.
- * 상태 확인과 히스토리가 함께 씁니다. 모양 확인과 요청은 shares-request의 requestSharesPage가 맡습니다.
+ * 상태 확인과 히스토리가 함께 씁니다. 요청과 목록 배열 확인은 shares-request의 requestSharesPage가 맡고(request는 날 ApiError,
+ * get은 ReelApiError), 다음 커서는 쓰는 곳인 히스토리가 확인합니다.
  */
 export async function getSharesPage(cursor?: SpringSharesCursor): Promise<SpringSharesPage> {
   try {
@@ -151,6 +152,7 @@ export async function getSharesPage(cursor?: SpringSharesCursor): Promise<Spring
 /**
  * 서버에 단건 상태 조회 API가 없어 최근 공유 목록 첫 쪽에서 찾습니다.
  * 목록에 없으면 null을 돌려주고, 응답에 공유 목록이 없으면 응답 처리 오류(CLIENT000_003)로 던집니다.
+ * 다음 커서는 쓰지 않으므로 모양을 보지 않습니다.
  */
 export async function getReelProcessingStatus(
   reelId: string,

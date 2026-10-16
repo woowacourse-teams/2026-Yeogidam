@@ -30,15 +30,18 @@ type SpringSharesResponse = {
   nextCursor: SpringSharesCursor | null;
 };
 
-/** requestSharesPage가 모양을 확인해 돌려주는 공유 목록 한 쪽입니다. */
+/**
+ * requestSharesPage가 돌려주는 공유 목록 한 쪽입니다. 목록은 배열임을 확인했고, 다음 커서는 받은 그대로라 쓰는 곳(history-api)이
+ * isSpringSharesCursor로 확인합니다. 커서를 쓰지 않는 상태 확인과 온보딩 전환이 커서 모양 때문에 실패하지 않게 하기 위해서입니다.
+ */
 export type SpringSharesPage = {
   sharedMedias: SpringShareHistoryItem[];
-  nextCursor: SpringSharesCursor | null;
+  nextCursor: unknown;
 };
 
 /**
- * 공유 목록 한 쪽을 읽습니다. 커서가 없으면 첫 쪽(서버 기본 50건)을 쿼리 없이 읽고, 커서는 서버 모양 그대로 받고 돌려줍니다.
- * 응답에 공유 목록 배열이 없거나 다음 커서 모양이 어긋나면 빈 목록이나 빈 커서로 보지 않고 응답 처리 오류(ApiError invalid_response)로 던집니다.
+ * 공유 목록 한 쪽을 읽습니다. 커서가 없으면 첫 쪽(서버 기본 50건)을 쿼리 없이 읽고, 커서는 서버 모양 그대로 받습니다.
+ * 응답에 공유 목록 배열이 없으면 빈 목록으로 보지 않고 응답 처리 오류(ApiError invalid_response)로 던집니다.
  * 빈 목록으로 보면 상태 확인은 공유를 찾지 못했다며 지우고, 온보딩 전환은 기존 회원을 새 회원으로 보기 때문입니다.
  * 요청 오류는 바꾸지 않고 날 ApiError로 던집니다. 공유 API의 화면 오류(ReelApiError)로 바꾸는 getSharesPage는 api.ts에 있고,
  * 온보딩 전환처럼 ApiError를 그대로 쓰는 곳만 이 함수를 직접 부릅니다.
@@ -49,16 +52,15 @@ export async function requestSharesPage(cursor?: SpringSharesCursor): Promise<Sp
         query: {cursorCreatedAt: cursor.createdAt, cursorId: String(cursor.id)},
       })
     : await client.request<SpringSharesResponse | null>(SHARES_PATH);
-  if (!response || !Array.isArray(response.sharedMedias) || !isSharesCursorOrNull(response.nextCursor)) {
+  if (!response || !Array.isArray(response.sharedMedias)) {
     throw new ApiError({kind: 'invalid_response', message: '공유 목록 응답을 처리하지 못했어요.'});
   }
-  return {sharedMedias: response.sharedMedias, nextCursor: response.nextCursor ?? null};
+  return {sharedMedias: response.sharedMedias, nextCursor: response.nextCursor};
 }
 
-/** 다음 커서가 없거나(null이나 생략) 서버 모양(createdAt 문자열, id 숫자)인지 확인합니다. */
-function isSharesCursorOrNull(cursor: unknown): cursor is SpringSharesCursor | null | undefined {
-  if (cursor == null) return true;
-  if (typeof cursor !== 'object') return false;
-  const {createdAt, id} = cursor as Partial<SpringSharesCursor>;
+/** 받은 값이 서버 커서 모양(createdAt 문자열, id 숫자)인지 확인합니다. null과 생략은 커서 없음이므로 쓰는 곳이 먼저 가립니다. */
+export function isSpringSharesCursor(value: unknown): value is SpringSharesCursor {
+  if (typeof value !== 'object' || value === null) return false;
+  const {createdAt, id} = value as Partial<SpringSharesCursor>;
   return typeof createdAt === 'string' && typeof id === 'number';
 }

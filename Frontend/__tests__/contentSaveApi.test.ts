@@ -150,15 +150,19 @@ test('상태 조회의 요청 오류는 공유 API 오류 표로 바꿔 다시 �
 
   const lookup = getReelProcessingStatus('12');
   await expect(lookup).rejects.toBeInstanceOf(ReelApiError);
-  await expect(lookup).rejects.toMatchObject({errorCode: 'CLIENT000_001', retryable: true});
+  // 공유 API 표는 전송 계층 문구(offline) 대신 늘 같은 문구로 알린다.
+  await expect(lookup).rejects.toMatchObject({
+    errorCode: 'CLIENT000_001',
+    message: '인터넷 연결을 확인해주세요.',
+    retryable: true,
+  });
 });
 
-/** 다음 커서 모양이 어긋난 응답들입니다. 빈 커서로 보면 더 보기 요청이 cursorId=undefined로 나갑니다. */
-const MALFORMED_CURSOR_BODIES: Array<[string, unknown]> = [
-  ['nextCursor가 빈 객체', {sharedMedias: [], nextCursor: {}}],
-  ['nextCursor가 문자열', {sharedMedias: [], nextCursor: 'abc'}],
-  ['id가 문자열', {sharedMedias: [], nextCursor: {createdAt: '2026-10-14T00:00:00Z', id: '7'}}],
-];
+test('상태 조회는 다음 커서를 쓰지 않으므로 커서 모양이 어긋나도 목록에서 찾는다', async () => {
+  request.mockResolvedValue({sharedMedias: [share(12, 'EXTRACTING')], nextCursor: {}});
+
+  await expect(getReelProcessingStatus('12')).resolves.toMatchObject({id: '12', processing_status: 'PROCESSING'});
+});
 
 describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
   test('첫 쪽은 커서 쿼리 없이 읽고 공유 목록과 다음 커서를 돌려준다', async () => {
@@ -174,12 +178,12 @@ describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
     expect(request).toHaveBeenCalledWith('/api/v1/shares');
   });
 
-  test('다음 쪽은 커서를 cursorCreatedAt과 cursorId로 보내고, 다음 커서가 빠진 응답은 null 커서로 돌려준다', async () => {
+  test('다음 쪽은 커서를 cursorCreatedAt과 cursorId로 보내고, 다음 커서가 빠진 응답은 빠진 그대로 돌려준다', async () => {
     request.mockResolvedValue({sharedMedias: []});
 
     await expect(
       requestSharesPage({createdAt: '2026-10-14T00:00:00Z', id: 7}),
-    ).resolves.toEqual({sharedMedias: [], nextCursor: null});
+    ).resolves.toEqual({sharedMedias: [], nextCursor: undefined});
     expect(request).toHaveBeenCalledWith('/api/v1/shares', {
       query: {cursorCreatedAt: '2026-10-14T00:00:00Z', cursorId: '7'},
     });
@@ -193,12 +197,10 @@ describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
     await expect(page).rejects.toMatchObject({kind: 'invalid_response', status: null});
   });
 
-  test.each(MALFORMED_CURSOR_BODIES)('다음 커서 모양이 어긋나면(%s) 빈 커서가 아니라 응답 처리 오류(ApiError invalid_response)로 던진다', async (_shape, body) => {
-    request.mockResolvedValue(body);
+  test('다음 커서는 모양을 보지 않고 받은 그대로 돌려준다. 쓰는 곳(히스토리)이 확인한다', async () => {
+    request.mockResolvedValue({sharedMedias: [], nextCursor: {}});
 
-    const page = requestSharesPage();
-    await expect(page).rejects.toBeInstanceOf(ApiError);
-    await expect(page).rejects.toMatchObject({kind: 'invalid_response', status: null});
+    await expect(requestSharesPage()).resolves.toEqual({sharedMedias: [], nextCursor: {}});
   });
 
   test('요청 오류는 화면 오류로 바꾸지 않고 받은 그대로 던진다', async () => {
