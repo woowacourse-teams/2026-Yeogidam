@@ -8,6 +8,8 @@ import {
   clearSpringSession,
   getSpringMemberId,
   getSpringTokens,
+  LocalSessionCleanupError,
+  logoutSpringSession,
   onSpringSessionChange,
 } from '../src/lib/auth/spring-session';
 import {
@@ -62,8 +64,9 @@ jest.mock('../src/lib/auth/spring-session', () => ({
   getSpringTokens: jest.fn(),
   getSpringMemberId: jest.fn(),
   onSpringSessionChange: jest.fn(),
-  logoutSpringSession: jest.fn(() => Promise.resolve()),
+  logoutSpringSession: jest.fn(() => Promise.resolve({serverConfirmed: true})),
   clearSpringSession: jest.fn(() => Promise.resolve()),
+  LocalSessionCleanupError: class extends Error {},
 }));
 
 jest.mock('../src/lib/app-guide-storage', () => ({
@@ -96,6 +99,10 @@ jest.mock('../src/entities/onboarding/transfer', () => ({
 
 jest.mock('../src/lib/auth/signInWithGoogle', () => ({
   signInWithGoogle: jest.fn(() => Promise.resolve({member: {id: 1}})),
+}));
+
+jest.mock('../src/lib/monitoring/login-errors', () => ({
+  captureSocialLoginError: jest.fn(),
 }));
 
 jest.mock('../src/lib/auth/deleteAccount', () => ({
@@ -737,5 +744,52 @@ test('로그인하면 비회원이 보던 보관함 스크롤 위치를 처음�
 
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.initialScrollOffset).toBe(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('로그아웃이 로컬 정리에 실패하면 안내를 띄우고 로그인 상태를 유지한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession('member-7');
+  (logoutSpringSession as jest.Mock).mockRejectedValueOnce(
+    new LocalSessionCleanupError('cleanup failed'),
+  );
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+  });
+
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(MyPageScreen).props.onLogout();
+  });
+
+  expect(alertSpy).toHaveBeenCalledWith(
+    '로그아웃 실패',
+    '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
+  );
+  expect(renderer.root.findByType(MyPageScreen).props.isLogoutPending).toBe(false);
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('로그인을 시작하기 전에 실패하면 안내를 띄우고 로그인 화면에 남는다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (beginGuestOnboardingTransfer as jest.Mock).mockRejectedValueOnce(new Error('storage'));
+  const renderer = await renderAfterSplash();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onRequireLogin();
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
+  });
+
+  expect(signInWithGoogle).not.toHaveBeenCalled();
+  expect(alertSpy).toHaveBeenCalledWith('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

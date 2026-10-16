@@ -1,5 +1,4 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {Alert} from 'react-native';
 
 import type {AnalyticsClient} from '../analytics/analytics';
 import {
@@ -44,7 +43,18 @@ export type SpringAuthFlowHandlers = {
   onGuestSession: (signedInOnThisInstall: boolean) => void;
   /** 저장된 세션을 복원했거나(restored) 방금 로그인했을 때(signed-in) 부릅니다. */
   onMemberSession: (source: 'restored' | 'signed-in') => void;
+  /** 비회원 체험 장소 옮기기가 실패해 안내가 필요할 때 부릅니다. 한 세션에 한 번만 불립니다. */
+  onGuestTransferFailed: () => void;
 };
+
+/**
+ * 소셜 로그인 시도의 결과입니다. setup-failed는 제공자 인증을 시작하기 전에 실패한 것이라 화면이 안내하고,
+ * provider-failed는 인증 뒤 실패라 socialLoginError에 남습니다. skipped는 이미 진행 중이라 무시한 것입니다.
+ */
+export type SocialLoginOutcome = 'success' | 'setup-failed' | 'provider-failed' | 'skipped';
+
+/** 로그아웃 결과입니다. signed-out이면 SIGNED_OUT 이벤트가 화면을 옮기고, failed면 로그인 상태가 남습니다. */
+export type LogoutOutcome = 'signed-out' | 'failed' | 'skipped';
 
 export type AccountDeletionOutcome = 'completed' | 'cleanup-failed';
 
@@ -85,6 +95,7 @@ export function useSpringAuthFlow(
       enabled: authStatus === 'member',
       activeMemberIdRef,
       posthog,
+      onTransferFailed: handlers.onGuestTransferFailed,
     });
 
   useEffect(() => {
@@ -161,14 +172,14 @@ export function useSpringAuthFlow(
 
   /**
    * 소셜 로그인을 시작합니다. guestTransferPlaces를 넘기면 비회원이 보관함에 남긴 그 장소를
-   * 가입 뒤 옮길 대상으로 먼저 기록합니다. 시작 전에 실패하면 안내만 띄우고, 제공자 인증 뒤에
-   * 실패하면 로그인 화면이 보여 줄 오류로 남깁니다.
+   * 가입 뒤 옮길 대상으로 먼저 기록합니다. 시작 전에 실패하면 setup-failed를 돌려주어 화면이 안내하고,
+   * 제공자 인증 뒤에 실패하면 로그인 화면이 보여 줄 오류로 남깁니다.
    */
   const continueWithSocial = async (
     provider: SocialProvider,
     guestTransferPlaces: Place[] | null,
-  ) => {
-    if (pendingSocialProvider || loginAttemptInFlightRef.current) return;
+  ): Promise<SocialLoginOutcome> => {
+    if (pendingSocialProvider || loginAttemptInFlightRef.current) return 'skipped';
     loginAttemptInFlightRef.current = true;
     const hasGuestTransfer = guestTransferPlaces !== null;
     const signIn = SIGN_IN_BY_PROVIDER[provider];
@@ -192,6 +203,7 @@ export function useSpringAuthFlow(
       signInStarted = true;
       await signIn();
       trackLoginFinished(posthog, {provider, outcome: 'success', hasGuestTransfer});
+      return 'success';
     } catch (error) {
       cancelTransfer();
       const normalizedError = withAuthErrorStage(
@@ -205,12 +217,10 @@ export function useSpringAuthFlow(
         failureType: toLoginFailureType(normalizedError),
         hasGuestTransfer,
       });
-      if (!signInStarted) {
-        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
-        return;
-      }
+      if (!signInStarted) return 'setup-failed';
       setSocialLoginError(normalizedError);
       setPendingSocialProvider(null);
+      return 'provider-failed';
     } finally {
       loginAttemptInFlightRef.current = false;
     }
@@ -219,9 +229,9 @@ export function useSpringAuthFlow(
   const clearSocialLoginError = useCallback(() => setSocialLoginError(null), []);
 
   // 로컬 중심 로그아웃: 서버 세션 폐기는 best-effort이고, 로컬 정리가 끝나면 SIGNED_OUT 이벤트가
-  // 화면을 옮긴다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
-  const logout = async () => {
-    if (isLogoutPending) return;
+  // 화면을 옮긴다. 로컬 정리에 실패하면 failed를 돌려주고 로그인 상태를 유지해 화면이 다시 시도하게 안내한다.
+  const logout = async (): Promise<LogoutOutcome> => {
+    if (isLogoutPending) return 'skipped';
 
     setIsLogoutPending(true);
 
@@ -230,7 +240,7 @@ export function useSpringAuthFlow(
       if (!result.serverConfirmed) {
         // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
       }
-      return;
+      return 'signed-out';
     } catch (error) {
       if (error instanceof LocalSessionCleanupError) {
         // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
@@ -238,7 +248,7 @@ export function useSpringAuthFlow(
     }
 
     setIsLogoutPending(false);
-    Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
+    return 'failed';
   };
 
   /** 탈퇴 화면에 보여 줄 재인증 제공자를 고릅니다. 프로필을 아직 못 읽었으면 한 번 더 읽어 봅니다. */

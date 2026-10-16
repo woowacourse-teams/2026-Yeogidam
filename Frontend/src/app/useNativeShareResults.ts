@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {Alert, AppState} from 'react-native';
+import {AppState} from 'react-native';
 
 import {getSpringTokens} from '../lib/auth/spring-session';
 import {captureShareLoginHandoffError} from '../lib/monitoring/share-errors';
@@ -14,6 +14,12 @@ import {classifyShareResult, selectShareResult} from '../lib/share-intent/select
 
 const RESULT_POLL_INTERVAL_MS = 1000;
 
+/**
+ * 공유 결과가 실패로 끝나 사용자에게 안내할 종류입니다.
+ * session-expired는 세션이 있는데 익스텐션 쪽 로그인이 만료된 경우, login-required는 세션이 없는 경우입니다.
+ */
+export type ShareFailureNotice = 'session-expired' | 'login-required' | 'extraction-failed';
+
 export type NativeShareResultHandlers = {
   /** 비회원이 공유했을 때 로그인 화면으로 보내고, 돌아올 비회원 화면을 기억합니다. */
   onGuestLoginPrompt: () => void;
@@ -21,6 +27,8 @@ export type NativeShareResultHandlers = {
   onOpenSavedPlaces: (reason: 'guest-preview' | 'share-progress') => void;
   /** 세션이 없어 로그인 화면으로 보냅니다. */
   onLoginRequired: () => void;
+  /** 공유 결과가 실패로 끝나 안내가 필요합니다. login-required는 onLoginRequired 뒤에 옵니다. */
+  onShareFailed: (notice: ShareFailureNotice) => void;
 };
 
 /**
@@ -111,20 +119,17 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
           getSpringTokens()
             .then(tokens => {
               if (tokens) {
-                Alert.alert(
-                  '공유한 게시물을 저장하지 못했어요',
-                  '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
-                );
+                handlersRef.current.onShareFailed('session-expired');
                 return;
               }
               handlersRef.current.onLoginRequired();
-              Alert.alert('로그인이 필요해요', '다시 로그인한 뒤 게시물을 공유해 주세요.');
+              handlersRef.current.onShareFailed('login-required');
             })
             .catch(() => undefined);
           return;
         case 'extraction-failed':
           clearShareResult(result.requestId).catch(() => undefined);
-          Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
+          handlersRef.current.onShareFailed('extraction-failed');
           return;
         case 'wait':
           return;

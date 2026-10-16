@@ -1,6 +1,6 @@
 import React, {StrictMode} from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import {Alert, AppState} from 'react-native';
+import {AppState} from 'react-native';
 
 import {trackGuestTransferFinished} from '../src/analytics/userEntryEvents';
 import {useGuestOnboardingTransfer} from '../src/app/useGuestOnboardingTransfer';
@@ -19,9 +19,15 @@ jest.mock('../src/analytics/userEntryEvents', () => ({trackGuestTransferFinished
 type Snapshot = ReturnType<typeof useGuestOnboardingTransfer>;
 let latest: Snapshot;
 const activeMemberIdRef: {current: string | null} = {current: 'member-1'};
+const onTransferFailed = jest.fn();
 
 function Harness({enabled}: {enabled: boolean}) {
-  latest = useGuestOnboardingTransfer({enabled, activeMemberIdRef, posthog: null});
+  latest = useGuestOnboardingTransfer({
+    enabled,
+    activeMemberIdRef,
+    posthog: null,
+    onTransferFailed,
+  });
   return null;
 }
 
@@ -35,6 +41,7 @@ beforeEach(() => {
   jest.mocked(resumeGuestOnboardingTransfer).mockReset();
   jest.mocked(getSpringMemberId).mockReset();
   jest.mocked(AppState.addEventListener).mockClear();
+  onTransferFailed.mockClear();
 });
 
 test('옮기기가 끝나면 회원 데이터 버전을 올리고, 다른 회원이 됐으면 올리지 않는다', async () => {
@@ -57,8 +64,7 @@ test('옮기기가 끝나면 회원 데이터 버전을 올리고, 다른 회원
   expect(latest.memberDataRevision).toBe(1);
 });
 
-test('실패 안내는 한 번만 띄우고, 로그아웃으로 초기화하면 다시 띄운다', async () => {
-  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+test('실패 안내 요청은 한 번만 보내고, 로그아웃으로 초기화하면 다시 보낸다', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   jest.mocked(resumeGuestOnboardingTransfer).mockRejectedValue(new Error('network'));
   await act(async () => {
@@ -70,7 +76,7 @@ test('실패 안내는 한 번만 띄우고, 로그아웃으로 초기화하면 
     latest.resumeTransfer('member-1');
     await settle();
   });
-  expect(alert).toHaveBeenCalledTimes(1);
+  expect(onTransferFailed).toHaveBeenCalledTimes(1);
   expect(trackGuestTransferFinished).toHaveBeenCalledWith(null, 'failure');
 
   latest.resetTransferError();
@@ -78,9 +84,8 @@ test('실패 안내는 한 번만 띄우고, 로그아웃으로 초기화하면 
     latest.resumeTransfer('member-1');
     await settle();
   });
-  expect(alert).toHaveBeenCalledTimes(2);
+  expect(onTransferFailed).toHaveBeenCalledTimes(2);
 
-  alert.mockRestore();
   warn.mockRestore();
 });
 

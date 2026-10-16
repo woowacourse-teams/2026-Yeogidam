@@ -48,7 +48,7 @@ import { useAppNavigation } from './src/app/useAppNavigation';
 import { useCurrentProfile } from './src/app/useCurrentProfile';
 import { useGuestLoginPrompt } from './src/app/useGuestLoginPrompt';
 import { useLocationPermissionRequest } from './src/app/useLocationPermissionRequest';
-import { useNativeShareResults } from './src/app/useNativeShareResults';
+import { useNativeShareResults, type ShareFailureNotice } from './src/app/useNativeShareResults';
 import { useShareAnalyticsFlush } from './src/app/useShareAnalyticsFlush';
 import { useSpringAuthFlow } from './src/app/useSpringAuthFlow';
 import type { SocialProvider } from './src/lib/auth/social-provider';
@@ -63,6 +63,21 @@ const GUEST_HISTORY_DETAILS = {
   [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
 };
 const SPLASH_MIN_DURATION_MS = 2000;
+/** 공유 결과가 실패로 끝났을 때 종류별로 띄우는 안내입니다. 훅은 종류만 알리고 문구는 여기서 고릅니다. */
+const SHARE_FAILURE_ALERTS: Record<ShareFailureNotice, {title: string; message: string}> = {
+  'session-expired': {
+    title: '공유한 게시물을 저장하지 못했어요',
+    message: '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+  },
+  'login-required': {
+    title: '로그인이 필요해요',
+    message: '다시 로그인한 뒤 게시물을 공유해 주세요.',
+  },
+  'extraction-failed': {
+    title: '장소 추출 실패',
+    message: '공유한 콘텐츠의 장소를 추출하지 못했어요.',
+  },
+};
 
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
 
@@ -120,6 +135,12 @@ function App() {
       if (source === 'signed-in') savedPlacesScrollOffsetRef.current = 0;
       openMemberMain();
     },
+    onGuestTransferFailed: () => {
+      Alert.alert(
+        '군자역 게시물을 저장하지 못했어요',
+        '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
+      );
+    },
   });
   const isAuthReady = authStatus !== 'loading';
   const isAuthenticated = authStatus === 'loading' ? null : authStatus === 'member';
@@ -157,6 +178,10 @@ function App() {
         openMainScreen('saved');
       },
       onLoginRequired: openLogin,
+      onShareFailed: notice => {
+        const {title, message} = SHARE_FAILURE_ALERTS[notice];
+        Alert.alert(title, message);
+      },
     });
 
   const isGuestBrowsing =
@@ -244,11 +269,21 @@ function App() {
     };
   }, [refreshUpdatePolicy]);
 
-  const handleContinueWithSocial = (provider: SocialProvider) => {
+  const handleContinueWithSocial = async (provider: SocialProvider) => {
     // 안내를 마친 비회원이 로그인하면 그때 보관함에 남은 장소를 가입 뒤 옮깁니다.
     const guestTransferPlaces =
       isAuthenticated === false && hasCompletedGuide === true ? guestPlaces : null;
-    return continueWithSocial(provider, guestTransferPlaces);
+    const outcome = await continueWithSocial(provider, guestTransferPlaces);
+    if (outcome === 'setup-failed') {
+      Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+    }
+  };
+
+  const handleLogout = async () => {
+    const outcome = await logout();
+    if (outcome === 'failed') {
+      Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
+    }
   };
 
   const handleCompleteGuide = () => {
@@ -475,7 +510,7 @@ function App() {
         isLogoutPending={isLogoutPending}
         onOpenContact={openKakaoChannelChat}
         onOpenGuide={() => setMyPageOverlay('guide')}
-        onLogout={logout}
+        onLogout={handleLogout}
         onLogin={handleOpenGuestLogin}
         onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={retryProfile}

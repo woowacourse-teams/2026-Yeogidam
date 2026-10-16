@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState, type MutableRefObject} from 'react';
-import {Alert, AppState} from 'react-native';
+import {AppState} from 'react-native';
 
 import type {AnalyticsClient} from '../analytics/analytics';
 import {trackGuestTransferFinished} from '../analytics/userEntryEvents';
@@ -18,6 +18,8 @@ type Options = {
   /** 지금 로그인한 회원 ID입니다. 응답이 돌아왔을 때 다른 회원이면 결과를 버립니다. */
   activeMemberIdRef: MutableRefObject<string | null>;
   posthog: AnalyticsClient | null | undefined;
+  /** 옮기기가 실패해 사용자에게 안내해야 할 때 부릅니다. 한 세션에 한 번만 부르고, resetTransferError로 되돌립니다. */
+  onTransferFailed: () => void;
 };
 
 /**
@@ -25,10 +27,18 @@ type Options = {
  * 로그인 시작 때 기록하고, 세션이 확인되면 보내고, 앱을 다시 열면 남은 기록을 재시도합니다.
  * 옮기기가 끝나면 memberDataRevision을 올려 화면이 회원 데이터를 다시 읽게 합니다.
  */
-export function useGuestOnboardingTransfer({enabled, activeMemberIdRef, posthog}: Options) {
+export function useGuestOnboardingTransfer({
+  enabled,
+  activeMemberIdRef,
+  posthog,
+  onTransferFailed,
+}: Options) {
   const [memberDataRevision, setMemberDataRevision] = useState(0);
   const transferErrorShownRef = useRef(false);
   const isMountedRef = useRef(true);
+  // 안내 콜백은 렌더마다 새로 올 수 있으므로 ref로 읽어 resumeTransfer의 참조를 고정합니다.
+  const onTransferFailedRef = useRef(onTransferFailed);
+  onTransferFailedRef.current = onTransferFailed;
 
   // Fast Refresh나 StrictMode처럼 effect가 다시 돌 때도 응답을 버리지 않게 setup에서 true로 되돌립니다.
   useEffect(() => {
@@ -38,7 +48,7 @@ export function useGuestOnboardingTransfer({enabled, activeMemberIdRef, posthog}
     };
   }, []);
 
-  /** 세션 확인이나 로그인 직후에 부릅니다. 실패 안내는 한 세션에 한 번만 띄웁니다. */
+  /** 세션 확인이나 로그인 직후에 부릅니다. 실패 안내 요청(onTransferFailed)은 한 세션에 한 번만 보냅니다. */
   const resumeTransfer = useCallback(
     (memberId: string, isNewMember?: boolean) => {
       resumeGuestOnboardingTransfer(memberId, isNewMember)
@@ -61,10 +71,7 @@ export function useGuestOnboardingTransfer({enabled, activeMemberIdRef, posthog}
             return;
           }
           transferErrorShownRef.current = true;
-          Alert.alert(
-            '군자역 게시물을 저장하지 못했어요',
-            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
-          );
+          onTransferFailedRef.current();
         });
     },
     [activeMemberIdRef, posthog],
