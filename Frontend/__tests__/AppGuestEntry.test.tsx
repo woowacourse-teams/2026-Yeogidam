@@ -908,10 +908,8 @@ test('세션이 끝나면(로그아웃, 탈퇴) 보관함 목록 캐시를 비�
 test('로그인 만료 공유 결과를 처리하다 세션을 읽지 못하면 로그인 화면으로 보내고 다시 로그인하도록 안내한다', async () => {
   const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
-  // 첫 호출은 부트 세션 확인(세션 없음), 둘째 호출은 공유 결과 처리에서 실패한다.
-  (getSpringTokens as jest.Mock)
-    .mockResolvedValueOnce(null)
-    .mockRejectedValueOnce(new Error('keychain unavailable'));
+  // 세션 저장소를 아예 읽지 못한다. 부트 확인은 읽기 실패를 세션 없음으로 다루고, 공유 결과 처리는 실패 갈래를 탄다.
+  (getSpringTokens as jest.Mock).mockRejectedValue(new Error('keychain unavailable'));
   (getShareResults as jest.Mock).mockResolvedValueOnce([{
     requestId: 'expired-share-unreadable-session',
     url: '',
@@ -926,6 +924,7 @@ test('로그인 만료 공유 결과를 처리하다 세션을 읽지 못하면 
     await Promise.resolve();
   });
 
+  expect(clearShareResult).toHaveBeenCalledWith('expired-share-unreadable-session');
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
   expect(alertSpy).toHaveBeenCalledWith('로그인이 필요해요', '다시 로그인한 뒤 게시물을 공유해 주세요.');
   alertSpy.mockRestore();

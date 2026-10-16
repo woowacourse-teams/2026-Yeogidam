@@ -116,20 +116,22 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
         case 'auth-failed':
           clearShareResult(result.requestId).catch(() => undefined);
           // 추출 실패가 아니라 로그인 문제이므로 다시 로그인하거나 다시 공유하도록 안내합니다.
-          getSpringTokens()
-            .then(tokens => {
+          getSpringTokens().then(
+            tokens => {
               if (tokens) {
                 handlersRef.current.onShareFailed('session-expired');
                 return;
               }
               handlersRef.current.onLoginRequired();
               handlersRef.current.onShareFailed('login-required');
-            })
-            .catch(() => {
+            },
+            () => {
               // 세션을 읽지 못하면 세션이 없을 때와 같게 로그인으로 보내, 공유가 안내 없이 사라지지 않게 합니다.
+              // 두 번째 인자로 받아, 위 성공 처리 안에서 난 오류까지 여기로 오지 않게 합니다.
               handlersRef.current.onLoginRequired();
               handlersRef.current.onShareFailed('login-required');
-            });
+            },
+          );
           return;
         case 'extraction-failed':
           clearShareResult(result.requestId).catch(() => undefined);
