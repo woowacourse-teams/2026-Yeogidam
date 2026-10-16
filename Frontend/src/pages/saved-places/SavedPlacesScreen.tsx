@@ -36,13 +36,7 @@ import { SavedPlacesHeader } from './components/SavedPlacesHeader';
 import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
-import {
-  normalizeInstagramContentUrl,
-  saveContent,
-} from '../../entities/content/api';
-import type {ReelProcessingStatus} from '../../entities/content/types';
-import { normalizeReelError } from '../../entities/content/errors';
-import {setSharedSaveState} from '../../lib/reel-save-state';
+import {useLinkSave} from './hooks/useLinkSave';
 import {useRecentSearches} from './hooks/useRecentSearches';
 import {useReelProcessing} from './hooks/useReelProcessing';
 import {useSavedPlacesEditing} from './hooks/useSavedPlacesEditing';
@@ -103,9 +97,7 @@ export function SavedPlacesScreen({
 }: SavedPlacesScreenProps) {
   const posthog = usePostHog();
   const { bottom: bottomInset } = useSafeAreaInsets();
-  const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [linkValue, setLinkValue] = useState('');
   const {
     places,
     isLoading,
@@ -115,11 +107,8 @@ export function SavedPlacesScreen({
     refreshSavedPlaces,
     removePlaces,
   } = useSavedPlacesList({providedPlaces, isGuest, onAuthenticationRequired});
-  const [linkError, setLinkError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasCapturedViewRef = useRef(false);
-  const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
 
@@ -171,7 +160,7 @@ export function SavedPlacesScreen({
 
   const {recentSearches, saveRecentSearch} = useRecentSearches();
 
-  const {startLinkSave, finishLinkSave, failLinkSave} = useReelProcessing({
+  const reelProcessing = useReelProcessing({
     isGuest,
     loadSavedPlaces,
     onSharedResultConsumed,
@@ -179,100 +168,20 @@ export function SavedPlacesScreen({
     listError: error,
   });
 
-  const openDialog = () => {
-    if (isGuest) {
-      onRequireLogin?.();
-      return;
-    }
-    setLinkError(null);
-    setIsDialogVisible(true);
-  };
-
-  const closeDialog = () => {
-    if (isSubmitting) {
-      return;
-    }
-    setIsDialogVisible(false);
-    setLinkValue('');
-    setLinkError(null);
-  };
-
-  const handleSaveLink = async () => {
-    if (isSubmitting) {
-      return;
-    }
-
-    const normalizedUrl =
-      normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
-    saveRequestIdRef.current = uuidv4();
-    const clientRequestId = saveRequestIdRef.current;
-    const initialReel: ReelProcessingStatus = {
-      id: `manual-${Date.now()}`,
-      processing_status: 'PROCESSING',
-      failure_reason: null,
-      instagram_thumbnail_url: null,
-      created_at: new Date().toISOString(),
-    };
-
-    // 새 링크 요청은 이전 릴스의 카드/폴링 상태를 이어받지 않습니다.
-    startLinkSave(initialReel);
-    setSharedSaveState({
-      url: normalizedUrl,
-      status: 'PROCESSING',
-      source: 'url_input',
-      reel: initialReel,
-    });
-    setIsSubmitting(true);
-    setLinkError(null);
-    try {
-      const response = await saveContent(linkValue, 'url_input', clientRequestId);
-      const nextReel: ReelProcessingStatus = {
-        id: response.reelId,
-        processing_status: response.status,
-        failure_reason: response.failureReason ?? null,
-        instagram_thumbnail_url: null,
-        created_at: new Date().toISOString(),
-      };
-      setSharedSaveState({
-        url: normalizedUrl,
-        status: response.status,
-        source: 'url_input',
-        reused: response.reused,
-        reel: nextReel,
-      });
-      finishLinkSave(response);
-      setIsDialogVisible(false);
-      setLinkValue('');
-      // v2 대기함 흐름 복원 시:
-      // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
-    } catch (submitError) {
-      const normalizedError = normalizeReelError(submitError);
-      const failedReel: ReelProcessingStatus = {
-        id: `manual-failed-${Date.now()}`,
-        processing_status: 'FAILED',
-        failure_reason: normalizedError.errorCode,
-        instagram_thumbnail_url: null,
-        created_at: new Date().toISOString(),
-      };
-      failLinkSave(failedReel);
-      setSharedSaveState({
-        url: normalizedUrl,
-        status: 'FAILED',
-        source: 'url_input',
-        reel: failedReel,
-      });
-      if (normalizedError.errorCode === 'AUTH401_001') {
-        setIsDialogVisible(false);
-        onRequireLogin?.();
-        return;
-      }
-
-
-      setLinkError(normalizedError.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const {
+    isDialogVisible,
+    linkValue,
+    linkError,
+    isSubmitting,
+    openDialog,
+    closeDialog,
+    changeLinkValue,
+    saveLink,
+  } = useLinkSave({
+    isGuest,
+    onRequireLogin,
+    progress: reelProcessing,
+  });
 
   const scrollToTop = () => {
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
@@ -487,14 +396,11 @@ export function SavedPlacesScreen({
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
         value={linkValue}
-        onChangeValue={value => {
-          setLinkValue(value);
-          setLinkError(null);
-        }}
+        onChangeValue={changeLinkValue}
         errorMessage={linkError}
         onClose={closeDialog}
         isSubmitting={isSubmitting}
-        onSubmit={handleSaveLink}
+        onSubmit={saveLink}
       />
     </View>
   );
