@@ -27,8 +27,8 @@ class SharedMediaReportDaoTest extends JdbcTestSupport {
     private SharedMediaReportDao sharedMediaReportDao;
 
     @Test
-    void 신고를_저장하면_생성된_ID를_반환하고_공유_이력과_접수_시각을_저장한다() {
-        // given: 기존 신고가 있어 새 신고의 생성 ID와 공유 이력 ID를 구분할 수 있다.
+    void 제보를_저장하면_생성된_ID를_반환하고_공유_이력과_접수_시각을_저장한다() {
+        // given: 기존 제보가 있어 새 제보의 생성 ID와 공유 이력 ID를 구분할 수 있다.
         insertKakaoMember(jdbcTemplate, 1L, "report-dao-owner", null, null, null);
         insertFailedMedia(jdbcTemplate, 201L, 1, ExtractionFailureReason.UNEXPECTED);
         insertSharedMedia(jdbcTemplate, 101L, 1L, 201L, Instant.parse("2026-10-06T00:00:00.123456Z"));
