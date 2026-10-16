@@ -51,6 +51,8 @@ type MapScreenProps = {
   isActive?: boolean;
   isGuest?: boolean;
   guestPlaces?: Place[];
+  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
+  onDeleteGuestPlaces?: (placeIds: string[]) => void;
   onAuthenticationRequired?: () => void;
 };
 
@@ -64,6 +66,7 @@ export function MapScreen({
   isActive = true,
   isGuest = false,
   guestPlaces,
+  onDeleteGuestPlaces,
   onAuthenticationRequired,
 }: MapScreenProps) {
   const posthog = usePostHog();
@@ -439,6 +442,7 @@ export function MapScreen({
                 current.filter(place => place.savedPlaceId !== savedPlaceId),
               );
             }}
+            onDeleteGuestPlaces={onDeleteGuestPlaces}
             onExpandedChange={setIsSheetExpanded}
             onVisibleHeightChange={handleSheetVisibleHeightChange}
             isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
@@ -540,7 +544,7 @@ export function MapScreen({
               <Text numberOfLines={1} style={styles.expandedDetailTitle}>
                 {selectedPlaceForHeader.name}
               </Text>
-              {!isGuest ? (
+              {!isGuest || onDeleteGuestPlaces ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="더보기"

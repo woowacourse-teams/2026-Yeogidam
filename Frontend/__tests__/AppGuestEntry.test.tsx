@@ -1,8 +1,15 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {Alert} from 'react-native';
 
 import App from '../App';
-import {supabase} from '../src/lib/auth/supabase';
+import {
+  clearSpringSession,
+  getSpringMemberId,
+  getSpringTokens,
+  onSpringSessionChange,
+} from '../src/lib/auth/spring-session';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -22,10 +29,16 @@ import {MapScreen} from '../src/pages/map/MapScreen';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
-import {deleteAccount} from '../src/lib/auth/deleteAccount';
+import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
+import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
+import {AppUpdateModal} from '../src/components/AppUpdateModal';
+import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
+
+const DISMISSED_RECOMMENDED_VERSION_KEY =
+  '@yeogidam/dismissed-recommended-update-version';
 
 jest.mock('react-native-safe-area-context', () => {
   const ReactModule = require('react');
@@ -45,15 +58,12 @@ jest.mock('../src/app/configureDataSources', () => ({
   configureDataSources: jest.fn(),
 }));
 
-jest.mock('../src/lib/auth/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: jest.fn(),
-      getUser: jest.fn(),
-      onAuthStateChange: jest.fn(),
-      signOut: jest.fn(),
-    },
-  },
+jest.mock('../src/lib/auth/spring-session', () => ({
+  getSpringTokens: jest.fn(),
+  getSpringMemberId: jest.fn(),
+  onSpringSessionChange: jest.fn(),
+  logoutSpringSession: jest.fn(() => Promise.resolve()),
+  clearSpringSession: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('../src/lib/app-guide-storage', () => ({
@@ -64,7 +74,6 @@ jest.mock('../src/lib/app-guide-storage', () => ({
 }));
 
 jest.mock('../src/lib/share-intent', () => ({
-  reconcileShareSession: jest.fn(() => Promise.resolve()),
   syncShareSession: jest.fn(() => Promise.resolve()),
   getShareSession: jest.fn(() => Promise.resolve(null)),
   getShareResults: jest.fn(() => Promise.resolve([])),
@@ -81,15 +90,19 @@ jest.mock('../src/entities/onboarding/transfer', () => ({
   beginGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
   cancelGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
   resumeGuestOnboardingTransfer: jest.fn(() => Promise.resolve(false)),
+  toOnboardingKakaoPlaceIds: (places: Array<{kakaoPlaceId?: string}>) =>
+    places.flatMap(place => (place.kakaoPlaceId ? [place.kakaoPlaceId] : [])),
 }));
 
 jest.mock('../src/lib/auth/signInWithGoogle', () => ({
-  signInWithGoogle: jest.fn(() => Promise.resolve({user: {id: 'new-user'}})),
+  signInWithGoogle: jest.fn(() => Promise.resolve({member: {id: 1}})),
 }));
 
 jest.mock('../src/lib/auth/deleteAccount', () => ({
   deleteAccount: jest.fn(() => Promise.resolve()),
   getLinkedDeletionProviders: jest.fn(() => []),
+  isServerSideDeletionFailure: jest.requireActual('../src/lib/auth/deleteAccount')
+    .isServerSideDeletionFailure,
 }));
 
 jest.mock('../src/pages/guide/AppGuideScreen', () => ({
@@ -108,10 +121,6 @@ jest.mock('../src/pages/map/MapScreen', () => ({
   MapScreen: () => null,
 }));
 
-jest.mock('../src/pages/inBox/inBoxScreen', () => ({
-  InBoxScreen: () => null,
-}));
-
 jest.mock('../src/pages/history/HistoryScreen', () => ({
   HistoryScreen: () => null,
 }));
@@ -124,7 +133,24 @@ jest.mock('../src/pages/my-page/AccountDeletionScreen', () => ({
   AccountDeletionScreen: () => null,
 }));
 
-type AuthChangeHandler = (event: string, session: unknown) => void;
+type AuthChangeHandler = (
+  event: string,
+  memberId: string | null,
+  details?: {isNewMember?: boolean},
+) => void;
+
+const SPRING_TOKENS = {
+  accessToken: 'token',
+  refreshToken: 'refresh',
+  tokenType: 'Bearer',
+  expiresAt: '2099-01-01T00:00:00Z',
+  refreshTokenExpiresAt: '2099-01-01T00:00:00Z',
+};
+
+function restoreSpringSession(memberId = 'user') {
+  (getSpringTokens as jest.Mock).mockResolvedValue(SPRING_TOKENS);
+  (getSpringMemberId as jest.Mock).mockResolvedValue(memberId);
+}
 let authChangeHandler: AuthChangeHandler;
 
 async function renderAfterSplash() {
@@ -139,33 +165,100 @@ async function renderAfterSplash() {
   return renderer;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.useFakeTimers();
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: null},
-    error: null,
-  });
-  (supabase.auth.signOut as jest.Mock).mockResolvedValue({error: null});
-  (supabase.auth.onAuthStateChange as jest.Mock).mockImplementation(
+  await AsyncStorage.removeItem(DISMISSED_RECOMMENDED_VERSION_KEY);
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue(null);
+  (getSpringTokens as jest.Mock).mockResolvedValue(null);
+  (getSpringMemberId as jest.Mock).mockResolvedValue(null);
+  (onSpringSessionChange as jest.Mock).mockImplementation(
     (handler: AuthChangeHandler) => {
       authChangeHandler = handler;
-      return {data: {subscription: {unsubscribe: jest.fn()}}};
+      return jest.fn();
     },
   );
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(false);
   (completeAppGuide as jest.Mock).mockResolvedValue(undefined);
   (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(false);
   (rememberSignInOnThisInstall as jest.Mock).mockResolvedValue(undefined);
-  (getCurrentProfile as jest.Mock).mockClear();
+  (getCurrentProfile as jest.Mock).mockReset().mockResolvedValue(null);
   (beginGuestOnboardingTransfer as jest.Mock).mockResolvedValue(undefined);
   (resumeGuestOnboardingTransfer as jest.Mock).mockResolvedValue(false);
-  (signInWithGoogle as jest.Mock).mockResolvedValue({user: {id: 'new-user'}});
+  (signInWithGoogle as jest.Mock).mockResolvedValue({member: {id: 1}});
 });
 
 afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   jest.clearAllMocks();
+});
+
+test('나중에 선택한 버전은 앱 재시작 후에도 숨기고 새 버전은 다시 안내한다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
+    updateRequired: false,
+    updateRecommended: true,
+    minimumSupportedVersion: '1.1.0',
+    latestVersion: '1.2.0',
+    storeUrl: 'https://example.com/store',
+  });
+
+  const renderer = await renderAfterSplash();
+  const recommendedModal = renderer.root.findAllByType(AppUpdateModal).find(
+    modal => modal.props.mode === 'recommended',
+  );
+  expect(recommendedModal?.props.visible).toBe(true);
+  expect(recommendedModal?.props.storeUrl).toBe('https://example.com/store');
+
+  await ReactTestRenderer.act(async () => recommendedModal?.props.onDismiss());
+
+  expect(recommendedModal?.props.visible).toBe(false);
+  expect(await getDismissedRecommendedVersion()).toBe('1.2.0');
+  expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+
+  const afterRestart = await renderAfterSplash();
+  expect(
+    afterRestart.root.findAllByType(AppUpdateModal).find(
+      modal => modal.props.mode === 'recommended',
+    )?.props.visible,
+  ).toBe(false);
+  await ReactTestRenderer.act(async () => afterRestart.unmount());
+
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
+    updateRequired: false,
+    updateRecommended: true,
+    minimumSupportedVersion: '1.1.0',
+    latestVersion: '1.3.0',
+    storeUrl: 'https://example.com/store',
+  });
+  const withNewVersion = await renderAfterSplash();
+  expect(
+    withNewVersion.root.findAllByType(AppUpdateModal).find(
+      modal => modal.props.mode === 'recommended',
+    )?.props.visible,
+  ).toBe(true);
+  await ReactTestRenderer.act(async () => withNewVersion.unmount());
+});
+
+test('닫은 버전이어도 필수 업데이트는 표시한다', async () => {
+  await AsyncStorage.setItem(DISMISSED_RECOMMENDED_VERSION_KEY, '1.2.0');
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
+    updateRequired: true,
+    updateRecommended: false,
+    minimumSupportedVersion: '1.3.0',
+    latestVersion: '1.3.0',
+    storeUrl: 'https://example.com/store',
+  });
+
+  const renderer = await renderAfterSplash();
+  expect(
+    renderer.root.findAllByType(AppUpdateModal).find(
+      modal => modal.props.mode === 'required',
+    )?.props.visible,
+  ).toBe(true);
+  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('온보딩을 마친 비회원이 회원 API 요청 없이 메인에 진입한다', async () => {
@@ -261,7 +354,8 @@ test('온보딩을 완료한 비회원은 재실행 시 메인으로 진입하�
 
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('INITIAL_SESSION', null);
+    // 토큰 회전은 화면 흐름을 바꾸지 않습니다.
+    authChangeHandler('TOKEN_REFRESHED', null);
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => {
@@ -342,10 +436,7 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
 
 test('로그아웃하면 회원 메인에서 로그인 화면으로 이동한다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   const renderer = await renderAfterSplash();
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
 
@@ -354,15 +445,18 @@ test('로그아웃하면 회원 메인에서 로그인 화면으로 이동한다
   });
   expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(0);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+
+  // 로그인 화면의 "로그인 없이 둘러보기"로 비회원 메인에 들어간다.
+  const onBrowseAsGuest = renderer.root.findByType(LoginScreen).props.onBrowseAsGuest;
+  expect(onBrowseAsGuest).toEqual(expect.any(Function));
+  await ReactTestRenderer.act(async () => onBrowseAsGuest());
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('v1 공유 추출이 완료되고 saveMode가 없어도 보관함을 연다', async () => {
   (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   (getShareResults as jest.Mock).mockResolvedValueOnce([{
     requestId: 'v1-share-request',
     url: 'https://www.instagram.com/reel/abc/',
@@ -396,7 +490,7 @@ test('비회원이 로그인하면 이번 설치의 로그인 기록을 저장�
 
   expect(rememberSignInOnThisInstall).not.toHaveBeenCalled();
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', {access_token: 'token', user: {id: 'user'}});
+    authChangeHandler('SIGNED_IN', 'user');
   });
   expect(rememberSignInOnThisInstall).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -416,15 +510,45 @@ test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하�
   });
   expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
 
-  const session = {access_token: 'token', user: {id: 'new-user'}};
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', session);
+    authChangeHandler('SIGNED_IN', 'new-user', {isNewMember: true});
     await Promise.resolve();
   });
 
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith(session);
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('new-user', true);
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원이 지운 시드 장소는 빼고 남은 장소로 전환을 시작한다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  const renderer = await renderAfterSplash();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root
+      .findByType(SavedPlacesScreen)
+      .props.onDeleteGuestPlaces(['onboarding-1775568752', 'onboarding-137070444']);
+  });
+  expect(
+    renderer.root.findByType(SavedPlacesScreen).props.places.map(
+      (place: {id: string}) => place.id,
+    ),
+  ).not.toContain('onboarding-1775568752');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onRequireLogin();
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
+  });
+
+  expect(beginGuestOnboardingTransfer).toHaveBeenCalledWith([
+    '337953507',
+    '98016856',
+    '1107844606',
+  ]);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -438,25 +562,23 @@ test('이전에 로그인한 기기에서도 새 계정 로그인 시 군자역 
   });
   expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
 
-  const session = {access_token: 'token', user: {id: 'another-new-user'}};
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', session);
+    authChangeHandler('SIGNED_IN', 'another-new-user');
     await Promise.resolve();
   });
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith(session);
+  // 신규 여부를 내리기 전 서버 응답이면 전환 모듈이 공유 이력으로 판별한다.
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('another-new-user', undefined);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다', async () => {
   (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'old-token', user: {id: 'deleted-user'}}},
-    error: null,
+  restoreSpringSession('deleted-user');
+  (getCurrentProfile as jest.Mock).mockResolvedValue({
+    id: 'deleted-user',
+    oauthProvider: 'GOOGLE',
   });
-  (supabase.auth.getUser as jest.Mock).mockResolvedValue({
-    data: {user: {id: 'deleted-user'}},
-    error: null,
-  });
+  (getLinkedDeletionProviders as jest.Mock).mockReturnValue(['google']);
   const renderer = await renderAfterSplash();
 
   await ReactTestRenderer.act(async () => {
@@ -481,10 +603,7 @@ test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다',
 });
 
 test('재설치로 앱 기록이 없으면 세션이 복원되어도 온보딩을 보여준다', async () => {
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   const renderer = await renderAfterSplash();
 
   expect(renderer.root.findAllByType(AppGuideScreen)).toHaveLength(1);
@@ -499,10 +618,7 @@ test('재설치로 앱 기록이 없으면 세션이 복원되어도 온보딩�
 });
 
 test('새 설치에서 복원된 세션이 무효화되면 온보딩 후 비회원 메인으로 간다', async () => {
-  (supabase.auth.getSession as jest.Mock).mockResolvedValue({
-    data: {session: {access_token: 'token', user: {id: 'user'}}},
-    error: null,
-  });
+  restoreSpringSession();
   const renderer = await renderAfterSplash();
 
   await ReactTestRenderer.act(async () => {
@@ -511,5 +627,98 @@ test('새 설치에서 복원된 세션이 무효화되면 온보딩 후 비회�
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다시 공유하도록 안내한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession();
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'expired-share-request',
+    url: '',
+    status: 'FAILED',
+    transferStatus: 'API_FAILED',
+    failureReason: 'AUTH401_001 | 인증 토큰이 유효하지 않습니다. | HTTP_401',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(clearShareResult).toHaveBeenCalledWith('expired-share-request');
+  expect(alertSpy).toHaveBeenCalledWith(
+    '공유한 게시물을 저장하지 못했어요',
+    '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+  );
+  expect(alertSpy).not.toHaveBeenCalledWith('장소 추출 실패', expect.anything());
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+async function openAccountDeletion() {
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession('member-7');
+  (getCurrentProfile as jest.Mock).mockResolvedValue({id: '7', oauthProvider: 'KAKAO'});
+  (getLinkedDeletionProviders as jest.Mock).mockReturnValue(['kakao']);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(MyPageScreen).props.onWithdraw();
+  });
+  return renderer;
+}
+
+test('회원탈퇴가 서버·네트워크 문제로 실패하면 탈퇴된 것처럼 처리한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (deleteAccount as jest.Mock).mockRejectedValueOnce({
+    status: null,
+    errorCode: 'CLIENT000_001',
+    message: '인터넷 연결을 확인해주세요.',
+    retryable: true,
+  });
+  const renderer = await openAccountDeletion();
+
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(AccountDeletionScreen).props.onDeleteAccount({
+      confirmation: 'DELETE',
+      providerTokens: {kakao: 'code'},
+    });
+  });
+
+  expect(clearSpringSession).toHaveBeenCalled();
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  expect(alertSpy).toHaveBeenCalledWith('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('재인증 문제로 회원탈퇴가 실패하면 탈퇴 화면에 오류를 돌려준다', async () => {
+  const reauthError = {
+    status: 401,
+    errorCode: 'USER401_001',
+    message: '계정 보호를 위해 다시 로그인해주세요.',
+    retryable: true,
+  };
+  (deleteAccount as jest.Mock).mockRejectedValueOnce(reauthError);
+  const renderer = await openAccountDeletion();
+
+  let thrown: unknown;
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findByType(AccountDeletionScreen)
+      .props.onDeleteAccount({confirmation: 'DELETE', providerTokens: {kakao: 'code'}})
+      .catch((error: unknown) => {
+        thrown = error;
+      });
+  });
+
+  expect(thrown).toBe(reauthError);
+  expect(clearSpringSession).not.toHaveBeenCalled();
+  expect(renderer.root.findAllByType(AccountDeletionScreen)).toHaveLength(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

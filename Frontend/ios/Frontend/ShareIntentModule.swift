@@ -90,14 +90,13 @@ final class ShareIntentModule: RCTEventEmitter {
     }
   }
 
-  @objc(setSupabaseConfiguration:publishableKey:resolver:rejecter:)
-  func setSupabaseConfiguration(
+  @objc(setApiConfiguration:resolver:rejecter:)
+  func setApiConfiguration(
     _ url: String,
-    publishableKey: String,
     resolver resolve: RCTPromiseResolveBlock,
     rejecter reject: RCTPromiseRejectBlock
   ) {
-    ShareIntentStorage.saveSupabaseConfiguration(url: url, publishableKey: publishableKey)
+    ShareIntentStorage.saveApiConfiguration(url: url)
     resolve(nil)
   }
 

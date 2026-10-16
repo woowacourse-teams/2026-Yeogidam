@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  BackHandler,
   Image,
   Linking,
   Platform,
@@ -14,12 +14,16 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
+import {v4 as uuidv4} from 'uuid';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import {
+  toExtractionFailureType,
+  trackExtractionRequestFinished,
+  trackExtractionRequestStarted,
   trackHistoryContentDetailViewed,
   trackHistoryContentViewed,
   trackHistoryViewed,
@@ -32,16 +36,20 @@ import {
   getHistoryReelDetail,
   getHistoryReels,
   reportHistoryReel,
-  saveContent,
-} from '../../entities/content/api';
+  retryHistoryReelExtraction,
+} from '../../entities/content/history-api';
+import {normalizeReelError} from '../../entities/content/errors';
+import {
+  subscribeRecentShares,
+  type RecentSharesSnapshot,
+  type RecentSharesSubscription,
+} from '../../entities/content/recent-shares-poller';
 import type {
   HistoryCursor,
   HistoryPlace,
   HistoryReel,
   HistoryReelDetail,
 } from '../../entities/content/types';
-import type {Place} from '../../entities/place/types';
-import {PlaceDetailScreen} from '../place-detail/PlaceDetailScreen';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
@@ -91,6 +99,17 @@ function getHistoryFailureMessage(reason: string | null) {
       return '지도에서 일치하는 장소를 찾지 못했어요.';
     case 'PLACE_NOT_FOUND':
       return '장소를 찾지 못했어요.';
+    // Spring 서버 ExtractionFailureReason
+    case 'CONTENT_UNAVAILABLE':
+      return '원본 릴스를 불러오지 못했어요.';
+    case 'PLACE_NOT_EXTRACTED':
+      return '릴스에서 장소 정보를 찾지 못했어요.';
+    case 'PLACE_NOT_MATCHED':
+      return '지도에서 장소를 찾지 못했어요.';
+    case 'PROCESSING_FAILED':
+      return '장소 정보를 처리하지 못했어요.';
+    case 'UNEXPECTED':
+      return '알 수 없는 문제가 발생했어요.';
     case 'DATA500_001':
     case 'COMMON500_001':
       return '서버에서 분석을 처리하지 못했어요.';
@@ -101,12 +120,10 @@ function getHistoryFailureMessage(reason: string | null) {
 
 function HistoryItem({
   reel,
-  skeleton = false,
   onPress,
   onLayout,
 }: {
   reel: HistoryReel;
-  skeleton?: boolean;
   onPress?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
@@ -118,12 +135,12 @@ function HistoryItem({
   const metadataPending =
     processing &&
     (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel));
-  const showSkeleton = skeleton || metadataPending;
+  const showSkeleton = metadataPending;
   const label = completed ? '성공' : processing ? '처리중' : '실패';
   const pulse = useRef(new Animated.Value(0.45)).current;
 
   useEffect(() => {
-    if (!processing || skeleton) {
+    if (!processing) {
       pulse.stopAnimation();
       pulse.setValue(1);
       return;
@@ -145,7 +162,7 @@ function HistoryItem({
     );
     animation.start();
     return () => animation.stop();
-  }, [processing, pulse, skeleton]);
+  }, [processing, pulse]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -233,12 +250,15 @@ function formatHistoryDate(createdAt: string) {
 }
 
 function useHistoryReelDetail(
-  reelId: string,
+  reel: HistoryReel,
   guestDetail?: HistoryReelDetail | null,
 ) {
   const [detail, setDetail] = useState<HistoryReelDetail | null>(guestDetail ?? null);
   const [loading, setLoading] = useState(guestDetail === undefined);
   const [error, setError] = useState(false);
+  // 폴링이 같은 항목을 새 객체로 바꿔도 다시 조회하지 않도록 ID가 바뀔 때만 읽는다.
+  const reelRef = useRef(reel);
+  reelRef.current = reel;
 
   useEffect(() => {
     if (guestDetail !== undefined) {
@@ -249,11 +269,11 @@ function useHistoryReelDetail(
     }
     setLoading(true);
     setError(false);
-    getHistoryReelDetail(reelId)
+    getHistoryReelDetail(reelRef.current)
       .then(setDetail)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [guestDetail, reelId]);
+  }, [guestDetail, reel.id]);
 
   return { detail, loading, error };
 }
@@ -262,12 +282,10 @@ function HistorySuccessDetail({
   onBack,
   reel,
   guestDetail,
-  onRequireLogin,
 }: {
   onBack: () => void;
   reel: HistoryReel;
   guestDetail?: HistoryReelDetail | null;
-  onRequireLogin?: () => void;
 }) {
   const posthog = usePostHog();
   const {bottom: bottomInset} = useSafeAreaInsets();
@@ -276,38 +294,13 @@ function HistorySuccessDetail({
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'success');
   }, [posthog, reel.id]);
-  const { detail, loading, error } = useHistoryReelDetail(reel.id, guestDetail);
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  useEffect(() => {
-    if (!selectedPlace) {
-      return undefined;
-    }
-
-    const subscription = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
-        setSelectedPlace(null);
-        return true;
-      },
-    );
-    return () => subscription.remove();
-  }, [selectedPlace]);
+  const { detail, loading, error } = useHistoryReelDetail(reel, guestDetail);
   const displayReel = detail ?? reel;
   const places =
     detail?.extraction?.extraction_places
       .map(item => item.place)
       .filter((place): place is HistoryPlace => Boolean(place)) ?? [];
   const originalUrl = displayReel.instagram_url;
-
-  if (selectedPlace) {
-    return (
-      <PlaceDetailScreen
-        onBack={() => setSelectedPlace(null)}
-        onAuthenticationRequired={onRequireLogin}
-        place={selectedPlace}
-      />
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -371,35 +364,8 @@ function HistorySuccessDetail({
             <Text style={styles.placeState}>발견한 장소가 없어요.</Text>
           ) : (
             places.map(place => (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${place.name} 상세 보기`}
-                key={place.id}
-                onPress={() =>
-                  setSelectedPlace({
-                    id: place.id,
-                    name: place.name,
-                    category: place.category ?? undefined,
-                    address:
-                      place.road_address ??
-                      place.address ??
-                      place.source_address ??
-                      '',
-                    fullAddress:
-                      place.address ??
-                      place.road_address ??
-                      place.source_address ??
-                      '',
-                    latitude: place.latitude ?? undefined,
-                    longitude: place.longitude ?? undefined,
-                    placeUrl: place.kakao_place_url ?? undefined,
-                    image: place.thumbnail_url
-                      ? {uri: place.thumbnail_url}
-                      : undefined,
-                  })
-                }
-                style={styles.placeCard}
-              >
+              // 히스토리의 장소는 보관함 저장 장소가 아니어서 상세 화면(삭제 등)으로 이동하지 않는다.
+              <View key={place.id} style={styles.placeCard}>
                 <Image
                   source={place.local_thumbnail_source ?? { uri: place.thumbnail_url ?? placeThumbnail }}
                   style={styles.placeImage}
@@ -410,7 +376,7 @@ function HistorySuccessDetail({
                 <Text numberOfLines={1} style={styles.placeAddress}>
                   {place.road_address ?? place.address ?? ''}
                 </Text>
-              </Pressable>
+              </View>
             ))
           )}
         </ScrollView>
@@ -452,7 +418,8 @@ function HistoryFailureDetail({
     trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
   }, [posthog, reel.id]);
   const [reported, setReported] = useState(false);
-  const { detail } = useHistoryReelDetail(reel.id, guestDetail);
+  const [retrying, setRetrying] = useState(false);
+  const { detail } = useHistoryReelDetail(reel, guestDetail);
   const displayReel = detail ?? reel;
   const originalUrl = displayReel.instagram_url;
 
@@ -522,7 +489,7 @@ function HistoryFailureDetail({
         </Pressable>
         <View style={styles.failureActions}>
           <Pressable
-            disabled={!originalUrl}
+            disabled={!originalUrl || retrying}
             onPress={() => {
               if (guestDetail !== undefined) {
                 onRequireLogin?.();
@@ -533,15 +500,29 @@ function HistoryFailureDetail({
                 {
                   text: '확인',
                   onPress: () => {
-                    onRetry().catch(() => undefined);
+                    // 접수 응답을 기다리는 동안 버튼에 로딩을 보여 준다.
+                    setRetrying(true);
+                    onRetry()
+                      .catch(() => undefined)
+                      .finally(() => setRetrying(false));
                   },
                 },
               ]);
             }}
-            style={[styles.actionButton, {marginTop: 24 * compactScale}]}
+            style={[
+              styles.actionButton,
+              {marginTop: 24 * compactScale},
+              retrying && styles.disabledButton,
+            ]}
           >
-            <RetryIcon width={20} height={20} style={styles.actionIcon} />
-            <Text style={styles.actionText}>다시 시도하기</Text>
+            {retrying ? (
+              <ActivityIndicator color="#2a2a44" size="small" style={styles.actionIcon} />
+            ) : (
+              <RetryIcon width={20} height={20} style={styles.actionIcon} />
+            )}
+            <Text style={styles.actionText}>
+              {retrying ? '다시 시도하는 중...' : '다시 시도하기'}
+            </Text>
           </Pressable>
           <Pressable
             disabled={reported}
@@ -584,6 +565,9 @@ function HistoryFailureDetail({
   );
 }
 
+/** 처리 중 항목의 상태도 앱 공용 목록 폴링 하나로 갱신한다(단건 폴링 없음). */
+const LIST_POLL_INTERVAL_MS = 3000;
+
 export function HistoryScreen({
   onBack,
   guestReels,
@@ -601,21 +585,30 @@ export function HistoryScreen({
   const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
   const historyViewedRef = useRef(false);
   const shouldRestoreScrollRef = useRef(false);
+  // 상태값은 다음 렌더까지 바뀌지 않으므로 같은 커서의 더 보기가 겹치지 않게 ref로 막는다.
+  const loadingMoreRef = useRef(false);
+  // 첫 페이지 다음까지 읽었으면 커서는 더 보기만 갱신한다.
+  const hasLoadedMoreRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(guestReels === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
-  const [retrySkeletonIds, setRetrySkeletonIds] = useState<Set<string>>(
-    () => new Set(),
-  );
 
-  cardStatesRef.current = new Map(reels.filter(reel => !reel.id.startsWith('retry-')).map(reel => {
+  // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
+  const hasReelsRef = useRef(false);
+  hasReelsRef.current = reels.length > 0;
+  const showErrorIfEmpty = useCallback(() => {
+    if (!hasReelsRef.current) setError(true);
+  }, []);
+
+  cardStatesRef.current = new Map(reels.map(reel => {
     const processing = reel.processing_status === 'PENDING' || reel.processing_status === 'PROCESSING';
-    const state: HistoryVisibleState = retrySkeletonIds.has(reel.id) ||
+    const state: HistoryVisibleState =
       (processing && (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel)))
       ? 'loading' : reel.processing_status === 'COMPLETED' ? 'success'
       : reel.processing_status === 'FAILED' ? 'failed' : 'processing';
@@ -659,7 +652,7 @@ export function HistoryScreen({
 
   useEffect(() => {
     evaluateVisibleCards();
-  }, [evaluateVisibleCards, reels, retrySkeletonIds]);
+  }, [evaluateVisibleCards, reels]);
 
   useEffect(() => () => {
     visibleTimersRef.current.forEach(clearTimeout);
@@ -673,6 +666,35 @@ export function HistoryScreen({
     }
   }, [selectedSuccess, selectedFailure]);
 
+  const sharesSubscriptionRef = useRef<RecentSharesSubscription | null>(null);
+
+  /** 첫 페이지 결과를 반영한다. 폴링(replace=false)은 더 보기로 불러온 이전 항목을 유지한다. */
+  const applyFirstPage = useCallback(async (
+    result: RecentSharesSnapshot,
+    replace: boolean,
+  ) => {
+    // This screen is visible while refreshing, so the newest status is
+    // already seen by the user and must not create a badge on exit.
+    if (result.reels[0]) {
+      await setLastSeenHistorySnapshot({
+        id: result.reels[0].id,
+        status: result.reels[0].processing_status,
+      });
+    }
+    setError(false);
+    setReels(current => {
+      if (replace) return result.reels;
+      const refreshedIds = new Set(result.reels.map(item => item.id));
+      return [
+        ...result.reels,
+        ...current.filter(item => !refreshedIds.has(item.id)),
+      ];
+    });
+    // 폴링은 첫 페이지만 읽은 목록의 커서만 갱신한다. 더 보기로 이어 읽은 뒤에는
+    // 커서가 마지막으로 읽은 페이지를 가리키고, 끝까지 읽어 null이면 그대로 둔다.
+    if (replace || !hasLoadedMoreRef.current) setCursor(result.nextCursor);
+  }, []);
+
   const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
     if (guestReels !== undefined) {
       setReels(guestReels);
@@ -682,234 +704,149 @@ export function HistoryScreen({
       setLoadingMore(false);
       return;
     }
+    if (nextCursor) {
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+      setLoadMoreFailed(false);
+      setLoadingMore(true);
+    } else if (!silent) {
+      setLoadMoreFailed(false);
+      hasLoadedMoreRef.current = false;
+      setLoading(true);
+    }
     setError(false);
-    if (nextCursor) setLoadingMore(true);
-    else if (!silent) setLoading(true);
     try {
-      const result = await getHistoryReels(nextCursor ?? undefined);
-      // This screen is visible while refreshing, so the newest status is
-      // already seen by the user and must not create a badge on exit.
-      if (!nextCursor && result.reels[0]) {
-        await setLastSeenHistorySnapshot({
-          id: result.reels[0].id,
-          status: result.reels[0].processing_status,
+      if (nextCursor) {
+        const result = await getHistoryReels(nextCursor);
+        setReels(current => {
+          // 폴링으로 첫 페이지 경계가 밀리면 이미 가진 항목이 다음 페이지에 다시 올 수 있다.
+          const currentIds = new Set(current.map(item => item.id));
+          return [...current, ...result.reels.filter(item => !currentIds.has(item.id))];
         });
+        hasLoadedMoreRef.current = true;
+        setCursor(result.nextCursor);
+        return;
       }
-      setRetrySkeletonIds(current => {
-        const next = new Set(current);
-        result.reels.forEach(reel => {
-          if (next.has(reel.id) && hasResolvedHistoryTitle(reel)) {
-            next.delete(reel.id);
-          }
-        });
-        return next;
-      });
-      setReels(current => {
-        const temporaryReels = current.filter(item => item.id.startsWith('retry-'));
-        const temporaryUrls = new Set(
-          temporaryReels
-            .map(item => item.instagram_url)
-            .filter((url): url is string => Boolean(url)),
-        );
-        const knownReelIds = new Set(
-          current
-            .filter(item => !item.id.startsWith('retry-'))
-            .map(item => item.id),
-        );
-        const refreshedReels = nextCursor
-          ? [...current, ...result.reels]
-          : result.reels;
 
-        return [
-          ...temporaryReels,
-          ...refreshedReels.filter(
-            item =>
-              !temporaryReels.some(temporary => temporary.id === item.id) &&
-              (!temporaryUrls.has(item.instagram_url ?? '') ||
-                knownReelIds.has(item.id)),
-          ),
-        ];
-      });
-      setCursor(result.nextCursor);
-      if (!nextCursor && !silent && !historyViewedRef.current) {
+      // 첫 페이지는 앱 공용 폴러로 읽어 배지 등 다른 구독자와 결과를 나눈다.
+      // 폴링 결과는 구독 콜백이 반영하므로 여기서는 처음 불러올 때만 목록을 바꾼다.
+      const subscription = sharesSubscriptionRef.current;
+      const result = await (subscription ? subscription.refresh() : getHistoryReels());
+      if (!silent || !subscription) await applyFirstPage(result, !silent);
+      if (!silent && !historyViewedRef.current) {
         historyViewedRef.current = true;
         requestAnimationFrame(() => trackHistoryViewed(posthog, result.reels.length ? 'list' : 'empty'));
       }
     } catch {
-      setError(true);
+      // 처음 불러올 때만 오류 화면을 보인다. 이전 기록 불러오기 실패는 목록 아래에서,
+      // 폴링·재시도 뒤 다시 읽기 실패는 목록을 유지한 채 다음 폴링에 맡긴다.
+      if (nextCursor) setLoadMoreFailed(true);
+      else if (silent) showErrorIfEmpty();
+      else setError(true);
       if (!nextCursor && !silent && !historyViewedRef.current) {
         historyViewedRef.current = true;
         requestAnimationFrame(() => trackHistoryViewed(posthog, 'error'));
       }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (nextCursor) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
-  }, [guestReels, posthog]);
+  }, [applyFirstPage, guestReels, posthog, showErrorIfEmpty]);
 
+  /**
+   * 재시도도 새 공유와 같은 길을 탄다. 접수에 성공하면 목록으로 돌아가 바로 한 번 읽고,
+   * 이후 상태는 목록 폴링이 갱신한다. 실패하면 실패 상세에 머문 채 안내한다.
+   */
   const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
-    if (!reel.instagram_url) {
+    const requestId = uuidv4();
+    trackExtractionRequestStarted(posthog, {
+      requestId,
+      source: 'history_retry',
+    });
+    let response: Awaited<ReturnType<typeof retryHistoryReelExtraction>>;
+    try {
+      // 서버 재시도 API는 같은 게시물로 새 공유를 만들고(이미 추출 중이면 그 공유를) 돌려준다.
+      response = await retryHistoryReelExtraction(reel.id);
+    } catch (retryError) {
+      const normalized = normalizeReelError(retryError);
+      trackExtractionRequestFinished(posthog, {
+        requestId,
+        source: 'history_retry',
+        outcome: 'request_failed',
+        failureType: toExtractionFailureType(normalized),
+        responseStatus: normalized.status,
+      });
+      // MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
+      Alert.alert(
+        '다시 시도하지 못했어요',
+        normalized.errorCode?.startsWith('MEDIA')
+          ? normalized.message
+          : '잠시 후 다시 시도해주세요.',
+      );
       return;
     }
+    // 2xx 응답이면 응답 안의 추출 상태가 FAILED여도 응답 수신으로 기록한다.
+    trackExtractionRequestFinished(posthog, {
+      requestId,
+      source: 'history_retry',
+      outcome: 'response_received',
+      contentId: response.reelId,
+    });
 
-    const temporaryId = `retry-${reel.id}-${Date.now()}`;
-    const temporaryReel: HistoryReel = {
-      ...reel,
-      id: temporaryId,
-      processing_status: 'PENDING',
-      failure_reason: null,
-      created_at: new Date().toISOString(),
-    };
+    // 이 화면에서 바로 보게 되므로 대기함으로 돌아갈 때 안 읽은 히스토리로 표시하지 않는다.
+    await setLastSeenHistorySnapshot({
+      id: response.reelId,
+      status: response.status,
+    }).catch(() => undefined);
 
-    // A retry adds a new item at the top, so the list should start at the top
-    // instead of restoring the position of the failed item's detail view.
+    // 새 항목이 맨 위에 생기므로 실패 항목의 스크롤 위치로 되돌리지 않는다.
     scrollOffsetRef.current = 0;
     shouldRestoreScrollRef.current = false;
-
-    // Show the new attempt immediately while the retry request is in flight.
-    setReels(current => [temporaryReel, ...current]);
-    setRetrySkeletonIds(current => new Set(current).add(temporaryId));
     setSelectedFailure(false);
     setSelectedReel(null);
-
-    try {
-      const response = await saveContent(reel.instagram_url, 'url_input');
-      // API 응답만으로는 제목·썸네일이 없을 수 있으므로, 상세 polling 결과를
-      // 받을 때까지 임시 카드를 스켈레톤으로 유지한다.
-      // The newly created retry is already visible in this screen, so it
-      // should not appear as an unread history when returning to the inbox.
-      await setLastSeenHistorySnapshot({
+    // 같은 게시물을 다시 처리하므로 접수된 공유는 실패 카드의 내용으로 바로 보여 준다.
+    // 생성 시각 등 서버 값은 이어지는 목록 조회가 같은 ID로 덮어쓴다.
+    if (!response.reused) {
+      const acceptedReel: HistoryReel = {
+        ...reel,
         id: response.reelId,
-        status: response.status,
-      });
-      // Retry creates a new history record on the backend. Keep the original
-      // failed record and add the new attempt to the top of the list.
-      const retriedReel = await getHistoryReelDetail(response.reelId);
-      if (!retriedReel) {
-        setReels(current =>
-          current.map(item =>
-            item.id === temporaryId
-              ? {
-                  ...item,
-                  id: response.reelId,
-                  processing_status: response.status,
-                  failure_reason: response.failureReason ?? null,
-                }
-              : item,
-          ),
-        );
-        setRetrySkeletonIds(current => {
-          const next = new Set(current);
-          next.delete(temporaryId);
-          return next;
-        });
-        return;
-      }
-
-      setRetrySkeletonIds(current => {
-        const next = new Set(current);
-        next.delete(temporaryId);
-        return next;
-      });
-
-      setReels(current => {
-        const nextReel = {
-          ...retriedReel,
-          instagram_title:
-            retriedReel.instagram_title ??
-            current.find(item => item.id === temporaryId)?.instagram_title ??
-            null,
-          instagram_description:
-            retriedReel.instagram_description ??
-            current.find(item => item.id === temporaryId)?.instagram_description ??
-            null,
-          instagram_thumbnail_url:
-            retriedReel.instagram_thumbnail_url ??
-            current.find(item => item.id === temporaryId)
-              ?.instagram_thumbnail_url ??
-            null,
-          processing_status: response.status,
-          failure_reason: response.failureReason ?? retriedReel.failure_reason,
-        };
-        return [
-          nextReel,
-          ...current.filter(
-            item => item.id !== temporaryId && item.id !== retriedReel.id,
-          ),
-        ];
-      });
-    } catch {
-      setReels(current => current.filter(item => item.id !== temporaryId));
-      setRetrySkeletonIds(current => {
-        const next = new Set(current);
-        next.delete(temporaryId);
-        return next;
-      });
-      Alert.alert('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
+        processing_status: response.status,
+        failure_reason: null,
+        created_at: new Date().toISOString(),
+      };
+      setReels(current =>
+        current.some(item => item.id === acceptedReel.id)
+          ? current.map(item => (item.id === acceptedReel.id ? acceptedReel : item))
+          : [acceptedReel, ...current],
+      );
     }
-  }, []);
+    await load(undefined, true);
+  }, [load, posthog]);
+
+  useEffect(() => {
+    if (guestReels !== undefined) return;
+    const subscription = subscribeRecentShares({
+      intervalMs: LIST_POLL_INTERVAL_MS,
+      onResult: result => {
+        applyFirstPage(result, false).catch(() => undefined);
+      },
+      onError: showErrorIfEmpty,
+    });
+    sharesSubscriptionRef.current = subscription;
+
+    return () => {
+      subscription.unsubscribe();
+      sharesSubscriptionRef.current = null;
+    };
+  }, [applyFirstPage, guestReels, showErrorIfEmpty]);
 
   useEffect(() => {
     load().catch(() => undefined);
   }, [load]);
-
-  useEffect(() => {
-    if (guestReels !== undefined) return;
-    const refresh = setInterval(() => {
-      load(undefined, true).catch(() => undefined);
-    }, 5000);
-
-    return () => clearInterval(refresh);
-  }, [guestReels, load]);
-
-  useEffect(() => {
-    if (guestReels !== undefined) return;
-    if (
-      !reels.some(
-        reel =>
-          reel.processing_status === 'PENDING' ||
-          reel.processing_status === 'PROCESSING',
-      )
-    ) {
-      return;
-    }
-
-    const poll = setInterval(() => {
-      reels
-        .filter(
-          reel =>
-            reel.processing_status === 'PENDING' ||
-            reel.processing_status === 'PROCESSING',
-        )
-        .forEach(reel => {
-          getHistoryReelDetail(reel.id)
-            .then(detail => {
-              if (!detail) return;
-              if (hasResolvedHistoryTitle(detail)) {
-                setRetrySkeletonIds(current => {
-                  if (!current.has(detail.id)) return current;
-                  const next = new Set(current);
-                  next.delete(detail.id);
-                  return next;
-                });
-              }
-              setReels(current =>
-                current.map(item =>
-                  item.id === detail.id
-                    ? {
-                        ...item,
-                        ...detail,
-                      }
-                    : item,
-                ),
-              );
-            })
-            .catch(() => undefined);
-        });
-    }, 3000);
-
-    return () => clearInterval(poll);
-  }, [guestReels, reels]);
 
   useEffect(() => {
     if (
@@ -955,7 +892,6 @@ export function HistoryScreen({
         }}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
-        onRequireLogin={onRequireLogin}
       />
     );
   }
@@ -1015,7 +951,8 @@ export function HistoryScreen({
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
-          if (reachedBottom && cursor && !loadingMore) {
+          // 실패했으면 스크롤마다 다시 요청하지 않고 다시 불러오기 버튼을 기다린다.
+          if (reachedBottom && cursor && !loadingMore && !loadMoreFailed) {
             load(cursor).catch(() => undefined);
           }
         }}
@@ -1056,7 +993,6 @@ export function HistoryScreen({
                 <HistoryItem
                   key={reel.id}
                   reel={reel}
-                  skeleton={retrySkeletonIds.has(reel.id)}
                   onLayout={event => {
                     cardLayoutsRef.current.set(reel.id, {
                       group: date,
@@ -1084,6 +1020,20 @@ export function HistoryScreen({
           ))
         )}
         {loadingMore ? <Text style={styles.moreLoadingText}>이전 기록을 불러오는 중이에요.</Text> : null}
+        {loadMoreFailed && !loadingMore ? (
+          <View>
+            <Text style={styles.moreLoadingText}>이전 기록을 불러오지 못했어요.</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                load(cursor).catch(() => undefined);
+              }}
+              style={styles.moreButton}
+            >
+              <Text style={styles.retryText}>다시 불러오기</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </ScrollView>
       <View style={styles.homeIndicator} />
     </View>

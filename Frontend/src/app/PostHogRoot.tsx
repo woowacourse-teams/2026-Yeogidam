@@ -2,7 +2,11 @@ import React, { useEffect, type ReactNode } from 'react';
 import Config from 'react-native-config';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
-import { supabase } from '../lib/auth/supabase';
+import {
+  getSpringMemberId,
+  getSpringTokens,
+  onSpringSessionChange,
+} from '../lib/auth/spring-session';
 import { getAnalyticsEnvironment } from '../analytics/analytics';
 import { getInstallationId } from '../lib/share-intent';
 
@@ -20,11 +24,18 @@ function PostHogAuthIdentity({ children }: PostHogRootProps) {
   const posthog = usePostHog();
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session) {
-        posthog.identify(session.user.id);
+    let isMounted = true;
+
+    // 앱 시작 시 이미 로그인된 회원도 식별합니다.
+    Promise.all([getSpringTokens(), getSpringMemberId()])
+      .then(([tokens, memberId]) => {
+        if (isMounted && tokens && memberId) posthog.identify(memberId);
+      })
+      .catch(() => undefined);
+
+    const unsubscribe = onSpringSessionChange((event, memberId) => {
+      if (event === 'SIGNED_IN' && memberId) {
+        posthog.identify(memberId);
         return;
       }
 
@@ -33,7 +44,10 @@ function PostHogAuthIdentity({ children }: PostHogRootProps) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, [posthog]);
 
   return <>{children}</>;

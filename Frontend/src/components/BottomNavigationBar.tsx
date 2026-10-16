@@ -1,6 +1,5 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
-  AppState,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,13 +11,16 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getHistoryReels } from '../entities/content/api';
+import { subscribeRecentShares } from '../entities/content/recent-shares-poller';
+import type { HistoryReel } from '../entities/content/types';
 import {
   getLastSeenHistorySnapshot,
   setLastSeenHistorySnapshot,
 } from '../lib/history-notification-storage';
 
 import type { MainScreen } from '../types/navigation';
+
+const HISTORY_NOTIFICATION_INTERVAL_MS = 5000;
 
 type BottomNavigationBarProps = {
   active: MainScreen;
@@ -73,47 +75,52 @@ export function BottomNavigationBar({
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
   const [isHistoryUnread, setIsHistoryUnread] = useState(false);
-  const syncHistoryNotification = useCallback(async () => {
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  const syncHistoryNotification = useCallback(async (reels: HistoryReel[]) => {
+    // 히스토리 화면이 같은 결과로 마지막 확인 시점을 갱신하므로 그 화면에서는 판단하지 않는다.
+    if (activeRef.current === 'history') {
+      setIsHistoryUnread(false);
+      return;
+    }
+    const latest = reels[0];
+    if (!latest) {
+      setIsHistoryUnread(false);
+      return;
+    }
+    const lastSeen = await getLastSeenHistorySnapshot();
+    if (lastSeen === null) {
+      await setLastSeenHistorySnapshot({
+        id: latest.id,
+        status: latest.processing_status,
+      });
+      setIsHistoryUnread(false);
+      return;
+    }
+    setIsHistoryUnread(
+      lastSeen.id !== latest.id ||
+        lastSeen.status !== latest.processing_status,
+    );
+  }, []);
+
+  useEffect(() => {
     if (isGuest) {
       setIsHistoryUnread(false);
       return;
     }
-    try {
-      const {reels} = await getHistoryReels();
-      const latest = reels[0];
-      if (!latest) {
-        setIsHistoryUnread(false);
-        return;
-      }
-      const lastSeen = await getLastSeenHistorySnapshot();
-      if (lastSeen === null) {
-        await setLastSeenHistorySnapshot({
-          id: latest.id,
-          status: latest.processing_status,
-        });
-        setIsHistoryUnread(false);
-        return;
-      }
-      setIsHistoryUnread(
-        lastSeen.id !== latest.id ||
-          lastSeen.status !== latest.processing_status,
-      );
-    } catch {
-      // Keep the navigation usable if the history request fails.
-    }
-  }, [isGuest]);
-
-  useEffect(() => {
-    syncHistoryNotification();
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') syncHistoryNotification();
+    // 앱 공용 폴러를 5초 주기로 구독한다. 히스토리 등 더 짧은 구독자가 있으면 그 주기를 따른다.
+    // 포그라운드 복귀 시 다시 읽는 것도 폴러가 맡는다.
+    const subscription = subscribeRecentShares({
+      intervalMs: HISTORY_NOTIFICATION_INTERVAL_MS,
+      onResult: ({reels}) => {
+        // Keep the navigation usable if the history request fails.
+        syncHistoryNotification(reels).catch(() => undefined);
+      },
     });
-    const interval = setInterval(syncHistoryNotification, 5000);
-    return () => {
-      subscription.remove();
-      clearInterval(interval);
-    };
-  }, [syncHistoryNotification]);
+    subscription.refresh().catch(() => undefined);
+    return () => subscription.unsubscribe();
+  }, [isGuest, syncHistoryNotification]);
 
   return (
     <View
@@ -142,20 +149,8 @@ export function BottomNavigationBar({
           <Pressable
             key={navigation.id}
             onPress={() => {
-              if (navigation.id === 'history' && !isGuest) {
-                getHistoryReels()
-                  .then(async ({reels}) => {
-                    const latest = reels[0];
-                    if (latest) {
-                      await setLastSeenHistorySnapshot({
-                        id: latest.id,
-                        status: latest.processing_status,
-                      });
-                      setIsHistoryUnread(false);
-                    }
-                  })
-                  .catch(() => undefined);
-              }
+              // 마지막 확인 시점은 히스토리 화면이 첫 페이지를 읽을 때 저장한다.
+              if (navigation.id === 'history') setIsHistoryUnread(false);
               onNavigate(navigation.id);
             }}
             style={({ pressed }) => [

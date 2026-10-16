@@ -34,8 +34,7 @@ jest.mock('uuid', () => ({
 jest.mock('react-native-config', () => ({
   __esModule: true,
   default: {
-    SUPABASE_URL: 'https://example.supabase.co',
-    SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+    API_BASE_URL: 'https://api.example.com',
   },
 }));
 

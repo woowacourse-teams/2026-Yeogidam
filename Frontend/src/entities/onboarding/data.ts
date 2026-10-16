@@ -128,3 +128,13 @@ export const ONBOARDING_HISTORY_DETAIL: HistoryReelDetail = {
     })),
   },
 };
+
+/** 비회원 체험용 예시 콘텐츠·장소 ID입니다. 분석 이벤트에서 제외할 때 사용합니다. */
+export const ONBOARDING_SAMPLE_IDS: ReadonlySet<string> = new Set([
+  ONBOARDING_HISTORY_REEL.id,
+  ...ONBOARDING_PLACES.map(place => place.id),
+]);
+
+export function isOnboardingSampleId(id: string | null | undefined) {
+  return id != null && ONBOARDING_SAMPLE_IDS.has(id);
+}

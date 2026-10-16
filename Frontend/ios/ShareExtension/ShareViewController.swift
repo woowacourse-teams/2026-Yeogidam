@@ -1,6 +1,5 @@
 import UIKit
 import UniformTypeIdentifiers
-
 final class ShareViewController: UIViewController {
   private var hasProcessedShare = false
   private let shareId = UUID().uuidString
@@ -46,10 +45,20 @@ final class ShareViewController: UIViewController {
         extractedPayload = payload
         guard try await self.prepareTransfer(payload) else { return }
         self.statusLabel.text = "링크를 받았어요. 여기담 앱에서 확인해 주세요."
-        self.showStatusLabel(feedbackType: "received")
+        self.showStatusLabel(feedbackType: "received", outcome: "accepted")
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       } catch {
+        if let storageError = error as? ShareIntentStorageError,
+           case .unsupportedContent = storageError {
+          // Unsupported or invalid shared content is expected user input, not an app error.
+        } else {
+          ShareSentryReporter.capture(
+            extractedPayload == nil
+              ? "SHARE_PAYLOAD_READ_FAILED"
+              : "SHARE_PAYLOAD_STORE_FAILED"
+          )
+        }
         if let payload = extractedPayload {
           let object = payload.text.contains("/p/") ? "게시물을" : "릴스를"
           self.statusLabel.text = "\(object) 전달하지 못했어요. 다시 공유해 주세요."
@@ -59,7 +68,11 @@ final class ShareViewController: UIViewController {
         let failure = extractedPayload == nil ? "invalid_link" : "storage_failed"
         ShareAnalyticsStore.record("share_local_save_resolved", shareId: self.shareId,
           properties: ["outcome": failure])
-        self.showStatusLabel(feedbackType: failure == "invalid_link" ? "invalid_link" : "save_failed")
+        let isInvalidLink = failure == "invalid_link"
+        self.showStatusLabel(
+          feedbackType: isInvalidLink ? "invalid_link" : "save_failed",
+          outcome: "failed", reason: isInvalidLink ? "invalid_link" : "save_failed"
+        )
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       }
@@ -83,7 +96,10 @@ final class ShareViewController: UIViewController {
       statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
       if pendingGuestLogin { loginButton.setTitle("로그인하기", for: .normal) }
       loginButton.isHidden = false
-      showStatusLabel(feedbackType: "login_required")
+      showStatusLabel(
+        feedbackType: "login_required", outcome: "login_required",
+        reason: reason == "never_logged_in" ? "no_session" : reason
+      )
       return false
     }
     try ShareIntentStorage.saveResult(ShareReelResult(
@@ -103,7 +119,11 @@ final class ShareViewController: UIViewController {
       guard await ShareNetwork.isAvailable() else {
         result.transferStatus = "WAITING_FOR_NETWORK"
         result.updatedAt = Date().timeIntervalSince1970 * 1000
-        try? ShareIntentStorage.saveResult(result)
+        try ShareIntentStorage.saveResult(result)
+        ShareSentryReporter.capture(
+          "SHARE_EXTRACTION_NETWORK_DEFERRED", stage: "place_extraction_request",
+          exceptionType: String(URLError.notConnectedToInternet.rawValue)
+        )
         ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "network_unavailable", release: result.release)
         return true
       }
@@ -148,6 +168,7 @@ final class ShareViewController: UIViewController {
       openAppForLogin()
     } catch {
       hasSelectedLogin = false
+      ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED", stage: "login_handoff")
       statusLabel.text = "링크를 저장하지 못했어요. 다시 시도해 주세요."
       ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
         properties: ["outcome": "storage_failed"])
@@ -158,6 +179,7 @@ final class ShareViewController: UIViewController {
     closeButton.isHidden = false
     statusLabel.text = "여기담 앱을 여는 중이에요.\n열리지 않으면 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
     guard let extensionContext else {
+      ShareSentryReporter.capture("SHARE_LOGIN_APP_OPEN_FAILED", stage: "login_handoff")
       statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
       return
     }
@@ -167,6 +189,7 @@ final class ShareViewController: UIViewController {
         if opened {
           self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
         } else {
+          ShareSentryReporter.capture("SHARE_LOGIN_APP_OPEN_FAILED", stage: "login_handoff")
           self.statusLabel.text = "앱이 자동으로 열리지 않았어요. 공유 화면을 닫고 여기담 앱을 직접 열어 로그인해 주세요."
         }
       }
@@ -229,12 +252,18 @@ final class ShareViewController: UIViewController {
     ])
   }
 
-  private func showStatusLabel(feedbackType: String) {
+  /// `outcome`이 nil이면 `reel_share_outcome_viewed`를 기록하지 않습니다(예: 가입 전 체험 게시물).
+  private func showStatusLabel(feedbackType: String, outcome: String? = nil, reason: String? = nil) {
     UIView.animate(withDuration: 0.12) {
       self.statusLabel.alpha = 1
     }
     ShareAnalyticsStore.record("reel_share_feedback_viewed", shareId: shareId,
       properties: ["feedback_type": feedbackType])
+    if let outcome {
+      var properties: [String: Any] = ["outcome": outcome]
+      if let reason { properties["reason"] = reason }
+      ShareAnalyticsStore.record("reel_share_outcome_viewed", shareId: shareId, properties: properties)
+    }
   }
 
   private func extractPayload() async throws -> ShareIntentPayload {
