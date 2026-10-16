@@ -52,15 +52,11 @@ import {
   setSharedSaveState,
   subscribeSharedSaveState,
 } from '../../lib/reel-save-state';
-import {
-  getRecentSearches,
-  setRecentSearches as persistRecentSearches,
-} from '../../lib/searchHistoryStorage';
+import {useRecentSearches} from './hooks/useRecentSearches';
 
 const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
-const MAX_RECENT_SEARCHES = 10;
 
 // 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
 // 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
@@ -127,8 +123,6 @@ export function SavedPlacesScreen({
     () => new Set(),
   );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [places, setPlaces] = useState<Place[]>(
     providedPlaces ?? cachedSavedPlaces ?? [],
@@ -251,38 +245,7 @@ export function SavedPlacesScreen({
     loadSavedPlaces();
   }, [loadSavedPlaces]);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    getRecentSearches()
-      .then(savedSearches => {
-        if (!isMounted) {
-          return;
-        }
-
-        setRecentSearches(savedSearches.slice(0, MAX_RECENT_SEARCHES));
-        setIsRecentSearchesHydrated(true);
-      })
-      .catch(() => {
-        if (!isMounted) {
-          return;
-        }
-
-        setIsRecentSearchesHydrated(true);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isRecentSearchesHydrated) {
-      return;
-    }
-
-    persistRecentSearches(recentSearches).catch(() => undefined);
-  }, [isRecentSearchesHydrated, recentSearches]);
+  const {recentSearches, saveRecentSearch} = useRecentSearches();
 
   useEffect(() => {
     if (isGuest) {
@@ -821,18 +784,6 @@ export function SavedPlacesScreen({
       ],
     );
   }, [handleDeleteSelectedPlaces, isDeleting, selectedPlaceIds.size]);
-
-  const saveRecentSearch = useCallback((value: string) => {
-    const normalizedValue = value.trim();
-    if (!normalizedValue) {
-      return;
-    }
-
-    setRecentSearches(current => {
-      const nextSearches = current.filter(item => item !== normalizedValue);
-      return [normalizedValue, ...nextSearches].slice(0, MAX_RECENT_SEARCHES);
-    });
-  }, []);
 
   const openPlaceDetail = useCallback(
     (
