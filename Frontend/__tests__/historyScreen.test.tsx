@@ -70,7 +70,7 @@ const reel = (id: number, status: HistoryReel['processing_status'] = 'COMPLETED'
 const page = (ids: number[], status?: HistoryReel['processing_status']) =>
   ids.map(id => reel(id, status));
 
-// 실패한 테스트가 화면을 남기면 폴러 구독이 다음 테스트에 섞이므로, renderTracked로 그려 테스트가 끝나면 한 번 더 내린다.
+// 그린 화면이 남으면 폴러 구독이 다음 테스트에 섞이므로, renderTracked로 그려 테스트가 끝나면 setupFilesAfterEnv가 내리게 한다.
 function render(props: Partial<React.ComponentProps<typeof HistoryScreen>> = {}) {
   return renderTracked(<HistoryScreen onBack={jest.fn()} {...props} />);
 }
@@ -107,13 +107,12 @@ test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱�
     reels: page([3], 'PROCESSING'),
     nextCursor: null,
   });
-  const renderer = await render();
+  await render();
   expect(getHistoryReels).toHaveBeenCalledTimes(1);
 
   await tick(3000);
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('폴링은 첫 페이지만 갱신하고 더 보기로 불러온 항목과 커서를 유지한다', async () => {
@@ -155,7 +154,6 @@ test('폴링은 첫 페이지만 갱신하고 더 보기로 불러온 항목과 
     });
   });
   expect(getHistoryReels).toHaveBeenLastCalledWith(secondCursor);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 const scrollToBottom = (renderer: ReactTestRenderer.ReactTestRenderer) =>
@@ -189,7 +187,6 @@ test('끝까지 읽은 뒤에는 폴링이 커서를 되살리지 않아 이전 
 
   expect(jest.mocked(getHistoryReels).mock.calls).toHaveLength(callsAfterPoll);
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('더 보기 중에 폴링이 끝나도 같은 커서로 다시 요청하지 않는다', async () => {
@@ -216,7 +213,6 @@ test('더 보기 중에 폴링이 끝나도 같은 커서로 다시 요청하지
     resolveMore({reels: page([2, 1]), nextCursor: null});
   });
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다', async () => {
@@ -237,7 +233,6 @@ test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다
   expect(getHistoryReelDetail).toHaveBeenCalledWith(
     expect.objectContaining({id: '1', processing_status: 'COMPLETED'}),
   );
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 const hasText = (renderer: ReactTestRenderer.ReactTestRenderer, text: string) =>
@@ -257,7 +252,6 @@ test('목록이 보이는 중에 폴링이 실패하면 오류 화면 대신 목
 
   await tick(3000);
   expect(renderedIds(renderer)).toEqual(['6', '5', '4', '3']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('처음 불러오기에 실패하면 오류 화면을 보인다', async () => {
@@ -265,7 +259,6 @@ test('처음 불러오기에 실패하면 오류 화면을 보인다', async () 
   const renderer = await render();
 
   expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(true);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('이전 기록 불러오기가 실패하면 목록은 두고 아래에서 다시 불러온다', async () => {
@@ -298,7 +291,6 @@ test('이전 기록 불러오기가 실패하면 목록은 두고 아래에서 �
   expect(getHistoryReels).toHaveBeenLastCalledWith(firstCursor);
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
   expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('이전 기록 불러오기가 실패한 뒤 폴링이 커서를 비워도 다시 불러오기는 실패한 커서로 요청한다', async () => {
@@ -324,7 +316,6 @@ test('이전 기록 불러오기가 실패한 뒤 폴링이 커서를 비워도 
   expect(hasText(renderer, '히스토리를 불러오는 중이에요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
   expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer) {
@@ -374,7 +365,6 @@ test('재시도 접수에 성공하면 임시 카드 없이 목록으로 돌아�
   expect(renderedIds(renderer).some(id => id.startsWith('retry-'))).toBe(false);
   expect(alertSpy).not.toHaveBeenCalled();
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카드 내용으로 새 카드를 보여 준다', async () => {
@@ -409,7 +399,6 @@ test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카�
   await ReactTestRenderer.act(async () => {
     finishListRequest({reels: [reel(8, 'PROCESSING'), reel(7, 'FAILED')], nextCursor: null});
   });
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다', async () => {
@@ -427,7 +416,6 @@ test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다'
     renderer.root.findAll(node => node.props.children === '장소 분석에 실패했어요ㅠ').length,
   ).toBeGreaterThan(0);
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 // 아래는 화면을 훅과 컴포넌트로 나누기 전에 지금 동작을 고정하려고 더한 테스트다.
@@ -543,7 +531,6 @@ test('첫 페이지를 불러오면 목록을 보이고, 맨 위 항목을 본 �
   await tick(3000);
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(trackHistoryViewed).toHaveBeenCalledTimes(1);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('첫 페이지를 기다리는 동안 불러오는 중 문구만 보인다', async () => {
@@ -558,7 +545,6 @@ test('첫 페이지를 기다리는 동안 불러오는 중 문구만 보인다'
   await ReactTestRenderer.act(async () => firstPage.resolve({reels: page([1]), nextCursor: null}));
   expect(hasText(renderer, '히스토리를 불러오는 중이에요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('첫 페이지가 비어 있으면 빈 화면을 보이고 empty 지표를 남긴다', async () => {
@@ -569,7 +555,6 @@ test('첫 페이지가 비어 있으면 빈 화면을 보이고 empty 지표를 
   expect(storedSnapshots()).toEqual([]);
   await tick(0);
   expect(trackHistoryViewed).toHaveBeenCalledWith(null, 'empty');
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('처음 불러오기에 실패하면 error 지표를 남기고, 다시 시도로 목록을 불러온다', async () => {
@@ -592,7 +577,6 @@ test('처음 불러오기에 실패하면 error 지표를 남기고, 다시 시�
   await tick(0);
   // 조회 지표는 화면마다 한 번만 남긴다.
   expect(trackHistoryViewed).toHaveBeenCalledTimes(1);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('목록 머리의 뒤로 가기는 onBack을 부른다', async () => {
@@ -608,7 +592,6 @@ test('목록 머리의 뒤로 가기는 onBack을 부른다', async () => {
     ),
   );
   expect(onBack).toHaveBeenCalledTimes(1);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('이전 기록을 불러오는 동안 목록 아래에 불러오는 중 문구를 보인다', async () => {
@@ -627,7 +610,6 @@ test('이전 기록을 불러오는 동안 목록 아래에 불러오는 중 문
   await ReactTestRenderer.act(async () => more.resolve({reels: page([2, 1]), nextCursor: null}));
   expect(hasText(renderer, '이전 기록을 불러오는 중이에요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('다시 그리기 전에 맨 아래 스크롤이 두 번 와도 이전 기록은 한 번만 요청한다', async () => {
@@ -653,7 +635,6 @@ test('다시 그리기 전에 맨 아래 스크롤이 두 번 와도 이전 기�
 
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(renderedItemIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('이전 기록과 폴링 결과에 이미 가진 항목이 다시 와도 한 번만 보인다', async () => {
@@ -671,7 +652,6 @@ test('이전 기록과 폴링 결과에 이미 가진 항목이 다시 와도 �
 
   await tick(3000);
   expect(renderedItemIds(renderer)).toEqual(['6', '5', '4', '3', '2', '1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('첫 페이지에 다음 커서가 없으면 맨 아래로 스크롤해도 더 요청하지 않는다', async () => {
@@ -681,7 +661,6 @@ test('첫 페이지에 다음 커서가 없으면 맨 아래로 스크롤해도 
   await scrollToBottom(renderer);
   expect(getHistoryReels).toHaveBeenCalledTimes(1);
   expect(hasText(renderer, '이전 기록을 불러오는 중이에요.')).toBe(false);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('목록 항목은 상태별 배지를 보이고, 정보가 덜 온 처리 중 항목은 뼈대로 보이며 누를 수 없다', async () => {
@@ -707,7 +686,6 @@ test('목록 항목은 상태별 배지를 보이고, 정보가 덜 온 처리 �
   expect(typeof historyItem(renderer, '3').props.onPress).toBe('function');
   expect(historyItem(renderer, '2').props.onPress).toBeUndefined();
   expect(historyItem(renderer, '1').props.onPress).toBeUndefined();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('처리 상태마다 배지 문구와 테두리 색, 글자 색을 짝지어 보인다', async () => {
@@ -740,7 +718,6 @@ test('처리 상태마다 배지 문구와 테두리 색, 글자 색을 짝지�
     {label: '처리중', borderColor: '#8e8e93', color: '#8e8e93'},
     {label: '처리중', borderColor: '#8e8e93', color: '#8e8e93'},
   ]);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('항목을 만든 날짜별로 묶어 날짜 제목 아래에 보인다', async () => {
@@ -771,7 +748,6 @@ test('항목을 만든 날짜별로 묶어 날짜 제목 아래에 보인다', a
       .map(node => node.props.reel.id);
   expect(idsUnder('2026.10.15')).toEqual(['3', '2']);
   expect(idsUnder('2026.10.14')).toEqual(['1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('성공 항목을 누르면 장소 상세를 열고, 뒤로 가면 목록의 스크롤 위치로 돌아온다', async () => {
@@ -807,7 +783,6 @@ test('성공 항목을 누르면 장소 상세를 열고, 뒤로 가면 목록�
   await tick(0);
   expect(restore).toHaveBeenCalledTimes(1);
   expect(restore).toHaveBeenCalledWith({y: 300, animated: false});
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('성공 상세에서 장소를 불러오지 못하면 안내 문구를 보인다', async () => {
@@ -819,7 +794,6 @@ test('성공 상세에서 장소를 불러오지 못하면 안내 문구를 보�
   await flushEffects();
   expect(hasText(renderer, '장소를 불러오지 못했어요.')).toBe(true);
   expect(hasText(renderer, '총 0개의 장소를 찾았어요')).toBe(true);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('실패 항목을 누르면 실패 이유를 보이고, 뒤로 가면 목록으로 돌아온다', async () => {
@@ -834,7 +808,6 @@ test('실패 항목을 누르면 실패 이유를 보이고, 뒤로 가면 목�
 
   await pressDetailBack(renderer);
   expect(renderedIds(renderer)).toEqual(['7']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('제보를 확인하면 제보 API를 부르고 버튼이 제보 완료로 바뀐다', async () => {
@@ -853,7 +826,6 @@ test('제보를 확인하면 제보 API를 부르고 버튼이 제보 완료로 
   expect(hasText(renderer, '제보 완료')).toBe(true);
   expect(alertSpy).toHaveBeenCalledTimes(1);
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('제보에 실패하면 버튼을 되돌리고 안내한다', async () => {
@@ -871,7 +843,6 @@ test('제보에 실패하면 버튼을 되돌리고 안내한다', async () => {
   expect(hasText(renderer, '제보하기')).toBe(true);
   expect(hasText(renderer, '제보 완료')).toBe(false);
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남기고 이전 스크롤 위치로 되돌리지 않는다', async () => {
@@ -917,7 +888,6 @@ test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남�
   await tick(0);
   expect(scrollToMock(renderer)).not.toHaveBeenCalled();
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('스크롤 없이 상세에서 돌아오면 복원 표시를 지워, 나중에 항목 수가 바뀌어도 스크롤을 옮기지 않는다', async () => {
@@ -937,7 +907,6 @@ test('스크롤 없이 상세에서 돌아오면 복원 표시를 지워, 나중
   expect(renderedIds(renderer)).toEqual(['3', '2', '1']);
   await tick(0);
   expect(scrollToMock(renderer)).not.toHaveBeenCalled();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('빈 목록에서 폴링이 실패하면 오류 화면을 보이고, 다음 폴링이 성공하면 목록을 보인다', async () => {
@@ -955,7 +924,6 @@ test('빈 목록에서 폴링이 실패하면 오류 화면을 보이고, 다음
   await tick(3000);
   expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['1']);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('재시도 접수 뒤 다시 읽기가 실패해도 목록을 유지하고 다음 폴링 결과를 보인다', async () => {
@@ -981,7 +949,6 @@ test('재시도 접수 뒤 다시 읽기가 실패해도 목록을 유지하고 
   expect(renderedIds(renderer)).toEqual(['8', '7']);
   expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 접수가 지워 이후 목록이 바뀌어도 스크롤을 옮기지 않는다', async () => {
@@ -1018,7 +985,6 @@ test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 
   await tick(0);
   expect(scrollToMock(renderer)).not.toHaveBeenCalled();
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('이미 있는 공유로 재시도가 접수되면 임시 카드 없이 목록 조회 결과를 기다린다', async () => {
@@ -1045,7 +1011,6 @@ test('이미 있는 공유로 재시도가 접수되면 임시 카드 없이 목
   );
   expect(renderedIds(renderer)).toEqual(['9', '7']);
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('재시도 접수를 기다리는 동안 진행 문구를 보이고, 실패를 지표로 남긴 뒤 MEDIA 오류는 서버 문구로 안내한다', async () => {
@@ -1078,7 +1043,6 @@ test('재시도 접수를 기다리는 동안 진행 문구를 보이고, 실패
   expect(hasText(renderer, '다시 시도하기')).toBe(true);
   expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(true);
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('비회원은 API 없이 체험 목록과 체험 상세를 보인다', async () => {
@@ -1098,7 +1062,6 @@ test('비회원은 API 없이 체험 목록과 체험 상세를 보인다', asyn
   expect(hasText(renderer, '성수 카페')).toBe(true);
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
   expect(trackHistoryContentDetailViewed).toHaveBeenCalledWith(null, '11', 'success');
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('비회원이 실패 상세에서 다시 시도하거나 제보하면 확인 창 없이 로그인을 요청한다', async () => {
@@ -1121,7 +1084,6 @@ test('비회원이 실패 상세에서 다시 시도하거나 제보하면 확�
   expect(reportHistoryReel).not.toHaveBeenCalled();
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
   alertSpy.mockRestore();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('비회원 실패 상세는 목록 카드처럼 앱에 들어 있는 체험 그림을 썸네일로 보인다', async () => {
@@ -1136,7 +1098,6 @@ test('비회원 실패 상세는 목록 카드처럼 앱에 들어 있는 체험
   await press(historyItem(renderer, '10'));
   expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(true);
   expect(renderer.root.findByType(Image).props.source).toBe(bundledImage);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 // 목록 높이와 날짜 묶음, 카드 위치를 차례로 알린다. 카드는 위에서부터 94 높이로 쌓인다.
@@ -1179,7 +1140,6 @@ test('절반 넘게 보인 카드는 0.5초 뒤 한 번만 노출 지표를 남�
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   await tick(500);
   expect(trackHistoryContentViewed).toHaveBeenCalledTimes(2);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('0.5초 안에 화면 밖으로 스크롤된 카드는 노출 지표를 남기지 않는다', async () => {
@@ -1191,7 +1151,6 @@ test('0.5초 안에 화면 밖으로 스크롤된 카드는 노출 지표를 남
   await scrollTo(renderer, 1000);
   await tick(500);
   expect(trackHistoryContentViewed).not.toHaveBeenCalled();
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('상세를 열면 기다리던 노출 지표를 취소하고, 목록으로 돌아오면 이전 배치로 다시 판단한다', async () => {
@@ -1210,5 +1169,4 @@ test('상세를 열면 기다리던 노출 지표를 취소하고, 목록으로 
     [null, '2', 'success'],
     [null, '1', 'success'],
   ]);
-  await ReactTestRenderer.act(async () => renderer.unmount());
 });
