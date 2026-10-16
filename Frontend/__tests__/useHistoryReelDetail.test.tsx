@@ -4,6 +4,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import {getHistoryReelDetail} from '../src/entities/content/history-api';
 import type {HistoryReel, HistoryReelDetail} from '../src/entities/content/types';
 import {useHistoryReelDetail} from '../src/pages/history/useHistoryReelDetail';
+import {deferred} from './support/deferred';
 
 jest.mock('../src/entities/content/history-api', () => ({getHistoryReelDetail: jest.fn()}));
 
@@ -35,31 +36,29 @@ function Harness({target, guestDetail}: HarnessProps) {
   return null;
 }
 
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return {promise, resolve, reject};
-}
+let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
 
 async function render(props: HarnessProps) {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(<Harness {...props} />);
   });
   return {
     rerender: (next: HarnessProps) =>
       ReactTestRenderer.act(async () => {
-        renderer.update(<Harness {...next} />);
+        renderer?.update(<Harness {...next} />);
       }),
   };
 }
 
 beforeEach(() => {
   jest.mocked(getHistoryReelDetail).mockReset();
+});
+
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => {
+    renderer?.unmount();
+  });
+  renderer = null;
 });
 
 test('회원은 상세를 읽는 동안 loading이고, 읽으면 상세를 담은 success가 된다', async () => {
@@ -134,4 +133,34 @@ test('항목 ID가 바뀌면 이전 상세를 남기지 않고 다시 읽으며,
 
   await ReactTestRenderer.act(async () => second.reject(new Error('offline')));
   expect(latest).toEqual({status: 'error'});
+});
+
+test('항목 ID가 바뀐 뒤 이전 항목의 실패 응답이 늦게 와도 새 항목의 상세를 지킨다', async () => {
+  const first = deferred<HistoryReelDetail>();
+  jest
+    .mocked(getHistoryReelDetail)
+    .mockReturnValueOnce(first.promise)
+    .mockResolvedValueOnce(detailOf(reel(2)));
+
+  const {rerender} = await render({target: reel(1)});
+  await rerender({target: reel(2)});
+  expect(latest).toEqual({status: 'success', detail: detailOf(reel(2))});
+
+  await ReactTestRenderer.act(async () => first.reject(new Error('offline')));
+  expect(latest).toEqual({status: 'success', detail: detailOf(reel(2))});
+});
+
+test('상세를 닫은 뒤 늦게 온 응답은 버린다', async () => {
+  const request = deferred<HistoryReelDetail>();
+  jest.mocked(getHistoryReelDetail).mockReturnValueOnce(request.promise);
+
+  await render({target: reel(1)});
+  expect(latest).toEqual({status: 'loading'});
+  await ReactTestRenderer.act(async () => {
+    renderer?.unmount();
+  });
+  renderer = null;
+
+  await ReactTestRenderer.act(async () => request.resolve(detailOf(reel(1))));
+  expect(latest).toEqual({status: 'loading'});
 });

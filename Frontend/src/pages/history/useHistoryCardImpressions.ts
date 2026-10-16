@@ -41,10 +41,12 @@ export function useHistoryCardImpressions({
 
   const evaluateVisibleCards = useCallback(() => {
     if (paused) return;
-    /** 카드가 지금 목록 화면에 절반 이상 보이는지입니다. 날짜 묶음 위치를 아직 모르면 null입니다. */
+    /** 날짜 묶음의 목록 안 위치를 받았는지입니다. 받기 전에는 카드가 보이는지 판단할 수 없습니다. */
+    const hasGroupOffset = (layout: HistoryCardLayout) =>
+      groupOffsetsRef.current.has(layout.group);
+    /** 카드가 지금 목록 화면에 절반 이상 보이는지입니다. 날짜 묶음 위치를 받은 뒤에만 부릅니다. */
     const isHalfVisibleNow = (layout: HistoryCardLayout) => {
-      const groupY = groupOffsetsRef.current.get(layout.group);
-      if (groupY === undefined) return null;
+      const groupY = groupOffsetsRef.current.get(layout.group) ?? 0;
       const viewportTop = scrollOffsetRef.current;
       return isCardHalfVisible(
         {top: groupY + layout.y, height: layout.height},
@@ -54,10 +56,9 @@ export function useHistoryCardImpressions({
 
     for (const [contentId, layout] of cardLayoutsRef.current) {
       const state = cardStatesRef.current.get(contentId);
-      const halfVisible = isHalfVisibleNow(layout);
-      if (!state || halfVisible === null || viewportHeightRef.current === 0) continue;
+      if (!state || !hasGroupOffset(layout) || viewportHeightRef.current === 0) continue;
       const key = `${contentId}.${state}`;
-      if (!halfVisible || seenCardsRef.current.has(key)) {
+      if (!isHalfVisibleNow(layout) || seenCardsRef.current.has(key)) {
         // 보이지 않거나 이미 남긴 카드는 기다리던 판단을 취소한다.
         const timer = visibleTimersRef.current.get(key);
         if (timer) clearTimeout(timer);
@@ -69,7 +70,7 @@ export function useHistoryCardImpressions({
         visibleTimersRef.current.delete(key);
         const latest = cardLayoutsRef.current.get(contentId);
         if (!latest || cardStatesRef.current.get(contentId) !== state) return;
-        if (isHalfVisibleNow(latest) && !seenCardsRef.current.has(key)) {
+        if (hasGroupOffset(latest) && isHalfVisibleNow(latest) && !seenCardsRef.current.has(key)) {
           seenCardsRef.current.add(key);
           trackHistoryContentViewed(posthog, contentId, state);
         }

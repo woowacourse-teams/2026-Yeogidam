@@ -208,3 +208,15 @@ describe('historyListReducer: 비회원과 재시도', () => {
     expect(replaced.reels[2].processing_status).toBe('PROCESSING');
   });
 });
+
+test('첫 더 보기가 실패한 뒤 폴링이 다른 커서를 줘도 다시 불러오기는 실패한 커서를 쓴다', () => {
+  const failed = run(
+    LOADED,
+    {type: 'morePageRequested'},
+    {type: 'morePageFailed', cursor: FIRST_CURSOR},
+  );
+  const polled = run(failed, {type: 'refreshLoaded', page: page([7, 6, 5], SECOND_CURSOR)});
+
+  expect(polled.more).toEqual({status: 'error', cursor: FIRST_CURSOR});
+  expect(polled.cursor).toBe(SECOND_CURSOR);
+});
