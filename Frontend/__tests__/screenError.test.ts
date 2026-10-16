@@ -85,12 +85,6 @@ describe('기본 표(SCREEN_ERROR_TABLE)', () => {
   ])('%s', (_rule, error, expected) => {
     expect(toScreenApiError(error)).toEqual(expected);
   });
-
-  test('이미 화면 오류 계약 모양인 값은 그대로 돌려준다', () => {
-    const screenError = {status: 404, errorCode: 'PLACE404_001', message: '저장된 장소가 아닙니다.', retryable: false};
-
-    expect(toScreenApiError(screenError)).toBe(screenError);
-  });
 });
 
 test('기능 표는 바꾼 행만 쓰고 나머지 종류는 기본 표를 따른다', () => {

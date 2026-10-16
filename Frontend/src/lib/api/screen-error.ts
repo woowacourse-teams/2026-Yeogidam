@@ -52,16 +52,6 @@ export type ScreenErrorTable<V extends ScreenApiError = ScreenApiError> = {
   unknown: (error: unknown) => V;
 };
 
-export function isScreenApiError(value: unknown): value is ScreenApiError {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    typeof (value as ScreenApiError).errorCode === 'string' &&
-    typeof (value as ScreenApiError).message === 'string' &&
-    typeof (value as ScreenApiError).retryable === 'boolean'
-  );
-}
-
 /**
  * 기능이 따로 정하지 않으면 쓰는 표입니다. 401은 모두 로그인 필요(AUTH401_001)로 보고,
  * 그 밖의 HTTP 오류는 서버 errorCode와 문구를 유지하며, 전송 계층이 정한 문구는 그대로 보여 줍니다.
@@ -94,7 +84,7 @@ export const SCREEN_ERROR_TABLE: ScreenErrorTable = {
   }),
   invalid_request: error => ({...PROCESSING_ERROR, status: error.status}),
   invalid_response: error => ({...PROCESSING_ERROR, status: error.status}),
-  unknown: error => (isScreenApiError(error) ? error : {...PROCESSING_ERROR}),
+  unknown: () => ({...PROCESSING_ERROR}),
 };
 
 /** 요청 실패를 화면 오류 계약으로 바꿉니다. 표를 넘기지 않으면 SCREEN_ERROR_TABLE을 씁니다. */

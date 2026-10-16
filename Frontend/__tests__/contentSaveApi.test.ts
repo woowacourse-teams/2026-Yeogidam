@@ -5,7 +5,7 @@ import {
   toReelApiError,
   toReelStatus,
 } from '../src/entities/content/api';
-import {ReelApiError} from '../src/entities/content/errors';
+import {ReelApiError, normalizeReelError} from '../src/entities/content/errors';
 import {ApiError} from '../src/lib/api/errors';
 import {createSpringApiClient} from '../src/lib/api/spring-client';
 
@@ -178,5 +178,29 @@ describe('공유 API 오류 표(toReelApiError)', () => {
         message: '지원하지 않는 링크입니다.',
       })),
     ).toMatchObject({errorCode: 'MEDIA400_001', field: 'instagramUrl'});
+  });
+});
+
+describe('화면의 공유 오류 맞추기(normalizeReelError)', () => {
+  test('API에서 온 ReelApiError는 그대로 돌려준다', () => {
+    const reelError = new ReelApiError({errorCode: 'AUTH401_001', message: '로그인이 필요해요.', status: 401});
+
+    expect(normalizeReelError(reelError)).toBe(reelError);
+  });
+
+  test('응답을 읽다 난 JS 오류는 다시 시도하지 않는 COMMON400_001로 본다', () => {
+    expect(normalizeReelError(new TypeError("Cannot read property 'map' of null"))).toMatchObject({
+      errorCode: 'COMMON400_001',
+      message: "Cannot read property 'map' of null",
+      retryable: false,
+    });
+  });
+
+  test('Error가 아닌 값은 다시 시도할 수 있는 연결 실패로 본다', () => {
+    expect(normalizeReelError(null)).toMatchObject({
+      errorCode: 'CLIENT000_001',
+      message: '인터넷 연결을 확인해주세요.',
+      retryable: true,
+    });
   });
 });

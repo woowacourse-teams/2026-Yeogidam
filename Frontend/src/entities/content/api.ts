@@ -66,7 +66,6 @@ const REEL_ERROR_TABLE: ScreenErrorTable = {
 
 /** Spring 요청 실패를 화면이 쓰는 ReelApiError로 바꿉니다. 서버 errorCode와 문구는 유지합니다. */
 export function toReelApiError(error: unknown): ReelApiError {
-  if (error instanceof ReelApiError) return error;
   const screenError = toScreenApiError(error, REEL_ERROR_TABLE);
   return new ReelApiError({
     ...screenError,
