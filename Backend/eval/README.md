@@ -2,24 +2,25 @@
 
 ## 무엇을
 
-골든셋은 정답을 미리 적어 둔 인스타그램 게시물 묶음이다. `golden/cases.csv`에 게시물 링크 40개와 각 게시물에서 나와야 할 카카오 장소 ID(모두 133곳)를 적어 두었고, 채점기는 이 게시물들을 운영 파이프라인으로 돌려 몇 곳을 맞혔는지 센다.
+골든셋은 정답을 미리 적어 둔 인스타그램 게시물 묶음이다. `golden/cases.csv`의 게시물 40건을 실제 운영 흐름으로 평가한다. `golden/verification-20261016.md`의 장소별 검증 근거에는 원본 소개 장소 270개 항목의 이름, 이미지 번호/영상 시각/캡션 근거, 주소와 지도 연결 상태를 보존한다. 지도 ID가 기록된 정답은 236개이며 원본 미확보 2건의 과거 ID도 포함한다. 항목 수는 게시물별 합계이므로 중복 장소가 있다.
+
+추출 대상은 음식점에 한정하지 않고 소품샵, 전시회, 카페, 관광지, 숙소 등 지도에서 찾을 수 있는 장소다. 전시회는 지도에서 식별할 수 있는 전시장이나 개최 장소를 기준으로 한다.
 
 게시물은 다섯 종류를 섞었다.
 
-| kind | 뜻 | 건수 |
-|---|---|---|
-| caption | 캡션에 장소 이름이 있다 | 9 |
-| video | 캡션에는 이름이 없고 영상 자막이나 말소리에만 있다 | 11 |
-| image | 사진이나 캐러셀 게시물이라 이미지 글자에만 있다 | 6 |
-| multi | 정답 장소가 3곳 이상인 모음 게시물 | 6 |
-| none | 저장할 장소가 없는 게시물. 장소를 소개하지 않거나(광고, 상품 후기) 소개한 가게가 카카오에 없는 경우(노점)이고, 없는 장소를 지어내거나 다른 가게를 대신 붙이지 않는지 본다 | 8 |
+| kind | 뜻                                                                      | 건수 |
+|---|------------------------------------------------------------------------|---|
+| caption | 캡션에 장소 이름이 있다                                                          | 10 |
+| video | 캡션에는 이름이 없고 영상 자막이나 말소리에만 있다                                           | 11 |
+| image | 사진이나 캐러셀에서 장소를 소개한다                                                    | 3 |
+| multi | 정답 장소가 3곳 이상인 모음 게시물                                                   | 11 |
+| none | 카카오 지도 ID를 확정한 저장 대상이 없는 게시물. 실제 소개 장소가 있을 수 있으므로 소개 목록과 미확정 사유를 함께 본다 | 5 |
 
-종류는 "무엇을 저장해야 하나"로 나눈다. 정답이 비어 있으면 none이고, none이 아니면 정답이 있어야 한다. `run_eval.py`가 읽을 때 이 규칙을 검사한다.
+종류는 카카오 지도 저장 대상을 기준으로 나눈다. 지도 정답이 3개 이상이면 multi, 확정된 ID가 없으면 none이다. 원본의 소개 항목은 지도에서 찾지 못해도 삭제하지 않는다. C024/C026은 같은 장소 카드의 재게시물이므로 독립 표본으로 해석하지 않는다.
 
+현재 근거와 판정 규칙은 `golden/verification-20261016.md`에 있다. 38건의 원본 미디어 전부를 확보했고 캐러셀 전체 이미지와 영상의 캡션/2초 간격 프레임 자막을 대조했다. 음성 전체를 별도 전사한 검증은 아니다. 원본 개수와 파일/캡션 해시도 같은 문서의 원본 미디어 검증 기록에 남겼다. 원본 파일은 저장소에 재배포하지 않았다.
 
-정답과 정하는 규칙은 `golden/verification-20261010.md`에 있다. 작성자 계정명은 넣지 않았다.
-
-2026-10-16부터 운영 추출은 음식점 외 장소도 대상으로 한다. 기존 골든셋 정답과 파이썬 실험 도구의 프롬프트·필터는 음식점 한정을 기준으로 하므로, 전체 장소 추출을 평가하려면 이 기준을 먼저 갱신해야 한다. 현재 정답에 없는 관광지 등이 추출되면 오탐으로 집계될 수 있다.
+검증 완료는 28건, 미확정은 10건, 원본 미확보(C015/C021)는 2건이다. `verification_status`가 `VERIFIED`인 사례만 점수 합계에 포함한다. `PARTIAL`과 `SOURCE_UNAVAILABLE`은 잠정 예측을 남기되 정답률과 오탐 합계에서 제외한다. 검증 완료 28건의 지도 정답은 46개로, 전체 236개 중 일부다. 정답이 불완전한 사례의 올바른 추가 장소를 오답으로 단정하지 않기 위해서다. 정답·검증 근거·채점표는 기존 파일을 직접 갱신하며 과거 음식점 기준 내용은 Git 이력에서 확인한다.
 
 ## 어떻게
 
@@ -29,22 +30,59 @@ cd Backend
 ./gradlew evalTest --no-daemon -Deval.cases=C016,C022   # 몇 건만 돌려 콘솔로 본다
 ```
 
-- 자바 채점기(`GoldenSetEvalTest`)가 운영 빈(`InstagramMediaHtmlReader`, `InstagramMediaDownloader`, `GeminiPlaceNameExtractor`, `KakaoPlaceSearcher`)을 운영과 같은 설정으로 만들어 `MediaExtractionPipeline`과 같은 순서로 돌리고 `results/summary.md`를 쓴다. DB와 S3를 쓰지 않는 것만 운영과 다르다.
-- 한 번 돌리면 캡션 단계에서 멈췄을 때와 영상, 사진까지 읽었을 때를 같은 응답으로 함께 센다. "개선 전" 열은 `results/before.json`(2026-10-09에 be-dev 운영 그대로 받은 예측)을 지금 정답으로 다시 센다.
-- 건별 경로와 Gemini 단서는 콘솔에 찍힌다. `-Deval.cases`로 몇 건만 돌리면 `summary.md`는 덮어쓰지 않는다.
-- 채점은 예측한 카카오 장소 ID와 정답 ID를 견준다. 맞힌 장소, 틀리게 뽑은 장소(정답에 없는데 뽑은 곳), 카카오 API 미제공(카카오맵 웹에만 있어 REST로 맞힐 수 없는 정답)을 센다.
+- 자바 채점기(`GoldenSetEvalTest`)가 운영 인프라 클래스(`InstagramMediaHtmlReader`, `InstagramMediaDownloader`, `GeminiPlaceNameExtractor`, `KakaoPlaceSearcher`)를 사용해 `MediaExtractionPipeline`과 같은 순서로 돌리고 `results/summary.md`를 쓴다. DB와 S3 저장은 제외하며, Gemini에는 평가 전용 요청 간격을 적용한다.
+- 캡션 단서로 한 곳이라도 찾으면 그 결과를 사용하고, 단서나 검색 결과가 없으면 영상, 사진까지 읽는다. 이 때문에 전체 소개 장소의 일부를 놓칠 수 있으며 이번 재검증에서 운영 코드는 바꾸지 않았다.
+- 각 사례가 끝날 때마다 `results/both.json`에 전체 예측 ID, Gemini 단서, 단계/오류, 처리 경로, 시간, 모델과 정답 CSV 해시를 저장한다. 중간에는 `complete: false`, 끝까지 실행하면 `true`다. 일부 실행은 `build/eval/both-partial.json`에 남기며 전체 결과와 `summary.md`를 덮어쓰지 않는다.
+- 채점은 예측한 카카오 장소 ID와 정답 ID를 견준다. 맞힌 장소, 틀리게 뽑은 장소(정답에 없는데 뽑은 곳), 카카오 검색 API 미확인(공식 장소 페이지는 확인했으나 검증에 사용한 검색어로 API에서 해당 ID를 확인하지 못한 정답)을 센다.
 - 키는 `Backend/.env`의 `GEMINI_API_KEY`, `GEMINI_MODEL`, `KAKAO_CLIENT_ID`, `GEMINI_API_KEY_FALLBACKS`(결제 key, 쉼표로 여러 개)를 읽는다. 운영처럼 `GEMINI_API_KEY`가 한도에 걸리면 결제 key로 넘긴다. 키는 어디에도 적지 않는다.
-- 40건에 10분 안팎이 걸린다.
+- `evalTest`는 캡션과 첨부의 Gemini 분석 요청 시작 사이에 최소 5초 간격을 둔다. 두 분석 경로와 예비 키 재요청이 같은 제한기를 공유하므로, 이 평가 실행의 분석 요청은 분당 15회를 넘지 않는다. 파일 업로드, 상태 조회, 삭제는 분석 요청 간격에서 제외한다.
+- 503 등 기존에 지원하던 오류의 예비 키 전환은 유지한다. 이 간격 제어는 `evalTest`에만 적용하며, 운영 서버나 다른 평가 프로세스에서 같은 프로젝트를 사용한 요청은 합산하지 않는다. 토큰 수나 일일 한도에 의한 429는 별도로 발생할 수 있다.
+- 실행 시간은 게시물 처리 시간과 Gemini 분석 횟수에 따라 달라진다.
 
-### 파이썬 실험 도구
+### Python 입력 변형 비교
 
-`run_eval.py`는 운영에 없는 입력(댓글, 위치 태그, 영상만)을 시험할 때 쓴다. 입력을 `yt-dlp`로 받고 결과를 `results/<variant>.json`에 남기며, 변형 비교표는 화면에만 찍고 `summary.md`는 건드리지 않는다.
+`run_eval.py`는 같은 현재 `golden/cases.csv`로 다음 세 입력을 비교한다. Java `evalTest`는 운영 흐름을 평가하고, Python은 입력을 바꿔 가며 실험한다.
 
+| variant | Gemini에 전달하는 입력 |
+|---|---|
+| caption | 캡션만 |
+| video | 캡션 없이 영상만. 사진 게시물은 사진만 |
+| both | 캡션 + 영상·사진 + 수집된 댓글·위치 태그·작성자 표시 이름 |
+
+`yt-dlp`와 공개 페이지로 입력을 수집하며, 입력·성공한 Gemini 응답·카카오 응답을 캐시한다. 기본 캐시는 `build/eval/cache/`이고 `--cache-dir`로 기존 캐시 폴더도 지정할 수 있다. 같은 게시물·입력 변형·모델·프롬프트의 모델 캐시는 재사용한다. 음식점 제한을 없앤 프롬프트는 해시가 달라 과거 음식점 응답을 재사용하지 않는다. 캐시가 없는 분석 요청과 재시도는 시작 사이에 최소 5초 간격을 둔다. 키는 기본 `Backend/.env`에서 읽으며 파일에 기록하지 않는다.
+
+```bash
+# Backend 디렉터리에서 실행
+python3 eval/run_eval.py --variant caption
+python3 eval/run_eval.py --variant video
+python3 eval/run_eval.py --variant both --kind video --kind multi --limit 5
+python3 eval/run_eval.py --summary-only
+python3 eval/run_eval.py --rescore build/eval-experiments/both.json
 ```
-python3 run_eval.py --variant both --env-file ../.env
-python3 run_eval.py --summary-only
-```
+
+Python 실험 결과는 `build/eval-experiments/caption.json`, `video.json`, `both.json`에 저장한다. `--summary-only`는 이 결과들의 비교표를 API 호출 없이 출력한다. Java의 실제 운영 평가 결과인 `eval/results/both.json`과 `summary.md`는 덮어쓰지 않는다. 양쪽 모두 현재 검증 상태와 지도 ID 별칭을 반영한다. 요청 간격은 각 실행 안에서 적용되며 여러 프로세스의 요청을 합산하지 않는다.
 
 ## 왜
 
 바꾸기 전과 후를 같은 정답으로 재야 바꾼 것이 효과가 있었는지, 오히려 나빠지지 않았는지 알 수 있다. 외부 API를 부르므로 CI에서는 돌리지 않고 파이프라인을 바꿀 때 손으로 돌린다.
+
+## 평가 결과 확인 및 저장된 결과 재채점
+
+`summary.md`는 검증 상태별 기록된 지도 ID와의 일치 수도 별도로 남긴다. 미검증 사례의 추가 예측은 오탐 판정을 보류한다. 맞힌 지도 장소 비율, 오탐 수, 게시물 단위 완전 일치, 수집 실패, 처리 실패, 미검증 수를 표시한다. 수집 실패는 비율의 분모에서 제외하되 실패 건수를 함께 표시한다. 처리 실패는 정답이 있는 경우 미검출이며, 정상 빈 결과와 구분한다. 낮은 점수나 API 오류가 있어도 Gradle 작업 자체는 성공할 수 있으므로 채점표를 확인해야 한다.
+
+`both.json`은 현재 전체 장소 평가의 상세 실행 결과다. `runner: java-operational`, `schemaVersion: 1`, `inputStrategy: caption_then_media`로 식별한다. 캡션에서 한 곳이라도 매칭되면 첨부를 생략한다. 정답, 검증 문서, 실행 결과와 보고서는 기존 파일에서 갱신하고 이전 내용은 Git 이력으로 확인한다.
+
+완료된 전체 실행은 API를 다시 호출하지 않고 정답만 다시 채점할 수 있다. 원시 예측은 바꾸지 않으며 사례 ID와 원문 URL을 대조한다. 부분/미완료 실행으로 전체 보고서를 갱신하지 않는다.
+
+```bash
+./gradlew evalTest --no-daemon -Deval.results-file=eval/results/both.json
+```
+
+외부 호출 없이 세 입력 변형·모델 캐시·요청 간격·음식점 외 검색 결과, 소개 장소 전체 목록, 음식점 외 정답, 미검증 제외, 실패와 정상 빈 결과, 지도 ID 별칭, 동적 집계, 원시 결과 저장과 요청 간격을 검증한다.
+
+```bash
+./gradlew test --no-daemon \
+  --tests com.yeogidam.media.extraction.eval.GoldenSetEvaluationTest \
+  --tests com.yeogidam.media.extraction.eval.GeminiEvalRequestLimiterTest
+python3 -m unittest discover -s eval -p test_run_eval.py
+```

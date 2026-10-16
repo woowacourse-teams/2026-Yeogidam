@@ -63,6 +63,8 @@ tasks.register('evalTest', Test) {
     outputs.upToDateWhen { false }
     // ./gradlew evalTest -Deval.cases=C016,C022 처럼 몇 건만 돌릴 수 있다
     systemProperty 'eval.cases', System.getProperty('eval.cases', '')
+    // 저장된 예측으로 정답만 다시 채점할 때는 외부 API를 부르지 않는다.
+    systemProperty 'eval.results-file', System.getProperty('eval.results-file', '')
     testLogging {
         showStandardStreams = true
     }
