@@ -1,0 +1,126 @@
+import React from 'react';
+import ReactTestRenderer from 'react-test-renderer';
+
+import {useCurrentProfile} from '../src/app/useCurrentProfile';
+import {getCurrentProfile} from '../src/entities/info/api';
+import type {ProfileApiError, ProfileInfo} from '../src/entities/info/types';
+
+jest.mock('../src/entities/info/api', () => ({getCurrentProfile: jest.fn()}));
+
+const PROFILE_A: ProfileInfo = {id: 'member-a', nickname: '담이 1'};
+const PROFILE_B: ProfileInfo = {id: 'member-b', nickname: '담이 2'};
+const ERROR: ProfileApiError = {
+  status: 500,
+  errorCode: 'SERVER500_001',
+  message: '서버 오류',
+  retryable: true,
+};
+
+type Snapshot = ReturnType<typeof useCurrentProfile>;
+let latest: Snapshot;
+
+function Harness({enabled}: {enabled: boolean}) {
+  latest = useCurrentProfile(enabled);
+  return null;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return {promise, resolve, reject};
+}
+
+async function render(enabled: boolean) {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<Harness enabled={enabled} />);
+  });
+  return {
+    renderer,
+    rerender: (next: boolean) =>
+      ReactTestRenderer.act(async () => {
+        renderer.update(<Harness enabled={next} />);
+      }),
+  };
+}
+
+const flush = () => ReactTestRenderer.act(async () => undefined);
+
+beforeEach(() => {
+  jest.mocked(getCurrentProfile).mockReset();
+});
+
+test('켜지면 프로필을 읽고, 꺼지면 세 값을 모두 비운다', async () => {
+  const request = deferred<ProfileInfo>();
+  jest.mocked(getCurrentProfile).mockReturnValue(request.promise);
+
+  const {rerender} = await render(true);
+  expect(latest.isProfileLoading).toBe(true);
+
+  request.resolve(PROFILE_A);
+  await flush();
+  expect(latest.currentProfile).toEqual(PROFILE_A);
+  expect(latest.isProfileLoading).toBe(false);
+
+  await rerender(false);
+  expect(latest.currentProfile).toBeNull();
+  expect(latest.profileError).toBeNull();
+  expect(latest.isProfileLoading).toBe(false);
+});
+
+test('실패하면 오류를 두고, 재시도에 성공하면 프로필을 채운다', async () => {
+  jest.mocked(getCurrentProfile).mockRejectedValueOnce(ERROR).mockResolvedValueOnce(PROFILE_A);
+
+  await render(true);
+  await flush();
+  expect(latest.currentProfile).toBeNull();
+  expect(latest.profileError).toEqual(ERROR);
+
+  await ReactTestRenderer.act(async () => {
+    await latest.retryProfile();
+  });
+  expect(latest.currentProfile).toEqual(PROFILE_A);
+  expect(latest.isProfileLoading).toBe(false);
+});
+
+test('재시도 응답이 꺼진 뒤에 늦게 와도 이전 회원의 프로필을 쓰지 않는다', async () => {
+  const retry = deferred<ProfileInfo>();
+  jest.mocked(getCurrentProfile).mockResolvedValueOnce(PROFILE_A).mockReturnValueOnce(retry.promise);
+
+  const {rerender} = await render(true);
+  await flush();
+  expect(latest.currentProfile).toEqual(PROFILE_A);
+
+  let retrying!: Promise<void>;
+  await ReactTestRenderer.act(async () => {
+    retrying = latest.retryProfile();
+  });
+  await rerender(false);
+  expect(latest.currentProfile).toBeNull();
+
+  retry.resolve(PROFILE_B);
+  await ReactTestRenderer.act(async () => {
+    await retrying;
+  });
+  expect(latest.currentProfile).toBeNull();
+  expect(latest.isProfileLoading).toBe(false);
+});
+
+test('다시 켜진 뒤 도착한 옛 응답은 버리고 새 응답만 쓴다', async () => {
+  const first = deferred<ProfileInfo>();
+  jest.mocked(getCurrentProfile).mockReturnValueOnce(first.promise).mockResolvedValueOnce(PROFILE_B);
+
+  const {rerender} = await render(true);
+  await rerender(false);
+  await rerender(true);
+  await flush();
+  expect(latest.currentProfile).toEqual(PROFILE_B);
+
+  first.resolve(PROFILE_A);
+  await flush();
+  expect(latest.currentProfile).toEqual(PROFILE_B);
+});
