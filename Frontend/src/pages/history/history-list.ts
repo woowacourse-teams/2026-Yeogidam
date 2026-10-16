@@ -6,6 +6,18 @@ export type HistoryPage = {
   nextCursor: HistoryCursor | null;
 };
 
+/**
+ * 이전 기록(더 보기) 상태입니다. error는 실패한 커서를 담아, 폴링이 커서를 바꾼 뒤에도 다시 불러오기가
+ * 실패한 페이지를 읽게 합니다.
+ */
+export type HistoryMoreState =
+  | {status: 'idle'}
+  | {status: 'loading'}
+  | {status: 'error'; cursor: HistoryCursor};
+
+const MORE_IDLE: HistoryMoreState = {status: 'idle'};
+const MORE_LOADING: HistoryMoreState = {status: 'loading'};
+
 export type HistoryListState = {
   /** 첫 페이지 상태입니다. loading이면 불러오는 중 문구를, error면 오류 화면을 목록 대신 보입니다. */
   status: 'loading' | 'error' | 'success';
@@ -13,7 +25,7 @@ export type HistoryListState = {
   /** 다음에 읽을 페이지의 커서입니다. null이면 더 읽을 페이지가 없습니다. */
   cursor: HistoryCursor | null;
   /** 이전 기록(더 보기) 상태입니다. error면 스크롤로는 다시 읽지 않고 다시 불러오기 버튼을 기다립니다. */
-  more: 'idle' | 'loading' | 'error';
+  more: HistoryMoreState;
   /** 더 보기로 첫 페이지 다음까지 읽었는지입니다. true면 커서는 더 보기만 바꿉니다. */
   hasLoadedMore: boolean;
 };
@@ -28,7 +40,7 @@ export type HistoryListAction =
   | {type: 'refreshFailed'}
   | {type: 'morePageRequested'}
   | {type: 'morePageLoaded'; page: HistoryPage}
-  | {type: 'morePageFailed'}
+  | {type: 'morePageFailed'; cursor: HistoryCursor}
   | {type: 'retryAccepted'; reel: HistoryReel};
 
 /** 회원은 첫 페이지를 읽는 중으로, 비회원은 체험 목록을 다 읽은 상태로 시작합니다. */
@@ -37,7 +49,7 @@ export function createHistoryListState(guestReels?: HistoryReel[]): HistoryListS
     status: guestReels === undefined ? 'loading' : 'success',
     reels: guestReels ?? [],
     cursor: null,
-    more: 'idle',
+    more: MORE_IDLE,
     hasLoadedMore: false,
   };
 }
@@ -66,12 +78,12 @@ export function historyListReducer(
         status: 'success',
         reels: action.reels,
         cursor: null,
-        more: state.more === 'loading' ? 'idle' : state.more,
+        more: state.more.status === 'loading' ? MORE_IDLE : state.more,
       });
     case 'firstPageRequested':
       return patch(state, {
         status: 'loading',
-        more: state.more === 'error' ? 'idle' : state.more,
+        more: state.more.status === 'error' ? MORE_IDLE : state.more,
         hasLoadedMore: false,
       });
     case 'firstPageLoaded':
@@ -103,7 +115,7 @@ export function historyListReducer(
     case 'morePageRequested':
       return patch(state, {
         status: state.status === 'error' ? 'success' : state.status,
-        more: 'loading',
+        more: MORE_LOADING,
       });
     case 'morePageLoaded': {
       // 폴링으로 첫 페이지 경계가 밀리면 이미 가진 항목이 다음 페이지에 다시 올 수 있습니다.
@@ -114,12 +126,14 @@ export function historyListReducer(
           ...action.page.reels.filter(item => !currentIds.has(item.id)),
         ],
         cursor: action.page.nextCursor,
-        more: 'idle',
+        more: MORE_IDLE,
         hasLoadedMore: true,
       });
     }
     case 'morePageFailed':
-      return patch(state, {more: 'error'});
+      // 같은 커서로 다시 실패하면 같은 상태를 돌려준다.
+      if (state.more.status === 'error' && state.more.cursor === action.cursor) return state;
+      return patch(state, {more: {status: 'error', cursor: action.cursor}});
     case 'retryAccepted':
       return patch(state, {
         reels: state.reels.some(item => item.id === action.reel.id)
@@ -129,7 +143,9 @@ export function historyListReducer(
   }
 }
 
-/** 맨 아래까지 스크롤했을 때 이전 기록을 이어 읽을 수 있는지 알려 줍니다. */
-export function canLoadMore(state: HistoryListState) {
-  return state.cursor !== null && state.more === 'idle';
+/** 맨 아래까지 스크롤했을 때 이전 기록을 이어 읽을 수 있는지 알려 줍니다. 읽을 수 있으면 커서가 있습니다. */
+export function canLoadMore(
+  state: HistoryListState,
+): state is HistoryListState & {cursor: HistoryCursor} {
+  return state.cursor !== null && state.more.status === 'idle';
 }

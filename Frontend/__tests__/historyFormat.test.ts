@@ -1,3 +1,4 @@
+import {ReelApiError} from '../src/entities/content/errors';
 import type {HistoryReel} from '../src/entities/content/types';
 import {
   formatHistoryDate,
@@ -6,6 +7,10 @@ import {
   getHistoryVisibleState,
   groupHistoryReelsByDate,
   hasResolvedHistoryTitle,
+  HISTORY_FALLBACK_THUMBNAIL,
+  isCardHalfVisible,
+  toHistoryThumbnailSource,
+  toRetryFailureMessage,
 } from '../src/pages/history/history-format';
 
 const reel = (overrides: Partial<HistoryReel> = {}): HistoryReel => ({
@@ -59,6 +64,23 @@ describe('실패 문구', () => {
   });
 });
 
+describe('재시도 실패 문구', () => {
+  const serverMessage = '서버가 내려 준 안내 문구';
+  const failure = (errorCode: string | null) => new ReelApiError({errorCode, message: serverMessage});
+
+  test('MEDIA로 시작하는 오류 코드는 서버 문구를 보인다', () => {
+    expect(toRetryFailureMessage(failure('MEDIA400_010'))).toBe(serverMessage);
+    // 400이 아닌 MEDIA 코드도 같은 접두사로 본다.
+    expect(toRetryFailureMessage(failure('MEDIA409_001'))).toBe(serverMessage);
+  });
+
+  test('나머지 오류는 서버 문구 대신 다시 시도를 권한다', () => {
+    expect(toRetryFailureMessage(failure('CLIENT000_001'))).toBe('잠시 후 다시 시도해주세요.');
+    expect(toRetryFailureMessage(failure('COMMON500_001'))).toBe('잠시 후 다시 시도해주세요.');
+    expect(toRetryFailureMessage(failure(null))).toBe('잠시 후 다시 시도해주세요.');
+  });
+});
+
 describe('날짜', () => {
   test('기기 시간대의 날짜를 두 자리 월과 일로 적는다', () => {
     expect(formatHistoryDate('2026-03-05T23:59:00')).toBe('2026.03.05');
@@ -103,5 +125,40 @@ describe('날짜 묶음', () => {
       ['2026.10.14', [b]],
     ]);
     expect(groupHistoryReelsByDate([])).toEqual([]);
+  });
+});
+
+describe('썸네일', () => {
+  test('앱에 들어 있는 그림, 원격 썸네일, 기본 그림 순서로 고른다', () => {
+    // require()로 읽은 그림은 번호로 온다.
+    const bundledImage = 42;
+    expect(toHistoryThumbnailSource(reel({local_thumbnail_source: bundledImage}))).toBe(bundledImage);
+    expect(toHistoryThumbnailSource(reel())).toEqual({uri: 'https://cdn.example.com/1.jpg'});
+    expect(toHistoryThumbnailSource(reel({instagram_thumbnail_url: null}))).toEqual({
+      uri: HISTORY_FALLBACK_THUMBNAIL,
+    });
+  });
+});
+
+describe('카드 노출 판단', () => {
+  // 위치는 목록 맨 위에서 잰다. 화면은 100에서 900까지 보이고, 카드 높이를 94로 둔다.
+  const viewport = {top: 100, bottom: 900};
+  const cardAt = (top: number) => ({top, height: 94});
+
+  test('카드 높이의 절반 이상이 화면 안에 있으면 보인 것으로 본다', () => {
+    expect(isCardHalfVisible(cardAt(400), viewport)).toBe(true);
+    // 아래 경계에 47(절반)이 걸치면 보이고, 46이 걸치면 보이지 않는다.
+    expect(isCardHalfVisible(cardAt(853), viewport)).toBe(true);
+    expect(isCardHalfVisible(cardAt(854), viewport)).toBe(false);
+    // 위 경계도 같다.
+    expect(isCardHalfVisible(cardAt(53), viewport)).toBe(true);
+    expect(isCardHalfVisible(cardAt(52), viewport)).toBe(false);
+  });
+
+  test('화면 밖에 있거나 경계에 닿기만 한 카드는 보이지 않은 것으로 본다', () => {
+    expect(isCardHalfVisible(cardAt(900), viewport)).toBe(false);
+    expect(isCardHalfVisible(cardAt(6), viewport)).toBe(false);
+    expect(isCardHalfVisible(cardAt(2000), viewport)).toBe(false);
+    expect(isCardHalfVisible(cardAt(-500), viewport)).toBe(false);
   });
 });

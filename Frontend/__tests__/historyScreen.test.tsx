@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
-import {Alert, Linking, ScrollView, Text, View} from 'react-native';
+import {Alert, Image, Linking, ScrollView, StyleSheet, Text, View} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {
@@ -46,7 +46,8 @@ jest.mock('../src/assets/icons/actions/report.svg', () => 'ReportIcon');
 jest.mock('../src/assets/icons/social/instagram-color.svg', () => 'InstagramIcon');
 jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
-  getHistoryReelDetail: jest.fn(() => Promise.resolve(null)),
+  // 서버가 완료되지 않은 공유에 돌려주는 값처럼 장소 없는 상세를 돌려준다.
+  getHistoryReelDetail: jest.fn((reel: object) => Promise.resolve({...reel, extraction: null})),
   reportHistoryReel: jest.fn(),
   retryHistoryReelExtraction: jest.fn(),
 }));
@@ -303,6 +304,32 @@ test('이전 기록 불러오기가 실패하면 목록은 두고 아래에서 �
   await ReactTestRenderer.act(async () => retry.props.onPress());
 
   expect(getHistoryReels).toHaveBeenLastCalledWith(firstCursor);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+  expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('이전 기록 불러오기가 실패한 뒤 폴링이 커서를 비워도 다시 불러오기는 실패한 커서로 요청한다', async () => {
+  const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: firstCursor})
+    .mockRejectedValueOnce(new Error('offline'))
+    // 폴링: 첫 페이지가 더 읽을 페이지가 없다고 답해 리듀서가 커서를 비운다.
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: null})
+    .mockResolvedValue({reels: page([2, 1]), nextCursor: null});
+  const renderer = await render();
+
+  await scrollToBottom(renderer);
+  await tick(3000);
+  expect(getHistoryReels).toHaveBeenCalledTimes(3);
+  expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(true);
+
+  await press(findButton(renderer, '다시 불러오기'));
+
+  expect(getHistoryReels).toHaveBeenCalledTimes(4);
+  expect(getHistoryReels).toHaveBeenLastCalledWith(firstCursor);
+  expect(hasText(renderer, '히스토리를 불러오는 중이에요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
   expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -703,6 +730,39 @@ test('목록 항목은 상태별 배지를 보이고, 정보가 덜 온 처리 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('처리 상태마다 배지 문구와 테두리 색, 글자 색을 짝지어 보인다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: [
+      reel(4, 'COMPLETED'),
+      reel(3, 'FAILED'),
+      reel(2, 'PROCESSING'),
+      reel(1, 'PENDING'),
+      {...reel(0, 'PENDING'), instagram_thumbnail_url: null},
+    ],
+    nextCursor: null,
+  });
+  const renderer = await render();
+
+  // 배지는 테두리가 있는 View이고, 뼈대 카드에는 배지가 없다.
+  const badges = renderer.root
+    .findAll(node => node.type === View && StyleSheet.flatten(node.props.style)?.borderWidth === 1)
+    .map(badge => {
+      const label = badge.findByType(Text);
+      return {
+        label: label.props.children,
+        borderColor: StyleSheet.flatten(badge.props.style).borderColor,
+        color: StyleSheet.flatten(label.props.style).color,
+      };
+    });
+  expect(badges).toEqual([
+    {label: '성공', borderColor: '#34c759', color: '#34c759'},
+    {label: '실패', borderColor: '#fb6f6f', color: 'red'},
+    {label: '처리중', borderColor: '#8e8e93', color: '#8e8e93'},
+    {label: '처리중', borderColor: '#8e8e93', color: '#8e8e93'},
+  ]);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('항목을 만든 날짜별로 묶어 날짜 제목 아래에 보인다', async () => {
   // 시간대와 관계없이 같은 날짜가 나오도록 지역 시각으로 적는다.
   jest.mocked(getHistoryReels).mockResolvedValue({
@@ -1081,6 +1141,21 @@ test('비회원이 실패 상세에서 다시 시도하거나 제보하면 확�
   expect(reportHistoryReel).not.toHaveBeenCalled();
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
   alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원 실패 상세는 목록 카드처럼 앱에 들어 있는 체험 그림을 썸네일로 보인다', async () => {
+  // require()로 읽은 그림은 번호로 온다.
+  const bundledImage = 42;
+  const renderer = await render({
+    guestReels: [{...reel(10, 'FAILED'), local_thumbnail_source: bundledImage}],
+    guestDetails: {},
+  });
+  expect(historyItem(renderer, '10').findByType(Image).props.source).toBe(bundledImage);
+
+  await press(historyItem(renderer, '10'));
+  expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(true);
+  expect(renderer.root.findByType(Image).props.source).toBe(bundledImage);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

@@ -44,7 +44,7 @@ describe('historyListReducer: 시작과 첫 페이지', () => {
       status: 'loading',
       reels: [],
       cursor: null,
-      more: 'idle',
+      more: {status: 'idle'},
       hasLoadedMore: false,
     });
     const guestReels = [reel(1)];
@@ -68,14 +68,14 @@ describe('historyListReducer: 시작과 첫 페이지', () => {
       {type: 'morePageRequested'},
       {type: 'morePageLoaded', page: page([2], SECOND_CURSOR)},
       {type: 'morePageRequested'},
-      {type: 'morePageFailed'},
+      {type: 'morePageFailed', cursor: SECOND_CURSOR},
     );
-    expect(failedMore.more).toBe('error');
+    expect(failedMore.more).toEqual({status: 'error', cursor: SECOND_CURSOR});
     expect(failedMore.hasLoadedMore).toBe(true);
 
     const requested = run(failedMore, {type: 'firstPageRequested'});
     expect(requested.status).toBe('loading');
-    expect(requested.more).toBe('idle');
+    expect(requested.more).toEqual({status: 'idle'});
     expect(requested.hasLoadedMore).toBe(false);
     // 목록은 새 첫 페이지가 올 때까지 그대로 둔다.
     expect(requested.reels).toBe(failedMore.reels);
@@ -83,7 +83,7 @@ describe('historyListReducer: 시작과 첫 페이지', () => {
 
   test('이전 기록을 읽는 중에 첫 페이지를 다시 요청해도 더 보기 진행 표시는 남긴다', () => {
     const loadingMore = run(LOADED, {type: 'morePageRequested'});
-    expect(run(loadingMore, {type: 'firstPageRequested'}).more).toBe('loading');
+    expect(run(loadingMore, {type: 'firstPageRequested'}).more).toEqual({status: 'loading'});
   });
 
   test('바뀐 값이 없으면 같은 상태 객체를 돌려줘 다시 그리지 않는다', () => {
@@ -91,8 +91,10 @@ describe('historyListReducer: 시작과 첫 페이지', () => {
     expect(historyListReducer(MEMBER, {type: 'firstPageRequested'})).toBe(MEMBER);
     const guest = createHistoryListState([reel(1)]);
     expect(historyListReducer(guest, {type: 'guestReelsLoaded', reels: guest.reels})).toBe(guest);
-    const failedMore = run(LOADED, {type: 'morePageFailed'});
-    expect(historyListReducer(failedMore, {type: 'morePageFailed'})).toBe(failedMore);
+    const failedMore = run(LOADED, {type: 'morePageFailed', cursor: FIRST_CURSOR});
+    expect(historyListReducer(failedMore, {type: 'morePageFailed', cursor: FIRST_CURSOR})).toBe(
+      failedMore,
+    );
   });
 });
 
@@ -140,7 +142,7 @@ describe('historyListReducer: 폴링과 다시 읽기', () => {
 describe('historyListReducer: 이전 기록', () => {
   test('요청하면 진행 중으로 두고 오류 화면을 지운다', () => {
     const requested = run(LOADED, {type: 'morePageRequested'});
-    expect(requested.more).toBe('loading');
+    expect(requested.more).toEqual({status: 'loading'});
     expect(canLoadMore(requested)).toBe(false);
 
     const failedFirst = run(MEMBER, {type: 'firstPageFailed'});
@@ -156,17 +158,33 @@ describe('historyListReducer: 이전 기록', () => {
     );
     expect(ids(loaded)).toEqual(['5', '4', '3', '2', '1']);
     expect(loaded.cursor).toBe(SECOND_CURSOR);
-    expect(loaded.more).toBe('idle');
+    expect(loaded.more).toEqual({status: 'idle'});
     expect(loaded.hasLoadedMore).toBe(true);
     expect(canLoadMore(loaded)).toBe(true);
   });
 
-  test('실패하면 목록과 커서는 두고 다시 불러오기를 기다린다', () => {
-    const failed = run(LOADED, {type: 'morePageRequested'}, {type: 'morePageFailed'});
-    expect(failed.more).toBe('error');
+  test('실패하면 목록과 커서는 두고 실패한 커서와 함께 다시 불러오기를 기다린다', () => {
+    const failed = run(
+      LOADED,
+      {type: 'morePageRequested'},
+      {type: 'morePageFailed', cursor: FIRST_CURSOR},
+    );
+    expect(failed.more).toEqual({status: 'error', cursor: FIRST_CURSOR});
     expect(failed.reels).toBe(LOADED.reels);
     expect(failed.cursor).toBe(FIRST_CURSOR);
     expect(canLoadMore(failed)).toBe(false);
+  });
+
+  test('더 보기가 실패한 뒤 다시 읽기가 커서를 비워도 실패한 커서를 남긴다', () => {
+    const failed = run(
+      LOADED,
+      {type: 'morePageRequested'},
+      {type: 'morePageFailed', cursor: FIRST_CURSOR},
+    );
+    // 폴링: 첫 페이지가 더 읽을 페이지가 없다고 답한다.
+    const polled = run(failed, {type: 'refreshLoaded', page: page([5, 4, 3], null)});
+    expect(polled.cursor).toBeNull();
+    expect(polled.more).toEqual({status: 'error', cursor: FIRST_CURSOR});
   });
 });
 
@@ -178,7 +196,7 @@ describe('historyListReducer: 비회원과 재시도', () => {
     expect(guest.status).toBe('success');
     expect(guest.reels).toBe(guestReels);
     expect(guest.cursor).toBeNull();
-    expect(guest.more).toBe('idle');
+    expect(guest.more).toEqual({status: 'idle'});
   });
 
   test('재시도로 접수된 공유는 맨 앞에 넣고, 같은 ID가 있으면 그 자리에서 바꾼다', () => {
