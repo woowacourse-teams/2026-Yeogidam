@@ -543,6 +543,14 @@ describe('링크 저장', () => {
     expect(getHistoryReels).not.toHaveBeenCalled();
   });
 
+  test('화면이 없는 동안 끝난 링크 저장은 다시 열 때 공유 상태에서 복원해 다시 읽고 비운다', async () => {
+    setSharedSaveState({url: LINK, status: 'COMPLETED', source: 'url_input', reel: reelStatus('8', 'COMPLETED')});
+    await renderLoaded([CAFE]);
+    expect(getSharedSaveState()).toBeNull();
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+    expect(getHistoryReels).not.toHaveBeenCalled();
+  });
+
   test('처리 중 응답이면 공유 상태에 릴스를 남기고, 목록 폴링에서 완료를 보면 비우고 다시 읽는다', async () => {
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('8', 'COMPLETED')));
     const renderer = await renderLoaded([CAFE]);
