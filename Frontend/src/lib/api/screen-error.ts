@@ -1,8 +1,9 @@
 import {ApiError, type ApiErrorKind} from './errors';
 
 /**
- * 클라이언트가 스스로 만들거나 기본 표가 보충하는 오류 코드입니다. 화면이 분기하는 코드는 여기 있는 것만 쓰고,
- * 서버가 내리는 나머지 코드는 문구를 보여 주기만 하므로 string으로 열어 둡니다.
+ * 클라이언트가 스스로 만들거나 기본 표가 보충하는 오류 코드 목록입니다. 서버가 내리는 나머지 코드도 받아야 하므로
+ * 타입은 string으로 열려 있고, 이 목록은 편집기 자동 완성과 문서 역할만 합니다. 비교는 리터럴 대신 상수와
+ * isLoginRequiredError 같은 판별 함수로 해서 오타를 막습니다.
  */
 export type KnownScreenErrorCode =
   | 'CLIENT000_001'
@@ -61,7 +62,7 @@ export const INVALID_REQUEST_ERROR = {
 
 /**
  * 로그인이 필요한 오류인지 판정합니다. 기본 표가 HTTP 401을 서버 코드와 관계없이 AUTH401_001로 바꾸므로
- * 화면은 이 코드 하나만 보면 되고, 비교를 흩지 않도록 모든 화면이 이 함수를 씁니다.
+ * 화면은 이 코드 하나만 보면 되고, 비교를 흩지 않도록 화면들은 리터럴 비교 대신 이 함수를 씁니다.
  */
 export function isLoginRequiredError(error: {errorCode: string | null}): boolean {
   return error.errorCode === LOGIN_REQUIRED_ERROR.errorCode;

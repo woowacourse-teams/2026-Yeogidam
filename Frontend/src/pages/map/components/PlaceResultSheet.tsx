@@ -37,6 +37,7 @@ import type {
   SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
+import {INVALID_REQUEST_ERROR, TIMEOUT_ERROR, isLoginRequiredError} from '../../../lib/api/screen-error';
 import {
   SEARCH_BAR_HEIGHT,
   SEARCH_BAR_TOP_GAP,
@@ -735,12 +736,7 @@ export function PlaceResultSheet({
       return;
     }
     if (!selectedPlace.savedPlaceId) {
-      setDeleteError({
-        status: 400,
-        errorCode: 'COMMON400_001',
-        message: '요청 내용을 확인해주세요.',
-        retryable: false,
-      });
+      setDeleteError({...INVALID_REQUEST_ERROR});
       return;
     }
 
@@ -752,7 +748,7 @@ export function PlaceResultSheet({
       backToPlaceList();
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
-      if (apiError.errorCode === 'CLIENT000_002') {
+      if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
         try {
           const savedPlaces = await getSavedPlaces();
           const isDeletionConfirmed = !savedPlaces.some(
@@ -769,10 +765,7 @@ export function PlaceResultSheet({
       }
 
       setDeleteError(apiError);
-      if (
-        apiError.errorCode === 'AUTH401_001' ||
-        apiError.errorCode === 'AUTH401_002'
-      ) {
+      if (isLoginRequiredError(apiError)) {
         onAuthenticationRequired?.();
       }
     } finally {

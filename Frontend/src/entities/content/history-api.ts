@@ -1,4 +1,5 @@
 import {ApiError} from '../../lib/api/errors';
+import {PROCESSING_ERROR} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import {toReelApiError, toReelStatus, type SpringShareHistoryItem} from './api';
 import type {
@@ -159,10 +160,7 @@ export async function retryHistoryReelExtraction(
   }
 
   if (response?.sharedMediaId == null || !response.extractionStatus) {
-    throw new ReelApiError({
-      errorCode: 'CLIENT000_003',
-      message: '응답을 처리하지 못했어요.',
-    });
+    throw new ReelApiError({...PROCESSING_ERROR});
   }
 
   return {
