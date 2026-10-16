@@ -52,7 +52,9 @@ export function useReelStatusPolling({
       Date.now(),
     );
     pollTrackingRef.current = tracking;
-    const poll = async (recentReels: Promise<HistoryReel[]>) => {
+    // 공용 폴러가 넘긴 결과입니다. 거부 promise를 만들지 않고 값으로 받아, 시간 제한으로 일찍 돌아가도 처리되지 않은 거부가 남지 않게 합니다.
+    type PollInput = {type: 'reels'; reels: HistoryReel[]} | {type: 'error'; error: unknown};
+    const poll = (input: PollInput) => {
       if (!isActive) return;
       if (hasReelPollTimedOut(tracking.startedAt, Date.now())) {
         dispatch({type: 'pollStopped'});
@@ -61,13 +63,10 @@ export function useReelStatusPolling({
 
       // 목록을 찾고 반영하다 난 예외도 조회 실패로 셉니다.
       try {
-        let recentReelList: HistoryReel[];
-        try {
-          recentReelList = await recentReels;
-        } catch (statusError) {
-          throw normalizeReelError(statusError);
+        if (input.type === 'error') {
+          throw normalizeReelError(input.error);
         }
-        if (!isActive) return;
+        const recentReelList = input.reels;
 
         const listing = findPolledReel(processingReelId, tracking.failureCount, recentReelList);
         if (listing.type === 'missing') {
@@ -134,10 +133,10 @@ export function useReelStatusPolling({
     const subscription = subscribeRecentShares({
       intervalMs: REEL_POLL_INTERVAL_MS,
       onResult: ({reels}) => {
-        poll(Promise.resolve(reels));
+        poll({type: 'reels', reels});
       },
       onError: pollError => {
-        poll(Promise.reject(pollError));
+        poll({type: 'error', error: pollError});
       },
     });
     return () => {
