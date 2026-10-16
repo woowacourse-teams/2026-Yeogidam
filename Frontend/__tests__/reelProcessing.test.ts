@@ -8,7 +8,7 @@ import {
   hasReelPollTimedOut,
   INITIAL_REEL_PROCESSING_STATE,
   reelProcessingReducer,
-  resolvePollStartedAt,
+  resolveReelPollTracking,
   toVerificationKey,
   type ReelProcessingAction,
   type ReelProcessingState,
@@ -233,15 +233,29 @@ describe('reelProcessingReducer', () => {
 });
 
 describe('폴링 시작 시각과 시간 제한', () => {
-  test('처음이면 릴스를 만든 시각부터, 만든 시각이 미래거나 읽을 수 없으면 지금부터 센다', () => {
-    expect(resolvePollStartedAt(null, '2026-10-16T08:59:00Z', NOW)).toBe(NOW - 60_000);
-    expect(resolvePollStartedAt(null, '2026-10-16T09:01:00Z', NOW)).toBe(NOW);
-    expect(resolvePollStartedAt(null, 'not a date', NOW)).toBe(NOW);
-    expect(resolvePollStartedAt(null, undefined, NOW)).toBe(NOW);
+  test('처음이면 릴스를 만든 시각부터 놓친 횟수 0으로 세고, 만든 시각이 미래거나 읽을 수 없으면 지금부터 센다', () => {
+    expect(resolveReelPollTracking(null, '8', '2026-10-16T08:59:00Z', NOW)).toEqual({
+      reelId: '8',
+      startedAt: NOW - 60_000,
+      failureCount: 0,
+    });
+    expect(resolveReelPollTracking(null, '8', '2026-10-16T09:01:00Z', NOW).startedAt).toBe(NOW);
+    expect(resolveReelPollTracking(null, '8', 'not a date', NOW).startedAt).toBe(NOW);
+    expect(resolveReelPollTracking(null, '8', undefined, NOW).startedAt).toBe(NOW);
   });
 
-  test('이미 재고 있으면 릴스가 바뀌어도 시작 시각을 그대로 둔다', () => {
-    expect(resolvePollStartedAt(NOW - 60_000, '2026-10-16T09:00:00Z', NOW)).toBe(NOW - 60_000);
+  test('같은 릴스를 이어서 지켜보면 시작 시각과 놓친 횟수를 그대로 둔다', () => {
+    const tracking = {reelId: '8', startedAt: NOW - 60_000, failureCount: 2};
+    expect(resolveReelPollTracking(tracking, '8', '2026-10-16T09:00:00Z', NOW)).toBe(tracking);
+  });
+
+  test('다른 릴스로 바뀌면 시작 시각과 놓친 횟수를 처음부터 센다', () => {
+    const tracking = {reelId: 'manual-1', startedAt: NOW - 60_000, failureCount: 2};
+    expect(resolveReelPollTracking(tracking, '8', '2026-10-16T09:00:00Z', NOW)).toEqual({
+      reelId: '8',
+      startedAt: NOW,
+      failureCount: 0,
+    });
   });
 
   test('90초가 되는 순간부터 시간 초과다', () => {

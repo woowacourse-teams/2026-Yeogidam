@@ -572,8 +572,7 @@ describe('링크 저장', () => {
     expect(getHistoryReels).toHaveBeenCalledTimes(30);
   });
 
-  test('폴링 중에 새 링크를 저장하면 90초를 처음 저장한 때부터 센다', async () => {
-    // 지금 동작을 그대로 적는다. 새 저장이 앞 저장의 폴링 시작 시각을 이어받는다.
+  test('폴링 중에 새 링크를 저장하면 90초를 새 저장부터 센다', async () => {
     jest
       .mocked(getHistoryReels)
       .mockResolvedValue(
@@ -589,11 +588,31 @@ describe('링크 저장', () => {
 
     jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
     await openDialogAndSave(renderer);
-    for (let i = 0; i < 10; i += 1) await tick(3000);
-    expect(getHistoryReels).toHaveBeenCalledTimes(30);
+    for (let i = 0; i < 30; i += 1) await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(50);
 
     await tick(9000);
-    expect(getHistoryReels).toHaveBeenCalledTimes(30);
+    expect(getHistoryReels).toHaveBeenCalledTimes(50);
+  });
+
+  test('저장 응답이 6초 걸려도 응답한 릴스는 목록에서 세 번 놓쳐야 폴링을 멈춘다', async () => {
+    const request = deferred<Awaited<ReturnType<typeof saveContent>>>();
+    jest.mocked(saveContent).mockReturnValue(request.promise);
+    const renderer = await renderLoaded([CAFE]);
+    await pressLabel(renderer, '장소 링크 추가');
+    await act(async () => dialog(renderer).props.onChangeValue(LINK));
+    await act(async () => {
+      dialog(renderer).props.onSubmit();
+    });
+    await tick(3000);
+    await tick(3000);
+
+    // 응답 뒤의 목록 조회만 센다.
+    jest.mocked(getHistoryReels).mockClear();
+    await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
+    await flush();
+    for (let i = 0; i < 6; i += 1) await tick(3000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(3);
   });
 });
 

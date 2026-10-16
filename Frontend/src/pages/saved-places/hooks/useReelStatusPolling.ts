@@ -9,7 +9,8 @@ import {
   findPolledReel,
   hasReelPollTimedOut,
   REEL_POLL_INTERVAL_MS,
-  resolvePollStartedAt,
+  resolveReelPollTracking,
+  type ReelPollTracking,
   type ReelProcessingAction,
 } from '../reelProcessing';
 
@@ -23,7 +24,7 @@ type Options = {
 
 /**
  * 처리 중인 릴스를 앱 공용 목록 폴러로 3초마다 확인합니다.
- * 찾았는지와 멈출지는 findPolledReel과 decideReelPollFailure가 정하고, 이 훅은 구독과 시작 시각, 놓친 횟수를 들고 결과를 반영합니다.
+ * 찾았는지와 멈출지는 findPolledReel과 decideReelPollFailure가 정하고, 이 훅은 구독과 지켜보는 릴스의 폴링 기록을 들고 결과를 반영합니다.
  * 목록에서 찾은 상태는 공유 상태에도 적어, 완료되면 공유 상태 구독이 마무리하게 합니다.
  */
 export function useReelStatusPolling({
@@ -32,35 +33,28 @@ export function useReelStatusPolling({
   dispatch,
   onRequireLogin,
 }: Options) {
-  const reelPollStartedAtRef = useRef<number | null>(null);
-  const reelPollFailureCountRef = useRef(0);
+  // 지켜보는 릴스와 그 릴스의 폴링 시작 시각, 놓친 횟수를 함께 둡니다. 릴스가 바뀌면 처음부터 셉니다.
+  const pollTrackingRef = useRef<ReelPollTracking | null>(null);
   // App이 그릴 때마다 새로 만드는 콜백이라, 의존성에 두지 않고 부르는 때의 최신 콜백을 읽습니다.
   const requireLogin = useEffectEvent(() => onRequireLogin?.());
 
   useEffect(() => {
-    if (!processingReelId) {
-      reelPollStartedAtRef.current = null;
-      reelPollFailureCountRef.current = 0;
-      return;
-    }
-
-    if (processingReel?.processing_status === 'FAILED') {
-      reelPollStartedAtRef.current = null;
-      reelPollFailureCountRef.current = 0;
+    if (!processingReelId || processingReel?.processing_status === 'FAILED') {
+      pollTrackingRef.current = null;
       return;
     }
 
     let isActive = true;
-    // TODO(review): 폴링 중에 새 링크를 저장해 릴스 ID가 null을 거치지 않고 바뀌면 시작 시각과 놓친 횟수를
-    // 이어받아, 새 릴스가 90초와 세 번을 다 쓰지 못합니다. 두 ref는 ID가 없거나 실패일 때만 비웁니다.
-    reelPollStartedAtRef.current = resolvePollStartedAt(
-      reelPollStartedAtRef.current,
+    const tracking = resolveReelPollTracking(
+      pollTrackingRef.current,
+      processingReelId,
       processingReel?.created_at,
       Date.now(),
     );
+    pollTrackingRef.current = tracking;
     const poll = async (recentReels: Promise<HistoryReel[]>) => {
       if (!isActive) return;
-      if (hasReelPollTimedOut(reelPollStartedAtRef.current, Date.now())) {
+      if (hasReelPollTimedOut(tracking.startedAt, Date.now())) {
         dispatch({type: 'pollStopped'});
         return;
       }
@@ -75,11 +69,7 @@ export function useReelStatusPolling({
         }
         if (!isActive) return;
 
-        const listing = findPolledReel(
-          processingReelId,
-          reelPollFailureCountRef.current,
-          recentReelList,
-        );
+        const listing = findPolledReel(processingReelId, tracking.failureCount, recentReelList);
         if (listing.type === 'missing') {
           if (__DEV__) {
             console.warn('[InstagramShare][status-response]', {
@@ -87,7 +77,7 @@ export function useReelStatusPolling({
               result: null,
             });
           }
-          reelPollFailureCountRef.current = listing.failureCount;
+          tracking.failureCount = listing.failureCount;
           if (listing.stop) {
             dispatch({type: 'pollStopped'});
           }
@@ -95,7 +85,7 @@ export function useReelStatusPolling({
         }
 
         const nextStatus = listing.reel;
-        reelPollFailureCountRef.current = 0;
+        tracking.failureCount = 0;
         dispatch({type: 'pollReceived', reel: nextStatus});
         if (__DEV__) {
           console.info('[InstagramShare][status-response]', {
@@ -121,11 +111,8 @@ export function useReelStatusPolling({
       } catch (pollError) {
         if (!isActive) return;
         const normalizedError = normalizeReelError(pollError);
-        const failure = decideReelPollFailure(
-          reelPollFailureCountRef.current,
-          normalizedError,
-        );
-        reelPollFailureCountRef.current = failure.failureCount;
+        const failure = decideReelPollFailure(tracking.failureCount, normalizedError);
+        tracking.failureCount = failure.failureCount;
         if (__DEV__) {
           console.warn('[InstagramShare][status-error]', {
             reelId: processingReelId,
