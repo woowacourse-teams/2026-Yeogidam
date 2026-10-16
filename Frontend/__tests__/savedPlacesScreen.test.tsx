@@ -28,6 +28,7 @@ import {
   LINK,
   listing,
   reelStatus,
+  savedPlace,
   SERVER_ERROR,
   sharedShare,
   TIMEOUT_ERROR,
@@ -895,7 +896,9 @@ describe('지운 장소와 메모리 캐시', () => {
 });
 
 describe('조회 중에 지운 장소', () => {
-  test('다시 연 화면의 조회가 끝나기 전에 지운 장소는 늦게 끝난 그 조회로 되살아나지 않고, 목록을 한 번 더 읽는다', async () => {
+  const RESTAURANT = savedPlace(3, '식당');
+
+  test('다시 연 화면의 조회가 끝나기 전에 지운 장소는 늦게 끝난 그 조회로 되살아나지 않고, 목록을 한 번 더 읽어 반영한다', async () => {
     await unmount(await renderLoaded([CAFE, BAKERY]));
 
     const lateLoad = deferred<SavedPlaceListItem[]>();
@@ -914,8 +917,48 @@ describe('조회 중에 지운 장소', () => {
     // 첫 방문, 다시 열기, 낡은 응답을 버린 뒤 다시 읽기로 세 번 조회한다.
     expect(getSavedPlaces).toHaveBeenCalledTimes(3);
 
-    await act(async () => reload.resolve([BAKERY]));
+    // 다시 읽은 목록은 화면이 들고 있던 목록과 달라도 그대로 반영한다.
+    await act(async () => reload.resolve([BAKERY, RESTAURANT]));
     await flush();
-    expect(placeNames(reopened)).toEqual(['빵집']);
+    expect(placeNames(reopened)).toEqual(['빵집', '식당']);
+  });
+
+  test('다시 읽는 동안에도 지우면 그 응답도 버리고 화면이 들고 있는 목록을 둔 채 더 읽지 않는다', async () => {
+    await unmount(await renderLoaded([CAFE, BAKERY, RESTAURANT]));
+
+    const lateLoad = deferred<SavedPlaceListItem[]>();
+    const reload = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(lateLoad.promise).mockReturnValueOnce(reload.promise);
+    const reopened = await render();
+
+    await selectAndDelete(reopened, 'place-1');
+    await act(async () => lateLoad.resolve([CAFE, BAKERY, RESTAURANT]));
+    await flush();
+    expect(getSavedPlaces).toHaveBeenCalledTimes(3);
+
+    await selectAndDelete(reopened, 'place-2');
+    expect(placeNames(reopened)).toEqual(['식당']);
+
+    // 다시 읽기도 두 번째로 지우기 전에 보낸 조회라 지운 장소를 담은 채 끝난다.
+    await act(async () => reload.resolve([BAKERY, RESTAURANT]));
+    await flush();
+    expect(placeNames(reopened)).toEqual(['식당']);
+    expect(getSavedPlaces).toHaveBeenCalledTimes(3);
+  });
+
+  test('조회하는 동안 세션이 끝나 캐시를 비우면 그 응답을 버리고 다시 읽지 않는다', async () => {
+    await unmount(await renderLoaded([CAFE, BAKERY]));
+
+    const lateLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(lateLoad.promise);
+    const reopened = await render();
+    expect(placeNames(reopened)).toEqual(['카페', '빵집']);
+
+    // App이 비회원 세션으로 바뀌면서 캐시를 비운다. 화면은 곧 내려간다.
+    clearSavedPlacesCache();
+    await act(async () => lateLoad.resolve([CAFE]));
+    await flush();
+    expect(placeNames(reopened)).toEqual(['카페', '빵집']);
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
   });
 });
