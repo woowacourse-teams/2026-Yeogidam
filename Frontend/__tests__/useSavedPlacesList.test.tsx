@@ -8,7 +8,7 @@ import type {Place} from '../src/entities/place/types';
 import {useSavedPlacesList} from '../src/pages/saved-places/hooks/useSavedPlacesList';
 import {deferred} from './support/deferred';
 import {flushMicrotasks, renderTracked} from './support/renderers';
-import {BAKERY, CAFE, RESTAURANT} from './support/savedPlacesFixtures';
+import {BAKERY, CAFE, RESTAURANT, SERVER_ERROR} from './support/savedPlacesFixtures';
 
 jest.mock('../src/entities/info/api', () => ({getSavedPlaces: jest.fn()}));
 
@@ -103,9 +103,9 @@ test('읽는 동안 세션이 끝나 캐시를 비우면 응답을 버리고 다
   expect(getSavedPlaces).toHaveBeenCalledTimes(2);
 });
 
-// 아래 두 테스트는 두 가지에 기댑니다. then을 훅의 await보다 늦게 같은 deferred에 붙여 훅의 continuation 바로 다음에 돌게 하고,
-// 훅이 getSavedPlaces의 promise를 바로 기다린다는(사이에 then을 더하지 않는다는) 전제입니다. 훅 안에 틱을 더하면 동작과 상관없이 깨집니다.
-test('두 번째 낡은 응답을 받는 묶음에서 새 읽기가 시작되면, 새 읽기가 끝날 때까지 읽는 중으로 남는다', async () => {
+// 아래 두 테스트는 then을 훅의 await보다 늦게 같은 deferred에 붙여, 훅의 continuation 바로 다음에 돌게 합니다. 훅이 getSavedPlaces와
+// await 사이에 then을 더하면 두 번째 테스트는 동작과 상관없이 깨지고, 첫 번째 테스트는 5af0194 같은 회귀도 통과시킵니다.
+test('두 번째 낡은 응답을 받는 묶음에서 다른 읽기가 시작되면, 읽기 상태는 다른 읽기가 끝날 때까지 읽는 중으로 남는다', async () => {
   await renderLoaded([CAFE, BAKERY, RESTAURANT]);
   const lateLoad = deferred<SavedPlaceListItem[]>();
   const reload = deferred<SavedPlaceListItem[]>();
@@ -153,6 +153,22 @@ test('첫 낡은 응답을 받는 묶음에서 다른 읽기가 시작되면, �
   expect(await first).toBeNull();
   expect((await other)?.map(place => place.name)).toEqual(['빵집']);
   expect(names()).toEqual(['빵집']);
+});
+
+test('더 새 조회에 밀린 요청이 나중에 실패하면 null을 돌려주고 목록과 오류 상태를 바꾸지 않는다', async () => {
+  await renderLoaded([CAFE]);
+  const firstLoad = deferred<SavedPlaceListItem[]>();
+  const secondLoad = deferred<SavedPlaceListItem[]>();
+  const first = startLoad(firstLoad.promise);
+  startLoad(secondLoad.promise);
+
+  await act(async () => secondLoad.resolve([CAFE, BAKERY]));
+  await act(async () => firstLoad.reject(SERVER_ERROR));
+  await flushMicrotasks();
+  expect(await first).toBeNull();
+  expect(names()).toEqual(['카페', '빵집']);
+  expect(latest.error).toBeNull();
+  expect(latest.isLoading).toBe(false);
 });
 
 test('더 새 조회에 밀린 응답은 버리고 null을 돌려주며, 새 조회의 응답만 반영한다', async () => {

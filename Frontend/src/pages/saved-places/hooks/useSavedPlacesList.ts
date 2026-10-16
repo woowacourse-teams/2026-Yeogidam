@@ -46,11 +46,11 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
   const loadRequestIdRef = useRef(0);
 
   /**
-   * 목록을 읽어 반영하고 반영한 목록을 돌려줍니다. 반영하지 못했으면 null입니다. 조회가 실패했거나, 더 새 요청에 밀렸거나,
-   * 읽는 동안 캐시 세대가 바뀌었는데 캐시가 비어 있거나(세션이 끝나 비웠거나 캐시 없는 첫 읽기 동안 다른 화면에서 지움),
-   * 읽는 동안 장소를 지워 응답이 낡았는데 canRetry가 아니거나 다시 읽는 동안에도 지웠을 때입니다.
+   * 목록을 한 번 읽어 반영할 수 있으면 반영하고, 읽는 동안 장소를 지워 응답이 낡았으면 canRetry일 때 한 번 더 읽습니다.
+   * 반영한 목록을 돌려주고 반영하지 못했으면 null입니다(경우는 loadSavedPlaces 설명에).
    * 낡은 응답을 버리고 다시 읽기를 시작하거나 읽기를 끝내는(SUCCESS) 일은 요청 번호와 캐시 세대를 비교한 같은 동기 구간에서 합니다.
-   * 한 틱이라도 미루면 그사이에 시작한 다른 읽기의 loading을 덮고, 그 읽기와 밀리는 순서가 바뀌며, 그사이에 바뀐 세대를 놓칩니다.
+   * 한 틱이라도 미루면 그사이에 시작한 다른 읽기의 loading을 덮고, 그 읽기와 밀리는 순서가 바뀌며,
+   * 그사이에 세션이 끝나 캐시를 비우면 끝난 세션의 목록을 캐시에 다시 씁니다.
    */
   const readSavedPlaces = useCallback(async (canRetry: boolean): Promise<Place[] | null> => {
     const requestId = loadRequestIdRef.current + 1;
@@ -64,7 +64,8 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
         return null;
       }
       if (cacheGeneration !== getSavedPlacesCacheGeneration()) {
-        // 읽는 동안 세대가 바뀌었는데 캐시가 비어 있으면 화면도 곧 내려가므로 응답을 버리고 끝낸다.
+        // 읽는 동안 세대가 바뀌었는데 캐시가 비어 있다. 세션이 끝났거나(화면이 곧 내려감) 다른 화면에서 지운 것이므로(보관함 화면은
+        // 이미 내려가 있음) 읽기 상태를 둔 채 응답만 버리고 다시 읽지 않는다.
         if (readSavedPlacesCache() === null) {
           return null;
         }
@@ -84,6 +85,7 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
       return nextPlaces;
     } catch (nextError) {
       if (requestId !== loadRequestIdRef.current) {
+        // 더 새 요청에 밀렸다.
         return null;
       }
       const apiError = normalizeScreenApiError(nextError);
@@ -95,7 +97,11 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
     }
   }, []);
 
-  /** 목록을 읽어 반영하고 반영한 목록을 돌려줍니다. 반영하지 못해 null인 경우는 readSavedPlaces 설명에 있습니다. */
+  /**
+   * 목록을 읽어 반영하고 반영한 목록을 돌려줍니다. 반영하지 못했으면 null입니다. 조회가 실패했거나, 더 새 요청에 밀렸거나,
+   * 읽는 동안 캐시 세대가 바뀌었는데 캐시가 비어 있거나(세션이 끝나 비웠거나, 캐시가 빈 동안 시작한 읽기 중에 다른 화면에서 지움),
+   * 두 번 읽는 동안 두 번 다 장소를 지웠을 때입니다.
+   */
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
       setPlaces(providedPlaces);
