@@ -107,7 +107,8 @@ function App() {
     refreshUpdatePolicy,
     dismissRecommendedUpdate,
   } = useAppUpdatePolicy();
-  const {isSplashVisible, hasCompletedGuide, completeGuide} = useSplashGate(refreshUpdatePolicy);
+  const {isSplashVisible, guideStatus, completeGuide} = useSplashGate(refreshUpdatePolicy);
+  const isGuideCompleted = guideStatus === 'completed';
   const savedPlacesScrollOffsetRef = useRef(0);
   const {
     authStatus,
@@ -121,7 +122,7 @@ function App() {
     logout,
     resolveDeletionProviders,
     deleteAccountAndSignOut,
-  } = useSpringAuthFlow({posthog, hasCompletedGuide}, {
+  } = useSpringAuthFlow({posthog, isGuideCompleted}, {
     // 이 handlers와 아래 useNativeShareResults의 handlers는 렌더가 끝난 뒤(effect와 세션 이벤트)에만 불립니다.
     // 그래서 더 아래에서 선언되는 resetPendingShareLogin과 dismissGuestLoginPrompt를 써도 선언 전 접근이 되지 않습니다.
     // 타입 검사와 lint는 닫힌 함수 안의 선언 전 참조를 잡지 않으므로, 렌더 중에 부르는 핸들러를 더하면 안 됩니다.
@@ -185,7 +186,7 @@ function App() {
 
   // 스플래시와 안내가 끝나고 세션이 확인된 메인 흐름입니다. 비회원 로그인 유도와 위치 권한 요청의 공통 전제입니다.
   const isMainVisible =
-    isAuthReady && !isSplashVisible && hasCompletedGuide === true && flowState.kind === 'main';
+    isAuthReady && !isSplashVisible && isGuideCompleted && flowState.kind === 'main';
   // 비회원이 메인 화면을 방해 없이 보고 있는 상태입니다. 겹침 화면과 업데이트 안내와 공유 로그인이 없을 때만입니다.
   const isGuestBrowsing =
     isMainVisible &&
@@ -206,7 +207,7 @@ function App() {
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     // 안내를 마친 비회원이 로그인하면 그때 보관함에 남은 장소를 가입 뒤 옮깁니다.
-    const guestTransferPlaces = isGuest && hasCompletedGuide === true ? guestPlaces : null;
+    const guestTransferPlaces = isGuest && isGuideCompleted ? guestPlaces : null;
     const outcome = await continueWithSocial(provider, guestTransferPlaces);
     if (outcome === 'setup-failed') {
       Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
@@ -451,7 +452,7 @@ function App() {
   const isMapScreen = currentScreen === 'map';
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
-  if (!isAuthReady || isSplashVisible || hasCompletedGuide === null) {
+  if (!isAuthReady || isSplashVisible || guideStatus === 'checking') {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
@@ -460,7 +461,7 @@ function App() {
     );
   }
 
-  if (!hasCompletedGuide) {
+  if (guideStatus === 'required') {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />

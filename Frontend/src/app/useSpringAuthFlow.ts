@@ -66,8 +66,8 @@ const SIGN_IN_BY_PROVIDER = {
 
 type Options = {
   posthog: AnalyticsClient | null | undefined;
-  /** 앱 안내를 마쳤는지입니다. 안내를 마친 회원이 확인될 때만 이 설치에서 로그인했다고 기록합니다. */
-  hasCompletedGuide: boolean | null;
+  /** 앱 안내를 마쳤는지입니다. 안내를 마친 회원이 확인될 때만 이 설치에서 로그인했다고 기록합니다. 아직 읽는 중이면 false로 넘깁니다. */
+  isGuideCompleted: boolean;
 };
 
 /**
@@ -76,7 +76,7 @@ type Options = {
  * 비회원 체험 장소 전환은 로그인한 회원 ID를 알아야 해서 이 안에서 함께 돌립니다.
  */
 export function useSpringAuthFlow(
-  {posthog, hasCompletedGuide}: Options,
+  {posthog, isGuideCompleted}: Options,
   handlers: SpringAuthFlowHandlers,
 ) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
@@ -295,11 +295,11 @@ export function useSpringAuthFlow(
 
   // 안내를 마친 회원이 확인되면 이 설치에서 로그인했다고 기록해, 다음 로그아웃 뒤에는 로그인 화면으로 보냅니다.
   useEffect(() => {
-    if (authStatus === 'member' && hasCompletedGuide === true) {
+    if (authStatus === 'member' && isGuideCompleted) {
       hasSignedInOnThisInstallRef.current = true;
       rememberSignInOnThisInstall();
     }
-  }, [authStatus, hasCompletedGuide]);
+  }, [authStatus, isGuideCompleted]);
 
   return {
     authStatus,

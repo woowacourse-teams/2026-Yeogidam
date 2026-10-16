@@ -56,7 +56,7 @@ afterEach(async () => {
 test('저장소를 다 읽어도 최소 시간이 지나기 전에는 스플래시를 보이고, 지나면 내린다', async () => {
   await render();
   expect(latest.isSplashVisible).toBe(true);
-  expect(latest.hasCompletedGuide).toBe(false);
+  expect(latest.guideStatus).toBe('required');
   expect(refreshUpdatePolicy).toHaveBeenCalledTimes(1);
 
   await act(async () => {
@@ -75,7 +75,7 @@ test('저장소를 다 읽어도 최소 시간이 지나기 전에는 스플래�
 test('이 설치에서 로그인한 적이 있으면 안내를 마친 것으로 본다', async () => {
   jest.mocked(hasSignedInOnThisInstall).mockResolvedValue(true);
   await render();
-  expect(latest.hasCompletedGuide).toBe(true);
+  expect(latest.guideStatus).toBe('completed');
 });
 
 test('안내를 마치면 저장이 끝나기 전에 마친 상태가 되고 저장소에 기록한다', async () => {
@@ -85,7 +85,7 @@ test('안내를 마치면 저장이 끝나기 전에 마친 상태가 되고 저
   await act(async () => {
     latest.completeGuide();
   });
-  expect(latest.hasCompletedGuide).toBe(true);
+  expect(latest.guideStatus).toBe('completed');
   expect(completeAppGuide).toHaveBeenCalledTimes(1);
   saving.resolve();
 });
@@ -100,12 +100,12 @@ test('저장소 읽기가 최소 시간보다 늦으면 읽기가 끝날 때까�
     await Promise.resolve();
   });
   expect(latest.isSplashVisible).toBe(true);
-  expect(latest.hasCompletedGuide).toBeNull();
+  expect(latest.guideStatus).toBe('checking');
 
   guide.resolve(true);
   await act(async () => {
     await Promise.resolve();
   });
-  expect(latest.hasCompletedGuide).toBe(true);
+  expect(latest.guideStatus).toBe('completed');
   expect(latest.isSplashVisible).toBe(false);
 });
