@@ -73,3 +73,20 @@ test('저장소를 다 읽기 전에 저장한 검색어로는 저장된 기록�
   expect(latest.recentSearches).toEqual(['카페']);
   expect(setRecentSearches).not.toHaveBeenCalled();
 });
+
+test('읽은 목록이 아직 그려지기 전에 저장해도 읽은 기록을 지키며 한 번 쓴다', async () => {
+  const stored = deferred<string[]>();
+  jest.mocked(getRecentSearches).mockReturnValue(stored.promise);
+  await renderInStrictMode();
+
+  await act(async () => {
+    stored.resolve(['카페']);
+    // then 콜백이 돌아 읽은 목록과 저장 가능 표시가 잡히지만, 아직 다시 그리기 전이다.
+    await Promise.resolve();
+    latest.saveRecentSearch('빵집');
+  });
+
+  expect(latest.recentSearches).toEqual(['빵집', '카페']);
+  expect(setRecentSearches).toHaveBeenCalledTimes(1);
+  expect(setRecentSearches).toHaveBeenLastCalledWith(['빵집', '카페']);
+});
