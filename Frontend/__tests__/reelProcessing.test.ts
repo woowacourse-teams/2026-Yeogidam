@@ -3,7 +3,8 @@ import type {HistoryReel, ReelProcessingStatus} from '../src/entities/content/ty
 import type {SharedSaveState} from '../src/lib/reel-save-state';
 import {
   classifySharedSaveState,
-  decideReelPoll,
+  decideReelPollFailure,
+  findPolledReel,
   hasReelPollTimedOut,
   INITIAL_REEL_PROCESSING_STATE,
   reelProcessingReducer,
@@ -250,48 +251,42 @@ describe('폴링 시작 시각과 시간 제한', () => {
   });
 });
 
-describe('decideReelPoll', () => {
-  const listed = (...reels: HistoryReel[]) => ({type: 'listed' as const, reels});
-  const failed = (params: ConstructorParameters<typeof ReelApiError>[0]) => ({
-    type: 'failed' as const,
-    error: new ReelApiError(params),
-  });
-
+describe('findPolledReel', () => {
   test('목록에서 찾으면 처리 상태만 골라 돌려준다', () => {
-    expect(decideReelPoll('8', 2, listed(historyReel('7', 'PROCESSING'), historyReel('8', 'COMPLETED')))).toEqual({
+    expect(findPolledReel('8', 2, [historyReel('7', 'PROCESSING'), historyReel('8', 'COMPLETED')])).toEqual({
       type: 'found',
       reel: {...reel('8', 'COMPLETED'), instagram_thumbnail_url: 'https://cdn.example.com/8.jpg'},
     });
   });
 
   test('목록에 없으면 놓친 횟수를 올리고 세 번째에 멈춘다', () => {
-    expect(decideReelPoll('8', 0, listed())).toEqual({
-      type: 'missed',
-      failureCount: 1,
-      stop: false,
-      requireLogin: false,
-    });
-    expect(decideReelPoll('8', 2, listed(historyReel('7', 'PROCESSING')))).toMatchObject({
+    expect(findPolledReel('8', 0, [])).toEqual({type: 'missing', failureCount: 1, stop: false});
+    expect(findPolledReel('8', 2, [historyReel('7', 'PROCESSING')])).toEqual({
+      type: 'missing',
       failureCount: 3,
       stop: true,
     });
   });
+});
+
+describe('decideReelPollFailure', () => {
+  const error = (params: ConstructorParameters<typeof ReelApiError>[0]) => new ReelApiError(params);
 
   test('다시 시도할 수 있는 오류는 세 번째에 멈춘다', () => {
-    const network = failed({errorCode: 'CLIENT000_001', message: '인터넷 연결', retryable: true});
-    expect(decideReelPoll('8', 1, network)).toMatchObject({failureCount: 2, stop: false});
-    expect(decideReelPoll('8', 2, network)).toMatchObject({failureCount: 3, stop: true, requireLogin: false});
+    const network = error({errorCode: 'CLIENT000_001', message: '인터넷 연결', retryable: true});
+    expect(decideReelPollFailure(1, network)).toEqual({failureCount: 2, stop: false, requireLogin: false});
+    expect(decideReelPollFailure(2, network)).toEqual({failureCount: 3, stop: true, requireLogin: false});
   });
 
   test('AUTH401_001은 바로 멈추고 로그인을 요청하며, AUTH403_001과 다시 시도할 수 없는 오류는 바로 멈춘다', () => {
     expect(
-      decideReelPoll('8', 0, failed({errorCode: 'AUTH401_001', message: '로그인', retryable: true})),
-    ).toEqual({type: 'missed', failureCount: 1, stop: true, requireLogin: true});
+      decideReelPollFailure(0, error({errorCode: 'AUTH401_001', message: '로그인', retryable: true})),
+    ).toEqual({failureCount: 1, stop: true, requireLogin: true});
     expect(
-      decideReelPoll('8', 0, failed({errorCode: 'AUTH403_001', message: '권한', retryable: true})),
-    ).toMatchObject({stop: true, requireLogin: false});
+      decideReelPollFailure(0, error({errorCode: 'AUTH403_001', message: '권한', retryable: true})),
+    ).toEqual({failureCount: 1, stop: true, requireLogin: false});
     expect(
-      decideReelPoll('8', 0, failed({errorCode: 'COMMON400_001', message: '요청', retryable: false})),
-    ).toMatchObject({stop: true, requireLogin: false});
+      decideReelPollFailure(0, error({errorCode: 'COMMON400_001', message: '요청', retryable: false})),
+    ).toEqual({failureCount: 1, stop: true, requireLogin: false});
   });
 });

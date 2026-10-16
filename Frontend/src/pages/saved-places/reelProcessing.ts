@@ -191,56 +191,61 @@ export function hasReelPollTimedOut(startedAt: number | null, now: number): bool
   return now - (startedAt ?? now) >= REEL_POLL_TIMEOUT_MS;
 }
 
-/** 공용 목록을 한 번 읽은 결과입니다. */
-export type ReelPollOutcome =
-  | {type: 'listed'; reels: HistoryReel[]}
-  | {type: 'failed'; error: ReelApiError};
-
-/** 폴링 한 번의 결과를 화면이 할 일로 바꾼 것입니다. */
-export type ReelPollDecision =
-  /** 목록에서 릴스를 찾았습니다. 실패 횟수를 0으로 되돌립니다. */
+/** 공용 목록에서 지켜보던 릴스를 찾은 결과입니다. */
+export type ReelListingResult =
+  /** 찾았습니다. 놓친 횟수를 0으로 되돌립니다. */
   | {type: 'found'; reel: ReelProcessingStatus}
-  /** 목록에 없거나 읽지 못했습니다. stop이면 폴링을 멈추고, requireLogin이면 로그인을 요청합니다. */
-  | {type: 'missed'; failureCount: number; stop: boolean; requireLogin: boolean};
+  /** 목록에 없습니다. 연달아 세 번째에 stop이 됩니다. */
+  | {type: 'missing'; failureCount: number; stop: boolean};
 
-/**
- * 공용 목록을 읽은 결과로 다음 할 일을 정합니다.
- * 목록에 없거나 다시 시도할 수 있는 오류는 연달아 세 번째에 멈추고, AUTH401_001과 AUTH403_001과
- * 다시 시도할 수 없는 오류는 바로 멈춥니다. AUTH401_001이면 로그인도 요청합니다.
- */
-export function decideReelPoll(
+/** 공용 목록에서 지켜보던 릴스를 찾아 처리 상태만 골라 돌려줍니다. 없으면 놓친 횟수를 하나 올립니다. */
+export function findPolledReel(
   reelId: string,
   failureCount: number,
-  outcome: ReelPollOutcome,
-): ReelPollDecision {
-  const nextFailureCount = failureCount + 1;
-
-  if (outcome.type === 'listed') {
-    // 서버에 단건 상태 조회 API가 없어 공유 목록 첫 페이지에서 찾습니다.
-    const reel = outcome.reels.find(item => item.id === reelId);
-    if (reel) {
-      return {
-        type: 'found',
-        reel: {
-          id: reel.id,
-          processing_status: reel.processing_status,
-          failure_reason: reel.failure_reason,
-          instagram_thumbnail_url: reel.instagram_thumbnail_url,
-          created_at: reel.created_at,
-        },
-      };
-    }
+  reels: HistoryReel[],
+): ReelListingResult {
+  // 서버에 단건 상태 조회 API가 없어 공유 목록 첫 페이지에서 찾습니다.
+  const reel = reels.find(item => item.id === reelId);
+  if (reel) {
     return {
-      type: 'missed',
-      failureCount: nextFailureCount,
-      stop: nextFailureCount >= REEL_POLL_FAILURE_LIMIT,
-      requireLogin: false,
+      type: 'found',
+      reel: {
+        id: reel.id,
+        processing_status: reel.processing_status,
+        failure_reason: reel.failure_reason,
+        instagram_thumbnail_url: reel.instagram_thumbnail_url,
+        created_at: reel.created_at,
+      },
     };
   }
 
-  const {errorCode, retryable} = outcome.error;
+  const nextFailureCount = failureCount + 1;
   return {
-    type: 'missed',
+    type: 'missing',
+    failureCount: nextFailureCount,
+    stop: nextFailureCount >= REEL_POLL_FAILURE_LIMIT,
+  };
+}
+
+/** 공용 목록을 읽거나 반영하다 실패했을 때 다음 할 일입니다. */
+export type ReelPollFailure = {
+  failureCount: number;
+  stop: boolean;
+  requireLogin: boolean;
+};
+
+/**
+ * 폴링이 실패했을 때 놓친 횟수를 올리고 멈출지 정합니다.
+ * 다시 시도할 수 있는 오류는 연달아 세 번째에 멈추고, AUTH401_001과 AUTH403_001과
+ * 다시 시도할 수 없는 오류는 바로 멈춥니다. AUTH401_001이면 로그인도 요청합니다.
+ */
+export function decideReelPollFailure(
+  failureCount: number,
+  error: ReelApiError,
+): ReelPollFailure {
+  const nextFailureCount = failureCount + 1;
+  const {errorCode, retryable} = error;
+  return {
     failureCount: nextFailureCount,
     stop:
       errorCode === 'AUTH401_001' ||

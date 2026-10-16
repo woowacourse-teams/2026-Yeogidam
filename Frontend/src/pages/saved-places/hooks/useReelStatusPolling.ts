@@ -6,11 +6,11 @@ import type {HistoryReel, ReelProcessingStatus} from '../../../entities/content/
 import type {SavedPlacesApiError} from '../../../entities/info/types';
 import {getSharedSaveState, setSharedSaveState} from '../../../lib/reel-save-state';
 import {
-  decideReelPoll,
+  decideReelPollFailure,
+  findPolledReel,
   hasReelPollTimedOut,
   REEL_POLL_INTERVAL_MS,
   resolvePollStartedAt,
-  type ReelPollOutcome,
   type ReelProcessingAction,
 } from '../reelProcessing';
 
@@ -26,7 +26,7 @@ type Options = {
 
 /**
  * 처리 중인 릴스를 앱 공용 목록 폴러로 3초마다 확인합니다.
- * 멈출지와 로그인을 요청할지는 decideReelPoll이 정하고, 이 훅은 구독과 시작 시각, 놓친 횟수를 들고 결과를 반영합니다.
+ * 찾았는지와 멈출지는 findPolledReel과 decideReelPollFailure가 정하고, 이 훅은 구독과 시작 시각, 놓친 횟수를 들고 결과를 반영합니다.
  * 목록에서 찾은 상태는 공유 상태에도 적어, 완료되면 공유 상태 구독이 마무리하게 합니다.
  */
 export function useReelStatusPolling({
@@ -65,21 +65,36 @@ export function useReelStatusPolling({
         return;
       }
 
-      let outcome: ReelPollOutcome;
+      // 목록을 찾고 반영하다 난 예외도 조회 실패로 셉니다.
       try {
-        outcome = {type: 'listed', reels: await recentReels};
-      } catch (pollError) {
-        outcome = {type: 'failed', error: normalizeReelError(pollError)};
-      }
-      if (!isActive) return;
+        let recentReelList: HistoryReel[];
+        try {
+          recentReelList = await recentReels;
+        } catch (statusError) {
+          throw normalizeReelError(statusError);
+        }
+        if (!isActive) return;
 
-      const decision = decideReelPoll(
-        processingReelId,
-        reelPollFailureCountRef.current,
-        outcome,
-      );
-      if (decision.type === 'found') {
-        const nextStatus = decision.reel;
+        const listing = findPolledReel(
+          processingReelId,
+          reelPollFailureCountRef.current,
+          recentReelList,
+        );
+        if (listing.type === 'missing') {
+          if (__DEV__) {
+            console.warn('[InstagramShare][status-response]', {
+              reelId: processingReelId,
+              result: null,
+            });
+          }
+          reelPollFailureCountRef.current = listing.failureCount;
+          if (listing.stop) {
+            dispatch({type: 'pollStopped'});
+          }
+          return;
+        }
+
+        const nextStatus = listing.reel;
         reelPollFailureCountRef.current = 0;
         dispatch({type: 'pollReceived', reel: nextStatus});
         if (__DEV__) {
@@ -103,30 +118,28 @@ export function useReelStatusPolling({
             showSaveSuccess: sharedState?.source === 'url_input',
           });
         }
-        return;
-      }
-
-      reelPollFailureCountRef.current = decision.failureCount;
-      if (__DEV__) {
-        if (outcome.type === 'listed') {
-          console.warn('[InstagramShare][status-response]', {
-            reelId: processingReelId,
-            result: null,
-          });
-        } else {
+      } catch (pollError) {
+        if (!isActive) return;
+        const normalizedError = normalizeReelError(pollError);
+        const failure = decideReelPollFailure(
+          reelPollFailureCountRef.current,
+          normalizedError,
+        );
+        reelPollFailureCountRef.current = failure.failureCount;
+        if (__DEV__) {
           console.warn('[InstagramShare][status-error]', {
             reelId: processingReelId,
-            errorCode: outcome.error.errorCode ?? null,
-            message: outcome.error.message,
-            attempt: decision.failureCount,
+            errorCode: normalizedError.errorCode ?? null,
+            message: normalizedError.message,
+            attempt: failure.failureCount,
           });
         }
-      }
-      if (decision.stop) {
-        dispatch({type: 'pollStopped'});
-      }
-      if (decision.requireLogin) {
-        onRequireLogin?.();
+        if (failure.stop) {
+          dispatch({type: 'pollStopped'});
+        }
+        if (failure.requireLogin) {
+          onRequireLogin?.();
+        }
       }
     };
 

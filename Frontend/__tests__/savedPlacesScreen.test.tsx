@@ -706,6 +706,18 @@ describe('링크 저장', () => {
     expect(getHistoryReels).toHaveBeenCalledTimes(1);
   });
 
+  test('목록을 받은 뒤 찾다가 예외가 나도 조회 실패로 세어 바로 멈춘다', async () => {
+    // 목록 모양이 깨지면 find가 TypeError를 던지고, 다시 시도할 수 없는 오류로 바뀐다.
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: null as unknown as HistoryReel[], nextCursor: null});
+    const renderer = await renderLoaded([CAFE]);
+    await openDialogAndSave(renderer);
+    await tick(3000);
+    await tick(9000);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
+  });
+
   test('폴링이 AUTH401_001로 실패하면 바로 멈추고 로그인을 요청한다', async () => {
     const onRequireLogin = jest.fn();
     jest
