@@ -1,6 +1,14 @@
 import type {SpringMember} from '../api/spring-auth-api';
 import {createSpringApiClient} from '../api/spring-client';
-import {ApiError} from '../api/errors';
+import {
+  LOGIN_REQUIRED_ERROR,
+  PROCESSING_ERROR,
+  SCREEN_ERROR_TABLE,
+  toScreenApiError,
+  type HttpApiError,
+  type ScreenApiError,
+  type ScreenErrorTable,
+} from '../api/screen-error';
 import {normalizeAuthError, type NormalizedAuthError} from './errors';
 import {
   getSpringAppleCredential,
@@ -26,16 +34,8 @@ export type DeleteAccountRequest = {
   appleAuthorizationCode?: string;
 };
 
-export type DeleteAccountError = {
-  status: number | null;
-  errorCode: string;
-  message: string;
-  retryable: boolean;
-  requestId?: string;
-  details?: {
-    field?: string;
-  };
-};
+/** 탈퇴 화면이 받는 오류입니다. 화면 공통 오류 계약을 그대로 씁니다. */
+export type DeleteAccountError = ScreenApiError;
 
 const deletionError = (
   errorCode: string,
@@ -49,7 +49,8 @@ const deletionError = (
   retryable,
 });
 
-function fallbackDeleteAccountError(status: number | null): DeleteAccountError {
+/** 서버가 errorCode를 보내지 않은 응답(프록시 오류 등)에 상태별로 보여 줄 탈퇴 오류입니다. */
+function fallbackDeleteAccountError(status: number): DeleteAccountError {
   if (status === 400) {
     return deletionError(
       'COMMON400_001',
@@ -60,7 +61,7 @@ function fallbackDeleteAccountError(status: number | null): DeleteAccountError {
   }
 
   if (status === 401) {
-    return deletionError('AUTH401_001', 401, '로그인이 필요해요.', true);
+    return {...LOGIN_REQUIRED_ERROR, retryable: true};
   }
 
   if (status === 502) {
@@ -72,7 +73,7 @@ function fallbackDeleteAccountError(status: number | null): DeleteAccountError {
     );
   }
 
-  if (status !== null && status >= 500) {
+  if (status >= 500) {
     return deletionError(
       'COMMON500_001',
       500,
@@ -81,12 +82,7 @@ function fallbackDeleteAccountError(status: number | null): DeleteAccountError {
     );
   }
 
-  return deletionError(
-    'CLIENT000_003',
-    null,
-    '응답을 처리하지 못했어요.',
-    false,
-  );
+  return {...PROCESSING_ERROR};
 }
 
 function createDeleteAccountReauthError(): DeleteAccountError {
@@ -128,24 +124,7 @@ function toDeleteAccountAuthError(
   };
 }
 
-function toDeleteAccountApiError(error: unknown): DeleteAccountError {
-  if (!(error instanceof ApiError)) return fallbackDeleteAccountError(null);
-
-  if (error.kind === 'timeout') {
-    return deletionError(
-      'CLIENT000_002',
-      null,
-      '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-      true,
-    );
-  }
-  if (error.kind === 'network') {
-    return deletionError('CLIENT000_001', null, '인터넷 연결을 확인해주세요.', true);
-  }
-  if (error.kind === 'auth') return fallbackDeleteAccountError(401);
-  if (error.kind !== 'http') return fallbackDeleteAccountError(null);
-
-  const status = error.status ?? null;
+function toDeleteAccountHttpError(error: HttpApiError): DeleteAccountError {
   // 서버는 재인증한 계정이 가입 계정과 다르거나 코드가 무효하면 AUTH401_002로 거절합니다.
   if (error.errorCode === 'AUTH401_002') {
     return deletionError(
@@ -156,14 +135,24 @@ function toDeleteAccountApiError(error: unknown): DeleteAccountError {
     );
   }
 
-  const fallback = fallbackDeleteAccountError(status);
+  const fallback = fallbackDeleteAccountError(error.status);
   return {
     ...fallback,
-    status: status ?? fallback.status,
+    status: error.status,
     errorCode: error.errorCode ?? fallback.errorCode,
     message: error.errorCode ? error.message : fallback.message,
   };
 }
+
+/**
+ * 탈퇴 요청의 오류 표입니다. 기본 표와 달리 토큰이 없거나 읽지 못하면 '로그인이 필요해요.'로 안내하고,
+ * HTTP 오류는 서버 코드와 문구를 쓰되 코드가 없으면 상태별 탈퇴 문구를 씁니다.
+ */
+const DELETE_ACCOUNT_ERROR_TABLE: ScreenErrorTable = {
+  ...SCREEN_ERROR_TABLE,
+  auth: () => fallbackDeleteAccountError(401),
+  http: toDeleteAccountHttpError,
+};
 
 /**
  * 서버·네트워크 문제로 탈퇴 결과를 알 수 없는 실패인지 판단합니다.
@@ -240,6 +229,6 @@ export async function deleteAccount(payload: DeleteAccountRequest) {
       timeoutMs: DELETE_ACCOUNT_TIMEOUT_MS,
     });
   } catch (error) {
-    throw toDeleteAccountApiError(error);
+    throw toScreenApiError(error, DELETE_ACCOUNT_ERROR_TABLE);
   }
 }

@@ -1,11 +1,18 @@
-import {ApiError} from '../../lib/api/errors';
+import {
+  LOGIN_REQUIRED_ERROR,
+  PROCESSING_ERROR,
+  SCREEN_ERROR_TABLE,
+  TIMEOUT_ERROR,
+  toScreenApiError,
+  type ScreenErrorTable,
+} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {
   SaveInstagramReelResponse,
   SaveSource,
   ReelProcessingStatus,
 } from './types';
-import {ReelApiError, type ReelErrorCode} from './errors';
+import {ReelApiError} from './errors';
 
 const client = createSpringApiClient();
 /** 상태 폴링은 공유 목록 첫 페이지(서버 기본 50건)에서 찾습니다. */
@@ -46,52 +53,25 @@ export function toReelStatus(
   }
 }
 
+/**
+ * 공유 API의 오류 표입니다. 기본 표와 달리 토큰을 읽지 못한 경우도 401 로그인 필요로 보고,
+ * 시간 초과는 토큰 재발급 대기 중이어도 같은 문구로 알리며, 응답을 읽지 못하면 상태를 남기지 않습니다.
+ */
+const REEL_ERROR_TABLE: ScreenErrorTable = {
+  ...SCREEN_ERROR_TABLE,
+  auth: () => ({...LOGIN_REQUIRED_ERROR}),
+  timeout: () => ({...TIMEOUT_ERROR}),
+  invalid_response: () => ({...PROCESSING_ERROR}),
+};
+
 /** Spring 요청 실패를 화면이 쓰는 ReelApiError로 바꿉니다. 서버 errorCode와 문구는 유지합니다. */
 export function toReelApiError(error: unknown): ReelApiError {
-  if (error instanceof ReelApiError) return error;
-  if (!(error instanceof ApiError)) {
-    return new ReelApiError({
-      errorCode: 'CLIENT000_003',
-      message: '응답을 처리하지 못했어요.',
-    });
-  }
-
-  if (error.status === 401 || error.kind === 'auth') {
-    return new ReelApiError({
-      errorCode: 'AUTH401_001',
-      message: '로그인이 필요해요.',
-      status: 401,
-    });
-  }
-  if (error.kind === 'timeout') {
-    return new ReelApiError({
-      errorCode: 'CLIENT000_002',
-      message: '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-      retryable: true,
-    });
-  }
-  if (error.kind === 'network' || error.kind === 'cancelled') {
-    return new ReelApiError({
-      errorCode: 'CLIENT000_001',
-      message: '인터넷 연결을 확인해주세요.',
-      retryable: true,
-    });
-  }
-  if (error.kind === 'http') {
-    const status = error.status ?? null;
-    const serverError = status !== null && status >= 500;
-    return new ReelApiError({
-      errorCode: (error.errorCode ??
-        (serverError ? 'COMMON500_001' : 'COMMON400_001')) as ReelErrorCode,
-      message: error.message,
-      retryable: serverError || status === 429,
-      status,
-      ...(error.errorCode?.startsWith('MEDIA400_') ? {field: 'instagramUrl'} : {}),
-    });
-  }
+  const screenError = toScreenApiError(error, REEL_ERROR_TABLE);
   return new ReelApiError({
-    errorCode: 'CLIENT000_003',
-    message: '응답을 처리하지 못했어요.',
+    ...screenError,
+    ...(screenError.errorCode.startsWith('MEDIA400_')
+      ? {field: 'instagramUrl'}
+      : {}),
   });
 }
 

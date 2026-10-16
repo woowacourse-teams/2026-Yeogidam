@@ -1,4 +1,10 @@
-import {ApiError} from '../api/errors';
+import {
+  NETWORK_ERROR,
+  PROCESSING_ERROR,
+  TIMEOUT_ERROR,
+  toScreenApiError,
+  type ScreenErrorTable,
+} from '../api/screen-error';
 
 export type AuthErrorCode =
   | 'AUTH000_001'
@@ -57,30 +63,15 @@ export function createCancelledAuthError(): NormalizedAuthError {
 }
 
 export function createProcessingAuthError(): NormalizedAuthError {
-  return {
-    status: null,
-    errorCode: 'CLIENT000_003',
-    message: '응답을 처리하지 못했어요.',
-    retryable: false,
-  };
+  return {...PROCESSING_ERROR};
 }
 
 export function createTimeoutAuthError(): NormalizedAuthError {
-  return {
-    status: null,
-    errorCode: 'CLIENT000_002',
-    message: '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-    retryable: true,
-  };
+  return {...TIMEOUT_ERROR};
 }
 
 function createNetworkAuthError(): NormalizedAuthError {
-  return {
-    status: null,
-    errorCode: 'CLIENT000_001',
-    message: '인터넷 연결을 확인해주세요.',
-    retryable: true,
-  };
+  return {...NETWORK_ERROR};
 }
 
 function createHttpAuthError(
@@ -126,21 +117,25 @@ function createHttpAuthError(
   };
 }
 
-function normalizeApiAuthError(error: ApiError): NormalizedAuthError {
-  if (error.kind === 'timeout') return createTimeoutAuthError();
-  if (error.kind === 'network') return createNetworkAuthError();
-  if (error.kind === 'http' && error.status != null) {
-    return createHttpAuthError(error.status, error.errorCode, error.requestId);
-  }
-  if (error.kind === 'invalid_response') {
-    return {
-      ...createProcessingAuthError(),
-      status: error.status,
-      ...(error.requestId ? {requestId: error.requestId} : {}),
-    };
-  }
-  return createProcessingAuthError();
-}
+/**
+ * 로그인 화면의 오류 표입니다. HTTP 오류는 상태로만 나누고 서버 코드는 진단용(backendErrorCode)으로
+ * 남깁니다. 로그인 요청은 토큰 없이 보내므로 auth 행은 처리 실패로 둡니다.
+ */
+const LOGIN_ERROR_TABLE: ScreenErrorTable<NormalizedAuthError> = {
+  http: error =>
+    createHttpAuthError(error.status, error.errorCode, error.requestId),
+  auth: createProcessingAuthError,
+  timeout: createTimeoutAuthError,
+  network: createNetworkAuthError,
+  cancelled: createProcessingAuthError,
+  invalid_request: createProcessingAuthError,
+  invalid_response: error => ({
+    ...createProcessingAuthError(),
+    status: error.status,
+    ...(error.requestId ? {requestId: error.requestId} : {}),
+  }),
+  unknown: normalizeUnknownAuthError,
+};
 
 export function withAuthErrorStage(
   error: unknown,
@@ -151,12 +146,13 @@ export function withAuthErrorStage(
 }
 
 export function normalizeAuthError(error: unknown): NormalizedAuthError {
+  return toScreenApiError(error, LOGIN_ERROR_TABLE);
+}
+
+/** ApiError가 아닌 값(이미 바꾼 로그인 오류, 제공자 SDK와 브라우저 오류)을 로그인 오류로 바꿉니다. */
+function normalizeUnknownAuthError(error: unknown): NormalizedAuthError {
   if (isNormalizedAuthError(error)) {
     return error;
-  }
-
-  if (error instanceof ApiError) {
-    return normalizeApiAuthError(error);
   }
 
   if (error instanceof Error && error.name === 'TimeoutError') {

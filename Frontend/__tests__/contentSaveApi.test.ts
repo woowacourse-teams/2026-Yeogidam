@@ -2,9 +2,10 @@ import {
   getLatestProcessingReel,
   getReelProcessingStatus,
   saveContent,
+  toReelApiError,
   toReelStatus,
 } from '../src/entities/content/api';
-import {ReelApiError} from '../src/entities/content/errors';
+import {ReelApiError, normalizeReelError} from '../src/entities/content/errors';
 import {ApiError} from '../src/lib/api/errors';
 import {createSpringApiClient} from '../src/lib/api/spring-client';
 
@@ -125,5 +126,81 @@ test('최신 처리중 릴스는 목록의 첫 EXTRACTING 공유다', async () =
   await expect(getLatestProcessingReel()).resolves.toMatchObject({
     id: '13',
     processing_status: 'PROCESSING',
+  });
+});
+
+describe('공유 API 오류 표(toReelApiError)', () => {
+  test.each([
+    [
+      '토큰을 읽지 못해도 401 로그인 필요로 본다',
+      new ApiError({kind: 'auth', message: '로그인 정보를 확인하지 못했어요.'}),
+      {status: 401, errorCode: 'AUTH401_001', message: '로그인이 필요해요.', retryable: false},
+    ],
+    [
+      '시간 초과는 토큰 재발급 대기 중이어도 같은 문구로 알린다',
+      new ApiError({kind: 'timeout', message: '로그인 정보를 확인하고 있어요. 잠시 후 다시 시도해주세요.'}),
+      {
+        status: null,
+        errorCode: 'CLIENT000_002',
+        message: '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+        retryable: true,
+      },
+    ],
+    [
+      '응답을 읽지 못하면 상태를 남기지 않는다',
+      new ApiError({kind: 'invalid_response', status: 202, message: '응답을 처리하지 못했어요.'}),
+      {status: null, errorCode: 'CLIENT000_003', message: '응답을 처리하지 못했어요.', retryable: false},
+    ],
+    [
+      '나머지 종류는 기본 표를 따른다(코드 없는 5xx)',
+      new ApiError({kind: 'http', status: 503, errorCode: null, message: '요청을 처리하지 못했어요.'}),
+      {status: 503, errorCode: 'COMMON500_001', message: '요청을 처리하지 못했어요.', retryable: true},
+    ],
+    [
+      'ApiError가 아닌 오류는 처리 실패로 본다',
+      new Error('Missing required environment variable: API_BASE_URL'),
+      {status: null, errorCode: 'CLIENT000_003', message: '응답을 처리하지 못했어요.', retryable: false},
+    ],
+  ])('%s', (_rule, error, expected) => {
+    const reelError = toReelApiError(error);
+
+    expect(reelError).toBeInstanceOf(ReelApiError);
+    expect(reelError).toMatchObject(expected);
+    expect(reelError.field).toBeUndefined();
+  });
+
+  test('MEDIA400 코드는 링크 입력 필드를 가리킨다', () => {
+    expect(
+      toReelApiError(new ApiError({
+        kind: 'http',
+        status: 400,
+        errorCode: 'MEDIA400_001',
+        message: '지원하지 않는 링크입니다.',
+      })),
+    ).toMatchObject({errorCode: 'MEDIA400_001', field: 'instagramUrl'});
+  });
+});
+
+describe('화면의 공유 오류 맞추기(normalizeReelError)', () => {
+  test('API에서 온 ReelApiError는 그대로 돌려준다', () => {
+    const reelError = new ReelApiError({errorCode: 'AUTH401_001', message: '로그인이 필요해요.', status: 401});
+
+    expect(normalizeReelError(reelError)).toBe(reelError);
+  });
+
+  test('응답을 읽다 난 JS 오류는 다시 시도하지 않는 COMMON400_001로 본다', () => {
+    expect(normalizeReelError(new TypeError("Cannot read property 'map' of null"))).toMatchObject({
+      errorCode: 'COMMON400_001',
+      message: "Cannot read property 'map' of null",
+      retryable: false,
+    });
+  });
+
+  test('Error가 아닌 값은 다시 시도할 수 있는 연결 실패로 본다', () => {
+    expect(normalizeReelError(null)).toMatchObject({
+      errorCode: 'CLIENT000_001',
+      message: '인터넷 연결을 확인해주세요.',
+      retryable: true,
+    });
   });
 });
