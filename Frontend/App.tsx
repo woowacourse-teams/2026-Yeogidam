@@ -9,8 +9,7 @@ import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
-import { getCurrentProfile } from './src/entities/info/api';
-import type { PlaceReel, ProfileInfo } from './src/entities/info/types';
+import type { PlaceReel } from './src/entities/info/types';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -19,46 +18,19 @@ import {
   ONBOARDING_PLACES,
   ONBOARDING_PLACE_REELS,
 } from './src/entities/onboarding/data';
-import {
-  withAuthErrorStage,
-  type NormalizedAuthError,
-} from './src/lib/auth/errors';
-import {
-  isAppleSignInSupported,
-  signInWithApple,
-} from './src/lib/auth/signInWithApple';
-import {
-  deleteAccount,
-  getLinkedDeletionProviders,
-  isServerSideDeletionFailure,
-  type AccountDeletionProvider,
-  type DeleteAccountRequest,
+import { isAppleSignInSupported } from './src/lib/auth/signInWithApple';
+import type {
+  AccountDeletionProvider,
+  DeleteAccountRequest,
 } from './src/lib/auth/deleteAccount';
-import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
-import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
-import {
-  clearSpringSession,
-  getSpringMemberId,
-  LocalSessionCleanupError,
-  getSpringTokens,
-  logoutSpringSession,
-  onSpringSessionChange,
-} from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { useAppUpdatePolicy } from './src/app/useAppUpdatePolicy';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
-  toLoginFailureType,
-  trackAppOpened,
-  trackLoginFinished,
-  trackLoginStarted,
-} from './src/analytics/userEntryEvents';
-import {
   completeAppGuide,
   hasCompletedAppGuide,
   hasSignedInOnThisInstall,
-  rememberSignInOnThisInstall,
 } from './src/lib/app-guide-storage';
 import { AppGuideScreen } from './src/pages/guide/AppGuideScreen';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
@@ -75,17 +47,14 @@ import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
 import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   clearShareResult,
-  resumeWaitingShares,
   syncShareAnalyticsConfiguration,
-  syncShareSession,
 } from './src/lib/share-intent';
 import { GUEST_MAIN_FLOW_STATE } from './src/app/navigation';
 import { useAppNavigation } from './src/app/useAppNavigation';
 import { useCurrentProfile } from './src/app/useCurrentProfile';
-import { useGuestOnboardingTransfer } from './src/app/useGuestOnboardingTransfer';
 import { useNativeShareResults } from './src/app/useNativeShareResults';
+import { useSpringAuthFlow } from './src/app/useSpringAuthFlow';
 import type { SocialProvider } from './src/lib/auth/social-provider';
-import { captureSocialLoginError } from './src/lib/monitoring/login-errors';
 import { initSentry, withSentry } from './src/lib/monitoring/sentry';
 
 initSentry();
@@ -142,20 +111,39 @@ function App() {
     openGuestMain,
     openMemberMain,
   } = useAppNavigation();
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
+  const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
+  const savedPlacesScrollOffsetRef = useRef(0);
+  const {
+    authStatus,
+    isLogoutPending,
+    pendingSocialProvider,
+    socialLoginError,
+    memberDataRevision,
+    cancelGuestTransfer,
+    continueWithSocial,
+    clearSocialLoginError,
+    logout,
+    resolveDeletionProviders,
+    deleteAccountAndSignOut,
+    markSignedInOnThisInstall,
+  } = useSpringAuthFlow(posthog, {
+    onGuestSession: signedInOnThisInstall => {
+      if (signedInOnThisInstall) openLogin();
+      else openGuestMain();
+      setMyPageOverlay(null);
+    },
+    onMemberSession: source => {
+      // 방금 로그인했으면 이전 회원이나 비회원이 보던 보관함 스크롤 위치를 남기지 않습니다.
+      if (source === 'signed-in') savedPlacesScrollOffsetRef.current = 0;
+      openMemberMain();
+    },
+  });
+  const isAuthReady = authStatus !== 'loading';
+  const isAuthenticated = authStatus === 'loading' ? null : authStatus === 'member';
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
-  const hasSignedInOnThisInstallRef = useRef(false);
-  const activeUserIdRef = useRef<string | null>(null);
-  const {memberDataRevision, resumeTransfer, beginTransfer, cancelTransfer, resetTransferError} =
-    useGuestOnboardingTransfer({
-      enabled: isAuthenticated === true,
-      activeMemberIdRef: activeUserIdRef,
-      posthog,
-    });
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
     null,
@@ -166,10 +154,6 @@ function App() {
     refreshUpdatePolicy,
     dismissRecommendedUpdate,
   } = useAppUpdatePolicy();
-  const [isLogoutPending, setIsLogoutPending] = useState(false);
-  const [pendingSocialProvider, setPendingSocialProvider] =
-    useState<SocialProvider | null>(null);
-  const loginAttemptInFlightRef = useRef(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
   const [isAppActive, setIsAppActive] = useState(
@@ -181,19 +165,14 @@ function App() {
         setIsGuestLoginPromptVisible(true);
       }),
   );
-  const [socialLoginError, setSocialLoginError] =
-    useState<NormalizedAuthError | null>(null);
-  const savedPlacesScrollOffsetRef = useRef(0);
   const {currentProfile, profileError, isProfileLoading, retryProfile, clearProfile} =
     useCurrentProfile(flowState.kind === 'main' && isAuthenticated === true);
-  const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
-  const hasTrackedAppOpenedRef = useRef(false);
 
   const {hasPendingShareLogin, cancelPendingShareLogin, resetPendingShareLogin} =
     useNativeShareResults(isAuthReady, {
@@ -239,13 +218,15 @@ function App() {
     }
   }, [guestLoginPromptTimer, isAppActive, isGuestBrowsing]);
 
+  // 회원이 되면 비회원 로그인 유도와 공유 로그인 표시, 돌아갈 비회원 흐름을 모두 내립니다.
   useEffect(() => {
     if (isAuthenticated) {
       guestLoginPromptTimer.cancel();
       setIsGuestLoginPromptVisible(false);
       forgetGuestReturnFlow();
+      resetPendingShareLogin();
     }
-  }, [forgetGuestReturnFlow, guestLoginPromptTimer, isAuthenticated]);
+  }, [forgetGuestReturnFlow, guestLoginPromptTimer, isAuthenticated, resetPendingShareLogin]);
 
   useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
 
@@ -263,10 +244,9 @@ function App() {
 
   useEffect(() => {
     if (isAuthenticated === true && hasCompletedGuide === true) {
-      hasSignedInOnThisInstallRef.current = true;
-      rememberSignInOnThisInstall().catch(() => undefined);
+      markSignedInOnThisInstall();
     }
-  }, [hasCompletedGuide, isAuthenticated]);
+  }, [hasCompletedGuide, isAuthenticated, markSignedInOnThisInstall]);
 
   const canRequestLocation =
     isAuthReady &&
@@ -292,53 +272,11 @@ function App() {
     };
   }, [canRequestLocation]);
 
+  // 세션 확인은 useSpringAuthFlow가 맡고, 여기서는 안내 완료 여부와 업데이트 정책을 읽는 동안
+  // 스플래시를 최소 시간만큼 보여 줍니다. 세션이 아직 확인되지 않았으면 스플래시가 계속 남습니다.
   useEffect(() => {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const syncFlowState = async () => {
-      const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
-        getSpringTokens().catch(() => null),
-        getSpringMemberId().catch(() => null),
-        hasSignedInOnThisInstall(),
-      ]);
-
-      if (!isMounted) {
-        return;
-      }
-      hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
-
-      if (!tokens) {
-        activeUserIdRef.current = null;
-        setIsAuthenticated(false);
-        if (!hasTrackedAppOpenedRef.current) {
-          trackAppOpened(posthog, false);
-          hasTrackedAppOpenedRef.current = true;
-        }
-
-        // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
-        await syncShareSession(null).catch(() => undefined);
-
-        if (signedInOnThisInstall) openLogin();
-        else openGuestMain();
-        setMyPageOverlay(null);
-        setIsAuthReady(true);
-        return;
-      }
-
-      activeUserIdRef.current = memberId;
-      setIsAuthenticated(true);
-      resumeWaitingShares().catch(() => undefined);
-      if (memberId) resumeTransfer(memberId);
-
-      if (!hasTrackedAppOpenedRef.current) {
-        trackAppOpened(posthog, true);
-        hasTrackedAppOpenedRef.current = true;
-      }
-
-      openMemberMain();
-      setIsAuthReady(true);
-    };
 
     const loadGuideCompletion = async () => {
       const [completed, signedInOnThisInstall] = await Promise.all([
@@ -347,7 +285,6 @@ function App() {
       ]);
 
       if (isMounted) {
-        hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
         setHasCompletedGuide(completed || signedInOnThisInstall);
       }
     };
@@ -357,7 +294,6 @@ function App() {
     });
 
     Promise.allSettled([
-      syncFlowState(),
       refreshUpdatePolicy(),
       loadGuideCompletion(),
       splashDelay,
@@ -369,115 +305,19 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const unsubscribe = onSpringSessionChange((event, memberId, details) => {
-      if (event === 'SIGNED_IN') {
-        resumeWaitingShares().catch(() => undefined);
-      }
-      // 토큰 회전은 화면 흐름을 바꾸지 않습니다. 공유 세션 동기화는 spring-session이 맡습니다.
-      if (!isMounted || event === 'TOKEN_REFRESHED') {
-        return;
-      }
-
-      if (event === 'SIGNED_OUT') {
-        activeUserIdRef.current = null;
-        resetTransferError();
-        setIsAuthenticated(false);
-        if (hasSignedInOnThisInstallRef.current) openLogin();
-        else openGuestMain();
-        setMyPageOverlay(null);
-        setIsLogoutPending(false);
-        setPendingSocialProvider(null);
-        setIsAuthReady(true);
-        return;
-      }
-
-      setSocialLoginError(null);
-      activeUserIdRef.current = memberId;
-      setIsAuthenticated(true);
-      savedPlacesScrollOffsetRef.current = 0;
-      resetPendingShareLogin();
-      setIsLogoutPending(false);
-      setPendingSocialProvider(null);
-      openMemberMain();
-      setIsAuthReady(true);
-      if (memberId) resumeTransfer(memberId, details?.isNewMember);
-    });
-
     return () => {
       isMounted = false;
       if (splashTimer) {
         clearTimeout(splashTimer);
       }
-      unsubscribe();
     };
-  }, [
-    openGuestMain,
-    openLogin,
-    openMemberMain,
-    posthog,
-    refreshUpdatePolicy,
-    resetPendingShareLogin,
-    resetTransferError,
-    resumeTransfer,
-  ]);
+  }, [refreshUpdatePolicy]);
 
-  const handleContinueWithSocial = async (provider: SocialProvider) => {
-    if (pendingSocialProvider || loginAttemptInFlightRef.current) {
-      return;
-    }
-    loginAttemptInFlightRef.current = true;
-    const hasGuestTransfer =
-      isAuthenticated === false && hasCompletedGuide === true;
-    const signIn = {
-      apple: signInWithApple,
-      kakao: signInWithKakao,
-      google: signInWithGoogle,
-    }[provider];
-    let signInStarted = false;
-
-    // 로그인 버튼을 누른 시점에 기록해, 시작 전에 실패해도 로그인 시도로 센다.
-    trackLoginStarted(posthog, provider);
-
-    try {
-      if (hasGuestTransfer) {
-        await beginTransfer(guestPlaces);
-      }
-      // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
-      if (!(await getSpringTokens().catch(() => null))) {
-        await syncShareSession(null).catch(() => undefined);
-      }
-
-      setSocialLoginError(null);
-      setPendingSocialProvider(provider);
-      signInStarted = true;
-      await signIn();
-      trackLoginFinished(posthog, {
-        provider,
-        outcome: 'success',
-        hasGuestTransfer,
-      });
-    } catch (error) {
-      cancelTransfer();
-      const normalizedError = withAuthErrorStage(
-        error,
-        signInStarted ? 'provider_authorization' : 'login_setup',
-      );
-      captureSocialLoginError(provider, normalizedError);
-      trackLoginFinished(posthog, {
-        provider,
-        outcome: 'failure',
-        failureType: toLoginFailureType(normalizedError),
-        hasGuestTransfer,
-      });
-      if (!signInStarted) {
-        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
-        return;
-      }
-      setSocialLoginError(normalizedError);
-      setPendingSocialProvider(null);
-    } finally {
-      loginAttemptInFlightRef.current = false;
-    }
+  const handleContinueWithSocial = (provider: SocialProvider) => {
+    // 안내를 마친 비회원이 로그인하면 그때 보관함에 남은 장소를 가입 뒤 옮깁니다.
+    const guestTransferPlaces =
+      isAuthenticated === false && hasCompletedGuide === true ? guestPlaces : null;
+    return continueWithSocial(provider, guestTransferPlaces);
   };
 
   const handleCompleteGuide = () => {
@@ -502,14 +342,14 @@ function App() {
 
   // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
   const handleBrowseAsGuest = () => {
-    setSocialLoginError(null);
+    clearSocialLoginError();
     openGuestMain();
   };
 
   const handleContinueBrowsing = () => {
     if (!guestReturnFlow) return;
 
-    cancelTransfer();
+    cancelGuestTransfer();
     continueBrowsing();
   };
 
@@ -517,42 +357,8 @@ function App() {
     Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
-  const handleLogout = async () => {
-    if (isLogoutPending) {
-      return;
-    }
-
-    setIsLogoutPending(true);
-
-    // 로컬 중심 로그아웃: 서버 세션 폐기는 best-effort이고, 로컬 정리가 끝나면 SIGNED_OUT으로
-    // 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
-    try {
-      const result = await logoutSpringSession();
-      if (!result.serverConfirmed) {
-        // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
-      }
-      return;
-    } catch (error) {
-      if (error instanceof LocalSessionCleanupError) {
-        // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
-      }
-    }
-
-    setIsLogoutPending(false);
-    Alert.alert(
-      '로그아웃 실패',
-      '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
-    );
-  };
-
   const handleOpenAccountDeletion = async () => {
-    let oauthProvider: ProfileInfo['oauthProvider'];
-    try {
-      oauthProvider = (currentProfile ?? (await getCurrentProfile())).oauthProvider;
-    } catch {
-      oauthProvider = undefined;
-    }
-    const providers = getLinkedDeletionProviders(oauthProvider);
+    const providers = await resolveDeletionProviders(currentProfile);
 
     if (providers.length === 0) {
       Alert.alert(
@@ -566,21 +372,11 @@ function App() {
     setMyPageOverlay('accountDeletion');
   };
 
+  // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 그대로 던져져 탈퇴 화면이 안내한다.
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
-    try {
-      await deleteAccount(payload);
-    } catch (error) {
-      // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 탈퇴 화면에서 안내한다.
-      if (!isServerSideDeletionFailure(error)) throw error;
-      // 서버·네트워크 실패는 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리한다.
-      // TODO(sentry): 탈퇴 서버 실패 알림 (회원 ID: activeUserIdRef.current, 제공자: currentProfile?.oauthProvider, error)
-    }
+    const outcome = await deleteAccountAndSignOut(payload);
 
-    // 서버 회원은 삭제됐거나 수동 삭제 대상이므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지운다.
-    try {
-      await clearSpringSession();
-    } catch {
-      // TODO(analytics): account_deletion_local_cleanup_failed 이벤트 기록
+    if (outcome === 'cleanup-failed') {
       Alert.alert(
         '회원탈퇴를 마무리하지 못했어요',
         '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
@@ -590,8 +386,6 @@ function App() {
 
     clearProfile();
     setMyPageOverlay(null);
-    activeUserIdRef.current = null;
-    setIsAuthenticated(false);
     openLogin();
     Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
@@ -766,7 +560,7 @@ function App() {
         isLogoutPending={isLogoutPending}
         onOpenContact={openKakaoChannelChat}
         onOpenGuide={() => setMyPageOverlay('guide')}
-        onLogout={handleLogout}
+        onLogout={logout}
         onLogin={handleOpenGuestLogin}
         onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={retryProfile}
