@@ -214,6 +214,7 @@ test('본문이 빈 2xx 응답(201 Created 등)은 undefined로 처리한다', a
   const fetchMock = jest.fn().mockResolvedValue({
     ok: true,
     status: 201,
+    headers: {get: () => null},
     text: async () => '',
     json: async () => { throw new SyntaxError('Unexpected end of JSON input'); },
   });
@@ -231,6 +232,7 @@ test('text()로 읽은 오류 본문의 서버 오류 코드를 유지한다', a
   const fetchMock = jest.fn().mockResolvedValue({
     ok: false,
     status: 409,
+    headers: {get: () => null},
     text: async () => JSON.stringify({message: '이미 신고한 공유입니다.', errorCode: 'MEDIA409_001'}),
   });
   const client = createApiClient({
