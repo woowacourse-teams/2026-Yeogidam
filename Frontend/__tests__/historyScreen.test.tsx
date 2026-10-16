@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
-import {Alert, Image, Linking, ScrollView, Text, View} from 'react-native';
+import {Alert, Image, Linking, ScrollView, StyleSheet, Text, View} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {
@@ -727,6 +727,39 @@ test('목록 항목은 상태별 배지를 보이고, 정보가 덜 온 처리 �
   expect(typeof historyItem(renderer, '3').props.onPress).toBe('function');
   expect(historyItem(renderer, '2').props.onPress).toBeUndefined();
   expect(historyItem(renderer, '1').props.onPress).toBeUndefined();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('처리 상태마다 배지 문구와 테두리 색, 글자 색을 짝지어 보인다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: [
+      reel(4, 'COMPLETED'),
+      reel(3, 'FAILED'),
+      reel(2, 'PROCESSING'),
+      reel(1, 'PENDING'),
+      {...reel(0, 'PENDING'), instagram_thumbnail_url: null},
+    ],
+    nextCursor: null,
+  });
+  const renderer = await render();
+
+  // 배지는 테두리가 있는 View이고, 뼈대 카드에는 배지가 없다.
+  const badges = renderer.root
+    .findAll(node => node.type === View && StyleSheet.flatten(node.props.style)?.borderWidth === 1)
+    .map(badge => {
+      const label = badge.findByType(Text);
+      return {
+        label: label.props.children,
+        borderColor: StyleSheet.flatten(badge.props.style).borderColor,
+        color: StyleSheet.flatten(label.props.style).color,
+      };
+    });
+  expect(badges).toEqual([
+    {label: '성공', borderColor: '#34c759', color: '#34c759'},
+    {label: '실패', borderColor: '#fb6f6f', color: 'red'},
+    {label: '처리중', borderColor: '#8e8e93', color: '#8e8e93'},
+    {label: '처리중', borderColor: '#8e8e93', color: '#8e8e93'},
+  ]);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
