@@ -88,9 +88,13 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   nextCursor: HistoryCursor | null;
 }> {
   const response = await requestShares(cursor);
-  const nextCursor = response?.nextCursor;
+  // 같은 공유 목록 응답을 상태 확인(content/api.ts)과 같은 기준으로 받습니다. 모양이 어긋나면 빈 목록이 아니라 응답 처리 오류입니다.
+  if (!Array.isArray(response?.sharedMedias)) {
+    throw new ReelApiError({...PROCESSING_ERROR});
+  }
+  const nextCursor = response.nextCursor;
   return {
-    reels: (response?.sharedMedias ?? []).map(toHistoryReel),
+    reels: response.sharedMedias.map(toHistoryReel),
     nextCursor: nextCursor
       ? {created_at: nextCursor.createdAt, id: String(nextCursor.id)}
       : null,

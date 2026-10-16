@@ -189,3 +189,11 @@ test('추출 재시도는 extraction-retries API를 호출하고 새 공유 ID�
     message: '현재 분석 버전에서는 재시도가 불가능합니다.',
   });
 });
+
+test('공유 목록 응답에 sharedMedias 배열이 없으면 빈 목록이 아니라 응답 처리 오류로 던진다', async () => {
+  mockRequest.mockResolvedValue({nextCursor: null});
+
+  const failed = getHistoryReels();
+  await expect(failed).rejects.toBeInstanceOf(ReelApiError);
+  await expect(failed).rejects.toMatchObject({errorCode: 'CLIENT000_003', retryable: false});
+});
