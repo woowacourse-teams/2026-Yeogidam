@@ -104,7 +104,6 @@ import {
   setSharedSaveState,
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
-import Config from 'react-native-config';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
