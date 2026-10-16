@@ -5,10 +5,7 @@ import {
   removeFromSavedPlacesCache,
   writeSavedPlacesCache,
 } from '../src/entities/info/saved-places-cache';
-import type {Place} from '../src/entities/place/types';
-
-const place = (name: string, savedPlaceId: string): Place =>
-  ({id: `place-${savedPlaceId}`, name, savedPlaceId} as Place);
+import {place} from './support/savedPlacesFixtures';
 
 beforeEach(() => {
   clearSavedPlacesCache();

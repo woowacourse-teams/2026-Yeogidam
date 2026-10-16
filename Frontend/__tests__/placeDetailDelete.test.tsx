@@ -12,7 +12,8 @@ import {
 import type {Place} from '../src/entities/place/types';
 import {PlaceDetailActionSheet} from '../src/pages/place-detail/components/PlaceDetailActionSheet';
 import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
-import {SERVER_ERROR, TIMEOUT_ERROR} from './support/savedPlacesFixtures';
+import {flushMicrotasks, renderTracked, type Renderer} from './support/renderers';
+import {SERVER_ERROR, TIMEOUT_ERROR, place} from './support/savedPlacesFixtures';
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
@@ -33,33 +34,25 @@ jest.mock('../src/pages/place-detail/components/PlaceDetailActionSheet', () => (
   PlaceDetailActionSheet: () => null,
 }));
 
-const place = (name: string, savedPlaceId: string): Place =>
-  ({id: `place-${savedPlaceId}`, name, savedPlaceId} as Place);
-
 const act = ReactTestRenderer.act;
-let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
 let alertSpy: jest.SpyInstance;
 
 async function renderDetail(target: Place) {
   const onBack = jest.fn();
-  await act(async () => {
-    renderer = ReactTestRenderer.create(<PlaceDetailScreen onBack={onBack} place={target} />);
-  });
-  return {onBack};
+  const renderer = await renderTracked(<PlaceDetailScreen onBack={onBack} place={target} />);
+  return {renderer, onBack};
 }
 
 /** 상세의 더 보기 시트에서 삭제를 누르고 확인 창의 '삭제'를 누릅니다. */
-async function deleteFromSheet() {
+async function deleteFromSheet(renderer: Renderer) {
   await act(async () => {
-    renderer?.root.findByType(PlaceDetailActionSheet).props.onDelete();
+    renderer.root.findByType(PlaceDetailActionSheet).props.onDelete();
   });
   const buttons = alertSpy.mock.calls[alertSpy.mock.calls.length - 1][2];
   await act(async () => {
     buttons.find((button: {text: string}) => button.text === '삭제').onPress();
   });
-  await act(async () => {
-    for (let i = 0; i < 5; i += 1) await Promise.resolve();
-  });
+  await flushMicrotasks();
 }
 
 beforeEach(() => {
@@ -71,17 +64,13 @@ beforeEach(() => {
   jest.mocked(getSavedPlaces).mockReset();
 });
 
-afterEach(async () => {
-  await act(async () => {
-    renderer?.unmount();
-  });
-  renderer = null;
+afterEach(() => {
   alertSpy.mockRestore();
 });
 
 test('상세에서 지우기에 성공하면 보관함 캐시에서도 빼고 돌아간다', async () => {
-  const {onBack} = await renderDetail(place('카페', 'sp-1'));
-  await deleteFromSheet();
+  const {renderer, onBack} = await renderDetail(place('카페', 'sp-1'));
+  await deleteFromSheet(renderer);
 
   expect(deleteSavedPlaces).toHaveBeenCalledWith(['sp-1']);
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
@@ -91,8 +80,8 @@ test('상세에서 지우기에 성공하면 보관함 캐시에서도 빼고 �
 test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지운 것으로 보고 캐시에서 뺀다', async () => {
   jest.mocked(deleteSavedPlaces).mockRejectedValue(TIMEOUT_ERROR);
   jest.mocked(getSavedPlaces).mockResolvedValue([{id: 'sp-2'} as never]);
-  const {onBack} = await renderDetail(place('카페', 'sp-1'));
-  await deleteFromSheet();
+  const {renderer, onBack} = await renderDetail(place('카페', 'sp-1'));
+  await deleteFromSheet(renderer);
 
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
   expect(onBack).toHaveBeenCalledTimes(1);
@@ -100,8 +89,8 @@ test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지
 
 test('지우기에 실패하면 캐시를 그대로 두고 돌아가지 않는다', async () => {
   jest.mocked(deleteSavedPlaces).mockRejectedValue(SERVER_ERROR);
-  const {onBack} = await renderDetail(place('카페', 'sp-1'));
-  await deleteFromSheet();
+  const {renderer, onBack} = await renderDetail(place('카페', 'sp-1'));
+  await deleteFromSheet(renderer);
 
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['카페', '빵집']);
   expect(onBack).not.toHaveBeenCalled();

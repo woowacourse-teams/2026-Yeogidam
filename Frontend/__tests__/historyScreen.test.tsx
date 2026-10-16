@@ -13,6 +13,7 @@ import {
 } from '../src/analytics/placeExtractionEvents';
 import {ReelApiError} from '../src/entities/content/errors';
 import {deferred} from './support/deferred';
+import {flushEffects, renderTracked} from './support/renderers';
 import {
   getHistoryReelDetail,
   getHistoryReels,
@@ -69,16 +70,9 @@ const reel = (id: number, status: HistoryReel['processing_status'] = 'COMPLETED'
 const page = (ids: number[], status?: HistoryReel['processing_status']) =>
   ids.map(id => reel(id, status));
 
-// 실패한 테스트가 화면을 남기면 폴러 구독이 다음 테스트에 섞이므로 afterEach에서 한 번 더 내린다.
-const mountedRenderers: ReactTestRenderer.ReactTestRenderer[] = [];
-
-async function render(props: Partial<React.ComponentProps<typeof HistoryScreen>> = {}) {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<HistoryScreen onBack={jest.fn()} {...props} />);
-  });
-  mountedRenderers.push(renderer);
-  return renderer;
+// 실패한 테스트가 화면을 남기면 폴러 구독이 다음 테스트에 섞이므로, renderTracked로 그려 테스트가 끝나면 한 번 더 내린다.
+function render(props: Partial<React.ComponentProps<typeof HistoryScreen>> = {}) {
+  return renderTracked(<HistoryScreen onBack={jest.fn()} {...props} />);
 }
 
 const renderedIds = (renderer: ReactTestRenderer.ReactTestRenderer) =>
@@ -103,10 +97,7 @@ beforeEach(() => {
   jest.mocked(reportHistoryReel).mockReset();
 });
 
-afterEach(async () => {
-  await ReactTestRenderer.act(async () => {
-    mountedRenderers.splice(0).forEach(renderer => renderer.unmount());
-  });
+afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
 });
@@ -445,8 +436,6 @@ type Renderer = ReactTestRenderer.ReactTestRenderer;
 type Node = ReactTestRenderer.ReactTestInstance;
 
 const LAST_SEEN_HISTORY_KEY = '@yeogidam/last-seen-history-id';
-
-const flush = () => ReactTestRenderer.act(async () => undefined);
 
 const isHistoryItem = (node: Node) =>
   typeof node.props.onLayout === 'function' && node.props.reel !== undefined;
@@ -827,7 +816,7 @@ test('성공 상세에서 장소를 불러오지 못하면 안내 문구를 보�
   const renderer = await render();
 
   await press(historyItem(renderer, '2'));
-  await flush();
+  await flushEffects();
   expect(hasText(renderer, '장소를 불러오지 못했어요.')).toBe(true);
   expect(hasText(renderer, '총 0개의 장소를 찾았어요')).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -876,7 +865,7 @@ test('제보에 실패하면 버튼을 되돌리고 안내한다', async () => {
   const alertSpy = jest.spyOn(Alert, 'alert');
   await press(findButton(renderer, '제보하기'));
   await confirmAlert(alertSpy);
-  await flush();
+  await flushEffects();
 
   expect(alertSpy).toHaveBeenLastCalledWith('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
   expect(hasText(renderer, '제보하기')).toBe(true);
@@ -899,7 +888,7 @@ test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남�
   await scrollTo(renderer, 300);
 
   const alertSpy = await openFailureAndRetry(renderer);
-  await flush();
+  await flushEffects();
 
   expect(trackExtractionRequestStarted).toHaveBeenCalledWith(null, {
     requestId: 'test-uuid',
@@ -983,7 +972,7 @@ test('재시도 접수 뒤 다시 읽기가 실패해도 목록을 유지하고 
   const renderer = await render();
 
   const alertSpy = await openFailureAndRetry(renderer);
-  await flush();
+  await flushEffects();
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['8', '7']);
@@ -1019,7 +1008,7 @@ test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 
 
   await scrollTo(renderer, 300);
   const alertSpy = await openFailureAndRetry(renderer);
-  await flush();
+  await flushEffects();
   expect(renderedIds(renderer)).toEqual(['8', '7', '6']);
 
   // 접수 뒤 아래로 스크롤한 상태에서 폴링으로 항목 수가 바뀌어도 스크롤을 옮기지 않는다.
@@ -1047,7 +1036,7 @@ test('이미 있는 공유로 재시도가 접수되면 임시 카드 없이 목
   const renderer = await render();
 
   const alertSpy = await openFailureAndRetry(renderer);
-  await flush();
+  await flushEffects();
   expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['7']);
 
@@ -1075,7 +1064,7 @@ test('재시도 접수를 기다리는 동안 진행 문구를 보이고, 실패
     status: 400,
   });
   await ReactTestRenderer.act(async () => accepted.reject(error));
-  await flush();
+  await flushEffects();
 
   expect(toExtractionFailureType).toHaveBeenCalledWith(error);
   expect(trackExtractionRequestFinished).toHaveBeenCalledWith(null, {

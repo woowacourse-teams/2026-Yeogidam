@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 
 import {useCurrentProfile} from '../src/app/useCurrentProfile';
 import {deferred} from './support/deferred';
+import {flushEffects, renderTracked} from './support/renderers';
 import {getCurrentProfile} from '../src/entities/info/api';
 import type {ProfileApiError, ProfileInfo} from '../src/entities/info/types';
 
@@ -25,14 +26,9 @@ function Harness({enabled}: {enabled: boolean}) {
   return null;
 }
 
-const mounted: ReactTestRenderer.ReactTestRenderer[] = [];
-
+/** renderTracked로 그려, 테스트가 끝나면 내려 늦게 끝나는 요청이 다음 테스트의 상태를 건드리지 않게 합니다. */
 async function render(enabled: boolean) {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<Harness enabled={enabled} />);
-  });
-  mounted.push(renderer);
+  const renderer = await renderTracked(<Harness enabled={enabled} />);
   return {
     renderer,
     rerender: (next: boolean) =>
@@ -42,17 +38,8 @@ async function render(enabled: boolean) {
   };
 }
 
-const flush = () => ReactTestRenderer.act(async () => undefined);
-
 beforeEach(() => {
   jest.mocked(getCurrentProfile).mockReset();
-});
-
-// 테스트가 그린 훅을 모두 내려, 늦게 끝나는 요청이 다음 테스트의 상태를 건드리지 않게 합니다.
-afterEach(async () => {
-  for (const renderer of mounted.splice(0)) {
-    await ReactTestRenderer.act(async () => renderer.unmount());
-  }
 });
 
 test('켜지면 프로필을 읽고, 꺼지면 세 값을 모두 비운다', async () => {
@@ -63,7 +50,7 @@ test('켜지면 프로필을 읽고, 꺼지면 세 값을 모두 비운다', asy
   expect(latest.isProfileLoading).toBe(true);
 
   request.resolve(PROFILE_A);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toEqual(PROFILE_A);
   expect(latest.isProfileLoading).toBe(false);
 
@@ -77,7 +64,7 @@ test('실패하면 오류를 두고, 재시도에 성공하면 프로필을 채�
   jest.mocked(getCurrentProfile).mockRejectedValueOnce(ERROR).mockResolvedValueOnce(PROFILE_A);
 
   await render(true);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toBeNull();
   expect(latest.profileError).toEqual(ERROR);
 
@@ -93,7 +80,7 @@ test('재시도 응답이 꺼진 뒤에 늦게 와도 이전 회원의 프로필
   jest.mocked(getCurrentProfile).mockResolvedValueOnce(PROFILE_A).mockReturnValueOnce(retry.promise);
 
   const {rerender} = await render(true);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toEqual(PROFILE_A);
 
   let retrying!: Promise<void>;
@@ -121,7 +108,7 @@ test('재시도 중에 껐다 켜서 새 요청이 생기면 옛 재시도 응�
     .mockReturnValueOnce(second.promise);
 
   const {rerender} = await render(true);
-  await flush();
+  await flushEffects();
 
   let retrying!: Promise<void>;
   await ReactTestRenderer.act(async () => {
@@ -140,7 +127,7 @@ test('재시도 중에 껐다 켜서 새 요청이 생기면 옛 재시도 응�
   expect(latest.isProfileLoading).toBe(true);
 
   second.resolve(PROFILE_B);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toEqual(PROFILE_B);
   expect(latest.isProfileLoading).toBe(false);
 });
@@ -157,7 +144,7 @@ test('첫 요청이 늦고 재시도가 먼저 끝나면 재시도 결과를 지
   expect(latest.isProfileLoading).toBe(false);
 
   first.resolve(PROFILE_A);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toEqual(PROFILE_B);
   expect(latest.isProfileLoading).toBe(false);
 });
@@ -169,11 +156,11 @@ test('다시 켜진 뒤 도착한 옛 응답은 버리고 새 응답만 쓴다',
   const {rerender} = await render(true);
   await rerender(false);
   await rerender(true);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toEqual(PROFILE_B);
 
   first.resolve(PROFILE_A);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toEqual(PROFILE_B);
 });
 
@@ -182,7 +169,7 @@ test('재시도하는 동안에는 오류와 재시도 중 표시를 함께 두�
   jest.mocked(getCurrentProfile).mockRejectedValueOnce(ERROR).mockReturnValueOnce(retry.promise);
 
   await render(true);
-  await flush();
+  await flushEffects();
   expect(latest.profileError).toEqual(ERROR);
   expect(latest.isProfileLoading).toBe(false);
 
@@ -208,7 +195,7 @@ test('재시도가 다시 실패하면 새 오류로 바꾸고 재시도 중 표
   jest.mocked(getCurrentProfile).mockRejectedValueOnce(ERROR).mockRejectedValueOnce(secondError);
 
   await render(true);
-  await flush();
+  await flushEffects();
   await ReactTestRenderer.act(async () => {
     await latest.retryProfile();
   });
@@ -222,7 +209,7 @@ test('프로필이 있는 상태에서 다시 읽으면 프로필을 둔 채 로
   jest.mocked(getCurrentProfile).mockResolvedValueOnce(PROFILE_A).mockReturnValueOnce(refresh.promise);
 
   await render(true);
-  await flush();
+  await flushEffects();
   expect(latest.currentProfile).toEqual(PROFILE_A);
 
   let refreshing!: Promise<void>;

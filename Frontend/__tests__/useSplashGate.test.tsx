@@ -8,6 +8,7 @@ import {
   hasSignedInOnThisInstall,
 } from '../src/lib/app-guide-storage';
 import {deferred} from './support/deferred';
+import {renderTracked} from './support/renderers';
 
 jest.mock('../src/lib/app-guide-storage', () => ({
   completeAppGuide: jest.fn(() => Promise.resolve()),
@@ -25,16 +26,7 @@ function Harness() {
 }
 
 const act = ReactTestRenderer.act;
-const mounted: ReactTestRenderer.ReactTestRenderer[] = [];
-
-async function render() {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await act(async () => {
-    renderer = ReactTestRenderer.create(<Harness />);
-  });
-  mounted.push(renderer);
-  return renderer;
-}
+const render = () => renderTracked(<Harness />);
 
 beforeEach(() => {
   jest.useFakeTimers();
@@ -44,11 +36,8 @@ beforeEach(() => {
   jest.mocked(completeAppGuide).mockClear();
 });
 
-// 단언이 중간에 실패해도 그린 훅과 타이머가 다음 테스트로 넘어가지 않게 여기서 정리합니다.
-afterEach(async () => {
-  for (const renderer of mounted.splice(0)) {
-    await act(async () => renderer.unmount());
-  }
+// 단언이 중간에 실패해도 타이머가 다음 테스트로 넘어가지 않게 여기서 되돌립니다. 그린 훅은 setupFilesAfterEnv가 먼저 내립니다.
+afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
 });

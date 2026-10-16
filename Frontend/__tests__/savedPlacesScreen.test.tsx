@@ -36,7 +36,7 @@ import {
   act,
   deleteAction,
   dialog,
-  flush,
+  flushMicrotasks,
   grid,
   header,
   openDialogAndSave,
@@ -53,7 +53,7 @@ import {
   setUpSavedPlacesScreenTests,
   texts,
   tick,
-  unmount,
+  unmountTracked,
 } from './support/savedPlacesHarness';
 
 // 화면을 쪼개기 전에 지금 동작을 고정한다. 이상해 보이는 동작도 고치지 않고 그대로 적는다.
@@ -114,13 +114,13 @@ describe('목록 읽기', () => {
   test('첫 조회가 실패하면 오류 화면을 보이고, 다시 시도해 성공하면 그리드와 조회 이벤트를 보낸다', async () => {
     jest.mocked(getSavedPlaces).mockRejectedValueOnce(SERVER_ERROR).mockResolvedValueOnce([CAFE]);
     const renderer = await render();
-    await flush();
+    await flushMicrotasks();
     const errorState = renderer.root.findByType(SavedPlacesErrorState);
     expect(errorState.props.error).toEqual(SERVER_ERROR);
     expect(captureSavedPlacesViewed).not.toHaveBeenCalled();
 
     await act(async () => errorState.props.onRetry());
-    await flush();
+    await flushMicrotasks();
     expect(placeNames(renderer)).toEqual(['카페']);
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(captureSavedPlacesViewed).toHaveBeenCalledWith(mockPostHog, {
@@ -136,10 +136,10 @@ describe('목록 읽기', () => {
       .mockRejectedValueOnce(SERVER_ERROR)
       .mockResolvedValueOnce([CAFE, BAKERY]);
     const renderer = await render();
-    await flush();
+    await flushMicrotasks();
 
     await act(async () => refreshControl(renderer).props.onRefresh());
-    await flush();
+    await flushMicrotasks();
     expect(texts(renderer)).toContain(SERVER_ERROR.message);
     expect(placeNames(renderer)).toEqual(['카페']);
 
@@ -152,7 +152,7 @@ describe('목록 읽기', () => {
     const onAuthenticationRequired = jest.fn();
     jest.mocked(getSavedPlaces).mockRejectedValue(AUTH_ERROR);
     await render({onAuthenticationRequired});
-    await flush();
+    await flushMicrotasks();
     expect(onAuthenticationRequired).toHaveBeenCalledTimes(1);
   });
 
@@ -171,7 +171,7 @@ describe('목록 읽기', () => {
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
 
     await act(async () => refresh.resolve([CAFE, BAKERY]));
-    await flush();
+    await flushMicrotasks();
     expect(refreshControl(renderer).props.refreshing).toBe(false);
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
 
@@ -180,7 +180,7 @@ describe('목록 읽기', () => {
   });
 
   test('다시 열면 지난 목록을 먼저 보이고, 늦게 도착한 이전 조회 응답은 새 응답을 덮지 않는다', async () => {
-    await unmount(await renderLoaded([CAFE]));
+    await unmountTracked(await renderLoaded([CAFE]));
 
     const mountLoad = deferred<SavedPlaceListItem[]>();
     const refreshLoad = deferred<SavedPlaceListItem[]>();
@@ -197,12 +197,12 @@ describe('목록 읽기', () => {
     });
     await act(async () => refreshLoad.resolve([CAFE, BAKERY]));
     await act(async () => mountLoad.resolve([BAKERY]));
-    await flush();
+    await flushMicrotasks();
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
   });
 
   test('세션이 끝나 캐시를 비우면 다시 열 때 지난 목록 대신 스켈레톤을 보인다', async () => {
-    await unmount(await renderLoaded([CAFE]));
+    await unmountTracked(await renderLoaded([CAFE]));
     clearSavedPlacesCache();
 
     const request = deferred<SavedPlaceListItem[]>();
@@ -218,10 +218,10 @@ describe('목록 읽기', () => {
   test('세션이 끝나기 전에 보낸 목록 조회가 늦게 끝나도 비운 캐시를 다시 채우지 않는다', async () => {
     const lateLoad = deferred<SavedPlaceListItem[]>();
     jest.mocked(getSavedPlaces).mockReturnValueOnce(lateLoad.promise);
-    await unmount(await render());
+    await unmountTracked(await render());
     clearSavedPlacesCache();
     await act(async () => lateLoad.resolve([CAFE]));
-    await flush();
+    await flushMicrotasks();
 
     jest.mocked(getSavedPlaces).mockReturnValue(deferred<SavedPlaceListItem[]>().promise);
     const renderer = await render();
@@ -295,7 +295,7 @@ describe('편집과 삭제', () => {
     expect(deleteAction(renderer).props.disabled).toBe(true);
 
     await act(async () => request.resolve());
-    await flush();
+    await flushMicrotasks();
     expect(grid(renderer).props.isEditing).toBe(false);
     expect(placeNames(renderer)).toEqual(['빵집']);
   });
@@ -348,7 +348,7 @@ describe('편집과 삭제', () => {
   test('화면을 떠나면 편집 모드가 꺼졌다고 알린다', async () => {
     const onEditModeChange = jest.fn();
     const renderer = await renderLoaded([CAFE], {onEditModeChange});
-    await unmount(renderer);
+    await unmountTracked(renderer);
     expect(onEditModeChange).toHaveBeenLastCalledWith(false);
   });
 });
@@ -463,7 +463,7 @@ describe('링크 저장', () => {
     expect(dialog(renderer).props.visible).toBe(true);
 
     await act(async () => request.resolve({reelId: '8', status: 'COMPLETED', reused: true}));
-    await flush();
+    await flushMicrotasks();
     expect(dialog(renderer).props.visible).toBe(false);
   });
 
@@ -527,7 +527,7 @@ describe('링크 저장', () => {
     await tick(1500);
     jest.mocked(getSavedPlaces).mockRejectedValueOnce(SERVER_ERROR);
     await act(async () => refreshControl(renderer).props.onRefresh());
-    await flush();
+    await flushMicrotasks();
     expect(texts(renderer)).toContain(SERVER_ERROR.message);
 
     await tick(1499);
@@ -611,7 +611,7 @@ describe('링크 저장', () => {
     // 응답 뒤의 목록 조회만 센다.
     jest.mocked(getHistoryReels).mockClear();
     await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
-    await flush();
+    await flushMicrotasks();
     for (let i = 0; i < 6; i += 1) await tick(3000);
     expect(getHistoryReels).toHaveBeenCalledTimes(3);
   });
@@ -630,7 +630,7 @@ describe('링크 저장', () => {
     expect(getSharedSaveState()).toBeNull();
 
     await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
-    await flush();
+    await flushMicrotasks();
     await tick(2999);
     expect(getHistoryReels).not.toHaveBeenCalled();
     await tick(1);
@@ -645,7 +645,7 @@ describe('외부 공유 결과', () => {
     jest.mocked(getSavedPlaces).mockResolvedValue([CAFE, BAKERY]);
 
     await act(async () => setSharedSaveState(sharedShare(reelStatus('8', 'COMPLETED'))));
-    await flush();
+    await flushMicrotasks();
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(getSharedSaveState()).toBeNull();
     expect(onSharedResultConsumed).not.toHaveBeenCalled();
@@ -664,7 +664,7 @@ describe('외부 공유 결과', () => {
     jest.mocked(getSavedPlaces).mockRejectedValueOnce(SERVER_ERROR);
 
     await act(async () => setSharedSaveState(sharedShare(reelStatus('8', 'COMPLETED'))));
-    await flush();
+    await flushMicrotasks();
     await tick(700);
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(onSharedResultConsumed).not.toHaveBeenCalled();
@@ -836,7 +836,7 @@ describe('이벤트와 스크롤', () => {
       refreshControl(renderer).props.onRefresh();
     });
     await act(async () => refresh.resolve([CAFE]));
-    await flush();
+    await flushMicrotasks();
     expect(captureSavedPlacesViewed).toHaveBeenCalledTimes(1);
   });
 
@@ -873,7 +873,7 @@ describe('지운 장소와 메모리 캐시', () => {
     const renderer = await renderLoaded([CAFE, BAKERY]);
     await selectAndDelete(renderer, 'place-1');
     expect(placeNames(renderer)).toEqual(['빵집']);
-    await unmount(renderer);
+    await unmountTracked(renderer);
 
     // 다시 열면 조회가 끝나기 전의 첫 그림은 지난 목록(캐시)이다.
     jest.mocked(getSavedPlaces).mockReturnValue(deferred<SavedPlaceListItem[]>().promise);
@@ -884,11 +884,11 @@ describe('지운 장소와 메모리 캐시', () => {
   test('다시 읽기가 실패해도 지운 장소가 오류 배너와 함께 되살아나지 않는다', async () => {
     const renderer = await renderLoaded([CAFE, BAKERY]);
     await selectAndDelete(renderer, 'place-1');
-    await unmount(renderer);
+    await unmountTracked(renderer);
 
     jest.mocked(getSavedPlaces).mockRejectedValue(SERVER_ERROR);
     const reopened = await render();
-    await flush();
+    await flushMicrotasks();
     expect(placeNames(reopened)).toEqual(['빵집']);
     expect(texts(reopened)).toContain(SERVER_ERROR.message);
   });
@@ -896,7 +896,7 @@ describe('지운 장소와 메모리 캐시', () => {
 
 describe('조회 중에 지운 장소', () => {
   test('다시 연 화면의 조회가 끝나기 전에 지운 장소는 늦게 끝난 그 조회로 되살아나지 않고, 목록을 한 번 더 읽는다', async () => {
-    await unmount(await renderLoaded([CAFE, BAKERY]));
+    await unmountTracked(await renderLoaded([CAFE, BAKERY]));
 
     const lateLoad = deferred<SavedPlaceListItem[]>();
     const reload = deferred<SavedPlaceListItem[]>();
@@ -909,13 +909,13 @@ describe('조회 중에 지운 장소', () => {
 
     // 지우기 전에 보낸 조회가 지운 장소를 담은 채 끝난다.
     await act(async () => lateLoad.resolve([CAFE, BAKERY]));
-    await flush();
+    await flushMicrotasks();
     expect(placeNames(reopened)).toEqual(['빵집']);
     // 첫 방문, 다시 열기, 낡은 응답을 버린 뒤 다시 읽기로 세 번 조회한다.
     expect(getSavedPlaces).toHaveBeenCalledTimes(3);
 
     await act(async () => reload.resolve([BAKERY]));
-    await flush();
+    await flushMicrotasks();
     expect(placeNames(reopened)).toEqual(['빵집']);
   });
 });

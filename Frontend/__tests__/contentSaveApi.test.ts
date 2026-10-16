@@ -257,12 +257,13 @@ describe('화면의 공유 오류 맞추기(normalizeReelError)', () => {
   });
 
   test('Error가 아닌 값은 다시 시도할 수 있는 연결 실패로 보고, 받지 않은 응답 상태를 싣지 않는다', () => {
-    // 받지 않은 응답 상태를 숫자로 싣지 않으면 된다. 지표는 숫자일 때만 응답 상태를 보낸다.
-    expect(typeof normalizeReelError(null).status).not.toBe('number');
-    expect(normalizeReelError(null)).toMatchObject({
+    const normalized = normalizeReelError(null);
+    expect(normalized).toMatchObject({
       errorCode: 'CLIENT000_001',
       message: '인터넷 연결을 확인해주세요.',
       retryable: true,
     });
+    // JS 오류 쪽과 같이 받지 않은 응답 상태는 undefined로 둔다.
+    expect(normalized.status).toBeUndefined();
   });
 });
