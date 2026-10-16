@@ -174,7 +174,6 @@ function App() {
           dismissGuestLoginPrompt();
           setMyPageOverlay(null);
         }
-        // v2 대기함 흐름 복원 시: saveMode가 REVIEW_QUEUE면 'inBox'를 연다.
         openMainScreen('saved');
       },
       onLoginRequired: openLogin,
@@ -439,7 +438,6 @@ function App() {
     }
 
     if (currentScreen === 'saved') {
-      // 대기함 복원 시 onOpenInbox={() => openMainScreen('inBox')} 연결을 되살립니다.
       return (
         <SavedPlacesScreen
           key={

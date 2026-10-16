@@ -64,17 +64,17 @@ const SIGN_IN_BY_PROVIDER = {
   google: signInWithGoogle,
 } as const;
 
-/**
- * Spring 세션의 수명(부트 때 복원, 로그인, 로그아웃, 탈퇴, 세션 이벤트 구독)을 맡습니다.
- * 화면 이동은 handlers로 넘기므로 이 훅은 내비게이션 상태를 모릅니다.
- * 비회원 체험 장소 전환은 로그인한 회원 ID를 알아야 해서 이 안에서 함께 돌립니다.
- */
 type Options = {
   posthog: AnalyticsClient | null | undefined;
   /** 앱 안내를 마쳤는지입니다. 안내를 마친 회원이 확인될 때만 이 설치에서 로그인했다고 기록합니다. */
   hasCompletedGuide: boolean | null;
 };
 
+/**
+ * Spring 세션의 수명(부트 때 복원, 로그인, 로그아웃, 탈퇴, 세션 이벤트 구독)을 맡습니다.
+ * 화면 이동과 알림은 handlers와 결과값으로 넘기므로 이 훅은 내비게이션 상태와 화면 문구를 모릅니다.
+ * 비회원 체험 장소 전환은 로그인한 회원 ID를 알아야 해서 이 안에서 함께 돌립니다.
+ */
 export function useSpringAuthFlow(
   {posthog, hasCompletedGuide}: Options,
   handlers: SpringAuthFlowHandlers,
