@@ -214,6 +214,25 @@ internal object ShareAnalyticsStore {
         context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
             .edit().remove("$EVENT_PREFIX$id").commit()
     }
+
+    /**
+     * 앱이 공유 결과를 소비한 뒤 그 공유의 중복 방지 키, 식별 키, 전송 상태 키를 지워 저장소가 계속 커지지 않게 한다.
+     * 아직 보내지 못한 이벤트는 남긴다.
+     */
+    @Synchronized
+    fun forget(context: Context, shareId: String) {
+        if (shareId.isBlank()) return
+        val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+        val editor = preferences.edit()
+        preferences.all.keys
+            .filter { key -> key.startsWith(SEEN_PREFIX) && key.contains(".$shareId") }
+            .forEach { key -> editor.remove(key) }
+        editor.remove("$IDENTITY_PREFIX$shareId")
+        editor.remove("$STATUS_PREFIX$shareId")
+        editor.remove("$STATUS_TIME_PREFIX$shareId")
+        editor.remove("$STATUS_SEQUENCE_PREFIX$shareId")
+        editor.commit()
+    }
 }
 
 /** Sends one persisted event without requiring the React Native app to start. */

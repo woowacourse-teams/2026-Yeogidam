@@ -73,8 +73,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     completionHandler: @escaping () -> Void
   ) {
     switch identifier {
-    case ShareBackgroundTransfer.identifier:
-      ShareBackgroundTransfer.shared.handleEvents(completion: completionHandler)
+    case ShareBackgroundTransfer.extensionIdentifier, ShareBackgroundTransfer.appIdentifier:
+      ShareBackgroundTransfer.shared.handleEvents(identifier: identifier, completion: completionHandler)
     case ShareAnalyticsTransfer.extensionIdentifier, ShareAnalyticsTransfer.appIdentifier:
       ShareAnalyticsTransfer.shared.handleEvents(identifier: identifier, completion: completionHandler)
     default:
@@ -90,7 +90,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       return false
     }
 
-    ShareIntentModule.notifyPendingShareAvailable()
+    // 공유 익스텐션은 앱을 열기만 하면 됩니다. 결과는 앱이 App Group에서 폴링으로 읽습니다.
     return true
   }
 }

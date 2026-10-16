@@ -160,6 +160,7 @@ internal object ShareResultStore {
     fun clearResult(context: Context, requestId: String?) {
         if (requestId.isNullOrBlank()) return
         preferences(context).edit().remove("$RESULT_KEY_PREFIX$requestId").commit()
+        ShareAnalyticsStore.forget(context, requestId)
     }
 }
 

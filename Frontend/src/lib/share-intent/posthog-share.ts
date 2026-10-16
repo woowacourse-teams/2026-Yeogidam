@@ -19,10 +19,6 @@ export async function flushShareAnalytics(): Promise<void> {
   try {
     const pending = await getPendingShareAnalyticsEvents();
     for (const event of pending) {
-      if (event.id && event.name === 'reel_share_outcome_viewed') {
-        await acknowledgeShareAnalyticsEvent(event.id);
-        continue;
-      }
       if (!event.id || !isShareExtractionEventName(event.name) || !event.share_id || !Number.isFinite(event.occurred_at)) {
         continue;
       }

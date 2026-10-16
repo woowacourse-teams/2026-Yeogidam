@@ -60,6 +60,17 @@ internal class ShareSaveWorker(
             }
         }
 
+        return requestShare(requestId, instagramUrl, rawSharedText, token, authRetried = false)
+    }
+
+    /** 공유 URL을 서버에 보낸다. 401이면 리프레시 토큰으로 한 번 갱신해 같은 요청을 다시 보낸다. */
+    private fun requestShare(
+        requestId: String,
+        instagramUrl: String,
+        rawSharedText: String?,
+        token: String,
+        authRetried: Boolean,
+    ): Result {
         var connection: HttpURLConnection? = null
         var requestSentAt: Long? = null
         var outputStreamAcquired = false
@@ -105,6 +116,14 @@ internal class ShareSaveWorker(
                 // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
                 val errorCode = if (responseCode == 401) "AUTH401_001" else response.optNullableString("errorCode")
                 val message = response.optNullableString("message")
+                if (responseCode == 401 && !authRetried) {
+                    // 만료된 액세스 토큰이면 리프레시 토큰으로 한 번 갱신해 같은 요청을 다시 보낸다.
+                    val refreshed = ShareAuth.ensureAccessToken(applicationContext, forceRefresh = true)
+                    if (refreshed is ShareAuthResult.Ready) {
+                        connection.disconnect()
+                        return requestShare(requestId, instagramUrl, rawSharedText, refreshed.token, authRetried = true)
+                    }
+                }
                 if (responseCode == 408 || responseCode == 429 || responseCode == 504 || responseCode >= 500) {
                     ShareSentryReporter.capture(
                         applicationContext,

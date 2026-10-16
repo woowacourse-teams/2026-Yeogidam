@@ -142,7 +142,6 @@ enum ShareIntentConstants {
   static let userDefaultsKey = "share_intent_payload"
   static let shareExtensionHost = "share-extension"
   static let shareExtensionOpenURL = URL(string: "com.yeogidamm.app://share-extension")!
-  static let eventName = "shareIntentReceived"
   static let authTokenKey = "auth_access_token"
   static let authSessionKey = "share_auth_session_v1"
   static let hadSessionKey = "share_had_session"
@@ -173,6 +172,8 @@ struct ShareReelResult: Codable {
   var apiAcceptedAt: Double? = nil
   var transferFinishedAt: Double? = nil
   var release: String? = nil
+  /// 401 응답 뒤 토큰을 갱신해 다시 보낸 횟수입니다. 한 번만 다시 보냅니다.
+  var authRetryCount: Int? = nil
 }
 
 struct ShareAuthSession: Codable {
@@ -210,19 +211,6 @@ struct ShareIntentPayload: Codable {
     self.subject = subject
     self.kind = kind
     self.receivedAt = receivedAt
-  }
-
-  var dictionaryRepresentation: [String: Any] {
-    [
-      "id": id,
-      "action": action,
-      "mimeType": mimeType,
-      "text": text,
-      "rawText": rawText as Any,
-      "subject": subject as Any,
-      "kind": kind,
-      "receivedAt": receivedAt,
-    ]
   }
 }
 
@@ -436,6 +424,7 @@ enum ShareIntentStorage {
       defaults.removeObject(
         forKey: "\(ShareIntentConstants.shareResultKeyPrefix)\(expectedRequestId)"
       )
+      ShareAnalyticsStore.forget(shareId: expectedRequestId)
       if
         let legacyData = defaults.data(forKey: ShareIntentConstants.shareResultKey),
         let legacyResult = try? JSONDecoder().decode(ShareReelResult.self, from: legacyData),
@@ -529,32 +518,9 @@ enum ShareIntentStorage {
     return components.url?.absoluteString ?? value
   }
 
-  static func save(_ payload: ShareIntentPayload) throws {
+  /// 1.x가 App Group에 남긴 대기 공유 페이로드를 지웁니다. 지금 빌드는 페이로드를 저장하지 않고 요청별 결과만 씁니다.
+  static func clearLegacyPayload() {
     guard let userDefaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else {
-      throw ShareIntentStorageError.appGroupUnavailable
-    }
-
-    let encodedPayload = try JSONEncoder().encode(payload)
-    userDefaults.set(encodedPayload, forKey: ShareIntentConstants.userDefaultsKey)
-  }
-
-  static func load() -> ShareIntentPayload? {
-    guard
-      let userDefaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier),
-      let encodedPayload = userDefaults.data(forKey: ShareIntentConstants.userDefaultsKey)
-    else {
-      return nil
-    }
-
-    return try? JSONDecoder().decode(ShareIntentPayload.self, from: encodedPayload)
-  }
-
-  static func clear(expectedId: String? = nil) {
-    guard let userDefaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else {
-      return
-    }
-
-    if let expectedId, let payload = load(), payload.id != expectedId {
       return
     }
 
@@ -761,6 +727,21 @@ enum ShareAnalyticsStore {
   static func acknowledge(_ id: String) {
     guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return }
     defaults.removeObject(forKey: "\(prefix)\(id)")
+    defaults.synchronize()
+  }
+
+  /// 앱이 공유 결과를 소비한 뒤 그 공유의 중복 방지 키, 식별 키, 전송 상태 키를 지워 App Group이 계속 커지지 않게 합니다.
+  /// 아직 보내지 못한 이벤트는 남깁니다.
+  static func forget(shareId: String) {
+    guard !shareId.isEmpty,
+          let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return }
+    for key in defaults.dictionaryRepresentation().keys
+    where key.hasPrefix(seenPrefix) && key.contains(".\(shareId)") {
+      defaults.removeObject(forKey: key)
+    }
+    defaults.removeObject(forKey: "\(identityPrefix)\(shareId)")
+    defaults.removeObject(forKey: "\(statusPrefix)\(shareId)")
+    defaults.removeObject(forKey: "\(statusSequencePrefix)\(shareId)")
     defaults.synchronize()
   }
 
@@ -979,19 +960,33 @@ enum ShareAuth {
   }
 }
 
+/// 익스텐션과 앱은 서로 다른 백그라운드 세션 식별자로 업로드를 만듭니다. 앱은 두 식별자의 완료 이벤트를 모두 받습니다.
 final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessionTaskDelegate {
   static let shared = ShareBackgroundTransfer()
-  static let identifier = "com.yeogidamm.app.instagram-share-upload"
+  /// 익스텐션 식별자는 이전 빌드가 만든 업로드를 계속 받도록 기존 값을 유지합니다.
+  static let extensionIdentifier = "com.yeogidamm.app.instagram-share-upload"
+  static let appIdentifier = "com.yeogidamm.app.instagram-share-upload-app"
   @MainActor private var isResuming = false
   private var responseData: [Int: Data] = [:]
-  private var eventsCompletion: (() -> Void)?
+  private var sessions: [String: URLSession] = [:]
+  private let sessionLock = NSLock()
+  private var eventsCompletion: [String: () -> Void] = [:]
 
-  private lazy var session: URLSession = {
-    let configuration = URLSessionConfiguration.background(withIdentifier: Self.identifier)
+  private var ownIdentifier: String {
+    Bundle.main.bundleURL.pathExtension == "appex" ? Self.extensionIdentifier : Self.appIdentifier
+  }
+
+  private func session(for identifier: String) -> URLSession {
+    sessionLock.lock()
+    defer { sessionLock.unlock() }
+    if let existing = sessions[identifier] { return existing }
+    let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
     configuration.sharedContainerIdentifier = ShareIntentConstants.appGroupIdentifier
     configuration.sessionSendsLaunchEvents = true
-    return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-  }()
+    let created = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    sessions[identifier] = created
+    return created
+  }
 
   private var uploadDirectory: URL? {
     FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: ShareIntentConstants.appGroupIdentifier)?
@@ -1005,7 +1000,12 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     }
     guard let directory = uploadDirectory else { throw ShareIntentStorageError.appGroupUnavailable }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let bodyFile = directory.appendingPathComponent("\(requestId).json")
+    let previous = ShareIntentStorage.loadResults().first { $0.requestId == requestId }
+    // 다른 프로세스가 이미 같은 공유를 큐에 넣었으면 다시 넣지 않습니다. 서버에 멱등키가 없어 두 번 보내면 공유가 두 개 생깁니다.
+    if let previousStatus = previous?.transferStatus, ["QUEUED", "REQUESTING"].contains(previousStatus) { return }
+    let bodyFile = directory.appendingPathComponent(
+      Self.bodyFileName(requestId: requestId, authRetryCount: previous?.authRetryCount)
+    )
     // 서버에는 멱등키가 없어 instagramUrl만 보낸다.
     let body = try JSONSerialization.data(withJSONObject: ["instagramUrl": url])
     try body.write(to: bodyFile, options: .atomic)
@@ -1014,13 +1014,14 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    let task = session.uploadTask(with: request, fromFile: bodyFile)
+    let task = session(for: ownIdentifier).uploadTask(with: request, fromFile: bodyFile)
     task.taskDescription = requestId
     do {
       try ShareIntentStorage.saveResult(ShareReelResult(
         requestId: requestId, url: url, rawSharedText: rawText,
         status: "PENDING", transferStatus: "QUEUED", reelId: nil,
-        failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000
+        failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000,
+        authRetryCount: previous?.authRetryCount
       ))
       ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "queued")
       task.resume()
@@ -1031,9 +1032,49 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
     }
   }
 
-  func handleEvents(completion: @escaping () -> Void) {
-    eventsCompletion = completion
-    _ = session
+  /// 401 뒤 재전송은 다른 파일 이름을 써서, 첫 요청의 완료 처리가 재전송 본문을 지우지 않게 합니다.
+  static func bodyFileName(requestId: String, authRetryCount: Int?) -> String {
+    let attempt = authRetryCount ?? 0
+    return attempt > 0 ? "\(requestId).retry\(attempt).json" : "\(requestId).json"
+  }
+
+  func handleEvents(identifier: String, completion: @escaping () -> Void) {
+    eventsCompletion[identifier] = completion
+    _ = session(for: identifier)
+  }
+
+  /// 결과 저장소의 URL은 요청을 보낼 때 지우므로, 업로드 본문 파일에서 공유 URL을 다시 읽습니다.
+  private func readRequestedURL(requestId: String, authRetryCount: Int?) -> String? {
+    guard let directory = uploadDirectory,
+          let data = try? Data(contentsOf: directory.appendingPathComponent(
+            Self.bodyFileName(requestId: requestId, authRetryCount: authRetryCount)
+          )),
+          let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+          let url = body["instagramUrl"] as? String, !url.isEmpty else { return nil }
+    return url
+  }
+
+  /// 401을 받은 공유를 리프레시 토큰으로 갱신한 뒤 한 번 다시 보냅니다.
+  private func retryAfterTokenRefresh(requestId: String, url: String, release: String?) async {
+    switch await ShareAuth.ensureAccessToken(forceRefresh: true) {
+    case .ready(let token):
+      do {
+        try enqueue(requestId: requestId, url: url, rawText: nil, token: token)
+      } catch {
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "queue_registration_failed", release: release)
+      }
+    case .loginRequired(let reason):
+      guard var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == requestId }) else { return }
+      result.transferStatus = "LOGIN_HANDOFF"
+      result.authReason = reason
+      result.updatedAt = Date().timeIntervalSince1970 * 1000
+      try? ShareIntentStorage.saveResult(result)
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "login_required", release: release)
+    case .waitingForNetwork:
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "network_unavailable", release: release)
+    case .waitingForAuth:
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "auth_pending", release: release)
+    }
   }
 
   @MainActor func resumeWaitingShares() async {
@@ -1104,10 +1145,15 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
   }
 
   func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    let completedAttempt = task.taskDescription.flatMap { requestId in
+      ShareIntentStorage.loadResults().first(where: { $0.requestId == requestId })?.authRetryCount
+    }
     defer {
       responseData.removeValue(forKey: task.taskIdentifier)
       if let requestId = task.taskDescription, let directory = uploadDirectory {
-        try? FileManager.default.removeItem(at: directory.appendingPathComponent("\(requestId).json"))
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent(
+          Self.bodyFileName(requestId: requestId, authRetryCount: completedAttempt)
+        ))
       }
     }
     guard let requestId = task.taskDescription,
@@ -1172,6 +1218,20 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
             "SHARE_EXTRACTION_RESPONSE_INVALID", stage: "place_extraction_request", httpStatus: http.statusCode
           )
         }
+      } else if http.statusCode == 401, (result.authRetryCount ?? 0) == 0,
+                let instagramUrl = readRequestedURL(requestId: requestId, authRetryCount: result.authRetryCount) {
+        // 만료된 액세스 토큰이면 리프레시 토큰으로 한 번 갱신해 같은 요청을 다시 보낸다.
+        // 다시 보낼 때까지 URL을 결과에 남겨 두어, 앱의 resumeWaitingShares도 이 공유를 이어받을 수 있게 한다.
+        result.status = "PENDING"
+        result.transferStatus = "WAITING_FOR_AUTH"
+        result.failureReason = "AUTH401_001"
+        result.retryable = true
+        result.url = instagramUrl
+        result.authRetryCount = 1
+        try? ShareIntentStorage.saveResult(result)
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "auth_retry", release: result.release)
+        Task { await self.retryAfterTokenRefresh(requestId: requestId, url: instagramUrl, release: result.release) }
+        return
       } else {
         // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
         let code = http.statusCode == 401
@@ -1217,9 +1277,9 @@ final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessio
   }
 
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    guard let identifier = session.configuration.identifier else { return }
     DispatchQueue.main.async {
-      self.eventsCompletion?()
-      self.eventsCompletion = nil
+      self.eventsCompletion.removeValue(forKey: identifier)?()
     }
   }
 }
