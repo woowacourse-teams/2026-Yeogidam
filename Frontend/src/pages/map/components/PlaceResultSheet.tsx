@@ -31,6 +31,7 @@ import {
   getPlaceReels,
   getSavedPlaces,
 } from '../../../entities/info/api';
+import { removeFromSavedPlacesCache } from '../../../entities/info/saved-places-cache';
 import type {
   PlaceReel,
   PlaceReelsApiError,
@@ -740,11 +741,17 @@ export function PlaceResultSheet({
       return;
     }
 
+    const savedPlaceId = selectedPlace.savedPlaceId;
+    // 보관함 탭으로 갔을 때 지난 목록에 지운 장소가 되살아나지 않게 캐시에서도 뺍니다.
+    const forgetDeletedPlace = () =>
+      removeFromSavedPlacesCache(cached => cached.savedPlaceId === savedPlaceId);
+
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await deleteSavedPlaces([selectedPlace.savedPlaceId]);
-      onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
+      await deleteSavedPlaces([savedPlaceId]);
+      forgetDeletedPlace();
+      onSavedPlaceDeleted?.(savedPlaceId);
       backToPlaceList();
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
@@ -752,10 +759,11 @@ export function PlaceResultSheet({
         try {
           const savedPlaces = await getSavedPlaces();
           const isDeletionConfirmed = !savedPlaces.some(
-            savedPlace => savedPlace.id === selectedPlace.savedPlaceId,
+            savedPlace => savedPlace.id === savedPlaceId,
           );
           if (isDeletionConfirmed) {
-            onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
+            forgetDeletedPlace();
+            onSavedPlaceDeleted?.(savedPlaceId);
             backToPlaceList();
             return;
           }

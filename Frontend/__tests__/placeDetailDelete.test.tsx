@@ -12,6 +12,7 @@ import {
 import type {Place} from '../src/entities/place/types';
 import {PlaceDetailActionSheet} from '../src/pages/place-detail/components/PlaceDetailActionSheet';
 import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
+import {SERVER_ERROR, TIMEOUT_ERROR} from './support/savedPlacesFixtures';
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
@@ -88,12 +89,7 @@ test('상세에서 지우기에 성공하면 보관함 캐시에서도 빼고 �
 });
 
 test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지운 것으로 보고 캐시에서 뺀다', async () => {
-  jest.mocked(deleteSavedPlaces).mockRejectedValue({
-    status: null,
-    errorCode: 'CLIENT000_002',
-    message: '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
-    retryable: true,
-  });
+  jest.mocked(deleteSavedPlaces).mockRejectedValue(TIMEOUT_ERROR);
   jest.mocked(getSavedPlaces).mockResolvedValue([{id: 'sp-2'} as never]);
   const {onBack} = await renderDetail(place('카페', 'sp-1'));
   await deleteFromSheet();
@@ -103,12 +99,7 @@ test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지
 });
 
 test('지우기에 실패하면 캐시를 그대로 두고 돌아가지 않는다', async () => {
-  jest.mocked(deleteSavedPlaces).mockRejectedValue({
-    status: 500,
-    errorCode: 'COMMON500_001',
-    message: '서버 오류',
-    retryable: true,
-  });
+  jest.mocked(deleteSavedPlaces).mockRejectedValue(SERVER_ERROR);
   const {onBack} = await renderDetail(place('카페', 'sp-1'));
   await deleteFromSheet();
 

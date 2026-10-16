@@ -24,8 +24,12 @@ export function writeSavedPlacesCache(places: Place[], generationAtRequest: numb
   }
 }
 
-/** 지우기에 성공한 장소를 캐시에서도 빼서, 다시 열 때 지운 장소가 되살아나지 않게 합니다. */
+/**
+ * 지우기에 성공한 장소를 캐시에서도 빼서, 다시 열 때 지운 장소가 되살아나지 않게 합니다.
+ * 지우기 전에 보낸 조회가 뒤늦게 끝나면 지운 장소를 다시 써 넣을 수 있으므로 세대도 올립니다.
+ */
 export function removeFromSavedPlacesCache(shouldRemove: (place: Place) => boolean): void {
+  generation += 1;
   if (cachedPlaces === null) return;
   cachedPlaces = cachedPlaces.filter(place => !shouldRemove(place));
 }

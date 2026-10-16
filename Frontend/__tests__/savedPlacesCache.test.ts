@@ -35,10 +35,20 @@ test('지운 장소를 빼면 나머지만 남고, 비어 있을 때 빼면 그�
   removeFromSavedPlacesCache(cached => cached.savedPlaceId === 'sp-1');
   expect(readSavedPlacesCache()).toBeNull();
 
-  const generation = getSavedPlacesCacheGeneration();
-  writeSavedPlacesCache([place('카페', 'sp-1'), place('빵집', 'sp-2')], generation);
+  writeSavedPlacesCache([place('카페', 'sp-1'), place('빵집', 'sp-2')], getSavedPlacesCacheGeneration());
   removeFromSavedPlacesCache(cached => cached.savedPlaceId === 'sp-1');
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
-  // 빼기는 비우기가 아니므로 세대를 올리지 않는다.
-  expect(getSavedPlacesCacheGeneration()).toBe(generation);
+});
+
+test('지우기 전에 보낸 조회가 지운 뒤에 끝나면 지운 장소를 다시 써 넣지 않는다', () => {
+  const generationBeforeDelete = getSavedPlacesCacheGeneration();
+  writeSavedPlacesCache([place('카페', 'sp-1'), place('빵집', 'sp-2')], generationBeforeDelete);
+  removeFromSavedPlacesCache(cached => cached.savedPlaceId === 'sp-1');
+
+  // 지우기 전에 시작한 조회의 결과에는 지운 장소가 들어 있다.
+  writeSavedPlacesCache([place('카페', 'sp-1'), place('빵집', 'sp-2')], generationBeforeDelete);
+  expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
+
+  writeSavedPlacesCache([place('빵집', 'sp-2')], getSavedPlacesCacheGeneration());
+  expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
 });
