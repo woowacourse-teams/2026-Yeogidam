@@ -30,12 +30,13 @@ export function useGuestOnboardingTransfer({enabled, activeMemberIdRef, posthog}
   const transferErrorShownRef = useRef(false);
   const isMountedRef = useRef(true);
 
-  useEffect(
-    () => () => {
+  // Fast Refresh나 StrictMode처럼 effect가 다시 돌 때도 응답을 버리지 않게 setup에서 true로 되돌립니다.
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
       isMountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   /** 세션 확인이나 로그인 직후에 부릅니다. 실패 안내는 한 세션에 한 번만 띄웁니다. */
   const resumeTransfer = useCallback(

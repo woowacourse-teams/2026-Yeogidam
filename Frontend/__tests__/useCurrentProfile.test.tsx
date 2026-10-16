@@ -110,6 +110,57 @@ test('재시도 응답이 꺼진 뒤에 늦게 와도 이전 회원의 프로필
   expect(latest.isProfileLoading).toBe(false);
 });
 
+test('재시도 중에 껐다 켜서 새 요청이 생기면 옛 재시도 응답은 버리고 로딩은 새 요청이 내린다', async () => {
+  const retry = deferred<ProfileInfo>();
+  const second = deferred<ProfileInfo>();
+  jest
+    .mocked(getCurrentProfile)
+    .mockResolvedValueOnce(PROFILE_A)
+    .mockReturnValueOnce(retry.promise)
+    .mockReturnValueOnce(second.promise);
+
+  const {rerender} = await render(true);
+  await flush();
+
+  let retrying!: Promise<void>;
+  await ReactTestRenderer.act(async () => {
+    retrying = latest.retryProfile();
+  });
+  await rerender(false);
+  await rerender(true);
+  expect(getCurrentProfile).toHaveBeenCalledTimes(3);
+  expect(latest.isProfileLoading).toBe(true);
+
+  retry.resolve(PROFILE_A);
+  await ReactTestRenderer.act(async () => {
+    await retrying;
+  });
+  expect(latest.currentProfile).toBeNull();
+  expect(latest.isProfileLoading).toBe(true);
+
+  second.resolve(PROFILE_B);
+  await flush();
+  expect(latest.currentProfile).toEqual(PROFILE_B);
+  expect(latest.isProfileLoading).toBe(false);
+});
+
+test('첫 요청이 늦고 재시도가 먼저 끝나면 재시도 결과를 지킨다', async () => {
+  const first = deferred<ProfileInfo>();
+  jest.mocked(getCurrentProfile).mockReturnValueOnce(first.promise).mockResolvedValueOnce(PROFILE_B);
+
+  await render(true);
+  await ReactTestRenderer.act(async () => {
+    await latest.retryProfile();
+  });
+  expect(latest.currentProfile).toEqual(PROFILE_B);
+  expect(latest.isProfileLoading).toBe(false);
+
+  first.resolve(PROFILE_A);
+  await flush();
+  expect(latest.currentProfile).toEqual(PROFILE_B);
+  expect(latest.isProfileLoading).toBe(false);
+});
+
 test('다시 켜진 뒤 도착한 옛 응답은 버리고 새 응답만 쓴다', async () => {
   const first = deferred<ProfileInfo>();
   jest.mocked(getCurrentProfile).mockReturnValueOnce(first.promise).mockResolvedValueOnce(PROFILE_B);
