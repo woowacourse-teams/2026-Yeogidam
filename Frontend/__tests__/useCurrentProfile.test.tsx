@@ -25,11 +25,14 @@ function Harness({enabled}: {enabled: boolean}) {
   return null;
 }
 
+const mounted: ReactTestRenderer.ReactTestRenderer[] = [];
+
 async function render(enabled: boolean) {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(<Harness enabled={enabled} />);
   });
+  mounted.push(renderer);
   return {
     renderer,
     rerender: (next: boolean) =>
@@ -43,6 +46,13 @@ const flush = () => ReactTestRenderer.act(async () => undefined);
 
 beforeEach(() => {
   jest.mocked(getCurrentProfile).mockReset();
+});
+
+// 테스트가 그린 훅을 모두 내려, 늦게 끝나는 요청이 다음 테스트의 상태를 건드리지 않게 합니다.
+afterEach(async () => {
+  for (const renderer of mounted.splice(0)) {
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  }
 });
 
 test('켜지면 프로필을 읽고, 꺼지면 세 값을 모두 비운다', async () => {

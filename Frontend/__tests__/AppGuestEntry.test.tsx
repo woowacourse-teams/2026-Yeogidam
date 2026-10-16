@@ -164,6 +164,7 @@ function restoreSpringSession(memberId = 'user') {
   (getSpringMemberId as jest.Mock).mockResolvedValue(memberId);
 }
 let authChangeHandler: AuthChangeHandler;
+const mountedApps: ReactTestRenderer.ReactTestRenderer[] = [];
 
 async function renderAfterSplash() {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
@@ -174,11 +175,14 @@ async function renderAfterSplash() {
     jest.advanceTimersByTime(2000);
     await Promise.resolve();
   });
+  mountedApps.push(renderer);
   return renderer;
 }
 
 beforeEach(async () => {
   jest.useFakeTimers();
+  // 테스트가 따로 가로채지 않아도 알림이 실제로 뜨지 않게 하고, 중간에 실패해도 afterEach가 되돌립니다.
+  jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   await AsyncStorage.removeItem(DISMISSED_RECOMMENDED_VERSION_KEY);
   (getAppUpdatePolicy as jest.Mock).mockResolvedValue(null);
   (getSpringTokens as jest.Mock).mockResolvedValue(null);
@@ -199,7 +203,14 @@ beforeEach(async () => {
   (signInWithGoogle as jest.Mock).mockResolvedValue({member: {id: 1}});
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // 단언이 중간에 실패해도 그린 App과 가로챈 Alert가 다음 테스트로 넘어가지 않게 정리합니다. 이미 내린 렌더러는 건너뜁니다.
+  for (const renderer of mountedApps.splice(0)) {
+    await ReactTestRenderer.act(async () => {
+      if (renderer.toJSON() !== null) renderer.unmount();
+    });
+  }
+  if (jest.isMockFunction(Alert.alert)) (Alert.alert as jest.Mock).mockRestore();
   jest.clearAllTimers();
   jest.useRealTimers();
   jest.clearAllMocks();

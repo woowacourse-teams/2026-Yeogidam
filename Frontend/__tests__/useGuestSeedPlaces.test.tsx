@@ -13,11 +13,18 @@ function Harness() {
 }
 
 const act = ReactTestRenderer.act;
+const mounted: ReactTestRenderer.ReactTestRenderer[] = [];
+
+// 단언이 중간에 실패해도 그린 훅이 다음 테스트로 넘어가지 않게 여기서 내립니다.
+afterEach(async () => {
+  for (const renderer of mounted.splice(0)) {
+    await act(async () => renderer.unmount());
+  }
+});
 
 test('시드 장소로 시작하고, 지운 장소는 빠지며, 되돌리면 시드로 돌아온다', async () => {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = ReactTestRenderer.create(<Harness />);
+    mounted.push(ReactTestRenderer.create(<Harness />));
   });
   expect(latest.guestPlaces).toBe(ONBOARDING_PLACES);
   const [first, second] = ONBOARDING_PLACES;
@@ -33,13 +40,11 @@ test('시드 장소로 시작하고, 지운 장소는 빠지며, 되돌리면 �
     latest.resetGuestPlaces();
   });
   expect(latest.guestPlaces).toBe(ONBOARDING_PLACES);
-  await act(async () => renderer.unmount());
 });
 
 test('지우기와 되돌리기 함수는 다시 그려도 같은 참조다', async () => {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
   await act(async () => {
-    renderer = ReactTestRenderer.create(<Harness />);
+    mounted.push(ReactTestRenderer.create(<Harness />));
   });
   const {deleteGuestPlaces, resetGuestPlaces} = latest;
 
@@ -48,5 +53,4 @@ test('지우기와 되돌리기 함수는 다시 그려도 같은 참조다', as
   });
   expect(latest.deleteGuestPlaces).toBe(deleteGuestPlaces);
   expect(latest.resetGuestPlaces).toBe(resetGuestPlaces);
-  await act(async () => renderer.unmount());
 });
