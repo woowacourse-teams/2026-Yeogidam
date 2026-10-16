@@ -26,12 +26,8 @@ import {
   captureSavedPlaceSelected,
   type SavedPlaceViewContext,
 } from '../../../analytics/savedPlaceEvents';
-import {
-  deleteSavedPlaces,
-  getPlaceReels,
-  getSavedPlaces,
-} from '../../../entities/info/api';
-import { removeFromSavedPlacesCache } from '../../../entities/info/saved-places-cache';
+import { getPlaceReels } from '../../../entities/info/api';
+import { deleteSavedPlaceAndForget } from '../../../entities/info/saved-place-deletion';
 import type {
   PlaceReel,
   PlaceReelsApiError,
@@ -40,7 +36,6 @@ import type {
 import type { Place } from '../../../entities/place/types';
 import {
   INVALID_REQUEST_ERROR,
-  TIMEOUT_ERROR,
   isLoginRequiredError,
   normalizeScreenApiError,
 } from '../../../lib/api/screen-error';
@@ -747,36 +742,14 @@ export function PlaceResultSheet({
     }
 
     const savedPlaceId = selectedPlace.savedPlaceId;
-    // 보관함 탭으로 갔을 때 지난 목록에 지운 장소가 되살아나지 않게 캐시에서도 뺍니다.
-    const forgetDeletedPlace = () =>
-      removeFromSavedPlacesCache(cached => cached.savedPlaceId === savedPlaceId);
-
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await deleteSavedPlaces([savedPlaceId]);
-      forgetDeletedPlace();
+      await deleteSavedPlaceAndForget(savedPlaceId);
       onSavedPlaceDeleted?.(savedPlaceId);
       backToPlaceList();
     } catch (nextError) {
       const apiError = normalizeScreenApiError(nextError);
-      if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
-        try {
-          const savedPlaces = await getSavedPlaces();
-          const isDeletionConfirmed = !savedPlaces.some(
-            savedPlace => savedPlace.id === savedPlaceId,
-          );
-          if (isDeletionConfirmed) {
-            forgetDeletedPlace();
-            onSavedPlaceDeleted?.(savedPlaceId);
-            backToPlaceList();
-            return;
-          }
-        } catch {
-          // Keep the original timeout error and allow the user to retry.
-        }
-      }
-
       setDeleteError(apiError);
       if (isLoginRequiredError(apiError)) {
         onAuthenticationRequired?.();

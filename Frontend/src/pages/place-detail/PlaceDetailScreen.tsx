@@ -7,8 +7,8 @@ import {
   captureSavedPlaceOpened,
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
-import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
-import { removeFromSavedPlacesCache } from '../../entities/info/saved-places-cache';
+import { getPlaceReels } from '../../entities/info/api';
+import { deleteSavedPlaceAndForget } from '../../entities/info/saved-place-deletion';
 import type {
   PlaceReel,
   PlaceReelsApiError,
@@ -17,7 +17,6 @@ import type {
 import type { Place } from '../../entities/place/types';
 import {
   INVALID_REQUEST_ERROR,
-  TIMEOUT_ERROR,
   isLoginRequiredError,
   normalizeScreenApiError,
 } from '../../lib/api/screen-error';
@@ -123,34 +122,14 @@ export function PlaceDetailScreen({
       return;
     }
 
-    const savedPlaceId = place.savedPlaceId;
-    // 보관함으로 돌아갔을 때 지난 목록에 지운 장소가 되살아나지 않게 캐시에서도 뺍니다.
-    const forgetDeletedPlace = () =>
-      removeFromSavedPlacesCache(cached => cached.savedPlaceId === savedPlaceId);
-
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await deleteSavedPlaces([savedPlaceId]);
-      forgetDeletedPlace();
+      await deleteSavedPlaceAndForget(place.savedPlaceId);
       setIsActionSheetVisible(false);
       onBack();
     } catch (nextError) {
       const apiError = normalizeScreenApiError(nextError);
-      if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
-        try {
-          const savedPlaces = await getSavedPlaces();
-          if (!savedPlaces.some(savedPlace => savedPlace.id === savedPlaceId)) {
-            forgetDeletedPlace();
-            setIsActionSheetVisible(false);
-            onBack();
-            return;
-          }
-        } catch {
-          // Keep the original timeout error and allow the user to retry.
-        }
-      }
-
       setDeleteError(apiError);
       if (isLoginRequiredError(apiError)) {
         onAuthenticationRequired?.();

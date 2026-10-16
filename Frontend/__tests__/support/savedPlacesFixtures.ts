@@ -17,6 +17,10 @@ export const savedPlace = (index: number, name: string): SavedPlaceListItem => (
 export const CAFE = savedPlace(1, '카페');
 export const BAKERY = savedPlace(2, '빵집');
 
+/** 화면과 캐시가 다루는 회원 장소입니다. 지우기와 캐시 빼기는 savedPlaceId로 찾습니다. */
+export const place = (name: string, savedPlaceId: string): Place =>
+  ({id: `place-${savedPlaceId}`, name, savedPlaceId} as Place);
+
 export const GUEST_PLACES: Place[] = [
   {id: 'guest-1', name: '체험 카페', address: '서울', fullAddress: '서울'},
   {id: 'guest-2', name: '체험 빵집', address: '서울', fullAddress: '서울'},
