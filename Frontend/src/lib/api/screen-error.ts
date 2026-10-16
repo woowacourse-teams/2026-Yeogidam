@@ -1,17 +1,21 @@
 import {ApiError, type ApiErrorKind} from './errors';
 
+/** 앱이 스스로 만드는 전송 실패 코드(인터넷 연결, 시간 초과, 응답 처리)입니다. 로그인 오류 코드도 같은 셋을 씁니다. */
+export type ClientErrorCode =
+  | typeof NETWORK_ERROR.errorCode
+  | typeof TIMEOUT_ERROR.errorCode
+  | typeof PROCESSING_ERROR.errorCode;
+
 /**
- * 클라이언트가 스스로 만들거나 기본 표가 보충하는 오류 코드 목록입니다. 서버가 내리는 나머지 코드도 받아야 하므로
- * 타입은 string으로 열려 있고, 이 목록은 편집기 자동 완성과 문서 역할만 합니다. 비교는 리터럴 대신 상수와
- * isLoginRequiredError 같은 판별 함수로 해서 오타를 막습니다.
+ * 클라이언트가 스스로 만들거나 기본 표가 보충하는 오류 코드 목록입니다. 코드 값은 아래 상수에만 적고 여기서는 상수에서 가져옵니다.
+ * 서버가 내리는 나머지 코드도 받아야 하므로 ScreenErrorCode는 string으로 열려 있고, 이 목록은 편집기 자동 완성과 문서 역할만 합니다.
+ * 비교는 리터럴 대신 상수와 isLoginRequiredError 같은 판별 함수로 해서 오타를 막습니다.
  */
 export type KnownScreenErrorCode =
-  | 'CLIENT000_001'
-  | 'CLIENT000_002'
-  | 'CLIENT000_003'
-  | 'AUTH401_001'
-  | 'COMMON400_001'
-  | 'COMMON500_001';
+  | ClientErrorCode
+  | typeof LOGIN_REQUIRED_ERROR.errorCode
+  | typeof INVALID_REQUEST_ERROR.errorCode
+  | typeof SERVER_ERROR_CODE;
 export type ScreenErrorCode = KnownScreenErrorCode | (string & {});
 
 /** 화면이 errorCode와 retryable로 분기하는 오류 계약입니다. 기능별 오류 타입은 이 모양을 그대로 쓰거나 넓혀 씁니다. */
@@ -60,6 +64,9 @@ export const INVALID_REQUEST_ERROR = {
   retryable: false,
 } as const;
 
+/** 서버가 오류 코드 없이 5xx로 실패하면 기본 표가 채우는 코드입니다. 문구는 전송 계층이 정한 것을 그대로 쓰므로 코드만 둡니다. */
+export const SERVER_ERROR_CODE = 'COMMON500_001';
+
 /**
  * 로그인이 필요한 오류인지 판정합니다. 기본 표가 HTTP 401을 서버 코드와 관계없이 AUTH401_001로 바꾸므로
  * 화면은 이 코드 하나만 보면 되고, 비교를 흩지 않도록 화면들은 리터럴 비교 대신 이 함수를 씁니다.
@@ -94,7 +101,7 @@ export const SCREEN_ERROR_TABLE: ScreenErrorTable = {
           status: error.status,
           errorCode:
             error.errorCode ??
-            (error.status >= 500 ? 'COMMON500_001' : INVALID_REQUEST_ERROR.errorCode),
+            (error.status >= 500 ? SERVER_ERROR_CODE : INVALID_REQUEST_ERROR.errorCode),
           message: error.message,
           retryable: error.status >= 500 || error.status === 429,
         },

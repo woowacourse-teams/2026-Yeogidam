@@ -61,9 +61,9 @@ export function useReelProcessing({
     () => ({
       /** 링크 저장을 시작했습니다. 이전 릴스를 잊고, 서버가 응답할 때까지 지켜볼 릴스를 두지 않습니다. */
       startLinkSave: () => dispatch({type: 'linkSaveStarted'}),
-      /** 링크 저장 API가 응답했습니다. 처리 중이면 응답한 릴스를 폴링합니다. */
-      finishLinkSave: (response: SaveInstagramReelResponse) =>
-        dispatch({type: 'linkSaveResponded', response, createdAt: new Date().toISOString()}),
+      /** 링크 저장 API가 응답했습니다. 처리 중이면 응답한 릴스를 폴링합니다. createdAt은 링크 저장이 공유 상태에 적은 만든 시각입니다. */
+      finishLinkSave: (response: SaveInstagramReelResponse, createdAt: string) =>
+        dispatch({type: 'linkSaveResponded', response, createdAt}),
     }),
     [],
   );

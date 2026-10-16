@@ -11,6 +11,7 @@ import {
   type NativeShareResult,
 } from '../lib/share-intent';
 import {classifyShareResult, selectShareResult} from '../lib/share-intent/select-share-result';
+import {toSharedSaveState} from '../pages/saved-places/reelProcessing';
 
 const RESULT_POLL_INTERVAL_MS = 1000;
 
@@ -140,22 +141,7 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
         case 'wait':
           return;
         case 'show-progress':
-          setSharedSaveState({
-            shareResultId: result.requestId,
-            url: result.url,
-            status: result.status,
-            source: 'instagram_share',
-            rawSharedText: result.rawSharedText,
-            reused: result.reused,
-            saveMode: result.saveMode,
-            reel: {
-              id: result.reelId ?? `share-${Date.now()}`,
-              processing_status: result.status,
-              failure_reason: result.failureReason ?? null,
-              instagram_thumbnail_url: null,
-              created_at: new Date(result.updatedAt).toISOString(),
-            },
-          });
+          setSharedSaveState(toSharedSaveState(result, Date.now()));
           handlersRef.current.onOpenSavedPlaces('share-progress');
           return;
       }

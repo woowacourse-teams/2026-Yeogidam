@@ -3,16 +3,16 @@ import {
   PROCESSING_ERROR,
   TIMEOUT_ERROR,
   toScreenApiError,
+  type ClientErrorCode,
   type ScreenErrorTable,
 } from '../api/screen-error';
 
+/** 로그인 화면이 다루는 닫힌 오류 코드 목록입니다. 전송 실패 코드는 화면 공용 상수에서 가져옵니다. */
 export type AuthErrorCode =
   | 'AUTH000_001'
   | 'AUTH400_001'
   | 'AUTH502_001'
-  | 'CLIENT000_001'
-  | 'CLIENT000_002'
-  | 'CLIENT000_003';
+  | ClientErrorCode;
 
 export type AuthErrorStage =
   | 'login_setup'

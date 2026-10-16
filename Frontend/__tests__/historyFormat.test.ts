@@ -2,6 +2,7 @@ import {ReelApiError} from '../src/entities/content/errors';
 import type {HistoryReel} from '../src/entities/content/types';
 import {
   formatHistoryDate,
+  getHistoryCardDetail,
   getHistoryFailureMessage,
   getHistoryTitle,
   getHistoryVisibleState,
@@ -111,6 +112,21 @@ describe('카드 노출 상태', () => {
     expect(
       getHistoryVisibleState(reel({processing_status: 'COMPLETED', instagram_thumbnail_url: null})),
     ).toBe('success');
+  });
+});
+
+describe('카드를 누르면 열 상세', () => {
+  test('성공 카드는 성공 상세를, 실패 카드는 실패 상세를 연다', () => {
+    expect(getHistoryCardDetail(reel({processing_status: 'COMPLETED'}))).toBe('success');
+    expect(getHistoryCardDetail(reel({processing_status: 'FAILED'}))).toBe('failure');
+  });
+
+  test('처리 중인 카드와 뼈대로 보이는 카드는 열 상세가 없어 누를 수 없다', () => {
+    expect(getHistoryCardDetail(reel({processing_status: 'PROCESSING'}))).toBeNull();
+    expect(getHistoryCardDetail(reel({processing_status: 'PENDING'}))).toBeNull();
+    expect(
+      getHistoryCardDetail(reel({processing_status: 'PENDING', instagram_thumbnail_url: null})),
+    ).toBeNull();
   });
 });
 

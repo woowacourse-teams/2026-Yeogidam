@@ -1,12 +1,12 @@
 import {useCallback, useState} from 'react';
 
 import type {HistoryReel} from '../../entities/content/types';
+import type {HistoryDetailKind} from './history-format';
 
 /** 히스토리 화면에 지금 보이는 것입니다. 목록이거나, 성공 또는 실패한 항목 하나의 상세입니다. */
 export type HistorySelection =
   | {kind: 'list'}
-  | {kind: 'success'; reel: HistoryReel}
-  | {kind: 'failure'; reel: HistoryReel};
+  | {kind: HistoryDetailKind; reel: HistoryReel};
 
 const LIST: HistorySelection = {kind: 'list'};
 
@@ -17,15 +17,12 @@ const LIST: HistorySelection = {kind: 'list'};
 export function useHistorySelection() {
   const [selection, setSelection] = useState<HistorySelection>(LIST);
 
-  const openSuccess = useCallback(
-    (reel: HistoryReel) => setSelection({kind: 'success', reel}),
-    [],
-  );
-  const openFailure = useCallback(
-    (reel: HistoryReel) => setSelection({kind: 'failure', reel}),
+  /** 항목 하나의 상세를 엽니다. 어느 상세를 열지는 카드 상태 표(getHistoryCardDetail)가 고릅니다. */
+  const openDetail = useCallback(
+    (kind: HistoryDetailKind, reel: HistoryReel) => setSelection({kind, reel}),
     [],
   );
   const closeDetail = useCallback(() => setSelection(LIST), []);
 
-  return {selection, openSuccess, openFailure, closeDetail};
+  return {selection, openDetail, closeDetail};
 }

@@ -151,19 +151,25 @@ function toReelProcessingStatus(item: SpringShareHistoryItem): ReelProcessingSta
 }
 
 async function getRecentShares(): Promise<SpringShareHistoryItem[]> {
+  let response: SpringShareHistoryResponse;
   try {
-    const response = await client.request<SpringShareHistoryResponse>(
+    response = await client.request<SpringShareHistoryResponse>(
       SHARE_STATUS_PAGE_PATH,
     );
-    return response?.sharedMedias ?? [];
   } catch (error) {
     throw toReelApiError(error);
   }
+
+  // 모양이 어긋난 응답을 빈 목록으로 보면 공유를 찾지 못한 것으로 여겨 공유를 지우므로, 처리 실패로 던집니다.
+  if (!Array.isArray(response?.sharedMedias)) {
+    throw new ReelApiError({...PROCESSING_ERROR});
+  }
+  return response.sharedMedias;
 }
 
 /**
  * 서버에 단건 상태 조회 API가 없어 최근 공유 목록 첫 페이지에서 찾습니다.
- * 목록에 없으면 null을 돌려줍니다.
+ * 목록에 없으면 null을 돌려주고, 응답에 공유 목록이 없으면 응답 처리 오류(CLIENT000_003)로 던집니다.
  */
 export async function getReelProcessingStatus(
   reelId: string,

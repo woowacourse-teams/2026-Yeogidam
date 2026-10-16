@@ -2,9 +2,10 @@ import {useState} from 'react';
 
 import {normalizeInstagramContentUrl, saveContent} from '../../../entities/content/api';
 import {normalizeReelError} from '../../../entities/content/errors';
-import type {ReelProcessingStatus, SaveInstagramReelResponse} from '../../../entities/content/types';
+import type {SaveInstagramReelResponse} from '../../../entities/content/types';
 import {isLoginRequiredError} from '../../../lib/api/screen-error';
 import {setSharedSaveState} from '../../../lib/reel-save-state';
+import {toProcessingReel} from '../reelProcessing';
 
 /** 링크 저장 요청 상태입니다. 보내는 중에는 오류 문구가 없습니다. */
 type LinkSubmitState =
@@ -26,7 +27,8 @@ const finishSubmitting = (current: LinkSubmitState): LinkSubmitState =>
 /** 링크 저장 흐름을 처리 중 릴스 상태(useReelProcessing)에 알리는 동작입니다. */
 type LinkSaveProgress = {
   startLinkSave: () => void;
-  finishLinkSave: (response: SaveInstagramReelResponse) => void;
+  /** createdAt은 공유 상태에 적은 릴스의 만든 시각과 같은 값입니다. */
+  finishLinkSave: (response: SaveInstagramReelResponse, createdAt: string) => void;
 };
 
 type Options = {
@@ -86,21 +88,16 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
     setSubmitState(SUBMITTING);
     try {
       const response = await saveContent(linkValue);
-      const nextReel: ReelProcessingStatus = {
-        id: response.reelId,
-        processing_status: response.status,
-        failure_reason: response.failureReason ?? null,
-        instagram_thumbnail_url: null,
-        created_at: new Date().toISOString(),
-      };
+      // 공유 상태와 처리 중 릴스 상태가 같은 만든 시각을 쓰도록 여기서 한 번만 찍습니다.
+      const createdAt = new Date().toISOString();
       setSharedSaveState({
         url: normalizedUrl,
         status: response.status,
         source: 'url_input',
         reused: response.reused,
-        reel: nextReel,
+        reel: toProcessingReel(response, createdAt),
       });
-      progress.finishLinkSave(response);
+      progress.finishLinkSave(response, createdAt);
       setIsDialogVisible(false);
       setLinkValue('');
     } catch (submitError) {

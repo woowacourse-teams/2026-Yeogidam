@@ -94,7 +94,7 @@ export function formatHistoryDate(createdAt: string) {
 }
 
 /**
- * 카드에 보일 상태입니다. 카드의 배지와 뼈대를 고를 때와 카드 노출 지표에 남길 때 함께 씁니다.
+ * 카드에 보일 상태입니다. 카드의 배지와 뼈대, 눌렀을 때 열 상세를 고를 때와 카드 노출 지표에 남길 때 함께 씁니다.
  * 처리 중인데 썸네일이나 제목이 아직 없어 뼈대로 보이는 카드는 'loading'입니다.
  */
 export function getHistoryVisibleState(reel: HistoryReel): HistoryVisibleState {
@@ -102,6 +102,22 @@ export function getHistoryVisibleState(reel: HistoryReel): HistoryVisibleState {
     return !reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel) ? 'loading' : 'processing';
   }
   return reel.processing_status === 'COMPLETED' ? 'success' : 'failed';
+}
+
+/** 히스토리 항목 하나를 보여 주는 상세의 종류입니다. */
+export type HistoryDetailKind = 'success' | 'failure';
+
+/** 카드 상태마다 카드를 누르면 열 상세입니다. 처리 중인 카드는 뼈대든 아니든 열 상세가 없어 누를 수 없습니다. */
+const HISTORY_CARD_DETAILS: Record<HistoryVisibleState, HistoryDetailKind | null> = {
+  loading: null,
+  processing: null,
+  success: 'success',
+  failed: 'failure',
+};
+
+/** 카드를 누르면 열 상세를 카드 상태 표에서 고릅니다. 열 상세가 없으면(처리 중) null입니다. */
+export function getHistoryCardDetail(reel: HistoryReel): HistoryDetailKind | null {
+  return HISTORY_CARD_DETAILS[getHistoryVisibleState(reel)];
 }
 
 /**

@@ -19,7 +19,8 @@ import {getHistoryTitle, getHistoryVisibleState, toHistoryThumbnailSource} from 
 
 /**
  * 히스토리 목록의 카드 한 장입니다. 처리 상태 배지와 제목을 보이고, 처리 중이면 배지를 깜빡입니다.
- * 처리 중인데 썸네일이나 제목이 아직 없으면 뼈대만 보이고 눌러도 반응하지 않습니다.
+ * 처리 중인데 썸네일이나 제목이 아직 없으면 뼈대만 보입니다. 누를 수 있는지는 화면이 카드 상태 표
+ * (getHistoryCardDetail)로 정해 onPress를 넘기거나 넘기지 않으므로, 뼈대 카드는 onPress 없이 옵니다.
  */
 export function HistoryItem({
   reel,
@@ -65,7 +66,7 @@ export function HistoryItem({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={showSkeleton ? '새 히스토리를 불러오는 중' : undefined}
-      onPress={showSkeleton ? undefined : onPress}
+      onPress={onPress}
       onLayout={onLayout}
       style={styles.item}
     >

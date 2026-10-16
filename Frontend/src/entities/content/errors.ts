@@ -1,11 +1,13 @@
+import {
+  INVALID_REQUEST_ERROR,
+  NETWORK_ERROR,
+  type KnownScreenErrorCode,
+} from '../../lib/api/screen-error';
+
+/** 화면 공용 오류 코드에 릴스 저장과 미디어 처리 코드를 더한 목록입니다. */
 export type ReelErrorCode =
-  | 'COMMON400_001'
+  | KnownScreenErrorCode
   | 'REEL400_001'
-  | 'AUTH401_001'
-  | 'COMMON500_001'
-  | 'CLIENT000_001'
-  | 'CLIENT000_002'
-  | 'CLIENT000_003'
   | 'MEDIA400_001'
   | 'MEDIA400_010'
   | 'MEDIA400_011'
@@ -43,19 +45,20 @@ export function normalizeReelError(error: unknown): ReelApiError {
     return error;
   }
 
+  // 응답을 받기 전이나 읽다 난 오류라 상수의 status는 옮기지 않습니다. 옮기면 재시도 지표의 응답 상태에 받지 않은 값이 실립니다.
   if (error instanceof Error) {
     return new ReelApiError({
-      errorCode: 'COMMON400_001',
+      errorCode: INVALID_REQUEST_ERROR.errorCode,
       message: error.message,
-      retryable: false,
+      retryable: INVALID_REQUEST_ERROR.retryable,
     });
   }
 
   const networkCandidate = error as {message?: string} | null;
 
   return new ReelApiError({
-    errorCode: 'CLIENT000_001',
-    message: networkCandidate?.message ?? '인터넷 연결을 확인해주세요.',
-    retryable: true,
+    errorCode: NETWORK_ERROR.errorCode,
+    message: networkCandidate?.message ?? NETWORK_ERROR.message,
+    retryable: NETWORK_ERROR.retryable,
   });
 }

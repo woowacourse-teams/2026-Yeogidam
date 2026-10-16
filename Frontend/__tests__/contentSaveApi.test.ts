@@ -124,6 +124,23 @@ test('상태 조회는 공유 목록에서 같은 ID를 찾아 화면 모델로 
   await expect(getReelProcessingStatus('99')).resolves.toBeNull();
 });
 
+test.each([
+  ['sharedMedias 없음', {nextCursor: null}],
+  ['sharedMedias가 null', {sharedMedias: null, nextCursor: null}],
+  ['본문이 null', null],
+])('상태 조회는 공유 목록 응답 모양이 어긋나면(%s) 목록에 없다고 보지 않고 응답 처리 오류로 던진다', async (_shape, body) => {
+  request.mockResolvedValue(body);
+
+  const lookup = getReelProcessingStatus('12');
+  await expect(lookup).rejects.toBeInstanceOf(ReelApiError);
+  await expect(lookup).rejects.toMatchObject({
+    status: null,
+    errorCode: 'CLIENT000_003',
+    message: '응답을 처리하지 못했어요.',
+    retryable: false,
+  });
+});
+
 describe('공유 API 오류 표(toReelApiError)', () => {
   test.each([
     [
