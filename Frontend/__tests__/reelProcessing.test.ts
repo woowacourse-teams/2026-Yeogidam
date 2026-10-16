@@ -108,9 +108,10 @@ describe('classifySharedSaveState', () => {
 });
 
 describe('reelProcessingReducer', () => {
+  const trackedReel = reel('8');
   const tracking: ReelProcessingState = {
     processingReelId: '8',
-    processingReel: reel('8'),
+    processingReel: trackedReel,
     showSaveSuccess: true,
   };
 
@@ -186,6 +187,15 @@ describe('reelProcessingReducer', () => {
       showSaveSuccess: false,
     });
     expect(run(tracking, {type: 'saveSuccessHidden'})).toEqual({...tracking, showSaveSuccess: false});
+  });
+
+  test('세 값이 모두 그대로면 같은 상태 객체를 돌려준다', () => {
+    const cleared = {...INITIAL_REEL_PROCESSING_STATE};
+    expect(reelProcessingReducer(cleared, {type: 'sharedStateChanged', view: {type: 'none'}})).toBe(cleared);
+    expect(reelProcessingReducer(cleared, {type: 'pollStopped'})).toBe(cleared);
+    expect(reelProcessingReducer(cleared, {type: 'saveSuccessHidden'})).toBe(cleared);
+    expect(reelProcessingReducer(tracking, {type: 'pollReceived', reel: trackedReel})).toBe(tracking);
+    expect(reelProcessingReducer(tracking, {type: 'pollReceived', reel: reel('8')})).not.toBe(tracking);
   });
 
   test('링크 저장 흐름은 화면이 한 번에 반영하던 순서대로 처리 중 릴스를 폴링 대상으로 남긴다', () => {

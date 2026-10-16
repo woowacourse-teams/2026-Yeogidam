@@ -117,8 +117,7 @@ function applySharedSaveStateView(
   }
 }
 
-/** 처리 중 릴스 상태의 전환 규칙입니다. 시각과 ID처럼 바뀌는 값은 동작에 담아 받습니다. */
-export function reelProcessingReducer(
+function nextReelProcessingState(
   state: ReelProcessingState,
   action: ReelProcessingAction,
 ): ReelProcessingState {
@@ -152,6 +151,22 @@ export function reelProcessingReducer(
     case 'saveSuccessHidden':
       return {...state, showSaveSuccess: false};
   }
+}
+
+/**
+ * 처리 중 릴스 상태의 전환 규칙입니다. 시각과 ID처럼 바뀌는 값은 동작에 담아 받습니다.
+ * 세 값이 모두 그대로면 같은 상태 객체를 돌려줘, 값마다 useState를 두던 때처럼 다시 그리지 않게 합니다.
+ */
+export function reelProcessingReducer(
+  state: ReelProcessingState,
+  action: ReelProcessingAction,
+): ReelProcessingState {
+  const next = nextReelProcessingState(state, action);
+  return Object.is(next.processingReelId, state.processingReelId) &&
+    Object.is(next.processingReel, state.processingReel) &&
+    Object.is(next.showSaveSuccess, state.showSaveSuccess)
+    ? state
+    : next;
 }
 
 /**
