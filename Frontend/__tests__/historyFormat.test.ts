@@ -1,3 +1,4 @@
+import {ReelApiError} from '../src/entities/content/errors';
 import type {HistoryReel} from '../src/entities/content/types';
 import {
   formatHistoryDate,
@@ -9,6 +10,7 @@ import {
   HISTORY_FALLBACK_THUMBNAIL,
   isCardHalfVisible,
   toHistoryThumbnailSource,
+  toRetryFailureMessage,
 } from '../src/pages/history/history-format';
 
 const reel = (overrides: Partial<HistoryReel> = {}): HistoryReel => ({
@@ -59,6 +61,23 @@ describe('실패 문구', () => {
     expect(getHistoryFailureMessage('SOMETHING_NEW')).toBe(fallback);
     expect(getHistoryFailureMessage('')).toBe(fallback);
     expect(getHistoryFailureMessage(null)).toBe(fallback);
+  });
+});
+
+describe('재시도 실패 문구', () => {
+  const serverMessage = '서버가 내려 준 안내 문구';
+  const failure = (errorCode: string | null) => new ReelApiError({errorCode, message: serverMessage});
+
+  test('MEDIA로 시작하는 오류 코드는 서버 문구를 보인다', () => {
+    expect(toRetryFailureMessage(failure('MEDIA400_010'))).toBe(serverMessage);
+    // 400이 아닌 MEDIA 코드도 같은 접두사로 본다.
+    expect(toRetryFailureMessage(failure('MEDIA409_001'))).toBe(serverMessage);
+  });
+
+  test('나머지 오류는 서버 문구 대신 다시 시도를 권한다', () => {
+    expect(toRetryFailureMessage(failure('CLIENT000_001'))).toBe('잠시 후 다시 시도해주세요.');
+    expect(toRetryFailureMessage(failure('COMMON500_001'))).toBe('잠시 후 다시 시도해주세요.');
+    expect(toRetryFailureMessage(failure(null))).toBe('잠시 후 다시 시도해주세요.');
   });
 });
 

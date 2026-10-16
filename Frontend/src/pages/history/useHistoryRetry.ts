@@ -11,6 +11,7 @@ import {normalizeReelError} from '../../entities/content/errors';
 import {retryHistoryReelExtraction} from '../../entities/content/history-api';
 import type {HistoryReel} from '../../entities/content/types';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
+import {toRetryFailureMessage} from './history-format';
 
 /**
  * 재시도 요청 결과입니다. 접수되면 목록에 바로 넣을 카드(이미 있던 공유로 접수되면 null)를,
@@ -44,13 +45,7 @@ export function useHistoryRetry(posthog: AnalyticsClient | null | undefined) {
         failureType: toExtractionFailureType(normalized),
         responseStatus: normalized.status,
       });
-      // MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
-      return {
-        status: 'failed',
-        message: normalized.errorCode?.startsWith('MEDIA')
-          ? normalized.message
-          : '잠시 후 다시 시도해주세요.',
-      };
+      return {status: 'failed', message: toRetryFailureMessage(normalized)};
     }
     // 2xx 응답이면 응답 안의 추출 상태가 FAILED여도 응답 수신으로 기록한다.
     trackExtractionRequestFinished(posthog, {

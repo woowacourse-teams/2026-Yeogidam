@@ -1,6 +1,7 @@
 import type {ImageSourcePropType} from 'react-native';
 
 import type {HistoryVisibleState} from '../../analytics/placeExtractionEvents';
+import type {ReelApiError} from '../../entities/content/errors';
 import {isReelInProgress} from '../../entities/content/status';
 import {normalizeReelTitle} from '../../entities/content/title';
 import type {HistoryReel} from '../../entities/content/types';
@@ -69,6 +70,14 @@ export function getHistoryFailureMessage(reason: string | null) {
     default:
       return '장소 분석에 실패했어요. 잠시 후 다시 시도해주세요.';
   }
+}
+
+/**
+ * 재시도 요청이 실패했을 때 안내할 문구를 고릅니다. 오류 코드가 MEDIA로 시작하면(재시도할 수 없는 공유 등)
+ * 서버 문구를 보이고, 나머지 오류는 다시 시도를 권합니다.
+ */
+export function toRetryFailureMessage(error: Pick<ReelApiError, 'errorCode' | 'message'>) {
+  return error.errorCode?.startsWith('MEDIA') ? error.message : '잠시 후 다시 시도해주세요.';
 }
 
 /** 생성 시각을 기기 시간대의 'YYYY.MM.DD'로 바꿉니다. 날짜로 읽을 수 없으면 받은 값을 그대로 돌려줍니다. */
