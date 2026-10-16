@@ -12,10 +12,12 @@ import {deleteSavedPlaces, getSavedPlaces} from '../src/entities/info/api';
 import type {SavedPlaceListItem} from '../src/entities/info/types';
 import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state';
 import {getRecentSearches, setRecentSearches} from '../src/lib/searchHistoryStorage';
+import {SavedPlaceGrid} from '../src/pages/saved-places/components/SavedPlaceGrid';
 import {SavedPlacesEmptyState} from '../src/pages/saved-places/components/SavedPlacesEmptyState';
 import {SavedPlacesErrorState} from '../src/pages/saved-places/components/SavedPlacesErrorState';
 import {SavedPlacesSearchPanel} from '../src/pages/saved-places/components/SavedPlacesSearchPanel';
 import {SavedPlacesSkeleton} from '../src/pages/saved-places/components/SavedPlacesSkeleton';
+import {clearSavedPlacesCache} from '../src/pages/saved-places/hooks/useSavedPlacesList';
 import {deferred} from './support/deferred';
 import {
   AUTH_ERROR,
@@ -197,6 +199,34 @@ describe('목록 읽기', () => {
     await act(async () => mountLoad.resolve([BAKERY]));
     await flush();
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
+  });
+
+  test('세션이 끝나 캐시를 비우면 다시 열 때 지난 목록 대신 스켈레톤을 보인다', async () => {
+    await unmount(await renderLoaded([CAFE]));
+    clearSavedPlacesCache();
+
+    const request = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValue(request.promise);
+    const renderer = await render();
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
+    expect(renderer.root.findAllByType(SavedPlaceGrid)).toHaveLength(0);
+
+    await act(async () => request.resolve([BAKERY]));
+    expect(placeNames(renderer)).toEqual(['빵집']);
+  });
+
+  test('세션이 끝나기 전에 보낸 목록 조회가 늦게 끝나도 비운 캐시를 다시 채우지 않는다', async () => {
+    const lateLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(lateLoad.promise);
+    await unmount(await render());
+    clearSavedPlacesCache();
+    await act(async () => lateLoad.resolve([CAFE]));
+    await flush();
+
+    jest.mocked(getSavedPlaces).mockReturnValue(deferred<SavedPlaceListItem[]>().promise);
+    const renderer = await render();
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
+    expect(renderer.root.findAllByType(SavedPlaceGrid)).toHaveLength(0);
   });
 });
 

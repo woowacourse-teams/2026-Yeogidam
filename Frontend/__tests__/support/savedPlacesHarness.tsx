@@ -13,6 +13,7 @@ import {SavedPlaceGrid} from '../../src/pages/saved-places/components/SavedPlace
 import {SavedPlacesHeader} from '../../src/pages/saved-places/components/SavedPlacesHeader';
 import {SavedPlacesLinkDialog} from '../../src/pages/saved-places/components/SavedPlacesLinkDialog';
 import {SavedPlacesSearchPanel} from '../../src/pages/saved-places/components/SavedPlacesSearchPanel';
+import {clearSavedPlacesCache} from '../../src/pages/saved-places/hooks/useSavedPlacesList';
 import {SavedPlacesScreen} from '../../src/pages/saved-places/SavedPlacesScreen';
 import {LINK, listing, NOW} from './savedPlacesFixtures';
 
@@ -61,11 +62,6 @@ export async function renderLoaded(items: SavedPlaceListItem[], props: Partial<S
 export async function unmount(renderer: Renderer) {
   mounted.splice(mounted.indexOf(renderer), 1);
   await act(async () => renderer.unmount());
-}
-
-/** 비회원 화면은 회원 목록 캐시를 비우므로, 테스트마다 한 번 그렸다 내려 캐시 없이 시작합니다. */
-async function startWithoutCache() {
-  await unmount(await render({isGuest: true, places: []}));
 }
 
 export const grid = (renderer: Renderer) => renderer.root.findByType(SavedPlaceGrid);
@@ -160,7 +156,7 @@ export function setUpSavedPlacesScreenTests() {
     jest.mocked(getRecentSearches).mockReset().mockResolvedValue([]);
     jest.mocked(setRecentSearches).mockReset().mockResolvedValue(undefined);
     setSharedSaveState(null);
-    await startWithoutCache();
+    clearSavedPlacesCache();
     jest.clearAllMocks();
   });
 
