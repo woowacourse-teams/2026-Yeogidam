@@ -1,6 +1,12 @@
+import type {ImageSourcePropType} from 'react-native';
+
 import type {HistoryVisibleState} from '../../analytics/placeExtractionEvents';
 import {normalizeReelTitle} from '../../entities/content/title';
 import type {HistoryReel} from '../../entities/content/types';
+
+/** 썸네일 주소가 없는 히스토리 항목에 보여 주는 기본 이미지입니다. */
+export const HISTORY_FALLBACK_THUMBNAIL =
+  'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
 
 /** 히스토리 카드와 상세에 보일 제목입니다. 캡션과 제목이 모두 없으면 '저장한 콘텐츠'입니다. */
 export function getHistoryTitle(reel: HistoryReel) {
@@ -10,6 +16,14 @@ export function getHistoryTitle(reel: HistoryReel) {
 /** 캡션이나 제목에서 보일 제목을 얻었는지 알려 줍니다. */
 export function hasResolvedHistoryTitle(reel: HistoryReel) {
   return getHistoryTitle(reel) !== '저장한 콘텐츠';
+}
+
+/**
+ * 히스토리 카드와 두 상세에 보일 썸네일입니다. 비회원 체험 항목처럼 앱에 들어 있는 그림이 있으면
+ * 그 그림을, 없으면 원격 썸네일을, 둘 다 없으면 기본 이미지를 고릅니다.
+ */
+export function toHistoryThumbnailSource(reel: HistoryReel): ImageSourcePropType {
+  return reel.local_thumbnail_source ?? {uri: reel.instagram_thumbnail_url ?? HISTORY_FALLBACK_THUMBNAIL};
 }
 
 function getFailureCode(reason: string | null) {
@@ -82,6 +96,21 @@ export function getHistoryVisibleState(reel: HistoryReel): HistoryVisibleState {
   if (reel.processing_status === 'COMPLETED') return 'success';
   if (reel.processing_status === 'FAILED') return 'failed';
   return 'processing';
+}
+
+/**
+ * 카드 높이의 절반 이상이 목록 화면 안에 보이는지 알려 줍니다. 카드 노출 지표를 셀지 정할 때 씁니다.
+ * 카드와 화면의 위치는 목록 맨 위에서 잰 값이고, 경계에 닿기만 한 카드는 보이지 않은 것으로 봅니다.
+ */
+export function isCardHalfVisible(
+  card: {top: number; height: number},
+  viewport: {top: number; bottom: number},
+) {
+  const visibleHeight = Math.max(
+    0,
+    Math.min(card.top + card.height, viewport.bottom) - Math.max(card.top, viewport.top),
+  );
+  return visibleHeight >= card.height / 2;
 }
 
 /**

@@ -10,8 +10,9 @@ import {
   getBottomNavigationBarOffset,
 } from '../../../components/BottomNavigationBar';
 import type {HistoryPlace, HistoryReel, HistoryReelDetail} from '../../../entities/content/types';
+import {toHistoryThumbnailSource} from '../history-format';
 import {useHistoryReelDetail} from '../useHistoryReelDetail';
-import {HISTORY_FALLBACK_THUMBNAIL, historyStyles} from './historyStyles';
+import {historyStyles} from './historyStyles';
 
 const placeThumbnail =
   'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
@@ -69,7 +70,7 @@ export function HistorySuccessDetail({
       >
         <View style={styles.detailHero}>
           <Image
-            source={displayReel.local_thumbnail_source ?? { uri: displayReel.instagram_thumbnail_url ?? HISTORY_FALLBACK_THUMBNAIL }}
+            source={toHistoryThumbnailSource(displayReel)}
             resizeMode="cover"
             style={historyStyles.detailThumbnail}
           />

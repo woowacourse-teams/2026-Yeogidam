@@ -1,9 +1,5 @@
 import {StyleSheet} from 'react-native';
 
-/** 썸네일 주소가 없는 히스토리 항목에 보여 주는 기본 이미지입니다. */
-export const HISTORY_FALLBACK_THUMBNAIL =
-  'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
-
 /** 히스토리 목록과 두 상세 화면이 함께 쓰는 바탕, 머리, 원본 릴스 버튼 스타일입니다. */
 export const historyStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },

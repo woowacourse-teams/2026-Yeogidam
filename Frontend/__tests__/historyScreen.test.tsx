@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
-import {Alert, Linking, ScrollView, Text, View} from 'react-native';
+import {Alert, Image, Linking, ScrollView, Text, View} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {
@@ -1082,6 +1082,21 @@ test('비회원이 실패 상세에서 다시 시도하거나 제보하면 확�
   expect(reportHistoryReel).not.toHaveBeenCalled();
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
   alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원 실패 상세는 목록 카드처럼 앱에 들어 있는 체험 그림을 썸네일로 보인다', async () => {
+  // require()로 읽은 그림은 번호로 온다.
+  const bundledImage = 42;
+  const renderer = await render({
+    guestReels: [{...reel(10, 'FAILED'), local_thumbnail_source: bundledImage}],
+    guestDetails: {},
+  });
+  expect(historyItem(renderer, '10').findByType(Image).props.source).toBe(bundledImage);
+
+  await press(historyItem(renderer, '10'));
+  expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(true);
+  expect(renderer.root.findByType(Image).props.source).toBe(bundledImage);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

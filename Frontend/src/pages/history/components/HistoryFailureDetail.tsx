@@ -22,10 +22,10 @@ import {
   getBottomNavigationBarOffset,
 } from '../../../components/BottomNavigationBar';
 import type {HistoryReel, HistoryReelDetail} from '../../../entities/content/types';
-import {getHistoryFailureMessage} from '../history-format';
+import {getHistoryFailureMessage, toHistoryThumbnailSource} from '../history-format';
 import {useHistoryReelDetail} from '../useHistoryReelDetail';
 import {useHistoryReport} from '../useHistoryReport';
-import {HISTORY_FALLBACK_THUMBNAIL, historyStyles} from './historyStyles';
+import {historyStyles} from './historyStyles';
 
 /**
  * 장소 분석에 실패한 히스토리 항목의 상세입니다. 실패 이유를 보이고 다시 시도와 제보를 받습니다.
@@ -93,9 +93,8 @@ export function HistoryFailureDetail({
         ]}
       >
         <View style={[styles.failureHero, {marginTop: 44 * compactScale}]}>
-          {/* TODO(review): 목록 카드, 성공 상세와 달리 local_thumbnail_source를 보지 않습니다. 비회원 체험 항목이 지금은 성공 상태라 드러나지 않습니다. */}
           <Image
-            source={{ uri: displayReel.instagram_thumbnail_url ?? HISTORY_FALLBACK_THUMBNAIL }}
+            source={toHistoryThumbnailSource(displayReel)}
             resizeMode="cover"
             style={[
               historyStyles.detailThumbnail,

@@ -6,6 +6,9 @@ import {
   getHistoryVisibleState,
   groupHistoryReelsByDate,
   hasResolvedHistoryTitle,
+  HISTORY_FALLBACK_THUMBNAIL,
+  isCardHalfVisible,
+  toHistoryThumbnailSource,
 } from '../src/pages/history/history-format';
 
 const reel = (overrides: Partial<HistoryReel> = {}): HistoryReel => ({
@@ -103,5 +106,40 @@ describe('날짜 묶음', () => {
       ['2026.10.14', [b]],
     ]);
     expect(groupHistoryReelsByDate([])).toEqual([]);
+  });
+});
+
+describe('썸네일', () => {
+  test('앱에 들어 있는 그림, 원격 썸네일, 기본 그림 순서로 고른다', () => {
+    // require()로 읽은 그림은 번호로 온다.
+    const bundledImage = 42;
+    expect(toHistoryThumbnailSource(reel({local_thumbnail_source: bundledImage}))).toBe(bundledImage);
+    expect(toHistoryThumbnailSource(reel())).toEqual({uri: 'https://cdn.example.com/1.jpg'});
+    expect(toHistoryThumbnailSource(reel({instagram_thumbnail_url: null}))).toEqual({
+      uri: HISTORY_FALLBACK_THUMBNAIL,
+    });
+  });
+});
+
+describe('카드 노출 판단', () => {
+  // 목록 맨 위에서 잰 위치다. 화면은 100에서 900까지 보이고 카드 높이는 94다.
+  const viewport = {top: 100, bottom: 900};
+  const cardAt = (top: number) => ({top, height: 94});
+
+  test('카드 높이의 절반 이상이 화면 안에 있으면 보인 것으로 본다', () => {
+    expect(isCardHalfVisible(cardAt(400), viewport)).toBe(true);
+    // 아래 경계에 47(절반)이 걸치면 보이고, 46이 걸치면 보이지 않는다.
+    expect(isCardHalfVisible(cardAt(853), viewport)).toBe(true);
+    expect(isCardHalfVisible(cardAt(854), viewport)).toBe(false);
+    // 위 경계도 같다.
+    expect(isCardHalfVisible(cardAt(53), viewport)).toBe(true);
+    expect(isCardHalfVisible(cardAt(52), viewport)).toBe(false);
+  });
+
+  test('화면 밖에 있거나 경계에 닿기만 한 카드는 보이지 않은 것으로 본다', () => {
+    expect(isCardHalfVisible(cardAt(900), viewport)).toBe(false);
+    expect(isCardHalfVisible(cardAt(6), viewport)).toBe(false);
+    expect(isCardHalfVisible(cardAt(2000), viewport)).toBe(false);
+    expect(isCardHalfVisible(cardAt(-500), viewport)).toBe(false);
   });
 });

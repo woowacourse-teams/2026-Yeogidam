@@ -10,8 +10,7 @@ import {
 } from 'react-native';
 
 import type {HistoryReel} from '../../../entities/content/types';
-import {getHistoryTitle, hasResolvedHistoryTitle} from '../history-format';
-import {HISTORY_FALLBACK_THUMBNAIL} from './historyStyles';
+import {getHistoryTitle, hasResolvedHistoryTitle, toHistoryThumbnailSource} from '../history-format';
 
 /**
  * 히스토리 목록의 카드 한 장입니다. 처리 상태 배지와 제목을 보이고, 처리 중이면 배지를 깜빡입니다.
@@ -74,7 +73,7 @@ export function HistoryItem({
         <View style={[styles.thumbnail, styles.skeletonBlock]} />
       ) : (
         <Image
-          source={reel.local_thumbnail_source ?? { uri: reel.instagram_thumbnail_url ?? HISTORY_FALLBACK_THUMBNAIL }}
+          source={toHistoryThumbnailSource(reel)}
           resizeMode="cover"
           style={styles.thumbnail}
         />

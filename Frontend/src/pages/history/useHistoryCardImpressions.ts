@@ -6,13 +6,13 @@ import {
   type HistoryVisibleState,
 } from '../../analytics/placeExtractionEvents';
 import type {HistoryReel} from '../../entities/content/types';
-import {getHistoryVisibleState} from './history-format';
+import {getHistoryVisibleState, isCardHalfVisible} from './history-format';
 
 /** 날짜 묶음 안에서 잰 카드 위치와 높이입니다. */
 export type HistoryCardLayout = {group: string; y: number; height: number};
 
 /**
- * 히스토리 카드가 절반 넘게 0.5초 동안 보이면 카드 상태마다 한 번씩 노출 지표를 남깁니다.
+ * 히스토리 카드가 절반 이상 0.5초 동안 보이면 카드 상태마다 한 번씩 노출 지표를 남깁니다.
  * 카드 위치는 날짜 묶음 안의 위치로 받아 묶음 위치와 더해 판단합니다. 상세가 열려 있는 동안에는
  * 판단하지 않고 기다리던 판단도 취소하며, 목록으로 돌아오면 기억한 배치로 다시 판단합니다.
  *
@@ -41,36 +41,40 @@ export function useHistoryCardImpressions({
 
   const evaluateVisibleCards = useCallback(() => {
     if (paused) return;
-    const top = scrollOffsetRef.current;
-    const bottom = top + viewportHeightRef.current;
+    /** 카드가 지금 목록 화면에 절반 이상 보이는지입니다. 날짜 묶음 위치를 아직 모르면 null입니다. */
+    const isHalfVisibleNow = (layout: HistoryCardLayout) => {
+      const groupY = groupOffsetsRef.current.get(layout.group);
+      if (groupY === undefined) return null;
+      const viewportTop = scrollOffsetRef.current;
+      return isCardHalfVisible(
+        {top: groupY + layout.y, height: layout.height},
+        {top: viewportTop, bottom: viewportTop + viewportHeightRef.current},
+      );
+    };
+
     for (const [contentId, layout] of cardLayoutsRef.current) {
       const state = cardStatesRef.current.get(contentId);
-      const groupY = groupOffsetsRef.current.get(layout.group);
-      if (!state || groupY === undefined || viewportHeightRef.current === 0) continue;
-      const cardTop = groupY + layout.y;
-      const overlap = Math.max(0, Math.min(cardTop + layout.height, bottom) - Math.max(cardTop, top));
+      const halfVisible = isHalfVisibleNow(layout);
+      if (!state || halfVisible === null || viewportHeightRef.current === 0) continue;
       const key = `${contentId}.${state}`;
-      if (overlap >= layout.height / 2 && !seenCardsRef.current.has(key)) {
-        if (!visibleTimersRef.current.has(key)) {
-          const timer = setTimeout(() => {
-            visibleTimersRef.current.delete(key);
-            const latest = cardLayoutsRef.current.get(contentId);
-            const latestY = latest && groupOffsetsRef.current.get(latest.group);
-            if (!latest || latestY === undefined || cardStatesRef.current.get(contentId) !== state) return;
-            const visible = Math.max(0, Math.min(latestY + latest.y + latest.height,
-              scrollOffsetRef.current + viewportHeightRef.current) - Math.max(latestY + latest.y, scrollOffsetRef.current));
-            if (visible >= latest.height / 2 && !seenCardsRef.current.has(key)) {
-              seenCardsRef.current.add(key);
-              trackHistoryContentViewed(posthog, contentId, state);
-            }
-          }, 500);
-          visibleTimersRef.current.set(key, timer);
-        }
-      } else {
+      if (!halfVisible || seenCardsRef.current.has(key)) {
+        // 보이지 않거나 이미 남긴 카드는 기다리던 판단을 취소한다.
         const timer = visibleTimersRef.current.get(key);
         if (timer) clearTimeout(timer);
         visibleTimersRef.current.delete(key);
+        continue;
       }
+      if (visibleTimersRef.current.has(key)) continue;
+      const timer = setTimeout(() => {
+        visibleTimersRef.current.delete(key);
+        const latest = cardLayoutsRef.current.get(contentId);
+        if (!latest || cardStatesRef.current.get(contentId) !== state) return;
+        if (isHalfVisibleNow(latest) && !seenCardsRef.current.has(key)) {
+          seenCardsRef.current.add(key);
+          trackHistoryContentViewed(posthog, contentId, state);
+        }
+      }, 500);
+      visibleTimersRef.current.set(key, timer);
     }
   }, [paused, posthog, scrollOffsetRef]);
 
