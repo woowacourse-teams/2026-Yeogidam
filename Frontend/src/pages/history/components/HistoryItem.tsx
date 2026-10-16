@@ -15,7 +15,12 @@ import {
 import type {HistoryVisibleState} from '../../../analytics/placeExtractionEvents';
 import {isReelInProgress} from '../../../entities/content/status';
 import type {HistoryReel} from '../../../entities/content/types';
-import {getHistoryTitle, getHistoryVisibleState, toHistoryThumbnailSource} from '../history-format';
+import {
+  getHistoryCardDetail,
+  getHistoryTitle,
+  getHistoryVisibleState,
+  toHistoryThumbnailSource,
+} from '../history-format';
 
 /**
  * 히스토리 목록의 카드 한 장입니다. 처리 상태 배지와 제목을 보이고, 처리 중이면 배지를 깜빡입니다.
@@ -34,6 +39,8 @@ export function HistoryItem({
   const visibleState = getHistoryVisibleState(reel);
   const badge = HISTORY_BADGES[visibleState];
   const showSkeleton = visibleState === 'loading';
+  // 꺾쇠는 눌러서 열 상세가 있을 때만 보입니다. 열 상세는 화면이 쓰는 같은 카드 상태 표에서 고릅니다.
+  const canOpenDetail = getHistoryCardDetail(reel) !== null;
   const processing = isReelInProgress(reel.processing_status);
   const title = getHistoryTitle(reel);
   const pulse = useRef(new Animated.Value(0.45)).current;
@@ -102,15 +109,15 @@ export function HistoryItem({
           </>
         )}
       </View>
-      {processing ? (
+      {canOpenDetail ? (
+        <Text style={styles.chevron}>›</Text>
+      ) : (
         <Text
           accessibilityElementsHidden
           style={[styles.chevron, styles.hiddenChevron]}
         >
           ›
         </Text>
-      ) : (
-        <Text style={styles.chevron}>›</Text>
       )}
     </Pressable>
   );

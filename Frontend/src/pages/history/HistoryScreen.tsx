@@ -89,8 +89,8 @@ export function HistoryScreen({
   /** 비회원이면 체험 상세(없으면 null)를, 회원이면 undefined를 넘겨 상세가 서버에 묻게 합니다. */
   const guestDetailOf = (reel: HistoryReel) =>
     guestReels === undefined ? undefined : guestDetails?.[reel.id] ?? null;
-  /** 카드 상태 표가 고른 상세를 여는 동작입니다. 열 상세가 없는 카드(처리 중)에는 넘기지 않아 누를 수 없습니다. */
-  const openDetailOf = (reel: HistoryReel) => {
+  /** 카드를 눌렀을 때 쓸 동작을 돌려줍니다. 카드 상태 표에 열 상세가 없는 카드(처리 중)에는 undefined를 돌려줘 누를 수 없습니다. */
+  const toCardPressHandler = (reel: HistoryReel) => {
     const detail = getHistoryCardDetail(reel);
     return detail ? () => openDetail(detail, reel) : undefined;
   };
@@ -194,7 +194,7 @@ export function HistoryScreen({
                       height: event.nativeEvent.layout.height,
                     })
                   }
-                  onPress={openDetailOf(reel)}
+                  onPress={toCardPressHandler(reel)}
                 />
               ))}
             </View>

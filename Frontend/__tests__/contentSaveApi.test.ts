@@ -200,15 +200,19 @@ describe('화면의 공유 오류 맞추기(normalizeReelError)', () => {
     expect(normalizeReelError(reelError)).toBe(reelError);
   });
 
-  test('응답을 읽다 난 JS 오류는 다시 시도하지 않는 COMMON400_001로 본다', () => {
-    expect(normalizeReelError(new TypeError("Cannot read property 'map' of null"))).toMatchObject({
+  test('응답을 읽다 난 JS 오류는 다시 시도하지 않는 COMMON400_001로 보고, 받지 않은 응답 상태를 싣지 않는다', () => {
+    const normalized = normalizeReelError(new TypeError("Cannot read property 'map' of null"));
+    expect(normalized).toMatchObject({
       errorCode: 'COMMON400_001',
       message: "Cannot read property 'map' of null",
       retryable: false,
     });
+    // 상수의 400을 옮기면 재시도 지표의 응답 상태에 받지 않은 값이 실린다.
+    expect(normalized.status).toBeUndefined();
   });
 
-  test('Error가 아닌 값은 다시 시도할 수 있는 연결 실패로 본다', () => {
+  test('Error가 아닌 값은 다시 시도할 수 있는 연결 실패로 보고, 받지 않은 응답 상태를 싣지 않는다', () => {
+    expect(normalizeReelError(null).status).toBeUndefined();
     expect(normalizeReelError(null)).toMatchObject({
       errorCode: 'CLIENT000_001',
       message: '인터넷 연결을 확인해주세요.',
