@@ -195,3 +195,17 @@ test('새 회원으로 정한 뒤 이관이 실패하면 다음 실행에 다시
   expect(mockRequest).not.toHaveBeenCalledWith('/api/v1/shares');
   expect(transferCalls()).toHaveLength(2);
 });
+
+test('공유 이력 응답 모양이 어긋나면 이력 없음으로 보지 않고 오류로 끝내 다음 실행에 다시 판별한다', async () => {
+  await beginGuestOnboardingTransfer(ONBOARDING_KAKAO_PLACE_IDS);
+  mockRequest.mockImplementation((path: string) =>
+    path === '/api/v1/shares'
+      ? Promise.resolve({nextCursor: null})
+      : Promise.reject(new Error(`unexpected ${path}`)),
+  );
+
+  await expect(resumeGuestOnboardingTransfer('7')).rejects.toBeInstanceOf(ApiError);
+  expect(transferCalls()).toHaveLength(0);
+  // 회원을 정하지 못했으므로 기록은 그대로 남아 다음 실행에 다시 판별한다.
+  expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY))!)).not.toHaveProperty('memberId', '7');
+});

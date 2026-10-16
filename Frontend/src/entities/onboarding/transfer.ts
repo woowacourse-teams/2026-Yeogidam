@@ -70,7 +70,11 @@ async function hasNoShareHistory(): Promise<boolean> {
   const response = await client.request<{sharedMedias: unknown[] | null}>(
     '/api/v1/shares',
   );
-  return (response?.sharedMedias ?? []).length === 0;
+  // 모양이 어긋난 응답을 이력 없음으로 보면 기존 회원에게 온보딩 장소를 보내게 되므로, 다른 공유 목록 호출처처럼 오류로 받습니다.
+  if (!Array.isArray(response?.sharedMedias)) {
+    throw new ApiError({kind: 'invalid_response', message: '공유 목록 응답을 처리하지 못했어요.'});
+  }
+  return response.sharedMedias.length === 0;
 }
 
 /** 다시 보내도 결과가 같지 않은 요청 오류(앱 번들과 서버 시드 불일치 등)인지 확인합니다. */
