@@ -7,10 +7,15 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
 } from 'react-native';
 
+import type {HistoryVisibleState} from '../../../analytics/placeExtractionEvents';
+import {isReelInProgress} from '../../../entities/content/status';
 import type {HistoryReel} from '../../../entities/content/types';
-import {getHistoryTitle, hasResolvedHistoryTitle, toHistoryThumbnailSource} from '../history-format';
+import {getHistoryTitle, getHistoryVisibleState, toHistoryThumbnailSource} from '../history-format';
 
 /**
  * 히스토리 목록의 카드 한 장입니다. 처리 상태 배지와 제목을 보이고, 처리 중이면 배지를 깜빡입니다.
@@ -25,16 +30,11 @@ export function HistoryItem({
   onPress?: () => void;
   onLayout?: (event: LayoutChangeEvent) => void;
 }) {
-  const completed = reel.processing_status === 'COMPLETED';
-  const processing =
-    reel.processing_status === 'PENDING' ||
-    reel.processing_status === 'PROCESSING';
+  const visibleState = getHistoryVisibleState(reel);
+  const badge = HISTORY_BADGES[visibleState];
+  const showSkeleton = visibleState === 'loading';
+  const processing = isReelInProgress(reel.processing_status);
   const title = getHistoryTitle(reel);
-  const metadataPending =
-    processing &&
-    (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel));
-  const showSkeleton = metadataPending;
-  const label = completed ? '성공' : processing ? '처리중' : '실패';
   const pulse = useRef(new Animated.Value(0.45)).current;
 
   useEffect(() => {
@@ -91,28 +91,8 @@ export function HistoryItem({
               // eslint-disable-next-line react-native/no-inline-styles
               style={{opacity: processing ? pulse : 1}}
             >
-            <View
-              style={[
-                styles.badge,
-                completed
-                  ? styles.successBadge
-                  : processing
-                  ? styles.processingBadge
-                  : styles.failureBadge,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.badgeText,
-                  completed
-                    ? styles.successText
-                    : processing
-                    ? styles.processingText
-                    : styles.failureText,
-                ]}
-              >
-                {label}
-              </Text>
+            <View style={[styles.badge, badge.badgeStyle]}>
+              <Text style={[styles.badgeText, badge.textStyle]}>{badge.label}</Text>
             </View>
             </Animated.View>
             <Text numberOfLines={1} style={styles.title}>
@@ -173,3 +153,20 @@ const styles = StyleSheet.create({
   chevron: { fontSize: 32, lineHeight: 32, color: '#1c1c1e', marginRight: 5 },
   hiddenChevron: { opacity: 0 },
 });
+
+type HistoryBadge = {
+  label: string;
+  badgeStyle: StyleProp<ViewStyle>;
+  textStyle: StyleProp<TextStyle>;
+};
+
+/**
+ * 카드 상태마다 배지의 문구와 테두리, 글자 스타일입니다. loading은 처리 중과 같은 배지를 쓰지만,
+ * 썸네일이나 제목이 다 오기 전에는 배지 대신 뼈대를 보입니다.
+ */
+const HISTORY_BADGES: Record<HistoryVisibleState, HistoryBadge> = {
+  loading: {label: '처리중', badgeStyle: styles.processingBadge, textStyle: styles.processingText},
+  processing: {label: '처리중', badgeStyle: styles.processingBadge, textStyle: styles.processingText},
+  success: {label: '성공', badgeStyle: styles.successBadge, textStyle: styles.successText},
+  failed: {label: '실패', badgeStyle: styles.failureBadge, textStyle: styles.failureText},
+};

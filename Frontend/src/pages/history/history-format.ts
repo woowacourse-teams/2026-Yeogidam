@@ -1,6 +1,7 @@
 import type {ImageSourcePropType} from 'react-native';
 
 import type {HistoryVisibleState} from '../../analytics/placeExtractionEvents';
+import {isReelInProgress} from '../../entities/content/status';
 import {normalizeReelTitle} from '../../entities/content/title';
 import type {HistoryReel} from '../../entities/content/types';
 
@@ -84,18 +85,14 @@ export function formatHistoryDate(createdAt: string) {
 }
 
 /**
- * 카드 노출 지표에 남길 카드 상태입니다. 처리 중인데 썸네일이나 제목이 아직 없어 뼈대로 보이는
- * 카드는 'loading'입니다.
+ * 카드에 보일 상태입니다. 카드의 배지와 뼈대를 고를 때와 카드 노출 지표에 남길 때 함께 씁니다.
+ * 처리 중인데 썸네일이나 제목이 아직 없어 뼈대로 보이는 카드는 'loading'입니다.
  */
 export function getHistoryVisibleState(reel: HistoryReel): HistoryVisibleState {
-  const processing =
-    reel.processing_status === 'PENDING' || reel.processing_status === 'PROCESSING';
-  if (processing && (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel))) {
-    return 'loading';
+  if (isReelInProgress(reel.processing_status)) {
+    return !reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel) ? 'loading' : 'processing';
   }
-  if (reel.processing_status === 'COMPLETED') return 'success';
-  if (reel.processing_status === 'FAILED') return 'failed';
-  return 'processing';
+  return reel.processing_status === 'COMPLETED' ? 'success' : 'failed';
 }
 
 /**
