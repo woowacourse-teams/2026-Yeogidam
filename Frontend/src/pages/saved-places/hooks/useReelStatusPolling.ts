@@ -134,10 +134,10 @@ export function useReelStatusPolling({
     const subscription = subscribeRecentShares({
       intervalMs: REEL_POLL_INTERVAL_MS,
       onResult: ({reels}) => {
-        poll(Promise.resolve(reels)).catch(() => undefined);
+        poll(Promise.resolve(reels));
       },
       onError: pollError => {
-        poll(Promise.reject(pollError)).catch(() => undefined);
+        poll(Promise.reject(pollError));
       },
     });
     return () => {

@@ -137,9 +137,7 @@ export function useExternalShareResults({
 
       if (view.type === 'needs-verification') {
         if (!verificationInFlight.has(view.verificationKey)) {
-          verifySharedReelBeforeShowing(state, view.verificationKey).catch(
-            () => undefined,
-          );
+          verifySharedReelBeforeShowing(state, view.verificationKey);
         }
         return;
       }

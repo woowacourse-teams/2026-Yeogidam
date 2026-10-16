@@ -172,7 +172,7 @@ export function SavedPlacesScreen({
           text: '삭제',
           style: 'destructive',
           onPress: () => {
-            deleteSelectedPlaces().catch(() => undefined);
+            deleteSelectedPlaces();
           },
         },
       ],

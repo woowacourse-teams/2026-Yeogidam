@@ -48,7 +48,7 @@ export function useReelProcessing({
 
     // 저장 API의 즉시 완료 응답, 상태 폴링 완료, 공유 상태 복원 중 어느
     // 경로로 완료되더라도 최신 저장 장소를 보관함에 바로 반영합니다.
-    loadSavedPlaces().catch(() => undefined);
+    loadSavedPlaces();
 
     const timeoutId = setTimeout(
       () => dispatch({type: 'saveSuccessHidden'}),

@@ -178,7 +178,7 @@ export function PlaceDetailScreen({
         text: '삭제',
         style: 'destructive',
         onPress: () => {
-          handleDelete().catch(() => undefined);
+          handleDelete();
         },
       },
     ]);

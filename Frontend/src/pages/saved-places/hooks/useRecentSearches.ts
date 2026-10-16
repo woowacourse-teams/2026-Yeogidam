@@ -18,22 +18,15 @@ export function useRecentSearches() {
   useEffect(() => {
     let isMounted = true;
 
-    getRecentSearches()
-      .then(savedSearches => {
-        if (!isMounted) {
-          return;
-        }
+    // 저장 모듈이 읽기 실패를 빈 목록으로 삼키므로 여기서는 결과만 받습니다.
+    getRecentSearches().then(savedSearches => {
+      if (!isMounted) {
+        return;
+      }
 
-        setRecentSearches(savedSearches.slice(0, MAX_RECENT_SEARCHES));
-        isHydratedRef.current = true;
-      })
-      .catch(() => {
-        if (!isMounted) {
-          return;
-        }
-
-        isHydratedRef.current = true;
-      });
+      setRecentSearches(savedSearches.slice(0, MAX_RECENT_SEARCHES));
+      isHydratedRef.current = true;
+    });
 
     return () => {
       isMounted = false;
@@ -53,7 +46,7 @@ export function useRecentSearches() {
 
       setRecentSearches(nextSearches);
       if (isHydratedRef.current) {
-        persistRecentSearches(nextSearches).catch(() => undefined);
+        persistRecentSearches(nextSearches);
       }
     },
     [recentSearches],
