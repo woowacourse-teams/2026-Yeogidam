@@ -8,7 +8,7 @@ import {
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
 import { getPlaceReels } from '../../entities/info/api';
-import { deleteSavedPlaceAndForget } from '../../entities/info/saved-place-deletion';
+import { deleteSavedPlaceAndRemoveFromCache } from '../../entities/info/saved-place-deletion';
 import type {
   PlaceReel,
   PlaceReelsApiError,
@@ -125,7 +125,7 @@ export function PlaceDetailScreen({
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      await deleteSavedPlaceAndForget(place.savedPlaceId);
+      await deleteSavedPlaceAndRemoveFromCache(place.savedPlaceId);
       setIsActionSheetVisible(false);
       onBack();
     } catch (nextError) {
