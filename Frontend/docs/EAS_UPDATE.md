@@ -50,7 +50,7 @@ npx eas-cli update:republish --branch fe-test        # 이전 업데이트를 �
 npx eas-cli update:rollback --branch fe-test          # 내장 번들로 돌린다
 ```
 
-앱은 콜드 스타트 때 업데이트를 확인하고(`checkAutomatically: ON_LOAD`) 다음 실행에 적용합니다. 더 빨리 적용하려면 포그라운드 복귀 때 `Updates.checkForUpdateAsync()` → `fetchUpdateAsync()` → `reloadAsync()`를 부르는 코드를 넣습니다(아직 넣지 않음).
+앱은 콜드 스타트 때 네이티브 expo-updates가 업데이트를 확인하고(`checkAutomatically: ON_LOAD`), 그 뒤로는 `src/app/OtaUpdater.tsx`가 포그라운드로 돌아올 때마다 5분 간격으로 확인해 새 번들을 받아 두었다가 다음 복귀 순간에 `reloadAsync()`로 적용합니다. 결정 규칙은 `src/lib/ota-updates.ts`의 `decideOtaAction`에 있고 테스트로 고정되어 있습니다. PostHog 이벤트에는 `ota_update_id`(내장 번들은 `embedded`)와 `runtime_version`이 붙어 실험 결과를 번들별로 나눠 볼 수 있습니다.
 
 ## 4. PostHog를 개인 계정으로 바꾸기
 

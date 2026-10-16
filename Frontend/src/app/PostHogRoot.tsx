@@ -1,6 +1,7 @@
 import React, { useEffect, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import Config from 'react-native-config';
+import * as Updates from 'expo-updates';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
 import {
@@ -67,6 +68,9 @@ export function PostHogRoot({ children }: PostHogRootProps) {
   const host = configuredValue(Config.POSTHOG_HOST);
   const environment = getAnalyticsEnvironment();
   const installationId = getInstallationId();
+  // 어느 OTA 번들이 이벤트를 보냈는지 남겨야 실험 결과를 번들별로 나눠 볼 수 있습니다. 내장 번들은 embedded입니다.
+  const otaUpdateId = Updates.updateId ?? 'embedded';
+  const runtimeVersion = Updates.runtimeVersion;
 
   if (!projectToken || !host) {
     return <>{children}</>;
@@ -91,6 +95,8 @@ export function PostHogRoot({ children }: PostHogRootProps) {
             ...event.properties,
             environment,
             ...(installationId ? {installation_id: installationId} : {}),
+            ota_update_id: otaUpdateId,
+            ...(runtimeVersion ? {runtime_version: runtimeVersion} : {}),
           },
         }),
       }}

@@ -110,3 +110,14 @@ jest.mock('@invertase/react-native-apple-authentication', () => ({
     },
   },
 }));
+
+// expo-updates는 네이티브 설정이 있는 빌드에서만 켜지므로 테스트에서는 꺼진 상태로 둡니다.
+jest.mock('expo-updates', () => ({
+  isEnabled: false,
+  updateId: null,
+  runtimeVersion: null,
+  channel: null,
+  checkForUpdateAsync: jest.fn(() => Promise.resolve({isAvailable: false})),
+  fetchUpdateAsync: jest.fn(() => Promise.resolve({isNew: false, isRollBackToEmbedded: false})),
+  reloadAsync: jest.fn(() => Promise.resolve()),
+}));
