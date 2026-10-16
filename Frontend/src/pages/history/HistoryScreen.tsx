@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React from 'react';
 import {
   Alert,
   Image,
@@ -9,18 +9,16 @@ import {
   View,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
-import {
-  trackHistoryContentViewed,
-  type HistoryVisibleState,
-} from '../../analytics/placeExtractionEvents';
 import type {HistoryReel, HistoryReelDetail} from '../../entities/content/types';
 import {HistoryFailureDetail} from './components/HistoryFailureDetail';
 import {HistoryItem} from './components/HistoryItem';
 import {HistorySuccessDetail} from './components/HistorySuccessDetail';
 import {historyStyles} from './components/historyStyles';
-import {getHistoryVisibleState, groupHistoryReelsByDate} from './history-format';
+import {groupHistoryReelsByDate} from './history-format';
+import {useHistoryCardImpressions} from './useHistoryCardImpressions';
 import {useHistoryList} from './useHistoryList';
 import {useHistoryRetry} from './useHistoryRetry';
+import {useHistoryScrollRestore} from './useHistoryScrollRestore';
 import {useHistorySelection} from './useHistorySelection';
 
 type HistoryScreenProps = {
@@ -33,6 +31,11 @@ type HistoryScreenProps = {
 const emptyCharacter =
   'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
 
+/**
+ * 공유한 콘텐츠의 장소 분석 기록을 날짜별로 보이고, 항목을 누르면 성공 또는 실패 상세를 엽니다.
+ * 목록 읽기, 상세 선택, 스크롤 복원, 카드 노출 지표, 재시도는 각 훅이 맡고, 이 화면은 훅을 이어
+ * 목록이나 상세를 그립니다. 비회원이면 guestReels와 guestDetails만 보이고 서버에 묻지 않습니다.
+ */
 export function HistoryScreen({
   onBack,
   guestReels,
@@ -51,71 +54,13 @@ export function HistoryScreen({
     acceptRetriedReel,
   } = useHistoryList(guestReels, posthog);
   const loading = status === 'loading';
-  const scrollViewRef = useRef<ScrollView>(null);
-  const scrollOffsetRef = useRef(0);
-  const viewportHeightRef = useRef(0);
-  const groupOffsetsRef = useRef(new Map<string, number>());
-  const cardLayoutsRef = useRef(new Map<string, {group: string; y: number; height: number}>());
-  const seenCardsRef = useRef(new Set<string>());
-  const visibleTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
-  const shouldRestoreScrollRef = useRef(false);
   const {selection, openSuccess, openFailure, closeDetail} = useHistorySelection();
   const isDetailOpen = selection.kind !== 'list';
+  const {scrollViewRef, scrollOffsetRef, recordScrollOffset, restoreOnReturn, resetToTop} =
+    useHistoryScrollRestore({listVisible: !isDetailOpen, loading, reelCount: reels.length});
+  const {evaluateVisibleCards, onViewportLayout, onGroupLayout, onCardLayout} =
+    useHistoryCardImpressions({posthog, reels, paused: isDetailOpen, scrollOffsetRef});
   const {retryReel} = useHistoryRetry(posthog);
-
-  cardStatesRef.current = new Map(reels.map(reel => [reel.id, getHistoryVisibleState(reel)]));
-
-  const evaluateVisibleCards = useCallback(() => {
-    if (isDetailOpen) return;
-    const top = scrollOffsetRef.current;
-    const bottom = top + viewportHeightRef.current;
-    for (const [contentId, layout] of cardLayoutsRef.current) {
-      const state = cardStatesRef.current.get(contentId);
-      const groupY = groupOffsetsRef.current.get(layout.group);
-      if (!state || groupY === undefined || viewportHeightRef.current === 0) continue;
-      const cardTop = groupY + layout.y;
-      const overlap = Math.max(0, Math.min(cardTop + layout.height, bottom) - Math.max(cardTop, top));
-      const key = `${contentId}.${state}`;
-      if (overlap >= layout.height / 2 && !seenCardsRef.current.has(key)) {
-        if (!visibleTimersRef.current.has(key)) {
-          const timer = setTimeout(() => {
-            visibleTimersRef.current.delete(key);
-            const latest = cardLayoutsRef.current.get(contentId);
-            const latestY = latest && groupOffsetsRef.current.get(latest.group);
-            if (!latest || latestY === undefined || cardStatesRef.current.get(contentId) !== state) return;
-            const visible = Math.max(0, Math.min(latestY + latest.y + latest.height,
-              scrollOffsetRef.current + viewportHeightRef.current) - Math.max(latestY + latest.y, scrollOffsetRef.current));
-            if (visible >= latest.height / 2 && !seenCardsRef.current.has(key)) {
-              seenCardsRef.current.add(key);
-              trackHistoryContentViewed(posthog, contentId, state);
-            }
-          }, 500);
-          visibleTimersRef.current.set(key, timer);
-        }
-      } else {
-        const timer = visibleTimersRef.current.get(key);
-        if (timer) clearTimeout(timer);
-        visibleTimersRef.current.delete(key);
-      }
-    }
-  }, [isDetailOpen, posthog]);
-
-  useEffect(() => {
-    evaluateVisibleCards();
-  }, [evaluateVisibleCards, reels]);
-
-  useEffect(() => () => {
-    visibleTimersRef.current.forEach(clearTimeout);
-    visibleTimersRef.current.clear();
-  }, []);
-
-  useEffect(() => {
-    if (isDetailOpen) {
-      visibleTimersRef.current.forEach(clearTimeout);
-      visibleTimersRef.current.clear();
-    }
-  }, [isDetailOpen]);
 
   /**
    * 재시도도 새 공유와 같은 길을 탄다. 접수에 성공하면 목록으로 돌아가 바로 한 번 읽고,
@@ -128,33 +73,17 @@ export function HistoryScreen({
       return;
     }
     // 새 항목이 맨 위에 생기므로 실패 항목의 스크롤 위치로 되돌리지 않는다.
-    scrollOffsetRef.current = 0;
-    shouldRestoreScrollRef.current = false;
+    resetToTop();
     closeDetail();
     if (outcome.acceptedReel) acceptRetriedReel(outcome.acceptedReel);
     await refreshSilently();
   };
 
-  useEffect(() => {
-    if (
-      isDetailOpen ||
-      loading ||
-      !shouldRestoreScrollRef.current ||
-      scrollOffsetRef.current <= 0
-    ) {
-      return;
-    }
-
-    const restoreScroll = requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollTo({
-        y: scrollOffsetRef.current,
-        animated: false,
-      });
-      shouldRestoreScrollRef.current = false;
-    });
-
-    return () => cancelAnimationFrame(restoreScroll);
-  }, [isDetailOpen, loading, reels.length]);
+  /** 상세를 닫고 목록이 다시 보이면 보던 스크롤 위치로 되돌립니다. */
+  const backToList = () => {
+    restoreOnReturn();
+    closeDetail();
+  };
 
   const groupedReels = groupHistoryReelsByDate(reels);
   /** 비회원이면 체험 상세(없으면 null)를, 회원이면 undefined를 넘겨 상세가 서버에 묻게 합니다. */
@@ -164,10 +93,7 @@ export function HistoryScreen({
   if (selection.kind === 'success') {
     return (
       <HistorySuccessDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          closeDetail();
-        }}
+        onBack={backToList}
         reel={selection.reel}
         guestDetail={guestDetailOf(selection.reel)}
       />
@@ -176,14 +102,12 @@ export function HistoryScreen({
   if (selection.kind === 'failure') {
     return (
       <HistoryFailureDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          closeDetail();
-        }}
+        onBack={backToList}
         reel={selection.reel}
         guestDetail={guestDetailOf(selection.reel)}
         onRequireLogin={onRequireLogin}
         onRetry={async () => {
+          // TODO(review): HistoryFailureDetail이 비회원이면 확인 창 전에 로그인을 요청하므로 이 분기에는 닿지 않습니다.
           if (guestReels !== undefined) {
             onRequireLogin?.();
             return;
@@ -214,16 +138,13 @@ export function HistoryScreen({
       </View>
       <ScrollView
         ref={scrollViewRef}
-        onLayout={event => {
-          viewportHeightRef.current = event.nativeEvent.layout.height;
-          evaluateVisibleCards();
-        }}
+        onLayout={event => onViewportLayout(event.nativeEvent.layout.height)}
         contentContainerStyle={[
           styles.content,
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
-          scrollOffsetRef.current = nativeEvent.contentOffset.y;
+          recordScrollOffset(nativeEvent.contentOffset.y);
           evaluateVisibleCards();
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
@@ -258,23 +179,23 @@ export function HistoryScreen({
           </View>
         ) : (
           groupedReels.map(([date, dateReels]) => (
-            <View key={date} style={styles.group} onLayout={event => {
-              groupOffsetsRef.current.set(date, event.nativeEvent.layout.y);
-              evaluateVisibleCards();
-            }}>
+            <View
+              key={date}
+              style={styles.group}
+              onLayout={event => onGroupLayout(date, event.nativeEvent.layout.y)}
+            >
               <Text style={styles.date}>{date}</Text>
               {dateReels.map(reel => (
                 <HistoryItem
                   key={reel.id}
                   reel={reel}
-                  onLayout={event => {
-                    cardLayoutsRef.current.set(reel.id, {
+                  onLayout={event =>
+                    onCardLayout(reel.id, {
                       group: date,
                       y: event.nativeEvent.layout.y,
                       height: event.nativeEvent.layout.height,
-                    });
-                    evaluateVisibleCards();
-                  }}
+                    })
+                  }
                   onPress={
                     reel.processing_status === 'COMPLETED'
                       ? () => openSuccess(reel)
@@ -308,6 +229,7 @@ export function HistoryScreen({
 
 const styles = StyleSheet.create({
   brandMark: { width: 44, height: 44, borderRadius: 22 },
+  // TODO(review): previewToggle, previewToggleText, instagramIcon은 어디에서도 쓰지 않습니다. 원래 시트에 있던 그대로 남겨 둡니다.
   previewToggle: {
     marginLeft: 'auto',
     paddingHorizontal: 10,
