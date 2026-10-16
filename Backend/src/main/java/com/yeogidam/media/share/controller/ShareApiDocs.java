@@ -217,7 +217,7 @@ public interface ShareApiDocs {
                                     examples = @ExampleObject(name = "MEDIA400_017",
                                             value = """
                                                     {
-                                                      "message": "장소 분석에 실패한 공유만 신고할 수 있습니다.",
+                                                      "message": "장소 분석에 실패한 공유만 제보할 수 있습니다.",
                                                       "errorCode": "MEDIA400_017"
                                                     }
                                                     """))),
@@ -246,7 +246,7 @@ public interface ShareApiDocs {
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = @ExampleObject(name = "MEDIA409_001",
                                             value = """
-                                                    {"message": "이미 신고한 공유입니다.", "errorCode": "MEDIA409_001"}
+                                                    {"message": "이미 제보한 공유입니다.", "errorCode": "MEDIA409_001"}
                                                     """)))
             })
     ResponseEntity<Void> createReport(
