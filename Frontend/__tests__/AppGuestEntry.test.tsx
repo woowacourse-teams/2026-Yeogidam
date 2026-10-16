@@ -893,3 +893,30 @@ test('세션이 끝나면(로그아웃, 탈퇴) 보관함 목록 캐시를 비�
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
+
+test('로그인 만료 공유 결과를 처리하다 세션을 읽지 못하면 로그인 화면으로 보내고 다시 로그인하도록 안내한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  // 첫 호출은 부트 세션 확인(세션 없음), 둘째 호출은 공유 결과 처리에서 실패한다.
+  (getSpringTokens as jest.Mock)
+    .mockResolvedValueOnce(null)
+    .mockRejectedValueOnce(new Error('keychain unavailable'));
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'expired-share-unreadable-session',
+    url: '',
+    status: 'FAILED',
+    transferStatus: 'API_FAILED',
+    failureReason: 'AUTH401_001 | 인증 토큰이 유효하지 않습니다. | HTTP_401',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  expect(alertSpy).toHaveBeenCalledWith('로그인이 필요해요', '다시 로그인한 뒤 게시물을 공유해 주세요.');
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});

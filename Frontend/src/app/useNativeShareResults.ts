@@ -125,7 +125,11 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
               handlersRef.current.onLoginRequired();
               handlersRef.current.onShareFailed('login-required');
             })
-            .catch(() => undefined);
+            .catch(() => {
+              // 세션을 읽지 못하면 세션이 없을 때와 같게 로그인으로 보내, 공유가 안내 없이 사라지지 않게 합니다.
+              handlersRef.current.onLoginRequired();
+              handlersRef.current.onShareFailed('login-required');
+            });
           return;
         case 'extraction-failed':
           clearShareResult(result.requestId).catch(() => undefined);
