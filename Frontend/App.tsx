@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
+import { Alert, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 
-import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
@@ -24,9 +23,7 @@ import type {
   DeleteAccountRequest,
 } from './src/lib/auth/deleteAccount';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
-import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { useAppUpdatePolicy } from './src/app/useAppUpdatePolicy';
-import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -45,14 +42,14 @@ import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
 import { SplashScreen } from './src/pages/splash/SplashScreen';
-import {
-  clearShareResult,
-  syncShareAnalyticsConfiguration,
-} from './src/lib/share-intent';
+import { clearShareResult } from './src/lib/share-intent';
 import { GUEST_MAIN_FLOW_STATE } from './src/app/navigation';
 import { useAppNavigation } from './src/app/useAppNavigation';
 import { useCurrentProfile } from './src/app/useCurrentProfile';
+import { useGuestLoginPrompt } from './src/app/useGuestLoginPrompt';
+import { useLocationPermissionRequest } from './src/app/useLocationPermissionRequest';
 import { useNativeShareResults } from './src/app/useNativeShareResults';
+import { useShareAnalyticsFlush } from './src/app/useShareAnalyticsFlush';
 import { useSpringAuthFlow } from './src/app/useSpringAuthFlow';
 import type { SocialProvider } from './src/lib/auth/social-provider';
 import { initSentry, withSentry } from './src/lib/monitoring/sentry';
@@ -67,7 +64,6 @@ const GUEST_HISTORY_DETAILS = {
   [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
 };
 const SPLASH_MIN_DURATION_MS = 2000;
-const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
 
@@ -75,23 +71,7 @@ configureDataSources();
 
 function App() {
   const posthog = usePostHog();
-
-  useEffect(() => {
-    syncShareAnalyticsConfiguration().catch(() => undefined);
-    flushShareAnalytics().catch(() => undefined);
-    const interval = setInterval(() => {
-      if (AppState.currentState === 'active') {
-        flushShareAnalytics().catch(() => undefined);
-      }
-    }, 30_000);
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') flushShareAnalytics().catch(() => undefined);
-    });
-    return () => {
-      clearInterval(interval);
-      subscription.remove();
-    };
-  }, []);
+  useShareAnalyticsFlush();
   const {
     flow: flowState,
     selectedPlace,
@@ -154,17 +134,6 @@ function App() {
     refreshUpdatePolicy,
     dismissRecommendedUpdate,
   } = useAppUpdatePolicy();
-  const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
-    useState(false);
-  const [isAppActive, setIsAppActive] = useState(
-    AppState.currentState === 'active',
-  );
-  const [guestLoginPromptTimer] = useState(
-    () =>
-      new ForegroundElapsedTimer(GUEST_LOGIN_PROMPT_DELAY_MS, () => {
-        setIsGuestLoginPromptVisible(true);
-      }),
-  );
   const {currentProfile, profileError, isProfileLoading, retryProfile, clearProfile} =
     useCurrentProfile(flowState.kind === 'main' && isAuthenticated === true);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
@@ -177,13 +146,13 @@ function App() {
   const {hasPendingShareLogin, cancelPendingShareLogin, resetPendingShareLogin} =
     useNativeShareResults(isAuthReady, {
       onGuestLoginPrompt: () => {
-        setIsGuestLoginPromptVisible(false);
+        dismissGuestLoginPrompt();
         setMyPageOverlay(null);
         openGuestLogin(GUEST_MAIN_FLOW_STATE);
       },
       onOpenSavedPlaces: reason => {
         if (reason === 'guest-preview') {
-          setIsGuestLoginPromptVisible(false);
+          dismissGuestLoginPrompt();
           setMyPageOverlay(null);
         }
         // v2 대기함 흐름 복원 시: saveMode가 REVIEW_QUEUE면 'inBox'를 연다.
@@ -203,32 +172,18 @@ function App() {
     requiredUpdateStoreUrl === null &&
     recommendedUpdate === null;
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      setIsAppActive(state === 'active');
-    });
-    return () => subscription.remove();
-  }, []);
+  const {isGuestLoginPromptVisible, dismissGuestLoginPrompt} = useGuestLoginPrompt({
+    isGuestBrowsing,
+    isAuthenticated,
+  });
 
-  useEffect(() => {
-    if (isGuestBrowsing && isAppActive) {
-      guestLoginPromptTimer.start();
-    } else {
-      guestLoginPromptTimer.pause();
-    }
-  }, [guestLoginPromptTimer, isAppActive, isGuestBrowsing]);
-
-  // 회원이 되면 비회원 로그인 유도와 공유 로그인 표시, 돌아갈 비회원 흐름을 모두 내립니다.
+  // 회원이 되면 공유 로그인 표시와 돌아갈 비회원 흐름을 내립니다. 로그인 유도는 훅이 스스로 내립니다.
   useEffect(() => {
     if (isAuthenticated) {
-      guestLoginPromptTimer.cancel();
-      setIsGuestLoginPromptVisible(false);
       forgetGuestReturnFlow();
       resetPendingShareLogin();
     }
-  }, [forgetGuestReturnFlow, guestLoginPromptTimer, isAuthenticated, resetPendingShareLogin]);
-
-  useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
+  }, [forgetGuestReturnFlow, isAuthenticated, resetPendingShareLogin]);
 
   // 비회원이 지운 시드 장소는 메모리에만 두고, 다음 비회원 진입 때 시드로 되돌립니다.
   useEffect(() => {
@@ -248,29 +203,13 @@ function App() {
     }
   }, [hasCompletedGuide, isAuthenticated, markSignedInOnThisInstall]);
 
-  const canRequestLocation =
+  useLocationPermissionRequest(
     isAuthReady &&
-    !isSplashVisible &&
-    hasCompletedGuide === true &&
-    flowState.kind === 'main' &&
-    !requiredUpdateStoreUrl;
-  useEffect(() => {
-    if (!canRequestLocation) return;
-    const request = () => {
-      if (AppState.currentState === 'active')
-        ensureLocationPermission(true).catch(error =>
-          console.warn('위치 권한 확인 실패', error),
-        );
-    };
-    const frame = requestAnimationFrame(request);
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') request();
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-      subscription.remove();
-    };
-  }, [canRequestLocation]);
+      !isSplashVisible &&
+      hasCompletedGuide === true &&
+      flowState.kind === 'main' &&
+      !requiredUpdateStoreUrl,
+  );
 
   // 세션 확인은 useSpringAuthFlow가 맡고, 여기서는 안내 완료 여부와 업데이트 정책을 읽는 동안
   // 스플래시를 최소 시간만큼 보여 줍니다. 세션이 아직 확인되지 않았으면 스플래시가 계속 남습니다.
@@ -328,7 +267,7 @@ function App() {
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
-    setIsGuestLoginPromptVisible(false);
+    dismissGuestLoginPrompt();
     openGuestLogin(flowState);
   };
 
@@ -636,9 +575,9 @@ function App() {
         onDismiss={dismissRecommendedUpdate}
       />
       <GuestLoginPrompt
-        visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}
+        visible={isGuestLoginPromptVisible}
         onLogin={handleOpenGuestLogin}
-        onContinueBrowsing={() => setIsGuestLoginPromptVisible(false)}
+        onContinueBrowsing={dismissGuestLoginPrompt}
       />
     </SafeAreaProvider>
   );
