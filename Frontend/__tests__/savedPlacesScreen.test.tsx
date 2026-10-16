@@ -205,6 +205,11 @@ const dialog = (renderer: Renderer) => renderer.root.findByType(SavedPlacesLinkD
 const header = (renderer: Renderer) => renderer.root.findByType(SavedPlacesHeader);
 const searchPanel = (renderer: Renderer) => renderer.root.findByType(SavedPlacesSearchPanel);
 const refreshControl = (renderer: Renderer) => renderer.root.findByType(RefreshControl);
+/** 편집 중 화면 아래에 뜨는 삭제(또는 편집 취소) 버튼입니다. 이 버튼만 disabled를 받습니다. */
+const deleteAction = (renderer: Renderer) =>
+  renderer.root.findAll(
+    node => typeof node.props.onPress === 'function' && typeof node.props.disabled === 'boolean',
+  )[0];
 const texts = (renderer: Renderer): string[] =>
   renderer.root
     .findAllByType(Text)
@@ -438,6 +443,31 @@ describe('편집과 삭제', () => {
     expect(placeNames(renderer)).toEqual(['빵집']);
     expect(grid(renderer).props.isEditing).toBe(false);
     expect(onEditModeChange).toHaveBeenLastCalledWith(false);
+
+    // 삭제가 끝나면 다시 고르고 지울 수 있다.
+    await pressLabel(renderer, '보관함 편집');
+    await act(async () => grid(renderer).props.onTogglePlaceSelection('place-2'));
+    expect(texts(renderer)).toContain('삭제하기');
+    expect(deleteAction(renderer).props.disabled).toBe(false);
+  });
+
+  test('삭제 중에 편집을 껐다 켜도 삭제가 끝날 때까지 아래 버튼을 막고, 끝나면 편집을 끈다', async () => {
+    // 지금 동작을 그대로 적는다. 위쪽 편집 버튼은 삭제 중에도 눌린다.
+    const request = deferred<void>();
+    jest.mocked(deleteSavedPlaces).mockReturnValue(request.promise);
+    const renderer = await renderLoaded([CAFE, BAKERY]);
+    await selectAndDelete(renderer, 'place-1');
+    expect(texts(renderer)).toContain('삭제 중...');
+
+    await pressLabel(renderer, '보관함 편집 취소');
+    await pressLabel(renderer, '보관함 편집');
+    expect(grid(renderer).props.isEditing).toBe(true);
+    expect(deleteAction(renderer).props.disabled).toBe(true);
+
+    await act(async () => request.resolve());
+    await flush();
+    expect(grid(renderer).props.isEditing).toBe(false);
+    expect(placeNames(renderer)).toEqual(['빵집']);
   });
 
   test('삭제가 실패하면 편집을 유지한 채 오류 배너를 보이고, 재시도로 다시 지운다', async () => {
