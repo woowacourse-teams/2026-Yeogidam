@@ -47,10 +47,10 @@ export function HistoryScreen({
     status,
     reels,
     more,
-    reload,
+    loadFirstPage,
+    refreshFirstPage,
     loadMore,
     retryLoadMore,
-    refreshSilently,
     acceptRetriedReel,
   } = useHistoryList(guestReels, posthog);
   const loading = status === 'loading';
@@ -76,7 +76,7 @@ export function HistoryScreen({
     resetToTop();
     closeDetail();
     if (outcome.acceptedReel) acceptRetriedReel(outcome.acceptedReel);
-    await refreshSilently();
+    await refreshFirstPage();
   };
 
   /** 상세를 닫고 목록이 다시 보이면 보던 스크롤 위치로 되돌립니다. */
@@ -152,7 +152,7 @@ export function HistoryScreen({
         ) : status === 'error' ? (
           <View style={styles.stateBody}>
             <Text style={styles.stateText}>히스토리를 불러오지 못했어요.</Text>
-            <Pressable onPress={() => reload()} style={styles.retryButton}>
+            <Pressable onPress={() => loadFirstPage()} style={styles.retryButton}>
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
           </View>
@@ -201,8 +201,8 @@ export function HistoryScreen({
             </View>
           ))
         )}
-        {more === 'loading' ? <Text style={styles.moreLoadingText}>이전 기록을 불러오는 중이에요.</Text> : null}
-        {more === 'error' ? (
+        {more.status === 'loading' ? <Text style={styles.moreLoadingText}>이전 기록을 불러오는 중이에요.</Text> : null}
+        {more.status === 'error' ? (
           <View>
             <Text style={styles.moreLoadingText}>이전 기록을 불러오지 못했어요.</Text>
             <Pressable

@@ -309,6 +309,32 @@ test('이전 기록 불러오기가 실패하면 목록은 두고 아래에서 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('이전 기록 불러오기가 실패한 뒤 폴링이 커서를 비워도 다시 불러오기는 실패한 커서로 요청한다', async () => {
+  const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: firstCursor})
+    .mockRejectedValueOnce(new Error('offline'))
+    // 폴링: 첫 페이지가 더 읽을 페이지가 없다고 답해 리듀서가 커서를 비운다.
+    .mockResolvedValueOnce({reels: page([5, 4, 3]), nextCursor: null})
+    .mockResolvedValue({reels: page([2, 1]), nextCursor: null});
+  const renderer = await render();
+
+  await scrollToBottom(renderer);
+  await tick(3000);
+  expect(getHistoryReels).toHaveBeenCalledTimes(3);
+  expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(true);
+
+  await press(findButton(renderer, '다시 불러오기'));
+
+  expect(getHistoryReels).toHaveBeenCalledTimes(4);
+  expect(getHistoryReels).toHaveBeenLastCalledWith(firstCursor);
+  expect(hasText(renderer, '히스토리를 불러오는 중이에요.')).toBe(false);
+  expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+  expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer) {
   const failed = renderer.root.find(
     node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
