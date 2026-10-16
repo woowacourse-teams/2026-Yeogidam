@@ -1,5 +1,4 @@
 import {useState} from 'react';
-import {v4 as uuidv4} from 'uuid';
 
 import {normalizeInstagramContentUrl, saveContent} from '../../../entities/content/api';
 import {normalizeReelError} from '../../../entities/content/errors';
@@ -78,7 +77,6 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
 
     const normalizedUrl =
       normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
-    const clientRequestId = uuidv4();
     const initialReel: ReelProcessingStatus = {
       id: `manual-${Date.now()}`,
       processing_status: 'PROCESSING',
@@ -97,7 +95,7 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
     });
     setSubmitState(SUBMITTING);
     try {
-      const response = await saveContent(linkValue, 'url_input', clientRequestId);
+      const response = await saveContent(linkValue);
       const nextReel: ReelProcessingStatus = {
         id: response.reelId,
         processing_status: response.status,
@@ -115,8 +113,6 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
       progress.finishLinkSave(response);
       setIsDialogVisible(false);
       setLinkValue('');
-      // v2 대기함 흐름 복원 시:
-      // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
     } catch (submitError) {
       const normalizedError = normalizeReelError(submitError);
       const failedReel: ReelProcessingStatus = {

@@ -50,7 +50,6 @@ type SavedPlacesScreenProps = {
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
-  // onOpenInbox?: () => void;
   places?: Place[];
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
@@ -89,7 +88,6 @@ export function SavedPlacesScreen({
   onAuthenticationRequired,
   onEditModeChange,
   onRequireLogin,
-  // onOpenInbox,
   places: providedPlaces,
   onDeleteGuestPlaces,
   onSharedResultConsumed,

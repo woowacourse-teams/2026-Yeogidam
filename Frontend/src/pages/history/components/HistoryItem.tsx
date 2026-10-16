@@ -122,16 +122,16 @@ export function HistoryItem({
           </>
         )}
       </View>
-      {!showSkeleton && !processing ? (
-        <Text style={styles.chevron}>›</Text>
-      ) : processing ? (
+      {processing ? (
         <Text
           accessibilityElementsHidden
           style={[styles.chevron, styles.hiddenChevron]}
         >
           ›
         </Text>
-      ) : null}
+      ) : (
+        <Text style={styles.chevron}>›</Text>
+      )}
     </Pressable>
   );
 }

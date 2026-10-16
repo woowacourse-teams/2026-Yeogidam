@@ -109,7 +109,7 @@ test('링크 저장 뒤 처리 상태는 공용 목록 폴링으로 확인하고
   const savedPlacesCallsBefore = jest.mocked(getSavedPlaces).mock.calls.length;
 
   await saveLink(renderer);
-  expect(saveContent).toHaveBeenCalledWith(LINK, 'url_input', expect.any(String));
+  expect(saveContent).toHaveBeenCalledWith(LINK);
 
   // 아직 처리 중이면 보관함을 다시 읽지 않는다.
   await tick(3000);

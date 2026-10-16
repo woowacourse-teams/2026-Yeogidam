@@ -10,7 +10,6 @@ import {
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {
   SaveInstagramReelResponse,
-  SaveSource,
   ReelProcessingStatus,
 } from './types';
 import {ReelApiError} from './errors';
@@ -99,14 +98,9 @@ export function normalizeInstagramContentUrl(url: string): string | null {
   return null;
 }
 
-/**
- * 링크를 서버에 공유합니다. 서버에는 멱등키가 없어 매 요청마다 새 공유가 생기므로
- * source와 clientRequestId는 화면 호환을 위해서만 받고 보내지 않습니다.
- */
+/** 링크를 서버에 공유합니다. 서버에는 멱등키가 없어 매 요청마다 새 공유가 생깁니다. */
 export async function saveInstagramReel(
   instagramUrl: string,
-  _source: SaveSource,
-  _clientRequestId?: string,
 ): Promise<SaveInstagramReelResponse> {
   let response: SpringShareResponse;
   try {
@@ -134,8 +128,6 @@ export async function saveInstagramReel(
 
 export async function saveContent(
   url: string,
-  source: SaveSource,
-  clientRequestId?: string,
 ): Promise<SaveInstagramReelResponse> {
   const normalizedUrl = normalizeInstagramContentUrl(url);
 
@@ -148,7 +140,7 @@ export async function saveContent(
     });
   }
 
-  return saveInstagramReel(normalizedUrl, source, clientRequestId);
+  return saveInstagramReel(normalizedUrl);
 }
 
 function toReelProcessingStatus(item: SpringShareHistoryItem): ReelProcessingStatus {
@@ -181,12 +173,5 @@ export async function getReelProcessingStatus(
 ): Promise<ReelProcessingStatus | null> {
   const shares = await getRecentShares();
   const item = shares.find(share => String(share.sharedMediaId) === reelId);
-  return item ? toReelProcessingStatus(item) : null;
-}
-
-/** 현재 로그인한 사용자의 최신 처리중 릴스를 복원합니다. */
-export async function getLatestProcessingReel(): Promise<ReelProcessingStatus | null> {
-  const shares = await getRecentShares();
-  const item = shares.find(share => share.extractionStatus === 'EXTRACTING');
   return item ? toReelProcessingStatus(item) : null;
 }

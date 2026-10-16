@@ -531,7 +531,7 @@ describe('링크 저장', () => {
     expect(dialog(renderer).props.visible).toBe(true);
 
     await openDialogAndSave(renderer);
-    expect(saveContent).toHaveBeenCalledWith(LINK, 'url_input', 'test-uuid');
+    expect(saveContent).toHaveBeenCalledWith(LINK);
     expect(dialog(renderer).props.visible).toBe(false);
     expect(dialog(renderer).props.value).toBe('');
     expect(getSharedSaveState()).toBeNull();

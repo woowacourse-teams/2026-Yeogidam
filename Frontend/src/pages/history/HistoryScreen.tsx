@@ -106,14 +106,7 @@ export function HistoryScreen({
         reel={selection.reel}
         guestDetail={guestDetailOf(selection.reel)}
         onRequireLogin={onRequireLogin}
-        onRetry={async () => {
-          // TODO(review): HistoryFailureDetail이 비회원이면 확인 창 전에 로그인을 요청하므로 이 분기에는 닿지 않습니다.
-          if (guestReels !== undefined) {
-            onRequireLogin?.();
-            return;
-          }
-          await handleRetry(selection.reel);
-        }}
+        onRetry={() => handleRetry(selection.reel)}
       />
     );
   }
@@ -229,15 +222,6 @@ export function HistoryScreen({
 
 const styles = StyleSheet.create({
   brandMark: { width: 44, height: 44, borderRadius: 22 },
-  // TODO(review): previewToggle, previewToggleText, instagramIcon은 어디에서도 쓰지 않습니다. 원래 시트에 있던 그대로 남겨 둡니다.
-  previewToggle: {
-    marginLeft: 'auto',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 14,
-    backgroundColor: '#f3f4fb',
-  },
-  previewToggleText: { fontSize: 12, fontWeight: '700', color: '#5c6fc8' },
   content: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
   emptyContent: {
     flexGrow: 1,
@@ -268,7 +252,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  instagramIcon: { width: 28, height: 27 },
   group: { marginBottom: 16 },
   stateBody: {
     alignItems: 'center',

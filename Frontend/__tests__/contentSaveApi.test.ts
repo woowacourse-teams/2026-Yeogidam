@@ -1,5 +1,4 @@
 import {
-  getLatestProcessingReel,
   getReelProcessingStatus,
   saveContent,
   toReelApiError,
@@ -45,7 +44,7 @@ test('일반 URL 저장은 정규화한 주소로 공유 API를 호출하고 응
   request.mockResolvedValue({sharedMediaId: 12, extractionStatus: 'EXTRACTING'});
 
   await expect(
-    saveContent('https://www.instagram.com/reel/abc/?igsh=123', 'url_input', 'client-id'),
+    saveContent('https://www.instagram.com/reel/abc/?igsh=123'),
   ).resolves.toEqual({reelId: '12', status: 'PROCESSING', reused: false});
   expect(request).toHaveBeenCalledWith('/api/v1/shares', {
     method: 'POST',
@@ -57,12 +56,12 @@ test('이미 추출이 끝난 공유는 재사용 완료로 돌려준다', async
   request.mockResolvedValue({sharedMediaId: 3, extractionStatus: 'SUCCEEDED'});
 
   await expect(
-    saveContent('https://www.instagram.com/reel/abc/', 'instagram_share'),
+    saveContent('https://www.instagram.com/reel/abc/'),
   ).resolves.toEqual({reelId: '3', status: 'COMPLETED', reused: true});
 });
 
 test('지원하지 않는 URL은 추출 요청을 보내지 않는다', async () => {
-  await expect(saveContent('https://example.com/reel/abc', 'url_input'))
+  await expect(saveContent('https://example.com/reel/abc'))
     .rejects.toMatchObject({errorCode: 'REEL400_001'});
   expect(request).not.toHaveBeenCalled();
 });
@@ -75,7 +74,7 @@ test('서버 오류 코드와 문구를 유지하고 401은 로그인 필요로 
     message: '올바른 인스타그램 링크 형식이 아닙니다.',
     requestId: 'req-1',
   }));
-  const invalid = saveContent('https://www.instagram.com/reel/abc/', 'url_input');
+  const invalid = saveContent('https://www.instagram.com/reel/abc/');
   await expect(invalid).rejects.toBeInstanceOf(ReelApiError);
   await expect(invalid).rejects.toMatchObject({
     errorCode: 'MEDIA400_010',
@@ -91,16 +90,16 @@ test('서버 오류 코드와 문구를 유지하고 401은 로그인 필요로 
     errorCode: 'AUTH401_004',
     message: '로그인이 필요한 요청입니다.',
   }));
-  await expect(saveContent('https://www.instagram.com/reel/abc/', 'url_input'))
+  await expect(saveContent('https://www.instagram.com/reel/abc/'))
     .rejects.toMatchObject({errorCode: 'AUTH401_001'});
 
   request.mockRejectedValueOnce(new ApiError({kind: 'timeout', message: 'timeout'}));
-  await expect(saveContent('https://www.instagram.com/reel/abc/', 'url_input'))
+  await expect(saveContent('https://www.instagram.com/reel/abc/'))
     .rejects.toMatchObject({errorCode: 'CLIENT000_002', retryable: true});
 
   // 연결 실패 문구는 전송 계층이 무슨 문구를 주든 고정입니다.
   request.mockRejectedValueOnce(new ApiError({kind: 'network', message: 'offline'}));
-  await expect(saveContent('https://www.instagram.com/reel/abc/', 'url_input'))
+  await expect(saveContent('https://www.instagram.com/reel/abc/'))
     .rejects.toMatchObject({
       errorCode: 'CLIENT000_001',
       message: '인터넷 연결을 확인해주세요.',
@@ -123,18 +122,6 @@ test('상태 조회는 공유 목록에서 같은 ID를 찾아 화면 모델로 
   });
   expect(request).toHaveBeenCalledWith('/api/v1/shares');
   await expect(getReelProcessingStatus('99')).resolves.toBeNull();
-});
-
-test('최신 처리중 릴스는 목록의 첫 EXTRACTING 공유다', async () => {
-  request.mockResolvedValue({
-    sharedMedias: [share(14, 'SUCCEEDED'), share(13, 'EXTRACTING'), share(12, 'EXTRACTING')],
-    nextCursor: null,
-  });
-
-  await expect(getLatestProcessingReel()).resolves.toMatchObject({
-    id: '13',
-    processing_status: 'PROCESSING',
-  });
 });
 
 describe('공유 API 오류 표(toReelApiError)', () => {

@@ -56,7 +56,6 @@ import { initSentry, withSentry } from './src/lib/monitoring/sentry';
 
 initSentry();
 
-// const EMPTY_GUEST_INBOX: InboxReel[] = [];
 const GUEST_HISTORY_REELS: HistoryReel[] = [ONBOARDING_HISTORY_REEL];
 // 비회원 장소에 게시물이 없을 때 렌더마다 새 배열을 만들지 않도록 고정합니다.
 const EMPTY_GUEST_PLACE_REELS: PlaceReel[] = [];
@@ -136,11 +135,9 @@ function App() {
   const {currentProfile, profileError, isProfileLoading, retryProfile, clearProfile} =
     useCurrentProfile(flowState.kind === 'main' && isAuthenticated === true);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
-  // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
   >([]);
-  // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
 
   // 핸들러는 렌더가 끝난 뒤 비동기로만 불리므로 아래 useGuestLoginPrompt가 돌려주는 dismissGuestLoginPrompt를 써도 안전합니다.
   // isGuestBrowsing이 hasPendingShareLogin을 읽어야 해서 useGuestLoginPrompt를 useNativeShareResults보다 먼저 부를 수 없습니다.
@@ -432,22 +429,6 @@ function App() {
         />
       );
     }
-
-    // 대기함 흐름을 다시 사용할 때 복원합니다.
-    /*
-    if (currentScreen === 'inBox') {
-      return (
-        <InBoxScreen
-          entryType={inBoxEntryType}
-          guestItems={isAuthenticated === false ? EMPTY_GUEST_INBOX : undefined}
-          onOpenHistory={() => openMainScreen('history')}
-          onRequireLogin={handleRequireLogin}
-          onSelectionChange={setIsInBoxSelecting}
-        />
-      );
-    }
-
-    */
 
     if (currentScreen === 'map') {
       return (
