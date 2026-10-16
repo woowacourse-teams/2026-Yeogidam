@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
+import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
@@ -105,6 +106,7 @@ import Config from 'react-native-config';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
+  environment: Config.APP_ENV?.trim() || 'development',
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -116,6 +118,42 @@ Sentry.init({
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
 });
+
+function captureShareLoginHandoffError(errorCode: string) {
+  const messages: Record<string, {title: string; description: string}> = {
+    SHARE_LOGIN_STATE_READ_FAILED: {
+      title: '장소 공유 오류 · 로그인 상태 확인',
+      description: '공유 후 앱으로 돌아온 뒤 로그인 상태를 확인하지 못했습니다.',
+    },
+  };
+  const event = messages[errorCode];
+  if (!event) return;
+
+  const rawEnvironment = Config.APP_ENV?.trim() || 'development';
+  const environment = rawEnvironment.toLowerCase() === 'development'
+    ? '개발'
+    : rawEnvironment.toLowerCase() === 'production'
+      ? '운영'
+      : rawEnvironment;
+  const platform = Platform.OS === 'ios' ? 'iOS' : 'Android';
+  const message = `${event.description}\n` +
+    `환경·기기: ${environment} · ${platform}\n` +
+    `원인: 저장된 로그인 세션 조회 실패 (${errorCode})`;
+
+  const error = new Error(message);
+  error.name = event.title;
+
+  Sentry.withScope(scope => {
+    scope.setLevel('error');
+    scope.setTag('feature', 'instagram_share');
+    scope.setTag('share.stage', 'login_handoff');
+    scope.setTag('share.source', 'instagram');
+    scope.setTag('share.platform', Platform.OS);
+    scope.setTag('share.error_code', errorCode);
+    scope.setFingerprint(['instagram-share', 'login_handoff', Platform.OS, errorCode]);
+    Sentry.captureException(error);
+  });
+}
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -802,7 +840,10 @@ function App() {
                 return;
               }
               setFlowState(INITIAL_FLOW_STATE);
-            }).catch(() => undefined);
+            }).catch(() => {
+              captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
+              setFlowState(INITIAL_FLOW_STATE);
+            });
             return;
           }
           if (

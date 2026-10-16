@@ -59,14 +59,21 @@ internal object ShareAuth {
                     Instant.parse(response.optString("expiresAt")).epochSecond
                 }.getOrNull()
                 if (access.isBlank() || refresh.isBlank() || expiresAt == null) {
+                    ShareSentryReporter.capture(context, "SHARE_TOKEN_REFRESH_FAILED", "token_refresh", code)
                     return ShareAuthResult.WaitingForAuth
                 }
                 if (!ShareAuthStore.save(context, ShareSession(access, refresh, expiresAt, session.userId))) {
+                    ShareSentryReporter.capture(context, "SHARE_TOKEN_REFRESH_FAILED", "token_refresh", code)
                     return ShareAuthResult.WaitingForAuth
                 }
                 ShareAuthResult.Ready(access)
             } else {
                 val errorCode = response.optString("errorCode")
+                if (code == 408 || code == 429 || code == 504 || code >= 500) {
+                    ShareSentryReporter.capture(
+                        context, "SHARE_TOKEN_REFRESH_FAILED", "token_refresh", code, errorCode,
+                    )
+                }
                 val latest = ShareAuthStore.load(context)
                 when {
                     code !in 400..401 -> ShareAuthResult.WaitingForAuth
@@ -80,7 +87,13 @@ internal object ShareAuth {
                     }
                 }
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            ShareSentryReporter.capture(
+                context,
+                "SHARE_TOKEN_REFRESH_FAILED",
+                "token_refresh",
+                exceptionType = error.javaClass.simpleName,
+            )
             ShareAuthResult.WaitingForNetwork
         } finally {
             connection?.disconnect()
