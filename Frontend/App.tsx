@@ -83,11 +83,11 @@ import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
 import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   clearShareResult,
-  getShareResults,
   resumeWaitingShares,
   syncShareAnalyticsConfiguration,
   syncShareSession,
 } from './src/lib/share-intent';
+import { useNativeShareResults } from './src/app/useNativeShareResults';
 import type {
   AppFlowState,
   AuthScreen,
@@ -95,14 +95,9 @@ import type {
   MainScreen,
   Screen,
 } from './src/types/navigation';
-import {
-  getSharedSaveState,
-  setSharedSaveState,
-} from './src/lib/reel-save-state';
 import type { SocialProvider } from './src/lib/auth/social-provider';
 import { captureSocialLoginError } from './src/lib/monitoring/login-errors';
 import { initSentry, withSentry } from './src/lib/monitoring/sentry';
-import { captureShareLoginHandoffError } from './src/lib/monitoring/share-errors';
 
 initSentry();
 
@@ -176,7 +171,6 @@ function App() {
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const loginAttemptInFlightRef = useRef(false);
-  const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
   const [isAppActive, setIsAppActive] = useState(
@@ -191,8 +185,6 @@ function App() {
   const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
-  const lastHandledShareResultRef = useRef<string | null>(null);
-  const lastLoggedShareResultsRef = useRef<string | null>(null);
   const savedPlacesScrollOffsetRef = useRef(0);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
     null,
@@ -210,6 +202,27 @@ function App() {
   >([]);
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
+  // openMainScreen은 아래에서 정의되므로, 먼저 만들어지는 훅 콜백은 ref로 최신 함수를 부릅니다.
+  const openMainScreenRef = useRef<(nextScreen: MainScreen) => void>(() => undefined);
+
+  const {hasPendingShareLogin, cancelPendingShareLogin, resetPendingShareLogin} =
+    useNativeShareResults(isAuthReady, {
+      onGuestLoginPrompt: () => {
+        setIsGuestLoginPromptVisible(false);
+        setMyPageOverlay(null);
+        guestReturnFlowRef.current = GUEST_MAIN_FLOW_STATE;
+        setFlowState(INITIAL_FLOW_STATE);
+      },
+      onOpenSavedPlaces: reason => {
+        if (reason === 'guest-preview') {
+          setIsGuestLoginPromptVisible(false);
+          setMyPageOverlay(null);
+        }
+        // v2 대기함 흐름 복원 시: saveMode가 REVIEW_QUEUE면 'inBox'를 연다.
+        openMainScreenRef.current('saved');
+      },
+      onLoginRequired: () => setFlowState(INITIAL_FLOW_STATE),
+    });
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -339,7 +352,6 @@ function App() {
     // if (nextScreen === 'inBox') setInBoxEntryType(entryType);
   };
 
-  const openMainScreenRef = useRef(openMainScreen);
   openMainScreenRef.current = openMainScreen;
 
   const openDetailFrom = (
@@ -514,7 +526,7 @@ function App() {
       setSelectedPlace(null);
       setSelectedPlaceViewContext(null);
       savedPlacesScrollOffsetRef.current = 0;
-      setHasPendingShareLogin(false);
+      resetPendingShareLogin();
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
       setFlowState({
@@ -533,7 +545,7 @@ function App() {
       }
       unsubscribe();
     };
-  }, [posthog, refreshUpdatePolicy]);
+  }, [posthog, refreshUpdatePolicy, resetPendingShareLogin]);
 
   useEffect(() => {
     if (isAuthenticated !== true) return;
@@ -561,189 +573,6 @@ function App() {
       subscription.remove();
     };
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthReady) {
-      return;
-    }
-
-    let isMounted = true;
-
-    const consumePendingSharedContent = () => {
-      getShareResults()
-        .then(results => {
-          if (!isMounted) {
-            return;
-          }
-          setHasPendingShareLogin(results.some(item => item.transferStatus === 'LOGIN_HANDOFF'));
-          const currentShareState = getSharedSaveState();
-          const activeRequestId =
-            currentShareState?.source === 'instagram_share'
-              ? currentShareState.shareResultId
-              : undefined;
-          const latestResult = results[results.length - 1];
-          const result = latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
-            ? latestResult
-            : activeRequestId
-              ? results.find(item => item.requestId === activeRequestId) ?? latestResult
-              : latestResult;
-          const resultSummary = results.map(item =>
-            [
-              `requestId=${item.requestId ?? 'none'}`,
-              `status=${item.status}`,
-              `reelId=${item.reelId ?? 'none'}`,
-              `failureReason=${item.failureReason ?? 'none'}`,
-              `retryable=${item.retryable ?? false}`,
-              `updatedAt=${item.updatedAt}`,
-            ].join(' | '),
-          );
-          const resultSnapshot = JSON.stringify({
-            activeRequestId: activeRequestId ?? null,
-            resultSummary,
-          });
-          if (__DEV__ && lastLoggedShareResultsRef.current !== resultSnapshot) {
-            lastLoggedShareResultsRef.current = resultSnapshot;
-            console.log(
-              '[InstagramShare][native-results]',
-              `activeRequestId=${activeRequestId ?? 'none'}`,
-              ...resultSummary,
-            );
-          }
-          if (!result) {
-            lastHandledShareResultRef.current = null;
-            if (currentShareState?.source === 'instagram_share') {
-              setSharedSaveState(null);
-            }
-            return;
-          }
-          const resultKey = `${result.requestId ?? result.url}:${
-            result.updatedAt
-          }`;
-          if (lastHandledShareResultRef.current === resultKey) return;
-          lastHandledShareResultRef.current = resultKey;
-          if (__DEV__) {
-            console.log('[InstagramShare][native-result-selected]', {
-              requestId: result.requestId ?? null,
-              requestSentAt: result.requestSentAt ?? null,
-              url: result.url,
-              status: result.status,
-              reelId: result.reelId ?? null,
-              failureReason: result.failureReason ?? null,
-              retryable: result.retryable ?? null,
-              updatedAt: result.updatedAt,
-              reused: result.reused ?? null,
-              saveMode: result.saveMode ?? null,
-            });
-          }
-          if (result.transferStatus === 'GUEST_LOGIN_PROMPT') {
-            clearShareResult(result.requestId).catch(() => undefined);
-            setSharedSaveState(null);
-            setIsGuestLoginPromptVisible(false);
-            setMyPageOverlay(null);
-            guestReturnFlowRef.current = GUEST_MAIN_FLOW_STATE;
-            setFlowState(INITIAL_FLOW_STATE);
-            return;
-          }
-          if (result.transferStatus === 'GUEST_PREVIEW' || result.transferStatus === 'LOGIN_REQUIRED') {
-            clearShareResult(result.requestId).catch(() => undefined);
-            setIsGuestLoginPromptVisible(false);
-            setMyPageOverlay(null);
-            openMainScreenRef.current('saved');
-            return;
-          }
-          if (result.transferStatus === 'LOGIN_HANDOFF') {
-            getSpringTokens().then(tokens => {
-              if (tokens) {
-                resumeWaitingShares().catch(() => undefined);
-                return;
-              }
-              setFlowState(INITIAL_FLOW_STATE);
-            }).catch(() => {
-              captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
-              setFlowState(INITIAL_FLOW_STATE);
-            });
-            return;
-          }
-          if (
-            (result.transferStatus === 'API_FAILED' || result.transferStatus === 'API_SUCCEEDED') &&
-            !result.reelId
-          ) {
-            clearShareResult(result.requestId).catch(() => undefined);
-            // 공유 익스텐션은 401을 AUTH401_001로 남긴다(Android는 "AUTH401_001 | 메시지 | HTTP_401").
-            // 추출 실패가 아니라 로그인 문제이므로 다시 로그인하거나 다시 공유하도록 안내한다.
-            if (result.failureReason?.startsWith('AUTH401')) {
-              getSpringTokens()
-                .then(tokens => {
-                  if (tokens) {
-                    Alert.alert(
-                      '공유한 게시물을 저장하지 못했어요',
-                      '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
-                    );
-                    return;
-                  }
-                  setFlowState(INITIAL_FLOW_STATE);
-                  Alert.alert(
-                    '로그인이 필요해요',
-                    '다시 로그인한 뒤 게시물을 공유해 주세요.',
-                  );
-                })
-                .catch(() => undefined);
-              return;
-            }
-            Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
-            return;
-          }
-          if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
-            return;
-          }
-          setSharedSaveState({
-            shareResultId: result.requestId,
-            url: result.url,
-            status: result.status,
-            source: 'instagram_share',
-            rawSharedText: result.rawSharedText,
-            reused: result.reused,
-            saveMode: result.saveMode,
-            reel: {
-              id: result.reelId ?? `share-${Date.now()}`,
-              processing_status: result.status,
-              failure_reason: result.failureReason ?? null,
-              instagram_thumbnail_url: null,
-              created_at: new Date(result.updatedAt).toISOString(),
-            },
-          });
-          // v2 대기함 흐름 복원 시: openMainScreenRef.current(result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox');
-          openMainScreenRef.current('saved');
-        })
-        .catch(error => {
-          if (__DEV__) {
-            console.error('[InstagramShare][native-results-error]', error);
-          }
-        });
-    };
-
-    consumePendingSharedContent();
-
-    const appStateSubscription = AppState.addEventListener(
-      'change',
-      nextState => {
-        if (nextState === 'active') {
-          resumeWaitingShares()
-            .then(consumePendingSharedContent)
-            .catch(consumePendingSharedContent);
-        }
-      },
-    );
-    const resultPollId = setInterval(() => {
-      if (AppState.currentState === 'active') consumePendingSharedContent();
-    }, 1000);
-
-    return () => {
-      isMounted = false;
-      appStateSubscription.remove();
-      clearInterval(resultPollId);
-    };
-  }, [isAuthReady]);
 
   useEffect(() => {
     if (flowState.kind !== 'main' || isAuthenticated !== true) {
@@ -844,14 +673,6 @@ function App() {
     } finally {
       loginAttemptInFlightRef.current = false;
     }
-  };
-
-  const handleCancelShareLogin = async () => {
-    const results = await getShareResults();
-    await Promise.all(results
-      .filter(result => result.transferStatus === 'LOGIN_HANDOFF')
-      .map(result => clearShareResult(result.requestId)));
-    setHasPendingShareLogin(false);
   };
 
   const handleCompleteGuide = () => {
@@ -1032,7 +853,7 @@ function App() {
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
-          onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
+          onCancelShareLogin={hasPendingShareLogin ? cancelPendingShareLogin : undefined}
           onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
           onBrowseAsGuest={
             isAuthenticated === false &&
