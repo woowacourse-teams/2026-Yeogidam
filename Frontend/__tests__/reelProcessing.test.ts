@@ -1,6 +1,7 @@
 import {ReelApiError} from '../src/entities/content/errors';
 import type {HistoryReel, ReelProcessingStatus} from '../src/entities/content/types';
 import type {SharedSaveState} from '../src/lib/reel-save-state';
+import type {NativeShareResult} from '../src/lib/share-intent';
 import {
   classifySharedSaveState,
   decideReelPollFailure,
@@ -10,6 +11,8 @@ import {
   isSameSharedSave,
   reelProcessingReducer,
   resolveReelPollTracking,
+  toProcessingReel,
+  toSharedSaveState,
   toVerificationKey,
   type ReelProcessingAction,
   type ReelProcessingState,
@@ -54,6 +57,69 @@ function run(initial: ReelProcessingState, ...actions: ReelProcessingAction[]): 
 }
 
 const NO_KEYS = new Set<string>();
+
+describe('toProcessingReel', () => {
+  test('링크 저장 응답을 받은 만든 시각과 함께 처리 중 릴스로 바꾸고, 응답에 없는 썸네일은 비운다', () => {
+    expect(toProcessingReel({reelId: '8', status: 'PROCESSING', reused: false}, CREATED_AT)).toEqual(
+      reel('8', 'PROCESSING'),
+    );
+  });
+
+  test('실패 응답은 실패 사유를 함께 옮긴다', () => {
+    expect(
+      toProcessingReel(
+        {reelId: '8', status: 'FAILED', failureReason: 'MEDIA400_001', reused: false},
+        CREATED_AT,
+      ),
+    ).toEqual({...reel('8', 'FAILED'), failure_reason: 'MEDIA400_001'});
+  });
+});
+
+describe('toSharedSaveState', () => {
+  const nativeResult = (overrides: Partial<NativeShareResult> = {}): NativeShareResult => ({
+    requestId: 'request-1',
+    url: 'https://www.instagram.com/reel/abc/',
+    rawSharedText: '공유한 글 https://www.instagram.com/reel/abc/',
+    status: 'PROCESSING',
+    transferStatus: 'API_SUCCEEDED',
+    reelId: '8',
+    updatedAt: NOW - 1000,
+    reused: true,
+    saveMode: 'AUTO_SAVE',
+    ...overrides,
+  });
+
+  test('서버 reelId를 받은 네이티브 결과는 같은 ID와 결과를 갱신한 시각으로 외부 공유 상태를 만든다', () => {
+    expect(toSharedSaveState(nativeResult(), NOW)).toEqual({
+      shareResultId: 'request-1',
+      url: 'https://www.instagram.com/reel/abc/',
+      status: 'PROCESSING',
+      source: 'instagram_share',
+      rawSharedText: '공유한 글 https://www.instagram.com/reel/abc/',
+      reused: true,
+      saveMode: 'AUTO_SAVE',
+      reel: {...reel('8', 'PROCESSING'), created_at: new Date(NOW - 1000).toISOString()},
+    });
+  });
+
+  test('실패로 끝난 결과는 실패 사유를 릴스에 옮긴다', () => {
+    const state = toSharedSaveState(
+      nativeResult({status: 'FAILED', failureReason: 'MEDIA400_001'}),
+      NOW,
+    );
+    expect(state.status).toBe('FAILED');
+    expect(state.reel).toMatchObject({processing_status: 'FAILED', failure_reason: 'MEDIA400_001'});
+  });
+
+  test('서버 reelId를 아직 받지 못한 결과는 share-와 지금 시각으로 임시 ID를 붙여, 공유 상태 분류가 reelId를 기다리게 한다', () => {
+    const state = toSharedSaveState(
+      nativeResult({reelId: undefined, transferStatus: undefined, status: 'PENDING'}),
+      NOW,
+    );
+    expect(state.reel.id).toBe(`share-${NOW}`);
+    expect(classifySharedSaveState(state, NO_KEYS)).toEqual({type: 'awaiting-reel-id', reel: state.reel});
+  });
+});
 
 describe('classifySharedSaveState', () => {
   test('공유 상태가 없으면 none이다', () => {

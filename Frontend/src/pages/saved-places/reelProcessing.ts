@@ -7,6 +7,7 @@ import type {
 import {isReelInProgress} from '../../entities/content/status';
 import {isLoginRequiredError} from '../../lib/api/screen-error';
 import type {SharedSaveState} from '../../lib/reel-save-state';
+import type {NativeShareResult} from '../../lib/share-intent';
 
 export const REEL_POLL_INTERVAL_MS = 3000;
 export const REEL_POLL_TIMEOUT_MS = 90_000;
@@ -27,6 +28,46 @@ export const INITIAL_REEL_PROCESSING_STATE: ReelProcessingState = {
   processingReel: null,
   showSaveSuccess: false,
 };
+
+/**
+ * 링크 저장 응답을 처리 중 릴스로 바꿉니다. 응답에는 썸네일이 없어 비워 둡니다.
+ * 만든 시각은 부르는 쪽이 한 번 찍어 넘겨, 공유 상태와 처리 중 릴스 상태가 같은 시각을 쓰게 합니다.
+ */
+export function toProcessingReel(
+  response: SaveInstagramReelResponse,
+  createdAt: string,
+): ReelProcessingStatus {
+  return {
+    id: response.reelId,
+    processing_status: response.status,
+    failure_reason: response.failureReason ?? null,
+    instagram_thumbnail_url: null,
+    created_at: createdAt,
+  };
+}
+
+/**
+ * 진행 상태를 보여 줄 네이티브 공유 결과를 외부 공유의 공유 상태로 바꿉니다.
+ * 서버 reelId를 아직 받지 못했으면 share-와 지금 시각(now)으로 임시 ID를 붙이고, 만든 시각은 결과를 갱신한 시각으로 둡니다.
+ */
+export function toSharedSaveState(result: NativeShareResult, now: number): SharedSaveState {
+  return {
+    shareResultId: result.requestId,
+    url: result.url,
+    status: result.status,
+    source: 'instagram_share',
+    rawSharedText: result.rawSharedText,
+    reused: result.reused,
+    saveMode: result.saveMode,
+    reel: {
+      id: result.reelId ?? `share-${now}`,
+      processing_status: result.status,
+      failure_reason: result.failureReason ?? null,
+      instagram_thumbnail_url: null,
+      created_at: new Date(result.updatedAt).toISOString(),
+    },
+  };
+}
 
 /** 공유 상태 하나를 화면이 할 일로 바꾼 결과입니다. */
 export type SharedSaveStateView =
@@ -65,7 +106,7 @@ export function isSameSharedSave(current: SharedSaveState, other: SharedSaveStat
 /**
  * 공유 상태를 화면이 할 일 하나로 바꿉니다.
  * 서버 reelId가 아직 없으면(share-로 시작) 기다리고, 확인하지 않은 외부 공유는 확인부터 하며, 나머지는 그대로 보여 줍니다.
- * share- 임시 ID는 reelId를 받기 전의 외부 공유에 useNativeShareResults가 붙이고, 링크 저장은 서버가 응답한 뒤에만 공유 상태에 적으므로 임시 ID가 없습니다.
+ * share- 임시 ID는 reelId를 받기 전의 외부 공유에 toSharedSaveState가 붙이고, 링크 저장은 서버가 응답한 뒤에만 공유 상태에 적으므로 임시 ID가 없습니다.
  */
 export function classifySharedSaveState(
   state: SharedSaveState | null,
@@ -146,13 +187,7 @@ function nextReelProcessingState(
       return {
         ...state,
         processingReelId: action.response.reelId,
-        processingReel: {
-          id: action.response.reelId,
-          processing_status: action.response.status,
-          failure_reason: action.response.failureReason ?? null,
-          instagram_thumbnail_url: null,
-          created_at: action.createdAt,
-        },
+        processingReel: toProcessingReel(action.response, action.createdAt),
       };
     case 'pollReceived':
       return {...state, processingReel: action.reel};
