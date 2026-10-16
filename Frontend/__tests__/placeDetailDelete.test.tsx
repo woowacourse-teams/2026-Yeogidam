@@ -6,14 +6,14 @@ import {deleteSavedPlaces, getPlaceReels, getSavedPlaces} from '../src/entities/
 import {
   clearSavedPlacesCache,
   getSavedPlacesCacheGeneration,
-  readSavedPlacesCache,
   writeSavedPlacesCache,
 } from '../src/entities/info/saved-places-cache';
 import type {Place} from '../src/entities/place/types';
 import {PlaceDetailActionSheet} from '../src/pages/place-detail/components/PlaceDetailActionSheet';
 import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
 import {flushMicrotasks, renderTracked, type Renderer} from './support/renderers';
-import {BAKERY, CACHED_CAFE, CACHED_PLACES, SERVER_ERROR, TIMEOUT_ERROR} from './support/savedPlacesFixtures';
+import {cachedPlaceNames} from './support/cachedPlaceNames';
+import {BAKERY, CACHED_CAFE, CACHED_PLACES, CAFE, SERVER_ERROR, TIMEOUT_ERROR} from './support/savedPlacesFixtures';
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
@@ -72,8 +72,8 @@ test('상세에서 지우기에 성공하면 보관함 캐시에서도 빼고 �
   const {renderer, onBack} = await renderDetail(CACHED_CAFE);
   await deleteFromSheet(renderer);
 
-  expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CACHED_CAFE.savedPlaceId]]]);
-  expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
+  expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]]]);
+  expect(cachedPlaceNames()).toEqual(['빵집']);
   expect(onBack).toHaveBeenCalledTimes(1);
 });
 
@@ -83,7 +83,7 @@ test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지
   const {renderer, onBack} = await renderDetail(CACHED_CAFE);
   await deleteFromSheet(renderer);
 
-  expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
+  expect(cachedPlaceNames()).toEqual(['빵집']);
   expect(onBack).toHaveBeenCalledTimes(1);
 });
 
@@ -92,6 +92,6 @@ test('지우기에 실패하면 캐시를 그대로 두고 돌아가지 않는�
   const {renderer, onBack} = await renderDetail(CACHED_CAFE);
   await deleteFromSheet(renderer);
 
-  expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['카페', '빵집']);
+  expect(cachedPlaceNames()).toEqual(['카페', '빵집']);
   expect(onBack).not.toHaveBeenCalled();
 });
