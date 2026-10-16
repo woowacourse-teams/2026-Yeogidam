@@ -893,3 +893,29 @@ describe('지운 장소와 메모리 캐시', () => {
     expect(texts(reopened)).toContain(SERVER_ERROR.message);
   });
 });
+
+describe('조회 중에 지운 장소', () => {
+  test('다시 연 화면의 조회가 끝나기 전에 지운 장소는 늦게 끝난 그 조회로 되살아나지 않고, 목록을 한 번 더 읽는다', async () => {
+    await unmount(await renderLoaded([CAFE, BAKERY]));
+
+    const lateLoad = deferred<SavedPlaceListItem[]>();
+    const reload = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(lateLoad.promise).mockReturnValueOnce(reload.promise);
+    const reopened = await render();
+    expect(placeNames(reopened)).toEqual(['카페', '빵집']);
+
+    await selectAndDelete(reopened, 'place-1');
+    expect(placeNames(reopened)).toEqual(['빵집']);
+
+    // 지우기 전에 보낸 조회가 지운 장소를 담은 채 끝난다.
+    await act(async () => lateLoad.resolve([CAFE, BAKERY]));
+    await flush();
+    expect(placeNames(reopened)).toEqual(['빵집']);
+    // 첫 방문, 다시 열기, 낡은 응답을 버린 뒤 다시 읽기로 세 번 조회한다.
+    expect(getSavedPlaces).toHaveBeenCalledTimes(3);
+
+    await act(async () => reload.resolve([BAKERY]));
+    await flush();
+    expect(placeNames(reopened)).toEqual(['빵집']);
+  });
+});

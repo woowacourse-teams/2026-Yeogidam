@@ -45,38 +45,56 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
   // 늦게 도착한 이전 조회 응답이 최신 목록을 덮지 않도록 요청마다 번호를 붙입니다.
   const loadRequestIdRef = useRef(0);
 
-  /** 목록을 읽어 반영하고 읽은 목록을 돌려줍니다. 실패했거나 더 새 요청에 밀렸으면 null입니다. */
+  /**
+   * 목록을 읽어 반영하고 읽은 목록을 돌려줍니다. 실패했거나 더 새 요청에 밀렸으면 null입니다.
+   * 조회하는 동안 장소를 지우면(캐시 세대가 바뀜) 응답에 지운 장소가 들어 있으므로 버리고 한 번 더 읽습니다.
+   */
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
       setPlaces(providedPlaces);
       return providedPlaces;
     }
 
-    const requestId = loadRequestIdRef.current + 1;
-    loadRequestIdRef.current = requestId;
-    const cacheGeneration = getSavedPlacesCacheGeneration();
-    setLoadState(LOADING);
-    try {
-      const savedPlaces = await getSavedPlaces();
-      if (requestId !== loadRequestIdRef.current) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const requestId = loadRequestIdRef.current + 1;
+      loadRequestIdRef.current = requestId;
+      const cacheGeneration = getSavedPlacesCacheGeneration();
+      setLoadState(LOADING);
+      try {
+        const savedPlaces = await getSavedPlaces();
+        if (requestId !== loadRequestIdRef.current) {
+          return null;
+        }
+        if (cacheGeneration !== getSavedPlacesCacheGeneration()) {
+          // 세션이 끝나 캐시를 비웠으면 화면도 곧 내려가므로 다시 읽지 않는다.
+          if (readSavedPlacesCache() === null) {
+            return null;
+          }
+          if (attempt === 0) {
+            continue;
+          }
+          // 다시 읽는 동안에도 지웠으면 낡은 응답을 버리고 화면이 들고 있는 목록을 둔다.
+          setLoadState(SUCCESS);
+          return null;
+        }
+        const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
+        writeSavedPlacesCache(nextPlaces, cacheGeneration);
+        setPlaces(nextPlaces);
+        setLoadState(SUCCESS);
+        return nextPlaces;
+      } catch (nextError) {
+        if (requestId !== loadRequestIdRef.current) {
+          return null;
+        }
+        const apiError = normalizeScreenApiError(nextError);
+        setLoadState({status: 'error', error: apiError});
+        if (isLoginRequiredError(apiError)) {
+          onAuthenticationRequiredRef.current?.();
+        }
         return null;
       }
-      const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
-      writeSavedPlacesCache(nextPlaces, cacheGeneration);
-      setPlaces(nextPlaces);
-      setLoadState(SUCCESS);
-      return nextPlaces;
-    } catch (nextError) {
-      if (requestId !== loadRequestIdRef.current) {
-        return null;
-      }
-      const apiError = normalizeScreenApiError(nextError);
-      setLoadState({status: 'error', error: apiError});
-      if (isLoginRequiredError(apiError)) {
-        onAuthenticationRequiredRef.current?.();
-      }
-      return null;
     }
+    return null;
   }, [providedPlaces]);
 
   /** 당겨서 새로고침합니다. 새로고침이 끝나기 전에 다시 당기면 무시합니다. */
