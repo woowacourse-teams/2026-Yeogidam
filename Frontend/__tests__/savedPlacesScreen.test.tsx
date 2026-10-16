@@ -17,7 +17,7 @@ import {SavedPlacesEmptyState} from '../src/pages/saved-places/components/SavedP
 import {SavedPlacesErrorState} from '../src/pages/saved-places/components/SavedPlacesErrorState';
 import {SavedPlacesSearchPanel} from '../src/pages/saved-places/components/SavedPlacesSearchPanel';
 import {SavedPlacesSkeleton} from '../src/pages/saved-places/components/SavedPlacesSkeleton';
-import {clearSavedPlacesCache} from '../src/pages/saved-places/hooks/useSavedPlacesList';
+import {clearSavedPlacesCache} from '../src/entities/info/saved-places-cache';
 import {deferred} from './support/deferred';
 import {
   AUTH_ERROR,
@@ -869,5 +869,31 @@ describe('이벤트와 스크롤', () => {
 
     await pressAround(renderer, props => props.name === 'upload');
     expect(scrollTo).toHaveBeenLastCalledWith({y: 0, animated: true});
+  });
+});
+
+describe('지운 장소와 메모리 캐시', () => {
+  test('편집으로 지운 장소는 화면을 다시 열어도 첫 그림에 보이지 않는다', async () => {
+    const renderer = await renderLoaded([CAFE, BAKERY]);
+    await selectAndDelete(renderer, 'place-1');
+    expect(placeNames(renderer)).toEqual(['빵집']);
+    await unmount(renderer);
+
+    // 다시 열면 조회가 끝나기 전의 첫 그림은 지난 목록(캐시)이다.
+    jest.mocked(getSavedPlaces).mockReturnValue(deferred<SavedPlaceListItem[]>().promise);
+    const reopened = await render();
+    expect(placeNames(reopened)).toEqual(['빵집']);
+  });
+
+  test('다시 읽기가 실패해도 지운 장소가 오류 배너와 함께 되살아나지 않는다', async () => {
+    const renderer = await renderLoaded([CAFE, BAKERY]);
+    await selectAndDelete(renderer, 'place-1');
+    await unmount(renderer);
+
+    jest.mocked(getSavedPlaces).mockRejectedValue(SERVER_ERROR);
+    const reopened = await render();
+    await flush();
+    expect(placeNames(reopened)).toEqual(['빵집']);
+    expect(texts(reopened)).toContain(SERVER_ERROR.message);
   });
 });

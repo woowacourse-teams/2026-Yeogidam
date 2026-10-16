@@ -1,26 +1,16 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 
 import {getSavedPlaces} from '../../../entities/info/api';
+import {
+  getSavedPlacesCacheGeneration,
+  readSavedPlacesCache,
+  removeFromSavedPlacesCache,
+  writeSavedPlacesCache,
+} from '../../../entities/info/saved-places-cache';
 import type {SavedPlacesApiError} from '../../../entities/info/types';
 import {toSavedPlaceDisplayPlace} from '../../../entities/place/api';
 import type {Place} from '../../../entities/place/types';
 import {isLoginRequiredError} from '../../../lib/api/screen-error';
-
-// 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
-// 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
-// 회원 한 사람의 목록이므로 세션이 끝나면 clearSavedPlacesCache로 비웁니다.
-let cachedSavedPlaces: Place[] | null = null;
-// 캐시를 비울 때마다 올려, 비우기 전에 보낸 조회가 늦게 끝나도 캐시를 다시 채우지 않게 합니다.
-let savedPlacesCacheGeneration = 0;
-
-/**
- * 회원 세션이 끝나면(로그아웃, 탈퇴, 세션 만료) 부릅니다.
- * 다음에 보관함을 열면 이전 회원의 목록 대신 스켈레톤을 보이고 목록을 새로 읽습니다.
- */
-export function clearSavedPlacesCache() {
-  cachedSavedPlaces = null;
-  savedPlacesCacheGeneration += 1;
-}
 
 /** 목록 읽기 상태입니다. 캐시나 넘겨받은 목록으로 시작하면 success입니다. */
 type SavedPlacesLoadState =
@@ -40,12 +30,12 @@ type Options = {
 
 /**
  * 보관함 목록을 읽고, 당겨서 새로고침하고, 지운 장소를 목록에서 뺍니다.
- * 요청마다 번호를 붙여 늦게 도착한 이전 응답을 버리고, 다시 열 때는 지난 목록을 먼저 보여 줍니다.
+ * 요청마다 번호를 붙여 늦게 도착한 이전 응답을 버리고, 다시 열 때는 지난 목록(saved-places-cache)을 먼저 보여 줍니다.
  */
 export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: Options) {
-  const [places, setPlaces] = useState<Place[]>(providedPlaces ?? cachedSavedPlaces ?? []);
+  const [places, setPlaces] = useState<Place[]>(() => providedPlaces ?? readSavedPlacesCache() ?? []);
   const [loadState, setLoadState] = useState<SavedPlacesLoadState>(() =>
-    providedPlaces === undefined && cachedSavedPlaces === null ? LOADING : SUCCESS,
+    providedPlaces === undefined && readSavedPlacesCache() === null ? LOADING : SUCCESS,
   );
   const [isRefreshing, setIsRefreshing] = useState(false);
   const isRefreshingRef = useRef(false);
@@ -64,7 +54,7 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
 
     const requestId = loadRequestIdRef.current + 1;
     loadRequestIdRef.current = requestId;
-    const cacheGeneration = savedPlacesCacheGeneration;
+    const cacheGeneration = getSavedPlacesCacheGeneration();
     setLoadState(LOADING);
     try {
       const savedPlaces = await getSavedPlaces();
@@ -72,9 +62,7 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
         return null;
       }
       const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
-      if (cacheGeneration === savedPlacesCacheGeneration) {
-        cachedSavedPlaces = nextPlaces;
-      }
+      writeSavedPlacesCache(nextPlaces, cacheGeneration);
       setPlaces(nextPlaces);
       setLoadState(SUCCESS);
       return nextPlaces;
@@ -112,8 +100,9 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
     loadSavedPlaces();
   }, [loadSavedPlaces]);
 
-  /** 지운 장소를 목록에서 뺍니다. 메모리 캐시는 다음 읽기 때 바뀝니다. */
+  /** 지운 장소를 화면 목록과 메모리 캐시에서 함께 뺍니다. */
   const removePlaces = useCallback((shouldRemove: (place: Place) => boolean) => {
+    removeFromSavedPlacesCache(shouldRemove);
     setPlaces(current => current.filter(place => !shouldRemove(place)));
   }, []);
 

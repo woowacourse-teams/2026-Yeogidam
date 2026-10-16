@@ -38,7 +38,7 @@ import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
-import {clearSavedPlacesCache} from '../src/pages/saved-places/hooks/useSavedPlacesList';
+import {clearSavedPlacesCache} from '../src/entities/info/saved-places-cache';
 
 const DISMISSED_RECOMMENDED_VERSION_KEY =
   '@yeogidam/dismissed-recommended-update-version';
@@ -125,7 +125,7 @@ jest.mock('../src/pages/saved-places/SavedPlacesScreen', () => ({
   SavedPlacesScreen: () => null,
 }));
 
-jest.mock('../src/pages/saved-places/hooks/useSavedPlacesList', () => ({
+jest.mock('../src/entities/info/saved-places-cache', () => ({
   clearSavedPlacesCache: jest.fn(),
 }));
 

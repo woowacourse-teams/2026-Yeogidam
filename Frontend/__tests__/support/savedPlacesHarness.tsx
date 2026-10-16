@@ -13,7 +13,7 @@ import {SavedPlaceGrid} from '../../src/pages/saved-places/components/SavedPlace
 import {SavedPlacesHeader} from '../../src/pages/saved-places/components/SavedPlacesHeader';
 import {SavedPlacesLinkDialog} from '../../src/pages/saved-places/components/SavedPlacesLinkDialog';
 import {SavedPlacesSearchPanel} from '../../src/pages/saved-places/components/SavedPlacesSearchPanel';
-import {clearSavedPlacesCache} from '../../src/pages/saved-places/hooks/useSavedPlacesList';
+import {clearSavedPlacesCache} from '../../src/entities/info/saved-places-cache';
 import {SavedPlacesScreen} from '../../src/pages/saved-places/SavedPlacesScreen';
 import {LINK, listing, NOW} from './savedPlacesFixtures';
 

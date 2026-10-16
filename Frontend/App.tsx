@@ -36,7 +36,7 @@ import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
-import { clearSavedPlacesCache } from './src/pages/saved-places/hooks/useSavedPlacesList';
+import { clearSavedPlacesCache } from './src/entities/info/saved-places-cache';
 import { SplashScreen } from './src/pages/splash/SplashScreen';
 import { clearShareResult } from './src/lib/share-intent';
 import { GUEST_MAIN_FLOW_STATE } from './src/app/navigation';
