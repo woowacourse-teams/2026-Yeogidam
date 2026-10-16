@@ -59,7 +59,7 @@ export function useHistoryRetry(posthog: AnalyticsClient | null | undefined) {
     await setLastSeenHistorySnapshot({
       id: response.reelId,
       status: response.status,
-    }).catch(() => undefined);
+    });
 
     // 같은 게시물을 다시 처리하므로 접수된 공유는 실패 카드의 내용으로 바로 보여 준다.
     // 생성 시각 등 서버 값은 이어지는 목록 조회가 같은 ID로 덮어쓴다.

@@ -122,7 +122,7 @@ export function useHistoryList(
     const subscription = subscribeRecentShares({
       intervalMs: LIST_POLL_INTERVAL_MS,
       onResult: page => {
-        applyRefreshedPage(page).catch(() => undefined);
+        applyRefreshedPage(page);
       },
       onError: () => dispatch({type: 'refreshFailed'}),
     });
@@ -135,17 +135,17 @@ export function useHistoryList(
   }, [applyRefreshedPage, guestReels]);
 
   useEffect(() => {
-    loadFirstPage().catch(() => undefined);
+    loadFirstPage();
   }, [loadFirstPage]);
 
   /** 맨 아래까지 스크롤했을 때 이전 기록을 이어 읽습니다. 실패했으면 다시 불러오기 버튼을 기다립니다. */
   const loadMore = useCallback(() => {
-    if (canLoadMore(state)) loadMorePage(state.cursor).catch(() => undefined);
+    if (canLoadMore(state)) loadMorePage(state.cursor);
   }, [loadMorePage, state]);
 
   /** 실패한 커서로 이전 기록을 다시 읽습니다. 목록 아래의 다시 불러오기 버튼이 씁니다. */
   const retryLoadMore = useCallback(() => {
-    if (state.more.status === 'error') loadMorePage(state.more.cursor).catch(() => undefined);
+    if (state.more.status === 'error') loadMorePage(state.more.cursor);
   }, [loadMorePage, state.more]);
 
   /** 재시도로 접수된 공유를 목록 맨 앞에 넣거나 같은 ID의 항목을 바꿉니다. */

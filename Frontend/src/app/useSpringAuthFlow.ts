@@ -297,7 +297,7 @@ export function useSpringAuthFlow(
   useEffect(() => {
     if (authStatus === 'member' && hasCompletedGuide === true) {
       hasSignedInOnThisInstallRef.current = true;
-      rememberSignInOnThisInstall().catch(() => undefined);
+      rememberSignInOnThisInstall();
     }
   }, [authStatus, hasCompletedGuide]);
 
