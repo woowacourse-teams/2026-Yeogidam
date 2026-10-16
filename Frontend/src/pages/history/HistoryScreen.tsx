@@ -9,24 +9,18 @@ import {
   View,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
-import {v4 as uuidv4} from 'uuid';
 import {
-  toExtractionFailureType,
-  trackExtractionRequestFinished,
-  trackExtractionRequestStarted,
   trackHistoryContentViewed,
   type HistoryVisibleState,
 } from '../../analytics/placeExtractionEvents';
-import {retryHistoryReelExtraction} from '../../entities/content/history-api';
-import {normalizeReelError} from '../../entities/content/errors';
 import type {HistoryReel, HistoryReelDetail} from '../../entities/content/types';
-import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 import {HistoryFailureDetail} from './components/HistoryFailureDetail';
 import {HistoryItem} from './components/HistoryItem';
 import {HistorySuccessDetail} from './components/HistorySuccessDetail';
 import {historyStyles} from './components/historyStyles';
 import {getHistoryVisibleState, groupHistoryReelsByDate} from './history-format';
 import {useHistoryList} from './useHistoryList';
+import {useHistoryRetry} from './useHistoryRetry';
 import {useHistorySelection} from './useHistorySelection';
 
 type HistoryScreenProps = {
@@ -68,6 +62,7 @@ export function HistoryScreen({
   const shouldRestoreScrollRef = useRef(false);
   const {selection, openSuccess, openFailure, closeDetail} = useHistorySelection();
   const isDetailOpen = selection.kind !== 'list';
+  const {retryReel} = useHistoryRetry(posthog);
 
   cardStatesRef.current = new Map(reels.map(reel => [reel.id, getHistoryVisibleState(reel)]));
 
@@ -126,66 +121,19 @@ export function HistoryScreen({
    * 재시도도 새 공유와 같은 길을 탄다. 접수에 성공하면 목록으로 돌아가 바로 한 번 읽고,
    * 이후 상태는 목록 폴링이 갱신한다. 실패하면 실패 상세에 머문 채 안내한다.
    */
-  const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
-    const requestId = uuidv4();
-    trackExtractionRequestStarted(posthog, {
-      requestId,
-      source: 'history_retry',
-    });
-    let response: Awaited<ReturnType<typeof retryHistoryReelExtraction>>;
-    try {
-      // 서버 재시도 API는 같은 게시물로 새 공유를 만들고(이미 추출 중이면 그 공유를) 돌려준다.
-      response = await retryHistoryReelExtraction(reel.id);
-    } catch (retryError) {
-      const normalized = normalizeReelError(retryError);
-      trackExtractionRequestFinished(posthog, {
-        requestId,
-        source: 'history_retry',
-        outcome: 'request_failed',
-        failureType: toExtractionFailureType(normalized),
-        responseStatus: normalized.status,
-      });
-      // MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
-      Alert.alert(
-        '다시 시도하지 못했어요',
-        normalized.errorCode?.startsWith('MEDIA')
-          ? normalized.message
-          : '잠시 후 다시 시도해주세요.',
-      );
+  const handleRetry = async (reel: HistoryReel) => {
+    const outcome = await retryReel(reel);
+    if (outcome.status === 'failed') {
+      Alert.alert('다시 시도하지 못했어요', outcome.message);
       return;
     }
-    // 2xx 응답이면 응답 안의 추출 상태가 FAILED여도 응답 수신으로 기록한다.
-    trackExtractionRequestFinished(posthog, {
-      requestId,
-      source: 'history_retry',
-      outcome: 'response_received',
-      contentId: response.reelId,
-    });
-
-    // 이 화면에서 바로 보게 되므로 대기함으로 돌아갈 때 안 읽은 히스토리로 표시하지 않는다.
-    await setLastSeenHistorySnapshot({
-      id: response.reelId,
-      status: response.status,
-    }).catch(() => undefined);
-
     // 새 항목이 맨 위에 생기므로 실패 항목의 스크롤 위치로 되돌리지 않는다.
     scrollOffsetRef.current = 0;
     shouldRestoreScrollRef.current = false;
     closeDetail();
-    // 같은 게시물을 다시 처리하므로 접수된 공유는 실패 카드의 내용으로 바로 보여 준다.
-    // 생성 시각 등 서버 값은 이어지는 목록 조회가 같은 ID로 덮어쓴다.
-    if (!response.reused) {
-      const acceptedReel: HistoryReel = {
-        ...reel,
-        id: response.reelId,
-        processing_status: response.status,
-        failure_reason: null,
-        created_at: new Date().toISOString(),
-      };
-      acceptRetriedReel(acceptedReel);
-    }
+    if (outcome.acceptedReel) acceptRetriedReel(outcome.acceptedReel);
     await refreshSilently();
-  }, [acceptRetriedReel, closeDetail, posthog, refreshSilently]);
+  };
 
   useEffect(() => {
     if (
@@ -240,7 +188,7 @@ export function HistoryScreen({
             onRequireLogin?.();
             return;
           }
-          await retryHistoryReel(selection.reel);
+          await handleRetry(selection.reel);
         }}
       />
     );

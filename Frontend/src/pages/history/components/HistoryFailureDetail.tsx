@@ -21,10 +21,10 @@ import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   getBottomNavigationBarOffset,
 } from '../../../components/BottomNavigationBar';
-import {reportHistoryReel} from '../../../entities/content/history-api';
 import type {HistoryReel, HistoryReelDetail} from '../../../entities/content/types';
 import {getHistoryFailureMessage} from '../history-format';
 import {useHistoryReelDetail} from '../useHistoryReelDetail';
+import {useHistoryReport} from '../useHistoryReport';
 import {HISTORY_FALLBACK_THUMBNAIL, historyStyles} from './historyStyles';
 
 /**
@@ -62,7 +62,7 @@ export function HistoryFailureDetail({
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
   }, [posthog, reel.id]);
-  const [reported, setReported] = useState(false);
+  const {reported, report} = useHistoryReport(reel.id);
   const [retrying, setRetrying] = useState(false);
   const { detail } = useHistoryReelDetail(reel, guestDetail);
   const displayReel = detail ?? reel;
@@ -182,12 +182,9 @@ export function HistoryFailureDetail({
                 {
                   text: '확인',
                   onPress: () => {
-                    setReported(true);
-                    reportHistoryReel(reel.id)
-                      .catch(() => {
-                        setReported(false);
-                        Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
-                      });
+                    report().then(sent => {
+                      if (!sent) Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
+                    });
                   },
                 },
               ]);
