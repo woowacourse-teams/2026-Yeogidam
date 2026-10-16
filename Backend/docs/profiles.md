@@ -43,7 +43,7 @@ env는 노션 페이지를 참고해 작성한다.
 기동마다 `schema.sql`이 테이블을 새로 만든 뒤 `data-local.sql`, `data-onboarding.sql` 순서로 데이터가 들어가므로 재시작하면 항상 같은 상태가 된다.
 
 - `data-local.sql`: 장소 8개, 릴스 7개, 공유 9건, 보관함 5행, 제보 1건. 정콩(회원 1)과 러키(회원 2) 시나리오이고 파일 머리 주석에 적혀 있다.
-- `data-onboarding.sql`: 군자역 디저트 캐러셀의 게시물 1개, 장소 5개, 게시물과 장소 연결 5개. 로컬에서는 `data-local.sql` 다음에 자동 실행되고, 개발 DB에는 `data-local.sql`을 넣은 뒤 같은 파일을 직접 넣고, 운영 DB에도 같은 파일을 직접 넣는다. `media_shortcode`, `kakao_place_id`를 기준으로 upsert해 재적용해도 중복되지 않고, 컷오버 때 Supabase에서 옮겨 오는 데이터와 키가 같으므로 이관 전후 어느 쪽에 넣어도 된다. 장소 5개의 `kakao_place_id`는 FE 번들과 같아야 한다. 온보딩 시드는 썸네일을 넣지 않으며, 게시물 표지와 장소 5개의 썸네일은 컷오버 때 이관이 채운다.
+- `data-onboarding.sql`: 군자역 디저트 캐러셀의 게시물 1개, 장소 5개, 게시물과 장소 연결 5개. 로컬에서는 `data-local.sql` 다음에 자동 실행되고, 개발 DB에는 `data-local.sql`을 넣은 뒤 같은 파일을 직접 넣고, 운영 DB에도 같은 파일을 직접 넣는다. `media_shortcode`, `kakao_place_id`를 기준으로 upsert해 재적용해도 중복되지 않고, 컷오버 때 Supabase에서 옮겨 오는 데이터와 키가 같으므로 data migration 전후 어느 쪽에 넣어도 된다. 장소 5개의 `kakao_place_id`는 FE 번들과 같아야 한다. 온보딩 시드는 썸네일을 넣지 않으며, 게시물 표지와 장소 5개의 썸네일은 컷오버 때 data migration이 채운다.
 - 회원 행은 `LocalMemberSeeder`가 넣는다. `.env`의 `SEED_KAKAO_USER_ID_BEAN`이 회원 1, `SEED_KAKAO_USER_ID_LUCKY`가 회원 2다.
 - SQL 파일은 환경변수를 못 읽으므로, 카카오 회원번호를 환경변수로 관리하려고 회원 행만 자바 클래스 `LocalMemberSeeder`로 뺐다.
 

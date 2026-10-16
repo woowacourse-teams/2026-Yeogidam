@@ -51,7 +51,7 @@
 
 ## 4. 두 단계 계획 (2026-09-16 팀 결정)
 
-2026-09-16 팀 결정으로 3일 병렬 계획(빈 쓰기, 러키 읽기)을 두 단계로 바꾼다. 읽기 API와 회원 탈퇴는 비교적 간단하므로 task로 나눠 둘이 먼저 끝내고, 남은 일정에는 쓰기 모델(접수, 파이프라인, 추출 장소 자동 저장, 재시도, 제보)을 도메인 모델링(#138) 때처럼 각자 구현해 와서 합친다. 각자 브랜치에서 만들고 PR을 교차 리뷰한 뒤 be-dev에 머지하는 작업 방식은 같다.
+2026-09-16 팀 결정으로 3일 병렬 계획(정콩 쓰기, 러키 읽기)을 두 단계로 바꾼다. 읽기 API와 회원 탈퇴는 비교적 간단하므로 task로 나눠 둘이 먼저 끝내고, 남은 일정에는 쓰기 모델(접수, 파이프라인, 추출 장소 자동 저장, 재시도, 제보)을 도메인 모델링(#138) 때처럼 각자 구현해 와서 합친다. 각자 브랜치에서 만들고 PR을 교차 리뷰한 뒤 be-dev에 머지하는 작업 방식은 같다.
 
 ```
 PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단계 (다음 주 월 ~, 합치는 날은 정한다)   →  그 다음
@@ -85,7 +85,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 task는 자원 단위로 나누고 한 사람이 자원 하나의 조회 DAO, 서비스, 컨트롤러와 문서 인터페이스, 응답 DTO, 테스트(`@JdbcTest`, E2E)를 통째로 만든다. 읽기 task는 쓰기 API가 아직 없으므로 SQL 픽스처(`support/fixture/sql`의 `MemberSqlFixture`, `PlaceSqlFixture`, `SavedPlaceSqlFixture` 같은 정적 메서드)로 given에서 행을 넣어 검증하고 같은 픽스처를 2단계의 E2E가 다시 쓴다. 로그인은 `E2eTestSupport.loginAsKakao`를 그대로 쓴다.
 
-task를 A와 B 두 묶음으로 나눠(2026-09-16 확정) A는 정콩(빈), B는 러키가 맡는다. 자원 기준으로 갈려 두 사람이 같은 파일을 만질 일이 없다.
+task를 A와 B 두 묶음으로 나눠(2026-09-16 확정) A는 정콩, B는 러키가 맡는다. 자원 기준으로 갈려 두 사람이 같은 파일을 만질 일이 없다.
 
 2026-09-20 기준 진행 상황을 보면 사이클 1 인가(#162)와 PR 0 스키마(4df7ec9)가 be-dev에 있고, 코드 규칙(getter 체이닝 한 줄, `ResponseEntity.ok()` 뒤 개행, DAO SQL은 메서드 안 텍스트 블록, 응답 DTO 부생성자)은 러키에게 전달했다. 이슈는 A가 #166~#170, B가 #164부터이고 브랜치는 이슈 번호로 `feat/#번호`다. A는 #166 보관함 목록이 PR #179로 머지됐고(2026-09-21), #168 삭제가 PR #197, #169 관련 릴스가 #197 위에 쌓은 PR #200(스택 #197 → #200), #170 앱 정책이 PR #192이고, B는 #172 대기함 목록과 #172 위에 쌓은 #190 히스토리가 PR 중이며 서로 교차 리뷰한다. (#172 대기함 목록은 머지 뒤 2026-10-06 대기함 제거(#274)로 지웠다.) PR 알림 Discord 워크플로(#186, PR #188)는 머지됐다. #167 장소 상세는 클라이언트가 목록 항목을 그대로 넘겨 써서 필요 없을 가능성이 커 러키 확인 중이다.
 
@@ -119,7 +119,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 1. **파이프라인 골격.** 포트 3개(`InstagramContentReader`, `PlaceNameExtractor`, `PlaceSearcher`)와 Fake 3개(test, fake 프로필 `@Primary`), `ExtractionProcess`, `ExtractionResultRecorder`, `ExtractionPipeline`(`@Async`, 커밋 후 디스패치), `AsyncConfig`, `MediaDao`, `MediaPlaceDao`, `SavedPlaceDao`, `PlaceDao`(kakao_place_id로 get-or-create)를 둔다. 추출 사실은 `media_places`에 기록하고 성공한 장소는 보관함과 공유 이력에 연결한다.
 2. **접수.** `POST /shares`(`ShareService.createShare`: 회원 확인, URL 파싱, 게시물 find-or-create, 공유 삽입, 추출 성공본이면 장소를 보관함에 저장하고 공유와 연결, 실패본이면 재추출 선점, 커밋 후 디스패치), `SharedMediaDao`, `ShareController`의 POST, `ExtractionRecoveryRunner`를 만든다.
-3. **재시도와 제보.** 실패한 추출은 `POST /shares/{sharedMediaId}/extraction-retries`로 다시 시도하고(#282, 2026-10-08 머지), 실패 제보는 `POST /shares/{sharedMediaId}/reports`로 접수한다(#285, 2026-10-08 머지). 두 API는 장소 저장과 별도 흐름이다. 재시도 규칙과 응답은 9절에 있다. 제보는 본인의 `FAILED` 공유 이력을 실패 사유와 분석 버전에 관계없이 접수하며 신고 저장 후 본문 없는 `201`을 반환한다. 존재하지 않거나 다른 회원의 이력은 `404`, 실패하지 않은 이력은 `400`(MEDIA400_017), 중복 신고는 `409`(MEDIA409_001)다. 같은 미디어를 공유한 다른 회원은 각자의 이력을 신고할 수 있고, 기존 공유 이력과 분석 상태는 유지하며 재분석을 예약하지 않는다.
+3. **재시도와 제보.** 실패한 추출은 `POST /shares/{sharedMediaId}/extraction-retries`로 다시 시도하고(#282, 2026-10-08 머지), 실패 제보는 `POST /shares/{sharedMediaId}/reports`로 접수한다(#285, 2026-10-08 머지). 두 API는 장소 저장과 별도 흐름이다. 재시도 규칙과 응답은 9절에 있다. 제보는 본인의 `FAILED` 공유 이력을 실패 사유와 분석 버전에 관계없이 접수하며 제보 저장 후 본문 없는 `201`을 반환한다. 존재하지 않거나 다른 회원의 이력은 `404`, 실패하지 않은 이력은 `400`(MEDIA400_017), 중복 제보는 `409`(MEDIA409_001)다. 같은 미디어를 공유한 다른 회원은 각자의 이력을 제보할 수 있고, 기존 공유 이력과 분석 상태는 유지하며 재분석을 예약하지 않는다.
 
 각자 구현에 들어가기 전에 월요일 오전에 같이 맞춘다. 왕복 E2E 시나리오 초안은 금요일 오후에 잡아 둔다.
 
@@ -158,7 +158,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 | 11 | 장소 사진 저장 | 어댑터 | (없음) | (썸네일 저장 구조 #261) 카카오 장소 페이지 `og:image`를 S3에 저장하고 객체 키를 보관. 없거나 해상도가 낮으면 해당 인스타그램 썸네일 키를 폴백으로 사용. Google Places API와 월 사용량 상한은 사용하지 않음 | 장소와 함께 S3 썸네일 키가 저장된다 |
 | 12 | 운영 장애 대비 | 공통 | (없음) | 처리 중 고착 인수(stale 15분), 기동 복구(있음), 관측 로그, 알림(선택). 구현 백로그 2 | 비정상 종료 뒤에도 EXTRACTING이 남지 않는다 |
 | 13 | 클라이언트 전환 | 전환 | 전부 | 인증 SDK(제공자 인가 코드 → /auth/logins), 데이터 어댑터 교체, 네이티브 공유 2벌, 토큰 저장 | Supabase 호출 0건 |
-| 14 | 데이터 이관 | 전환 | (없음) | supabase-migration-parity.md 매핑으로 1회 이관 스크립트, 검증 쿼리 | 사용자 35명 보관함 개수 일치 |
+| 14 | data migration | 전환 | (없음) | supabase-migration-parity.md 매핑으로 1회 data migration 스크립트, 검증 쿼리 | 사용자 35명 보관함 개수 일치 |
 | 15 | 컷오버 | 전환 | (없음) | 운영 배포, 1.2.0 앱 점진적 출시 100% 확인, Supabase 환경변수의 최소 버전을 올려 1.1.0 차단, Supabase 읽기 전용 → 종료 | 앱스토어 새 버전 |
 
 사이클 2부터 7까지는 4절의 두 단계 계획으로 진행한다. 1단계가 사이클 3, 4, 5, 6의 읽기 부분과 사이클 7이고, 2단계가 사이클 2, 3, 4의 쓰기 부분이다. 사이클 1부터 7까지가 끝나 모든 화면이 Fake 파이프라인으로 실제 HTTP에서 돌면 클라이언트 전환(13)을 병행할 수 있다. 어댑터 사이클(8~11)은 화면과 독립이라 페어가 나눠 맡기 좋다.
@@ -257,10 +257,10 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 1. **대기함은 한 번 롤백된 적이 있다.** 2026-08-27에 큐(review_status)를 도입했다가 08-28에 "대기함/히스토리 기능이 운영 앱보다 먼저 배포되어 기존 saved_places 계약이 깨진 상태"를 복구하려고 전부 되돌렸고 08-30에 v1(AUTO_SAVE)과 v2(REVIEW_QUEUE)가 같은 스키마에서 병행되도록 재도입했다. 서버 동작을 앱보다 먼저 바꾸면 깨진다는 교훈이라 컷오버(사이클 15)는 app-update-policies로 구버전을 막은 뒤에 한다. Spring 쪽 대기함은 2026-10-06에 설계에서 뺐지만(#274) 교훈은 그대로 남는다.
 2. **반복 요청 처리(09-01)가 지금 구조의 기본이다.** (user_id, request_id) 멱등키, shortcode + pipeline_version 단위의 추출 캐시(reel_extractions, cacheable 플래그), 15분 stale 인수, 대기함 카드의 세대 watermark가 이때 들어왔다. 구현 백로그 1(멱등키)과 2(stale 복구)의 근거다.
-3. **운영 DB에 마이그레이션에 없는 `reset_test_data()` 함수가 남아 있다.** `delete from auth.users; delete from public.places;`를 실행하는 SECURITY DEFINER 함수이고 service_role만 부를 수 있지만 운영 프로젝트에 두기에는 위험하므로 Supabase를 닫기 전이라도 지우는 편이 안전하다(이관 작업과는 별개).
+3. **운영 DB에 마이그레이션에 없는 `reset_test_data()` 함수가 남아 있다.** `delete from auth.users; delete from public.places;`를 실행하는 SECURITY DEFINER 함수이고 service_role만 부를 수 있지만 운영 프로젝트에 두기에는 위험하므로 Supabase를 닫기 전이라도 지우는 편이 안전하다(data migration 작업과는 별개).
 4. **접근 통제가 RLS 한 겹뿐이다.** Supabase 클라우드 기본값(ALTER DEFAULT PRIVILEGES)으로 anon과 authenticated에 테이블 GRANT ALL이 걸려 있고 실제 접근은 RLS 정책(전부 TO authenticated)만이 막는다. Spring으로 오면 인가 인터셉터와 서비스의 소유 검증(남의 공유는 404)이 그 역할을 대신한다.
 5. **공유 확장의 토큰 갱신 부재는 원 개발자의 기술 부채 목록(docs/architecture.md)에도 적혀 있다.** 남은 결정 7이 새 문제가 아니라 이어받는 문제라는 뜻이다. 같은 목록에 Google 사진 재호스팅 정책 충돌, Kakao ID가 오탐을 막지 못함, 장소 수 상한 없음, 실패 attempt가 공용 데이터를 남길 수 있음이 있어 사이클 10과 11에서 다시 본다.
-6. **이관 데이터의 모양.** reels 4,438건 중 request_id가 없는 구버전 행은 (user_id, shortcode) 유니크였고 reel_extractions에는 부분 성공(cacheable = false, 옛 processing_version 2147483647에서 승격)이 섞여 있다. 사이클 14의 이관 스크립트는 cacheable = false 추출을 media의 FAILED 또는 재추출 대상으로 어떻게 옮길지 정해야 한다.
+6. **data migration 데이터의 모양.** reels 4,438건 중 request_id가 없는 구버전 행은 (user_id, shortcode) 유니크였고 reel_extractions에는 부분 성공(cacheable = false, 옛 processing_version 2147483647에서 승격)이 섞여 있다. 사이클 14의 data migration 스크립트는 cacheable = false 추출을 media의 FAILED 또는 재추출 대상으로 어떻게 옮길지 정해야 한다.
 
 ## 9. 부록: 2026-10-06부터 10-08까지 바뀐 설계 (#274, #282, #285, #313)
 
