@@ -1,4 +1,21 @@
 {
   "name": "Frontend",
-  "displayName": "여기담"
+  "displayName": "여기담",
+  "expo": {
+    "name": "여기담",
+    "slug": "yeogidam",
+    "version": "2.0.1",
+    "scheme": "com.yeogidamm.app",
+    "ios": {
+      "bundleIdentifier": "com.yeogidamm.app"
+    },
+    "android": {
+      "package": "com.yeogidamm.app"
+    },
+    "runtimeVersion": "2.0.1",
+    "updates": {
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
+  }
 }
