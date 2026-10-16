@@ -11,7 +11,7 @@ import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
-import type { PlaceReel, ProfileApiError, ProfileInfo } from './src/entities/info/types';
+import type { PlaceReel, ProfileInfo } from './src/entities/info/types';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -87,6 +87,7 @@ import {
   syncShareAnalyticsConfiguration,
   syncShareSession,
 } from './src/lib/share-intent';
+import { useCurrentProfile } from './src/app/useCurrentProfile';
 import { useNativeShareResults } from './src/app/useNativeShareResults';
 import type {
   AppFlowState,
@@ -186,13 +187,8 @@ function App() {
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
   const savedPlacesScrollOffsetRef = useRef(0);
-  const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
-    null,
-  );
-  const [profileError, setProfileError] = useState<ProfileApiError | null>(
-    null,
-  );
-  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const {currentProfile, profileError, isProfileLoading, retryProfile, clearProfile} =
+    useCurrentProfile(flowState.kind === 'main' && isAuthenticated === true);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
@@ -574,48 +570,6 @@ function App() {
     };
   }, [isAuthenticated]);
 
-  useEffect(() => {
-    if (flowState.kind !== 'main' || isAuthenticated !== true) {
-      setCurrentProfile(null);
-      setProfileError(null);
-      setIsProfileLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-
-    setIsProfileLoading(true);
-    setProfileError(null);
-
-    getCurrentProfile()
-      .then(profile => {
-        if (!isMounted) {
-          return;
-        }
-
-        setCurrentProfile(profile);
-      })
-      .catch(error => {
-        if (!isMounted) {
-          return;
-        }
-
-        setCurrentProfile(null);
-        setProfileError(error as ProfileApiError);
-      })
-      .finally(() => {
-        if (!isMounted) {
-          return;
-        }
-
-        setIsProfileLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [flowState.kind, isAuthenticated]);
-
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider || loginAttemptInFlightRef.current) {
       return;
@@ -786,28 +740,12 @@ function App() {
       return;
     }
 
-    setCurrentProfile(null);
-    setProfileError(null);
+    clearProfile();
     setMyPageOverlay(null);
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
     Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
-  };
-
-  const handleRetryProfile = async () => {
-    setIsProfileLoading(true);
-
-    try {
-      const profile = await getCurrentProfile();
-
-      setCurrentProfile(profile);
-    } catch (error) {
-      setCurrentProfile(null);
-      setProfileError(error as ProfileApiError);
-    } finally {
-      setIsProfileLoading(false);
-    }
   };
 
   const renderScreen = () => {
@@ -985,7 +923,7 @@ function App() {
         onLogout={handleLogout}
         onLogin={handleOpenGuestLogin}
         onOpenTerms={() => setMyPageOverlay('terms')}
-        onRetryProfile={handleRetryProfile}
+        onRetryProfile={retryProfile}
         onWithdraw={handleOpenAccountDeletion}
         profileError={profileError}
       />
