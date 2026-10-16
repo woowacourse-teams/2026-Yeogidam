@@ -126,7 +126,6 @@ export function reelProcessingReducer(
     case 'sharedStateChanged':
       return applySharedSaveStateView(state, action.view);
     case 'linkSaveStarted':
-      // 새 링크 요청은 이전 릴스의 카드/폴링 상태를 이어받지 않습니다.
       return {processingReelId: null, processingReel: action.reel, showSaveSuccess: false};
     case 'linkSaveResponded':
       if (action.response.status === 'COMPLETED') {
