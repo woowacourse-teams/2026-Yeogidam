@@ -122,6 +122,9 @@ function App() {
     resolveDeletionProviders,
     deleteAccountAndSignOut,
   } = useSpringAuthFlow({posthog, hasCompletedGuide}, {
+    // 이 handlers와 아래 useNativeShareResults의 handlers는 렌더가 끝난 뒤(effect와 세션 이벤트)에만 불립니다.
+    // 그래서 더 아래에서 선언되는 resetPendingShareLogin과 dismissGuestLoginPrompt를 써도 선언 전 접근이 되지 않습니다.
+    // 타입 검사와 lint는 닫힌 함수 안의 선언 전 참조를 잡지 않으므로, 렌더 중에 부르는 핸들러를 더하면 안 됩니다.
     onGuestSession: signedInOnThisInstall => {
       // 로그아웃, 세션 만료, 탈퇴는 모두 여기를 지나므로 이전 회원의 보관함 목록이 다음 회원에게 보이지 않게 비웁니다.
       clearSavedPlacesCache();
@@ -158,7 +161,6 @@ function App() {
     AccountDeletionProvider[]
   >([]);
 
-  // 핸들러는 렌더가 끝난 뒤 비동기로만 불리므로 아래 useGuestLoginPrompt가 돌려주는 dismissGuestLoginPrompt를 써도 안전합니다.
   // isGuestBrowsing이 hasPendingShareLogin을 읽어야 해서 useGuestLoginPrompt를 useNativeShareResults보다 먼저 부를 수 없습니다.
   const {hasPendingShareLogin, cancelPendingShareLogin, resetPendingShareLogin} =
     useNativeShareResults(isAuthReady, {
