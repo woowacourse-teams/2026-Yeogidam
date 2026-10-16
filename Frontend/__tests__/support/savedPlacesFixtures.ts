@@ -22,6 +22,11 @@ export const RESTAURANT = savedPlace(3, '식당');
 export const place = (name: string, savedPlaceId: string): Place =>
   ({id: `place-${savedPlaceId}`, name, savedPlaceId} as Place);
 
+/** CAFE와 BAKERY를 화면과 캐시가 다루는 회원 장소로 바꾼 값입니다. 저장 ID가 응답 항목과 같아 삭제 확인이 같은 장소로 찾습니다. */
+export const CACHED_CAFE = place(CAFE.place.name, CAFE.id);
+export const CACHED_BAKERY = place(BAKERY.place.name, BAKERY.id);
+export const CACHED_PLACES: Place[] = [CACHED_CAFE, CACHED_BAKERY];
+
 export const GUEST_PLACES: Place[] = [
   {id: 'guest-1', name: '체험 카페', address: '서울', fullAddress: '서울'},
   {id: 'guest-2', name: '체험 빵집', address: '서울', fullAddress: '서울'},
