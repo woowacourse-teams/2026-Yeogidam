@@ -2,8 +2,6 @@ import type {ImageSourcePropType} from 'react-native';
 
 export type SaveSource = 'url_input' | 'instagram_share';
 
-export type ContentType = 'instagram_reel' | 'unsupported';
-
 export type SaveInstagramReelResponse = {
   reelId: string;
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';

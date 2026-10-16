@@ -18,9 +18,4 @@ export const ANALYTICS_EVENTS = {
   savedPlaceSelected: 'saved_place_selected',
   savedPlaceOpened: 'saved_place_opened',
   placeMapViewed: 'place_map_viewed',
-  /** 비활성: 대기함 화면이 제거되어 호출되지 않습니다. */
-  pendingPlacesViewed: 'pending_places_viewed',
-  pendingPlaceSaveFinished: 'pending_place_save_finished',
-  pendingPlaceDiscardFinished: 'pending_place_discard_finished',
-  pendingResolutionCompleted: 'pending_resolution_completed',
 } as const;

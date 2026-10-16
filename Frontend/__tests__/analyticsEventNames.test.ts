@@ -19,10 +19,6 @@ describe('analytics event names', () => {
         "historyViewed": "history_viewed",
         "loginFinished": "login_finished",
         "loginStarted": "login_started",
-        "pendingPlaceDiscardFinished": "pending_place_discard_finished",
-        "pendingPlaceSaveFinished": "pending_place_save_finished",
-        "pendingPlacesViewed": "pending_places_viewed",
-        "pendingResolutionCompleted": "pending_resolution_completed",
         "placeMapViewed": "place_map_viewed",
         "savedPlaceOpened": "saved_place_opened",
         "savedPlaceSelected": "saved_place_selected",
@@ -36,7 +32,6 @@ describe('analytics event names', () => {
     const files = [
       'userEntryEvents',
       'placeExtractionEvents',
-      'placeSavingEvents',
       'savedPlaceEvents',
     ];
 

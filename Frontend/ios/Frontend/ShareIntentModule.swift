@@ -3,14 +3,6 @@ import React
 
 @objc(ShareIntentModule)
 final class ShareIntentModule: RCTEventEmitter {
-  private static weak var currentInstance: ShareIntentModule?
-  private var hasListeners = false
-
-  override init() {
-    super.init()
-    ShareIntentModule.currentInstance = self
-  }
-
   override class func requiresMainQueueSetup() -> Bool {
     true
   }
@@ -20,34 +12,9 @@ final class ShareIntentModule: RCTEventEmitter {
     return ["installationId": installationId]
   }
 
+  /// 앱은 네이티브 결과를 폴링으로 읽으므로 JS로 보내는 이벤트가 없습니다.
   override func supportedEvents() -> [String]! {
-    [ShareIntentConstants.eventName]
-  }
-
-  override func startObserving() {
-    hasListeners = true
-  }
-
-  override func stopObserving() {
-    hasListeners = false
-  }
-
-  @objc(getPendingShare:rejecter:)
-  func getPendingShare(
-    _ resolve: RCTPromiseResolveBlock,
-    rejecter reject: RCTPromiseRejectBlock
-  ) {
-    resolve(ShareIntentStorage.load()?.dictionaryRepresentation)
-  }
-
-  @objc(clearPendingShare:resolver:rejecter:)
-  func clearPendingShare(
-    _ shareId: String?,
-    resolver resolve: RCTPromiseResolveBlock,
-    rejecter reject: RCTPromiseRejectBlock
-  ) {
-    ShareIntentStorage.clear(expectedId: shareId)
-    resolve(nil)
+    []
   }
 
   @objc(setShareSession:resolver:rejecter:)
@@ -151,20 +118,5 @@ final class ShareIntentModule: RCTEventEmitter {
   ) {
     ShareAnalyticsStore.acknowledge(id)
     resolve(nil)
-  }
-
-  @objc
-  static func notifyPendingShareAvailable() {
-    DispatchQueue.main.async {
-      currentInstance?.emitPendingShareIfNeeded()
-    }
-  }
-
-  private func emitPendingShareIfNeeded() {
-    guard hasListeners, let payload = ShareIntentStorage.load() else {
-      return
-    }
-
-    sendEvent(withName: ShareIntentConstants.eventName, body: payload.dictionaryRepresentation)
   }
 }

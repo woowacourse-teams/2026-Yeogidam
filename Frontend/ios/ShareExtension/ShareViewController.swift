@@ -33,7 +33,7 @@ final class ShareViewController: UIViewController {
     ShareAnalyticsStore.record("reel_share_received", shareId: shareId)
     // 새 공유는 현재 extensionContext의 URL만 사용합니다.
     // 과거 호환용 payload만 제거합니다. requestId별 결과는 서로 독립적으로 유지합니다.
-    ShareIntentStorage.clear()
+    ShareIntentStorage.clearLegacyPayload()
     Task { @MainActor [weak self] in
       guard let self else {
         return

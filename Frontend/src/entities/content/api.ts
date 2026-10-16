@@ -1,7 +1,6 @@
 import {ApiError} from '../../lib/api/errors';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {
-  ContentType,
   SaveInstagramReelResponse,
   SaveSource,
   ReelProcessingStatus,
@@ -94,10 +93,6 @@ export function toReelApiError(error: unknown): ReelApiError {
     errorCode: 'CLIENT000_003',
     message: '응답을 처리하지 못했어요.',
   });
-}
-
-export function detectContentType(url: string): ContentType {
-  return normalizeInstagramContentUrl(url) ? 'instagram_reel' : 'unsupported';
 }
 
 export function normalizeInstagramContentUrl(url: string): string | null {
