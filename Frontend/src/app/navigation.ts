@@ -45,8 +45,8 @@ export type NavigationAction =
     }
   | {type: 'closeDetail'}
   | {type: 'openLogin'}
-  | {type: 'openGuestLogin'; returnFlow: MainFlowState}
-  | {type: 'continueBrowsing'}
+  | {type: 'openLoginFromGuest'; returnFlow: MainFlowState}
+  | {type: 'returnToGuestFlow'}
   | {type: 'forgetGuestReturnFlow'}
   | {type: 'openGuestMain'}
   | {type: 'openMemberMain'};
@@ -118,9 +118,9 @@ export function navigationReducer(
       };
     case 'openLogin':
       return withFlow(state, INITIAL_FLOW_STATE);
-    case 'openGuestLogin':
+    case 'openLoginFromGuest':
       return {...state, guestReturnFlow: action.returnFlow, flow: INITIAL_FLOW_STATE};
-    case 'continueBrowsing':
+    case 'returnToGuestFlow':
       if (!state.guestReturnFlow) return state;
       return {...state, flow: state.guestReturnFlow, guestReturnFlow: null};
     case 'forgetGuestReturnFlow':

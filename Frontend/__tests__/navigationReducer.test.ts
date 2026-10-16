@@ -90,17 +90,17 @@ describe('navigationReducer: 로그인과 비회원 복귀', () => {
       type: 'openMainScreen',
       screen: 'map',
     });
-    const atLogin = run(browsing, {type: 'openGuestLogin', returnFlow: browsing.flow as never});
+    const atLogin = run(browsing, {type: 'openLoginFromGuest', returnFlow: browsing.flow as never});
     expect(atLogin.flow).toEqual(INITIAL_FLOW_STATE);
     expect(atLogin.guestReturnFlow).toEqual({kind: 'main', activeTab: 'map', detailSource: null});
 
-    const returned = run(atLogin, {type: 'continueBrowsing'});
+    const returned = run(atLogin, {type: 'returnToGuestFlow'});
     expect(returned.flow).toEqual(browsing.flow);
     expect(returned.guestReturnFlow).toBeNull();
   });
 
   test('돌아갈 흐름이 없으면 계속 둘러보기와 잊기는 아무것도 바꾸지 않는다', () => {
-    expect(navigationReducer(INITIAL_NAVIGATION_STATE, {type: 'continueBrowsing'})).toBe(
+    expect(navigationReducer(INITIAL_NAVIGATION_STATE, {type: 'returnToGuestFlow'})).toBe(
       INITIAL_NAVIGATION_STATE,
     );
     expect(navigationReducer(INITIAL_NAVIGATION_STATE, {type: 'forgetGuestReturnFlow'})).toBe(
@@ -110,7 +110,7 @@ describe('navigationReducer: 로그인과 비회원 복귀', () => {
 
   test('로그인에 성공하면 돌아갈 흐름을 잊고 보관함 탭에서 다시 시작한다', () => {
     const atLogin = run(INITIAL_NAVIGATION_STATE, {
-      type: 'openGuestLogin',
+      type: 'openLoginFromGuest',
       returnFlow: GUEST_MAIN_FLOW_STATE,
     });
     const withSelection = run(atLogin, {
@@ -136,5 +136,40 @@ describe('navigationReducer: 로그인과 비회원 복귀', () => {
     const guest = run(INITIAL_NAVIGATION_STATE, {type: 'openGuestMain'});
     expect(navigationReducer(guest, {type: 'openGuestMain'})).toBe(guest);
     expect(guest.flow).toBe(GUEST_MAIN_FLOW_STATE);
+  });
+});
+
+describe('navigationReducer: 리뷰에서 더한 경계', () => {
+  test('상세 화면에서 로그인으로 갔다가 돌아오면 상세와 선택 장소가 그대로다', () => {
+    const detail = run(
+      INITIAL_NAVIGATION_STATE,
+      {type: 'openGuestMain'},
+      {type: 'openDetail', source: 'saved', place: PLACE, context: null},
+    );
+    const atLogin = run(detail, {type: 'openLoginFromGuest', returnFlow: detail.flow as never});
+    const returned = run(atLogin, {type: 'returnToGuestFlow'});
+    expect(returned.flow).toEqual({kind: 'main', activeTab: 'saved', detailSource: 'saved'});
+    expect(returned.selectedPlace).toBe(PLACE);
+    expect(selectCurrentScreen(returned.flow)).toBe('detail');
+  });
+
+  test('인증 흐름에서는 상세를 열어도 화면이 바뀌지 않는다', () => {
+    const opened = run(INITIAL_NAVIGATION_STATE, {
+      type: 'openDetail',
+      source: 'map',
+      place: PLACE,
+      context: null,
+    });
+    expect(opened.flow).toEqual(INITIAL_FLOW_STATE);
+    expect(selectCurrentScreen(opened.flow)).toBe('login');
+  });
+
+  test('이미 로그인 화면이어도 비회원 로그인 진입은 새 상태를 만들고 돌아갈 흐름을 기억한다', () => {
+    const next = navigationReducer(INITIAL_NAVIGATION_STATE, {
+      type: 'openLoginFromGuest',
+      returnFlow: GUEST_MAIN_FLOW_STATE,
+    });
+    expect(next).not.toBe(INITIAL_NAVIGATION_STATE);
+    expect(next.guestReturnFlow).toBe(GUEST_MAIN_FLOW_STATE);
   });
 });

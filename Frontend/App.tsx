@@ -85,8 +85,8 @@ function App() {
     openDetail,
     closeDetail,
     openLogin,
-    openGuestLogin,
-    continueBrowsing,
+    openLoginFromGuest,
+    returnToGuestFlow,
     forgetGuestReturnFlow,
     openGuestMain,
     openMemberMain,
@@ -148,7 +148,7 @@ function App() {
       onGuestLoginPrompt: () => {
         dismissGuestLoginPrompt();
         setMyPageOverlay(null);
-        openGuestLogin(GUEST_MAIN_FLOW_STATE);
+        openLoginFromGuest(GUEST_MAIN_FLOW_STATE);
       },
       onOpenSavedPlaces: reason => {
         if (reason === 'guest-preview') {
@@ -268,7 +268,7 @@ function App() {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
     dismissGuestLoginPrompt();
-    openGuestLogin(flowState);
+    openLoginFromGuest(flowState);
   };
 
   const handleRequireLogin = () => {
@@ -289,7 +289,7 @@ function App() {
     if (!guestReturnFlow) return;
 
     cancelGuestTransfer();
-    continueBrowsing();
+    returnToGuestFlow();
   };
 
   const showPreparingAlert = (featureName: string) => {

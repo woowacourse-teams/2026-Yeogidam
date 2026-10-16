@@ -27,9 +27,9 @@ export function useAppNavigation() {
         dispatch({type: 'openDetail', source, place, context: context ?? null}),
       closeDetail: () => dispatch({type: 'closeDetail'}),
       openLogin: () => dispatch({type: 'openLogin'}),
-      openGuestLogin: (returnFlow: MainFlowState) =>
-        dispatch({type: 'openGuestLogin', returnFlow}),
-      continueBrowsing: () => dispatch({type: 'continueBrowsing'}),
+      openLoginFromGuest: (returnFlow: MainFlowState) =>
+        dispatch({type: 'openLoginFromGuest', returnFlow}),
+      returnToGuestFlow: () => dispatch({type: 'returnToGuestFlow'}),
       forgetGuestReturnFlow: () => dispatch({type: 'forgetGuestReturnFlow'}),
       openGuestMain: () => dispatch({type: 'openGuestMain'}),
       openMemberMain: () => dispatch({type: 'openMemberMain'}),
