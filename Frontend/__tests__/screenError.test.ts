@@ -1,8 +1,11 @@
 import {ApiError} from '../src/lib/api/errors';
 import {
+  INVALID_REQUEST_ERROR,
+  LOGIN_REQUIRED_ERROR,
   PROCESSING_ERROR,
   SCREEN_ERROR_TABLE,
   TIMEOUT_ERROR,
+  isLoginRequiredError,
   toScreenApiError,
   type ScreenErrorTable,
 } from '../src/lib/api/screen-error';
@@ -110,4 +113,22 @@ test('요청 ID는 화면 오류에 싣지 않는다', () => {
   });
 
   expect(toScreenApiError(error)).not.toHaveProperty('requestId');
+});
+
+test('로그인 필요 판정은 기본 표가 만드는 AUTH401_001만 참이고 다른 401 계열 코드는 거짓이다', () => {
+  expect(isLoginRequiredError(toScreenApiError(httpError(401, 'AUTH401_004', '토큰이 만료됐어요.')))).toBe(true);
+  expect(isLoginRequiredError({...LOGIN_REQUIRED_ERROR})).toBe(true);
+  expect(isLoginRequiredError({errorCode: 'AUTH401_002'})).toBe(false);
+  expect(isLoginRequiredError({errorCode: 'AUTH403_001'})).toBe(false);
+  expect(isLoginRequiredError({errorCode: null})).toBe(false);
+});
+
+test('오류 코드가 없는 400 응답은 요청 확인 오류와 같은 코드를 쓴다', () => {
+  expect(toScreenApiError(httpError(400, null, '잘못된 요청')).errorCode).toBe(INVALID_REQUEST_ERROR.errorCode);
+  expect(INVALID_REQUEST_ERROR).toEqual({
+    status: 400,
+    errorCode: 'COMMON400_001',
+    message: '요청 내용을 확인해주세요.',
+    retryable: false,
+  });
 });

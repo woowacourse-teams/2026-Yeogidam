@@ -113,10 +113,7 @@ export async function saveInstagramReel(
   }
 
   if (response?.sharedMediaId == null || !response.extractionStatus) {
-    throw new ReelApiError({
-      errorCode: 'CLIENT000_003',
-      message: '응답을 처리하지 못했어요.',
-    });
+    throw new ReelApiError({...PROCESSING_ERROR});
   }
 
   return {

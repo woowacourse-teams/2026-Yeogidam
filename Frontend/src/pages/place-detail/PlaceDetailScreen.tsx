@@ -14,6 +14,7 @@ import type {
   SavedPlacesApiError,
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
+import {INVALID_REQUEST_ERROR, TIMEOUT_ERROR, isLoginRequiredError} from '../../lib/api/screen-error';
 import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
 import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { CopyToastProvider } from './components/CopyToast';
@@ -89,7 +90,7 @@ export function PlaceDetailScreen({
     } catch (nextError) {
       const apiError = nextError as PlaceReelsApiError;
       setError(apiError);
-      if (apiError.errorCode === 'AUTH401_001') {
+      if (isLoginRequiredError(apiError)) {
         onAuthenticationRequiredRef.current?.();
       }
     } finally {
@@ -112,12 +113,7 @@ export function PlaceDetailScreen({
       return;
     }
     if (!place.savedPlaceId) {
-      setDeleteError({
-        status: 400,
-        errorCode: 'COMMON400_001',
-        message: '요청 내용을 확인해주세요.',
-        retryable: false,
-      });
+      setDeleteError({...INVALID_REQUEST_ERROR});
       return;
     }
 
@@ -129,7 +125,7 @@ export function PlaceDetailScreen({
       onBack();
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
-      if (apiError.errorCode === 'CLIENT000_002') {
+      if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
         try {
           const savedPlaces = await getSavedPlaces();
           if (!savedPlaces.some(savedPlace => savedPlace.id === place.savedPlaceId)) {
@@ -143,7 +139,7 @@ export function PlaceDetailScreen({
       }
 
       setDeleteError(apiError);
-      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
+      if (isLoginRequiredError(apiError)) {
         onAuthenticationRequired?.();
       }
     } finally {

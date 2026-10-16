@@ -4,6 +4,7 @@ import type {
   ReelProcessingStatus,
   SaveInstagramReelResponse,
 } from '../../entities/content/types';
+import {isLoginRequiredError} from '../../lib/api/screen-error';
 import type {SharedSaveState} from '../../lib/reel-save-state';
 
 export const REEL_POLL_INTERVAL_MS = 3000;
@@ -268,14 +269,14 @@ export function decideReelPollFailure(
   error: ReelApiError,
 ): ReelPollFailure {
   const nextFailureCount = failureCount + 1;
-  const {errorCode, retryable} = error;
+  const requireLogin = isLoginRequiredError(error);
   return {
     failureCount: nextFailureCount,
     stop:
-      errorCode === 'AUTH401_001' ||
-      errorCode === 'AUTH403_001' ||
-      !retryable ||
+      requireLogin ||
+      error.errorCode === 'AUTH403_001' ||
+      !error.retryable ||
       nextFailureCount >= REEL_POLL_FAILURE_LIMIT,
-    requireLogin: errorCode === 'AUTH401_001',
+    requireLogin,
   };
 }

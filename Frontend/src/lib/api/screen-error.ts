@@ -1,9 +1,22 @@
 import {ApiError, type ApiErrorKind} from './errors';
 
+/**
+ * 클라이언트가 스스로 만들거나 기본 표가 보충하는 오류 코드입니다. 화면이 분기하는 코드는 여기 있는 것만 쓰고,
+ * 서버가 내리는 나머지 코드는 문구를 보여 주기만 하므로 string으로 열어 둡니다.
+ */
+export type KnownScreenErrorCode =
+  | 'CLIENT000_001'
+  | 'CLIENT000_002'
+  | 'CLIENT000_003'
+  | 'AUTH401_001'
+  | 'COMMON400_001'
+  | 'COMMON500_001';
+export type ScreenErrorCode = KnownScreenErrorCode | (string & {});
+
 /** 화면이 errorCode와 retryable로 분기하는 오류 계약입니다. 기능별 오류 타입은 이 모양을 그대로 쓰거나 넓혀 씁니다. */
 export type ScreenApiError = {
   status: number | null;
-  errorCode: string;
+  errorCode: ScreenErrorCode;
   message: string;
   retryable: boolean;
   requestId?: string;
@@ -38,6 +51,22 @@ export const LOGIN_REQUIRED_ERROR = {
   retryable: false,
 } as const;
 
+/** 서버에 보내기 전에 앱이 요청 내용이 잘못됐다고 판단했을 때 쓰는 오류입니다. */
+export const INVALID_REQUEST_ERROR = {
+  status: 400,
+  errorCode: 'COMMON400_001',
+  message: '요청 내용을 확인해주세요.',
+  retryable: false,
+} as const;
+
+/**
+ * 로그인이 필요한 오류인지 판정합니다. 기본 표가 HTTP 401을 서버 코드와 관계없이 AUTH401_001로 바꾸므로
+ * 화면은 이 코드 하나만 보면 되고, 비교를 흩지 않도록 모든 화면이 이 함수를 씁니다.
+ */
+export function isLoginRequiredError(error: {errorCode: string | null}): boolean {
+  return error.errorCode === LOGIN_REQUIRED_ERROR.errorCode;
+}
+
 /** httpApiError가 만든 오류입니다. HTTP 응답을 받았으므로 상태가 늘 있습니다. */
 export type HttpApiError = ApiError & {status: number};
 
@@ -64,14 +93,14 @@ export const SCREEN_ERROR_TABLE: ScreenErrorTable = {
           status: error.status,
           errorCode:
             error.errorCode ??
-            (error.status >= 500 ? 'COMMON500_001' : 'COMMON400_001'),
+            (error.status >= 500 ? 'COMMON500_001' : INVALID_REQUEST_ERROR.errorCode),
           message: error.message,
           retryable: error.status >= 500 || error.status === 429,
         },
   // 토큰이 없으면 401과 '로그인이 필요해요.'가, 토큰을 읽지 못하면 상태 없이 그 사유가 담겨 옵니다.
   auth: error => ({
     status: error.status,
-    errorCode: 'AUTH401_001',
+    errorCode: LOGIN_REQUIRED_ERROR.errorCode,
     message: error.message,
     retryable: false,
   }),

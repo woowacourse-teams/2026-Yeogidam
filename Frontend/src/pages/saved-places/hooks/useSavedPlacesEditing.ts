@@ -3,6 +3,7 @@ import {useCallback, useEffect, useState} from 'react';
 import {deleteSavedPlaces} from '../../../entities/info/api';
 import type {SavedPlacesApiError} from '../../../entities/info/types';
 import type {Place} from '../../../entities/place/types';
+import {INVALID_REQUEST_ERROR, TIMEOUT_ERROR, isLoginRequiredError} from '../../../lib/api/screen-error';
 
 /** 삭제 요청 상태입니다. 지우는 중에는 오류가 없습니다. */
 type DeleteState =
@@ -30,7 +31,7 @@ type Options = {
   onEditModeChange?: (isEditing: boolean) => void;
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
-  /** 삭제가 AUTH401_001이나 AUTH401_002로 실패하면 부릅니다. */
+  /** 삭제가 로그인 필요 오류로 실패하면 부릅니다. */
   onAuthenticationRequired?: () => void;
 };
 
@@ -110,15 +111,7 @@ export function useSavedPlacesEditing({
         : [],
     );
     if (savedPlaceIds.length !== selectedPlaceIds.size) {
-      setDeleteState({
-        status: 'error',
-        error: {
-          status: 400,
-          errorCode: 'COMMON400_001',
-          message: '요청 내용을 확인해주세요.',
-          retryable: false,
-        },
-      });
+      setDeleteState({status: 'error', error: {...INVALID_REQUEST_ERROR}});
       return;
     }
 
@@ -132,7 +125,7 @@ export function useSavedPlacesEditing({
       onEditModeChange?.(false);
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
-      if (apiError.errorCode === 'CLIENT000_002') {
+      if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
         const refreshedPlaces = await loadSavedPlaces();
         const deletedIds = new Set(savedPlaceIds);
         const isDeletionConfirmed =
@@ -148,7 +141,7 @@ export function useSavedPlacesEditing({
       }
 
       setDeleteState({status: 'error', error: apiError});
-      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
+      if (isLoginRequiredError(apiError)) {
         onAuthenticationRequired?.();
       }
     } finally {

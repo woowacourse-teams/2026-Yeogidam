@@ -4,6 +4,7 @@ import {getSavedPlaces} from '../../../entities/info/api';
 import type {SavedPlacesApiError} from '../../../entities/info/types';
 import {toSavedPlaceDisplayPlace} from '../../../entities/place/api';
 import type {Place} from '../../../entities/place/types';
+import {isLoginRequiredError} from '../../../lib/api/screen-error';
 
 // 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
 // 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
@@ -87,7 +88,7 @@ export function useSavedPlacesList({providedPlaces, isGuest, onAuthenticationReq
       }
       const apiError = nextError as SavedPlacesApiError;
       setLoadState({status: 'error', error: apiError});
-      if (apiError.errorCode === 'AUTH401_001') {
+      if (isLoginRequiredError(apiError)) {
         onAuthenticationRequiredRef.current?.();
       }
       return null;

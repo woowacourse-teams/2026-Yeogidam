@@ -3,7 +3,7 @@ import type {ImageSourcePropType} from 'react-native';
 import type {HistoryVisibleState} from '../../analytics/placeExtractionEvents';
 import type {ReelApiError} from '../../entities/content/errors';
 import {isReelInProgress} from '../../entities/content/status';
-import {normalizeReelTitle} from '../../entities/content/title';
+import {DEFAULT_REEL_TITLE, normalizeReelTitle} from '../../entities/content/title';
 import type {HistoryReel} from '../../entities/content/types';
 
 /** 썸네일 주소가 없는 히스토리 항목에 보여 주는 기본 이미지입니다. */
@@ -17,7 +17,7 @@ export function getHistoryTitle(reel: HistoryReel) {
 
 /** 캡션이나 제목에서 보일 제목을 얻었는지 알려 줍니다. */
 export function hasResolvedHistoryTitle(reel: HistoryReel) {
-  return getHistoryTitle(reel) !== '저장한 콘텐츠';
+  return getHistoryTitle(reel) !== DEFAULT_REEL_TITLE;
 }
 
 /**

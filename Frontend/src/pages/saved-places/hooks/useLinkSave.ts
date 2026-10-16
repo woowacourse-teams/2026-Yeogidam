@@ -3,6 +3,7 @@ import {useState} from 'react';
 import {normalizeInstagramContentUrl, saveContent} from '../../../entities/content/api';
 import {normalizeReelError} from '../../../entities/content/errors';
 import type {ReelProcessingStatus, SaveInstagramReelResponse} from '../../../entities/content/types';
+import {isLoginRequiredError} from '../../../lib/api/screen-error';
 import {setSharedSaveState} from '../../../lib/reel-save-state';
 
 /** 링크 저장 요청 상태입니다. 보내는 중에는 오류 문구가 없습니다. */
@@ -105,7 +106,7 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
     } catch (submitError) {
       // 실패한 요청은 서버 릴스가 없어 공유 상태에 쓰지 않습니다. 그사이 들어온 외부 공유도 그대로 둡니다.
       const normalizedError = normalizeReelError(submitError);
-      if (normalizedError.errorCode === 'AUTH401_001') {
+      if (isLoginRequiredError(normalizedError)) {
         setIsDialogVisible(false);
         onRequireLogin?.();
         return;
