@@ -64,6 +64,10 @@ export function PlaceDetailScreen({
     });
   }, [place.savedAt, posthog, viewContext]);
 
+  // App이 다시 그려질 때마다 콜백 참조가 바뀌어도 게시물을 다시 읽지 않도록 ref로 둡니다.
+  const onAuthenticationRequiredRef = useRef(onAuthenticationRequired);
+  onAuthenticationRequiredRef.current = onAuthenticationRequired;
+
   const loadPosts = useCallback(async () => {
     if (guestReels !== undefined) {
       setReels(guestReels);
@@ -71,20 +75,27 @@ export function PlaceDetailScreen({
       setIsReelsLoading(false);
       return;
     }
+    // 서버의 미디어 경로는 저장 장소 ID를 쓰므로, 없으면 요청하지 않습니다.
+    if (!place.savedPlaceId) {
+      setReels([]);
+      setError(null);
+      setIsReelsLoading(false);
+      return;
+    }
     setIsReelsLoading(true);
     setError(null);
     try {
-      setReels(await getPlaceReels(place.id));
+      setReels(await getPlaceReels(place.savedPlaceId));
     } catch (nextError) {
       const apiError = nextError as PlaceReelsApiError;
       setError(apiError);
       if (apiError.errorCode === 'AUTH401_001') {
-        onAuthenticationRequired?.();
+        onAuthenticationRequiredRef.current?.();
       }
     } finally {
       setIsReelsLoading(false);
     }
-  }, [guestReels, onAuthenticationRequired, place.id]);
+  }, [guestReels, place.savedPlaceId]);
 
   useEffect(() => {
     loadPosts();

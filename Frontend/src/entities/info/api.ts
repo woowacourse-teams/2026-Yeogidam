@@ -105,7 +105,10 @@ export function deleteSavedPlaces(savedPlaceIds: string[]): Promise<void> {
 
 export function createMockPlaceReelsRepository(): PlaceReelsRepository {
   return {
-    async getPlaceReels(placeId) {
+    async getPlaceReels(savedPlaceId) {
+      const placeId = frontendInfoDomainMock.savedPlaces.find(
+        savedPlace => savedPlace.id === savedPlaceId,
+      )?.placeId;
       return frontendInfoDomainMock.reels
         .filter(
           reel =>
@@ -133,6 +136,6 @@ export function configurePlaceReelsRepository(
   placeReelsRepository = repository;
 }
 
-export function getPlaceReels(placeId: string): Promise<PlaceReel[]> {
-  return placeReelsRepository.getPlaceReels(placeId);
+export function getPlaceReels(savedPlaceId: string): Promise<PlaceReel[]> {
+  return placeReelsRepository.getPlaceReels(savedPlaceId);
 }

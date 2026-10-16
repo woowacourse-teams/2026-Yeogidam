@@ -46,10 +46,7 @@ import {
 } from '../../entities/content/api';
 import {subscribeRecentShares} from '../../entities/content/recent-shares-poller';
 import type {HistoryReel, ReelProcessingStatus, SaveSource} from '../../entities/content/types';
-import {
-  normalizeReelError,
-  ReelApiError,
-} from '../../entities/content/errors';
+import { normalizeReelError } from '../../entities/content/errors';
 import {
   getSharedSaveState,
   setSharedSaveState,
@@ -68,19 +65,6 @@ const MAX_RECENT_SEARCHES = 10;
 // 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
 // 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
 let cachedSavedPlaces: Place[] | null = null;
-
-type ShareApiDiagnostics = {
-  source: SaveSource;
-  requestUrl: string;
-  saveStatus: ReelProcessingStatus['processing_status'];
-  reelId: string;
-  reused: boolean | null;
-  saveFailureReason: string | null;
-  statusQueryCount: number;
-  lastQueriedAt: Date | null;
-  queriedStatus: ReelProcessingStatus['processing_status'] | null;
-  queryFailureReason: string | null;
-};
 
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
@@ -162,13 +146,6 @@ export function SavedPlacesScreen({
   const [processingReel, setProcessingReel] =
     useState<ReelProcessingStatus | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [_statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(
-    null,
-  );
-  const [_isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
-  const [_shareApiDiagnostics, setShareApiDiagnostics] =
-    useState<ShareApiDiagnostics | null>(null);
-  const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasCapturedViewRef = useRef(false);
   const isRefreshingRef = useRef(false);
@@ -209,6 +186,12 @@ export function SavedPlacesScreen({
     return () => onEditModeChange?.(false);
   }, [onEditModeChange]);
 
+  // App이 다시 그려질 때마다 콜백 참조가 바뀌어도 목록을 다시 읽지 않도록 ref로 둡니다.
+  const onAuthenticationRequiredRef = useRef(onAuthenticationRequired);
+  onAuthenticationRequiredRef.current = onAuthenticationRequired;
+  // 늦게 도착한 이전 조회 응답이 최신 목록을 덮지 않도록 요청마다 번호를 붙입니다.
+  const loadRequestIdRef = useRef(0);
+
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
       if (isGuest) {
@@ -218,25 +201,35 @@ export function SavedPlacesScreen({
       return providedPlaces;
     }
 
+    const requestId = loadRequestIdRef.current + 1;
+    loadRequestIdRef.current = requestId;
     setIsLoading(true);
     setError(null);
     try {
       const savedPlaces = await getSavedPlaces();
+      if (requestId !== loadRequestIdRef.current) {
+        return null;
+      }
       const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
       cachedSavedPlaces = nextPlaces;
       setPlaces(nextPlaces);
       return nextPlaces;
     } catch (nextError) {
+      if (requestId !== loadRequestIdRef.current) {
+        return null;
+      }
       const apiError = nextError as SavedPlacesApiError;
       setError(apiError);
       if (apiError.errorCode === 'AUTH401_001') {
-        onAuthenticationRequired?.();
+        onAuthenticationRequiredRef.current?.();
       }
       return null;
     } finally {
-      setIsLoading(false);
+      if (requestId === loadRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [isGuest, onAuthenticationRequired, providedPlaces]);
+  }, [isGuest, providedPlaces]);
 
   const refreshSavedPlaces = useCallback(async () => {
     if (isRefreshingRef.current) {
@@ -304,12 +297,6 @@ export function SavedPlacesScreen({
       verificationKey: string,
     ) => {
       verificationInFlight.add(verificationKey);
-      setShareApiDiagnostics(current => current ? {
-        ...current,
-        statusQueryCount: current.statusQueryCount + 1,
-        lastQueriedAt: new Date(),
-        queryFailureReason: null,
-      } : current);
       try {
         // 토큰 갱신과 401 재시도는 Spring API 클라이언트가 처리합니다.
         let currentStatus: ReelProcessingStatus | null;
@@ -330,11 +317,6 @@ export function SavedPlacesScreen({
               result: null,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: null,
-            queryFailureReason: '조회 결과 없음',
-          } : current);
           setSharedSaveState(null);
           await onSharedResultConsumed?.(state.shareResultId);
           return;
@@ -350,11 +332,6 @@ export function SavedPlacesScreen({
             failureReason: currentStatus.failure_reason,
           });
         }
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          queriedStatus: currentStatus.processing_status,
-          queryFailureReason: currentStatus.failure_reason,
-        } : current);
         setSharedSaveState({
           ...state,
           status: currentStatus.processing_status,
@@ -370,10 +347,6 @@ export function SavedPlacesScreen({
             message: normalized.message,
           });
         }
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          queryFailureReason: normalized.errorCode ?? normalized.message,
-        } : current);
         // 앱 진입 시 상태를 확인하지 못한 경우 추측으로 카드를 표시하지 않습니다.
       } finally {
         verificationInFlight.delete(verificationKey);
@@ -397,34 +370,13 @@ export function SavedPlacesScreen({
 
     const applySharedState = (state: ReturnType<typeof getSharedSaveState>) => {
       if (!state) {
-        // 완료되어 소비했거나 새 공유 URL을 아직 찾지 못한 경우
-        // 이전 요청의 진단 정보를 현재 요청처럼 남겨두지 않습니다.
-        setShareApiDiagnostics(null);
+        // 완료되어 소비했거나 새 공유 URL을 아직 찾지 못한 경우입니다.
         setProcessingReelId(null);
         setProcessingReel(null);
-        setStatusQueryError(null);
         return;
       }
 
       const hasRealReelId = !state.reel.id.startsWith('share-');
-      setShareApiDiagnostics(current =>
-        current?.reelId === state.reel.id &&
-        current.requestUrl === state.url
-          ? current
-          : {
-              source:
-                state.source === 'instagram_share' ? 'url_input' : state.source,
-              requestUrl: state.url,
-              saveStatus: state.status,
-              reelId: state.reel.id,
-              reused: state.reused ?? null,
-              saveFailureReason: state.reel.failure_reason,
-              statusQueryCount: 0,
-              lastQueriedAt: null,
-              queriedStatus: null,
-              queryFailureReason: null,
-            },
-      );
       if (
         (state.status === 'PENDING' || state.status === 'PROCESSING') &&
         !hasRealReelId
@@ -433,8 +385,6 @@ export function SavedPlacesScreen({
         // reelId가 오기 전에는 상태 API를 호출하지 않고 응답 대기 카드만 표시합니다.
         setProcessingReelId(null);
         setProcessingReel(state.reel);
-        setStatusQueryError(null);
-        setIsSaveResponseFailure(false);
         return;
       }
 
@@ -446,7 +396,6 @@ export function SavedPlacesScreen({
       ) {
         setProcessingReelId(null);
         setProcessingReel(null);
-        setStatusQueryError(null);
         if (!verificationInFlight.has(verificationKey)) {
           verifySharedReelBeforeShowing(state, verificationKey).catch(
             () => undefined,
@@ -462,7 +411,6 @@ export function SavedPlacesScreen({
           : null,
       );
       setProcessingReel(state.reel);
-      setIsSaveResponseFailure(state.status === 'FAILED');
       setShowSaveSuccess(
         state.status === 'COMPLETED' && state.source === 'url_input',
       );
@@ -522,8 +470,6 @@ export function SavedPlacesScreen({
     // 새 링크 요청은 이전 릴스의 카드/폴링 상태를 이어받지 않습니다.
     setProcessingReelId(null);
     setProcessingReel(initialReel);
-    setStatusQueryError(null);
-    setIsSaveResponseFailure(false);
     setShowSaveSuccess(false);
     setSharedSaveState({
       url: normalizedUrl,
@@ -554,9 +500,8 @@ export function SavedPlacesScreen({
       setLinkValue('');
       // v2 대기함 흐름 복원 시:
       // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
-      } catch (submitError) {
-        const normalizedError = normalizeReelError(submitError);
-      setLastRequestId(normalizedError.requestId ?? null);
+    } catch (submitError) {
+      const normalizedError = normalizeReelError(submitError);
       const failedReel: ReelProcessingStatus = {
         id: `manual-failed-${Date.now()}`,
         processing_status: 'FAILED',
@@ -571,7 +516,6 @@ export function SavedPlacesScreen({
         source: 'url_input',
         reel: failedReel,
       });
-      setIsSaveResponseFailure(true);
       if (normalizedError.errorCode === 'AUTH401_001') {
         setIsDialogVisible(false);
         onRequireLogin?.();
@@ -591,15 +535,12 @@ export function SavedPlacesScreen({
     source: SaveSource,
   ) => {
     if (response.status === 'COMPLETED') {
-      setIsSaveResponseFailure(false);
       setProcessingReelId(null);
       setProcessingReel(null);
       setShowSaveSuccess(source === 'url_input');
       return;
     }
 
-    // REEL-01의 200 FAILED 결과는 reused 값과 관계없이 재시도 UI를 표시합니다.
-    setIsSaveResponseFailure(response.status === 'FAILED');
     setProcessingReelId(response.reelId);
     setProcessingReel({
       id: response.reelId,
@@ -614,25 +555,6 @@ export function SavedPlacesScreen({
     if (!processingReelId) {
       reelPollStartedAtRef.current = null;
       reelPollFailureCountRef.current = 0;
-
-      if (
-        processingReel?.processing_status === 'PENDING' &&
-        processingReel.id.startsWith('share-')
-      ) {
-        const createdAt = Date.parse(processingReel.created_at);
-        const elapsed = Number.isFinite(createdAt) ? Date.now() - createdAt : 0;
-        const timeoutId = setTimeout(() => {
-          setStatusQueryError(
-            new ReelApiError({
-              errorCode: 'CLIENT000_002',
-              message: '공유 저장 요청의 응답이 늦어지고 있어요.',
-              retryable: true,
-            }),
-          );
-          setIsSaveResponseFailure(true);
-        }, Math.max(0, 30_000 - elapsed));
-        return () => clearTimeout(timeoutId);
-      }
       return;
     }
 
@@ -651,24 +573,11 @@ export function SavedPlacesScreen({
       if (!isActive) return;
       if (Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >= REEL_POLL_TIMEOUT_MS) {
         if (isActive) {
-          const timeoutError = new ReelApiError({
-            errorCode: 'CLIENT000_002',
-            message: '처리 시간이 너무 오래 걸리고 있어요. 다시 시도해주세요.',
-            retryable: true,
-          });
-          setStatusQueryError(timeoutError);
-          setIsSaveResponseFailure(true);
           setProcessingReelId(null);
         }
         return;
       }
       try {
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          statusQueryCount: current.statusQueryCount + 1,
-          lastQueriedAt: new Date(),
-          queryFailureReason: null,
-        } : current);
         let nextStatus: ReelProcessingStatus | null;
         try {
           // 서버에 단건 상태 조회 API가 없어 공유 목록 첫 페이지에서 찾습니다.
@@ -691,21 +600,8 @@ export function SavedPlacesScreen({
               result: null,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: null,
-            queryFailureReason: '조회 결과 없음',
-          } : current);
           reelPollFailureCountRef.current += 1;
           if (reelPollFailureCountRef.current >= REEL_POLL_FAILURE_LIMIT) {
-            setStatusQueryError(
-              new ReelApiError({
-                errorCode: 'CLIENT000_003',
-                message: '처리 중인 릴스 상태를 확인하지 못했어요.',
-                retryable: true,
-              }),
-            );
-            setIsSaveResponseFailure(true);
             setProcessingReelId(null);
           }
           return;
@@ -713,7 +609,6 @@ export function SavedPlacesScreen({
 
         if (isActive && nextStatus) {
           reelPollFailureCountRef.current = 0;
-          setStatusQueryError(null);
           setProcessingReel(nextStatus);
           if (__DEV__) {
             console.info('[InstagramShare][status-response]', {
@@ -722,11 +617,6 @@ export function SavedPlacesScreen({
               failureReason: nextStatus.failure_reason,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: nextStatus.processing_status,
-            queryFailureReason: nextStatus.failure_reason,
-          } : current);
           const sharedState = getSharedSaveState();
           if (sharedState?.reel.id === nextStatus.id) {
             setSharedSaveState({
@@ -752,12 +642,6 @@ export function SavedPlacesScreen({
               attempt: reelPollFailureCountRef.current,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queryFailureReason:
-              normalizedError.errorCode ?? normalizedError.message,
-          } : current);
-          setStatusQueryError(normalizedError);
           if (normalizedError.errorCode === 'AUTH401_001') {
             setProcessingReelId(null);
             onRequireLogin?.();
@@ -768,7 +652,6 @@ export function SavedPlacesScreen({
             reelPollFailureCountRef.current >= REEL_POLL_FAILURE_LIMIT
           ) {
             setProcessingReelId(null);
-            setIsSaveResponseFailure(true);
           }
         }
       }
@@ -818,12 +701,15 @@ export function SavedPlacesScreen({
     const next = !isEditing;
     setIsEditing(next);
     setSelectedPlaceIds(new Set());
+    // 편집을 켜고 끌 때 이전 삭제 오류 배너를 함께 치웁니다.
+    setDeleteError(null);
     onEditModeChange?.(next);
   }, [isEditing, onEditModeChange]);
 
   const enterEditMode = useCallback(() => {
     setIsEditing(true);
     setSelectedPlaceIds(new Set());
+    setDeleteError(null);
     onEditModeChange?.(true);
   }, [onEditModeChange]);
 

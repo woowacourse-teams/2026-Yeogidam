@@ -89,14 +89,9 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
 };
 
 export const springPlaceReelsRepository: PlaceReelsRepository = {
-  getPlaceReels: placeId => withScreenError(async () => {
-    // 화면은 장소 ID를 전달하지만 서버의 미디어 경로에는 저장 장소 ID가 필요합니다.
-    const savedPlaces = await springSavedPlacesRepository.getSavedPlaces();
-    const savedPlace = savedPlaces.find(item => item.place.id === placeId);
-    if (!savedPlace) return [];
-
+  getPlaceReels: savedPlaceId => withScreenError(async () => {
     const response = await client.request<{media: SavedPlaceMediaResponse[]}>(
-      `/api/v1/saved-places/${encodeURIComponent(savedPlace.id)}/media`,
+      `/api/v1/saved-places/${encodeURIComponent(savedPlaceId)}/media`,
     );
     return response.media.map(item => ({
       id: String(item.sharedMediaId),

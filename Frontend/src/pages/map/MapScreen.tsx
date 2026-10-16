@@ -48,7 +48,6 @@ import {
 } from '../../lib/location-permission';
 
 type MapScreenProps = {
-  isActive?: boolean;
   isGuest?: boolean;
   guestPlaces?: Place[];
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
@@ -56,14 +55,7 @@ type MapScreenProps = {
   onAuthenticationRequired?: () => void;
 };
 
-type MapCamera = {
-  latitude: number;
-  longitude: number;
-  zoomLevel: number;
-};
-
 export function MapScreen({
-  isActive = true,
   isGuest = false,
   guestPlaces,
   onDeleteGuestPlaces,
@@ -104,11 +96,8 @@ export function MapScreen({
     isGuest ? ONBOARDING_MAP_CENTER : {latitude: 37.5448, longitude: 127.0557},
   );
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
-  const lastMapCameraRef = useRef<MapCamera>({
-    latitude: 37.5448,
-    longitude: 127.0557,
-    zoomLevel: 14,
-  });
+  // 같은 좌표로 다시 검색해도 카메라가 움직이도록 요청 번호를 올립니다.
+  const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -279,6 +268,7 @@ export function MapScreen({
         longitude: places[0].longitude,
       });
       setMapZoomLevel(16);
+      setCameraMoveRequestId(requestId => requestId + 1);
     }
   };
 
@@ -319,10 +309,7 @@ export function MapScreen({
 
   return (
     <View
-      style={[
-        styles.container,
-        !isActive && [styles.inactiveContainer, { top: -topInset }],
-      ]}
+      style={styles.container}
       onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
     >
       <View style={styles.mapStage}>
@@ -333,6 +320,7 @@ export function MapScreen({
               latitude={mapCenter.latitude}
               longitude={mapCenter.longitude}
               zoomLevel={mapZoomLevel}
+              cameraMoveRequestId={cameraMoveRequestId}
               cameraFitPointsJson={cameraFitPointsJson}
               cameraFitRequestId={cameraFitRequestId}
               cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
@@ -348,7 +336,7 @@ export function MapScreen({
               showsCurrentLocation={locationGranted}
               currentLocationRequestId={currentLocationRequestId}
               onMapReady={event => {
-                console.log('지도 준비:', event.nativeEvent.ready);
+                if (__DEV__) console.log('지도 준비:', event.nativeEvent.ready);
               }}
               onMapError={event => {
                 setMapMessage(event.nativeEvent.message);
@@ -382,9 +370,6 @@ export function MapScreen({
               }}
               onCameraChanged={event => {
                 const {
-                  latitude,
-                  longitude,
-                  zoomLevel,
                   southLatitude,
                   northLatitude,
                   westLongitude,
@@ -401,7 +386,6 @@ export function MapScreen({
                   setVisibleBounds(null);
                   return;
                 }
-                lastMapCameraRef.current = { latitude, longitude, zoomLevel };
                 setVisibleBounds({
                   southLatitude,
                   northLatitude,
@@ -579,12 +563,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fafafa',
-  },
-  inactiveContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   mapStage: {
     flex: 1,

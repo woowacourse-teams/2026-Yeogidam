@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
+import { ONBOARDING_POST_URL } from '../../entities/onboarding/data';
+
 type AppGuideScreenProps = {
   onComplete: () => void;
 };
@@ -35,9 +37,6 @@ const MOCK_SLIDES = [
   { id: 'wol', title: '카페 온월', place: '서울 성동구', color: '#cfe3cf' },
   { id: 'bar', title: '성수 이자카야', place: '서울 성동구', color: '#d4d9f2' },
 ];
-
-// 공유 연습용 게시물 (추적용 쿼리 파라미터는 제거)
-const SHARE_PRACTICE_URL = 'https://www.instagram.com/p/Db4gRWqkuUg/';
 
 const SHARE_PRACTICE_MESSAGE =
   '여기담 공유 연습 · 마음에 드는 장소가 담긴 게시물에서 공유 → 여기담을 선택해요.';
@@ -861,14 +860,19 @@ export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
   // 가이드를 완료 처리한 뒤 연습용 게시물로 이동한다.
   const handleFinish = () => {
     onComplete();
-    openPracticePost();
+    openPracticePost().catch(() => undefined);
   };
 
+  // 연습용 게시물은 온보딩 시드와 같은 게시물이라 한 곳(onboarding/data)의 값을 씁니다.
   const openPracticePost = async () => {
     try {
-      await Linking.openURL(SHARE_PRACTICE_URL);
+      await Linking.openURL(ONBOARDING_POST_URL);
     } catch {
-      await Share.share({ message: SHARE_PRACTICE_URL });
+      try {
+        await Share.share({ message: ONBOARDING_POST_URL });
+      } catch {
+        // 공유 시트를 열지 못해도 가이드 완료 처리는 이미 끝났으므로 그대로 둡니다.
+      }
     }
   };
 

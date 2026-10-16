@@ -12,7 +12,7 @@ import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
-import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
+import type { PlaceReel, ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -67,7 +67,6 @@ import {
   trackLoginFinished,
   trackLoginStarted,
 } from './src/analytics/userEntryEvents';
-// import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
   completeAppGuide,
   hasCompletedAppGuide,
@@ -169,6 +168,8 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
 };
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
 const GUEST_HISTORY_REELS: HistoryReel[] = [ONBOARDING_HISTORY_REEL];
+// 비회원 장소에 게시물이 없을 때 렌더마다 새 배열을 만들지 않도록 고정합니다.
+const EMPTY_GUEST_PLACE_REELS: PlaceReel[] = [];
 const GUEST_HISTORY_DETAILS = {
   [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
 };
@@ -1374,7 +1375,7 @@ function App() {
           place={selectedPlace}
           guestReels={
             isAuthenticated === false
-              ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
+              ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? EMPTY_GUEST_PLACE_REELS
               : undefined
           }
           onDeleteGuestPlaces={

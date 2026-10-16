@@ -130,7 +130,8 @@ export type PlaceReelsApiError = {
 };
 
 export type PlaceReelsRepository = {
-  getPlaceReels: (placeId: string) => Promise<PlaceReel[]>;
+  /** 서버의 미디어 경로가 저장 장소 ID를 쓰므로 장소 ID가 아니라 저장 장소 ID를 받습니다. */
+  getPlaceReels: (savedPlaceId: string) => Promise<PlaceReel[]>;
 };
 
 export type SavedPlaceInfo = {

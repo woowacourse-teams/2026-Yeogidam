@@ -63,7 +63,6 @@ type PlaceResultSheetProps = {
   expandSignal?: number;
   openPlace?: Place | null;
   openPlaceContext?: SavedPlaceViewContext | null;
-  openPlaceId?: string;
   openPlaceSignal?: number;
   backToPlaceListSignal?: number;
   detailMoreSignal?: number;
@@ -116,7 +115,6 @@ export function PlaceResultSheet({
   expandSignal = 0,
   openPlace,
   openPlaceContext,
-  openPlaceId,
   openPlaceSignal = 0,
   backToPlaceListSignal = 0,
   detailMoreSignal = 0,
@@ -298,6 +296,9 @@ export function PlaceResultSheet({
     });
   }, [posthog, selectedPlace, selectedPlaceViewContext]);
 
+  // 장소를 빠르게 바꿀 때 이전 장소의 응답이 늦게 도착해도 화면을 덮지 않도록 요청마다 번호를 붙입니다.
+  const reelsRequestIdRef = useRef(0);
+
   const loadSelectedPlaceReels = useCallback(async () => {
     if (!selectedPlace) {
       return;
@@ -310,14 +311,33 @@ export function PlaceResultSheet({
       return;
     }
 
+    const requestId = reelsRequestIdRef.current + 1;
+    reelsRequestIdRef.current = requestId;
+    // 서버의 미디어 경로는 저장 장소 ID를 쓰므로, 없으면 요청하지 않습니다.
+    if (!selectedPlace.savedPlaceId) {
+      setSelectedPlaceReels([]);
+      setReelsError(null);
+      setIsReelsLoading(false);
+      return;
+    }
+
     setIsReelsLoading(true);
     setReelsError(null);
     try {
-      setSelectedPlaceReels(await getPlaceReels(selectedPlace.id));
+      const reels = await getPlaceReels(selectedPlace.savedPlaceId);
+      if (requestId !== reelsRequestIdRef.current) {
+        return;
+      }
+      setSelectedPlaceReels(reels);
     } catch (error) {
+      if (requestId !== reelsRequestIdRef.current) {
+        return;
+      }
       setReelsError(error as PlaceReelsApiError);
     } finally {
-      setIsReelsLoading(false);
+      if (requestId === reelsRequestIdRef.current) {
+        setIsReelsLoading(false);
+      }
     }
   }, [guestReelsByPlace, selectedPlace]);
 
@@ -472,20 +492,11 @@ export function PlaceResultSheet({
   }, [expandSignal, snapOffsets, snapTo]);
 
   useEffect(() => {
-    if (
-      openPlaceSignal === handledOpenPlaceSignal.current ||
-      (!openPlace && !openPlaceId)
-    ) {
+    if (openPlaceSignal === handledOpenPlaceSignal.current || !openPlace) {
       return;
     }
 
-    const place =
-      openPlace ?? places.find(candidate => candidate.id === openPlaceId);
-    // A marker press recentres the map, during which the visible-place list is
-    // intentionally cleared until native reports the new bounds. Do not
-    // consume this request during that transient empty state; retry when the
-    // list is populated again.
-    if (!place) return;
+    const place = openPlace;
 
     handledOpenPlaceSignal.current = openPlaceSignal;
     detailEntrySnapIndex.current = activeSnapIndex;
@@ -495,9 +506,7 @@ export function PlaceResultSheet({
   }, [
     openPlace,
     openPlaceContext,
-    openPlaceId,
     openPlaceSignal,
-    places,
     activeSnapIndex,
     snapOffsets,
     snapTo,
