@@ -93,6 +93,31 @@ jobs:
           printf '%s\n' \
             'KAKAO_NATIVE_APP_KEY=ci-placeholder' \
             'API_BASE_URL=https://ci.example.invalid' > .env
+      # 러너 이미지에 없는 NDK를 Gradle이 빌드 중에 받다가 손상된 파일로 실패한 적이 있어,
+      # build.gradle의 ndkVersion을 미리 설치하고 실패하면 지운 뒤 다시 받는다.
+      - name: Install Android NDK
+        working-directory: Frontend/android
+        run: |
+          ndk_version=$(sed -nE 's/.*ndkVersion = "([^"]+)".*/\1/p' build.gradle)
+          if [[ -z "$ndk_version" ]]; then
+            echo "ndkVersion not found in build.gradle" >&2
+            exit 1
+          fi
+          ndk_dir="$ANDROID_HOME/ndk/$ndk_version"
+          if [[ -f "$ndk_dir/source.properties" ]]; then
+            echo "NDK $ndk_version is already installed"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk_version" \
+              && [[ -f "$ndk_dir/source.properties" ]]; then
+              exit 0
+            fi
+            echo "NDK $ndk_version install failed (attempt $attempt/3)" >&2
+            rm -rf "$ndk_dir"
+            sleep $((attempt * 15))
+          done
+          exit 1
       - name: Build Android release app
         # PR에서는 저장소의 개발용 키로 Release 변형을 서명한다. 배포용 AAB는 만들지 않는다.
         env:
@@ -228,6 +253,31 @@ jobs:
           echo "SENTRY_URL=https://sentry.io/" >> "$GITHUB_ENV"
           printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-upload.jks"
           echo "ANDROID_UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/android-upload.jks" >> "$GITHUB_ENV"
+      # 러너 이미지에 없는 NDK를 Gradle이 빌드 중에 받다가 손상된 파일로 실패한 적이 있어,
+      # build.gradle의 ndkVersion을 미리 설치하고 실패하면 지운 뒤 다시 받는다.
+      - name: Install Android NDK
+        working-directory: Frontend/android
+        run: |
+          ndk_version=$(sed -nE 's/.*ndkVersion = "([^"]+)".*/\1/p' build.gradle)
+          if [[ -z "$ndk_version" ]]; then
+            echo "ndkVersion not found in build.gradle" >&2
+            exit 1
+          fi
+          ndk_dir="$ANDROID_HOME/ndk/$ndk_version"
+          if [[ -f "$ndk_dir/source.properties" ]]; then
+            echo "NDK $ndk_version is already installed"
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk_version" \
+              && [[ -f "$ndk_dir/source.properties" ]]; then
+              exit 0
+            fi
+            echo "NDK $ndk_version install failed (attempt $attempt/3)" >&2
+            rm -rf "$ndk_dir"
+            sleep $((attempt * 15))
+          done
+          exit 1
       - name: Build signed Android AAB
         env:
           ANDROID_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
