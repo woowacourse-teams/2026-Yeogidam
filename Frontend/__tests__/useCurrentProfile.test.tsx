@@ -175,3 +175,43 @@ test('다시 켜진 뒤 도착한 옛 응답은 버리고 새 응답만 쓴다',
   await flush();
   expect(latest.currentProfile).toEqual(PROFILE_B);
 });
+
+test('재시도하는 동안에는 오류와 재시도 중 표시를 함께 두고, 재시도에 성공하면 오류를 비운다', async () => {
+  const retry = deferred<ProfileInfo>();
+  jest.mocked(getCurrentProfile).mockRejectedValueOnce(ERROR).mockReturnValueOnce(retry.promise);
+
+  await render(true);
+  await flush();
+  expect(latest.profileError).toEqual(ERROR);
+  expect(latest.isProfileLoading).toBe(false);
+
+  let retrying!: Promise<void>;
+  await ReactTestRenderer.act(async () => {
+    retrying = latest.retryProfile();
+  });
+  expect(latest.profileError).toEqual(ERROR);
+  expect(latest.isProfileLoading).toBe(true);
+  expect(latest.currentProfile).toBeNull();
+
+  retry.resolve(PROFILE_A);
+  await ReactTestRenderer.act(async () => {
+    await retrying;
+  });
+  expect(latest.currentProfile).toEqual(PROFILE_A);
+  expect(latest.profileError).toBeNull();
+  expect(latest.isProfileLoading).toBe(false);
+});
+
+test('재시도가 다시 실패하면 새 오류로 바꾸고 재시도 중 표시를 내린다', async () => {
+  const secondError: ProfileApiError = {...ERROR, errorCode: 'SERVER500_002', message: '다시 실패'};
+  jest.mocked(getCurrentProfile).mockRejectedValueOnce(ERROR).mockRejectedValueOnce(secondError);
+
+  await render(true);
+  await flush();
+  await ReactTestRenderer.act(async () => {
+    await latest.retryProfile();
+  });
+  expect(latest.currentProfile).toBeNull();
+  expect(latest.profileError).toEqual(secondError);
+  expect(latest.isProfileLoading).toBe(false);
+});
