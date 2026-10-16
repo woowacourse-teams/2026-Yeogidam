@@ -1,9 +1,8 @@
-import {useEffect, useRef, type Dispatch} from 'react';
+import {useEffect, useEffectEvent, useRef, type Dispatch} from 'react';
 
 import {normalizeReelError} from '../../../entities/content/errors';
 import {subscribeRecentShares} from '../../../entities/content/recent-shares-poller';
 import type {HistoryReel, ReelProcessingStatus} from '../../../entities/content/types';
-import type {SavedPlacesApiError} from '../../../entities/info/types';
 import {getSharedSaveState, setSharedSaveState} from '../../../lib/reel-save-state';
 import {
   decideReelPollFailure,
@@ -18,10 +17,8 @@ type Options = {
   processingReelId: string | null;
   processingReel: ReelProcessingStatus | null;
   dispatch: Dispatch<ReelProcessingAction>;
-  /** 폴링이 AUTH401_001로 실패하면 부릅니다. */
+  /** 폴링이 AUTH401_001로 실패하면 부릅니다. 참조가 바뀌어도 구독을 다시 걸지 않고, 부르는 때의 최신 값을 씁니다. */
   onRequireLogin?: () => void;
-  /** 보관함 목록 오류입니다. 폴링은 이 값을 읽지 않지만, 바뀌면 구독을 다시 겁니다. */
-  listError: SavedPlacesApiError | null;
 };
 
 /**
@@ -34,10 +31,11 @@ export function useReelStatusPolling({
   processingReel,
   dispatch,
   onRequireLogin,
-  listError,
 }: Options) {
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
+  // App이 그릴 때마다 새로 만드는 콜백이라, 의존성에 두지 않고 부르는 때의 최신 콜백을 읽습니다.
+  const requireLogin = useEffectEvent(() => onRequireLogin?.());
 
   useEffect(() => {
     if (!processingReelId) {
@@ -140,7 +138,7 @@ export function useReelStatusPolling({
           dispatch({type: 'pollStopped'});
         }
         if (failure.requireLogin) {
-          onRequireLogin?.();
+          requireLogin();
         }
       }
     };
@@ -159,15 +157,5 @@ export function useReelStatusPolling({
       isActive = false;
       subscription.unsubscribe();
     };
-    // TODO(review): 몸통이 읽지 않는 listError와, App이 그릴 때마다 새로 만드는 onRequireLogin이 바뀌면
-    // 구독을 다시 걸어 다음 목록 조회가 그때부터 3초 뒤로 밀립니다. 동작을 지키려고 의존성에 그대로 둡니다.
-  }, [
-    dispatch,
-    onRequireLogin,
-    processingReel?.created_at,
-    processingReel?.id,
-    processingReel?.processing_status,
-    processingReelId,
-    listError,
-  ]);
+  }, [dispatch, processingReel?.created_at, processingReel?.processing_status, processingReelId]);
 }

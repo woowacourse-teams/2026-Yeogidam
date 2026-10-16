@@ -160,7 +160,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     expect(getHistoryReels).toHaveBeenCalledTimes(40);
   });
 
-  test('폴링 중에 onRequireLogin 참조가 바뀌면 다음 목록 조회가 그때부터 3초 뒤로 밀린다', async () => {
+  test('폴링 중에 onRequireLogin 참조가 바뀌어도 첫 목록 조회는 저장 3초 뒤에 그대로 나간다', async () => {
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('8', 'PROCESSING')));
     const onOpenDetail = jest.fn();
     const renderer = await renderLoaded([CAFE], {onOpenDetail, onRequireLogin: () => undefined});
@@ -169,10 +169,29 @@ describe('보관함 화면의 겹치는 순서', () => {
     await act(async () =>
       renderer.update(<SavedPlacesScreen onOpenDetail={onOpenDetail} onRequireLogin={() => undefined} />),
     );
-    await tick(1500);
+    await tick(1499);
     expect(getHistoryReels).not.toHaveBeenCalled();
+    await tick(1);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
+  });
+
+  test('폴링 중에 onRequireLogin 참조가 바뀐 뒤 로그인이 필요해지면 새로 받은 onRequireLogin을 부른다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockRejectedValue(new ReelApiError({errorCode: 'AUTH401_001', message: '로그인이 필요해요.'}));
+    const onOpenDetail = jest.fn();
+    const firstOnRequireLogin = jest.fn();
+    const nextOnRequireLogin = jest.fn();
+    const renderer = await renderLoaded([CAFE], {onOpenDetail, onRequireLogin: firstOnRequireLogin});
+    await openDialogAndSave(renderer);
+    await tick(1500);
+    await act(async () =>
+      renderer.update(<SavedPlacesScreen onOpenDetail={onOpenDetail} onRequireLogin={nextOnRequireLogin} />),
+    );
     await tick(1500);
     expect(getHistoryReels).toHaveBeenCalledTimes(1);
+    expect(firstOnRequireLogin).not.toHaveBeenCalled();
+    expect(nextOnRequireLogin).toHaveBeenCalledTimes(1);
   });
 
   test('외부 공유를 확인하는 사이 링크 저장이 응답하면 확인 결과가 링크 저장 상태를 덮고 그 릴스는 폴링하지 않는다', async () => {

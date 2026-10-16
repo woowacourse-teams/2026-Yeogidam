@@ -1,7 +1,6 @@
 import {useEffect, useMemo, useReducer} from 'react';
 
 import type {ReelProcessingStatus, SaveInstagramReelResponse} from '../../../entities/content/types';
-import type {SavedPlacesApiError} from '../../../entities/info/types';
 import type {Place} from '../../../entities/place/types';
 import {INITIAL_REEL_PROCESSING_STATE, reelProcessingReducer} from '../reelProcessing';
 import {useExternalShareResults} from './useExternalShareResults';
@@ -14,8 +13,6 @@ type Options = {
   loadSavedPlaces: () => Promise<Place[] | null>;
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
   onRequireLogin?: () => void;
-  /** 보관함 목록 오류입니다. 폴링 구독이 의존성으로만 씁니다. */
-  listError: SavedPlacesApiError | null;
 };
 
 /**
@@ -28,7 +25,6 @@ export function useReelProcessing({
   loadSavedPlaces,
   onSharedResultConsumed,
   onRequireLogin,
-  listError,
 }: Options) {
   const [state, dispatch] = useReducer(reelProcessingReducer, INITIAL_REEL_PROCESSING_STATE);
 
@@ -43,7 +39,6 @@ export function useReelProcessing({
     processingReel: state.processingReel,
     dispatch,
     onRequireLogin,
-    listError,
   });
 
   useEffect(() => {

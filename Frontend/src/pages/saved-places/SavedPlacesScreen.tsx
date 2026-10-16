@@ -139,7 +139,6 @@ export function SavedPlacesScreen({
     loadSavedPlaces,
     onSharedResultConsumed,
     onRequireLogin,
-    listError: error,
   });
 
   const {

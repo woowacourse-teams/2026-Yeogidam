@@ -519,8 +519,7 @@ describe('링크 저장', () => {
     expect(getHistoryReels).not.toHaveBeenCalled();
   });
 
-  test('폴링 중에 목록 오류가 바뀌면 다음 목록 조회가 그때부터 3초 뒤로 밀린다', async () => {
-    // 지금 동작을 그대로 적는다. 폴링 effect가 쓰지 않는 목록 오류를 의존성으로 둔다.
+  test('폴링 중에 목록 오류가 바뀌어도 첫 목록 조회는 저장 3초 뒤에 그대로 나간다', async () => {
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('8', 'PROCESSING')));
     const renderer = await renderLoaded([CAFE]);
     await openDialogAndSave(renderer);
@@ -530,9 +529,9 @@ describe('링크 저장', () => {
     await flush();
     expect(texts(renderer)).toContain(SERVER_ERROR.message);
 
-    await tick(1500);
+    await tick(1499);
     expect(getHistoryReels).not.toHaveBeenCalled();
-    await tick(1500);
+    await tick(1);
     expect(getHistoryReels).toHaveBeenCalledTimes(1);
   });
 
