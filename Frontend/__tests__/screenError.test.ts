@@ -134,9 +134,14 @@ test('오류 코드가 없는 400 응답은 요청 확인 오류와 같은 코�
   });
 });
 
-test('catch로 받은 값이 이미 화면 오류 계약 모양이면 그대로 쓰고, 아니면 응답 처리 오류로 받는다', () => {
+test('catch로 받은 값이 이미 화면 오류 계약 모양이면 그대로 쓰고, 아니면 toScreenApiError의 규칙대로 바꾼다', () => {
   const shaped = {status: 404, errorCode: 'PLACE404_001', message: '저장된 장소가 아닙니다.', retryable: false};
   expect(normalizeScreenApiError(shaped)).toBe(shaped);
+
+  // ApiError는 계약 모양이 아니므로(retryable 없음) 기본 표를 거친다. 401은 로그인 필요가 된다.
+  expect(normalizeScreenApiError(httpError(401, 'AUTH401_004', '토큰이 만료됐어요.'))).toEqual({
+    ...LOGIN_REQUIRED_ERROR,
+  });
 
   expect(normalizeScreenApiError(httpError(503, null, '점검 중'))).toEqual({
     status: 503,

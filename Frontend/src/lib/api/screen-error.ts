@@ -118,7 +118,7 @@ export const SCREEN_ERROR_TABLE: ScreenErrorTable = {
 };
 
 /** 값이 이미 화면 오류 계약 모양인지 봅니다. 저장소가 withScreenError로 바꿔 던진 오류가 여기에 해당합니다. */
-export function isScreenApiError(value: unknown): value is ScreenApiError {
+function isScreenApiError(value: unknown): value is ScreenApiError {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
@@ -130,8 +130,8 @@ export function isScreenApiError(value: unknown): value is ScreenApiError {
 }
 
 /**
- * catch로 받은 값을 화면 오류 계약으로 맞춥니다. 이미 계약 모양이면 그대로 쓰고, 응답 변환 중에 난 JS 오류처럼
- * 모양이 다른 값은 응답 처리 오류로 받습니다. 호출부가 as로 단언하지 않게 합니다.
+ * catch로 받은 값을 화면 오류 계약으로 맞춥니다. 이미 계약 모양이면 그대로 쓰고, 모양이 다른 값은
+ * toScreenApiError의 규칙대로 바꿉니다(ApiError는 기본 표를 따르고, JS 오류 같은 나머지는 응답 처리 오류). 호출부가 as로 단언하지 않게 합니다.
  */
 export function normalizeScreenApiError(error: unknown): ScreenApiError {
   return isScreenApiError(error) ? error : toScreenApiError(error);

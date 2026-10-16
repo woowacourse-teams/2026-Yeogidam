@@ -38,7 +38,12 @@ import type {
   SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
-import {INVALID_REQUEST_ERROR, TIMEOUT_ERROR, isLoginRequiredError} from '../../../lib/api/screen-error';
+import {
+  INVALID_REQUEST_ERROR,
+  TIMEOUT_ERROR,
+  isLoginRequiredError,
+  normalizeScreenApiError,
+} from '../../../lib/api/screen-error';
 import {
   SEARCH_BAR_HEIGHT,
   SEARCH_BAR_TOP_GAP,
@@ -335,7 +340,7 @@ export function PlaceResultSheet({
       if (requestId !== reelsRequestIdRef.current) {
         return;
       }
-      setReelsError(error as PlaceReelsApiError);
+      setReelsError(normalizeScreenApiError(error));
     } finally {
       if (requestId === reelsRequestIdRef.current) {
         setIsReelsLoading(false);
@@ -754,7 +759,7 @@ export function PlaceResultSheet({
       onSavedPlaceDeleted?.(savedPlaceId);
       backToPlaceList();
     } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
+      const apiError = normalizeScreenApiError(nextError);
       if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
         try {
           const savedPlaces = await getSavedPlaces();
