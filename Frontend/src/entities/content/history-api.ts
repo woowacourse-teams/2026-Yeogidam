@@ -1,14 +1,8 @@
 import {ApiError} from '../../lib/api/errors';
 import {PROCESSING_ERROR} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
-import {
-  SHARES_PATH,
-  requestSharesPage,
-  toReelApiError,
-  toReelStatus,
-  type SpringShareHistoryItem,
-  type SpringSharesPage,
-} from './api';
+import {getSharesPage, toReelApiError, toReelStatus} from './api';
+import {SHARES_PATH, type SpringShareHistoryItem, type SpringSharesCursor} from './shares-request';
 import type {
   HistoryCursor,
   HistoryReel,
@@ -77,19 +71,20 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
   nextCursor: HistoryCursor | null;
 }> {
-  let page: SpringSharesPage;
-  try {
-    page = await requestSharesPage(cursor);
-  } catch (error) {
-    throw toReelApiError(error);
-  }
-  const nextCursor = page.nextCursor;
+  const page = await getSharesPage(cursor ? toSpringSharesCursor(cursor) : undefined);
   return {
     reels: page.sharedMedias.map(toHistoryReel),
-    nextCursor: nextCursor
-      ? {created_at: nextCursor.createdAt, id: String(nextCursor.id)}
-      : null,
+    nextCursor: page.nextCursor ? toHistoryCursor(page.nextCursor) : null,
   };
+}
+
+/** 앱 커서(created_at, 문자열 id)와 서버 커서(createdAt, 숫자 id)를 서로 바꿉니다. 두 방향을 이 파일 한 곳에 둡니다. */
+function toSpringSharesCursor(cursor: HistoryCursor): SpringSharesCursor {
+  return {createdAt: cursor.created_at, id: Number(cursor.id)};
+}
+
+function toHistoryCursor(cursor: SpringSharesCursor): HistoryCursor {
+  return {created_at: cursor.createdAt, id: String(cursor.id)};
 }
 
 /**

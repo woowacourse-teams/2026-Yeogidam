@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {ApiError} from '../../lib/api/errors';
 import {createSpringApiClient} from '../../lib/api/spring-client';
-import {requestSharesPage} from '../content/api';
+import {requestSharesPage} from '../content/shares-request';
 import type {Place} from '../place/types';
 import {ONBOARDING_PLACES} from './data';
 
@@ -68,7 +68,7 @@ export async function cancelGuestOnboardingTransfer(): Promise<void> {
  * 회원을 새 회원으로 봅니다. 공유한 적 없는 기존 회원도 새 회원으로 잡히는 한계가 있습니다.
  */
 async function hasNoShareHistory(): Promise<boolean> {
-  // 모양이 어긋난 응답은 requestSharesPage가 ApiError(invalid_response)로 던지므로, 이력 없음으로 보아 기존 회원에게 온보딩 장소를 보내지 않습니다.
+  // 모양이 어긋난 응답은 requestSharesPage가 ApiError(invalid_response)로 던지므로 이력 없음으로 보지 않고, 기존 회원에게 온보딩 장소를 보내지 않습니다.
   const {sharedMedias} = await requestSharesPage();
   return sharedMedias.length === 0;
 }

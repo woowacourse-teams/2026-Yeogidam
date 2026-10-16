@@ -13,7 +13,7 @@ import type {Place} from '../src/entities/place/types';
 import {PlaceDetailActionSheet} from '../src/pages/place-detail/components/PlaceDetailActionSheet';
 import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
 import {flushMicrotasks, renderTracked, type Renderer} from './support/renderers';
-import {SERVER_ERROR, TIMEOUT_ERROR, place} from './support/savedPlacesFixtures';
+import {BAKERY, SERVER_ERROR, TIMEOUT_ERROR, place} from './support/savedPlacesFixtures';
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
@@ -57,7 +57,7 @@ async function deleteFromSheet(renderer: Renderer) {
 
 beforeEach(() => {
   clearSavedPlacesCache();
-  writeSavedPlacesCache([place('카페', 'sp-1'), place('빵집', 'sp-2')], getSavedPlacesCacheGeneration());
+  writeSavedPlacesCache([place('카페', 'saved-1'), place('빵집', 'saved-2')], getSavedPlacesCacheGeneration());
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   jest.mocked(getPlaceReels).mockResolvedValue([]);
   jest.mocked(deleteSavedPlaces).mockReset().mockResolvedValue(undefined);
@@ -69,18 +69,18 @@ afterEach(() => {
 });
 
 test('상세에서 지우기에 성공하면 보관함 캐시에서도 빼고 돌아간다', async () => {
-  const {renderer, onBack} = await renderDetail(place('카페', 'sp-1'));
+  const {renderer, onBack} = await renderDetail(place('카페', 'saved-1'));
   await deleteFromSheet(renderer);
 
-  expect(deleteSavedPlaces).toHaveBeenCalledWith(['sp-1']);
+  expect(deleteSavedPlaces).toHaveBeenCalledWith(['saved-1']);
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
   expect(onBack).toHaveBeenCalledTimes(1);
 });
 
 test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지운 것으로 보고 캐시에서 뺀다', async () => {
   jest.mocked(deleteSavedPlaces).mockRejectedValue(TIMEOUT_ERROR);
-  jest.mocked(getSavedPlaces).mockResolvedValue([{id: 'sp-2'} as never]);
-  const {renderer, onBack} = await renderDetail(place('카페', 'sp-1'));
+  jest.mocked(getSavedPlaces).mockResolvedValue([BAKERY]);
+  const {renderer, onBack} = await renderDetail(place('카페', 'saved-1'));
   await deleteFromSheet(renderer);
 
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
@@ -89,7 +89,7 @@ test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지
 
 test('지우기에 실패하면 캐시를 그대로 두고 돌아가지 않는다', async () => {
   jest.mocked(deleteSavedPlaces).mockRejectedValue(SERVER_ERROR);
-  const {renderer, onBack} = await renderDetail(place('카페', 'sp-1'));
+  const {renderer, onBack} = await renderDetail(place('카페', 'saved-1'));
   await deleteFromSheet(renderer);
 
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['카페', '빵집']);

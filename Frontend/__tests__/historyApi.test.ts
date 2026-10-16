@@ -1,4 +1,4 @@
-import type {SpringExtractionStatus} from '../src/entities/content/api';
+import type {SpringExtractionStatus} from '../src/entities/content/shares-request';
 import {ReelApiError} from '../src/entities/content/errors';
 import {
   getHistoryReelDetail,
