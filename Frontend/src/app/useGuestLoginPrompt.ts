@@ -8,14 +8,15 @@ const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 type Options = {
   /** 비회원이 메인 화면을 방해 없이 보고 있는 상태입니다. 꺼지면 시간을 멈춥니다. */
   isGuestBrowsing: boolean;
-  isAuthenticated: boolean | null;
+  /** 회원이 되면 타이머를 끝내고 남은 유도 요청을 지웁니다. */
+  isMember: boolean;
 };
 
 /**
  * 비회원이 메인 화면을 포그라운드에서 3분 동안 보면 로그인 유도를 띄웁니다.
  * 유도를 닫으면 다시 띄우지 않고, 회원이 되면 타이머를 끝내 로그아웃해도 앱을 다시 켜기 전까지는 띄우지 않습니다.
  */
-export function useGuestLoginPrompt({isGuestBrowsing, isAuthenticated}: Options) {
+export function useGuestLoginPrompt({isGuestBrowsing, isMember}: Options) {
   const [isPromptRequested, setIsPromptRequested] = useState(false);
   const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
   const [timer] = useState(
@@ -38,11 +39,11 @@ export function useGuestLoginPrompt({isGuestBrowsing, isAuthenticated}: Options)
   }, [timer, isAppActive, isGuestBrowsing]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isMember) {
       timer.cancel();
       setIsPromptRequested(false);
     }
-  }, [timer, isAuthenticated]);
+  }, [timer, isMember]);
 
   useEffect(() => () => timer.cancel(), [timer]);
 

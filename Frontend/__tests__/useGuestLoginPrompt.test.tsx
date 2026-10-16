@@ -4,7 +4,7 @@ import {AppState, type AppStateStatus} from 'react-native';
 
 import {useGuestLoginPrompt} from '../src/app/useGuestLoginPrompt';
 
-type Props = {isGuestBrowsing: boolean; isAuthenticated: boolean | null};
+type Props = {isGuestBrowsing: boolean; isMember: boolean};
 let latest: ReturnType<typeof useGuestLoginPrompt>;
 let emitAppState: (state: AppStateStatus) => void;
 
@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 test('포그라운드에서 둘러본 시간만 3분을 채우면 띄우고, 백그라운드 동안은 숨기며, 닫으면 다시 띄우지 않는다', async () => {
-  await render({isGuestBrowsing: true, isAuthenticated: false});
+  await render({isGuestBrowsing: true, isMember: false});
 
   await advance(120_000);
   await appState('background');
@@ -67,11 +67,11 @@ test('포그라운드에서 둘러본 시간만 3분을 채우면 띄우고, 백
 });
 
 test('3분 전에 회원이 되면 로그아웃 뒤 다시 둘러봐도 띄우지 않는다', async () => {
-  const rerender = await render({isGuestBrowsing: true, isAuthenticated: false});
+  const rerender = await render({isGuestBrowsing: true, isMember: false});
 
   await advance(90_000);
-  await rerender({isGuestBrowsing: false, isAuthenticated: true});
-  await rerender({isGuestBrowsing: true, isAuthenticated: false});
+  await rerender({isGuestBrowsing: false, isMember: true});
+  await rerender({isGuestBrowsing: true, isMember: false});
   await advance(180_000);
 
   expect(latest.isGuestLoginPromptVisible).toBe(false);

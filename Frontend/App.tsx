@@ -143,12 +143,13 @@ function App() {
     },
   });
   const isAuthReady = authStatus !== 'loading';
-  const isAuthenticated = authStatus === 'loading' ? null : authStatus === 'member';
+  const isGuest = authStatus === 'guest';
+  const isMember = authStatus === 'member';
   useEffect(() => {
-    setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
-  }, [isAuthenticated]);
+    setAnalyticsGuestMode(isAuthReady ? isGuest : null);
+  }, [isAuthReady, isGuest]);
   const {currentProfile, profileError, isProfileLoading, retryProfile, clearProfile} =
-    useCurrentProfile(flowState.kind === 'main' && isAuthenticated === true);
+    useCurrentProfile(flowState.kind === 'main' && isMember);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
@@ -177,34 +178,30 @@ function App() {
       },
     });
 
+  // 스플래시와 안내가 끝나고 세션이 확인된 메인 흐름입니다. 비회원 로그인 유도와 위치 권한 요청의 공통 전제입니다.
+  const isMainVisible =
+    isAuthReady && !isSplashVisible && hasCompletedGuide === true && flowState.kind === 'main';
+  // 비회원이 메인 화면을 방해 없이 보고 있는 상태입니다. 겹침 화면과 업데이트 안내와 공유 로그인이 없을 때만입니다.
   const isGuestBrowsing =
-    isAuthReady &&
-    !isSplashVisible &&
-    hasCompletedGuide === true &&
-    flowState.kind === 'main' &&
-    isAuthenticated === false &&
+    isMainVisible &&
+    isGuest &&
     !hasPendingShareLogin &&
     myPageOverlay === null &&
     requiredUpdateStoreUrl === null &&
     recommendedUpdate === null;
+  // 로그인 화면에서 비회원 둘러보기로 들어갈 수 있는 상태입니다. 돌아갈 흐름이나 공유 로그인이 있으면 그쪽이 먼저입니다.
+  const canBrowseAsGuest = isGuest && !guestReturnFlow && !hasPendingShareLogin;
 
   const {isGuestLoginPromptVisible, dismissGuestLoginPrompt} = useGuestLoginPrompt({
     isGuestBrowsing,
-    isAuthenticated,
+    isMember,
   });
 
-  useLocationPermissionRequest(
-    isAuthReady &&
-      !isSplashVisible &&
-      hasCompletedGuide === true &&
-      flowState.kind === 'main' &&
-      !requiredUpdateStoreUrl,
-  );
+  useLocationPermissionRequest(isMainVisible && !requiredUpdateStoreUrl);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     // 안내를 마친 비회원이 로그인하면 그때 보관함에 남은 장소를 가입 뒤 옮깁니다.
-    const guestTransferPlaces =
-      isAuthenticated === false && hasCompletedGuide === true ? guestPlaces : null;
+    const guestTransferPlaces = isGuest && hasCompletedGuide === true ? guestPlaces : null;
     const outcome = await continueWithSocial(provider, guestTransferPlaces);
     if (outcome === 'setup-failed') {
       Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
@@ -219,14 +216,14 @@ function App() {
   };
 
   const handleOpenGuestLogin = () => {
-    if (flowState.kind !== 'main' || isAuthenticated !== false) return;
+    if (flowState.kind !== 'main' || !isGuest) return;
 
     dismissGuestLoginPrompt();
     openLoginFromGuest(flowState);
   };
 
   const handleRequireLogin = () => {
-    if (isAuthenticated === false) {
+    if (isGuest) {
       handleOpenGuestLogin();
       return;
     }
@@ -287,8 +284,8 @@ function App() {
     if (currentScreen === 'history') {
       return (
         <HistoryScreen
-          guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
-          guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
+          guestReels={isGuest ? GUEST_HISTORY_REELS : undefined}
+          guestDetails={isGuest ? GUEST_HISTORY_DETAILS : undefined}
           onBack={closeHistory}
           onRequireLogin={handleRequireLogin}
         />
@@ -328,13 +325,7 @@ function App() {
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? cancelPendingShareLogin : undefined}
           onContinueBrowsing={guestReturnFlow ? handleContinueBrowsing : undefined}
-          onBrowseAsGuest={
-            isAuthenticated === false &&
-            !guestReturnFlow &&
-            !hasPendingShareLogin
-              ? handleBrowseAsGuest
-              : undefined
-          }
+          onBrowseAsGuest={canBrowseAsGuest ? handleBrowseAsGuest : undefined}
         />
       );
     }
@@ -369,15 +360,15 @@ function App() {
       return (
         <SavedPlacesScreen
           key={
-            isAuthenticated === false
+            isGuest
               ? 'guest-saved'
               : `member-saved-${memberDataRevision}`
           }
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
-          isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? guestPlaces : undefined}
+          isGuest={isGuest}
+          places={isGuest ? guestPlaces : undefined}
           onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
+            isGuest ? deleteGuestPlaces : undefined
           }
           onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
@@ -395,14 +386,14 @@ function App() {
       return (
         <MapScreen
           key={
-            isAuthenticated === false
+            isGuest
               ? 'guest-map'
               : `member-map-${memberDataRevision}`
           }
-          isGuest={isAuthenticated === false}
-          guestPlaces={isAuthenticated === false ? guestPlaces : undefined}
+          isGuest={isGuest}
+          guestPlaces={isGuest ? guestPlaces : undefined}
           onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
+            isGuest ? deleteGuestPlaces : undefined
           }
           onAuthenticationRequired={handleRequireLogin}
         />
@@ -416,12 +407,12 @@ function App() {
           onAuthenticationRequired={handleRequireLogin}
           place={selectedPlace}
           guestReels={
-            isAuthenticated === false
+            isGuest
               ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? EMPTY_GUEST_PLACE_REELS
               : undefined
           }
           onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
+            isGuest ? deleteGuestPlaces : undefined
           }
           viewContext={selectedPlaceViewContext ?? undefined}
         />
@@ -431,7 +422,7 @@ function App() {
     return (
       <MyPageScreen
         currentProfile={currentProfile}
-        isGuest={isAuthenticated === false}
+        isGuest={isGuest}
         isProfileLoading={isProfileLoading}
         isLogoutPending={isLogoutPending}
         onOpenContact={openKakaoChannelChat}
@@ -494,7 +485,7 @@ function App() {
           {showTabBar && activeTab ? (
             <BottomNavigationBar
               active={activeTab}
-              isGuest={isAuthenticated === false}
+              isGuest={isGuest}
               onNavigate={openMainScreen}
             />
           ) : null}
