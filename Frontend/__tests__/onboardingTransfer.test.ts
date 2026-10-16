@@ -41,6 +41,8 @@ function respond({shares = [] as unknown[], transfer}: {
 
 const transferCalls = () =>
   mockRequest.mock.calls.filter(([path]) => path === '/api/v1/onboarding/saved-places');
+/** 공유 이력 조회 호출입니다. 첫 쪽 요청의 인자 모양은 shares-request가 정하므로 경로로만 거릅니다. */
+const shareHistoryCalls = () => mockRequest.mock.calls.filter(([path]) => path === '/api/v1/shares');
 
 beforeEach(async () => {
   await AsyncStorage.removeItem(STORAGE_KEY);
@@ -169,7 +171,7 @@ test('로그인 응답이 새 회원이라고 하면 공유 이력을 조회하�
   respond({shares: [{sharedMediaId: 1}]});
 
   await expect(resumeGuestOnboardingTransfer('7', true)).resolves.toBe(true);
-  expect(mockRequest).not.toHaveBeenCalledWith('/api/v1/shares');
+  expect(shareHistoryCalls()).toHaveLength(0);
   expect(transferCalls()).toHaveLength(1);
 });
 
@@ -192,7 +194,7 @@ test('새 회원으로 정한 뒤 이관이 실패하면 다음 실행에 다시
   // 다음 실행에는 로그인 응답이 없어 신규 여부를 넘기지 않는다.
   respond({shares: [{sharedMediaId: 1}]});
   await expect(resumeGuestOnboardingTransfer('7')).resolves.toBe(true);
-  expect(mockRequest).not.toHaveBeenCalledWith('/api/v1/shares');
+  expect(shareHistoryCalls()).toHaveLength(0);
   expect(transferCalls()).toHaveLength(2);
 });
 

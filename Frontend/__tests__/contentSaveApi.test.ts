@@ -1,20 +1,20 @@
 import {
   getReelProcessingStatus,
-  requestSharesPage,
   saveContent,
   toReelApiError,
   toReelStatus,
 } from '../src/entities/content/api';
+import {requestSharesPage} from '../src/entities/content/shares-request';
 import {ReelApiError, normalizeReelError} from '../src/entities/content/errors';
 import {ApiError} from '../src/lib/api/errors';
-import {createSpringApiClient} from '../src/lib/api/spring-client';
 
+// api.ts와 shares-request.ts가 각자 만든 클라이언트가 같은 요청 mock을 쓰게 합니다.
+const mockRequest = jest.fn();
 jest.mock('../src/lib/api/spring-client', () => ({
-  createSpringApiClient: jest.fn(() => ({request: jest.fn()})),
+  createSpringApiClient: jest.fn(() => ({request: (...args: unknown[]) => mockRequest(...args)})),
 }));
 
-const request = (createSpringApiClient as jest.Mock).mock.results[0].value
-  .request as jest.Mock;
+const request = mockRequest;
 
 const share = (
   sharedMediaId: number,
@@ -145,6 +145,21 @@ test.each(MALFORMED_SHARES_BODIES)('상태 조회는 공유 목록 응답 모양
   });
 });
 
+test('상태 조회의 요청 오류는 공유 API 오류 표로 바꿔 다시 시도할 수 있는 연결 실패로 던진다', async () => {
+  request.mockRejectedValue(new ApiError({kind: 'network', message: 'offline'}));
+
+  const lookup = getReelProcessingStatus('12');
+  await expect(lookup).rejects.toBeInstanceOf(ReelApiError);
+  await expect(lookup).rejects.toMatchObject({errorCode: 'CLIENT000_001', retryable: true});
+});
+
+/** 다음 커서 모양이 어긋난 응답들입니다. 빈 커서로 보면 더 보기 요청이 cursorId=undefined로 나갑니다. */
+const MALFORMED_CURSOR_BODIES: Array<[string, unknown]> = [
+  ['nextCursor가 빈 객체', {sharedMedias: [], nextCursor: {}}],
+  ['nextCursor가 문자열', {sharedMedias: [], nextCursor: 'abc'}],
+  ['id가 문자열', {sharedMedias: [], nextCursor: {createdAt: '2026-10-14T00:00:00Z', id: '7'}}],
+];
+
 describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
   test('첫 쪽은 커서 쿼리 없이 읽고 공유 목록과 다음 커서를 돌려준다', async () => {
     request.mockResolvedValue({
@@ -163,7 +178,7 @@ describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
     request.mockResolvedValue({sharedMedias: []});
 
     await expect(
-      requestSharesPage({created_at: '2026-10-14T00:00:00Z', id: '7'}),
+      requestSharesPage({createdAt: '2026-10-14T00:00:00Z', id: 7}),
     ).resolves.toEqual({sharedMedias: [], nextCursor: null});
     expect(request).toHaveBeenCalledWith('/api/v1/shares', {
       query: {cursorCreatedAt: '2026-10-14T00:00:00Z', cursorId: '7'},
@@ -171,6 +186,14 @@ describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
   });
 
   test.each(MALFORMED_SHARES_BODIES)('응답 모양이 어긋나면(%s) 빈 목록이 아니라 응답 처리 오류(ApiError invalid_response)로 던진다', async (_shape, body) => {
+    request.mockResolvedValue(body);
+
+    const page = requestSharesPage();
+    await expect(page).rejects.toBeInstanceOf(ApiError);
+    await expect(page).rejects.toMatchObject({kind: 'invalid_response', status: null});
+  });
+
+  test.each(MALFORMED_CURSOR_BODIES)('다음 커서 모양이 어긋나면(%s) 빈 커서가 아니라 응답 처리 오류(ApiError invalid_response)로 던진다', async (_shape, body) => {
     request.mockResolvedValue(body);
 
     const page = requestSharesPage();
@@ -263,7 +286,7 @@ describe('화면의 공유 오류 맞추기(normalizeReelError)', () => {
       message: '인터넷 연결을 확인해주세요.',
       retryable: true,
     });
-    // JS 오류 쪽과 같이 받지 않은 응답 상태는 undefined로 둔다.
+    // 재시도 지표는 응답 상태가 숫자일 때만 싣는다. JS 오류 쪽과 같이 받지 않은 응답 상태는 undefined로 둔다.
     expect(normalized.status).toBeUndefined();
   });
 });

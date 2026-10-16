@@ -37,14 +37,17 @@ export async function unmountAllTracked(): Promise<void> {
   }
 }
 
-/** 마이크로태스크를 다섯 번 비워, 요청이 끝난 뒤 이어지는 then과 상태 갱신까지 반영합니다. */
+/**
+ * 끝난 요청에 이어지는 then 사슬과 상태 갱신과 effect를 모두 반영합니다. async act가 큐가 빌 때까지 진짜 매크로태스크를 기다리므로
+ * 다섯 번 비우기는 여유분이고, 결과는 flushEffects와 같습니다. 중간 상태를 보는 용도로는 어느 쪽도 쓸 수 없습니다.
+ */
 export async function flushMicrotasks(): Promise<void> {
   await act(async () => {
     for (let i = 0; i < 5; i += 1) await Promise.resolve();
   });
 }
 
-/** act를 한 번 기다려, 이미 끝난 요청의 상태 갱신과 그 뒤의 effect만 반영합니다. */
+/** act를 한 번 기다립니다. async act가 큐가 빌 때까지 기다리므로 flushMicrotasks와 같은 결과를 내고, 부르는 쪽이 끝난 요청의 상태 갱신과 effect만 기다린다는 뜻을 이름으로 말합니다. */
 export function flushEffects(): Promise<void> {
   return act(async () => undefined);
 }
