@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   Alert,
   Image,
@@ -27,6 +27,7 @@ import {HistorySuccessDetail} from './components/HistorySuccessDetail';
 import {historyStyles} from './components/historyStyles';
 import {getHistoryVisibleState, groupHistoryReelsByDate} from './history-format';
 import {useHistoryList} from './useHistoryList';
+import {useHistorySelection} from './useHistorySelection';
 
 type HistoryScreenProps = {
   onBack: () => void;
@@ -65,14 +66,13 @@ export function HistoryScreen({
   const visibleTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
   const shouldRestoreScrollRef = useRef(false);
-  const [selectedSuccess, setSelectedSuccess] = useState(false);
-  const [selectedFailure, setSelectedFailure] = useState(false);
-  const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+  const {selection, openSuccess, openFailure, closeDetail} = useHistorySelection();
+  const isDetailOpen = selection.kind !== 'list';
 
   cardStatesRef.current = new Map(reels.map(reel => [reel.id, getHistoryVisibleState(reel)]));
 
   const evaluateVisibleCards = useCallback(() => {
-    if (selectedSuccess || selectedFailure) return;
+    if (isDetailOpen) return;
     const top = scrollOffsetRef.current;
     const bottom = top + viewportHeightRef.current;
     for (const [contentId, layout] of cardLayoutsRef.current) {
@@ -104,7 +104,7 @@ export function HistoryScreen({
         visibleTimersRef.current.delete(key);
       }
     }
-  }, [posthog, selectedSuccess, selectedFailure]);
+  }, [isDetailOpen, posthog]);
 
   useEffect(() => {
     evaluateVisibleCards();
@@ -116,11 +116,11 @@ export function HistoryScreen({
   }, []);
 
   useEffect(() => {
-    if (selectedSuccess || selectedFailure) {
+    if (isDetailOpen) {
       visibleTimersRef.current.forEach(clearTimeout);
       visibleTimersRef.current.clear();
     }
-  }, [selectedSuccess, selectedFailure]);
+  }, [isDetailOpen]);
 
   /**
    * 재시도도 새 공유와 같은 길을 탄다. 접수에 성공하면 목록으로 돌아가 바로 한 번 읽고,
@@ -171,8 +171,7 @@ export function HistoryScreen({
     // 새 항목이 맨 위에 생기므로 실패 항목의 스크롤 위치로 되돌리지 않는다.
     scrollOffsetRef.current = 0;
     shouldRestoreScrollRef.current = false;
-    setSelectedFailure(false);
-    setSelectedReel(null);
+    closeDetail();
     // 같은 게시물을 다시 처리하므로 접수된 공유는 실패 카드의 내용으로 바로 보여 준다.
     // 생성 시각 등 서버 값은 이어지는 목록 조회가 같은 ID로 덮어쓴다.
     if (!response.reused) {
@@ -186,12 +185,11 @@ export function HistoryScreen({
       acceptRetriedReel(acceptedReel);
     }
     await refreshSilently();
-  }, [acceptRetriedReel, posthog, refreshSilently]);
+  }, [acceptRetriedReel, closeDetail, posthog, refreshSilently]);
 
   useEffect(() => {
     if (
-      selectedSuccess ||
-      selectedFailure ||
+      isDetailOpen ||
       loading ||
       !shouldRestoreScrollRef.current ||
       scrollOffsetRef.current <= 0
@@ -208,43 +206,41 @@ export function HistoryScreen({
     });
 
     return () => cancelAnimationFrame(restoreScroll);
-  }, [loading, reels.length, selectedFailure, selectedSuccess]);
+  }, [isDetailOpen, loading, reels.length]);
 
   const groupedReels = groupHistoryReelsByDate(reels);
-  const selectedGuestDetail = guestReels === undefined
-    ? undefined
-    : guestDetails?.[selectedReel?.id ?? ''] ?? null;
+  /** 비회원이면 체험 상세(없으면 null)를, 회원이면 undefined를 넘겨 상세가 서버에 묻게 합니다. */
+  const guestDetailOf = (reel: HistoryReel) =>
+    guestReels === undefined ? undefined : guestDetails?.[reel.id] ?? null;
 
-  if (selectedSuccess) {
+  if (selection.kind === 'success') {
     return (
       <HistorySuccessDetail
         onBack={() => {
           shouldRestoreScrollRef.current = true;
-          setSelectedSuccess(false);
-          setSelectedReel(null);
+          closeDetail();
         }}
-        reel={selectedReel as HistoryReel}
-        guestDetail={selectedGuestDetail}
+        reel={selection.reel}
+        guestDetail={guestDetailOf(selection.reel)}
       />
     );
   }
-  if (selectedFailure) {
+  if (selection.kind === 'failure') {
     return (
       <HistoryFailureDetail
         onBack={() => {
           shouldRestoreScrollRef.current = true;
-          setSelectedFailure(false);
-          setSelectedReel(null);
+          closeDetail();
         }}
-        reel={selectedReel as HistoryReel}
-        guestDetail={selectedGuestDetail}
+        reel={selection.reel}
+        guestDetail={guestDetailOf(selection.reel)}
         onRequireLogin={onRequireLogin}
         onRetry={async () => {
           if (guestReels !== undefined) {
             onRequireLogin?.();
             return;
           }
-          await retryHistoryReel(selectedReel as HistoryReel);
+          await retryHistoryReel(selection.reel);
         }}
       />
     );
@@ -333,15 +329,9 @@ export function HistoryScreen({
                   }}
                   onPress={
                     reel.processing_status === 'COMPLETED'
-                      ? () => {
-                          setSelectedReel(reel);
-                          setSelectedSuccess(true);
-                        }
+                      ? () => openSuccess(reel)
                       : reel.processing_status === 'FAILED'
-                      ? () => {
-                          setSelectedReel(reel);
-                          setSelectedFailure(true);
-                        }
+                      ? () => openFailure(reel)
                       : undefined
                   }
                 />
