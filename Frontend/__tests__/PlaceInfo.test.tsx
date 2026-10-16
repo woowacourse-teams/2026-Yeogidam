@@ -6,6 +6,7 @@ import type { SavedPlaceViewContext } from '../src/analytics/savedPlaceEvents';
 import type { Place } from '../src/entities/place/types';
 import { CopyToastProvider } from '../src/pages/place-detail/components/CopyToast';
 import { PlaceInfo } from '../src/pages/place-detail/components/PlaceInfo';
+import { renderTracked } from './support/renderers';
 
 const mockCapture = jest.fn();
 
@@ -40,18 +41,14 @@ describe('PlaceInfo', () => {
 
   test('opens the Kakao Map link and records the saved place event', async () => {
     jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
-    let renderer: ReactTestRenderer.ReactTestRenderer;
+    const renderer = await renderTracked(
+      <CopyToastProvider>
+        <PlaceInfo place={place} viewContext={viewContext} />
+      </CopyToastProvider>,
+    );
 
     await ReactTestRenderer.act(async () => {
-      renderer = ReactTestRenderer.create(
-        <CopyToastProvider>
-          <PlaceInfo place={place} viewContext={viewContext} />
-        </CopyToastProvider>,
-      );
-    });
-
-    await ReactTestRenderer.act(async () => {
-      renderer!.root
+      renderer.root
         .findByProps({ accessibilityLabel: '테스트 카페 카카오맵 열기' })
         .props.onPress();
       await Promise.resolve();
@@ -71,35 +68,23 @@ describe('PlaceInfo', () => {
         map_provider: 'kakao',
       }),
     );
-
-    await ReactTestRenderer.act(async () => {
-      renderer!.unmount();
-    });
   });
 
   test('does not record the event when all Kakao Map links fail to open', async () => {
     jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('open failed'));
-    let renderer: ReactTestRenderer.ReactTestRenderer;
+    const renderer = await renderTracked(
+      <CopyToastProvider>
+        <PlaceInfo place={place} viewContext={viewContext} />
+      </CopyToastProvider>,
+    );
 
     await ReactTestRenderer.act(async () => {
-      renderer = ReactTestRenderer.create(
-        <CopyToastProvider>
-          <PlaceInfo place={place} viewContext={viewContext} />
-        </CopyToastProvider>,
-      );
-    });
-
-    await ReactTestRenderer.act(async () => {
-      renderer!.root
+      renderer.root
         .findByProps({ accessibilityLabel: '테스트 카페 카카오맵 열기' })
         .props.onPress();
       await new Promise<void>(resolve => setTimeout(resolve, 0));
     });
 
     expect(mockCapture).not.toHaveBeenCalled();
-
-    await ReactTestRenderer.act(async () => {
-      renderer!.unmount();
-    });
   });
 });

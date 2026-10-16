@@ -10,6 +10,7 @@ import {
 } from '../src/lib/auth/deleteAccount';
 import {getSpringOAuthAuthorizationCode} from '../src/lib/auth/spring-sign-in';
 import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen';
+import {renderTracked} from './support/renderers';
 
 const mockRequest = jest.fn();
 
@@ -37,16 +38,13 @@ beforeEach(() => {
 });
 
 async function renderScreen(onDeleteAccount: jest.Mock) {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(
-      <AccountDeletionScreen
-        linkedProviders={['kakao']}
-        onBack={jest.fn()}
-        onDeleteAccount={onDeleteAccount}
-      />,
-    );
-  });
+  const renderer = await renderTracked(
+    <AccountDeletionScreen
+      linkedProviders={['kakao']}
+      onBack={jest.fn()}
+      onDeleteAccount={onDeleteAccount}
+    />,
+  );
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(TextInput).props.onChangeText('DELETE');
   });

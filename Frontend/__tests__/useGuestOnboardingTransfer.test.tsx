@@ -6,6 +6,7 @@ import {trackGuestTransferFinished} from '../src/analytics/userEntryEvents';
 import {useGuestOnboardingTransfer} from '../src/app/useGuestOnboardingTransfer';
 import {resumeGuestOnboardingTransfer} from '../src/entities/onboarding/transfer';
 import {getSpringMemberId} from '../src/lib/auth/spring-session';
+import {renderTracked} from './support/renderers';
 
 jest.mock('../src/entities/onboarding/transfer', () => ({
   beginGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
@@ -46,9 +47,7 @@ beforeEach(() => {
 
 test('옮기기가 끝나면 회원 데이터 버전을 올리고, 다른 회원이 됐으면 올리지 않는다', async () => {
   jest.mocked(resumeGuestOnboardingTransfer).mockResolvedValue(true);
-  await act(async () => {
-    ReactTestRenderer.create(<Harness enabled />);
-  });
+  await renderTracked(<Harness enabled />);
 
   await act(async () => {
     latest.resumeTransfer('member-1');
@@ -67,9 +66,7 @@ test('옮기기가 끝나면 회원 데이터 버전을 올리고, 다른 회원
 test('실패 안내 요청은 한 번만 보내고, 로그아웃으로 초기화하면 다시 보낸다', async () => {
   const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   jest.mocked(resumeGuestOnboardingTransfer).mockRejectedValue(new Error('network'));
-  await act(async () => {
-    ReactTestRenderer.create(<Harness enabled />);
-  });
+  await renderTracked(<Harness enabled />);
 
   await act(async () => {
     latest.resumeTransfer('member-1');
@@ -92,10 +89,7 @@ test('실패 안내 요청은 한 번만 보내고, 로그아웃으로 초기화
 test('회원일 때만 포그라운드 복귀를 구독하고, 복귀하면 조용히 다시 시도한다', async () => {
   jest.mocked(getSpringMemberId).mockResolvedValue('member-1');
   jest.mocked(resumeGuestOnboardingTransfer).mockResolvedValue(true);
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await act(async () => {
-    renderer = ReactTestRenderer.create(<Harness enabled={false} />);
-  });
+  const renderer = await renderTracked(<Harness enabled={false} />);
   expect(AppState.addEventListener).not.toHaveBeenCalled();
 
   await act(async () => renderer.update(<Harness enabled />));
@@ -113,14 +107,12 @@ test('회원일 때만 포그라운드 복귀를 구독하고, 복귀하면 조�
 
 test('StrictMode처럼 effect가 다시 돌아도 응답을 버리지 않는다', async () => {
   jest.mocked(resumeGuestOnboardingTransfer).mockResolvedValue(true);
-  await act(async () => {
-    ReactTestRenderer.create(
-      <StrictMode>
-        <Harness enabled />
-      </StrictMode>,
-      {unstable_isConcurrent: true} as unknown as ReactTestRenderer.TestRendererOptions,
-    );
-  });
+  await renderTracked(
+    <StrictMode>
+      <Harness enabled />
+    </StrictMode>,
+    {unstable_isConcurrent: true} as unknown as ReactTestRenderer.TestRendererOptions,
+  );
 
   await act(async () => {
     latest.resumeTransfer('member-1');
