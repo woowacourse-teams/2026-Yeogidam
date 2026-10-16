@@ -30,7 +30,6 @@ export function useAppNavigation() {
       openLoginFromGuest: (returnFlow: MainFlowState) =>
         dispatch({type: 'openLoginFromGuest', returnFlow}),
       returnToGuestFlow: () => dispatch({type: 'returnToGuestFlow'}),
-      forgetGuestReturnFlow: () => dispatch({type: 'forgetGuestReturnFlow'}),
       openGuestMain: () => dispatch({type: 'openGuestMain'}),
       openMemberMain: () => dispatch({type: 'openMemberMain'}),
     }),

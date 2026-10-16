@@ -101,7 +101,6 @@ function App() {
     openLogin,
     openLoginFromGuest,
     returnToGuestFlow,
-    forgetGuestReturnFlow,
     openGuestMain,
     openMemberMain,
   } = useAppNavigation();
@@ -133,7 +132,11 @@ function App() {
     onMemberSession: source => {
       // 방금 로그인했으면 이전 회원이나 비회원이 보던 보관함 스크롤 위치를 남기지 않습니다.
       if (source === 'signed-in') savedPlacesScrollOffsetRef.current = 0;
+      // 회원이 되면 돌아갈 비회원 흐름(openMemberMain이 비움)과 공유 로그인 표시를 내리고,
+      // 비회원이 지운 시드 장소는 다음 비회원 진입 때 시드로 되돌립니다. 로그인 유도는 훅이 스스로 내립니다.
       openMemberMain();
+      resetPendingShareLogin();
+      setGuestPlaces(ONBOARDING_PLACES);
     },
     onGuestTransferFailed: () => {
       Alert.alert(
@@ -199,21 +202,7 @@ function App() {
     isAuthenticated,
   });
 
-  // 회원이 되면 공유 로그인 표시와 돌아갈 비회원 흐름을 내립니다. 로그인 유도는 훅이 스스로 내립니다.
-  useEffect(() => {
-    if (isAuthenticated) {
-      forgetGuestReturnFlow();
-      resetPendingShareLogin();
-    }
-  }, [forgetGuestReturnFlow, isAuthenticated, resetPendingShareLogin]);
-
-  // 비회원이 지운 시드 장소는 메모리에만 두고, 다음 비회원 진입 때 시드로 되돌립니다.
-  useEffect(() => {
-    if (isAuthenticated !== false) {
-      setGuestPlaces(ONBOARDING_PLACES);
-    }
-  }, [isAuthenticated]);
-
+  // 비회원이 지운 시드 장소는 메모리에만 두고, 회원이 되면(onMemberSession) 시드로 되돌립니다.
   const deleteGuestPlaces = useCallback((placeIds: string[]) => {
     const deletedIds = new Set(placeIds);
     setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));

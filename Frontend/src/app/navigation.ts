@@ -47,7 +47,6 @@ export type NavigationAction =
   | {type: 'openLogin'}
   | {type: 'openLoginFromGuest'; returnFlow: MainFlowState}
   | {type: 'returnToGuestFlow'}
-  | {type: 'forgetGuestReturnFlow'}
   | {type: 'openGuestMain'}
   | {type: 'openMemberMain'};
 
@@ -123,16 +122,15 @@ export function navigationReducer(
     case 'returnToGuestFlow':
       if (!state.guestReturnFlow) return state;
       return {...state, flow: state.guestReturnFlow, guestReturnFlow: null};
-    case 'forgetGuestReturnFlow':
-      return state.guestReturnFlow ? {...state, guestReturnFlow: null} : state;
     case 'openGuestMain':
       return withFlow(state, GUEST_MAIN_FLOW_STATE);
     case 'openMemberMain':
-      // 로그인 직후에는 이전 회원이나 비회원이 보던 장소 선택을 남기지 않습니다.
+      // 회원이 되면 이전 회원이나 비회원이 보던 장소 선택과 돌아갈 비회원 흐름을 남기지 않습니다.
       return {
         ...state,
         selectedPlace: null,
         selectedPlaceViewContext: null,
+        guestReturnFlow: null,
         flow: {kind: 'main', activeTab: 'saved', detailSource: null},
       };
   }

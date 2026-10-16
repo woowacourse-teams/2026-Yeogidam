@@ -99,11 +99,8 @@ describe('navigationReducer: 로그인과 비회원 복귀', () => {
     expect(returned.guestReturnFlow).toBeNull();
   });
 
-  test('돌아갈 흐름이 없으면 계속 둘러보기와 잊기는 아무것도 바꾸지 않는다', () => {
+  test('돌아갈 흐름이 없으면 계속 둘러보기는 아무것도 바꾸지 않는다', () => {
     expect(navigationReducer(INITIAL_NAVIGATION_STATE, {type: 'returnToGuestFlow'})).toBe(
-      INITIAL_NAVIGATION_STATE,
-    );
-    expect(navigationReducer(INITIAL_NAVIGATION_STATE, {type: 'forgetGuestReturnFlow'})).toBe(
       INITIAL_NAVIGATION_STATE,
     );
   });
@@ -119,11 +116,7 @@ describe('navigationReducer: 로그인과 비회원 복귀', () => {
       place: PLACE,
       context: null,
     });
-    const signedIn = run(
-      withSelection,
-      {type: 'forgetGuestReturnFlow'},
-      {type: 'openMemberMain'},
-    );
+    const signedIn = run(withSelection, {type: 'openMemberMain'});
     expect(signedIn.flow).toEqual({kind: 'main', activeTab: 'saved', detailSource: null});
     expect(signedIn.guestReturnFlow).toBeNull();
     expect(signedIn.selectedPlace).toBeNull();
