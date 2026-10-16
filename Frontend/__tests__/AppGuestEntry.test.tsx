@@ -793,3 +793,51 @@ test('로그인을 시작하기 전에 실패하면 안내를 띄우고 로그�
   alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
+
+test('공유가 추출 실패로 끝나면 결과를 지우고 장소 추출 실패를 안내한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession();
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'failed-share-request',
+    url: '',
+    status: 'FAILED',
+    transferStatus: 'API_FAILED',
+    failureReason: 'PLACE_NOT_MATCHED',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(clearShareResult).toHaveBeenCalledWith('failed-share-request');
+  expect(alertSpy).toHaveBeenCalledWith('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('세션이 없을 때 공유가 로그인 만료로 실패하면 로그인 화면으로 보내고 다시 로그인하도록 안내한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'expired-guest-share-request',
+    url: '',
+    status: 'FAILED',
+    transferStatus: 'API_FAILED',
+    failureReason: 'AUTH401_001 | 인증 토큰이 유효하지 않습니다. | HTTP_401',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  expect(alertSpy).toHaveBeenCalledWith('로그인이 필요해요', '다시 로그인한 뒤 게시물을 공유해 주세요.');
+  expect(alertSpy).not.toHaveBeenCalledWith('공유한 게시물을 저장하지 못했어요', expect.anything());
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
