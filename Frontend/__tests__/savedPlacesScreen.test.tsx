@@ -736,38 +736,34 @@ describe('외부 공유 결과', () => {
 });
 
 describe('최근 검색', () => {
-  test('저장된 최근 검색어를 10개까지 읽어 검색 패널에 넘기고 그대로 다시 저장한다', async () => {
+  test('저장된 최근 검색어를 10개까지 읽어 검색 패널에 넘기고 다시 저장하지 않는다', async () => {
     const stored = Array.from({length: 12}, (_, index) => `검색 ${index + 1}`);
     jest.mocked(getRecentSearches).mockResolvedValue(stored);
     const renderer = await renderLoaded([CAFE]);
 
     await act(async () => header(renderer).props.onPressSearch());
     expect(searchPanel(renderer).props.recentSearches).toEqual(stored.slice(0, 10));
-    expect(setRecentSearches).toHaveBeenCalledTimes(1);
-    expect(setRecentSearches).toHaveBeenCalledWith(stored.slice(0, 10));
+    expect(setRecentSearches).not.toHaveBeenCalled();
 
     await act(async () => searchPanel(renderer).props.onCloseSearch());
     expect(renderer.root.findAllByType(SavedPlacesSearchPanel)).toHaveLength(0);
   });
 
-  test('검색어를 저장하면 공백을 지우고 중복을 맨 앞으로 옮기며 10개만 남기고, 빈 검색어는 무시한다', async () => {
-    const stored = Array.from({length: 10}, (_, index) => `${index + 1}`);
-    jest.mocked(getRecentSearches).mockResolvedValue(stored);
+  // 공백, 중복, 10개 규칙은 recentSearches.test.ts의 addRecentSearch 단위 테스트가 맡는다.
+  test('검색어를 저장하면 검색 패널의 맨 앞에 두고 저장소에 한 번 쓰며, 빈 검색어는 쓰지 않는다', async () => {
+    jest.mocked(getRecentSearches).mockResolvedValue(['1', '2']);
     const renderer = await renderLoaded([CAFE]);
     await act(async () => header(renderer).props.onPressSearch());
 
-    await act(async () => searchPanel(renderer).props.onSaveSearchTerm(' 5 '));
-    expect(searchPanel(renderer).props.recentSearches).toEqual(
-      ['5', '1', '2', '3', '4', '6', '7', '8', '9', '10'],
-    );
-
     await act(async () => searchPanel(renderer).props.onSaveSearchTerm('새 검색어'));
-    const latest = ['새 검색어', '5', '1', '2', '3', '4', '6', '7', '8', '9'];
+    const latest = ['새 검색어', '1', '2'];
     expect(searchPanel(renderer).props.recentSearches).toEqual(latest);
+    expect(setRecentSearches).toHaveBeenCalledTimes(1);
+    expect(setRecentSearches).toHaveBeenCalledWith(latest);
 
     await act(async () => searchPanel(renderer).props.onSaveSearchTerm('   '));
     expect(searchPanel(renderer).props.recentSearches).toEqual(latest);
-    expect(setRecentSearches).toHaveBeenLastCalledWith(latest);
+    expect(setRecentSearches).toHaveBeenCalledTimes(1);
   });
 });
 
