@@ -114,16 +114,16 @@ export function useExternalShareResults({
     };
 
     const refreshAfterExternalShare = async (requestId?: string) => {
-      const firstRefreshSucceeded = await loadSavedPlaces();
-      if (!firstRefreshSucceeded) {
+      const firstRefreshedPlaces = await loadSavedPlaces();
+      if (firstRefreshedPlaces === null) {
         return;
       }
 
       // COMPLETED 직후 읽기에서 새 장소가 아직 보이지 않는 짧은 지연을
       // 흡수하기 위해 한 번 더 조회한 뒤 공유 결과를 소비합니다.
       await new Promise<void>(resolve => setTimeout(resolve, 700));
-      const confirmed = await loadSavedPlaces();
-      if (confirmed) {
+      const confirmedPlaces = await loadSavedPlaces();
+      if (confirmedPlaces !== null) {
         await onSharedResultConsumed?.(requestId);
       }
     };

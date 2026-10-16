@@ -4,6 +4,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import {getRecentSearches, setRecentSearches} from '../src/lib/searchHistoryStorage';
 import {useRecentSearches} from '../src/pages/saved-places/hooks/useRecentSearches';
 import {deferred} from './support/deferred';
+import {renderTracked} from './support/renderers';
 
 jest.mock('../src/lib/searchHistoryStorage', () => ({
   getRecentSearches: jest.fn(),
@@ -18,31 +19,20 @@ function Harness() {
 }
 
 const act = ReactTestRenderer.act;
-const mounted: ReactTestRenderer.ReactTestRenderer[] = [];
 
 /** StrictMode와 동시 루트로 그려, effect와 상태 갱신 함수를 두 번씩 돌려도 저장소에 한 번만 쓰는지 봅니다. */
 async function renderInStrictMode() {
-  await act(async () => {
-    mounted.push(
-      ReactTestRenderer.create(
-        <StrictMode>
-          <Harness />
-        </StrictMode>,
-        {unstable_isConcurrent: true} as unknown as ReactTestRenderer.TestRendererOptions,
-      ),
-    );
-  });
+  await renderTracked(
+    <StrictMode>
+      <Harness />
+    </StrictMode>,
+    {unstable_isConcurrent: true} as unknown as ReactTestRenderer.TestRendererOptions,
+  );
 }
 
 beforeEach(() => {
   jest.mocked(getRecentSearches).mockReset().mockResolvedValue(['카페']);
   jest.mocked(setRecentSearches).mockReset().mockResolvedValue(undefined);
-});
-
-afterEach(async () => {
-  for (const renderer of mounted.splice(0)) {
-    await act(async () => renderer.unmount());
-  }
 });
 
 test('저장된 검색어를 읽기만 하면 저장소에 쓰지 않고, 검색어를 저장할 때마다 한 번씩 쓴다', async () => {

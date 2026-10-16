@@ -16,23 +16,18 @@ import {SavedPlacesSearchPanel} from '../../src/pages/saved-places/components/Sa
 import {clearSavedPlacesCache} from '../../src/entities/info/saved-places-cache';
 import {SavedPlacesScreen} from '../../src/pages/saved-places/SavedPlacesScreen';
 import {LINK, listing, NOW} from './savedPlacesFixtures';
+import {flushMicrotasks, renderTracked, type Renderer} from './renderers';
 
 // 보관함 화면 테스트들이 함께 쓰는 렌더, 시간 진행, 조작 도우미와 테스트마다의 준비, 정리입니다.
 // 여기서 부르는 API와 저장소 모듈은 테스트 파일이 jest.mock으로 바꿔 둬야 합니다.
 // jest.mock은 선언한 파일의 맨 위로 끌어올려지므로 각 테스트 파일에 둡니다.
+// 그린 화면은 renderTracked로 기록해 setupFilesAfterEnv가 내리므로 여기서는 내리지 않습니다.
 
-export type Renderer = ReactTestRenderer.ReactTestRenderer;
+export {flushMicrotasks, unmountTracked, type Renderer} from './renderers';
 type ScreenProps = React.ComponentProps<typeof SavedPlacesScreen>;
 
 export const act = ReactTestRenderer.act;
-const mounted: Renderer[] = [];
 let alertSpy: jest.SpyInstance<void, Parameters<typeof Alert.alert>>;
-
-export async function flush() {
-  await act(async () => {
-    for (let i = 0; i < 5; i += 1) await Promise.resolve();
-  });
-}
 
 export async function tick(ms: number) {
   await act(async () => {
@@ -41,27 +36,15 @@ export async function tick(ms: number) {
   });
 }
 
-export async function render(props: Partial<ScreenProps> = {}) {
-  let renderer!: Renderer;
-  await act(async () => {
-    renderer = ReactTestRenderer.create(
-      <SavedPlacesScreen onOpenDetail={jest.fn()} {...props} />,
-    );
-  });
-  mounted.push(renderer);
-  return renderer;
+export function render(props: Partial<ScreenProps> = {}) {
+  return renderTracked(<SavedPlacesScreen onOpenDetail={jest.fn()} {...props} />);
 }
 
 export async function renderLoaded(items: SavedPlaceListItem[], props: Partial<ScreenProps> = {}) {
   jest.mocked(getSavedPlaces).mockResolvedValue(items);
   const renderer = await render(props);
-  await flush();
+  await flushMicrotasks();
   return renderer;
-}
-
-export async function unmount(renderer: Renderer) {
-  mounted.splice(mounted.indexOf(renderer), 1);
-  await act(async () => renderer.unmount());
 }
 
 export const grid = (renderer: Renderer) => renderer.root.findByType(SavedPlaceGrid);
@@ -91,7 +74,7 @@ export async function pressLabel(renderer: Renderer, label: string) {
   await act(async () => {
     target.props.onPress();
   });
-  await flush();
+  await flushMicrotasks();
 }
 
 /** 글자나 아이콘을 감싼 가장 가까운 누를 수 있는 요소를 누릅니다. */
@@ -105,7 +88,7 @@ export async function pressAround(
   await act(async () => {
     target?.props.onPress();
   });
-  await flush();
+  await flushMicrotasks();
 }
 
 export const pressText = (renderer: Renderer, label: string) =>
@@ -117,7 +100,7 @@ export async function confirmDeleteAlert() {
   await act(async () => {
     buttons?.find(button => button.text === '삭제')?.onPress?.();
   });
-  await flush();
+  await flushMicrotasks();
 }
 
 export async function selectAndDelete(renderer: Renderer, placeId: string) {
@@ -133,12 +116,13 @@ export async function openDialogAndSave(renderer: Renderer, value = LINK) {
   await act(async () => {
     await dialog(renderer).props.onSubmit();
   });
-  await flush();
+  await flushMicrotasks();
 }
 
 /**
  * 테스트 파일 맨 위에서 한 번 부릅니다. 테스트마다 가짜 시계와 mock 기본값, 공유 저장 상태,
- * 보관함 목록 캐시를 처음 상태로 되돌리고, 테스트가 끝나면 그린 화면을 모두 내립니다.
+ * 보관함 목록 캐시를 처음 상태로 되돌립니다. 테스트가 끝나면 setupFilesAfterEnv가 그린 화면을 먼저 내리고,
+ * 여기서 공유 저장 상태와 가로챈 Alert와 가짜 시계를 되돌립니다. 맨 위가 아니라 describe 안에서 부르면 화면보다 먼저 되돌리게 됩니다.
  */
 export function setUpSavedPlacesScreenTests() {
   beforeEach(async () => {
@@ -160,8 +144,7 @@ export function setUpSavedPlacesScreenTests() {
     jest.clearAllMocks();
   });
 
-  afterEach(async () => {
-    for (const renderer of [...mounted]) await unmount(renderer);
+  afterEach(() => {
     setSharedSaveState(null);
     alertSpy.mockRestore();
     jest.clearAllTimers();

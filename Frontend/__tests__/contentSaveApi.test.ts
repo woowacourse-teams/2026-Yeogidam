@@ -1,5 +1,6 @@
 import {
   getReelProcessingStatus,
+  requestSharesPage,
   saveContent,
   toReelApiError,
   toReelStatus,
@@ -29,6 +30,13 @@ const share = (
   failureReason,
   sharedUrl: 'https://www.instagram.com/reel/abc/',
 });
+
+/** 공유 목록 배열이 없는 응답들입니다. 빈 목록으로 보면 공유를 찾지 못한 것으로 여기게 됩니다. */
+const MALFORMED_SHARES_BODIES: Array<[string, unknown]> = [
+  ['sharedMedias 없음', {nextCursor: null}],
+  ['sharedMedias가 null', {sharedMedias: null, nextCursor: null}],
+  ['본문이 null', null],
+];
 
 beforeEach(() => {
   request.mockReset();
@@ -124,11 +132,7 @@ test('상태 조회는 공유 목록에서 같은 ID를 찾아 화면 모델로 
   await expect(getReelProcessingStatus('99')).resolves.toBeNull();
 });
 
-test.each([
-  ['sharedMedias 없음', {nextCursor: null}],
-  ['sharedMedias가 null', {sharedMedias: null, nextCursor: null}],
-  ['본문이 null', null],
-])('상태 조회는 공유 목록 응답 모양이 어긋나면(%s) 목록에 없다고 보지 않고 응답 처리 오류로 던진다', async (_shape, body) => {
+test.each(MALFORMED_SHARES_BODIES)('상태 조회는 공유 목록 응답 모양이 어긋나면(%s) 목록에 없다고 보지 않고 응답 처리 오류로 던진다', async (_shape, body) => {
   request.mockResolvedValue(body);
 
   const lookup = getReelProcessingStatus('12');
@@ -138,6 +142,47 @@ test.each([
     errorCode: 'CLIENT000_003',
     message: '응답을 처리하지 못했어요.',
     retryable: false,
+  });
+});
+
+describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
+  test('첫 쪽은 커서 쿼리 없이 읽고 공유 목록과 다음 커서를 돌려준다', async () => {
+    request.mockResolvedValue({
+      sharedMedias: [share(13, 'EXTRACTING')],
+      nextCursor: {createdAt: '2026-10-14T00:00:00Z', id: 13},
+    });
+
+    await expect(requestSharesPage()).resolves.toEqual({
+      sharedMedias: [share(13, 'EXTRACTING')],
+      nextCursor: {createdAt: '2026-10-14T00:00:00Z', id: 13},
+    });
+    expect(request).toHaveBeenCalledWith('/api/v1/shares');
+  });
+
+  test('다음 쪽은 커서를 cursorCreatedAt과 cursorId로 보내고, 다음 커서가 빠진 응답은 null 커서로 돌려준다', async () => {
+    request.mockResolvedValue({sharedMedias: []});
+
+    await expect(
+      requestSharesPage({created_at: '2026-10-14T00:00:00Z', id: '7'}),
+    ).resolves.toEqual({sharedMedias: [], nextCursor: null});
+    expect(request).toHaveBeenCalledWith('/api/v1/shares', {
+      query: {cursorCreatedAt: '2026-10-14T00:00:00Z', cursorId: '7'},
+    });
+  });
+
+  test.each(MALFORMED_SHARES_BODIES)('응답 모양이 어긋나면(%s) 빈 목록이 아니라 응답 처리 오류(ApiError invalid_response)로 던진다', async (_shape, body) => {
+    request.mockResolvedValue(body);
+
+    const page = requestSharesPage();
+    await expect(page).rejects.toBeInstanceOf(ApiError);
+    await expect(page).rejects.toMatchObject({kind: 'invalid_response', status: null});
+  });
+
+  test('요청 오류는 화면 오류로 바꾸지 않고 받은 그대로 던진다', async () => {
+    const offline = new ApiError({kind: 'network', message: 'offline'});
+    request.mockRejectedValue(offline);
+
+    await expect(requestSharesPage()).rejects.toBe(offline);
   });
 });
 
@@ -212,12 +257,13 @@ describe('화면의 공유 오류 맞추기(normalizeReelError)', () => {
   });
 
   test('Error가 아닌 값은 다시 시도할 수 있는 연결 실패로 보고, 받지 않은 응답 상태를 싣지 않는다', () => {
-    // 받지 않은 응답 상태를 숫자로 싣지 않으면 된다. 지표는 숫자일 때만 응답 상태를 보낸다.
-    expect(typeof normalizeReelError(null).status).not.toBe('number');
-    expect(normalizeReelError(null)).toMatchObject({
+    const normalized = normalizeReelError(null);
+    expect(normalized).toMatchObject({
       errorCode: 'CLIENT000_001',
       message: '인터넷 연결을 확인해주세요.',
       retryable: true,
     });
+    // JS 오류 쪽과 같이 받지 않은 응답 상태는 undefined로 둔다.
+    expect(normalized.status).toBeUndefined();
   });
 });
