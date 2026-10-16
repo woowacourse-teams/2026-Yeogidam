@@ -14,7 +14,7 @@ import {HistoryFailureDetail} from './components/HistoryFailureDetail';
 import {HistoryItem} from './components/HistoryItem';
 import {HistorySuccessDetail} from './components/HistorySuccessDetail';
 import {historyStyles} from './components/historyStyles';
-import {groupHistoryReelsByDate} from './history-format';
+import {getHistoryCardDetail, groupHistoryReelsByDate} from './history-format';
 import {useHistoryCardImpressions} from './useHistoryCardImpressions';
 import {useHistoryList} from './useHistoryList';
 import {useHistoryRetry} from './useHistoryRetry';
@@ -54,7 +54,7 @@ export function HistoryScreen({
     acceptRetriedReel,
   } = useHistoryList(guestReels, posthog);
   const loading = status === 'loading';
-  const {selection, openSuccess, openFailure, closeDetail} = useHistorySelection();
+  const {selection, openDetail, closeDetail} = useHistorySelection();
   const isDetailOpen = selection.kind !== 'list';
   const {scrollViewRef, scrollOffsetRef, recordScrollOffset, restoreOnReturn, resetToTop} =
     useHistoryScrollRestore({listVisible: !isDetailOpen, loading, reelCount: reels.length});
@@ -89,6 +89,11 @@ export function HistoryScreen({
   /** 비회원이면 체험 상세(없으면 null)를, 회원이면 undefined를 넘겨 상세가 서버에 묻게 합니다. */
   const guestDetailOf = (reel: HistoryReel) =>
     guestReels === undefined ? undefined : guestDetails?.[reel.id] ?? null;
+  /** 카드 상태 표가 고른 상세를 여는 동작입니다. 열 상세가 없는 카드(처리 중)에는 넘기지 않아 누를 수 없습니다. */
+  const openDetailOf = (reel: HistoryReel) => {
+    const detail = getHistoryCardDetail(reel);
+    return detail ? () => openDetail(detail, reel) : undefined;
+  };
 
   if (selection.kind === 'success') {
     return (
@@ -189,13 +194,7 @@ export function HistoryScreen({
                       height: event.nativeEvent.layout.height,
                     })
                   }
-                  onPress={
-                    reel.processing_status === 'COMPLETED'
-                      ? () => openSuccess(reel)
-                      : reel.processing_status === 'FAILED'
-                      ? () => openFailure(reel)
-                      : undefined
-                  }
+                  onPress={openDetailOf(reel)}
                 />
               ))}
             </View>
