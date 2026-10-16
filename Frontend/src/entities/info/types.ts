@@ -1,3 +1,5 @@
+import type {ScreenApiError} from '../../lib/api/screen-error';
+
 export type ThumbnailSource =
   | 'google_places'
   | 'instagram'
@@ -55,13 +57,8 @@ export type ProfileInfo = {
   updatedAt?: string;
 };
 
-export type ProfileApiError = {
-  status: number | null;
-  errorCode: string;
-  message: string;
-  retryable: boolean;
-  requestId?: string;
-};
+/** 프로필, 장소 릴스, 저장 장소 화면의 오류는 화면 공통 오류 계약을 그대로 씁니다. */
+export type ProfileApiError = ScreenApiError;
 
 export type UpdateCurrentProfileInput = {
   nickname?: string;
@@ -121,13 +118,7 @@ export type PlaceReel = Pick<
   | 'createdAt'
 >;
 
-export type PlaceReelsApiError = {
-  status: number | null;
-  errorCode: string;
-  message: string;
-  retryable: boolean;
-  requestId?: string;
-};
+export type PlaceReelsApiError = ScreenApiError;
 
 export type PlaceReelsRepository = {
   /** 서버의 미디어 경로가 저장 장소 ID를 쓰므로 장소 ID가 아니라 저장 장소 ID를 받습니다. */
@@ -164,13 +155,7 @@ export type SavedPlaceListItem = Pick<
   >;
 };
 
-export type SavedPlacesApiError = {
-  status: number | null;
-  errorCode: string;
-  message: string;
-  retryable: boolean;
-  requestId?: string;
-};
+export type SavedPlacesApiError = ScreenApiError;
 
 /** 화면이 의존하는 저장 장소 조회 계약입니다. 데이터 제공자가 바뀌어도 이 형태는 유지합니다. */
 export type SavedPlacesRepository = {
