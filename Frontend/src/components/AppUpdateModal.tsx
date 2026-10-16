@@ -8,16 +8,17 @@ import {
   View,
 } from 'react-native';
 
-type RequiredAppUpdateModalProps = {
+type AppUpdateModalProps = {
   storeUrl: string;
   visible: boolean;
-};
+} & (
+  | {mode: 'required'; onDismiss?: never}
+  | {mode: 'recommended'; onDismiss: () => void}
+);
 
-/** A shared iOS-style update prompt, intentionally not backed by Alert. */
-export function RequiredAppUpdateModal({
-  storeUrl,
-  visible,
-}: RequiredAppUpdateModalProps) {
+export function AppUpdateModal(props: AppUpdateModalProps) {
+  const {storeUrl, visible} = props;
+  const required = props.mode === 'required';
   const openStore = useCallback(() => {
     Linking.openURL(storeUrl).catch(error => {
       if (__DEV__) {
@@ -25,21 +26,32 @@ export function RequiredAppUpdateModal({
       }
     });
   }, [storeUrl]);
+  const dismiss = () => {
+    if (props.mode === 'recommended') props.onDismiss();
+  };
 
   return (
     <Modal
       animationType="fade"
-      onRequestClose={() => {}}
+      onRequestClose={dismiss}
       statusBarTranslucent
       transparent
       visible={visible}
     >
       <View style={styles.backdrop}>
         <View accessibilityViewIsModal style={styles.dialog}>
-          <Text style={styles.title}>앱 업데이트가 필요해요</Text>
+          <Text style={styles.title}>
+            {required ? '앱 업데이트가 필요해요' : '새 버전이 나왔어요'}
+          </Text>
           <Text style={styles.message}>
-            현재 버전에서는 서비스를 계속{`\n`}이용할 수 없습니다.{`\n`}최신
-            버전으로 업데이트해 주세요.
+            {required ? (
+              <>
+                현재 버전에서는 서비스를 계속{`\n`}이용할 수 없습니다.{`\n`}최신
+                버전으로 업데이트해 주세요.
+              </>
+            ) : (
+              '최신 버전으로 업데이트하고 여기담을 이용해 보세요.'
+            )}
           </Text>
           <Pressable
             accessibilityRole="button"
@@ -51,6 +63,15 @@ export function RequiredAppUpdateModal({
           >
             <Text style={styles.updateButtonText}>지금 업데이트</Text>
           </Pressable>
+          {!required && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={dismiss}
+              style={styles.dismissButton}
+            >
+              <Text style={styles.dismissButtonText}>나중에</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </Modal>
@@ -107,5 +128,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     letterSpacing: -0.35,
+  },
+  dismissButton: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  dismissButtonText: {
+    color: '#5A5A5F',
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

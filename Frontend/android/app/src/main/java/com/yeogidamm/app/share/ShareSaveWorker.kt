@@ -64,20 +64,17 @@ internal class ShareSaveWorker(
         var requestSentAt: Long? = null
         var outputStreamAcquired = false
         return try {
-            connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/save-instagram-reel")
+            connection = URL("${BuildConfig.API_BASE_URL}/api/v1/shares")
                 .openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Authorization", "Bearer $token")
-            val body = JSONObject().apply {
-                put("instagramUrl", instagramUrl)
-                put("source", "instagram_share")
-                put("clientRequestId", requestId)
-            }.toString()
+            // 서버에는 멱등키가 없어 instagramUrl만 보낸다.
+            val body = JSONObject().put("instagramUrl", instagramUrl).toString()
             connection.connect()
             connection.outputStream.use { stream ->
                 outputStreamAcquired = true
@@ -103,31 +100,47 @@ internal class ShareSaveWorker(
             val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
             val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             val response = runCatching { JSONObject(responseBody) }.getOrDefault(JSONObject())
-            val nestedError = response.optJSONObject("error")
 
             if (responseCode !in 200..299) {
-                val errorCode = response.optNullableString("errorCode")
-                    ?: nestedError?.optNullableString("errorCode")
+                // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
+                val errorCode = if (responseCode == 401) "AUTH401_001" else response.optNullableString("errorCode")
                 val message = response.optNullableString("message")
-                    ?: nestedError?.optNullableString("message")
+                if (responseCode == 408 || responseCode == 429 || responseCode == 504 || responseCode >= 500) {
+                    ShareSentryReporter.capture(
+                        applicationContext,
+                        "SHARE_EXTRACTION_REQUEST_FAILED",
+                        "place_extraction_request",
+                        responseCode,
+                        errorCode,
+                    )
+                }
                 saveFailure(
                     requestId = requestId,
                     requestSentAt = requestSentAt,
                     reason = listOfNotNull(errorCode, message, "HTTP_$responseCode").joinToString(" | "),
                     responseStatus = responseCode,
-                    reelId = response.optNullableString("reelId")
-                        ?: nestedError?.optNullableString("reelId"),
                 )
                 recordFinished(requestId, "request_failed", responseCode, when {
                     responseCode == 401 || responseCode == 403 -> "auth_failed"
                     responseCode == 408 || responseCode == 504 -> "timeout"
                     responseCode >= 500 -> "server_error"
                     else -> "invalid_request"
-                }, response.optNullableString("reelId") ?: nestedError?.optNullableString("reelId"))
+                })
                 return Result.success()
             }
 
-            val reelId = response.optNullableString("reelId")
+            // Spring 응답(202): {sharedMediaId, extractionStatus}
+            val reelId = if (response.isNull("sharedMediaId")) null
+                else response.optLong("sharedMediaId", -1L).takeIf { it >= 0 }?.toString()
+            val extractionStatus = response.optNullableString("extractionStatus")
+            if (reelId == null || extractionStatus == null) {
+                ShareSentryReporter.capture(
+                    applicationContext,
+                    "SHARE_EXTRACTION_RESPONSE_INVALID",
+                    "place_extraction_request",
+                    responseCode,
+                )
+            }
             ShareResultStore.saveResult(
                 applicationContext,
                 ShareReelResult(
@@ -135,18 +148,14 @@ internal class ShareSaveWorker(
                     requestSentAt = requestSentAt,
                     url = "",
                     rawSharedText = null,
-                    status = if (reelId == null) "FAILED" else response.optString("status", "FAILED"),
+                    status = if (reelId == null) "FAILED" else toReelStatus(extractionStatus),
                     transferStatus = if (reelId == null) "API_FAILED" else "API_SUCCEEDED",
                     reelId = reelId,
-                    failureReason = if (reelId == null) "MISSING_REEL_ID" else response.optNullableString("failureReason"),
+                    failureReason = if (reelId == null) "MISSING_REEL_ID" else null,
                     responseStatus = responseCode,
                     retryable = false,
-                    reused = if (response.has("reused") && !response.isNull("reused")) {
-                        response.getBoolean("reused")
-                    } else {
-                        null
-                    },
-                    saveMode = response.optNullableString("saveMode"),
+                    reused = reelId?.let { extractionStatus == "SUCCEEDED" },
+                    saveMode = "AUTO_SAVE",
                 ),
             )
             recordFinished(requestId, if (reelId == null) "request_failed" else "response_received",
@@ -155,7 +164,7 @@ internal class ShareSaveWorker(
         } catch (error: Exception) {
             if (!outputStreamAcquired) {
                 val networkFailure = isConnectionFailure(error)
-                ShareResultStore.saveResult(
+                val savedLocally = ShareResultStore.saveResult(
                     applicationContext,
                     ShareReelResult(
                         requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
@@ -163,6 +172,14 @@ internal class ShareSaveWorker(
                         retryable = true,
                     ),
                 )
+                if (networkFailure && savedLocally) {
+                    ShareSentryReporter.capture(
+                        applicationContext,
+                        "SHARE_EXTRACTION_NETWORK_DEFERRED",
+                        "place_extraction_request",
+                        exceptionType = error.javaClass.simpleName,
+                    )
+                }
                 ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred",
                     if (networkFailure) "network_unavailable" else "pre_request_error")
                 return Result.success()
@@ -171,6 +188,12 @@ internal class ShareSaveWorker(
                 requestId = requestId,
                 requestSentAt = requestSentAt,
                 reason = "CLIENT000_002 | ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
+            )
+            ShareSentryReporter.capture(
+                applicationContext,
+                "SHARE_EXTRACTION_REQUEST_FAILED",
+                "place_extraction_request",
+                exceptionType = error.javaClass.simpleName,
             )
             recordFinished(requestId, "request_failed", null,
                 if (error is java.net.SocketTimeoutException) "timeout" else "network_error")
@@ -228,6 +251,14 @@ internal class ShareSaveWorker(
 
     companion object {
         private const val KEY_REQUEST_ID = "request_id"
+
+        /** Spring ExtractionStatus를 앱 처리 상태로 바꾼다. */
+        fun toReelStatus(extractionStatus: String?): String = when (extractionStatus) {
+            "SUCCEEDED" -> "COMPLETED"
+            "FAILED" -> "FAILED"
+            else -> "PROCESSING"
+        }
+
         fun enqueue(
             context: Context,
             requestId: String,

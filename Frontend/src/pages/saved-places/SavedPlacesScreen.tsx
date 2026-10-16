@@ -17,7 +17,6 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 import {usePostHog} from 'posthog-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {v4 as uuidv4} from 'uuid';
-import { supabase } from '../../lib/auth/supabase';
 
 import {
   captureSavedPlaceSelected,
@@ -45,7 +44,8 @@ import {
   normalizeInstagramContentUrl,
   saveContent,
 } from '../../entities/content/api';
-import type {ReelProcessingStatus, SaveSource} from '../../entities/content/types';
+import {subscribeRecentShares} from '../../entities/content/recent-shares-poller';
+import type {HistoryReel, ReelProcessingStatus, SaveSource} from '../../entities/content/types';
 import {
   normalizeReelError,
   ReelApiError,
@@ -60,6 +60,7 @@ import {
   setRecentSearches as persistRecentSearches,
 } from '../../lib/searchHistoryStorage';
 
+const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
 const MAX_RECENT_SEARCHES = 10;
@@ -92,6 +93,8 @@ type SavedPlacesScreenProps = {
   onRequireLogin?: () => void;
   // onOpenInbox?: () => void;
   places?: Place[];
+  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
+  onDeleteGuestPlaces?: (placeIds: string[]) => void;
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
 };
 
@@ -129,6 +132,7 @@ export function SavedPlacesScreen({
   onRequireLogin,
   // onOpenInbox,
   places: providedPlaces,
+  onDeleteGuestPlaces,
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
   const posthog = usePostHog();
@@ -307,16 +311,12 @@ export function SavedPlacesScreen({
         queryFailureReason: null,
       } : current);
       try {
+        // 토큰 갱신과 401 재시도는 Spring API 클라이언트가 처리합니다.
         let currentStatus: ReelProcessingStatus | null;
         try {
           currentStatus = await getReelProcessingStatus(state.reel.id);
         } catch (statusError) {
-          const normalized = normalizeReelError(statusError);
-          if (normalized.errorCode !== 'AUTH401_002') throw normalized;
-
-          const {error: refreshError} = await supabase.auth.refreshSession();
-          if (refreshError) throw normalized;
-          currentStatus = await getReelProcessingStatus(state.reel.id);
+          throw normalizeReelError(statusError);
         }
 
         if (!isActive) {
@@ -502,16 +502,14 @@ export function SavedPlacesScreen({
     setLinkError(null);
   };
 
-  const handleSaveLink = async (isSessionRetry = false) => {
+  const handleSaveLink = async () => {
     if (isSubmitting) {
       return;
     }
 
     const normalizedUrl =
       normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
-    if (!isSessionRetry || !saveRequestIdRef.current) {
-      saveRequestIdRef.current = uuidv4();
-    }
+    saveRequestIdRef.current = uuidv4();
     const clientRequestId = saveRequestIdRef.current;
     const initialReel: ReelProcessingStatus = {
       id: `manual-${Date.now()}`,
@@ -580,17 +578,6 @@ export function SavedPlacesScreen({
         return;
       }
 
-      if (normalizedError.errorCode === 'AUTH401_002' && !isSessionRetry) {
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        if (!refreshError) {
-          setIsSubmitting(false);
-          await handleSaveLink(true);
-          return;
-        }
-        setIsDialogVisible(false);
-        onRequireLogin?.();
-        return;
-      }
 
       setLinkError(normalizedError.message);
     } finally {
@@ -660,7 +647,8 @@ export function SavedPlacesScreen({
     reelPollStartedAtRef.current ??= Number.isFinite(persistedStartedAt)
       ? Math.min(persistedStartedAt, Date.now())
       : Date.now();
-    const poll = async () => {
+    const poll = async (recentReels: Promise<HistoryReel[]>) => {
+      if (!isActive) return;
       if (Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >= REEL_POLL_TIMEOUT_MS) {
         if (isActive) {
           const timeoutError = new ReelApiError({
@@ -683,19 +671,17 @@ export function SavedPlacesScreen({
         } : current);
         let nextStatus: ReelProcessingStatus | null;
         try {
-          nextStatus = await getReelProcessingStatus(processingReelId);
+          // 서버에 단건 상태 조회 API가 없어 공유 목록 첫 페이지에서 찾습니다.
+          const reel = (await recentReels).find(item => item.id === processingReelId);
+          nextStatus = reel ? {
+            id: reel.id,
+            processing_status: reel.processing_status,
+            failure_reason: reel.failure_reason,
+            instagram_thumbnail_url: reel.instagram_thumbnail_url,
+            created_at: reel.created_at,
+          } : null;
         } catch (statusError) {
-          const firstError = normalizeReelError(statusError);
-          if (firstError.errorCode !== 'AUTH401_002') {
-            throw firstError;
-          }
-
-          const { error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError) {
-            throw firstError;
-          }
-
-          nextStatus = await getReelProcessingStatus(processingReelId);
+          throw normalizeReelError(statusError);
         }
 
         if (isActive && !nextStatus) {
@@ -788,10 +774,19 @@ export function SavedPlacesScreen({
       }
     };
 
-    const intervalId = setInterval(poll, 3000);
+    // 히스토리 화면·배지와 같은 앱 공용 목록 폴러를 3초 주기로 구독합니다.
+    const subscription = subscribeRecentShares({
+      intervalMs: REEL_POLL_INTERVAL_MS,
+      onResult: ({reels}) => {
+        poll(Promise.resolve(reels)).catch(() => undefined);
+      },
+      onError: pollError => {
+        poll(Promise.reject(pollError)).catch(() => undefined);
+      },
+    });
     return () => {
       isActive = false;
-      clearInterval(intervalId);
+      subscription.unsubscribe();
     };
   }, [
     onRequireLogin,
@@ -849,6 +844,15 @@ export function SavedPlacesScreen({
       return;
     }
 
+    if (isGuest) {
+      setPlaces(current => current.filter(place => !selectedPlaceIds.has(place.id)));
+      onDeleteGuestPlaces?.([...selectedPlaceIds]);
+      setSelectedPlaceIds(new Set());
+      setIsEditing(false);
+      onEditModeChange?.(false);
+      return;
+    }
+
     const savedPlaceIds = places.flatMap(place =>
       selectedPlaceIds.has(place.id) && place.savedPlaceId
         ? [place.savedPlaceId]
@@ -901,8 +905,10 @@ export function SavedPlacesScreen({
     }
   }, [
     isDeleting,
+    isGuest,
     loadSavedPlaces,
     onAuthenticationRequired,
+    onDeleteGuestPlaces,
     onEditModeChange,
     places,
     selectedPlaceIds,
@@ -1038,16 +1044,14 @@ export function SavedPlacesScreen({
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
               >
-                {!isGuest ? (
-                  <SavedPlacesEditAction
-                    isEditing={isEditing}
-                    onPress={handlePressEdit}
-                  />
-                ) : null}
+                <SavedPlacesEditAction
+                  isEditing={isEditing}
+                  onPress={handlePressEdit}
+                />
                 <SavedPlaceGrid
                   isEditing={isEditing}
                   places={places}
-                  onLongPressPlace={isGuest ? undefined : enterEditMode}
+                  onLongPressPlace={enterEditMode}
                   onPressPlace={(place, position) =>
                     openPlaceDetail(place, 'saved_places_grid', position)
                   }

@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useState} from 'react';
 import {
   Pressable,
   ScrollView,
@@ -21,14 +21,6 @@ type AccountDeletionScreenProps = {
   onDeleteAccount: (payload: DeleteAccountRequest) => Promise<void>;
 };
 
-type ReauthState = {
-  appleAuthorizationCode?: string;
-  providerTokens: {
-    google?: string;
-    kakao?: string;
-  };
-};
-
 const PROVIDER_LABELS: Record<AccountDeletionProvider, string> = {
   apple: 'Apple',
   google: 'Google',
@@ -41,71 +33,20 @@ export function AccountDeletionScreen({
   onDeleteAccount,
 }: AccountDeletionScreenProps) {
   const [confirmation, setConfirmation] = useState('');
-  const [reauthState, setReauthState] = useState<ReauthState>({
-    providerTokens: {},
-  });
-  const [reauthPendingProvider, setReauthPendingProvider] =
-    useState<AccountDeletionProvider | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<DeleteAccountError | null>(null);
-
-  const reauthenticatedProviders = useMemo(() => {
-    const completedProviders = new Set<AccountDeletionProvider>();
-
-    if (reauthState.providerTokens.google) {
-      completedProviders.add('google');
-    }
-
-    if (reauthState.providerTokens.kakao) {
-      completedProviders.add('kakao');
-    }
-
-    if (reauthState.appleAuthorizationCode) {
-      completedProviders.add('apple');
-    }
-
-    return completedProviders;
-  }, [reauthState]);
+  // 회원은 소셜 로그인 제공자 하나로만 가입한다.
+  const provider = linkedProviders[0] ?? null;
 
   const isReadyToDelete =
-    confirmation === 'DELETE' &&
-    linkedProviders.every(provider => reauthenticatedProviders.has(provider)) &&
-    !isDeleting;
+    confirmation === 'DELETE' && provider !== null && !isDeleting;
 
-  const handleReauthenticate = async (provider: AccountDeletionProvider) => {
-    if (isDeleting || reauthPendingProvider) {
-      return;
-    }
-
-    setReauthPendingProvider(provider);
-    setError(null);
-
-    try {
-      const payload = await reauthenticateDeletionProvider(provider);
-
-      setReauthState(current => ({
-        appleAuthorizationCode:
-          payload.appleAuthorizationCode ?? current.appleAuthorizationCode,
-        providerTokens: {
-          ...current.providerTokens,
-          ...payload.providerTokens,
-        },
-      }));
-    } catch (nextError) {
-      setError(nextError as DeleteAccountError);
-    } finally {
-      setReauthPendingProvider(null);
-    }
-  };
-
-  const resetReauthenticationState = () => {
-    setReauthState({
-      providerTokens: {},
-    });
-  };
-
+  /**
+   * 인가 코드는 한 번만 쓸 수 있고 몇 분 안에 만료되므로, 탈퇴 버튼을 누를 때 재인증해
+   * 받은 코드로 바로 탈퇴를 요청한다. 다시 시도할 때도 매번 새 코드를 받는다.
+   */
   const handleDelete = async () => {
-    if (!isReadyToDelete) {
+    if (!isReadyToDelete || !provider) {
       return;
     }
 
@@ -113,22 +54,13 @@ export function AccountDeletionScreen({
     setError(null);
 
     try {
-      await onDeleteAccount({
-        confirmation: 'DELETE',
-        ...(Object.keys(reauthState.providerTokens).length > 0
-          ? {providerTokens: reauthState.providerTokens}
-          : {}),
-        ...(reauthState.appleAuthorizationCode
-          ? {appleAuthorizationCode: reauthState.appleAuthorizationCode}
-          : {}),
-      });
+      const payload = await reauthenticateDeletionProvider(provider);
+      await onDeleteAccount(payload);
     } catch (nextError) {
-      const apiError = nextError as DeleteAccountError;
-
-      setError(apiError);
-
-      if (apiError.errorCode === 'USER502_001') {
-        resetReauthenticationState();
+      const deletionError = nextError as DeleteAccountError;
+      // 사용자가 인증 창을 닫으면 탈퇴하지 않고 조용히 화면에 남는다.
+      if (deletionError?.errorCode !== 'AUTH000_001') {
+        setError(deletionError);
       }
     } finally {
       setIsDeleting(false);
@@ -174,61 +106,12 @@ export function AccountDeletionScreen({
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>2. 로그인 제공자 재인증</Text>
+          <Text style={styles.sectionTitle}>2. 로그인 계정 다시 인증</Text>
           <Text style={styles.sectionBody}>
-            연결된 로그인 계정 해제를 위해 아래 제공자를 다시 인증해주세요.
+            {provider
+              ? `회원탈퇴 버튼을 누르면 ${PROVIDER_LABELS[provider]} 인증 창이 열려요. 가입한 계정으로 인증하면 바로 탈퇴가 진행돼요.`
+              : '로그인 계정을 확인하지 못했어요. 잠시 후 다시 시도해주세요.'}
           </Text>
-          {linkedProviders.length === 0 ? (
-            <Text style={styles.helperText}>
-              추가 재인증이 필요한 소셜 로그인 계정이 없어요.
-            </Text>
-          ) : (
-            <View style={styles.providerList}>
-              {linkedProviders.map(provider => {
-                const isPending = reauthPendingProvider === provider;
-                const isCompleted = reauthenticatedProviders.has(provider);
-
-                return (
-                  <View key={provider} style={styles.providerRow}>
-                    <View style={styles.providerTextGroup}>
-                      <Text style={styles.providerName}>
-                        {PROVIDER_LABELS[provider]}
-                      </Text>
-                      <Text style={styles.providerStatus}>
-                        {isCompleted
-                          ? '재인증 완료'
-                          : '탈퇴 전 다시 로그인해주세요.'}
-                      </Text>
-                    </View>
-                    <Pressable
-                      disabled={isDeleting || isPending}
-                      onPress={() => handleReauthenticate(provider)}
-                      style={({pressed}) => [
-                        styles.providerButton,
-                        isCompleted && styles.providerButtonCompleted,
-                        (isDeleting || isPending) && styles.providerButtonDisabled,
-                        pressed &&
-                          !isDeleting &&
-                          !isPending &&
-                          styles.providerButtonPressed,
-                      ]}>
-                      <Text
-                        style={[
-                          styles.providerButtonText,
-                          isCompleted && styles.providerButtonTextCompleted,
-                        ]}>
-                        {isPending
-                          ? '진행 중...'
-                          : isCompleted
-                            ? '다시 인증'
-                            : '재인증'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
-          )}
         </View>
 
         {error ? (
@@ -249,7 +132,7 @@ export function AccountDeletionScreen({
             pressed && isReadyToDelete && styles.deleteButtonPressed,
           ]}>
           <Text style={styles.deleteButtonText}>
-            {isDeleting ? '회원탈퇴 처리 중...' : '회원탈퇴'}
+            {isDeleting ? '회원탈퇴 진행 중...' : '회원탈퇴'}
           </Text>
         </Pressable>
       </ScrollView>
@@ -331,63 +214,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     color: '#121212',
-  },
-  helperText: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: '#8e8e93',
-  },
-  providerList: {
-    gap: 12,
-  },
-  providerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ececf1',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  providerTextGroup: {
-    flex: 1,
-    gap: 4,
-  },
-  providerName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1a1a2e',
-  },
-  providerStatus: {
-    fontSize: 13,
-    color: '#727789',
-  },
-  providerButton: {
-    minWidth: 92,
-    height: 36,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    backgroundColor: '#1f2238',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  providerButtonCompleted: {
-    backgroundColor: '#dbe0f9',
-  },
-  providerButtonDisabled: {
-    opacity: 0.7,
-  },
-  providerButtonPressed: {
-    opacity: 0.88,
-  },
-  providerButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  providerButtonTextCompleted: {
-    color: '#2a2a44',
   },
   errorBox: {
     marginTop: 24,

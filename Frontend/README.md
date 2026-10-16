@@ -2,9 +2,20 @@ This is a new [**React Native**](https://reactnative.dev) project, bootstrapped 
 
 ## Environment variables
 
-Create `Frontend/.env` and add the environment variables required by the app.
+Copy `Frontend/.env.example` to `Frontend/.env` and fill in the values required
+by the app.
+Set `API_BASE_URL` to the Spring Boot server origin without `/api/v1`:
+`https://yeogidam-dev.duckdns.org` for development or
+`https://yeogidam.duckdns.org` for production builds.
+
+For a local server, use `http://localhost:8080` in the iOS Simulator and
+`http://10.0.2.2:8080` in the Android Emulator. A physical device needs a
+server address reachable from that device. Rebuild the native app after
+changing `.env`. The beta build workflow sets `API_BASE_URL` to the production
+server separately from the local `.env`.
 
 ```dotenv
+API_BASE_URL=https://yeogidam-dev.duckdns.org
 POSTHOG_PROJECT_TOKEN=<PostHog project token>
 POSTHOG_HOST=<PostHog ingestion host>
 APP_ENV=development

@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import type {Session} from '@supabase/supabase-js';
-import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
+import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
@@ -10,10 +10,9 @@ import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
-import { RequiredAppUpdateModal } from './src/components/RequiredAppUpdateModal';
+import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
-// import type {InboxReel} from './src/entities/content/inbox-api';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -26,8 +25,12 @@ import {
   beginGuestOnboardingTransfer,
   cancelGuestOnboardingTransfer,
   resumeGuestOnboardingTransfer,
+  toOnboardingKakaoPlaceIds,
 } from './src/entities/onboarding/transfer';
-import type { NormalizedAuthError } from './src/lib/auth/errors';
+import {
+  withAuthErrorStage,
+  type NormalizedAuthError,
+} from './src/lib/auth/errors';
 import {
   isAppleSignInSupported,
   signInWithApple,
@@ -35,15 +38,27 @@ import {
 import {
   deleteAccount,
   getLinkedDeletionProviders,
+  isServerSideDeletionFailure,
   type AccountDeletionProvider,
   type DeleteAccountRequest,
 } from './src/lib/auth/deleteAccount';
 import { signInWithGoogle } from './src/lib/auth/signInWithGoogle';
 import { signInWithKakao } from './src/lib/auth/signInWithKakao';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
-import { supabase } from './src/lib/auth/supabase';
+import {
+  clearSpringSession,
+  getSpringMemberId,
+  LocalSessionCleanupError,
+  getSpringTokens,
+  logoutSpringSession,
+  onSpringSessionChange,
+} from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
-import { getAppUpdatePolicy } from './src/lib/app-update-policy';
+import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
+import {
+  getDismissedRecommendedVersion,
+  rememberDismissedRecommendedVersion,
+} from './src/lib/app-update-policy-storage';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   toLoginFailureType,
@@ -64,8 +79,7 @@ import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
-// 대기함 흐름을 다시 사용할 때 복원합니다.
-// import { InBoxScreen } from './src/pages/inBox/inBoxScreen';
+// 대기함(inBoxScreen, inbox-api)은 Supabase 전용이라 삭제했습니다. 다시 쓰려면 Spring API로 새로 만들어야 합니다.
 import { HistoryScreen } from './src/pages/history/HistoryScreen';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
@@ -76,8 +90,6 @@ import { SplashScreen } from './src/pages/splash/SplashScreen';
 import {
   clearShareResult,
   getShareResults,
-  getShareSession,
-  reconcileShareSession,
   resumeWaitingShares,
   syncShareAnalyticsConfiguration,
   syncShareSession,
@@ -97,6 +109,7 @@ import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
+  environment: Config.APP_ENV?.trim() || 'development',
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -108,6 +121,42 @@ Sentry.init({
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
 });
+
+function captureShareLoginHandoffError(errorCode: string) {
+  const messages: Record<string, {title: string; description: string}> = {
+    SHARE_LOGIN_STATE_READ_FAILED: {
+      title: '장소 공유 오류 · 로그인 상태 확인',
+      description: '공유 후 앱으로 돌아온 뒤 로그인 상태를 확인하지 못했습니다.',
+    },
+  };
+  const event = messages[errorCode];
+  if (!event) return;
+
+  const rawEnvironment = Config.APP_ENV?.trim() || 'development';
+  const environment = rawEnvironment.toLowerCase() === 'development'
+    ? '개발'
+    : rawEnvironment.toLowerCase() === 'production'
+      ? '운영'
+      : rawEnvironment;
+  const platform = Platform.OS === 'ios' ? 'iOS' : 'Android';
+  const message = `${event.description}\n` +
+    `환경·기기: ${environment} · ${platform}\n` +
+    `원인: 저장된 로그인 세션 조회 실패 (${errorCode})`;
+
+  const error = new Error(message);
+  error.name = event.title;
+
+  Sentry.withScope(scope => {
+    scope.setLevel('error');
+    scope.setTag('feature', 'instagram_share');
+    scope.setTag('share.stage', 'login_handoff');
+    scope.setTag('share.source', 'instagram');
+    scope.setTag('share.platform', Platform.OS);
+    scope.setTag('share.error_code', errorCode);
+    scope.setFingerprint(['instagram-share', 'login_handoff', Platform.OS, errorCode]);
+    Sentry.captureException(error);
+  });
+}
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -128,6 +177,120 @@ const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
+
+const SOCIAL_PROVIDER_LABELS: Record<SocialProvider, string> = {
+  apple: '애플',
+  kakao: '카카오',
+  google: '구글',
+};
+
+const LOGIN_STAGE_LABELS: Record<string, string> = {
+  login_setup: '로그인 시작 준비',
+  authorization_url: '인증 URL 요청',
+  provider_authorization: '외부 서비스 인증',
+  callback: '로그인 콜백 처리',
+  backend_exchange: '백엔드 토큰 교환',
+  session_persist: '로그인 세션 저장',
+  unknown: '로그인 처리',
+};
+
+function describeSocialLoginError(
+  provider: SocialProvider,
+  error: NormalizedAuthError,
+): string {
+  const providerLabel = SOCIAL_PROVIDER_LABELS[provider];
+  const reason =
+    error.errorCode === 'CLIENT000_001'
+      ? '네트워크 연결 오류'
+      : error.errorCode === 'CLIENT000_002'
+        ? '요청 시간 초과'
+        : error.errorCode === 'CLIENT000_003'
+          ? '응답 처리 오류'
+          : error.status != null && error.status >= 500
+            ? '서버 오류'
+            : error.errorCode === 'AUTH502_001'
+              ? '로그인 제공자 연결 오류'
+              : '로그인 처리 오류';
+  const rawEnvironment = Config.APP_ENV?.trim() || 'development';
+  const environment = rawEnvironment.toLowerCase() === 'development'
+    ? '개발'
+    : rawEnvironment.toLowerCase() === 'production'
+      ? '운영'
+      : rawEnvironment;
+  const platform = Platform.OS === 'ios' ? 'iOS' : 'Android';
+  const codes = [
+    error.errorCode,
+    error.backendErrorCode && error.backendErrorCode !== error.errorCode
+      ? error.backendErrorCode
+      : null,
+    error.status == null ? null : `HTTP ${error.status}`,
+  ].filter(Boolean).join(', ');
+
+  return `${providerLabel} 로그인 중 오류가 발생했습니다.\n` +
+    `환경·기기: ${environment} · ${platform}\n` +
+    `원인: ${reason} (${codes})`;
+}
+
+function getSocialLoginErrorTitle(error: NormalizedAuthError): string {
+  const stageLabel = LOGIN_STAGE_LABELS[error.stage ?? 'unknown'] ?? '로그인 처리';
+  return `소셜 로그인 오류 · ${stageLabel}`;
+}
+
+function captureSocialLoginError(
+  provider: SocialProvider,
+  error: NormalizedAuthError,
+) {
+  // 사용자의 취소와 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
+  const backendErrorCode = error.backendErrorCode;
+  if (
+    error.errorCode === 'AUTH000_001' ||
+    error.errorCode === 'AUTH400_001' ||
+    backendErrorCode === 'AUTH401_002'
+  ) {
+    return;
+  }
+
+  const reportableCodes = [
+    'CLIENT000_001',
+    'CLIENT000_002',
+    'CLIENT000_003',
+    'AUTH502_001',
+  ];
+  if (
+    !(error.status != null && error.status >= 500) &&
+    !reportableCodes.includes(error.errorCode) &&
+    !['AUTH502_001', 'AUTH502_002', 'AUTH503_001', 'AUTH503_002'].includes(
+      backendErrorCode ?? '',
+    )
+  ) {
+    return;
+  }
+
+  Sentry.withScope(scope => {
+    scope.setTag('feature', 'social_login');
+    scope.setTag('login.provider', provider);
+    scope.setTag('login.stage', error.stage ?? 'unknown');
+    scope.setTag('login.error_code', error.errorCode);
+    if (backendErrorCode) {
+      scope.setTag('login.backend_error_code', backendErrorCode);
+    }
+    if (error.status != null) {
+      scope.setTag('http.status_code', String(error.status));
+    }
+    scope.setExtra('request_id', error.requestId);
+    scope.setExtra('retryable', error.retryable);
+    scope.setFingerprint([
+      'social-login',
+      provider,
+      backendErrorCode ?? error.errorCode,
+      String(error.status ?? 'no-status'),
+    ]);
+
+    const safeError = new Error(describeSocialLoginError(provider, error));
+    safeError.name = getSocialLoginErrorTitle(error);
+    Sentry.captureException(safeError);
+  });
+}
 
 configureDataSources();
 
@@ -156,6 +319,7 @@ function App() {
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
   const [memberDataRevision, setMemberDataRevision] = useState(0);
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
@@ -170,6 +334,14 @@ function App() {
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
+  const [recommendedUpdate, setRecommendedUpdate] = useState<{
+    latestVersion: string;
+    storeUrl: string;
+  } | null>(null);
+  const dismissedRecommendedVersionRef = useRef<string | null>(null);
+  const dismissedRecommendedVersionLoadRef = useRef<Promise<string | null> | null>(
+    null,
+  );
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -209,6 +381,44 @@ function App() {
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
 
+  const applyUpdatePolicy = useCallback((policy: AppUpdatePolicy | null) => {
+    if (!policy) return;
+
+    if (policy.updateRequired) {
+      setRecommendedUpdate(null);
+      setRequiredUpdateStoreUrl(policy.storeUrl);
+      return;
+    }
+
+    if (
+      policy.updateRecommended &&
+      dismissedRecommendedVersionRef.current !== policy.latestVersion
+    ) {
+      setRecommendedUpdate({
+        latestVersion: policy.latestVersion,
+        storeUrl: policy.storeUrl,
+      });
+    } else {
+      setRecommendedUpdate(null);
+    }
+  }, []);
+
+  const getUpdatePolicyWithDismissalLoaded = useCallback(async () => {
+    if (!dismissedRecommendedVersionLoadRef.current) {
+      dismissedRecommendedVersionLoadRef.current =
+        getDismissedRecommendedVersion();
+    }
+
+    const [policy, dismissedVersion] = await Promise.all([
+      getAppUpdatePolicy(),
+      dismissedRecommendedVersionLoadRef.current,
+    ]);
+    if (dismissedRecommendedVersionRef.current === null) {
+      dismissedRecommendedVersionRef.current = dismissedVersion;
+    }
+    return policy;
+  }, []);
+
   const currentScreen: Screen =
     flowState.kind === 'auth'
       ? flowState.stack[flowState.stack.length - 1]
@@ -224,7 +434,8 @@ function App() {
     isAuthenticated === false &&
     !hasPendingShareLogin &&
     myPageOverlay === null &&
-    requiredUpdateStoreUrl === null;
+    requiredUpdateStoreUrl === null &&
+    recommendedUpdate === null;
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
@@ -250,6 +461,18 @@ function App() {
   }, [guestLoginPromptTimer, isAuthenticated]);
 
   useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
+
+  // 비회원이 지운 시드 장소는 메모리에만 두고, 다음 비회원 진입 때 시드로 되돌립니다.
+  useEffect(() => {
+    if (isAuthenticated !== false) {
+      setGuestPlaces(ONBOARDING_PLACES);
+    }
+  }, [isAuthenticated]);
+
+  const deleteGuestPlaces = useCallback((placeIds: string[]) => {
+    const deletedIds = new Set(placeIds);
+    setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated === true && hasCompletedGuide === true) {
@@ -362,14 +585,14 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const resumeOnboardingTransfer = (session: Session) => {
-      resumeGuestOnboardingTransfer(session)
+    const resumeOnboardingTransfer = (memberId: string, isNewMember?: boolean) => {
+      resumeGuestOnboardingTransfer(memberId, isNewMember)
         .then(completed => {
           if (completed) trackGuestTransferFinished(posthog, 'success');
           if (
             !isMounted ||
             !completed ||
-            activeUserIdRef.current !== session.user.id
+            activeUserIdRef.current !== memberId
           ) return;
           transferErrorShownRef.current = false;
           setMemberDataRevision(revision => revision + 1);
@@ -379,7 +602,7 @@ function App() {
           console.warn('군자역 게시물 저장 실패', error);
           if (
             !isMounted ||
-            activeUserIdRef.current !== session.user.id ||
+            activeUserIdRef.current !== memberId ||
             transferErrorShownRef.current
           ) return;
           transferErrorShownRef.current = true;
@@ -391,9 +614,9 @@ function App() {
     };
 
     const syncFlowState = async () => {
-      await reconcileShareSession().catch(() => undefined);
-      const [{data, error}, signedInOnThisInstall] = await Promise.all([
-        supabase.auth.getSession(),
+      const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
+        getSpringTokens().catch(() => null),
+        getSpringMemberId().catch(() => null),
         hasSignedInOnThisInstall(),
       ]);
 
@@ -402,7 +625,7 @@ function App() {
       }
       hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
 
-      if (error || !data.session) {
+      if (!tokens) {
         activeUserIdRef.current = null;
         setIsAuthenticated(false);
         if (!hasTrackedAppOpenedRef.current) {
@@ -410,10 +633,8 @@ function App() {
           hasTrackedAppOpenedRef.current = true;
         }
 
-        if (!error) {
-          const sharedSession = await getShareSession().catch(() => null);
-          if (!sharedSession?.refreshToken) await syncShareSession(null);
-        }
+        // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
+        await syncShareSession(null).catch(() => undefined);
 
         setFlowState(
           signedInOnThisInstall ? INITIAL_FLOW_STATE : GUEST_MAIN_FLOW_STATE,
@@ -423,11 +644,10 @@ function App() {
         return;
       }
 
-      await syncShareSession(data.session);
-      activeUserIdRef.current = data.session.user.id;
+      activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
-      resumeOnboardingTransfer(data.session);
+      if (memberId) resumeOnboardingTransfer(memberId);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -443,11 +663,9 @@ function App() {
     };
 
     const checkUpdatePolicy = async () => {
-      const policy = await getAppUpdatePolicy();
+      const policy = await getUpdatePolicyWithDismissalLoaded();
 
-      if (isMounted && policy?.updateRequired) {
-        setRequiredUpdateStoreUrl(policy.storeUrl);
-      }
+      if (isMounted) applyUpdatePolicy(policy);
     };
 
     const loadGuideCompletion = async () => {
@@ -479,26 +697,16 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session || event === 'SIGNED_OUT') {
-        syncShareSession(session)
-          .then(() => {
-            if (session) return resumeWaitingShares();
-          })
-          .catch(() => undefined);
+    const unsubscribe = onSpringSessionChange((event, memberId, details) => {
+      if (event === 'SIGNED_IN') {
+        resumeWaitingShares().catch(() => undefined);
       }
-      if (!isMounted) {
+      // 토큰 회전은 화면 흐름을 바꾸지 않습니다. 공유 세션 동기화는 spring-session이 맡습니다.
+      if (!isMounted || event === 'TOKEN_REFRESHED') {
         return;
       }
 
-      // 첫 세션 판정은 syncFlowState에서 설치 내 로그인 기록과 함께 처리합니다.
-      if (event === 'INITIAL_SESSION' && !session) {
-        return;
-      }
-
-      if (!session) {
+      if (event === 'SIGNED_OUT') {
         activeUserIdRef.current = null;
         transferErrorShownRef.current = false;
         setIsAuthenticated(false);
@@ -515,7 +723,7 @@ function App() {
       }
 
       setSocialLoginError(null);
-      activeUserIdRef.current = session.user.id;
+      activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       setSelectedPlace(null);
       setSelectedPlaceViewContext(null);
@@ -529,7 +737,7 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
-      resumeOnboardingTransfer(session);
+      if (memberId) resumeOnboardingTransfer(memberId, details?.isNewMember);
     });
 
     return () => {
@@ -537,9 +745,9 @@ function App() {
       if (splashTimer) {
         clearTimeout(splashTimer);
       }
-      subscription.unsubscribe();
+      unsubscribe();
     };
-  }, [posthog]);
+  }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
 
   useEffect(() => {
     if (isAuthenticated !== true) return;
@@ -547,15 +755,15 @@ function App() {
     let isActive = true;
     const subscription = AppState.addEventListener('change', state => {
       if (state !== 'active') return;
-      supabase.auth.getSession()
-        .then(({data}) => {
-          if (!data.session) return;
-          resumeGuestOnboardingTransfer(data.session)
+      getSpringMemberId()
+        .then(memberId => {
+          if (!memberId) return;
+          resumeGuestOnboardingTransfer(memberId)
             .then(completed => {
               if (
                 isActive &&
                 completed &&
-                activeUserIdRef.current === data.session?.user.id
+                activeUserIdRef.current === memberId
               ) setMemberDataRevision(revision => revision + 1);
             })
             .catch(error => console.warn('군자역 게시물 재시도 실패', error));
@@ -569,20 +777,22 @@ function App() {
   }, [isAuthenticated]);
 
   useEffect(() => {
+    let isMounted = true;
     const subscription = AppState.addEventListener('change', nextState => {
       if (nextState !== 'active') {
         return;
       }
 
-      getAppUpdatePolicy().then(policy => {
-        if (policy?.updateRequired) {
-          setRequiredUpdateStoreUrl(policy.storeUrl);
-        }
+      getUpdatePolicyWithDismissalLoaded().then(policy => {
+        if (isMounted) applyUpdatePolicy(policy);
       });
     });
 
-    return () => subscription.remove();
-  }, []);
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
 
   useEffect(() => {
     if (!isAuthReady) {
@@ -674,13 +884,16 @@ function App() {
             return;
           }
           if (result.transferStatus === 'LOGIN_HANDOFF') {
-            supabase.auth.getSession().then(({data}) => {
-              if (data.session) {
+            getSpringTokens().then(tokens => {
+              if (tokens) {
                 resumeWaitingShares().catch(() => undefined);
                 return;
               }
               setFlowState(INITIAL_FLOW_STATE);
-            }).catch(() => undefined);
+            }).catch(() => {
+              captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
+              setFlowState(INITIAL_FLOW_STATE);
+            });
             return;
           }
           if (
@@ -688,6 +901,27 @@ function App() {
             !result.reelId
           ) {
             clearShareResult(result.requestId).catch(() => undefined);
+            // 공유 익스텐션은 401을 AUTH401_001로 남긴다(Android는 "AUTH401_001 | 메시지 | HTTP_401").
+            // 추출 실패가 아니라 로그인 문제이므로 다시 로그인하거나 다시 공유하도록 안내한다.
+            if (result.failureReason?.startsWith('AUTH401')) {
+              getSpringTokens()
+                .then(tokens => {
+                  if (tokens) {
+                    Alert.alert(
+                      '공유한 게시물을 저장하지 못했어요',
+                      '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+                    );
+                    return;
+                  }
+                  setFlowState(INITIAL_FLOW_STATE);
+                  Alert.alert(
+                    '로그인이 필요해요',
+                    '다시 로그인한 뒤 게시물을 공유해 주세요.',
+                  );
+                })
+                .catch(() => undefined);
+              return;
+            }
             Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
@@ -726,8 +960,7 @@ function App() {
       'change',
       nextState => {
         if (nextState === 'active') {
-          reconcileShareSession()
-            .then(resumeWaitingShares)
+          resumeWaitingShares()
             .then(consumePendingSharedContent)
             .catch(consumePendingSharedContent);
         }
@@ -805,7 +1038,11 @@ function App() {
 
     try {
       if (hasGuestTransfer) {
-        await beginGuestOnboardingTransfer();
+        await beginGuestOnboardingTransfer(toOnboardingKakaoPlaceIds(guestPlaces));
+      }
+      // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
+      if (!(await getSpringTokens().catch(() => null))) {
+        await syncShareSession(null).catch(() => undefined);
       }
 
       setSocialLoginError(null);
@@ -819,7 +1056,11 @@ function App() {
       });
     } catch (error) {
       cancelGuestOnboardingTransfer().catch(() => undefined);
-      const normalizedError = error as NormalizedAuthError;
+      const normalizedError = withAuthErrorStage(
+        error,
+        signInStarted ? 'provider_authorization' : 'login_setup',
+      );
+      captureSocialLoginError(provider, normalizedError);
       trackLoginFinished(posthog, {
         provider,
         outcome: 'failure',
@@ -866,6 +1107,12 @@ function App() {
     setFlowState(INITIAL_FLOW_STATE);
   };
 
+  // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
+  const handleBrowseAsGuest = () => {
+    setSocialLoginError(null);
+    setFlowState(GUEST_MAIN_FLOW_STATE);
+  };
+
   const handleContinueBrowsing = () => {
     const previousFlow = guestReturnFlowRef.current;
     if (!previousFlow) return;
@@ -886,13 +1133,18 @@ function App() {
 
     setIsLogoutPending(true);
 
-    // 공유 확장이 남은 세션으로 추출 API를 호출하지 않도록 공유 세션부터 즉시 만료한다.
-    await syncShareSession(null).catch(() => undefined);
-    const { error } = await supabase.auth.signOut();
-    await syncShareSession(null).catch(() => undefined);
-
-    if (!error) {
+    // 로컬 중심 로그아웃: 서버 세션 폐기는 best-effort이고, 로컬 정리가 끝나면 SIGNED_OUT으로
+    // 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
+    try {
+      const result = await logoutSpringSession();
+      if (!result.serverConfirmed) {
+        // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
+      }
       return;
+    } catch (error) {
+      if (error instanceof LocalSessionCleanupError) {
+        // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
+      }
     }
 
     setIsLogoutPending(false);
@@ -903,12 +1155,15 @@ function App() {
   };
 
   const handleOpenAccountDeletion = async () => {
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+    let oauthProvider: ProfileInfo['oauthProvider'];
+    try {
+      oauthProvider = (currentProfile ?? (await getCurrentProfile())).oauthProvider;
+    } catch {
+      oauthProvider = undefined;
+    }
+    const providers = getLinkedDeletionProviders(oauthProvider);
 
-    if (error || !user) {
+    if (providers.length === 0) {
       Alert.alert(
         '로그인이 필요해요',
         '회원탈퇴를 진행하려면 다시 로그인해주세요.',
@@ -916,18 +1171,35 @@ function App() {
       return;
     }
 
-    setLinkedDeletionProviders(getLinkedDeletionProviders(user));
+    setLinkedDeletionProviders(providers);
     setMyPageOverlay('accountDeletion');
   };
 
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
-    await deleteAccount(payload);
+    try {
+      await deleteAccount(payload);
+    } catch (error) {
+      // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 탈퇴 화면에서 안내한다.
+      if (!isServerSideDeletionFailure(error)) throw error;
+      // 서버·네트워크 실패는 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리한다.
+      // TODO(sentry): 탈퇴 서버 실패 알림 (회원 ID: activeUserIdRef.current, 제공자: currentProfile?.oauthProvider, error)
+    }
+
+    // 서버 회원은 삭제됐거나 수동 삭제 대상이므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지운다.
+    try {
+      await clearSpringSession();
+    } catch {
+      // TODO(analytics): account_deletion_local_cleanup_failed 이벤트 기록
+      Alert.alert(
+        '회원탈퇴를 마무리하지 못했어요',
+        '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
+      );
+      return;
+    }
 
     setCurrentProfile(null);
     setProfileError(null);
     setMyPageOverlay(null);
-
-    await supabase.auth.signOut({ scope: 'local' });
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
@@ -994,6 +1266,13 @@ function App() {
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
           onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
+          onBrowseAsGuest={
+            isAuthenticated === false &&
+            !guestReturnFlowRef.current &&
+            !hasPendingShareLogin
+              ? handleBrowseAsGuest
+              : undefined
+          }
         />
       );
     }
@@ -1035,7 +1314,10 @@ function App() {
           }
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
+          places={isAuthenticated === false ? guestPlaces : undefined}
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
+          }
           onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
@@ -1075,7 +1357,10 @@ function App() {
               : `member-map-${memberDataRevision}`
           }
           isGuest={isAuthenticated === false}
-          guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
+          guestPlaces={isAuthenticated === false ? guestPlaces : undefined}
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
+          }
           onAuthenticationRequired={handleRequireLogin}
         />
       );
@@ -1091,6 +1376,9 @@ function App() {
             isAuthenticated === false
               ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
               : undefined
+          }
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
           }
           viewContext={selectedPlaceViewContext ?? undefined}
         />
@@ -1169,9 +1457,24 @@ function App() {
           ) : null}
         </View>
       </SafeAreaView>
-      <RequiredAppUpdateModal
+      <AppUpdateModal
+        mode="required"
         storeUrl={requiredUpdateStoreUrl ?? ''}
         visible={requiredUpdateStoreUrl !== null}
+      />
+      <AppUpdateModal
+        mode="recommended"
+        storeUrl={recommendedUpdate?.storeUrl ?? ''}
+        visible={recommendedUpdate !== null && requiredUpdateStoreUrl === null}
+        onDismiss={() => {
+          if (recommendedUpdate) {
+            dismissedRecommendedVersionRef.current = recommendedUpdate.latestVersion;
+            rememberDismissedRecommendedVersion(
+              recommendedUpdate.latestVersion,
+            ).catch(() => undefined);
+          }
+          setRecommendedUpdate(null);
+        }}
       />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}

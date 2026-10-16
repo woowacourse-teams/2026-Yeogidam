@@ -1,94 +1,99 @@
-import {supabase} from '../../lib/auth/supabase';
-import {v4 as uuidv4} from 'uuid';
+import {ApiError} from '../../lib/api/errors';
+import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {
   ContentType,
   SaveInstagramReelResponse,
   SaveSource,
   ReelProcessingStatus,
-  HistoryCursor,
-  HistoryReel,
-  HistoryReelDetail,
 } from './types';
-import {normalizeReelStatusError, reelErrorFromEnvelope, ReelApiError} from './errors';
+import {ReelApiError, type ReelErrorCode} from './errors';
 
-const REEL_STATUS_SELECT =
-  'id,processing_status,failure_reason,instagram_thumbnail_url,created_at';
-const HISTORY_SELECT =
-  'id,instagram_url,instagram_title,instagram_description,instagram_author_username,instagram_thumbnail_url,processing_status,failure_reason,save_mode,created_at';
-const HISTORY_DETAIL_SELECT = `${HISTORY_SELECT},extraction:reel_extractions!reels_extraction_id_fkey(extraction_places:reel_extraction_places(id,position,place:places(id,name,category,source_address,road_address,address,latitude,longitude,kakao_place_url,thumbnail_url,photo_attribution)))`;
+const client = createSpringApiClient();
+/** 상태 폴링은 공유 목록 첫 페이지(서버 기본 50건)에서 찾습니다. */
+const SHARE_STATUS_PAGE_PATH = '/api/v1/shares';
 
-export async function getHistoryReelDetail(
-  reelId: string,
-): Promise<HistoryReelDetail | null> {
-  const request = () =>
-    supabase
-      .from('reels')
-      .select(HISTORY_DETAIL_SELECT)
-      .eq('id', reelId)
-      .order('position', {
-        ascending: true,
-        referencedTable: 'extraction.extraction_places',
-      })
-      .limit(1)
-      .returns<HistoryReelDetail[]>();
+export type SpringExtractionStatus = 'EXTRACTING' | 'SUCCEEDED' | 'FAILED';
 
-  let {data, error} = await request();
-  if ((error as {status?: number} | null)?.status === 401) {
-    const {error: refreshError} = await supabase.auth.refreshSession();
-    if (!refreshError) ({data, error} = await request());
+type SpringShareResponse = {
+  sharedMediaId: number;
+  extractionStatus: SpringExtractionStatus;
+};
+
+export type SpringShareHistoryItem = {
+  sharedMediaId: number;
+  createdAt: string;
+  thumbnailUrl: string | null;
+  caption: string | null;
+  author: string | null;
+  extractionStatus: SpringExtractionStatus;
+  failureReason: string | null;
+  sharedUrl: string | null;
+};
+
+type SpringShareHistoryResponse = {
+  sharedMedias: SpringShareHistoryItem[];
+};
+
+export function toReelStatus(
+  status: SpringExtractionStatus | string,
+): SaveInstagramReelResponse['status'] {
+  switch (status) {
+    case 'SUCCEEDED':
+      return 'COMPLETED';
+    case 'FAILED':
+      return 'FAILED';
+    default:
+      return 'PROCESSING';
   }
-  if (error) throw error;
-  return data?.[0] ?? null;
 }
 
-export async function reportHistoryReel(reelId: string): Promise<void> {
-  const {error} = await supabase
-    .from('reel_reports')
-    .upsert({reel_id: reelId}, {onConflict: 'user_id,reel_id', ignoreDuplicates: true});
-
-  if (error) throw error;
-}
-
-export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
-  reels: HistoryReel[];
-  nextCursor: HistoryCursor | null;
-}> {
-  const request = () => {
-    let query = supabase
-      .from('reels')
-      .select(HISTORY_SELECT)
-      .order('created_at', {ascending: false})
-      .order('id', {ascending: false})
-      .limit(51);
-
-    if (cursor) {
-      query = query.or(
-        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`,
-      );
-    }
-
-    return query.returns<HistoryReel>();
-  };
-
-  let {data, error} = await request();
-  if (error?.code === 'PGRST301' || error?.message?.includes('401')) {
-    const {error: refreshError} = await supabase.auth.refreshSession();
-    if (!refreshError) {
-      ({data, error} = await request());
-    }
+/** Spring 요청 실패를 화면이 쓰는 ReelApiError로 바꿉니다. 서버 errorCode와 문구는 유지합니다. */
+export function toReelApiError(error: unknown): ReelApiError {
+  if (error instanceof ReelApiError) return error;
+  if (!(error instanceof ApiError)) {
+    return new ReelApiError({
+      errorCode: 'CLIENT000_003',
+      message: '응답을 처리하지 못했어요.',
+    });
   }
 
-  if (error) {
-    throw error;
+  if (error.status === 401 || error.kind === 'auth') {
+    return new ReelApiError({
+      errorCode: 'AUTH401_001',
+      message: '로그인이 필요해요.',
+      status: 401,
+    });
   }
-
-  const rows = (data ?? []) as unknown as HistoryReel[];
-  const reels = rows.slice(0, 50);
-  const last = reels.length === 50 ? reels[reels.length - 1] : null;
-  return {
-    reels,
-    nextCursor: last ? {created_at: last.created_at, id: last.id} : null,
-  };
+  if (error.kind === 'timeout') {
+    return new ReelApiError({
+      errorCode: 'CLIENT000_002',
+      message: '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.',
+      retryable: true,
+    });
+  }
+  if (error.kind === 'network' || error.kind === 'cancelled') {
+    return new ReelApiError({
+      errorCode: 'CLIENT000_001',
+      message: '인터넷 연결을 확인해주세요.',
+      retryable: true,
+    });
+  }
+  if (error.kind === 'http') {
+    const status = error.status ?? null;
+    const serverError = status !== null && status >= 500;
+    return new ReelApiError({
+      errorCode: (error.errorCode ??
+        (serverError ? 'COMMON500_001' : 'COMMON400_001')) as ReelErrorCode,
+      message: error.message,
+      retryable: serverError || status === 429,
+      status,
+      ...(error.errorCode?.startsWith('MEDIA400_') ? {field: 'instagramUrl'} : {}),
+    });
+  }
+  return new ReelApiError({
+    errorCode: 'CLIENT000_003',
+    message: '응답을 처리하지 못했어요.',
+  });
 }
 
 export function detectContentType(url: string): ContentType {
@@ -116,48 +121,37 @@ export function normalizeInstagramContentUrl(url: string): string | null {
   return null;
 }
 
+/**
+ * 링크를 서버에 공유합니다. 서버에는 멱등키가 없어 매 요청마다 새 공유가 생기므로
+ * source와 clientRequestId는 화면 호환을 위해서만 받고 보내지 않습니다.
+ */
 export async function saveInstagramReel(
   instagramUrl: string,
-  source: SaveSource,
-  clientRequestId = uuidv4(),
+  _source: SaveSource,
+  _clientRequestId?: string,
 ): Promise<SaveInstagramReelResponse> {
-  const {data, error} = await supabase.functions.invoke<SaveInstagramReelResponse>(
-    'save-instagram-reel',
-    {
-      body: {
-        instagramUrl,
-        source,
-        clientRequestId,
-      },
-    },
-  );
-
-  if (error) {
-    const context = (error as {context?: Response}).context;
-    let envelope: unknown = null;
-    if (context) {
-      try {
-        envelope = await context.clone().json();
-      } catch {
-        // Network or non-JSON gateway error.
-      }
-    }
-    throw reelErrorFromEnvelope(envelope) ?? new ReelApiError({
-      errorCode: 'CLIENT000_001',
-      message: '인터넷 연결을 확인해주세요.',
-      retryable: true,
-      status: context?.status ?? null,
+  let response: SpringShareResponse;
+  try {
+    response = await client.request<SpringShareResponse>('/api/v1/shares', {
+      method: 'POST',
+      body: {instagramUrl},
     });
+  } catch (error) {
+    throw toReelApiError(error);
   }
 
-  if (!data) {
+  if (response?.sharedMediaId == null || !response.extractionStatus) {
     throw new ReelApiError({
       errorCode: 'CLIENT000_003',
       message: '응답을 처리하지 못했어요.',
     });
   }
 
-  return data;
+  return {
+    reelId: String(response.sharedMediaId),
+    status: toReelStatus(response.extractionStatus),
+    reused: response.extractionStatus === 'SUCCEEDED',
+  };
 }
 
 export async function saveContent(
@@ -179,35 +173,42 @@ export async function saveContent(
   return saveInstagramReel(normalizedUrl, source, clientRequestId);
 }
 
+function toReelProcessingStatus(item: SpringShareHistoryItem): ReelProcessingStatus {
+  return {
+    id: String(item.sharedMediaId),
+    processing_status: toReelStatus(item.extractionStatus),
+    failure_reason: item.failureReason,
+    instagram_thumbnail_url: item.thumbnailUrl,
+    created_at: item.createdAt,
+  };
+}
+
+async function getRecentShares(): Promise<SpringShareHistoryItem[]> {
+  try {
+    const response = await client.request<SpringShareHistoryResponse>(
+      SHARE_STATUS_PAGE_PATH,
+    );
+    return response?.sharedMedias ?? [];
+  } catch (error) {
+    throw toReelApiError(error);
+  }
+}
+
+/**
+ * 서버에 단건 상태 조회 API가 없어 최근 공유 목록 첫 페이지에서 찾습니다.
+ * 목록에 없으면 null을 돌려줍니다.
+ */
 export async function getReelProcessingStatus(
   reelId: string,
 ): Promise<ReelProcessingStatus | null> {
-  const {data, error} = await supabase
-    .from('reels')
-    .select(REEL_STATUS_SELECT)
-    .eq('id', reelId)
-    .maybeSingle<ReelProcessingStatus>();
-
-  if (error) {
-    throw normalizeReelStatusError(error);
-  }
-
-  return data;
+  const shares = await getRecentShares();
+  const item = shares.find(share => String(share.sharedMediaId) === reelId);
+  return item ? toReelProcessingStatus(item) : null;
 }
 
 /** 현재 로그인한 사용자의 최신 처리중 릴스를 복원합니다. */
 export async function getLatestProcessingReel(): Promise<ReelProcessingStatus | null> {
-  const {data, error} = await supabase
-    .from('reels')
-    .select(REEL_STATUS_SELECT)
-    .in('processing_status', ['PENDING', 'PROCESSING'])
-    .order('created_at', {ascending: false})
-    .limit(1)
-    .maybeSingle<ReelProcessingStatus>();
-
-  if (error) {
-    throw normalizeReelStatusError(error);
-  }
-
-  return data;
+  const shares = await getRecentShares();
+  const item = shares.find(share => share.extractionStatus === 'EXTRACTING');
+  return item ? toReelProcessingStatus(item) : null;
 }

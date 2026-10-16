@@ -1,17 +1,17 @@
 import { Platform } from 'react-native';
 import Config from 'react-native-config';
 
-import { SUPABASE_URL } from './auth/supabase';
-
-const REQUEST_TIMEOUT_MS = 5000;
+import {fetchAppUpdatePolicy} from './api/app-update-policy-api';
 
 // Beta builds inject the manually entered app version through .env.
 const APP_VERSION = Config.APP_VERSION || '1.1.0';
 
 export type AppUpdatePolicy = {
   minimumSupportedVersion: string;
+  latestVersion: string;
   storeUrl: string;
   updateRequired: boolean;
+  updateRecommended: boolean;
 };
 
 function isAppUpdatePolicy(value: unknown): value is AppUpdatePolicy {
@@ -23,8 +23,11 @@ function isAppUpdatePolicy(value: unknown): value is AppUpdatePolicy {
 
   return (
     typeof policy.updateRequired === 'boolean' &&
+    typeof policy.updateRecommended === 'boolean' &&
     typeof policy.minimumSupportedVersion === 'string' &&
     policy.minimumSupportedVersion.trim().length > 0 &&
+    typeof policy.latestVersion === 'string' &&
+    policy.latestVersion.trim().length > 0 &&
     typeof policy.storeUrl === 'string' &&
     policy.storeUrl.trim().length > 0
   );
@@ -36,38 +39,15 @@ function isAppUpdatePolicy(value: unknown): value is AppUpdatePolicy {
  * blocks the user.
  */
 export async function getAppUpdatePolicy(): Promise<AppUpdatePolicy | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const platform = Platform.OS === 'ios' ? 'ios' : 'android';
-  const query = new URLSearchParams({
-    platform,
-    appVersion: APP_VERSION,
-  });
 
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/app-update-policy?${query.toString()}`,
-      {
-        method: 'GET',
-        headers: {
-          'Cache-Control': 'no-store',
-        },
-        signal: controller.signal,
-      },
-    );
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const payload: unknown = await response.json();
+    const payload = await fetchAppUpdatePolicy(platform, APP_VERSION);
     return isAppUpdatePolicy(payload) ? payload : null;
   } catch (error) {
     if (__DEV__) {
       console.warn('[AppUpdatePolicy] Unable to check update policy.', error);
     }
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
