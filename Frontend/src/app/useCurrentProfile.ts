@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 
 import {getCurrentProfile} from '../entities/info/api';
+import {normalizeScreenApiError} from '../lib/api/screen-error';
 import type {ProfileApiError, ProfileInfo} from '../entities/info/types';
 
 /**
@@ -37,7 +38,7 @@ export function useCurrentProfile(enabled: boolean) {
       if (isCurrent()) setState({status: 'success', profile, isRefreshing: false});
     } catch (error) {
       if (isCurrent()) {
-        setState({status: 'error', error: error as ProfileApiError, isRetrying: false});
+        setState({status: 'error', error: normalizeScreenApiError(error), isRetrying: false});
       }
     }
   }, []);

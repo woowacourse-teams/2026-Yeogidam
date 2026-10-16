@@ -3,7 +3,12 @@ import {useCallback, useEffect, useState} from 'react';
 import {deleteSavedPlaces} from '../../../entities/info/api';
 import type {SavedPlacesApiError} from '../../../entities/info/types';
 import type {Place} from '../../../entities/place/types';
-import {INVALID_REQUEST_ERROR, TIMEOUT_ERROR, isLoginRequiredError} from '../../../lib/api/screen-error';
+import {
+  INVALID_REQUEST_ERROR,
+  TIMEOUT_ERROR,
+  isLoginRequiredError,
+  normalizeScreenApiError,
+} from '../../../lib/api/screen-error';
 
 /** 삭제 요청 상태입니다. 지우는 중에는 오류가 없습니다. */
 type DeleteState =
@@ -124,7 +129,7 @@ export function useSavedPlacesEditing({
       setIsEditing(false);
       onEditModeChange?.(false);
     } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
+      const apiError = normalizeScreenApiError(nextError);
       if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
         const refreshedPlaces = await loadSavedPlaces();
         const deletedIds = new Set(savedPlaceIds);

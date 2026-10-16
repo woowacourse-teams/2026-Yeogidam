@@ -15,7 +15,12 @@ import type {
   SavedPlacesApiError,
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
-import {INVALID_REQUEST_ERROR, TIMEOUT_ERROR, isLoginRequiredError} from '../../lib/api/screen-error';
+import {
+  INVALID_REQUEST_ERROR,
+  TIMEOUT_ERROR,
+  isLoginRequiredError,
+  normalizeScreenApiError,
+} from '../../lib/api/screen-error';
 import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
 import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { CopyToastProvider } from './components/CopyToast';
@@ -89,7 +94,7 @@ export function PlaceDetailScreen({
     try {
       setReels(await getPlaceReels(place.savedPlaceId));
     } catch (nextError) {
-      const apiError = nextError as PlaceReelsApiError;
+      const apiError = normalizeScreenApiError(nextError);
       setError(apiError);
       if (isLoginRequiredError(apiError)) {
         onAuthenticationRequiredRef.current?.();
@@ -131,7 +136,7 @@ export function PlaceDetailScreen({
       setIsActionSheetVisible(false);
       onBack();
     } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
+      const apiError = normalizeScreenApiError(nextError);
       if (apiError.errorCode === TIMEOUT_ERROR.errorCode) {
         try {
           const savedPlaces = await getSavedPlaces();

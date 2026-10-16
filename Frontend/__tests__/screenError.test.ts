@@ -6,6 +6,7 @@ import {
   SCREEN_ERROR_TABLE,
   TIMEOUT_ERROR,
   isLoginRequiredError,
+  normalizeScreenApiError,
   toScreenApiError,
   type ScreenErrorTable,
 } from '../src/lib/api/screen-error';
@@ -131,4 +132,21 @@ test('오류 코드가 없는 400 응답은 요청 확인 오류와 같은 코�
     message: '요청 내용을 확인해주세요.',
     retryable: false,
   });
+});
+
+test('catch로 받은 값이 이미 화면 오류 계약 모양이면 그대로 쓰고, 아니면 응답 처리 오류로 받는다', () => {
+  const shaped = {status: 404, errorCode: 'PLACE404_001', message: '저장된 장소가 아닙니다.', retryable: false};
+  expect(normalizeScreenApiError(shaped)).toBe(shaped);
+
+  expect(normalizeScreenApiError(httpError(503, null, '점검 중'))).toEqual({
+    status: 503,
+    errorCode: 'COMMON500_001',
+    message: '점검 중',
+    retryable: true,
+  });
+
+  expect(normalizeScreenApiError(new TypeError("Cannot read properties of undefined (reading 'map')"))).toEqual({
+    ...PROCESSING_ERROR,
+  });
+  expect(normalizeScreenApiError({errorCode: 'X', message: 'y'})).toEqual({...PROCESSING_ERROR});
 });

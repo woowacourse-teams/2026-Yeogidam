@@ -10,7 +10,7 @@ import {
 import type {SavedPlacesApiError} from '../../../entities/info/types';
 import {toSavedPlaceDisplayPlace} from '../../../entities/place/api';
 import type {Place} from '../../../entities/place/types';
-import {isLoginRequiredError} from '../../../lib/api/screen-error';
+import {isLoginRequiredError, normalizeScreenApiError} from '../../../lib/api/screen-error';
 
 /** 목록 읽기 상태입니다. 캐시나 넘겨받은 목록으로 시작하면 success입니다. */
 type SavedPlacesLoadState =
@@ -70,7 +70,7 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
       if (requestId !== loadRequestIdRef.current) {
         return null;
       }
-      const apiError = nextError as SavedPlacesApiError;
+      const apiError = normalizeScreenApiError(nextError);
       setLoadState({status: 'error', error: apiError});
       if (isLoginRequiredError(apiError)) {
         onAuthenticationRequiredRef.current?.();

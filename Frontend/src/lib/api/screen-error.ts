@@ -117,6 +117,26 @@ export const SCREEN_ERROR_TABLE: ScreenErrorTable = {
   unknown: () => ({...PROCESSING_ERROR}),
 };
 
+/** 값이 이미 화면 오류 계약 모양인지 봅니다. 저장소가 withScreenError로 바꿔 던진 오류가 여기에 해당합니다. */
+export function isScreenApiError(value: unknown): value is ScreenApiError {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.errorCode === 'string' &&
+    typeof candidate.message === 'string' &&
+    typeof candidate.retryable === 'boolean' &&
+    (typeof candidate.status === 'number' || candidate.status === null)
+  );
+}
+
+/**
+ * catch로 받은 값을 화면 오류 계약으로 맞춥니다. 이미 계약 모양이면 그대로 쓰고, 응답 변환 중에 난 JS 오류처럼
+ * 모양이 다른 값은 응답 처리 오류로 받습니다. 호출부가 as로 단언하지 않게 합니다.
+ */
+export function normalizeScreenApiError(error: unknown): ScreenApiError {
+  return isScreenApiError(error) ? error : toScreenApiError(error);
+}
+
 /** 요청 실패를 화면 오류 계약으로 바꿉니다. 표를 넘기지 않으면 SCREEN_ERROR_TABLE을 씁니다. */
 export function toScreenApiError(error: unknown): ScreenApiError;
 export function toScreenApiError<V extends ScreenApiError>(
