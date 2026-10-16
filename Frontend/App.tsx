@@ -20,12 +20,6 @@ import {
   ONBOARDING_PLACE_REELS,
 } from './src/entities/onboarding/data';
 import {
-  beginGuestOnboardingTransfer,
-  cancelGuestOnboardingTransfer,
-  resumeGuestOnboardingTransfer,
-  toOnboardingKakaoPlaceIds,
-} from './src/entities/onboarding/transfer';
-import {
   withAuthErrorStage,
   type NormalizedAuthError,
 } from './src/lib/auth/errors';
@@ -57,7 +51,6 @@ import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   toLoginFailureType,
   trackAppOpened,
-  trackGuestTransferFinished,
   trackLoginFinished,
   trackLoginStarted,
 } from './src/analytics/userEntryEvents';
@@ -89,6 +82,7 @@ import {
 import { GUEST_MAIN_FLOW_STATE } from './src/app/navigation';
 import { useAppNavigation } from './src/app/useAppNavigation';
 import { useCurrentProfile } from './src/app/useCurrentProfile';
+import { useGuestOnboardingTransfer } from './src/app/useGuestOnboardingTransfer';
 import { useNativeShareResults } from './src/app/useNativeShareResults';
 import type { SocialProvider } from './src/lib/auth/social-provider';
 import { captureSocialLoginError } from './src/lib/monitoring/login-errors';
@@ -151,13 +145,17 @@ function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
-  const [memberDataRevision, setMemberDataRevision] = useState(0);
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
   const hasSignedInOnThisInstallRef = useRef(false);
-  const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
+  const {memberDataRevision, resumeTransfer, beginTransfer, cancelTransfer, resetTransferError} =
+    useGuestOnboardingTransfer({
+      enabled: isAuthenticated === true,
+      activeMemberIdRef: activeUserIdRef,
+      posthog,
+    });
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
     null,
@@ -298,34 +296,6 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const resumeOnboardingTransfer = (memberId: string, isNewMember?: boolean) => {
-      resumeGuestOnboardingTransfer(memberId, isNewMember)
-        .then(completed => {
-          if (completed) trackGuestTransferFinished(posthog, 'success');
-          if (
-            !isMounted ||
-            !completed ||
-            activeUserIdRef.current !== memberId
-          ) return;
-          transferErrorShownRef.current = false;
-          setMemberDataRevision(revision => revision + 1);
-        })
-        .catch(error => {
-          trackGuestTransferFinished(posthog, 'failure');
-          console.warn('군자역 게시물 저장 실패', error);
-          if (
-            !isMounted ||
-            activeUserIdRef.current !== memberId ||
-            transferErrorShownRef.current
-          ) return;
-          transferErrorShownRef.current = true;
-          Alert.alert(
-            '군자역 게시물을 저장하지 못했어요',
-            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
-          );
-        });
-    };
-
     const syncFlowState = async () => {
       const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
         getSpringTokens().catch(() => null),
@@ -359,7 +329,7 @@ function App() {
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
-      if (memberId) resumeOnboardingTransfer(memberId);
+      if (memberId) resumeTransfer(memberId);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -410,7 +380,7 @@ function App() {
 
       if (event === 'SIGNED_OUT') {
         activeUserIdRef.current = null;
-        transferErrorShownRef.current = false;
+        resetTransferError();
         setIsAuthenticated(false);
         if (hasSignedInOnThisInstallRef.current) openLogin();
         else openGuestMain();
@@ -430,7 +400,7 @@ function App() {
       setPendingSocialProvider(null);
       openMemberMain();
       setIsAuthReady(true);
-      if (memberId) resumeOnboardingTransfer(memberId, details?.isNewMember);
+      if (memberId) resumeTransfer(memberId, details?.isNewMember);
     });
 
     return () => {
@@ -447,34 +417,9 @@ function App() {
     posthog,
     refreshUpdatePolicy,
     resetPendingShareLogin,
+    resetTransferError,
+    resumeTransfer,
   ]);
-
-  useEffect(() => {
-    if (isAuthenticated !== true) return;
-
-    let isActive = true;
-    const subscription = AppState.addEventListener('change', state => {
-      if (state !== 'active') return;
-      getSpringMemberId()
-        .then(memberId => {
-          if (!memberId) return;
-          resumeGuestOnboardingTransfer(memberId)
-            .then(completed => {
-              if (
-                isActive &&
-                completed &&
-                activeUserIdRef.current === memberId
-              ) setMemberDataRevision(revision => revision + 1);
-            })
-            .catch(error => console.warn('군자역 게시물 재시도 실패', error));
-        })
-        .catch(() => undefined);
-    });
-    return () => {
-      isActive = false;
-      subscription.remove();
-    };
-  }, [isAuthenticated]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider || loginAttemptInFlightRef.current) {
@@ -495,7 +440,7 @@ function App() {
 
     try {
       if (hasGuestTransfer) {
-        await beginGuestOnboardingTransfer(toOnboardingKakaoPlaceIds(guestPlaces));
+        await beginTransfer(guestPlaces);
       }
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
       if (!(await getSpringTokens().catch(() => null))) {
@@ -512,7 +457,7 @@ function App() {
         hasGuestTransfer,
       });
     } catch (error) {
-      cancelGuestOnboardingTransfer().catch(() => undefined);
+      cancelTransfer();
       const normalizedError = withAuthErrorStage(
         error,
         signInStarted ? 'provider_authorization' : 'login_setup',
@@ -564,7 +509,7 @@ function App() {
   const handleContinueBrowsing = () => {
     if (!guestReturnFlow) return;
 
-    cancelGuestOnboardingTransfer().catch(() => undefined);
+    cancelTransfer();
     continueBrowsing();
   };
 
