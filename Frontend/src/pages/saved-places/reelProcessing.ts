@@ -212,9 +212,9 @@ export function resolveReelPollTracking(
   };
 }
 
-/** 폴링을 시작한 지 90초가 지났는지 봅니다. 시작 시각이 없으면 지나지 않은 것으로 봅니다. */
-export function hasReelPollTimedOut(startedAt: number | null, now: number): boolean {
-  return now - (startedAt ?? now) >= REEL_POLL_TIMEOUT_MS;
+/** 폴링을 시작한 지 90초가 지났는지 봅니다. */
+export function hasReelPollTimedOut(startedAt: number, now: number): boolean {
+  return now - startedAt >= REEL_POLL_TIMEOUT_MS;
 }
 
 /** 공용 목록에서 지켜보던 릴스를 찾은 결과입니다. */

@@ -270,7 +270,6 @@ describe('폴링 시작 시각과 시간 제한', () => {
   test('90초가 되는 순간부터 시간 초과다', () => {
     expect(hasReelPollTimedOut(NOW, NOW + 89_999)).toBe(false);
     expect(hasReelPollTimedOut(NOW, NOW + 90_000)).toBe(true);
-    expect(hasReelPollTimedOut(null, NOW)).toBe(false);
   });
 });
 
