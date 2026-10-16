@@ -4,6 +4,7 @@ import type {
   ReelProcessingStatus,
   SaveInstagramReelResponse,
 } from '../../entities/content/types';
+import {isReelInProgress} from '../../entities/content/status';
 import {isLoginRequiredError} from '../../lib/api/screen-error';
 import type {SharedSaveState} from '../../lib/reel-save-state';
 
@@ -74,7 +75,7 @@ export function classifySharedSaveState(
     return {type: 'none'};
   }
 
-  const isInProgress = state.status === 'PENDING' || state.status === 'PROCESSING';
+  const isInProgress = isReelInProgress(state.status);
   const hasRealReelId = !state.reel.id.startsWith('share-');
   if (isInProgress && !hasRealReelId) {
     return {type: 'awaiting-reel-id', reel: state.reel};

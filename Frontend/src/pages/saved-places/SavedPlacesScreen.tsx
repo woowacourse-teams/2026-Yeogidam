@@ -103,7 +103,7 @@ export function SavedPlacesScreen({
     loadSavedPlaces,
     refreshSavedPlaces,
     removePlaces,
-  } = useSavedPlacesList({providedPlaces, isGuest, onAuthenticationRequired});
+  } = useSavedPlacesList({providedPlaces, onAuthenticationRequired});
   const hasSavedPlaces = places.length > 0;
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
   useSavedPlacesViewedEvent(posthog, {isLoading, error, placeCount: places.length});

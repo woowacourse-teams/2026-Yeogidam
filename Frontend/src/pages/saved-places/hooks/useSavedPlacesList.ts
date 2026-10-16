@@ -34,8 +34,7 @@ const SUCCESS: SavedPlacesLoadState = {status: 'success'};
 type Options = {
   /** 비회원 체험 장소처럼 API 대신 쓸 목록입니다. 있으면 API를 부르지 않습니다. */
   providedPlaces: Place[] | undefined;
-  isGuest: boolean;
-  /** 목록 조회가 AUTH401_001로 실패하면 부릅니다. */
+  /** 목록 조회가 로그인 필요 오류로 실패하면 부릅니다. */
   onAuthenticationRequired?: () => void;
 };
 
@@ -43,7 +42,7 @@ type Options = {
  * 보관함 목록을 읽고, 당겨서 새로고침하고, 지운 장소를 목록에서 뺍니다.
  * 요청마다 번호를 붙여 늦게 도착한 이전 응답을 버리고, 다시 열 때는 지난 목록을 먼저 보여 줍니다.
  */
-export function useSavedPlacesList({providedPlaces, isGuest, onAuthenticationRequired}: Options) {
+export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: Options) {
   const [places, setPlaces] = useState<Place[]>(providedPlaces ?? cachedSavedPlaces ?? []);
   const [loadState, setLoadState] = useState<SavedPlacesLoadState>(() =>
     providedPlaces === undefined && cachedSavedPlaces === null ? LOADING : SUCCESS,
@@ -59,9 +58,6 @@ export function useSavedPlacesList({providedPlaces, isGuest, onAuthenticationReq
   /** 목록을 읽어 반영하고 읽은 목록을 돌려줍니다. 실패했거나 더 새 요청에 밀렸으면 null입니다. */
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
-      if (isGuest) {
-        clearSavedPlacesCache();
-      }
       setPlaces(providedPlaces);
       return providedPlaces;
     }
@@ -93,7 +89,7 @@ export function useSavedPlacesList({providedPlaces, isGuest, onAuthenticationReq
       }
       return null;
     }
-  }, [isGuest, providedPlaces]);
+  }, [providedPlaces]);
 
   /** 당겨서 새로고침합니다. 새로고침이 끝나기 전에 다시 당기면 무시합니다. */
   const refreshSavedPlaces = useCallback(async () => {
