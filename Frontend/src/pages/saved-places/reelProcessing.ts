@@ -178,7 +178,6 @@ export function resolvePollStartedAt(
   reelCreatedAt: string | undefined,
   now: number,
 ): number {
-  // TODO(review): 폴링 중에 새 링크를 저장해 릴스 ID가 바로 바뀌면 시작 시각을 이어받아 새 릴스가 90초를 다 쓰지 못합니다.
   if (current !== null) {
     return current;
   }

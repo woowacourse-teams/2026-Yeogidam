@@ -53,6 +53,8 @@ export function useReelStatusPolling({
     }
 
     let isActive = true;
+    // TODO(review): 폴링 중에 새 링크를 저장해 릴스 ID가 null을 거치지 않고 바뀌면 시작 시각과 놓친 횟수를
+    // 이어받아, 새 릴스가 90초와 세 번을 다 쓰지 못합니다. 두 ref는 ID가 없거나 실패일 때만 비웁니다.
     reelPollStartedAtRef.current = resolvePollStartedAt(
       reelPollStartedAtRef.current,
       processingReel?.created_at,
