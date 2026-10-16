@@ -53,11 +53,7 @@ import {
   onSpringSessionChange,
 } from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
-import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
-import {
-  getDismissedRecommendedVersion,
-  rememberDismissedRecommendedVersion,
-} from './src/lib/app-update-policy-storage';
+import { useAppUpdatePolicy } from './src/app/useAppUpdatePolicy';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   toLoginFailureType,
@@ -170,17 +166,12 @@ function App() {
   const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
     null,
   );
-  const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
-    string | null
-  >(null);
-  const [recommendedUpdate, setRecommendedUpdate] = useState<{
-    latestVersion: string;
-    storeUrl: string;
-  } | null>(null);
-  const dismissedRecommendedVersionRef = useRef<string | null>(null);
-  const dismissedRecommendedVersionLoadRef = useRef<Promise<string | null> | null>(
-    null,
-  );
+  const {
+    requiredUpdateStoreUrl,
+    recommendedUpdate,
+    refreshUpdatePolicy,
+    dismissRecommendedUpdate,
+  } = useAppUpdatePolicy();
   const [isLogoutPending, setIsLogoutPending] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
@@ -219,44 +210,6 @@ function App() {
   >([]);
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
-
-  const applyUpdatePolicy = useCallback((policy: AppUpdatePolicy | null) => {
-    if (!policy) return;
-
-    if (policy.updateRequired) {
-      setRecommendedUpdate(null);
-      setRequiredUpdateStoreUrl(policy.storeUrl);
-      return;
-    }
-
-    if (
-      policy.updateRecommended &&
-      dismissedRecommendedVersionRef.current !== policy.latestVersion
-    ) {
-      setRecommendedUpdate({
-        latestVersion: policy.latestVersion,
-        storeUrl: policy.storeUrl,
-      });
-    } else {
-      setRecommendedUpdate(null);
-    }
-  }, []);
-
-  const getUpdatePolicyWithDismissalLoaded = useCallback(async () => {
-    if (!dismissedRecommendedVersionLoadRef.current) {
-      dismissedRecommendedVersionLoadRef.current =
-        getDismissedRecommendedVersion();
-    }
-
-    const [policy, dismissedVersion] = await Promise.all([
-      getAppUpdatePolicy(),
-      dismissedRecommendedVersionLoadRef.current,
-    ]);
-    if (dismissedRecommendedVersionRef.current === null) {
-      dismissedRecommendedVersionRef.current = dismissedVersion;
-    }
-    return policy;
-  }, []);
 
   const currentScreen: Screen =
     flowState.kind === 'auth'
@@ -501,12 +454,6 @@ function App() {
       setIsAuthReady(true);
     };
 
-    const checkUpdatePolicy = async () => {
-      const policy = await getUpdatePolicyWithDismissalLoaded();
-
-      if (isMounted) applyUpdatePolicy(policy);
-    };
-
     const loadGuideCompletion = async () => {
       const [completed, signedInOnThisInstall] = await Promise.all([
         hasCompletedAppGuide(),
@@ -525,7 +472,7 @@ function App() {
 
     Promise.allSettled([
       syncFlowState(),
-      checkUpdatePolicy(),
+      refreshUpdatePolicy(),
       loadGuideCompletion(),
       splashDelay,
     ]).finally(() => {
@@ -586,7 +533,7 @@ function App() {
       }
       unsubscribe();
     };
-  }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
+  }, [posthog, refreshUpdatePolicy]);
 
   useEffect(() => {
     if (isAuthenticated !== true) return;
@@ -614,24 +561,6 @@ function App() {
       subscription.remove();
     };
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const subscription = AppState.addEventListener('change', nextState => {
-      if (nextState !== 'active') {
-        return;
-      }
-
-      getUpdatePolicyWithDismissalLoaded().then(policy => {
-        if (isMounted) applyUpdatePolicy(policy);
-      });
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.remove();
-    };
-  }, [applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
 
   useEffect(() => {
     if (!isAuthReady) {
@@ -1305,15 +1234,7 @@ function App() {
         mode="recommended"
         storeUrl={recommendedUpdate?.storeUrl ?? ''}
         visible={recommendedUpdate !== null && requiredUpdateStoreUrl === null}
-        onDismiss={() => {
-          if (recommendedUpdate) {
-            dismissedRecommendedVersionRef.current = recommendedUpdate.latestVersion;
-            rememberDismissedRecommendedVersion(
-              recommendedUpdate.latestVersion,
-            ).catch(() => undefined);
-          }
-          setRecommendedUpdate(null);
-        }}
+        onDismiss={dismissRecommendedUpdate}
       />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}
