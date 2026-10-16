@@ -1,5 +1,7 @@
 # 변경 전 Instagram 공유 플로우
 
+> **서버 이전 안내(2026-10):** 이 문서의 인증·전송 대상은 Supabase 시절 기준이다. 지금은 공유 확장이 Spring Boot API를 호출한다. 토큰 갱신은 `POST /api/v1/auth/token-refreshes`, 공유 저장은 `POST /api/v1/shares {instagramUrl}`(202 `{sharedMediaId, extractionStatus}`)이고, 공유 세션은 앱의 Spring 세션(`src/lib/auth/spring-session.ts`)이 동기화한다. `source`, `clientRequestId`는 더 이상 보내지 않는다.
+
 이 문서는 공유 로그인 연결 및 단발 추출 흐름을 적용하기 **전** 코드의 동작을 기록한다. 현재 구현의 기준은 [SHARE_FLOW_CHANGE_PLAN.md](./SHARE_FLOW_CHANGE_PLAN.md)를 참고한다. 대상은 Instagram 릴스와 게시물 URL을 운영체제의 공유 기능으로 여기담에 전달하는 경로다. 앱 안에서 URL을 직접 입력하는 경로는 별도로 동작한다.
 
 ## 전체 흐름

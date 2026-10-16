@@ -209,3 +209,36 @@ test('응답 제한 시간을 넘기면 timeout 오류를 전달한다', async (
     jest.useRealTimers();
   }
 });
+
+test('본문이 빈 2xx 응답(201 Created 등)은 undefined로 처리한다', async () => {
+  const fetchMock = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 201,
+    text: async () => '',
+    json: async () => { throw new SyntaxError('Unexpected end of JSON input'); },
+  });
+  const client = createApiClient({
+    baseUrl,
+    fetchImpl: fetchMock,
+    getAccessToken: async () => 'spring-access-token',
+  });
+
+  await expect(client.request('/api/v1/shares/7/reports', {method: 'POST'}))
+    .resolves.toBeUndefined();
+});
+
+test('text()로 읽은 오류 본문의 서버 오류 코드를 유지한다', async () => {
+  const fetchMock = jest.fn().mockResolvedValue({
+    ok: false,
+    status: 409,
+    text: async () => JSON.stringify({message: '이미 신고한 공유입니다.', errorCode: 'MEDIA409_001'}),
+  });
+  const client = createApiClient({
+    baseUrl,
+    fetchImpl: fetchMock,
+    getAccessToken: async () => 'spring-access-token',
+  });
+
+  await expect(client.request('/api/v1/shares/7/reports', {method: 'POST'}))
+    .rejects.toMatchObject({kind: 'http', status: 409, errorCode: 'MEDIA409_001'});
+});

@@ -12,7 +12,6 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
-// import type {InboxReel} from './src/entities/content/inbox-api';
 import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -24,6 +23,8 @@ import {
 import {
   beginGuestOnboardingTransfer,
   cancelGuestOnboardingTransfer,
+  resumeGuestOnboardingTransfer,
+  toOnboardingKakaoPlaceIds,
 } from './src/entities/onboarding/transfer';
 import {
   withAuthErrorStage,
@@ -36,6 +37,7 @@ import {
 import {
   deleteAccount,
   getLinkedDeletionProviders,
+  isServerSideDeletionFailure,
   type AccountDeletionProvider,
   type DeleteAccountRequest,
 } from './src/lib/auth/deleteAccount';
@@ -45,6 +47,7 @@ import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import {
   clearSpringSession,
   getSpringMemberId,
+  LocalSessionCleanupError,
   getSpringTokens,
   logoutSpringSession,
   onSpringSessionChange,
@@ -74,8 +77,7 @@ import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
-// 대기함 흐름을 다시 사용할 때 복원합니다.
-// import { InBoxScreen } from './src/pages/inBox/inBoxScreen';
+// 대기함(inBoxScreen, inbox-api)은 Supabase 전용이라 삭제했습니다. 다시 쓰려면 Spring API로 새로 만들어야 합니다.
 import { HistoryScreen } from './src/pages/history/HistoryScreen';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
@@ -338,8 +340,8 @@ function App() {
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  // TODO(spring-migration): 온보딩 게시물 이전을 Spring으로 옮기면 완료 시 값을 올려 회원 데이터를 다시 읽습니다.
-  const [memberDataRevision] = useState(0);
+  const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
+  const [memberDataRevision, setMemberDataRevision] = useState(0);
   const hasSignedInOnThisInstallRef = useRef(false);
   const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
@@ -478,6 +480,18 @@ function App() {
 
   useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
 
+  // 비회원이 지운 시드 장소는 메모리에만 두고, 다음 비회원 진입 때 시드로 되돌립니다.
+  useEffect(() => {
+    if (isAuthenticated !== false) {
+      setGuestPlaces(ONBOARDING_PLACES);
+    }
+  }, [isAuthenticated]);
+
+  const deleteGuestPlaces = useCallback((placeIds: string[]) => {
+    const deletedIds = new Set(placeIds);
+    setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated === true && hasCompletedGuide === true) {
       hasSignedInOnThisInstallRef.current = true;
@@ -589,8 +603,31 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    // TODO(spring-migration): 온보딩 게시물 이전(entities/onboarding/transfer.ts)은 아직 Supabase 세션을
-    // 전제로 합니다. Spring 이전 전까지 호출하지 않아야 세션 없음 오류 Alert가 반복되지 않습니다.
+    const resumeOnboardingTransfer = (memberId: string, isNewMember?: boolean) => {
+      resumeGuestOnboardingTransfer(memberId, isNewMember)
+        .then(completed => {
+          if (
+            !isMounted ||
+            !completed ||
+            activeUserIdRef.current !== memberId
+          ) return;
+          transferErrorShownRef.current = false;
+          setMemberDataRevision(revision => revision + 1);
+        })
+        .catch(error => {
+          console.warn('군자역 게시물 저장 실패', error);
+          if (
+            !isMounted ||
+            activeUserIdRef.current !== memberId ||
+            transferErrorShownRef.current
+          ) return;
+          transferErrorShownRef.current = true;
+          Alert.alert(
+            '군자역 게시물을 저장하지 못했어요',
+            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
+          );
+        });
+    };
 
     const syncFlowState = async () => {
       const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
@@ -626,6 +663,7 @@ function App() {
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
+      if (memberId) resumeOnboardingTransfer(memberId);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -675,7 +713,7 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const unsubscribe = onSpringSessionChange((event, memberId) => {
+    const unsubscribe = onSpringSessionChange((event, memberId, details) => {
       if (event === 'SIGNED_IN') {
         resumeWaitingShares().catch(() => undefined);
       }
@@ -715,6 +753,7 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
+      if (memberId) resumeOnboardingTransfer(memberId, details?.isNewMember);
     });
 
     return () => {
@@ -725,6 +764,33 @@ function App() {
       unsubscribe();
     };
   }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
+
+  useEffect(() => {
+    if (isAuthenticated !== true) return;
+
+    let isActive = true;
+    const subscription = AppState.addEventListener('change', state => {
+      if (state !== 'active') return;
+      getSpringMemberId()
+        .then(memberId => {
+          if (!memberId) return;
+          resumeGuestOnboardingTransfer(memberId)
+            .then(completed => {
+              if (
+                isActive &&
+                completed &&
+                activeUserIdRef.current === memberId
+              ) setMemberDataRevision(revision => revision + 1);
+            })
+            .catch(error => console.warn('군자역 게시물 재시도 실패', error));
+        })
+        .catch(() => undefined);
+    });
+    return () => {
+      isActive = false;
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
@@ -851,6 +917,27 @@ function App() {
             !result.reelId
           ) {
             clearShareResult(result.requestId).catch(() => undefined);
+            // 공유 익스텐션은 401을 AUTH401_001로 남긴다(Android는 "AUTH401_001 | 메시지 | HTTP_401").
+            // 추출 실패가 아니라 로그인 문제이므로 다시 로그인하거나 다시 공유하도록 안내한다.
+            if (result.failureReason?.startsWith('AUTH401')) {
+              getSpringTokens()
+                .then(tokens => {
+                  if (tokens) {
+                    Alert.alert(
+                      '공유한 게시물을 저장하지 못했어요',
+                      '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+                    );
+                    return;
+                  }
+                  setFlowState(INITIAL_FLOW_STATE);
+                  Alert.alert(
+                    '로그인이 필요해요',
+                    '다시 로그인한 뒤 게시물을 공유해 주세요.',
+                  );
+                })
+                .catch(() => undefined);
+              return;
+            }
             Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
@@ -957,7 +1044,7 @@ function App() {
 
     try {
       if (isAuthenticated === false && hasCompletedGuide === true) {
-        await beginGuestOnboardingTransfer();
+        await beginGuestOnboardingTransfer(toOnboardingKakaoPlaceIds(guestPlaces));
       }
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
       if (!(await getSpringTokens().catch(() => null))) {
@@ -1034,6 +1121,12 @@ function App() {
     setFlowState(INITIAL_FLOW_STATE);
   };
 
+  // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
+  const handleBrowseAsGuest = () => {
+    setSocialLoginError(null);
+    setFlowState(GUEST_MAIN_FLOW_STATE);
+  };
+
   const handleContinueBrowsing = () => {
     const previousFlow = guestReturnFlowRef.current;
     if (!previousFlow) return;
@@ -1054,12 +1147,18 @@ function App() {
 
     setIsLogoutPending(true);
 
-    // logoutSpringSession이 공유 세션을 먼저 지우고, 서버 로그아웃이 실패하면 되돌린 뒤 throw합니다.
+    // 로컬 중심 로그아웃: 서버 세션 폐기는 best-effort이고, 로컬 정리가 끝나면 SIGNED_OUT으로
+    // 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
     try {
-      await logoutSpringSession();
+      const result = await logoutSpringSession();
+      if (!result.serverConfirmed) {
+        // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
+      }
       return;
-    } catch {
-      // 아래에서 안내합니다.
+    } catch (error) {
+      if (error instanceof LocalSessionCleanupError) {
+        // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
+      }
     }
 
     setIsLogoutPending(false);
@@ -1091,14 +1190,30 @@ function App() {
   };
 
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
-    await deleteAccount(payload);
+    try {
+      await deleteAccount(payload);
+    } catch (error) {
+      // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 탈퇴 화면에서 안내한다.
+      if (!isServerSideDeletionFailure(error)) throw error;
+      // 서버·네트워크 실패는 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리한다.
+      // TODO(sentry): 탈퇴 서버 실패 알림 (회원 ID: activeUserIdRef.current, 제공자: currentProfile?.oauthProvider, error)
+    }
+
+    // 서버 회원은 삭제됐거나 수동 삭제 대상이므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지운다.
+    try {
+      await clearSpringSession();
+    } catch {
+      // TODO(analytics): account_deletion_local_cleanup_failed 이벤트 기록
+      Alert.alert(
+        '회원탈퇴를 마무리하지 못했어요',
+        '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
+      );
+      return;
+    }
 
     setCurrentProfile(null);
     setProfileError(null);
     setMyPageOverlay(null);
-
-    // 서버 회원은 이미 삭제됐으므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지웁니다.
-    await clearSpringSession().catch(() => undefined);
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
@@ -1165,6 +1280,13 @@ function App() {
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
           onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
+          onBrowseAsGuest={
+            isAuthenticated === false &&
+            !guestReturnFlowRef.current &&
+            !hasPendingShareLogin
+              ? handleBrowseAsGuest
+              : undefined
+          }
         />
       );
     }
@@ -1206,7 +1328,10 @@ function App() {
           }
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
+          places={isAuthenticated === false ? guestPlaces : undefined}
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
+          }
           onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
@@ -1246,7 +1371,10 @@ function App() {
               : `member-map-${memberDataRevision}`
           }
           isGuest={isAuthenticated === false}
-          guestPlaces={isAuthenticated === false ? ONBOARDING_PLACES : undefined}
+          guestPlaces={isAuthenticated === false ? guestPlaces : undefined}
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
+          }
           onAuthenticationRequired={handleRequireLogin}
         />
       );
@@ -1262,6 +1390,9 @@ function App() {
             isAuthenticated === false
               ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
               : undefined
+          }
+          onDeleteGuestPlaces={
+            isAuthenticated === false ? deleteGuestPlaces : undefined
           }
           viewContext={selectedPlaceViewContext ?? undefined}
         />

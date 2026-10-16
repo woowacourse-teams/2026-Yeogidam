@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {Alert} from 'react-native';
 
 import App from '../App';
 import {
+  clearSpringSession,
   getSpringMemberId,
   getSpringTokens,
   onSpringSessionChange,
@@ -88,6 +90,8 @@ jest.mock('../src/entities/onboarding/transfer', () => ({
   beginGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
   cancelGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
   resumeGuestOnboardingTransfer: jest.fn(() => Promise.resolve(false)),
+  toOnboardingKakaoPlaceIds: (places: Array<{kakaoPlaceId?: string}>) =>
+    places.flatMap(place => (place.kakaoPlaceId ? [place.kakaoPlaceId] : [])),
 }));
 
 jest.mock('../src/lib/auth/signInWithGoogle', () => ({
@@ -97,6 +101,8 @@ jest.mock('../src/lib/auth/signInWithGoogle', () => ({
 jest.mock('../src/lib/auth/deleteAccount', () => ({
   deleteAccount: jest.fn(() => Promise.resolve()),
   getLinkedDeletionProviders: jest.fn(() => []),
+  isServerSideDeletionFailure: jest.requireActual('../src/lib/auth/deleteAccount')
+    .isServerSideDeletionFailure,
 }));
 
 jest.mock('../src/pages/guide/AppGuideScreen', () => ({
@@ -115,10 +121,6 @@ jest.mock('../src/pages/map/MapScreen', () => ({
   MapScreen: () => null,
 }));
 
-jest.mock('../src/pages/inBox/inBoxScreen', () => ({
-  InBoxScreen: () => null,
-}));
-
 jest.mock('../src/pages/history/HistoryScreen', () => ({
   HistoryScreen: () => null,
 }));
@@ -131,7 +133,11 @@ jest.mock('../src/pages/my-page/AccountDeletionScreen', () => ({
   AccountDeletionScreen: () => null,
 }));
 
-type AuthChangeHandler = (event: string, memberId: string | null) => void;
+type AuthChangeHandler = (
+  event: string,
+  memberId: string | null,
+  details?: {isNewMember?: boolean},
+) => void;
 
 const SPRING_TOKENS = {
   accessToken: 'token',
@@ -439,6 +445,12 @@ test('로그아웃하면 회원 메인에서 로그인 화면으로 이동한다
   });
   expect(renderer.root.findAllByType(SavedPlacesScreen)).toHaveLength(0);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+
+  // 로그인 화면의 "로그인 없이 둘러보기"로 비회원 메인에 들어간다.
+  const onBrowseAsGuest = renderer.root.findByType(LoginScreen).props.onBrowseAsGuest;
+  expect(onBrowseAsGuest).toEqual(expect.any(Function));
+  await ReactTestRenderer.act(async () => onBrowseAsGuest());
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -499,14 +511,44 @@ test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하�
   expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
 
   await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', 'new-user');
+    authChangeHandler('SIGNED_IN', 'new-user', {isNewMember: true});
     await Promise.resolve();
   });
 
-  // TODO(spring-migration): 온보딩 이전 API를 Spring으로 옮기기 전까지 이어 받기는 멈춰 둡니다.
-  expect(resumeGuestOnboardingTransfer).not.toHaveBeenCalled();
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('new-user', true);
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원이 지운 시드 장소는 빼고 남은 장소로 전환을 시작한다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  const renderer = await renderAfterSplash();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root
+      .findByType(SavedPlacesScreen)
+      .props.onDeleteGuestPlaces(['onboarding-1775568752', 'onboarding-137070444']);
+  });
+  expect(
+    renderer.root.findByType(SavedPlacesScreen).props.places.map(
+      (place: {id: string}) => place.id,
+    ),
+  ).not.toContain('onboarding-1775568752');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onRequireLogin();
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
+  });
+
+  expect(beginGuestOnboardingTransfer).toHaveBeenCalledWith([
+    '337953507',
+    '98016856',
+    '1107844606',
+  ]);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -524,7 +566,8 @@ test('이전에 로그인한 기기에서도 새 계정 로그인 시 군자역 
     authChangeHandler('SIGNED_IN', 'another-new-user');
     await Promise.resolve();
   });
-  expect(resumeGuestOnboardingTransfer).not.toHaveBeenCalled();
+  // 신규 여부를 내리기 전 서버 응답이면 전환 모듈이 공유 이력으로 판별한다.
+  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('another-new-user', undefined);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -584,5 +627,98 @@ test('새 설치에서 복원된 세션이 무효화되면 온보딩 후 비회�
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다시 공유하도록 안내한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession();
+  (getShareResults as jest.Mock).mockResolvedValueOnce([{
+    requestId: 'expired-share-request',
+    url: '',
+    status: 'FAILED',
+    transferStatus: 'API_FAILED',
+    failureReason: 'AUTH401_001 | 인증 토큰이 유효하지 않습니다. | HTTP_401',
+    retryable: false,
+    updatedAt: Date.now(),
+  }]);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(clearShareResult).toHaveBeenCalledWith('expired-share-request');
+  expect(alertSpy).toHaveBeenCalledWith(
+    '공유한 게시물을 저장하지 못했어요',
+    '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+  );
+  expect(alertSpy).not.toHaveBeenCalledWith('장소 추출 실패', expect.anything());
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+async function openAccountDeletion() {
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession('member-7');
+  (getCurrentProfile as jest.Mock).mockResolvedValue({id: '7', oauthProvider: 'KAKAO'});
+  (getLinkedDeletionProviders as jest.Mock).mockReturnValue(['kakao']);
+  const renderer = await renderAfterSplash();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(MyPageScreen).props.onWithdraw();
+  });
+  return renderer;
+}
+
+test('회원탈퇴가 서버·네트워크 문제로 실패하면 탈퇴된 것처럼 처리한다', async () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  (deleteAccount as jest.Mock).mockRejectedValueOnce({
+    status: null,
+    errorCode: 'CLIENT000_001',
+    message: '인터넷 연결을 확인해주세요.',
+    retryable: true,
+  });
+  const renderer = await openAccountDeletion();
+
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(AccountDeletionScreen).props.onDeleteAccount({
+      confirmation: 'DELETE',
+      providerTokens: {kakao: 'code'},
+    });
+  });
+
+  expect(clearSpringSession).toHaveBeenCalled();
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  expect(alertSpy).toHaveBeenCalledWith('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('재인증 문제로 회원탈퇴가 실패하면 탈퇴 화면에 오류를 돌려준다', async () => {
+  const reauthError = {
+    status: 401,
+    errorCode: 'USER401_001',
+    message: '계정 보호를 위해 다시 로그인해주세요.',
+    retryable: true,
+  };
+  (deleteAccount as jest.Mock).mockRejectedValueOnce(reauthError);
+  const renderer = await openAccountDeletion();
+
+  let thrown: unknown;
+  await ReactTestRenderer.act(async () => {
+    await renderer.root
+      .findByType(AccountDeletionScreen)
+      .props.onDeleteAccount({confirmation: 'DELETE', providerTokens: {kakao: 'code'}})
+      .catch((error: unknown) => {
+        thrown = error;
+      });
+  });
+
+  expect(thrown).toBe(reauthError);
+  expect(clearSpringSession).not.toHaveBeenCalled();
+  expect(renderer.root.findAllByType(AccountDeletionScreen)).toHaveLength(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

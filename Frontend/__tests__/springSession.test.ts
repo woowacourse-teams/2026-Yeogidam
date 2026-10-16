@@ -102,7 +102,8 @@ test('다른 쪽에서 막 교체한 토큰은 지우지 않는다', async () =>
     new ApiError({kind: 'http', status: 401, errorCode: 'AUTH401_005', message: 'rotated'}),
   );
 
-  await expect(refreshSpringSession()).rejects.toMatchObject({errorCode: 'AUTH401_005'});
+  // 새 토큰이 끝내 보이지 않으면 로그아웃 대신 다시 시도할 수 있는 오류로 알린다.
+  await expect(refreshSpringSession()).rejects.toMatchObject({kind: 'timeout'});
   expect((await getSpringTokens())?.refreshToken).toBe('refresh-1');
 });
 
@@ -110,8 +111,8 @@ test('로그아웃이 성공하면 서버 세션을 끝낸 뒤 로컬 토큰을 
   stored = JSON.stringify(tokens('access-1', 'refresh-1', 60));
   jest.mocked(revokeSpringSession).mockResolvedValue(undefined);
 
-  await logoutSpringSession();
+  await expect(logoutSpringSession()).resolves.toEqual({serverConfirmed: true});
 
-  expect(revokeSpringSession).toHaveBeenCalledWith('refresh-1');
+  expect(revokeSpringSession).toHaveBeenCalledWith('refresh-1', {timeoutMs: 5_000});
   expect(await getSpringTokens()).toBeNull();
 });

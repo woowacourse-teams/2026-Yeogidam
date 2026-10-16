@@ -71,6 +71,8 @@ type PlaceResultSheetProps = {
   onAuthenticationRequired?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
   guestReelsByPlace?: Record<string, PlaceReel[]>;
+  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
+  onDeleteGuestPlaces?: (placeIds: string[]) => void;
 };
 
 export const COLLAPSED_SHEET_HEIGHT = 84;
@@ -122,7 +124,10 @@ export function PlaceResultSheet({
   onAuthenticationRequired,
   onSavedPlaceDeleted,
   guestReelsByPlace,
+  onDeleteGuestPlaces,
 }: PlaceResultSheetProps) {
+  const canOpenDetailMore =
+    guestReelsByPlace === undefined || onDeleteGuestPlaces !== undefined;
   const posthog = usePostHog();
   const { width: windowWidth } = useWindowDimensions();
   const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
@@ -700,7 +705,7 @@ export function PlaceResultSheet({
     if (
       detailMoreSignal === handledDetailMoreSignal.current ||
       !selectedPlace ||
-      guestReelsByPlace !== undefined
+      !canOpenDetailMore
     ) {
       return;
     }
@@ -708,10 +713,16 @@ export function PlaceResultSheet({
     handledDetailMoreSignal.current = detailMoreSignal;
     setDeleteError(null);
     setIsActionSheetVisible(true);
-  }, [detailMoreSignal, guestReelsByPlace, selectedPlace]);
+  }, [canOpenDetailMore, detailMoreSignal, selectedPlace]);
 
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
+      return;
+    }
+    if (onDeleteGuestPlaces) {
+      onDeleteGuestPlaces([selectedPlace.id]);
+      setIsActionSheetVisible(false);
+      backToPlaceList();
       return;
     }
     if (!selectedPlace.savedPlaceId) {
@@ -762,6 +773,7 @@ export function PlaceResultSheet({
     backToPlaceList,
     isDeleting,
     onAuthenticationRequired,
+    onDeleteGuestPlaces,
     onSavedPlaceDeleted,
     selectedPlace,
   ]);
@@ -826,7 +838,7 @@ export function PlaceResultSheet({
               actionsUnderTitle={!isPageMode && activeSnapIndex === 2}
               titleInHeader
               onInteractivePressIn={ignoreCollapsedBodyTapOnPressIn}
-              onPressMore={guestReelsByPlace === undefined ? () => {
+              onPressMore={canOpenDetailMore ? () => {
                 setDeleteError(null);
                 setIsActionSheetVisible(true);
               } : undefined}
@@ -843,7 +855,7 @@ export function PlaceResultSheet({
               }
             />
             <PlaceDetailActionSheet
-              visible={isActionSheetVisible && guestReelsByPlace === undefined}
+              visible={isActionSheetVisible && canOpenDetailMore}
               onClose={() => {
                 setDeleteError(null);
                 setIsActionSheetVisible(false);

@@ -37,8 +37,6 @@
 | Secret | 내용 |
 | --- | --- |
 | `KAKAO_NATIVE_APP_KEY` | Kakao 네이티브 앱 키 |
-| `SUPABASE_URL` | beta 앱의 Supabase URL |
-| `SUPABASE_PUBLISHABLE_KEY` | beta 앱의 Supabase publishable key |
 | `POSTHOG_PROJECT_TOKEN` | beta 앱의 PostHog 프로젝트 토큰 |
 | `POSTHOG_HOST` | beta 앱의 PostHog 이벤트 수집 호스트 |
 | `ANDROID_UPLOAD_KEYSTORE_BASE64` | Play App Signing 업로드 keystore 파일의 Base64 |

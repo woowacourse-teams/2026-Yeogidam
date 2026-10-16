@@ -19,7 +19,7 @@ type SpringShareResponse = {
   extractionStatus: SpringExtractionStatus;
 };
 
-type SpringShareHistoryItem = {
+export type SpringShareHistoryItem = {
   sharedMediaId: number;
   createdAt: string;
   thumbnailUrl: string | null;

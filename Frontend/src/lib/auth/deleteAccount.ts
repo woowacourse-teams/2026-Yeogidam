@@ -102,11 +102,8 @@ function toDeleteAccountAuthError(
   error: NormalizedAuthError,
 ): DeleteAccountError {
   if (error.errorCode === 'AUTH000_001') {
-    return {
-      ...error,
-      errorCode: 'USER401_001',
-      message: '계정 보호를 위해 다시 로그인해주세요.',
-    };
+    // 사용자가 인증 창을 닫은 경우다. 탈퇴 화면은 이 코드를 오류로 보여주지 않는다.
+    return deletionError('AUTH000_001', null, '인증이 취소됐어요.', true);
   }
 
   if (error.errorCode === 'AUTH400_001') {
@@ -149,8 +146,15 @@ function toDeleteAccountApiError(error: unknown): DeleteAccountError {
   if (error.kind !== 'http') return fallbackDeleteAccountError(null);
 
   const status = error.status ?? null;
-  // 서버가 인가 코드를 거절하면 사용자가 다시 인증해야 합니다.
-  if (error.errorCode === 'AUTH401_002') return createDeleteAccountReauthError();
+  // 서버는 재인증한 계정이 가입 계정과 다르거나 코드가 무효하면 AUTH401_002로 거절합니다.
+  if (error.errorCode === 'AUTH401_002') {
+    return deletionError(
+      'USER401_001',
+      401,
+      '가입한 계정으로 다시 인증해주세요.',
+      true,
+    );
+  }
 
   const fallback = fallbackDeleteAccountError(status);
   return {
@@ -159,6 +163,21 @@ function toDeleteAccountApiError(error: unknown): DeleteAccountError {
     errorCode: error.errorCode ?? fallback.errorCode,
     message: error.errorCode ? error.message : fallback.message,
   };
+}
+
+/**
+ * 서버·네트워크 문제로 탈퇴 결과를 알 수 없는 실패인지 판단합니다.
+ * 이 경우 앱은 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리합니다.
+ * 재인증 코드 만료·다른 계정 재인증처럼 사용자가 고칠 수 있는 실패(4xx)는 해당하지 않습니다.
+ */
+export function isServerSideDeletionFailure(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const {errorCode, status} = error as Partial<DeleteAccountError>;
+  return (
+    errorCode === 'CLIENT000_001' ||
+    errorCode === 'CLIENT000_002' ||
+    (typeof status === 'number' && status >= 500)
+  );
 }
 
 export function getLinkedDeletionProviders(

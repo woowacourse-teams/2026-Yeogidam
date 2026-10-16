@@ -20,9 +20,13 @@ const KEYCHAIN_SERVICE = 'com.yeogidamm.app.spring-auth';
 const REFRESH_EARLY_MS = 30_000;
 
 export type SpringSessionEvent = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED';
+/** SIGNED_IN에만 담깁니다. 서버가 신규 여부를 내리지 않으면 isNewMember는 undefined입니다. */
+export type SpringSignInDetails = {isNewMember?: boolean};
+
 export type SpringSessionListener = (
   event: SpringSessionEvent,
   memberId: string | null,
+  details?: SpringSignInDetails,
 ) => void;
 
 /** Keychain 레코드는 토큰 쌍과 함께 공유 익스텐션 세션 대조용 회원 ID를 보관합니다. */
@@ -78,10 +82,15 @@ function toNativeShareSession(session: StoredSpringSession): NativeShareSession 
   };
 }
 
-function emit(event: SpringSessionEvent, memberId: string | null): void {
+function emit(
+  event: SpringSessionEvent,
+  memberId: string | null,
+  details?: SpringSignInDetails,
+): void {
   listeners.forEach(listener => {
     try {
-      listener(event, memberId);
+      if (details) listener(event, memberId, details);
+      else listener(event, memberId);
     } catch {
       // 구독자 오류가 세션 저장 흐름을 막지 않게 합니다.
     }
@@ -176,14 +185,6 @@ export async function clearSpringTokens(): Promise<void> {
   await Keychain.resetGenericPassword({service: KEYCHAIN_SERVICE});
 }
 
-/** 서버 호출 없이 앱과 공유 익스텐션의 세션을 지웁니다. 회원탈퇴 뒤에 사용합니다. */
-export async function clearSpringSession(): Promise<void> {
-  const memberId = await getSpringMemberId().catch(() => null);
-  await syncNativeShareSession(null);
-  await clearSpringTokens();
-  emit('SIGNED_OUT', memberId);
-}
-
 export async function loginWithSpringAuthorizationCode(
   provider: SpringOAuthProvider,
   authorizationCode: string,
@@ -208,7 +209,10 @@ export async function loginWithSpringAuthorizationCode(
     };
     await saveStoredRecord(session);
     await syncNativeShareSession(session);
-    emit('SIGNED_IN', session.memberId);
+    emit('SIGNED_IN', session.memberId, {
+      isNewMember:
+        typeof response.isNewMember === 'boolean' ? response.isNewMember : undefined,
+    });
     return response;
   } catch (error) {
     throw withAuthErrorStage(error, 'session_persist');
@@ -219,6 +223,29 @@ async function expireSpringSession(memberId: string | null): Promise<void> {
   await syncNativeShareSession(null);
   await clearSpringTokens();
   emit('SIGNED_OUT', memberId);
+}
+
+const ROTATED_SESSION_POLL_MS = 300;
+const ROTATED_SESSION_POLL_ATTEMPTS = 5;
+
+/**
+ * AUTH401_005는 다른 프로세스(공유 익스텐션)가 방금 같은 리프레시 토큰을 회전했다는 뜻입니다.
+ * 그 프로세스가 새 토큰을 공유 저장소에 쓰기까지 잠시 기다렸다가 채택합니다. 끝내 보이지 않으면
+ * 로그아웃하지 않고 다시 시도할 수 있는 오류로 알립니다.
+ */
+async function waitForRotatedSession(previousRefreshToken: string): Promise<SpringTokenPair> {
+  for (let attempt = 0; attempt < ROTATED_SESSION_POLL_ATTEMPTS; attempt += 1) {
+    await new Promise<void>(resolve => setTimeout(resolve, ROTATED_SESSION_POLL_MS));
+    const stored = await readStoredSession();
+    if (stored && stored.refreshToken !== previousRefreshToken) {
+      return toTokenPair(stored);
+    }
+  }
+
+  throw new ApiError({
+    kind: 'timeout',
+    message: '로그인 정보를 확인하고 있어요. 잠시 후 다시 시도해주세요.',
+  });
 }
 
 async function rotateSpringTokens(): Promise<SpringTokenPair | null> {
@@ -244,14 +271,14 @@ async function rotateSpringTokens(): Promise<SpringTokenPair | null> {
     return toTokenPair(session);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
-      // AUTH401_005는 다른 프로세스가 방금 회전한 경우라 저장소를 다시 읽습니다.
       const stored = await readStoredSession();
       if (stored && stored.refreshToken !== existing.refreshToken) {
         return toTokenPair(stored);
       }
-      if (error.errorCode !== 'AUTH401_005') {
-        await expireSpringSession(existing.memberId);
+      if (error.errorCode === 'AUTH401_005') {
+        return waitForRotatedSession(existing.refreshToken);
       }
+      await expireSpringSession(existing.memberId);
     }
     throw error;
   }
@@ -278,35 +305,65 @@ export async function getSpringAccessToken(): Promise<string | null> {
   return (await refreshSpringSession())?.accessToken ?? null;
 }
 
-/**
- * 공유 익스텐션이 폐기될 토큰으로 요청하지 않도록 공유 세션을 먼저 지운 뒤 서버 세션을 끝냅니다.
- * 서버 호출이 실패하면 공유 세션을 되돌리고 오류를 전달합니다.
- */
-export async function logoutSpringSession(): Promise<void> {
-  await refreshInFlight?.catch(() => undefined);
-  const session = await readStoredSession();
-  if (!session) {
-    await syncNativeShareSession(null);
-    emit('SIGNED_OUT', null);
-    return;
+const LOGOUT_SERVER_TIMEOUT_MS = 5_000;
+
+/** 로컬 인증 정보(앱 Keychain, 공유 익스텐션 세션 사본)를 지우지 못했을 때 던집니다. */
+export class LocalSessionCleanupError extends Error {
+  readonly cause: unknown;
+
+  constructor(cause: unknown) {
+    super('로컬 인증 정보를 지우지 못했어요.');
+    this.name = 'LocalSessionCleanupError';
+    this.cause = cause;
   }
+}
 
-  const sharedSnapshot = await getShareSession().catch(() => null);
-  await syncNativeShareSession(null);
+export type SpringLogoutResult = {
+  /** 서버가 세션 폐기를 확인했는지(2xx) 여부입니다. false면 리프레시 토큰이 서버에 남아 있을 수 있습니다. */
+  serverConfirmed: boolean;
+  serverError?: unknown;
+};
 
+/**
+ * 앱 Keychain과 공유 익스텐션의 세션 사본(iOS App Group, Android 암호화 저장소)을 모두 지웁니다.
+ * 공유 세션을 먼저 지워 익스텐션이 이전 계정으로 저장하지 않게 합니다.
+ */
+async function clearLocalSession(): Promise<void> {
   try {
-    await revokeSpringSession(session.refreshToken);
+    await syncShareSession(null);
+    await clearSpringTokens();
   } catch (error) {
-    // 이미 무효인 리프레시 토큰이면 서버 세션도 끝난 상태라 로컬 정리만 진행합니다.
-    if (!(error instanceof ApiError && error.status === 401)) {
-      if (sharedSnapshot) {
-        await syncShareSession(sharedSnapshot).catch(() => undefined);
-      }
-      throw error;
+    throw new LocalSessionCleanupError(error);
+  }
+}
+
+/** 서버 호출 없이 앱과 공유 익스텐션의 세션을 지웁니다. 회원탈퇴 뒤에 사용합니다. */
+export async function clearSpringSession(): Promise<void> {
+  const memberId = await getSpringMemberId().catch(() => null);
+  await clearLocalSession();
+  emit('SIGNED_OUT', memberId);
+}
+
+/**
+ * 로컬 중심 로그아웃입니다. 서버 세션 폐기는 best-effort로 시도하고 결과만 돌려주며,
+ * 실패해도 로컬 로그아웃을 막지 않습니다. 로컬 정리에 실패하면 로그아웃하지 않고
+ * LocalSessionCleanupError를 던집니다.
+ */
+export async function logoutSpringSession(): Promise<SpringLogoutResult> {
+  await refreshInFlight?.catch(() => undefined);
+  const session = await readStoredSession().catch(() => null);
+
+  let result: SpringLogoutResult = {serverConfirmed: false};
+  if (session) {
+    try {
+      await revokeSpringSession(session.refreshToken, {timeoutMs: LOGOUT_SERVER_TIMEOUT_MS});
+      result = {serverConfirmed: true};
+    } catch (error) {
+      result = {serverConfirmed: false, serverError: error};
     }
   }
 
-  const stored = await readStoredRecord();
-  if (stored && stored.memberId === session.memberId) await clearSpringTokens();
-  emit('SIGNED_OUT', session.memberId);
+  await clearLocalSession();
+  emit('SIGNED_OUT', session?.memberId ?? null);
+  return result;
 }
