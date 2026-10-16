@@ -21,19 +21,6 @@ type SavedPlacesLoadState =
 const LOADING: SavedPlacesLoadState = {status: 'loading'};
 const SUCCESS: SavedPlacesLoadState = {status: 'success'};
 
-/**
- * 목록을 읽은 결과입니다. applied만 화면과 캐시에 반영합니다.
- * superseded는 더 새 요청에 밀린 응답입니다. cleared는 읽는 동안 캐시 세대가 바뀌었는데 캐시가 비어 있는 경우로,
- * 세션이 끝나 캐시를 비웠을 때(화면도 곧 내려감)와 캐시가 없는 첫 읽기 동안 다른 화면에서 장소를 지웠을 때이며 다시 읽지 않습니다.
- * stale은 읽는 동안 장소를 지워(캐시 세대가 바뀜) 지운 장소가 들어 있는 응답을 두 번 다 버린 결과입니다.
- */
-type SavedPlacesReadResult =
-  | {type: 'applied'; places: Place[]}
-  | {type: 'superseded'}
-  | {type: 'cleared'}
-  | {type: 'stale'}
-  | {type: 'failed'};
-
 type Options = {
   /** 비회원 체험 장소처럼 API 대신 쓸 목록입니다. 있으면 API를 부르지 않습니다. */
   providedPlaces: Place[] | undefined;
@@ -59,11 +46,13 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
   const loadRequestIdRef = useRef(0);
 
   /**
-   * 목록을 한 번 읽어 응답을 반영할 수 있으면 반영하고, 어떻게 끝났는지 돌려줍니다.
-   * 읽는 동안 장소를 지워 응답이 낡았으면 canRetry일 때만 한 번 더 읽습니다. 다시 읽기 시작과 읽기 끝내기(SUCCESS)는
-   * 요청 번호를 비교한 같은 동기 구간에서 해야, 그사이에 시작한 다른 읽기의 loading을 덮거나 그 읽기와 밀리는 순서가 바뀌지 않습니다.
+   * 목록을 읽어 반영하고 반영한 목록을 돌려줍니다. 반영하지 못했으면 null입니다. 조회가 실패했거나, 더 새 요청에 밀렸거나,
+   * 읽는 동안 캐시 세대가 바뀌었는데 캐시가 비어 있거나(세션이 끝나 비웠거나 캐시 없는 첫 읽기 동안 다른 화면에서 지움),
+   * 읽는 동안 장소를 지워 응답이 낡았는데 canRetry가 아니거나 다시 읽는 동안에도 지웠을 때입니다.
+   * 낡은 응답을 버리고 다시 읽기를 시작하거나 읽기를 끝내는(SUCCESS) 일은 요청 번호와 캐시 세대를 비교한 같은 동기 구간에서 합니다.
+   * 한 틱이라도 미루면 그사이에 시작한 다른 읽기의 loading을 덮고, 그 읽기와 밀리는 순서가 바뀌며, 그사이에 바뀐 세대를 놓칩니다.
    */
-  const readSavedPlaces = useCallback(async (canRetry: boolean): Promise<SavedPlacesReadResult> => {
+  const readSavedPlaces = useCallback(async (canRetry: boolean): Promise<Place[] | null> => {
     const requestId = loadRequestIdRef.current + 1;
     loadRequestIdRef.current = requestId;
     const cacheGeneration = getSavedPlacesCacheGeneration();
@@ -71,48 +60,49 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
     try {
       const savedPlaces = await getSavedPlaces();
       if (requestId !== loadRequestIdRef.current) {
-        return {type: 'superseded'};
+        // 더 새 요청에 밀렸다.
+        return null;
       }
       if (cacheGeneration !== getSavedPlacesCacheGeneration()) {
+        // 읽는 동안 세대가 바뀌었는데 캐시가 비어 있으면 화면도 곧 내려가므로 응답을 버리고 끝낸다.
         if (readSavedPlacesCache() === null) {
-          return {type: 'cleared'};
+          return null;
         }
+        // 읽는 동안 지운 장소가 응답에 들어 있으므로 버리고 같은 동기 구간에서 바로 한 번 더 읽는다.
+        // await하지 않아, 다시 읽기의 거부를 바깥 catch가 밀림으로 보아 null로 바꾸지 않게 한다.
         if (canRetry) {
           return readSavedPlaces(false);
         }
+        // 다시 읽는 동안에도 지웠으면 그 응답도 버리고 화면이 들고 있는 목록을 둔 채 읽기를 끝낸다.
         setLoadState(SUCCESS);
-        return {type: 'stale'};
+        return null;
       }
       const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
       writeSavedPlacesCache(nextPlaces, cacheGeneration);
       setPlaces(nextPlaces);
       setLoadState(SUCCESS);
-      return {type: 'applied', places: nextPlaces};
+      return nextPlaces;
     } catch (nextError) {
       if (requestId !== loadRequestIdRef.current) {
-        return {type: 'superseded'};
+        return null;
       }
       const apiError = normalizeScreenApiError(nextError);
       setLoadState({status: 'error', error: apiError});
       if (isLoginRequiredError(apiError)) {
         onAuthenticationRequiredRef.current?.();
       }
-      return {type: 'failed'};
+      return null;
     }
   }, []);
 
-  /**
-   * 목록을 읽어 반영하고 읽은 목록을 돌려줍니다. 반영하지 못했으면 null입니다. 조회가 실패했거나, 더 새 요청에 밀렸거나,
-   * 읽는 동안 세대가 바뀌었는데 캐시가 비어 있거나(cleared), 두 번 읽는 동안 두 번 다 장소를 지웠을 때(stale)입니다.
-   */
+  /** 목록을 읽어 반영하고 반영한 목록을 돌려줍니다. 반영하지 못해 null인 경우는 readSavedPlaces 설명에 있습니다. */
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
       setPlaces(providedPlaces);
       return providedPlaces;
     }
 
-    const read = await readSavedPlaces(true);
-    return read.type === 'applied' ? read.places : null;
+    return readSavedPlaces(true);
   }, [providedPlaces, readSavedPlaces]);
 
   /** 당겨서 새로고침합니다. 새로고침이 끝나기 전에 다시 당기면 무시합니다. */

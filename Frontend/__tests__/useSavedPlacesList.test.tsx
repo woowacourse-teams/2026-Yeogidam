@@ -103,7 +103,9 @@ test('읽는 동안 세션이 끝나 캐시를 비우면 응답을 버리고 다
   expect(getSavedPlaces).toHaveBeenCalledTimes(2);
 });
 
-test('두 번째 낡은 응답을 버리며 읽기를 끝내는 일은 그 응답을 처리하는 동기 구간에서 하므로, 같은 묶음에서 시작한 새 읽기의 읽는 중 상태를 덮지 않는다', async () => {
+// 아래 두 테스트는 두 가지에 기댑니다. then을 훅의 await보다 늦게 같은 deferred에 붙여 훅의 continuation 바로 다음에 돌게 하고,
+// 훅이 getSavedPlaces의 promise를 바로 기다린다는(사이에 then을 더하지 않는다는) 전제입니다. 훅 안에 틱을 더하면 동작과 상관없이 깨집니다.
+test('두 번째 낡은 응답을 받는 묶음에서 새 읽기가 시작되면, 새 읽기가 끝날 때까지 읽는 중으로 남는다', async () => {
   await renderLoaded([CAFE, BAKERY, RESTAURANT]);
   const lateLoad = deferred<SavedPlaceListItem[]>();
   const reload = deferred<SavedPlaceListItem[]>();
@@ -128,7 +130,7 @@ test('두 번째 낡은 응답을 버리며 읽기를 끝내는 일은 그 응�
   expect(names()).toEqual(['식당']);
 });
 
-test('첫 낡은 응답을 처리하는 같은 묶음에서 다른 읽기가 시작되면, 다시 읽기가 먼저 요청 번호를 받아 그 다른 읽기에 밀린다', async () => {
+test('첫 낡은 응답을 받는 묶음에서 다른 읽기가 시작되면, 처음 읽기는 null을, 다른 읽기는 자기가 읽은 목록을 돌려준다', async () => {
   await renderLoaded([CAFE, BAKERY]);
   const lateLoad = deferred<SavedPlaceListItem[]>();
   const retry = deferred<SavedPlaceListItem[]>();
