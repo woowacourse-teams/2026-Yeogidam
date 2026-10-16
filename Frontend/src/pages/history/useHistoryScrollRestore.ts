@@ -23,13 +23,14 @@ export function useHistoryScrollRestore({
   const shouldRestoreScrollRef = useRef(false);
 
   useEffect(() => {
-    // TODO(review): 위치가 0이라 되돌리지 않을 때도 표시를 지우지 않아, 나중에 항목 수가 바뀌면 그때의 위치로 scrollTo를 한 번 부릅니다.
-    if (
-      !listVisible ||
-      loading ||
-      !shouldRestoreScrollRef.current ||
-      scrollOffsetRef.current <= 0
-    ) {
+    if (!listVisible || loading || !shouldRestoreScrollRef.current) {
+      return;
+    }
+
+    // 맨 위에서 상세를 열었다가 돌아오면 되돌릴 위치가 없으므로 표시만 지웁니다.
+    // 표시를 남기면 나중에 항목 수가 바뀔 때 그때의 위치로 scrollTo가 한 번 불려 스크롤이 튑니다.
+    if (scrollOffsetRef.current <= 0) {
+      shouldRestoreScrollRef.current = false;
       return;
     }
 

@@ -880,8 +880,7 @@ test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('스크롤 없이 상세에서 돌아오면 복원 표시가 남아, 나중에 항목 수가 바뀔 때 그때의 위치로 한 번 스크롤한다', async () => {
-  // 지금 동작을 고정한다. useHistoryScrollRestore의 TODO(review)가 가리키는 동작이다.
+test('스크롤 없이 상세에서 돌아오면 복원 표시를 지워, 나중에 항목 수가 바뀌어도 스크롤을 옮기지 않는다', async () => {
   jest
     .mocked(getHistoryReels)
     .mockResolvedValueOnce({reels: page([2, 1]), nextCursor: null})
@@ -897,8 +896,51 @@ test('스크롤 없이 상세에서 돌아오면 복원 표시가 남아, 나중
   await tick(3000);
   expect(renderedIds(renderer)).toEqual(['3', '2', '1']);
   await tick(0);
-  expect(scrollToMock(renderer)).toHaveBeenCalledTimes(1);
-  expect(scrollToMock(renderer)).toHaveBeenCalledWith({y: 500, animated: false});
+  expect(scrollToMock(renderer)).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('빈 목록에서 폴링이 실패하면 오류 화면을 보이고, 다음 폴링이 성공하면 목록을 보인다', async () => {
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: [], nextCursor: null})
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({reels: page([1]), nextCursor: null});
+  const renderer = await render();
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
+
+  await tick(3000);
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(true);
+
+  await tick(3000);
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
+  expect(renderedIds(renderer)).toEqual(['1']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('재시도 접수 뒤 다시 읽기가 실패해도 목록을 유지하고 다음 폴링 결과를 보인다', async () => {
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([7], 'FAILED'), nextCursor: null})
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({reels: [reel(8, 'PROCESSING'), reel(7, 'FAILED')], nextCursor: null});
+  jest.mocked(retryHistoryReelExtraction).mockResolvedValue({
+    reelId: '8',
+    status: 'PROCESSING',
+    reused: false,
+  });
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+  await flush();
+  expect(getHistoryReels).toHaveBeenCalledTimes(2);
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
+  expect(renderedIds(renderer)).toEqual(['8', '7']);
+
+  await tick(3000);
+  expect(renderedIds(renderer)).toEqual(['8', '7']);
+  expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
+  alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
