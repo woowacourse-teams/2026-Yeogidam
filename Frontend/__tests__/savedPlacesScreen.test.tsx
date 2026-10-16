@@ -611,7 +611,7 @@ describe('링크 저장', () => {
     expect(onRequireLogin).toHaveBeenCalledTimes(1);
   });
 
-  test('저장 중에는 다시 저장하거나 대화상자를 닫지 않는다', async () => {
+  test('저장 중에는 입력을 고쳐도 보내는 중을 유지하고, 다시 저장하거나 대화상자를 닫지 않는다', async () => {
     const request = deferred<Awaited<ReturnType<typeof saveContent>>>();
     jest.mocked(saveContent).mockReturnValue(request.promise);
     const renderer = await renderLoaded([CAFE]);
@@ -620,6 +620,8 @@ describe('링크 저장', () => {
     await act(async () => {
       dialog(renderer).props.onSubmit();
     });
+    expect(dialog(renderer).props.isSubmitting).toBe(true);
+    await act(async () => dialog(renderer).props.onChangeValue(`${LINK}?igsh=1`));
     expect(dialog(renderer).props.isSubmitting).toBe(true);
 
     await act(async () => {
