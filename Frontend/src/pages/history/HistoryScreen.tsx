@@ -1,41 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Image,
-  Linking,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Animated,
-  type LayoutChangeEvent,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
 import {v4 as uuidv4} from 'uuid';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {
-  BOTTOM_NAVIGATION_BAR_HEIGHT,
-  getBottomNavigationBarOffset,
-} from '../../components/BottomNavigationBar';
 import {
   toExtractionFailureType,
   trackExtractionRequestFinished,
   trackExtractionRequestStarted,
-  trackHistoryContentDetailViewed,
   trackHistoryContentViewed,
   trackHistoryViewed,
   type HistoryVisibleState,
 } from '../../analytics/placeExtractionEvents';
-import RetryIcon from '../../assets/icons/actions/retry.svg';
-import ReportIcon from '../../assets/icons/actions/report.svg';
-import InstagramIcon from '../../assets/icons/social/instagram-color.svg';
 import {
-  getHistoryReelDetail,
   getHistoryReels,
-  reportHistoryReel,
   retryHistoryReelExtraction,
 } from '../../entities/content/history-api';
 import {normalizeReelError} from '../../entities/content/errors';
@@ -46,18 +30,15 @@ import {
 } from '../../entities/content/recent-shares-poller';
 import type {
   HistoryCursor,
-  HistoryPlace,
   HistoryReel,
   HistoryReelDetail,
 } from '../../entities/content/types';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
-import {
-  getHistoryFailureMessage,
-  getHistoryTitle,
-  getHistoryVisibleState,
-  groupHistoryReelsByDate,
-  hasResolvedHistoryTitle,
-} from './history-format';
+import {HistoryFailureDetail} from './components/HistoryFailureDetail';
+import {HistoryItem} from './components/HistoryItem';
+import {HistorySuccessDetail} from './components/HistorySuccessDetail';
+import {historyStyles} from './components/historyStyles';
+import {getHistoryVisibleState, groupHistoryReelsByDate} from './history-format';
 
 type HistoryScreenProps = {
   onBack: () => void;
@@ -66,447 +47,8 @@ type HistoryScreenProps = {
   onRequireLogin?: () => void;
 };
 
-const thumbnail =
-  'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
-
 const emptyCharacter =
   'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
-const placeThumbnail =
-  'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
-function HistoryItem({
-  reel,
-  onPress,
-  onLayout,
-}: {
-  reel: HistoryReel;
-  onPress?: () => void;
-  onLayout?: (event: LayoutChangeEvent) => void;
-}) {
-  const completed = reel.processing_status === 'COMPLETED';
-  const processing =
-    reel.processing_status === 'PENDING' ||
-    reel.processing_status === 'PROCESSING';
-  const title = getHistoryTitle(reel);
-  const metadataPending =
-    processing &&
-    (!reel.instagram_thumbnail_url || !hasResolvedHistoryTitle(reel));
-  const showSkeleton = metadataPending;
-  const label = completed ? '성공' : processing ? '처리중' : '실패';
-  const pulse = useRef(new Animated.Value(0.45)).current;
-
-  useEffect(() => {
-    if (!processing) {
-      pulse.stopAnimation();
-      pulse.setValue(1);
-      return;
-    }
-
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0.45,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [processing, pulse]);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={showSkeleton ? '새 히스토리를 불러오는 중' : undefined}
-      onPress={showSkeleton ? undefined : onPress}
-      onLayout={onLayout}
-      style={styles.item}
-    >
-      {showSkeleton ? (
-        <View style={[styles.thumbnail, styles.skeletonBlock]} />
-      ) : (
-        <Image
-          source={reel.local_thumbnail_source ?? { uri: reel.instagram_thumbnail_url ?? thumbnail }}
-          resizeMode="cover"
-          style={styles.thumbnail}
-        />
-      )}
-      <View style={styles.itemText}>
-        {showSkeleton ? (
-          <>
-            <View style={[styles.skeletonBadge, styles.skeletonBlock]} />
-            <View style={[styles.skeletonTitle, styles.skeletonBlock]} />
-          </>
-        ) : (
-          <>
-            <Animated.View
-              key={processing ? 'processing-badge' : 'static-badge'}
-              // eslint-disable-next-line react-native/no-inline-styles
-              style={{opacity: processing ? pulse : 1}}
-            >
-            <View
-              style={[
-                styles.badge,
-                completed
-                  ? styles.successBadge
-                  : processing
-                  ? styles.processingBadge
-                  : styles.failureBadge,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.badgeText,
-                  completed
-                    ? styles.successText
-                    : processing
-                    ? styles.processingText
-                    : styles.failureText,
-                ]}
-              >
-                {label}
-              </Text>
-            </View>
-            </Animated.View>
-            <Text numberOfLines={1} style={styles.title}>
-              {title}
-            </Text>
-          </>
-        )}
-      </View>
-      {!showSkeleton && !processing ? (
-        <Text style={styles.chevron}>›</Text>
-      ) : processing ? (
-        <Text
-          accessibilityElementsHidden
-          style={[styles.chevron, styles.hiddenChevron]}
-        >
-          ›
-        </Text>
-      ) : null}
-    </Pressable>
-  );
-}
-
-function useHistoryReelDetail(
-  reel: HistoryReel,
-  guestDetail?: HistoryReelDetail | null,
-) {
-  const [detail, setDetail] = useState<HistoryReelDetail | null>(guestDetail ?? null);
-  const [loading, setLoading] = useState(guestDetail === undefined);
-  const [error, setError] = useState(false);
-  // 폴링이 같은 항목을 새 객체로 바꿔도 다시 조회하지 않도록 ID가 바뀔 때만 읽는다.
-  const reelRef = useRef(reel);
-  reelRef.current = reel;
-
-  useEffect(() => {
-    if (guestDetail !== undefined) {
-      setDetail(guestDetail);
-      setLoading(false);
-      setError(false);
-      return;
-    }
-    setLoading(true);
-    setError(false);
-    getHistoryReelDetail(reelRef.current)
-      .then(setDetail)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [guestDetail, reel.id]);
-
-  return { detail, loading, error };
-}
-
-function HistorySuccessDetail({
-  onBack,
-  reel,
-  guestDetail,
-}: {
-  onBack: () => void;
-  reel: HistoryReel;
-  guestDetail?: HistoryReelDetail | null;
-}) {
-  const posthog = usePostHog();
-  const {bottom: bottomInset} = useSafeAreaInsets();
-  const detailBottomPadding =
-    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 24;
-  useEffect(() => {
-    trackHistoryContentDetailViewed(posthog, reel.id, 'success');
-  }, [posthog, reel.id]);
-  const { detail, loading, error } = useHistoryReelDetail(reel, guestDetail);
-  const displayReel = detail ?? reel;
-  const places =
-    detail?.extraction?.extraction_places
-      .map(item => item.place)
-      .filter((place): place is HistoryPlace => Boolean(place)) ?? [];
-  const originalUrl = displayReel.instagram_url;
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="히스토리 목록으로 돌아가기"
-          hitSlop={12}
-          onPress={onBack}
-          style={styles.backButton}
-        >
-          <Text style={styles.back}>‹</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>히스토리</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-      <ScrollView
-        contentContainerStyle={[
-          styles.detailContent,
-          {paddingBottom: detailBottomPadding},
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.detailHero}>
-          <Image
-            source={displayReel.local_thumbnail_source ?? { uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
-            resizeMode="cover"
-            style={styles.detailThumbnail}
-          />
-          <Text style={styles.detailTitle}>장소 분석이 완료되었어요!</Text>
-          <Text style={styles.detailSubtitle}>
-            {loading
-              ? '장소를 확인하고 있어요.'
-              : `총 ${places.length}개의 장소를 찾았어요`}
-          </Text>
-        </View>
-        <Pressable
-          disabled={!originalUrl}
-          onPress={() => {
-            if (originalUrl) {
-              Linking.openURL(originalUrl).catch(() => undefined);
-            }
-          }}
-          style={[styles.originalButton, !originalUrl && styles.disabledButton]}
-        >
-          <InstagramIcon width={28} height={27} />
-          <Text style={styles.originalText}>원본 릴스로 이동</Text>
-          <Text style={styles.detailChevron}>›</Text>
-        </Pressable>
-        <Text style={styles.foundTitle}>발견한 장소</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.placeRow}
-        >
-          {loading ? (
-            <Text style={styles.placeState}>장소를 불러오는 중이에요.</Text>
-          ) : error ? (
-            <Text style={styles.placeState}>장소를 불러오지 못했어요.</Text>
-          ) : places.length === 0 ? (
-            <Text style={styles.placeState}>발견한 장소가 없어요.</Text>
-          ) : (
-            places.map(place => (
-              // 히스토리의 장소는 보관함 저장 장소가 아니어서 상세 화면(삭제 등)으로 이동하지 않는다.
-              <View key={place.id} style={styles.placeCard}>
-                <Image
-                  source={place.local_thumbnail_source ?? { uri: place.thumbnail_url ?? placeThumbnail }}
-                  style={styles.placeImage}
-                />
-                <Text numberOfLines={1} style={styles.placeName}>
-                  {place.name}
-                </Text>
-                <Text numberOfLines={1} style={styles.placeAddress}>
-                  {place.road_address ?? place.address ?? ''}
-                </Text>
-              </View>
-            ))
-          )}
-        </ScrollView>
-      </ScrollView>
-      <View style={styles.homeIndicator} />
-    </View>
-  );
-}
-
-function HistoryFailureDetail({
-  onBack,
-  reel,
-  onRetry,
-  guestDetail,
-  onRequireLogin,
-}: {
-  onBack: () => void;
-  reel: HistoryReel;
-  onRetry: () => Promise<void>;
-  guestDetail?: HistoryReelDetail | null;
-  onRequireLogin?: () => void;
-}) {
-  const posthog = usePostHog();
-  const {bottom: bottomInset} = useSafeAreaInsets();
-  const detailBottomPadding =
-    BOTTOM_NAVIGATION_BAR_HEIGHT +
-    getBottomNavigationBarOffset(bottomInset) +
-    (Platform.OS === 'android' ? 48 : 24);
-  const [containerHeight, setContainerHeight] = useState(0);
-  const availableBodyHeight = Math.max(
-    0,
-    containerHeight - 84 - detailBottomPadding,
-  );
-  const compactScale =
-    containerHeight === 0
-      ? 1
-      : Math.max(0.5, Math.min(1, (availableBodyHeight - 187) / 337));
-  useEffect(() => {
-    trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
-  }, [posthog, reel.id]);
-  const [reported, setReported] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  const { detail } = useHistoryReelDetail(reel, guestDetail);
-  const displayReel = detail ?? reel;
-  const originalUrl = displayReel.instagram_url;
-
-  return (
-    <View
-      onLayout={event => setContainerHeight(event.nativeEvent.layout.height)}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="히스토리 목록으로 돌아가기"
-          hitSlop={12}
-          onPress={onBack}
-          style={styles.backButton}
-        >
-          <Text style={styles.back}>‹</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>히스토리</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-      <View
-        style={[
-          styles.failureContent,
-          {paddingBottom: detailBottomPadding},
-        ]}
-      >
-        <View style={[styles.failureHero, {marginTop: 44 * compactScale}]}>
-          <Image
-            source={{ uri: displayReel.instagram_thumbnail_url ?? thumbnail }}
-            resizeMode="cover"
-            style={[
-              styles.detailThumbnail,
-              {
-                width: 180 * compactScale,
-                height: 226 * compactScale,
-              },
-            ]}
-          />
-          <Text
-            style={[styles.detailTitle, {marginTop: 24 * compactScale}]}
-          >
-            장소 분석에 실패했어요ㅠ
-          </Text>
-          <Text
-            style={[styles.failureDescription, {marginTop: 6 * compactScale}]}
-          >
-            {getHistoryFailureMessage(displayReel.failure_reason)}
-          </Text>
-        </View>
-        <Pressable
-          disabled={!originalUrl}
-          onPress={() => {
-            if (originalUrl) {
-              Linking.openURL(originalUrl).catch(() => undefined);
-            }
-          }}
-          style={[
-            styles.originalButton,
-            styles.failureOriginalButton,
-            !originalUrl && styles.disabledButton,
-          ]}
-        >
-          <InstagramIcon width={28} height={27} />
-          <Text style={styles.originalText}>원본 릴스로 이동</Text>
-          <Text style={styles.detailChevron}>›</Text>
-        </Pressable>
-        <View style={styles.failureActions}>
-          <Pressable
-            disabled={!originalUrl || retrying}
-            onPress={() => {
-              if (guestDetail !== undefined) {
-                onRequireLogin?.();
-                return;
-              }
-              Alert.alert('다시 시도할까요?', '', [
-                { text: '취소', style: 'cancel' },
-                {
-                  text: '확인',
-                  onPress: () => {
-                    // 접수 응답을 기다리는 동안 버튼에 로딩을 보여 준다.
-                    setRetrying(true);
-                    onRetry()
-                      .catch(() => undefined)
-                      .finally(() => setRetrying(false));
-                  },
-                },
-              ]);
-            }}
-            style={[
-              styles.actionButton,
-              {marginTop: 24 * compactScale},
-              retrying && styles.disabledButton,
-            ]}
-          >
-            {retrying ? (
-              <ActivityIndicator color="#2a2a44" size="small" style={styles.actionIcon} />
-            ) : (
-              <RetryIcon width={20} height={20} style={styles.actionIcon} />
-            )}
-            <Text style={styles.actionText}>
-              {retrying ? '다시 시도하는 중...' : '다시 시도하기'}
-            </Text>
-          </Pressable>
-          <Pressable
-            disabled={reported}
-            onPress={() => {
-              if (guestDetail !== undefined) {
-                onRequireLogin?.();
-                return;
-              }
-              Alert.alert('제보할까요?', '', [
-                { text: '취소', style: 'cancel' },
-                {
-                  text: '확인',
-                  onPress: () => {
-                    setReported(true);
-                    reportHistoryReel(reel.id)
-                      .catch(() => {
-                        setReported(false);
-                        Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
-                      });
-                  },
-                },
-              ]);
-            }}
-            style={[
-              styles.actionButton,
-              styles.reportActionButton,
-              {marginTop: 13 * compactScale},
-              reported && styles.disabledButton,
-            ]}
-          >
-            <ReportIcon width={20} height={20} style={styles.actionIcon} />
-            <Text style={styles.actionText}>
-              {reported ? '제보 완료' : '제보하기'}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-      <View style={styles.homeIndicator} />
-    </View>
-  );
-}
 
 /** 처리 중 항목의 상태도 앱 공용 목록 폴링 하나로 갱신한다(단건 폴링 없음). */
 const LIST_POLL_INTERVAL_MS = 3000;
@@ -847,22 +389,22 @@ export function HistoryScreen({
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={historyStyles.container}>
+      <View style={historyStyles.header}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="대기함으로 돌아가기"
           hitSlop={12}
           onPress={onBack}
-          style={styles.backButton}
+          style={historyStyles.backButton}
         >
           <Image
             source={require('../../assets/icons/brand-mark.png')}
             style={styles.brandMark}
           />
         </Pressable>
-        <Text style={styles.headerTitle}>히스토리</Text>
-        <View style={styles.headerSpacer} />
+        <Text style={historyStyles.headerTitle}>히스토리</Text>
+        <View style={historyStyles.headerSpacer} />
       </View>
       <ScrollView
         ref={scrollViewRef}
@@ -964,40 +506,13 @@ export function HistoryScreen({
           </View>
         ) : null}
       </ScrollView>
-      <View style={styles.homeIndicator} />
+      <View style={historyStyles.homeIndicator} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: {
-    height: 84,
-    paddingHorizontal: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   brandMark: { width: 44, height: 44, borderRadius: 22 },
-  back: {
-    fontSize: 30,
-    lineHeight: 34,
-    color: 'rgba(0,0,0,.61)',
-    fontWeight: '500',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a2e',
-    marginLeft: 17,
-  },
-  headerSpacer: { flex: 1 },
   previewToggle: {
     marginLeft: 'auto',
     paddingHorizontal: 10,
@@ -1036,84 +551,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  detailContent: { paddingBottom: 60 },
-  detailHero: { alignItems: 'center', marginTop: 48 },
-  detailThumbnail: {
-    width: 180,
-    height: 226,
-    borderRadius: 12,
-  },
-  detailTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1a1a2e',
-    marginTop: 24,
-  },
-  detailSubtitle: { fontSize: 14, color: '#8e8e93', marginTop: 8 },
-  originalButton: {
-    height: 61,
-    marginHorizontal: 22,
-    marginTop: 49,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,.14)',
-    borderRadius: 20,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 50,
-  },
-  disabledButton: { opacity: 0.45 },
   instagramIcon: { width: 28, height: 27 },
-  originalText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-    flex: 1,
-    textAlign: 'center',
-  },
-  detailChevron: { fontSize: 30, color: '#000' },
-  foundTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#000',
-    marginTop: 35,
-    marginLeft: 32,
-  },
-  placeRow: { paddingLeft: 31, paddingTop: 12, gap: 6 },
-  placeCard: { width: 98 },
-  placeImage: { width: 98, height: 98, borderRadius: 2 },
-  placeName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#1a1a2e',
-    marginTop: 2,
-  },
-  placeAddress: { fontSize: 9, color: '#8e8e93', marginTop: 3 },
-  placeState: { fontSize: 13, color: '#8e8e93', paddingTop: 24 },
-  failureContent: { flex: 1 },
-  failureHero: { alignItems: 'center' },
-  failureOriginalButton: { marginTop: 49 },
-  failureActions: { marginTop: 'auto' },
-  failureDescription: {
-    fontSize: 14,
-    lineHeight: 22.4,
-    color: '#8e8e93',
-    textAlign: 'center',
-    marginTop: 6,
-  },
-  actionButton: {
-    height: 40,
-    marginHorizontal: 22,
-    marginTop: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,.16)',
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reportActionButton: { marginTop: 13 },
-  actionIcon: { position: 'absolute', left: 32 },
-  actionText: { fontSize: 15, fontWeight: '600', color: '#000' },
   group: { marginBottom: 16 },
   stateBody: {
     alignItems: 'center',
@@ -1143,50 +581,4 @@ const styles = StyleSheet.create({
     color: '#8e8e93',
   },
   date: { fontSize: 16, fontWeight: '600', color: '#727070', marginBottom: 8 },
-  item: {
-    height: 94,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f8f3f3',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 22,
-  },
-  thumbnail: {
-    width: 58,
-    height: 73,
-    borderRadius: 8,
-    backgroundColor: '#eee',
-  },
-  skeletonBlock: { backgroundColor: '#eeeeF2' },
-  skeletonBadge: { width: 34, height: 19, borderRadius: 10 },
-  skeletonTitle: { width: '72%', height: 16, borderRadius: 5 },
-  itemText: { height: 73, flex: 1, justifyContent: 'center', gap: 4 },
-  badge: {
-    height: 19,
-    width: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: { fontSize: 10, fontWeight: '400' },
-  failureBadge: { borderColor: '#fb6f6f' },
-  successBadge: { borderColor: '#34c759' },
-  failureText: { color: 'red' },
-  successText: { color: '#34c759' },
-  processingBadge: { borderColor: '#8e8e93' },
-  processingText: { color: '#8e8e93' },
-  title: { fontSize: 16, fontWeight: '800', color: '#1a1a2e' },
-  chevron: { fontSize: 32, lineHeight: 32, color: '#1c1c1e', marginRight: 5 },
-  hiddenChevron: { opacity: 0 },
-  homeIndicator: {
-    position: 'absolute',
-    bottom: 8,
-    alignSelf: 'center',
-    width: 139,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: '#1a1a2e',
-    opacity: 0.2,
-  },
 });
