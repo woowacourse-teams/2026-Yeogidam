@@ -73,12 +73,44 @@ test('이 설치에서 로그인한 적이 있으면 안내를 마친 것으로 
   await act(async () => renderer.unmount());
 });
 
-test('안내를 마치면 바로 마친 상태가 되고 저장소에 기록한다', async () => {
+test('안내를 마치면 저장이 끝나기 전에 마친 상태가 되고 저장소에 기록한다', async () => {
+  const saving = deferred<void>();
+  jest.mocked(completeAppGuide).mockReturnValue(saving.promise);
   const renderer = await render();
   await act(async () => {
     latest.completeGuide();
   });
   expect(latest.hasCompletedGuide).toBe(true);
   expect(completeAppGuide).toHaveBeenCalledTimes(1);
+  saving.resolve();
   await act(async () => renderer.unmount());
 });
+
+test('저장소 읽기가 최소 시간보다 늦으면 읽기가 끝날 때까지 스플래시를 둔다', async () => {
+  const guide = deferred<boolean>();
+  jest.mocked(hasCompletedAppGuide).mockReturnValue(guide.promise);
+  const renderer = await render();
+
+  await act(async () => {
+    jest.advanceTimersByTime(2000);
+    await Promise.resolve();
+  });
+  expect(latest.isSplashVisible).toBe(true);
+  expect(latest.hasCompletedGuide).toBeNull();
+
+  guide.resolve(true);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(latest.hasCompletedGuide).toBe(true);
+  expect(latest.isSplashVisible).toBe(false);
+  await act(async () => renderer.unmount());
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(res => {
+    resolve = res;
+  });
+  return {promise, resolve};
+}

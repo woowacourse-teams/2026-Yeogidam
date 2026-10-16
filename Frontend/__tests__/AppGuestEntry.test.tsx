@@ -841,3 +841,35 @@ test('세션이 없을 때 공유가 로그인 만료로 실패하면 로그인 
   alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
+
+test('비회원이 지운 시드 장소는 회원이 됐다가 다시 비회원으로 둘러보면 시드로 돌아온다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  const renderer = await renderAfterSplash();
+  const firstSeedId = renderer.root.findByType(SavedPlacesScreen).props.places[0].id;
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onDeleteGuestPlaces([firstSeedId]);
+  });
+  expect(
+    renderer.root.findByType(SavedPlacesScreen).props.places.map((place: {id: string}) => place.id),
+  ).not.toContain(firstSeedId);
+
+  await ReactTestRenderer.act(async () => {
+    authChangeHandler('SIGNED_IN', 'member-1');
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
+
+  await ReactTestRenderer.act(async () => {
+    authChangeHandler('SIGNED_OUT', null);
+    await Promise.resolve();
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
+  });
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
+  expect(
+    renderer.root.findByType(SavedPlacesScreen).props.places.map((place: {id: string}) => place.id),
+  ).toContain(firstSeedId);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
