@@ -64,8 +64,8 @@ export function HistoryFailureDetail({
   }, [posthog, reel.id]);
   const {reported, report} = useHistoryReport(reel.id);
   const [retrying, setRetrying] = useState(false);
-  const { detail } = useHistoryReelDetail(reel, guestDetail);
-  const displayReel = detail ?? reel;
+  const detailState = useHistoryReelDetail(reel, guestDetail);
+  const displayReel = detailState.status === 'success' ? detailState.detail : reel;
   const originalUrl = displayReel.instagram_url;
 
   return (

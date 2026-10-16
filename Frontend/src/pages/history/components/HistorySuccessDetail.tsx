@@ -36,7 +36,8 @@ export function HistorySuccessDetail({
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'success');
   }, [posthog, reel.id]);
-  const { detail, loading, error } = useHistoryReelDetail(reel, guestDetail);
+  const detailState = useHistoryReelDetail(reel, guestDetail);
+  const detail = detailState.status === 'success' ? detailState.detail : null;
   const displayReel = detail ?? reel;
   const places =
     detail?.extraction?.extraction_places
@@ -73,8 +74,9 @@ export function HistorySuccessDetail({
             style={historyStyles.detailThumbnail}
           />
           <Text style={historyStyles.detailTitle}>장소 분석이 완료되었어요!</Text>
+          {/* TODO(review): 상세를 읽지 못해도 부제에 '총 0개의 장소를 찾았어요'가 보입니다. 오류일 때 부제 문구를 정하면 바꿉니다(리뷰 1회차 C2). */}
           <Text style={styles.detailSubtitle}>
-            {loading
+            {detailState.status === 'loading'
               ? '장소를 확인하고 있어요.'
               : `총 ${places.length}개의 장소를 찾았어요`}
           </Text>
@@ -98,9 +100,9 @@ export function HistorySuccessDetail({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.placeRow}
         >
-          {loading ? (
+          {detailState.status === 'loading' ? (
             <Text style={styles.placeState}>장소를 불러오는 중이에요.</Text>
-          ) : error ? (
+          ) : detailState.status === 'error' ? (
             <Text style={styles.placeState}>장소를 불러오지 못했어요.</Text>
           ) : places.length === 0 ? (
             <Text style={styles.placeState}>발견한 장소가 없어요.</Text>

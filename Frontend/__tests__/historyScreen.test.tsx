@@ -46,7 +46,8 @@ jest.mock('../src/assets/icons/actions/report.svg', () => 'ReportIcon');
 jest.mock('../src/assets/icons/social/instagram-color.svg', () => 'InstagramIcon');
 jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
-  getHistoryReelDetail: jest.fn(() => Promise.resolve(null)),
+  // 서버가 완료되지 않은 공유에 돌려주는 값처럼 장소 없는 상세를 돌려준다.
+  getHistoryReelDetail: jest.fn((reel: object) => Promise.resolve({...reel, extraction: null})),
   reportHistoryReel: jest.fn(),
   retryHistoryReelExtraction: jest.fn(),
 }));
