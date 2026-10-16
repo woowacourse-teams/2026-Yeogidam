@@ -155,7 +155,7 @@ test('첫 낡은 응답을 받는 묶음에서 다른 읽기가 시작되면, �
   expect(names()).toEqual(['빵집']);
 });
 
-test('더 새 조회에 밀린 요청이 나중에 실패하면 null을 돌려주고 목록과 오류 상태를 바꾸지 않는다', async () => {
+test('더 새 조회에 밀린 요청이 나중에 실패하면 null을 돌려주고 목록과 읽기 상태를 바꾸지 않는다', async () => {
   await renderLoaded([CAFE]);
   const firstLoad = deferred<SavedPlaceListItem[]>();
   const secondLoad = deferred<SavedPlaceListItem[]>();

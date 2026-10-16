@@ -49,8 +49,8 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
    * 목록을 한 번 읽어 반영할 수 있으면 반영하고, 읽는 동안 장소를 지워 응답이 낡았으면 canRetry일 때 한 번 더 읽습니다.
    * 반영한 목록을 돌려주고 반영하지 못했으면 null입니다(경우는 loadSavedPlaces 설명에).
    * 낡은 응답을 버리고 다시 읽기를 시작하거나 읽기를 끝내는(SUCCESS) 일은 요청 번호와 캐시 세대를 비교한 같은 동기 구간에서 합니다.
-   * 한 틱이라도 미루면 그사이에 시작한 다른 읽기의 loading을 덮고, 그 읽기와 밀리는 순서가 바뀌며,
-   * 그사이에 세션이 끝나 캐시를 비우면 끝난 세션의 목록을 캐시에 다시 씁니다.
+   * 한 틱이라도 미루면 그사이에 시작한 다른 읽기의 loading을 덮고, 그 읽기와 밀리는 순서가 바뀌며, 그사이에 바뀐 세대를 놓칩니다
+   * (세션이 끝난 뒤의 다시 읽기가 목록을 받으면 캐시에 다시 쓰는데, 앱은 토큰을 먼저 지워 그 요청이 401로 끝나므로 mock한 테스트에서만 재현됩니다).
    */
   const readSavedPlaces = useCallback(async (canRetry: boolean): Promise<Place[] | null> => {
     const requestId = loadRequestIdRef.current + 1;
