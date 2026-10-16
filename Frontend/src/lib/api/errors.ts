@@ -12,6 +12,7 @@ type ApiErrorOptions = {
   message: string;
   status?: number | null;
   errorCode?: string | null;
+  requestId?: string | null;
   cause?: unknown;
 };
 
@@ -20,19 +21,32 @@ export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status: number | null;
   readonly errorCode: string | null;
+  readonly requestId: string | null;
   readonly cause?: unknown;
 
-  constructor({kind, message, status = null, errorCode = null, cause}: ApiErrorOptions) {
+  constructor({
+    kind,
+    message,
+    status = null,
+    errorCode = null,
+    requestId = null,
+    cause,
+  }: ApiErrorOptions) {
     super(message);
     this.name = 'ApiError';
     this.kind = kind;
     this.status = status;
     this.errorCode = errorCode;
+    this.requestId = requestId;
     this.cause = cause;
   }
 }
 
-export function httpApiError(status: number, body: unknown): ApiError {
+export function httpApiError(
+  status: number,
+  body: unknown,
+  requestId?: string | null,
+): ApiError {
   const envelope = body && typeof body === 'object'
     ? body as {message?: unknown; errorCode?: unknown}
     : null;
@@ -43,5 +57,5 @@ export function httpApiError(status: number, body: unknown): ApiError {
     ? envelope.errorCode
     : null;
 
-  return new ApiError({kind: 'http', status, errorCode, message});
+  return new ApiError({kind: 'http', status, errorCode, message, requestId});
 }

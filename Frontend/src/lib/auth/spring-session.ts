@@ -9,6 +9,7 @@ import {
   type SpringTokenPair,
 } from '../api/spring-auth-api';
 import {ApiError} from '../api/errors';
+import {withAuthErrorStage} from './errors';
 import {
   getShareSession,
   syncShareSession,
@@ -189,23 +190,33 @@ export async function loginWithSpringAuthorizationCode(
   authorizationCode: string,
   fullName?: string | null,
 ): Promise<SpringLoginResponse> {
-  const response = await exchangeSpringAuthorizationCode(
-    provider,
-    authorizationCode,
-    fullName,
-  );
-  const tokens = requireSpringTokenPair(response);
-  const session: StoredSpringSession = {
-    ...toTokenPair(tokens),
-    memberId: response.member?.id != null ? String(response.member.id) : null,
-  };
-  await saveStoredRecord(session);
-  await syncNativeShareSession(session);
-  emit('SIGNED_IN', session.memberId, {
-    isNewMember:
-      typeof response.isNewMember === 'boolean' ? response.isNewMember : undefined,
-  });
-  return response;
+  let response: SpringLoginResponse;
+  try {
+    response = await exchangeSpringAuthorizationCode(
+      provider,
+      authorizationCode,
+      fullName,
+    );
+  } catch (error) {
+    throw withAuthErrorStage(error, 'backend_exchange');
+  }
+
+  try {
+    const tokens = requireSpringTokenPair(response);
+    const session: StoredSpringSession = {
+      ...toTokenPair(tokens),
+      memberId: response.member?.id != null ? String(response.member.id) : null,
+    };
+    await saveStoredRecord(session);
+    await syncNativeShareSession(session);
+    emit('SIGNED_IN', session.memberId, {
+      isNewMember:
+        typeof response.isNewMember === 'boolean' ? response.isNewMember : undefined,
+    });
+    return response;
+  } catch (error) {
+    throw withAuthErrorStage(error, 'session_persist');
+  }
 }
 
 async function expireSpringSession(memberId: string | null): Promise<void> {

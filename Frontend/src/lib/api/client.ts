@@ -151,6 +151,10 @@ async function readJsonBody(response: Response): Promise<unknown> {
 }
 
 async function readResponse<T>(response: Response, signal: AbortSignal): Promise<T> {
+  const responseRequestId = response.headers.get('X-Request-Id');
+  const requestId = responseRequestId && /^[A-Za-z0-9-]{1,64}$/.test(responseRequestId)
+    ? responseRequestId
+    : null;
   if (response.status === 204 || response.status === 205) {
     return undefined as T;
   }
@@ -164,13 +168,14 @@ async function readResponse<T>(response: Response, signal: AbortSignal): Promise
       throw new ApiError({
         kind: 'invalid_response',
         status: response.status,
+        requestId,
         message: '응답을 처리하지 못했어요.',
         cause,
       });
     }
   }
 
-  if (!response.ok) throw httpApiError(response.status, payload);
+  if (!response.ok) throw httpApiError(response.status, payload, requestId);
   return payload as T;
 }
 
