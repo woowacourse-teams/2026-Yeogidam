@@ -12,6 +12,7 @@ import {
   trackHistoryViewed,
 } from '../src/analytics/placeExtractionEvents';
 import {ReelApiError} from '../src/entities/content/errors';
+import {deferred} from './support/deferred';
 import {
   getHistoryReelDetail,
   getHistoryReels,
@@ -444,16 +445,6 @@ type Renderer = ReactTestRenderer.ReactTestRenderer;
 type Node = ReactTestRenderer.ReactTestInstance;
 
 const LAST_SEEN_HISTORY_KEY = '@yeogidam/last-seen-history-id';
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return {promise, resolve, reject};
-}
 
 const flush = () => ReactTestRenderer.act(async () => undefined);
 

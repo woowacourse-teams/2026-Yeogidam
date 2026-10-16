@@ -2,6 +2,7 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {useCurrentProfile} from '../src/app/useCurrentProfile';
+import {deferred} from './support/deferred';
 import {getCurrentProfile} from '../src/entities/info/api';
 import type {ProfileApiError, ProfileInfo} from '../src/entities/info/types';
 
@@ -22,16 +23,6 @@ let latest: Snapshot;
 function Harness({enabled}: {enabled: boolean}) {
   latest = useCurrentProfile(enabled);
   return null;
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return {promise, resolve, reject};
 }
 
 async function render(enabled: boolean) {
