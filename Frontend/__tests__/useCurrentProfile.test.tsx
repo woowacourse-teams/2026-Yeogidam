@@ -215,3 +215,27 @@ test('재시도가 다시 실패하면 새 오류로 바꾸고 재시도 중 표
   expect(latest.profileError).toEqual(secondError);
   expect(latest.isProfileLoading).toBe(false);
 });
+
+test('프로필이 있는 상태에서 다시 읽으면 프로필을 둔 채 로딩을 켜고, 끝나면 새 프로필로 바꾼다', async () => {
+  const refresh = deferred<ProfileInfo>();
+  jest.mocked(getCurrentProfile).mockResolvedValueOnce(PROFILE_A).mockReturnValueOnce(refresh.promise);
+
+  await render(true);
+  await flush();
+  expect(latest.currentProfile).toEqual(PROFILE_A);
+
+  let refreshing!: Promise<void>;
+  await ReactTestRenderer.act(async () => {
+    refreshing = latest.retryProfile();
+  });
+  expect(latest.currentProfile).toEqual(PROFILE_A);
+  expect(latest.profileError).toBeNull();
+  expect(latest.isProfileLoading).toBe(true);
+
+  refresh.resolve(PROFILE_B);
+  await ReactTestRenderer.act(async () => {
+    await refreshing;
+  });
+  expect(latest.currentProfile).toEqual(PROFILE_B);
+  expect(latest.isProfileLoading).toBe(false);
+});

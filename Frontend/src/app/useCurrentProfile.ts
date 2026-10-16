@@ -10,7 +10,7 @@ import type {ProfileApiError, ProfileInfo} from '../entities/info/types';
 type ProfileState =
   | {status: 'idle'}
   | {status: 'loading'}
-  | {status: 'success'; profile: ProfileInfo}
+  | {status: 'success'; profile: ProfileInfo; isRefreshing: boolean}
   | {status: 'error'; error: ProfileApiError; isRetrying: boolean};
 
 const IDLE: ProfileState = {status: 'idle'};
@@ -34,7 +34,7 @@ export function useCurrentProfile(enabled: boolean) {
 
     try {
       const profile = await getCurrentProfile();
-      if (isCurrent()) setState({status: 'success', profile});
+      if (isCurrent()) setState({status: 'success', profile, isRefreshing: false});
     } catch (error) {
       if (isCurrent()) {
         setState({status: 'error', error: error as ProfileApiError, isRetrying: false});
@@ -54,11 +54,13 @@ export function useCurrentProfile(enabled: boolean) {
     loadProfile();
   }, [enabled, loadProfile]);
 
-  /** 오류 화면의 재시도입니다. 이전 오류를 보여 준 채 재시도 중 표시를 켜고 같은 요청을 다시 보냅니다. */
+  /** 다시 읽기입니다. 보여 주던 오류나 프로필은 둔 채 로딩 표시를 켜고 같은 요청을 다시 보냅니다. */
   const retryProfile = useCallback(async () => {
-    setState(current =>
-      current.status === 'error' ? {...current, isRetrying: true} : LOADING,
-    );
+    setState(current => {
+      if (current.status === 'error') return {...current, isRetrying: true};
+      if (current.status === 'success') return {...current, isRefreshing: true};
+      return LOADING;
+    });
     await loadProfile();
   }, [loadProfile]);
 
@@ -77,5 +79,14 @@ export function useCurrentProfile(enabled: boolean) {
 }
 
 function isProfileLoadingState(state: ProfileState): boolean {
-  return state.status === 'loading' || (state.status === 'error' && state.isRetrying);
+  switch (state.status) {
+    case 'loading':
+      return true;
+    case 'error':
+      return state.isRetrying;
+    case 'success':
+      return state.isRefreshing;
+    case 'idle':
+      return false;
+  }
 }
