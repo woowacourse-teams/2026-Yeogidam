@@ -8,12 +8,22 @@ export type AuthErrorCode =
   | 'CLIENT000_002'
   | 'CLIENT000_003';
 
+export type AuthErrorStage =
+  | 'login_setup'
+  | 'authorization_url'
+  | 'provider_authorization'
+  | 'callback'
+  | 'backend_exchange'
+  | 'session_persist';
+
 export type NormalizedAuthError = {
   status: number | null;
   errorCode: AuthErrorCode;
+  backendErrorCode?: string;
   message: string;
   retryable: boolean;
   requestId?: string;
+  stage?: AuthErrorStage;
 };
 
 type HttpLikeError = {
@@ -23,17 +33,8 @@ type HttpLikeError = {
   name?: string;
 };
 
-function createRequestId() {
-  const globalWithCrypto = globalThis as typeof globalThis & {
-    crypto?: {randomUUID?: () => string};
-  };
-  const cryptoObject = globalWithCrypto.crypto;
-
-  if (typeof cryptoObject?.randomUUID === 'function') {
-    return cryptoObject.randomUUID();
-  }
-
-  return `req-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`;
+function getSafeBackendAuthErrorCode(value: string | null): string | undefined {
+  return value && /^AUTH\d{3}_\d{3}$/.test(value) ? value : undefined;
 }
 
 export function isNormalizedAuthError(
@@ -82,10 +83,20 @@ function createNetworkAuthError(): NormalizedAuthError {
   };
 }
 
-function createHttpAuthError(status: number): NormalizedAuthError {
+function createHttpAuthError(
+  status: number,
+  backendErrorCode: string | null,
+  requestId: string | null,
+): NormalizedAuthError {
+  const safeBackendErrorCode = getSafeBackendAuthErrorCode(backendErrorCode);
+  const backendDetails = {
+    ...(safeBackendErrorCode ? {backendErrorCode: safeBackendErrorCode} : {}),
+    ...(requestId ? {requestId} : {}),
+  };
+
   if (status === 401) {
-    // Spring 로그인 API는 잘못된 소셜 인가 코드를 AUTH401_002로 돌려줍니다.
-    return {...createHttpAuthError(400), status};
+    // Keep the existing UI classification while preserving the server's precise code for diagnostics.
+    return {...createHttpAuthError(400, null, requestId), status, ...backendDetails};
   }
 
   if (status === 400) {
@@ -94,7 +105,7 @@ function createHttpAuthError(status: number): NormalizedAuthError {
       errorCode: 'AUTH400_001',
       message: '로그인을 완료하지 못했어요. 다시 시도해주세요.',
       retryable: true,
-      requestId: createRequestId(),
+      ...backendDetails,
     };
   }
 
@@ -104,20 +115,39 @@ function createHttpAuthError(status: number): NormalizedAuthError {
       errorCode: 'AUTH502_001',
       message: '로그인 제공자 연결이 원활하지 않아요.',
       retryable: true,
-      requestId: createRequestId(),
+      ...backendDetails,
     };
   }
 
-  return createProcessingAuthError();
+  return {
+    ...createProcessingAuthError(),
+    status,
+    ...backendDetails,
+  };
 }
 
 function normalizeApiAuthError(error: ApiError): NormalizedAuthError {
   if (error.kind === 'timeout') return createTimeoutAuthError();
   if (error.kind === 'network') return createNetworkAuthError();
   if (error.kind === 'http' && error.status != null) {
-    return createHttpAuthError(error.status);
+    return createHttpAuthError(error.status, error.errorCode, error.requestId);
+  }
+  if (error.kind === 'invalid_response') {
+    return {
+      ...createProcessingAuthError(),
+      status: error.status,
+      ...(error.requestId ? {requestId: error.requestId} : {}),
+    };
   }
   return createProcessingAuthError();
+}
+
+export function withAuthErrorStage(
+  error: unknown,
+  stage: AuthErrorStage,
+): NormalizedAuthError {
+  const normalized = normalizeAuthError(error);
+  return {...normalized, stage: normalized.stage ?? stage};
 }
 
 export function normalizeAuthError(error: unknown): NormalizedAuthError {
@@ -147,7 +177,7 @@ export function normalizeAuthError(error: unknown): NormalizedAuthError {
   }
 
   if (typeof httpError?.status === 'number') {
-    return createHttpAuthError(httpError.status);
+    return createHttpAuthError(httpError.status, null, null);
   }
 
   return createProcessingAuthError();

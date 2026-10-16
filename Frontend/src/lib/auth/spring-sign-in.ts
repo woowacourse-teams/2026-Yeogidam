@@ -4,7 +4,11 @@ import {InAppBrowser} from 'react-native-inappbrowser-reborn';
 
 import {getSpringAuthorizationUrl, type SpringLoginResponse} from '../api/spring-auth-api';
 import {AUTH_CALLBACK_URL} from './callback';
-import {createCancelledAuthError, createProcessingAuthError} from './errors';
+import {
+  createCancelledAuthError,
+  createProcessingAuthError,
+  withAuthErrorStage,
+} from './errors';
 import {loginWithSpringAuthorizationCode} from './spring-session';
 
 const OAUTH_CALLBACK_TIMEOUT_MS = 120_000;
@@ -108,11 +112,28 @@ export async function getSpringOAuthAuthorizationCode(
   provider: 'kakao' | 'google',
 ): Promise<string> {
   try {
-    const authUrl = await getSpringAuthorizationUrl(provider);
-    if (new URL(authUrl).protocol !== 'https:') throw createProcessingAuthError();
+    let authUrl: string;
+    try {
+      authUrl = await getSpringAuthorizationUrl(provider);
+    } catch (error) {
+      throw withAuthErrorStage(error, 'authorization_url');
+    }
+    if (new URL(authUrl).protocol !== 'https:') {
+      throw withAuthErrorStage(createProcessingAuthError(), 'authorization_url');
+    }
 
-    const callbackUrl = await openSpringOAuthCallback(authUrl);
-    return getSpringOAuthCode(callbackUrl, provider);
+    let callbackUrl: string;
+    try {
+      callbackUrl = await openSpringOAuthCallback(authUrl);
+    } catch (error) {
+      throw withAuthErrorStage(error, 'provider_authorization');
+    }
+
+    try {
+      return getSpringOAuthCode(callbackUrl, provider);
+    } catch (error) {
+      throw withAuthErrorStage(error, 'callback');
+    }
   } finally {
     InAppBrowser.closeAuth();
   }
@@ -146,29 +167,33 @@ type SpringAppleCredential = {
 /** 애플 인가 코드와 최초 로그인 때만 내려오는 이름을 받습니다. */
 export async function getSpringAppleCredential(): Promise<SpringAppleCredential> {
   if (Platform.OS !== 'ios' || !appleAuth.isSupported) {
-    throw createProcessingAuthError();
+    throw withAuthErrorStage(createProcessingAuthError(), 'provider_authorization');
   }
 
+  let credential: Awaited<ReturnType<typeof appleAuth.performRequest>>;
   try {
-    const credential = await withTimeout(
+    credential = await withTimeout(
       appleAuth.performRequest({
         requestedOperation: appleAuth.Operation.LOGIN,
         requestedScopes: [appleAuth.Scope.FULL_NAME, appleAuth.Scope.EMAIL],
       }),
       OAUTH_CALLBACK_TIMEOUT_MS,
     );
-    if (!credential.authorizationCode) throw createProcessingAuthError();
-
-    return {
-      authorizationCode: credential.authorizationCode,
-      fullName: getSpringAppleFullName(credential.fullName),
-    };
   } catch (error) {
     if ((error as {code?: string})?.code === appleAuth.Error.CANCELED) {
-      throw createCancelledAuthError();
+      throw withAuthErrorStage(createCancelledAuthError(), 'provider_authorization');
     }
-    throw error;
+    throw withAuthErrorStage(error, 'provider_authorization');
   }
+
+  if (!credential.authorizationCode) {
+    throw withAuthErrorStage(createProcessingAuthError(), 'callback');
+  }
+
+  return {
+    authorizationCode: credential.authorizationCode,
+    fullName: getSpringAppleFullName(credential.fullName),
+  };
 }
 
 export async function signInWithSpringApple(): Promise<SpringLoginResponse> {

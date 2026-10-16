@@ -13,6 +13,7 @@ test('공개 API는 토큰 없이 요청하고 쿼리 값을 인코딩한다', a
   const fetchMock = jest.fn().mockResolvedValue({
     ok: true,
     status: 200,
+    headers: {get: () => null},
     json: async () => ({updateRequired: false}),
   });
   const client = createApiClient({baseUrl, fetchImpl: fetchMock});
@@ -31,7 +32,11 @@ test('공개 API는 토큰 없이 요청하고 쿼리 값을 인코딩한다', a
 });
 
 test('인증 API는 Bearer 토큰과 JSON 본문을 전송한다', async () => {
-  const fetchMock = jest.fn().mockResolvedValue({ok: true, status: 204});
+  const fetchMock = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 204,
+    headers: {get: () => null},
+  });
   const client = createApiClient({
     baseUrl,
     fetchImpl: fetchMock,
@@ -69,6 +74,7 @@ test('서버의 오류 코드와 메시지를 보존한다', async () => {
   const fetchMock = jest.fn().mockResolvedValue({
     ok: false,
     status: 401,
+    headers: {get: () => null},
     json: async () => ({message: '토큰이 만료됐습니다.', errorCode: 'AUTH401_001'}),
   });
   const client = createApiClient({baseUrl, fetchImpl: fetchMock});
@@ -86,6 +92,7 @@ test('응답 본문이 없는 서버 오류도 HTTP 상태를 전달한다', asy
   const fetchMock = jest.fn().mockResolvedValue({
     ok: false,
     status: 502,
+    headers: {get: () => null},
     json: async () => { throw new SyntaxError('invalid JSON'); },
   });
   const client = createApiClient({baseUrl, fetchImpl: fetchMock});
@@ -98,6 +105,7 @@ test('성공 응답이 JSON이 아니면 잘못된 응답으로 구분한다', a
   const fetchMock = jest.fn().mockResolvedValue({
     ok: true,
     status: 200,
+    headers: {get: () => null},
     json: async () => { throw new SyntaxError('invalid JSON'); },
   });
   const client = createApiClient({baseUrl, fetchImpl: fetchMock});

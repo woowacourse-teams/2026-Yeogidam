@@ -28,11 +28,13 @@ test('보호 API에 Spring 토큰을 붙이고 401이면 재발급 후 한 번 �
     .mockResolvedValueOnce({
       ok: false,
       status: 401,
+      headers: {get: () => null},
       json: async () => ({errorCode: 'AUTH401_001', message: 'expired'}),
     })
     .mockResolvedValueOnce({
       ok: true,
       status: 200,
+      headers: {get: () => null},
       json: async () => ({id: 1}),
     });
   const client = createSpringApiClient({baseUrl, fetchImpl: fetchMock});
