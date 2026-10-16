@@ -24,13 +24,14 @@ const ONBOARDING_KAKAO_PLACE_IDS = [
   '1107844606',
 ];
 
-function respond({shares = [] as unknown[], transfer}: {
+function respond({shares = [] as unknown[], nextCursor = null as unknown, transfer}: {
   shares?: unknown[];
+  nextCursor?: unknown;
   transfer?: () => Promise<unknown>;
 } = {}) {
   mockRequest.mockImplementation((path: string) => {
     if (path === '/api/v1/shares') {
-      return Promise.resolve({sharedMedias: shares, nextCursor: null});
+      return Promise.resolve({sharedMedias: shares, nextCursor});
     }
     if (path === '/api/v1/onboarding/saved-places') {
       return transfer ? transfer() : Promise.resolve({sharedMediaId: 42});
@@ -210,4 +211,12 @@ test('공유 이력 응답 모양이 어긋나면 이력 없음으로 보지 않
   expect(transferCalls()).toHaveLength(0);
   // 회원을 정하지 못했으므로 기록은 그대로 남아 다음 실행에 다시 판별한다.
   expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY))!)).not.toHaveProperty('memberId', '7');
+});
+
+test('공유 이력 응답의 다음 커서 모양이 어긋나도 커서를 쓰지 않으므로 이력 판정을 이어 간다', async () => {
+  await beginGuestOnboardingTransfer(ONBOARDING_KAKAO_PLACE_IDS);
+  respond({nextCursor: {}});
+
+  await expect(resumeGuestOnboardingTransfer('7')).resolves.toBe(true);
+  expect(transferCalls()).toHaveLength(1);
 });

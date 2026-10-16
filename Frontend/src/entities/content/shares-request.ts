@@ -31,12 +31,13 @@ type SpringSharesResponse = {
 };
 
 /**
- * requestSharesPage가 돌려주는 공유 목록 한 쪽입니다. 목록은 배열임을 확인했고, 다음 커서는 받은 그대로라 쓰는 곳(history-api)이
- * isSpringSharesCursor로 확인합니다. 커서를 쓰지 않는 상태 확인과 온보딩 전환이 커서 모양 때문에 실패하지 않게 하기 위해서입니다.
+ * requestSharesPage가 돌려주는 공유 목록 한 쪽입니다. 목록은 배열임을 확인했지만 다음 커서는 계약(createdAt 문자열, id 숫자)대로
+ * 적었을 뿐 모양을 확인하지 않습니다. 어긋난 커서를 어디서 어떻게 막을지는 정하지 않았습니다. 히스토리가 던지면 같은 응답을 나눠 쓰는
+ * 공용 폴러(처리 상태 폴링, 배지)까지 멈추므로, 더 보기 자리에서만 알리는 쪽이면 목록 상태에 커서 종류를 실어야 합니다.
  */
 export type SpringSharesPage = {
   sharedMedias: SpringShareHistoryItem[];
-  nextCursor: unknown;
+  nextCursor: SpringSharesCursor | null;
 };
 
 /**
@@ -55,12 +56,5 @@ export async function requestSharesPage(cursor?: SpringSharesCursor): Promise<Sp
   if (!response || !Array.isArray(response.sharedMedias)) {
     throw new ApiError({kind: 'invalid_response', message: '공유 목록 응답을 처리하지 못했어요.'});
   }
-  return {sharedMedias: response.sharedMedias, nextCursor: response.nextCursor};
-}
-
-/** 받은 값이 서버 커서 모양(createdAt 문자열, id 숫자)인지 확인합니다. null과 생략은 커서 없음이므로 쓰는 곳이 먼저 가립니다. */
-export function isSpringSharesCursor(value: unknown): value is SpringSharesCursor {
-  if (typeof value !== 'object' || value === null) return false;
-  const {createdAt, id} = value as Partial<SpringSharesCursor>;
-  return typeof createdAt === 'string' && typeof id === 'number';
+  return {sharedMedias: response.sharedMedias, nextCursor: response.nextCursor ?? null};
 }

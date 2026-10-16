@@ -199,24 +199,17 @@ test('공유 목록 응답에 sharedMedias 배열이 없으면 빈 목록이 아
   await expect(failed).rejects.toMatchObject({errorCode: 'CLIENT000_003', retryable: false});
 });
 
-/** 다음 커서 모양이 어긋난 응답들입니다. 그대로 쓰면 더 보기 요청이 cursorId=undefined나 NaN으로 나갑니다. */
-const MALFORMED_CURSOR_BODIES: Array<[string, unknown]> = [
-  ['nextCursor가 빈 객체', {}],
-  ['nextCursor가 문자열', 'abc'],
-  ['createdAt이 없음', {id: 7}],
-  ['id가 문자열', {createdAt: '2026-10-14T00:00:00Z', id: '7'}],
-];
-
 test('다음 커서가 빠진 응답은 null과 같이 마지막 쪽으로 본다', async () => {
   mockRequest.mockResolvedValue({sharedMedias: [share(9, 'SUCCEEDED')]});
 
   await expect(getHistoryReels()).resolves.toMatchObject({nextCursor: null});
 });
 
-test.each(MALFORMED_CURSOR_BODIES)('다음 커서 모양이 어긋나면(%s) 마지막 쪽으로 보지 않고 응답 처리 오류로 던진다', async (_shape, nextCursor) => {
-  mockRequest.mockResolvedValue({sharedMedias: [share(9, 'SUCCEEDED')], nextCursor});
+// 어긋난 커서를 어디서 어떻게 막을지는 결정 전이다. 여기서 던지면 같은 함수로 읽는 공용 폴러(처리 상태 폴링, 배지)까지 멈춘다.
+test('다음 커서는 모양을 확인하지 않고 바꾼다', async () => {
+  mockRequest.mockResolvedValue({sharedMedias: [], nextCursor: {createdAt: '2026-10-14T00:00:00Z', id: '7'}});
 
-  const failed = getHistoryReels();
-  await expect(failed).rejects.toBeInstanceOf(ReelApiError);
-  await expect(failed).rejects.toMatchObject({errorCode: 'CLIENT000_003', retryable: false});
+  await expect(getHistoryReels()).resolves.toMatchObject({
+    nextCursor: {created_at: '2026-10-14T00:00:00Z', id: '7'},
+  });
 });

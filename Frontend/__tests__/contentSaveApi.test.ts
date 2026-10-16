@@ -158,8 +158,11 @@ test('상태 조회의 요청 오류는 공유 API 오류 표로 바꿔 다시 �
   });
 });
 
-test('상태 조회는 다음 커서를 쓰지 않으므로 커서 모양이 어긋나도 목록에서 찾는다', async () => {
-  request.mockResolvedValue({sharedMedias: [share(12, 'EXTRACTING')], nextCursor: {}});
+test.each([
+  ['빈 객체', {}],
+  ['문자열', 'abc'],
+])('상태 조회는 다음 커서를 쓰지 않으므로 커서가 %s여도 목록에서 찾는다', async (_shape, nextCursor) => {
+  request.mockResolvedValue({sharedMedias: [share(12, 'EXTRACTING')], nextCursor});
 
   await expect(getReelProcessingStatus('12')).resolves.toMatchObject({id: '12', processing_status: 'PROCESSING'});
 });
@@ -178,12 +181,12 @@ describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
     expect(request).toHaveBeenCalledWith('/api/v1/shares');
   });
 
-  test('다음 쪽은 커서를 cursorCreatedAt과 cursorId로 보내고, 다음 커서가 빠진 응답은 빠진 그대로 돌려준다', async () => {
+  test('다음 쪽은 커서를 cursorCreatedAt과 cursorId로 보내고, 다음 커서가 빠진 응답은 null 커서로 돌려준다', async () => {
     request.mockResolvedValue({sharedMedias: []});
 
     await expect(
       requestSharesPage({createdAt: '2026-10-14T00:00:00Z', id: 7}),
-    ).resolves.toEqual({sharedMedias: [], nextCursor: undefined});
+    ).resolves.toEqual({sharedMedias: [], nextCursor: null});
     expect(request).toHaveBeenCalledWith('/api/v1/shares', {
       query: {cursorCreatedAt: '2026-10-14T00:00:00Z', cursorId: '7'},
     });
@@ -197,7 +200,7 @@ describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
     await expect(page).rejects.toMatchObject({kind: 'invalid_response', status: null});
   });
 
-  test('다음 커서는 모양을 보지 않고 받은 그대로 돌려준다. 쓰는 곳(히스토리)이 확인한다', async () => {
+  test('다음 커서는 모양을 확인하지 않고 받은 그대로 돌려준다. 어긋난 커서를 어디서 막을지는 결정 전이다', async () => {
     request.mockResolvedValue({sharedMedias: [], nextCursor: {}});
 
     await expect(requestSharesPage()).resolves.toEqual({sharedMedias: [], nextCursor: {}});
