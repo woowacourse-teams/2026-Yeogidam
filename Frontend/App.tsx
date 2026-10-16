@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
@@ -10,11 +10,9 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import type { PlaceReel } from './src/entities/info/types';
 import type {HistoryReel} from './src/entities/content/types';
-import type { Place } from './src/entities/place/types';
 import {
   ONBOARDING_HISTORY_DETAIL,
   ONBOARDING_HISTORY_REEL,
-  ONBOARDING_PLACES,
   ONBOARDING_PLACE_REELS,
 } from './src/entities/onboarding/data';
 import { isAppleSignInSupported } from './src/lib/auth/signInWithApple';
@@ -24,11 +22,8 @@ import type {
 } from './src/lib/auth/deleteAccount';
 import { openKakaoChannelChat } from './src/lib/support/openKakaoChannelChat';
 import { useAppUpdatePolicy } from './src/app/useAppUpdatePolicy';
-import {
-  completeAppGuide,
-  hasCompletedAppGuide,
-  hasSignedInOnThisInstall,
-} from './src/lib/app-guide-storage';
+import { useGuestSeedPlaces } from './src/app/useGuestSeedPlaces';
+import { useSplashGate } from './src/app/useSplashGate';
 import { AppGuideScreen } from './src/pages/guide/AppGuideScreen';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
@@ -62,7 +57,6 @@ const EMPTY_GUEST_PLACE_REELS: PlaceReel[] = [];
 const GUEST_HISTORY_DETAILS = {
   [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
 };
-const SPLASH_MIN_DURATION_MS = 2000;
 /** 공유 결과가 실패로 끝났을 때 종류별로 띄우는 안내입니다. 훅은 종류만 알리고 문구는 여기서 고릅니다. */
 const SHARE_FAILURE_ALERTS: Record<ShareFailureNotice, {title: string; message: string}> = {
   'session-expired': {
@@ -104,12 +98,15 @@ function App() {
     openGuestMain,
     openMemberMain,
   } = useAppNavigation();
-  const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
+  const {guestPlaces, deleteGuestPlaces, resetGuestPlaces} = useGuestSeedPlaces();
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
-  const [isSplashVisible, setIsSplashVisible] = useState(true);
-  const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
-    null,
-  );
+  const {
+    requiredUpdateStoreUrl,
+    recommendedUpdate,
+    refreshUpdatePolicy,
+    dismissRecommendedUpdate,
+  } = useAppUpdatePolicy();
+  const {isSplashVisible, hasCompletedGuide, completeGuide} = useSplashGate(refreshUpdatePolicy);
   const savedPlacesScrollOffsetRef = useRef(0);
   const {
     authStatus,
@@ -136,7 +133,7 @@ function App() {
       // 비회원이 지운 시드 장소는 다음 비회원 진입 때 시드로 되돌립니다. 로그인 유도는 훅이 스스로 내립니다.
       openMemberMain();
       resetPendingShareLogin();
-      setGuestPlaces(ONBOARDING_PLACES);
+      resetGuestPlaces();
     },
     onGuestTransferFailed: () => {
       Alert.alert(
@@ -150,12 +147,6 @@ function App() {
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
-  const {
-    requiredUpdateStoreUrl,
-    recommendedUpdate,
-    refreshUpdatePolicy,
-    dismissRecommendedUpdate,
-  } = useAppUpdatePolicy();
   const {currentProfile, profileError, isProfileLoading, retryProfile, clearProfile} =
     useCurrentProfile(flowState.kind === 'main' && isAuthenticated === true);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
@@ -202,12 +193,6 @@ function App() {
     isAuthenticated,
   });
 
-  // 비회원이 지운 시드 장소는 메모리에만 두고, 회원이 되면(onMemberSession) 시드로 되돌립니다.
-  const deleteGuestPlaces = useCallback((placeIds: string[]) => {
-    const deletedIds = new Set(placeIds);
-    setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));
-  }, []);
-
   useLocationPermissionRequest(
     isAuthReady &&
       !isSplashVisible &&
@@ -215,47 +200,6 @@ function App() {
       flowState.kind === 'main' &&
       !requiredUpdateStoreUrl,
   );
-
-  // 세션 확인은 useSpringAuthFlow가 맡고, 여기서는 안내 완료 여부와 업데이트 정책을 읽는 동안
-  // 스플래시를 최소 시간만큼 보여 줍니다. 세션이 아직 확인되지 않았으면 스플래시가 계속 남습니다.
-  useEffect(() => {
-    let isMounted = true;
-    let splashTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const loadGuideCompletion = async () => {
-      const [completed, signedInOnThisInstall] = await Promise.all([
-        hasCompletedAppGuide(),
-        hasSignedInOnThisInstall(),
-      ]);
-
-      if (isMounted) {
-        setHasCompletedGuide(completed || signedInOnThisInstall);
-      }
-    };
-
-    const splashDelay = new Promise<void>(resolve => {
-      splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
-    });
-
-    Promise.allSettled([
-      refreshUpdatePolicy(),
-      loadGuideCompletion(),
-      splashDelay,
-    ]).finally(() => {
-      if (!isMounted) {
-        return;
-      }
-
-      setIsSplashVisible(false);
-    });
-
-    return () => {
-      isMounted = false;
-      if (splashTimer) {
-        clearTimeout(splashTimer);
-      }
-    };
-  }, [refreshUpdatePolicy]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     // 안내를 마친 비회원이 로그인하면 그때 보관함에 남은 장소를 가입 뒤 옮깁니다.
@@ -272,11 +216,6 @@ function App() {
     if (outcome === 'failed') {
       Alert.alert('로그아웃 실패', '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.');
     }
-  };
-
-  const handleCompleteGuide = () => {
-    setHasCompletedGuide(true);
-    completeAppGuide();
   };
 
   const handleOpenGuestLogin = () => {
@@ -533,7 +472,7 @@ function App() {
           edges={['top', 'left', 'right', 'bottom']}
           style={styles.safeArea}
         >
-          <AppGuideScreen onComplete={handleCompleteGuide} />
+          <AppGuideScreen onComplete={completeGuide} />
         </SafeAreaView>
       </SafeAreaProvider>
     );
