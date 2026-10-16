@@ -5,7 +5,6 @@ import { usePostHog } from 'posthog-react-native';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
-import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
@@ -87,30 +86,16 @@ import {
   syncShareAnalyticsConfiguration,
   syncShareSession,
 } from './src/lib/share-intent';
+import { GUEST_MAIN_FLOW_STATE } from './src/app/navigation';
+import { useAppNavigation } from './src/app/useAppNavigation';
 import { useCurrentProfile } from './src/app/useCurrentProfile';
 import { useNativeShareResults } from './src/app/useNativeShareResults';
-import type {
-  AppFlowState,
-  AuthScreen,
-  MainFlowState,
-  MainScreen,
-  Screen,
-} from './src/types/navigation';
 import type { SocialProvider } from './src/lib/auth/social-provider';
 import { captureSocialLoginError } from './src/lib/monitoring/login-errors';
 import { initSentry, withSentry } from './src/lib/monitoring/sentry';
 
 initSentry();
 
-const INITIAL_FLOW_STATE: AppFlowState = {
-  kind: 'auth',
-  stack: ['login'],
-};
-const GUEST_MAIN_FLOW_STATE: MainFlowState = {
-  kind: 'main',
-  activeTab: 'saved',
-  detailSource: null,
-};
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
 const GUEST_HISTORY_REELS: HistoryReel[] = [ONBOARDING_HISTORY_REEL];
 // 비회원 장소에 게시물이 없을 때 렌더마다 새 배열을 만들지 않도록 고정합니다.
@@ -144,10 +129,25 @@ function App() {
       subscription.remove();
     };
   }, []);
-  const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
-  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
-  const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
-    useState<SavedPlaceViewContext | null>(null);
+  const {
+    flow: flowState,
+    selectedPlace,
+    selectedPlaceViewContext,
+    guestReturnFlow,
+    currentScreen,
+    pushAuthScreen,
+    popAuthScreen,
+    openMainScreen,
+    closeHistory,
+    openDetail,
+    closeDetail,
+    openLogin,
+    openGuestLogin,
+    continueBrowsing,
+    forgetGuestReturnFlow,
+    openGuestMain,
+    openMemberMain,
+  } = useAppNavigation();
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
@@ -183,14 +183,12 @@ function App() {
         setIsGuestLoginPromptVisible(true);
       }),
   );
-  const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
   const savedPlacesScrollOffsetRef = useRef(0);
   const {currentProfile, profileError, isProfileLoading, retryProfile, clearProfile} =
     useCurrentProfile(flowState.kind === 'main' && isAuthenticated === true);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
-  const historyReturnScreenRef = useRef<MainScreen>('saved');
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -198,16 +196,13 @@ function App() {
   >([]);
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
   const hasTrackedAppOpenedRef = useRef(false);
-  // openMainScreen은 아래에서 정의되므로, 먼저 만들어지는 훅 콜백은 ref로 최신 함수를 부릅니다.
-  const openMainScreenRef = useRef<(nextScreen: MainScreen) => void>(() => undefined);
 
   const {hasPendingShareLogin, cancelPendingShareLogin, resetPendingShareLogin} =
     useNativeShareResults(isAuthReady, {
       onGuestLoginPrompt: () => {
         setIsGuestLoginPromptVisible(false);
         setMyPageOverlay(null);
-        guestReturnFlowRef.current = GUEST_MAIN_FLOW_STATE;
-        setFlowState(INITIAL_FLOW_STATE);
+        openGuestLogin(GUEST_MAIN_FLOW_STATE);
       },
       onOpenSavedPlaces: reason => {
         if (reason === 'guest-preview') {
@@ -215,17 +210,10 @@ function App() {
           setMyPageOverlay(null);
         }
         // v2 대기함 흐름 복원 시: saveMode가 REVIEW_QUEUE면 'inBox'를 연다.
-        openMainScreenRef.current('saved');
+        openMainScreen('saved');
       },
-      onLoginRequired: () => setFlowState(INITIAL_FLOW_STATE),
+      onLoginRequired: openLogin,
     });
-
-  const currentScreen: Screen =
-    flowState.kind === 'auth'
-      ? flowState.stack[flowState.stack.length - 1]
-      : flowState.detailSource
-      ? 'detail'
-      : flowState.activeTab;
 
   const isGuestBrowsing =
     isAuthReady &&
@@ -257,9 +245,9 @@ function App() {
     if (isAuthenticated) {
       guestLoginPromptTimer.cancel();
       setIsGuestLoginPromptVisible(false);
-      guestReturnFlowRef.current = null;
+      forgetGuestReturnFlow();
     }
-  }, [guestLoginPromptTimer, isAuthenticated]);
+  }, [forgetGuestReturnFlow, guestLoginPromptTimer, isAuthenticated]);
 
   useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
 
@@ -305,81 +293,6 @@ function App() {
       subscription.remove();
     };
   }, [canRequestLocation]);
-
-  const pushAuthScreen = (nextScreen: Exclude<AuthScreen, 'login'>) => {
-    setFlowState(current =>
-      current.kind === 'auth'
-        ? {
-            ...current,
-            stack: [...current.stack, nextScreen],
-          }
-        : current,
-    );
-  };
-
-  const popAuthScreen = () => {
-    setFlowState(current => {
-      if (current.kind !== 'auth' || current.stack.length === 1) {
-        return current;
-      }
-
-      return {
-        ...current,
-        stack: current.stack.slice(0, -1),
-      };
-    });
-  };
-
-  const openMainScreen = (nextScreen: MainScreen) => {
-    // 대기함 복원 시 entryType: InboxEntryType = 'direct' 인자를 다시 받습니다.
-    if (
-      nextScreen === 'history' &&
-      flowState.kind === 'main' &&
-      flowState.activeTab !== 'history'
-    ) {
-      historyReturnScreenRef.current = flowState.activeTab;
-    }
-
-    setFlowState({
-      kind: 'main',
-      activeTab: nextScreen,
-      detailSource: null,
-    });
-    // if (nextScreen === 'inBox') setInBoxEntryType(entryType);
-  };
-
-  openMainScreenRef.current = openMainScreen;
-
-  const openDetailFrom = (
-    sourceScreen: 'saved' | 'map',
-    place: Place,
-    context?: SavedPlaceViewContext,
-  ) => {
-    setSelectedPlace(place);
-    setSelectedPlaceViewContext(context ?? null);
-    setFlowState(current =>
-      current.kind === 'main'
-        ? {
-            ...current,
-            activeTab: sourceScreen,
-            detailSource: sourceScreen,
-          }
-        : current,
-    );
-  };
-
-  const closeDetail = () => {
-    setSelectedPlace(null);
-    setSelectedPlaceViewContext(null);
-    setFlowState(current =>
-      current.kind === 'main'
-        ? {
-            ...current,
-            detailSource: null,
-          }
-        : current,
-    );
-  };
 
   useEffect(() => {
     let isMounted = true;
@@ -436,9 +349,8 @@ function App() {
         // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
         await syncShareSession(null).catch(() => undefined);
 
-        setFlowState(
-          signedInOnThisInstall ? INITIAL_FLOW_STATE : GUEST_MAIN_FLOW_STATE,
-        );
+        if (signedInOnThisInstall) openLogin();
+        else openGuestMain();
         setMyPageOverlay(null);
         setIsAuthReady(true);
         return;
@@ -454,11 +366,7 @@ function App() {
         hasTrackedAppOpenedRef.current = true;
       }
 
-      setFlowState({
-        kind: 'main',
-        activeTab: 'saved',
-        detailSource: null,
-      });
+      openMemberMain();
       setIsAuthReady(true);
     };
 
@@ -504,11 +412,8 @@ function App() {
         activeUserIdRef.current = null;
         transferErrorShownRef.current = false;
         setIsAuthenticated(false);
-        setFlowState(
-          hasSignedInOnThisInstallRef.current
-            ? INITIAL_FLOW_STATE
-            : GUEST_MAIN_FLOW_STATE,
-        );
+        if (hasSignedInOnThisInstallRef.current) openLogin();
+        else openGuestMain();
         setMyPageOverlay(null);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
@@ -519,17 +424,11 @@ function App() {
       setSocialLoginError(null);
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
-      setSelectedPlace(null);
-      setSelectedPlaceViewContext(null);
       savedPlacesScrollOffsetRef.current = 0;
       resetPendingShareLogin();
       setIsLogoutPending(false);
       setPendingSocialProvider(null);
-      setFlowState({
-        kind: 'main',
-        activeTab: 'saved',
-        detailSource: null,
-      });
+      openMemberMain();
       setIsAuthReady(true);
       if (memberId) resumeOnboardingTransfer(memberId, details?.isNewMember);
     });
@@ -541,7 +440,14 @@ function App() {
       }
       unsubscribe();
     };
-  }, [posthog, refreshUpdatePolicy, resetPendingShareLogin]);
+  }, [
+    openGuestMain,
+    openLogin,
+    openMemberMain,
+    posthog,
+    refreshUpdatePolicy,
+    resetPendingShareLogin,
+  ]);
 
   useEffect(() => {
     if (isAuthenticated !== true) return;
@@ -638,8 +544,7 @@ function App() {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
     setIsGuestLoginPromptVisible(false);
-    guestReturnFlowRef.current = flowState;
-    setFlowState(INITIAL_FLOW_STATE);
+    openGuestLogin(flowState);
   };
 
   const handleRequireLogin = () => {
@@ -647,22 +552,20 @@ function App() {
       handleOpenGuestLogin();
       return;
     }
-    setFlowState(INITIAL_FLOW_STATE);
+    openLogin();
   };
 
   // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
   const handleBrowseAsGuest = () => {
     setSocialLoginError(null);
-    setFlowState(GUEST_MAIN_FLOW_STATE);
+    openGuestMain();
   };
 
   const handleContinueBrowsing = () => {
-    const previousFlow = guestReturnFlowRef.current;
-    if (!previousFlow) return;
+    if (!guestReturnFlow) return;
 
     cancelGuestOnboardingTransfer().catch(() => undefined);
-    guestReturnFlowRef.current = null;
-    setFlowState(previousFlow);
+    continueBrowsing();
   };
 
   const showPreparingAlert = (featureName: string) => {
@@ -744,7 +647,7 @@ function App() {
     setMyPageOverlay(null);
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
-    setFlowState(INITIAL_FLOW_STATE);
+    openLogin();
     Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
 
@@ -754,7 +657,7 @@ function App() {
         <HistoryScreen
           guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
           guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
-          onBack={() => openMainScreen(historyReturnScreenRef.current)}
+          onBack={closeHistory}
           onRequireLogin={handleRequireLogin}
         />
       );
@@ -792,10 +695,10 @@ function App() {
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? cancelPendingShareLogin : undefined}
-          onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
+          onContinueBrowsing={guestReturnFlow ? handleContinueBrowsing : undefined}
           onBrowseAsGuest={
             isAuthenticated === false &&
-            !guestReturnFlowRef.current &&
+            !guestReturnFlow &&
             !hasPendingShareLogin
               ? handleBrowseAsGuest
               : undefined
@@ -847,9 +750,7 @@ function App() {
           }
           onAuthenticationRequired={handleRequireLogin}
           onEditModeChange={setIsSavedPlacesEditing}
-          onOpenDetail={(place, context) =>
-            openDetailFrom('saved', place, context)
-          }
+          onOpenDetail={(place, context) => openDetail('saved', place, context)}
           onScrollOffsetChange={offset => {
             savedPlacesScrollOffsetRef.current = offset;
           }}
