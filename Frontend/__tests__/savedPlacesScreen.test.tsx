@@ -409,7 +409,8 @@ describe('링크 저장', () => {
     expect(dialog(renderer).props.visible).toBe(true);
     expect(dialog(renderer).props.errorMessage).toBe(message);
     expect(dialog(renderer).props.isSubmitting).toBe(false);
-    expect(getSharedSaveState()).toMatchObject({status: 'FAILED', source: 'url_input'});
+    // 서버 릴스가 없는 실패라 공유 상태에 지켜볼 저장을 남기지 않는다.
+    expect(getSharedSaveState()).toBeNull();
 
     await act(async () => dialog(renderer).props.onChangeValue(LINK));
     expect(dialog(renderer).props.errorMessage).toBeNull();
@@ -613,6 +614,27 @@ describe('링크 저장', () => {
     await flush();
     for (let i = 0; i < 6; i += 1) await tick(3000);
     expect(getHistoryReels).toHaveBeenCalledTimes(3);
+  });
+
+  test('저장 응답을 기다리는 동안에는 공유 목록을 조회하지 않고, 응답한 릴스는 3초 뒤부터 폴링한다', async () => {
+    const request = deferred<Awaited<ReturnType<typeof saveContent>>>();
+    jest.mocked(saveContent).mockReturnValue(request.promise);
+    const renderer = await renderLoaded([CAFE]);
+    await pressLabel(renderer, '장소 링크 추가');
+    await act(async () => dialog(renderer).props.onChangeValue(LINK));
+    await act(async () => {
+      dialog(renderer).props.onSubmit();
+    });
+    await tick(9000);
+    expect(getHistoryReels).not.toHaveBeenCalled();
+    expect(getSharedSaveState()).toBeNull();
+
+    await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
+    await flush();
+    await tick(2999);
+    expect(getHistoryReels).not.toHaveBeenCalled();
+    await tick(1);
+    expect(getHistoryReels).toHaveBeenCalledTimes(1);
   });
 });
 

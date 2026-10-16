@@ -24,9 +24,8 @@ const finishSubmitting = (current: LinkSubmitState): LinkSubmitState =>
 
 /** 링크 저장 흐름을 처리 중 릴스 상태(useReelProcessing)에 알리는 동작입니다. */
 type LinkSaveProgress = {
-  startLinkSave: (reel: ReelProcessingStatus) => void;
+  startLinkSave: () => void;
   finishLinkSave: (response: SaveInstagramReelResponse) => void;
-  failLinkSave: (reel: ReelProcessingStatus) => void;
 };
 
 type Options = {
@@ -38,7 +37,8 @@ type Options = {
 
 /**
  * 링크 입력 대화상자와 링크 저장 요청을 맡습니다.
- * 저장 흐름은 공유 상태(reel-save-state)에 적고 progress로 알려, 처리 중이면 useReelProcessing이 이어서 지켜봅니다.
+ * 서버가 응답한 저장은 공유 상태(reel-save-state)에 적고 progress로 알려, 처리 중이면 useReelProcessing이 이어서 지켜봅니다.
+ * 응답 전과 요청 실패 때는 서버 릴스 ID가 없으므로 공유 상태에 지켜볼 릴스를 적지 않습니다.
  * 비회원이 대화상자를 열려고 하면 열지 않고 로그인을 요청합니다.
  */
 export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
@@ -77,22 +77,11 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
 
     const normalizedUrl =
       normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
-    const initialReel: ReelProcessingStatus = {
-      id: `manual-${Date.now()}`,
-      processing_status: 'PROCESSING',
-      failure_reason: null,
-      instagram_thumbnail_url: null,
-      created_at: new Date().toISOString(),
-    };
 
-    // 새 링크 요청은 이전 릴스의 카드/폴링 상태를 이어받지 않습니다.
-    progress.startLinkSave(initialReel);
-    setSharedSaveState({
-      url: normalizedUrl,
-      status: 'PROCESSING',
-      source: 'url_input',
-      reel: initialReel,
-    });
+    // 새 링크 요청은 이전 릴스의 폴링을 이어받지 않습니다. 서버가 릴스 ID를 주기 전에는
+    // 목록에서 찾을 릴스가 없으므로 공유 상태를 비워 두고 폴링하지 않습니다.
+    progress.startLinkSave();
+    setSharedSaveState(null);
     setSubmitState(SUBMITTING);
     try {
       const response = await saveContent(linkValue);
@@ -114,21 +103,8 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
       setIsDialogVisible(false);
       setLinkValue('');
     } catch (submitError) {
+      // 실패한 요청은 서버 릴스가 없어 공유 상태에 쓰지 않습니다. 그사이 들어온 외부 공유도 그대로 둡니다.
       const normalizedError = normalizeReelError(submitError);
-      const failedReel: ReelProcessingStatus = {
-        id: `manual-failed-${Date.now()}`,
-        processing_status: 'FAILED',
-        failure_reason: normalizedError.errorCode,
-        instagram_thumbnail_url: null,
-        created_at: new Date().toISOString(),
-      };
-      progress.failLinkSave(failedReel);
-      setSharedSaveState({
-        url: normalizedUrl,
-        status: 'FAILED',
-        source: 'url_input',
-        reel: failedReel,
-      });
       if (normalizedError.errorCode === 'AUTH401_001') {
         setIsDialogVisible(false);
         onRequireLogin?.();

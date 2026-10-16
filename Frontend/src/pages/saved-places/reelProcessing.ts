@@ -63,6 +63,7 @@ export function isSameSharedSave(current: SharedSaveState, other: SharedSaveStat
 /**
  * 공유 상태를 화면이 할 일 하나로 바꿉니다.
  * 서버 reelId가 아직 없으면(share-로 시작) 기다리고, 확인하지 않은 외부 공유는 확인부터 하며, 나머지는 그대로 보여 줍니다.
+ * share- 임시 ID는 reelId를 받기 전의 외부 공유에 useNativeShareResults가 붙이고, 링크 저장은 서버가 응답한 뒤에만 공유 상태에 적으므로 임시 ID가 없습니다.
  */
 export function classifySharedSaveState(
   state: SharedSaveState | null,
@@ -95,12 +96,10 @@ export function classifySharedSaveState(
 export type ReelProcessingAction =
   /** 공유 상태가 바뀌었습니다. */
   | {type: 'sharedStateChanged'; view: SharedSaveStateView}
-  /** 링크 저장을 시작했습니다. */
-  | {type: 'linkSaveStarted'; reel: ReelProcessingStatus}
+  /** 링크 저장을 시작했습니다. 서버가 응답하기 전에는 지켜볼 릴스가 없습니다. */
+  | {type: 'linkSaveStarted'}
   /** 링크 저장 API가 응답했습니다. createdAt은 처리 중 릴스의 만든 시각으로 씁니다. */
   | {type: 'linkSaveResponded'; response: SaveInstagramReelResponse; createdAt: string}
-  /** 링크 저장 API가 실패했습니다. */
-  | {type: 'linkSaveFailed'; reel: ReelProcessingStatus}
   /** 공용 목록에서 새 상태를 찾았습니다. */
   | {type: 'pollReceived'; reel: ReelProcessingStatus}
   /** 시간 초과, 연속 실패, 멈춰야 하는 오류로 폴링을 멈춥니다. */
@@ -137,7 +136,7 @@ function nextReelProcessingState(
     case 'sharedStateChanged':
       return applySharedSaveStateView(state, action.view);
     case 'linkSaveStarted':
-      return {processingReelId: null, processingReel: action.reel, showSaveSuccess: false};
+      return INITIAL_REEL_PROCESSING_STATE;
     case 'linkSaveResponded':
       if (action.response.status === 'COMPLETED') {
         return {processingReelId: null, processingReel: null, showSaveSuccess: true};
@@ -153,7 +152,6 @@ function nextReelProcessingState(
           created_at: action.createdAt,
         },
       };
-    case 'linkSaveFailed':
     case 'pollReceived':
       return {...state, processingReel: action.reel};
     case 'pollStopped':

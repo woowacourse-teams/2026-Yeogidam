@@ -83,8 +83,8 @@ describe('classifySharedSaveState', () => {
   });
 
   test('링크 저장은 확인 없이 보여 주고, 완료면 저장 완료를 알린다', () => {
-    const processing = shared({source: 'url_input', reel: reel('manual-1')});
-    expect(classifySharedSaveState(processing, NO_KEYS)).toMatchObject({type: 'show', pollReelId: 'manual-1'});
+    const processing = shared({source: 'url_input', reel: reel('8')});
+    expect(classifySharedSaveState(processing, NO_KEYS)).toMatchObject({type: 'show', pollReelId: '8'});
 
     const completed = shared({source: 'url_input', reel: reel('8', 'COMPLETED')});
     expect(classifySharedSaveState(completed, NO_KEYS)).toEqual({
@@ -158,11 +158,10 @@ describe('reelProcessingReducer', () => {
     ).toEqual({processingReelId: null, processingReel: completed, showSaveSuccess: false});
   });
 
-  test('링크 저장을 시작하면 이전 릴스를 잊고 새 릴스를 둔다', () => {
-    const started = reel('manual-1');
-    expect(run(tracking, {type: 'linkSaveStarted', reel: started})).toEqual({
+  test('링크 저장을 시작하면 이전 릴스를 잊고, 응답이 올 때까지 지켜볼 릴스를 두지 않는다', () => {
+    expect(run(tracking, {type: 'linkSaveStarted'})).toEqual({
       processingReelId: null,
-      processingReel: started,
+      processingReel: null,
       showSaveSuccess: false,
     });
   });
@@ -192,9 +191,8 @@ describe('reelProcessingReducer', () => {
     });
   });
 
-  test('저장 실패와 폴링 결과는 릴스만 바꾸고, 멈춤과 완료와 알림 끄기는 각자 한 값만 바꾼다', () => {
-    const failed = reel('manual-failed-1', 'FAILED');
-    expect(run(tracking, {type: 'linkSaveFailed', reel: failed}).processingReel).toBe(failed);
+  test('폴링 결과는 릴스만 바꾸고, 멈춤과 완료와 알림 끄기는 각자 한 값만 바꾼다', () => {
+    const failed = reel('8', 'FAILED');
     expect(run(tracking, {type: 'pollReceived', reel: failed})).toEqual({...tracking, processingReel: failed});
     expect(run(tracking, {type: 'pollStopped'})).toEqual({...tracking, processingReelId: null});
     expect(run(tracking, {type: 'pollCompleted', showSaveSuccess: false})).toEqual({
@@ -214,18 +212,14 @@ describe('reelProcessingReducer', () => {
     expect(reelProcessingReducer(tracking, {type: 'pollReceived', reel: reel('8')})).not.toBe(tracking);
   });
 
-  test('링크 저장 흐름은 화면이 한 번에 반영하던 순서대로 처리 중 릴스를 폴링 대상으로 남긴다', () => {
-    // 시작하면 공유 상태 구독이 곧바로 manual- 릴스를 폴링 대상으로 둔다.
-    const initialReel = reel('manual-1');
+  test('링크 저장은 응답이 오기 전에는 폴링할 릴스를 두지 않고, 처리 중 응답이 오면 응답한 릴스를 폴링한다', () => {
+    // 시작하면 링크 저장이 공유 상태를 비우고, 공유 상태 구독이 그 변화를 반영한다.
     const started = run(
       INITIAL_REEL_PROCESSING_STATE,
-      {type: 'linkSaveStarted', reel: initialReel},
-      {
-        type: 'sharedStateChanged',
-        view: classifySharedSaveState(shared({source: 'url_input', reel: initialReel}), NO_KEYS),
-      },
+      {type: 'linkSaveStarted'},
+      {type: 'sharedStateChanged', view: classifySharedSaveState(null, NO_KEYS)},
     );
-    expect(started.processingReelId).toBe('manual-1');
+    expect(started).toEqual(INITIAL_REEL_PROCESSING_STATE);
 
     const responded = run(
       started,
@@ -265,7 +259,7 @@ describe('폴링 시작 시각과 시간 제한', () => {
   });
 
   test('다른 릴스로 바뀌면 시작 시각과 놓친 횟수를 처음부터 센다', () => {
-    const tracking = {reelId: 'manual-1', startedAt: NOW - 60_000, failureCount: 2};
+    const tracking = {reelId: '7', startedAt: NOW - 60_000, failureCount: 2};
     expect(resolveReelPollTracking(tracking, '8', '2026-10-16T09:00:00Z', NOW)).toEqual({
       reelId: '8',
       startedAt: NOW,

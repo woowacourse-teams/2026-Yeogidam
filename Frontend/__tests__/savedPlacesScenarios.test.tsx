@@ -23,9 +23,11 @@ import {
 } from './support/savedPlacesFixtures';
 import {
   act,
+  dialog,
   flush,
   openDialogAndSave,
   placeNames,
+  pressLabel,
   refreshControl,
   render,
   renderLoaded,
@@ -278,5 +280,27 @@ describe('보관함 화면의 겹치는 순서', () => {
     await tick(9000);
     expect(calls).toEqual(['fetch', 'login']);
     expect(getSharedSaveState()).toMatchObject({status: 'PROCESSING', reel: {id: '8'}});
+  });
+
+  test('링크 저장 응답을 기다리는 사이 외부 공유가 오면 저장이 실패해도 그 공유를 지우지 않는다', async () => {
+    const request = deferred<Awaited<ReturnType<typeof saveContent>>>();
+    jest.mocked(saveContent).mockReturnValue(request.promise);
+    const renderer = await renderLoaded([CAFE]);
+    await pressLabel(renderer, '장소 링크 추가');
+    await act(async () => dialog(renderer).props.onChangeValue(LINK));
+    await act(async () => {
+      dialog(renderer).props.onSubmit();
+    });
+    const share = sharedShare(reelStatus('share-1', 'PENDING'));
+    await act(async () => setSharedSaveState(share));
+
+    await act(async () =>
+      request.reject(
+        new ReelApiError({errorCode: 'COMMON500_001', message: '서버가 잠시 불안정해요.', retryable: true}),
+      ),
+    );
+    await flush();
+    expect(dialog(renderer).props.errorMessage).toBe('서버가 잠시 불안정해요.');
+    expect(getSharedSaveState()).toBe(share);
   });
 });
