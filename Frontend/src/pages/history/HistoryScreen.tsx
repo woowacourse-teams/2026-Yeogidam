@@ -15,30 +15,18 @@ import {
   trackExtractionRequestFinished,
   trackExtractionRequestStarted,
   trackHistoryContentViewed,
-  trackHistoryViewed,
   type HistoryVisibleState,
 } from '../../analytics/placeExtractionEvents';
-import {
-  getHistoryReels,
-  retryHistoryReelExtraction,
-} from '../../entities/content/history-api';
+import {retryHistoryReelExtraction} from '../../entities/content/history-api';
 import {normalizeReelError} from '../../entities/content/errors';
-import {
-  subscribeRecentShares,
-  type RecentSharesSnapshot,
-  type RecentSharesSubscription,
-} from '../../entities/content/recent-shares-poller';
-import type {
-  HistoryCursor,
-  HistoryReel,
-  HistoryReelDetail,
-} from '../../entities/content/types';
+import type {HistoryReel, HistoryReelDetail} from '../../entities/content/types';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 import {HistoryFailureDetail} from './components/HistoryFailureDetail';
 import {HistoryItem} from './components/HistoryItem';
 import {HistorySuccessDetail} from './components/HistorySuccessDetail';
 import {historyStyles} from './components/historyStyles';
 import {getHistoryVisibleState, groupHistoryReelsByDate} from './history-format';
+import {useHistoryList} from './useHistoryList';
 
 type HistoryScreenProps = {
   onBack: () => void;
@@ -50,9 +38,6 @@ type HistoryScreenProps = {
 const emptyCharacter =
   'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
 
-/** 처리 중 항목의 상태도 앱 공용 목록 폴링 하나로 갱신한다(단건 폴링 없음). */
-const LIST_POLL_INTERVAL_MS = 3000;
-
 export function HistoryScreen({
   onBack,
   guestReels,
@@ -60,6 +45,17 @@ export function HistoryScreen({
   onRequireLogin,
 }: HistoryScreenProps) {
   const posthog = usePostHog();
+  const {
+    status,
+    reels,
+    more,
+    reload,
+    loadMore,
+    retryLoadMore,
+    refreshSilently,
+    acceptRetriedReel,
+  } = useHistoryList(guestReels, posthog);
+  const loading = status === 'loading';
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
   const viewportHeightRef = useRef(0);
@@ -68,28 +64,10 @@ export function HistoryScreen({
   const seenCardsRef = useRef(new Set<string>());
   const visibleTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const cardStatesRef = useRef(new Map<string, HistoryVisibleState>());
-  const historyViewedRef = useRef(false);
   const shouldRestoreScrollRef = useRef(false);
-  // 상태값은 다음 렌더까지 바뀌지 않으므로 같은 커서의 더 보기가 겹치지 않게 ref로 막는다.
-  const loadingMoreRef = useRef(false);
-  // 첫 페이지 다음까지 읽었으면 커서는 더 보기만 갱신한다.
-  const hasLoadedMoreRef = useRef(false);
-  const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
-  const [cursor, setCursor] = useState<HistoryCursor | null>(null);
-  const [loading, setLoading] = useState(guestReels === undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
-  const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
-
-  // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
-  const hasReelsRef = useRef(false);
-  hasReelsRef.current = reels.length > 0;
-  const showErrorIfEmpty = useCallback(() => {
-    if (!hasReelsRef.current) setError(true);
-  }, []);
 
   cardStatesRef.current = new Map(reels.map(reel => [reel.id, getHistoryVisibleState(reel)]));
 
@@ -143,97 +121,6 @@ export function HistoryScreen({
       visibleTimersRef.current.clear();
     }
   }, [selectedSuccess, selectedFailure]);
-
-  const sharesSubscriptionRef = useRef<RecentSharesSubscription | null>(null);
-
-  /** 첫 페이지 결과를 반영한다. 폴링(replace=false)은 더 보기로 불러온 이전 항목을 유지한다. */
-  const applyFirstPage = useCallback(async (
-    result: RecentSharesSnapshot,
-    replace: boolean,
-  ) => {
-    // This screen is visible while refreshing, so the newest status is
-    // already seen by the user and must not create a badge on exit.
-    if (result.reels[0]) {
-      await setLastSeenHistorySnapshot({
-        id: result.reels[0].id,
-        status: result.reels[0].processing_status,
-      });
-    }
-    setError(false);
-    setReels(current => {
-      if (replace) return result.reels;
-      const refreshedIds = new Set(result.reels.map(item => item.id));
-      return [
-        ...result.reels,
-        ...current.filter(item => !refreshedIds.has(item.id)),
-      ];
-    });
-    // 폴링은 첫 페이지만 읽은 목록의 커서만 갱신한다. 더 보기로 이어 읽은 뒤에는
-    // 커서가 마지막으로 읽은 페이지를 가리키고, 끝까지 읽어 null이면 그대로 둔다.
-    if (replace || !hasLoadedMoreRef.current) setCursor(result.nextCursor);
-  }, []);
-
-  const load = useCallback(async (nextCursor?: HistoryCursor | null, silent = false) => {
-    if (guestReels !== undefined) {
-      setReels(guestReels);
-      setCursor(null);
-      setError(false);
-      setLoading(false);
-      setLoadingMore(false);
-      return;
-    }
-    if (nextCursor) {
-      if (loadingMoreRef.current) return;
-      loadingMoreRef.current = true;
-      setLoadMoreFailed(false);
-      setLoadingMore(true);
-    } else if (!silent) {
-      setLoadMoreFailed(false);
-      hasLoadedMoreRef.current = false;
-      setLoading(true);
-    }
-    setError(false);
-    try {
-      if (nextCursor) {
-        const result = await getHistoryReels(nextCursor);
-        setReels(current => {
-          // 폴링으로 첫 페이지 경계가 밀리면 이미 가진 항목이 다음 페이지에 다시 올 수 있다.
-          const currentIds = new Set(current.map(item => item.id));
-          return [...current, ...result.reels.filter(item => !currentIds.has(item.id))];
-        });
-        hasLoadedMoreRef.current = true;
-        setCursor(result.nextCursor);
-        return;
-      }
-
-      // 첫 페이지는 앱 공용 폴러로 읽어 배지 등 다른 구독자와 결과를 나눈다.
-      // 폴링 결과는 구독 콜백이 반영하므로 여기서는 처음 불러올 때만 목록을 바꾼다.
-      const subscription = sharesSubscriptionRef.current;
-      const result = await (subscription ? subscription.refresh() : getHistoryReels());
-      if (!silent || !subscription) await applyFirstPage(result, !silent);
-      if (!silent && !historyViewedRef.current) {
-        historyViewedRef.current = true;
-        requestAnimationFrame(() => trackHistoryViewed(posthog, result.reels.length ? 'list' : 'empty'));
-      }
-    } catch {
-      // 처음 불러올 때만 오류 화면을 보인다. 이전 기록 불러오기 실패는 목록 아래에서,
-      // 폴링·재시도 뒤 다시 읽기 실패는 목록을 유지한 채 다음 폴링에 맡긴다.
-      if (nextCursor) setLoadMoreFailed(true);
-      else if (silent) showErrorIfEmpty();
-      else setError(true);
-      if (!nextCursor && !silent && !historyViewedRef.current) {
-        historyViewedRef.current = true;
-        requestAnimationFrame(() => trackHistoryViewed(posthog, 'error'));
-      }
-    } finally {
-      if (nextCursor) {
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
-      } else {
-        setLoading(false);
-      }
-    }
-  }, [applyFirstPage, guestReels, posthog, showErrorIfEmpty]);
 
   /**
    * 재시도도 새 공유와 같은 길을 탄다. 접수에 성공하면 목록으로 돌아가 바로 한 번 읽고,
@@ -296,35 +183,10 @@ export function HistoryScreen({
         failure_reason: null,
         created_at: new Date().toISOString(),
       };
-      setReels(current =>
-        current.some(item => item.id === acceptedReel.id)
-          ? current.map(item => (item.id === acceptedReel.id ? acceptedReel : item))
-          : [acceptedReel, ...current],
-      );
+      acceptRetriedReel(acceptedReel);
     }
-    await load(undefined, true);
-  }, [load, posthog]);
-
-  useEffect(() => {
-    if (guestReels !== undefined) return;
-    const subscription = subscribeRecentShares({
-      intervalMs: LIST_POLL_INTERVAL_MS,
-      onResult: result => {
-        applyFirstPage(result, false).catch(() => undefined);
-      },
-      onError: showErrorIfEmpty,
-    });
-    sharesSubscriptionRef.current = subscription;
-
-    return () => {
-      subscription.unsubscribe();
-      sharesSubscriptionRef.current = null;
-    };
-  }, [applyFirstPage, guestReels, showErrorIfEmpty]);
-
-  useEffect(() => {
-    load().catch(() => undefined);
-  }, [load]);
+    await refreshSilently();
+  }, [acceptRetriedReel, posthog, refreshSilently]);
 
   useEffect(() => {
     if (
@@ -422,20 +284,17 @@ export function HistoryScreen({
           const reachedBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
-          // 실패했으면 스크롤마다 다시 요청하지 않고 다시 불러오기 버튼을 기다린다.
-          if (reachedBottom && cursor && !loadingMore && !loadMoreFailed) {
-            load(cursor).catch(() => undefined);
-          }
+          if (reachedBottom) loadMore();
         }}
         scrollEventThrottle={200}
         showsVerticalScrollIndicator={false}
       >
         {loading ? (
           <Text style={styles.stateText}>히스토리를 불러오는 중이에요.</Text>
-        ) : error ? (
+        ) : status === 'error' ? (
           <View style={styles.stateBody}>
             <Text style={styles.stateText}>히스토리를 불러오지 못했어요.</Text>
-            <Pressable onPress={() => load()} style={styles.retryButton}>
+            <Pressable onPress={() => reload()} style={styles.retryButton}>
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
           </View>
@@ -490,15 +349,13 @@ export function HistoryScreen({
             </View>
           ))
         )}
-        {loadingMore ? <Text style={styles.moreLoadingText}>이전 기록을 불러오는 중이에요.</Text> : null}
-        {loadMoreFailed && !loadingMore ? (
+        {more === 'loading' ? <Text style={styles.moreLoadingText}>이전 기록을 불러오는 중이에요.</Text> : null}
+        {more === 'error' ? (
           <View>
             <Text style={styles.moreLoadingText}>이전 기록을 불러오지 못했어요.</Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => {
-                load(cursor).catch(() => undefined);
-              }}
+              onPress={() => retryLoadMore()}
               style={styles.moreButton}
             >
               <Text style={styles.retryText}>다시 불러오기</Text>
