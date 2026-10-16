@@ -52,8 +52,6 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
 
     private static final int PAGE_SIZE = 15;
 
-    private static final String FOOD_CATEGORY_PREFIX = "음식점";
-
     // 주소 좌표를 기준으로 같은 이름의 장소를 찾는 반경. 같은 도시 안의 다른 지점(골든셋에서 4.8km 밖 지점이 붙은 일이 있었다)은
     // 거르고 같은 동네 안에서는 넉넉한 값이다.
     private static final int NEARBY_RADIUS_METERS = 3_000;
@@ -344,27 +342,15 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
 
     private List<Place> readPlaces(JsonNode documents) {
         Map<String, Place> places = new LinkedHashMap<>();
-        int foodDocuments = 0;
 
         for (JsonNode document : documents) {
-            if (!isFoodPlace(document)) {
-                continue;
-            }
-            foodDocuments++;
             readPlace(document)
                     .ifPresent(place -> places.putIfAbsent(place.externalSource().placeId(), place));
         }
-        // 음식점 결과가 왔는데 하나도 못 읽었다면 응답 모양이 바뀐 것이다. 음식점이 아예 없는 것은 정상이다.
-        if (foodDocuments > 0 && places.isEmpty()) {
+        if (!documents.isEmpty() && places.isEmpty()) {
             throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
         }
         return List.copyOf(places.values());
-    }
-
-    // 여기담은 먹고 마시는 가게만 모은다. 카카오 분류가 "음식점"으로 시작하지 않는 결과(관광지, 공원, 편의점 등)는 받지 않는다.
-    private boolean isFoodPlace(JsonNode document) {
-        String category = optional(document, "category_name");
-        return category != null && category.startsWith(FOOD_CATEGORY_PREFIX);
     }
 
     private Optional<Place> readPlace(JsonNode document) {

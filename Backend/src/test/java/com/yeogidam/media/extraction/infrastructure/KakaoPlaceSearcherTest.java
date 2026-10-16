@@ -342,7 +342,7 @@ class KakaoPlaceSearcherTest {
     }
 
     @Test
-    void 음식점이_아닌_결과는_건너뛰고_음식점만_반환한다() {
+    void 카테고리에_관계없이_첫_번째_유효_장소를_반환한다() {
         // given
         kakaoServer.respondWith("덕수궁", documents(
                 documentWithCategory("1", "덕수궁", "서울 중구 정동 5-1", "여행 > 관광,명소 > 고궁,궁"),
@@ -352,18 +352,20 @@ class KakaoPlaceSearcherTest {
         // when & then
         assertThat(searcher().search(hint))
                 .extracting(place -> place.externalSource().placeId())
-                .containsExactly("2");
+                .containsExactly("1");
     }
 
     @Test
-    void 음식점이_아닌_결과만_있으면_빈_목록을_반환한다() {
+    void 음식점이_아닌_장소도_반환한다() {
         // given
         kakaoServer.respondWith("청계천", documents(
                 documentWithCategory("1", "청계천", "서울 종로구 서린동 1", "여행 > 관광,명소 > 하천")));
         PlaceSearchHint hint = new PlaceSearchHint("청계천", null, List.of(), List.of(), null);
 
         // when & then
-        assertThat(searcher().search(hint)).isEmpty();
+        assertThat(searcher().search(hint))
+                .extracting(place -> place.externalSource().placeId())
+                .containsExactly("1");
     }
 
     @ParameterizedTest
