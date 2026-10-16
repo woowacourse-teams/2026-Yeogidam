@@ -28,8 +28,11 @@ test('비운 뒤에 끝난 조회는 비우기 전의 세대라서 캐시를 다
   expect(readSavedPlacesCache()?.map(cached => cached.name)).toEqual(['빵집']);
 });
 
-test('지운 장소를 빼면 나머지만 남고, 비어 있을 때 빼면 그대로 비어 있다', () => {
+test('지운 장소를 빼면 나머지만 남고, 비어 있을 때 빼도 세대를 올려 빼기 전에 보낸 조회가 캐시를 채우지 못한다', () => {
+  const generationBeforeRemove = getSavedPlacesCacheGeneration();
   removeFromSavedPlacesCache(cached => cached.savedPlaceId === 'sp-1');
+  expect(readSavedPlacesCache()).toBeNull();
+  writeSavedPlacesCache([place('카페', 'sp-1')], generationBeforeRemove);
   expect(readSavedPlacesCache()).toBeNull();
 
   writeSavedPlacesCache([place('카페', 'sp-1'), place('빵집', 'sp-2')], getSavedPlacesCacheGeneration());
