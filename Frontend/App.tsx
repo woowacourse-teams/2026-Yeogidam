@@ -5,6 +5,7 @@ import { usePostHog } from 'posthog-react-native';
 import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
+import {setAnalyticsGuestMode} from './src/analytics/analytics';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import { BottomNavigationBar } from './src/components/BottomNavigationBar';
@@ -60,10 +61,11 @@ import {
 } from './src/lib/app-update-policy-storage';
 import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
+  toLoginFailureType,
   trackAppOpened,
+  trackGuestTransferFinished,
   trackLoginFinished,
   trackLoginStarted,
-  type LoginFailureType,
 } from './src/analytics/userEntryEvents';
 // import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
@@ -234,28 +236,6 @@ function getSocialLoginErrorTitle(error: NormalizedAuthError): string {
   return `소셜 로그인 오류 · ${stageLabel}`;
 }
 
-function toLoginFailureType(error: NormalizedAuthError): LoginFailureType {
-  if (error.errorCode === 'AUTH000_001') {
-    return 'user_cancelled';
-  }
-
-  if (
-    error.errorCode === 'CLIENT000_001' ||
-    error.errorCode === 'CLIENT000_002'
-  ) {
-    return 'network_error';
-  }
-
-  if (
-    error.errorCode === 'AUTH400_001' ||
-    error.errorCode === 'AUTH502_001'
-  ) {
-    return 'auth_failed';
-  }
-
-  return 'unknown';
-}
-
 function captureSocialLoginError(
   provider: SocialProvider,
   error: NormalizedAuthError,
@@ -341,6 +321,9 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
   const [memberDataRevision, setMemberDataRevision] = useState(0);
+  useEffect(() => {
+    setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
+  }, [isAuthenticated]);
   const hasSignedInOnThisInstallRef = useRef(false);
   const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
@@ -605,6 +588,7 @@ function App() {
     const resumeOnboardingTransfer = (memberId: string, isNewMember?: boolean) => {
       resumeGuestOnboardingTransfer(memberId, isNewMember)
         .then(completed => {
+          if (completed) trackGuestTransferFinished(posthog, 'success');
           if (
             !isMounted ||
             !completed ||
@@ -614,6 +598,7 @@ function App() {
           setMemberDataRevision(revision => revision + 1);
         })
         .catch(error => {
+          trackGuestTransferFinished(posthog, 'failure');
           console.warn('군자역 게시물 저장 실패', error);
           if (
             !isMounted ||
@@ -1039,10 +1024,20 @@ function App() {
       return;
     }
     loginAttemptInFlightRef.current = true;
-    let loginStarted = false;
+    const hasGuestTransfer =
+      isAuthenticated === false && hasCompletedGuide === true;
+    const signIn = {
+      apple: signInWithApple,
+      kakao: signInWithKakao,
+      google: signInWithGoogle,
+    }[provider];
+    let signInStarted = false;
+
+    // 로그인 버튼을 누른 시점에 기록해, 시작 전에 실패해도 로그인 시도로 센다.
+    trackLoginStarted(posthog, provider);
 
     try {
-      if (isAuthenticated === false && hasCompletedGuide === true) {
+      if (hasGuestTransfer) {
         await beginGuestOnboardingTransfer(toOnboardingKakaoPlaceIds(guestPlaces));
       }
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
@@ -1052,38 +1047,30 @@ function App() {
 
       setSocialLoginError(null);
       setPendingSocialProvider(provider);
-      trackLoginStarted(posthog, provider);
-      loginStarted = true;
-      if (provider === 'apple') {
-        await signInWithApple();
-        trackLoginFinished(posthog, {provider, outcome: 'success'});
-        return;
-      }
-
-      if (provider === 'kakao') {
-        await signInWithKakao();
-        trackLoginFinished(posthog, {provider, outcome: 'success'});
-        return;
-      }
-
-      await signInWithGoogle();
-      trackLoginFinished(posthog, {provider, outcome: 'success'});
+      signInStarted = true;
+      await signIn();
+      trackLoginFinished(posthog, {
+        provider,
+        outcome: 'success',
+        hasGuestTransfer,
+      });
     } catch (error) {
       cancelGuestOnboardingTransfer().catch(() => undefined);
       const normalizedError = withAuthErrorStage(
         error,
-        loginStarted ? 'provider_authorization' : 'login_setup',
+        signInStarted ? 'provider_authorization' : 'login_setup',
       );
       captureSocialLoginError(provider, normalizedError);
-      if (!loginStarted) {
-        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
-        return;
-      }
       trackLoginFinished(posthog, {
         provider,
         outcome: 'failure',
         failureType: toLoginFailureType(normalizedError),
+        hasGuestTransfer,
       });
+      if (!signInStarted) {
+        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+        return;
+      }
       setSocialLoginError(normalizedError);
       setPendingSocialProvider(null);
     } finally {

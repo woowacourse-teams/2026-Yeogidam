@@ -19,6 +19,9 @@ jest.mock('../src/components/BottomNavigationBar', () => ({
   getBottomNavigationBarOffset: () => 0,
 }));
 jest.mock('../src/analytics/placeExtractionEvents', () => ({
+  toExtractionFailureType: jest.fn(() => 'unknown'),
+  trackExtractionRequestFinished: jest.fn(),
+  trackExtractionRequestStarted: jest.fn(),
   trackHistoryContentDetailViewed: jest.fn(),
   trackHistoryContentViewed: jest.fn(),
   trackHistoryViewed: jest.fn(),

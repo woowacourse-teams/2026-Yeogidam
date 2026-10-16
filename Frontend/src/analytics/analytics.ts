@@ -22,7 +22,16 @@ export type CommonAnalyticsProperties = {
   platform: 'android' | 'ios';
   release: string;
   environment: string;
+  /** 로그인 상태가 확정된 뒤에만 포함합니다. 비회원 체험 이벤트를 걸러낼 때 사용합니다. */
+  is_guest?: boolean;
 };
+
+let analyticsIsGuest: boolean | null = null;
+
+/** 인증 상태가 바뀔 때 호출합니다. 확인 전(null)에는 `is_guest`를 보내지 않습니다. */
+export function setAnalyticsGuestMode(isGuest: boolean | null) {
+  analyticsIsGuest = isGuest;
+}
 
 /** 모든 이벤트에 공통으로 포함할 속성입니다. */
 export function getAnalyticsEnvironment() {
@@ -34,6 +43,7 @@ export function getCommonAnalyticsProperties(): CommonAnalyticsProperties {
     platform: Platform.OS === 'ios' ? 'ios' : 'android',
     release: DeviceInfo.getVersion(),
     environment: getAnalyticsEnvironment(),
+    ...(analyticsIsGuest === null ? {} : {is_guest: analyticsIsGuest}),
   };
 }
 

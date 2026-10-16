@@ -14,12 +14,16 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
+import {v4 as uuidv4} from 'uuid';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
   BOTTOM_NAVIGATION_BAR_HEIGHT,
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import {
+  toExtractionFailureType,
+  trackExtractionRequestFinished,
+  trackExtractionRequestStarted,
   trackHistoryContentDetailViewed,
   trackHistoryContentViewed,
   trackHistoryViewed,
@@ -758,12 +762,24 @@ export function HistoryScreen({
    * 이후 상태는 목록 폴링이 갱신한다. 실패하면 실패 상세에 머문 채 안내한다.
    */
   const retryHistoryReel = useCallback(async (reel: HistoryReel) => {
+    const requestId = uuidv4();
+    trackExtractionRequestStarted(posthog, {
+      requestId,
+      source: 'history_retry',
+    });
     let response: Awaited<ReturnType<typeof retryHistoryReelExtraction>>;
     try {
       // 서버 재시도 API는 같은 게시물로 새 공유를 만들고(이미 추출 중이면 그 공유를) 돌려준다.
       response = await retryHistoryReelExtraction(reel.id);
     } catch (retryError) {
       const normalized = normalizeReelError(retryError);
+      trackExtractionRequestFinished(posthog, {
+        requestId,
+        source: 'history_retry',
+        outcome: 'request_failed',
+        failureType: toExtractionFailureType(normalized),
+        responseStatus: normalized.status,
+      });
       // MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
       Alert.alert(
         '다시 시도하지 못했어요',
@@ -773,6 +789,13 @@ export function HistoryScreen({
       );
       return;
     }
+    // 2xx 응답이면 응답 안의 추출 상태가 FAILED여도 응답 수신으로 기록한다.
+    trackExtractionRequestFinished(posthog, {
+      requestId,
+      source: 'history_retry',
+      outcome: 'response_received',
+      contentId: response.reelId,
+    });
 
     // 이 화면에서 바로 보게 되므로 대기함으로 돌아갈 때 안 읽은 히스토리로 표시하지 않는다.
     await setLastSeenHistorySnapshot({
@@ -802,7 +825,7 @@ export function HistoryScreen({
       );
     }
     await load(undefined, true);
-  }, [load]);
+  }, [load, posthog]);
 
   useEffect(() => {
     if (guestReels !== undefined) return;

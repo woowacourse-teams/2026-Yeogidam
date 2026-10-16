@@ -99,7 +99,7 @@ class ShareActivity : AppCompatActivity() {
                 JSONObject().put("outcome", "invalid_link"))
             showResultAndFinish(
                 "인스타그램 릴스 또는 게시물만 공유할 수 있어요.",
-                requestId, "invalid_link",
+                requestId, "invalid_link", outcome = "failed", reason = "invalid_link",
             )
             return
         }
@@ -123,6 +123,7 @@ class ShareActivity : AppCompatActivity() {
                     statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
                     if (auth.reason == "never_logged_in") loginButton.text = "로그인하기"
                     loginButton.visibility = android.view.View.VISIBLE
+                    recordOutcomeViewed(requestId, "login_required", loginRequiredReason(auth.reason))
                     loginButton.setOnClickListener {
                         val saved = runCatching {
                             ShareResultStore.saveResult(
@@ -139,7 +140,10 @@ class ShareActivity : AppCompatActivity() {
                         }.getOrDefault(false)
                         if (!saved) {
                             ShareSentryReporter.capture(this, "SHARE_PAYLOAD_STORE_FAILED", "login_handoff")
-                            showResultAndFinish("링크를 저장하지 못했어요. 다시 공유해 주세요.", requestId, "save_failed")
+                            showResultAndFinish(
+                                "링크를 저장하지 못했어요. 다시 공유해 주세요.",
+                                requestId, "save_failed", outcome = "failed", reason = "save_failed",
+                            )
                             return@setOnClickListener
                         }
                         ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
@@ -203,21 +207,37 @@ class ShareActivity : AppCompatActivity() {
                     if (updated) "링크를 받았어요. 여기담 앱에서 확인해 주세요."
                     else "${if (isPost) "게시물을" else "릴스를"} 전달하지 못했어요. 다시 공유해 주세요.",
                     requestId, if (updated) "received" else "save_failed",
+                    outcome = if (updated) "accepted" else "failed",
+                    reason = if (updated) null else "save_failed",
                 )
             }
         }.start()
     }
 
+    /** [outcome]이 null이면 `reel_share_outcome_viewed`를 기록하지 않습니다(예: 가입 전 체험 게시물). */
     private fun showResultAndFinish(
         message: String, requestId: String, feedbackType: String,
+        outcome: String? = null, reason: String? = null,
     ) {
         statusLabel.text = message
         ShareAnalyticsStore.record(
             this, "reel_share_feedback_viewed", requestId,
             JSONObject().put("feedback_type", feedbackType),
         )
+        outcome?.let { recordOutcomeViewed(requestId, it, reason) }
         statusLabel.postDelayed({ finish() }, 2_000L)
     }
+
+    private fun recordOutcomeViewed(requestId: String, outcome: String, reason: String?) {
+        ShareAnalyticsStore.record(
+            this, "reel_share_outcome_viewed", requestId,
+            JSONObject().put("outcome", outcome).apply { reason?.let { put("reason", it) } },
+        )
+    }
+
+    /** 세션이 처음부터 없던 경우만 `no_session`으로 구분하고, 나머지는 확인된 사유를 그대로 씁니다. */
+    private fun loginRequiredReason(authReason: String): String =
+        if (authReason == "never_logged_in") "no_session" else authReason
 }
 
 private fun Intent.sharedText(): String? {

@@ -1,4 +1,6 @@
+import {ANALYTICS_EVENTS} from './eventNames';
 import type {AnalyticsClient} from './analytics';
+import {isOnboardingSampleId} from '../entities/onboarding/data';
 import {capture} from './analytics';
 
 export type SavedPlacesEntryType = 'direct' | 'after_save';
@@ -24,6 +26,13 @@ export type SavedPlaceViewContext = SavedPlaceIdentity & {
   placeViewId: string;
   source: SavedPlaceSource;
 };
+
+function isSampleSavedPlace(identity: SavedPlaceIdentity) {
+  return (
+    isOnboardingSampleId(identity.placeId) ||
+    isOnboardingSampleId(identity.savedPlaceId)
+  );
+}
 
 export function getSavedPlaceRevisit(
   savedAt: string,
@@ -61,7 +70,7 @@ export function captureSavedPlacesViewed(
     entryType: SavedPlacesEntryType;
   },
 ) {
-  capture(client, 'saved_places_viewed', {
+  capture(client, ANALYTICS_EVENTS.savedPlacesViewed, {
     place_count: properties.placeCount,
     has_places: properties.placeCount > 0,
     entry_type: properties.entryType,
@@ -76,7 +85,7 @@ export function captureSavedPlacesSearchSubmitted(
     resultCount: number;
   },
 ) {
-  capture(client, 'saved_places_search_submitted', {
+  capture(client, ANALYTICS_EVENTS.savedPlacesSearchSubmitted, {
     search_id: properties.searchId,
     search_method: properties.searchMethod,
     result_count: properties.resultCount,
@@ -91,7 +100,9 @@ export function captureSavedPlaceSelected(
     position?: number;
   },
 ) {
-  capture(client, 'saved_place_selected', {
+  if (isSampleSavedPlace(properties)) return;
+
+  capture(client, ANALYTICS_EVENTS.savedPlaceSelected, {
     place_id: properties.placeId,
     saved_place_id: properties.savedPlaceId,
     place_view_id: properties.placeViewId,
@@ -112,12 +123,14 @@ export function captureSavedPlaceOpened(
     viewedAt?: Date;
   },
 ) {
+  if (isSampleSavedPlace(properties)) return;
+
   const revisit = getSavedPlaceRevisit(
     properties.savedAt,
     properties.viewedAt,
   );
 
-  capture(client, 'saved_place_opened', {
+  capture(client, ANALYTICS_EVENTS.savedPlaceOpened, {
     place_id: properties.placeId,
     saved_place_id: properties.savedPlaceId,
     place_view_id: properties.placeViewId,
@@ -134,12 +147,14 @@ export function capturePlaceMapViewed(
     viewedAt?: Date;
   },
 ) {
+  if (isSampleSavedPlace(properties)) return;
+
   const {isRevisit} = getSavedPlaceRevisit(
     properties.savedAt,
     properties.viewedAt,
   );
 
-  capture(client, 'place_map_viewed', {
+  capture(client, ANALYTICS_EVENTS.placeMapViewed, {
     place_id: properties.placeId,
     saved_place_id: properties.savedPlaceId,
     place_view_id: properties.placeViewId,

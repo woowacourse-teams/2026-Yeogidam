@@ -38,6 +38,7 @@ internal object ShareAnalyticsStore {
     private val eventProperties = mapOf(
         "reel_share_received" to emptySet(),
         "reel_share_feedback_viewed" to setOf("feedback_type"),
+        "reel_share_outcome_viewed" to setOf("outcome", "reason"),
         "share_local_save_resolved" to setOf("outcome"),
         "share_delivery_status_changed" to setOf("delivery_status", "reason"),
         "extraction_request_started" to emptySet(),

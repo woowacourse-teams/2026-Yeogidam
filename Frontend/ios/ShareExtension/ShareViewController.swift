@@ -45,7 +45,7 @@ final class ShareViewController: UIViewController {
         extractedPayload = payload
         guard try await self.prepareTransfer(payload) else { return }
         self.statusLabel.text = "링크를 받았어요. 여기담 앱에서 확인해 주세요."
-        self.showStatusLabel(feedbackType: "received")
+        self.showStatusLabel(feedbackType: "received", outcome: "accepted")
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       } catch {
@@ -68,7 +68,11 @@ final class ShareViewController: UIViewController {
         let failure = extractedPayload == nil ? "invalid_link" : "storage_failed"
         ShareAnalyticsStore.record("share_local_save_resolved", shareId: self.shareId,
           properties: ["outcome": failure])
-        self.showStatusLabel(feedbackType: failure == "invalid_link" ? "invalid_link" : "save_failed")
+        let isInvalidLink = failure == "invalid_link"
+        self.showStatusLabel(
+          feedbackType: isInvalidLink ? "invalid_link" : "save_failed",
+          outcome: "failed", reason: isInvalidLink ? "invalid_link" : "save_failed"
+        )
         try? await Task.sleep(nanoseconds: 2_000_000_000)
         self.extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       }
@@ -92,7 +96,10 @@ final class ShareViewController: UIViewController {
       statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
       if pendingGuestLogin { loginButton.setTitle("로그인하기", for: .normal) }
       loginButton.isHidden = false
-      showStatusLabel(feedbackType: "login_required")
+      showStatusLabel(
+        feedbackType: "login_required", outcome: "login_required",
+        reason: reason == "never_logged_in" ? "no_session" : reason
+      )
       return false
     }
     try ShareIntentStorage.saveResult(ShareReelResult(
@@ -245,12 +252,18 @@ final class ShareViewController: UIViewController {
     ])
   }
 
-  private func showStatusLabel(feedbackType: String) {
+  /// `outcome`이 nil이면 `reel_share_outcome_viewed`를 기록하지 않습니다(예: 가입 전 체험 게시물).
+  private func showStatusLabel(feedbackType: String, outcome: String? = nil, reason: String? = nil) {
     UIView.animate(withDuration: 0.12) {
       self.statusLabel.alpha = 1
     }
     ShareAnalyticsStore.record("reel_share_feedback_viewed", shareId: shareId,
       properties: ["feedback_type": feedbackType])
+    if let outcome {
+      var properties: [String: Any] = ["outcome": outcome]
+      if let reason { properties["reason"] = reason }
+      ShareAnalyticsStore.record("reel_share_outcome_viewed", shareId: shareId, properties: properties)
+    }
   }
 
   private func extractPayload() async throws -> ShareIntentPayload {
