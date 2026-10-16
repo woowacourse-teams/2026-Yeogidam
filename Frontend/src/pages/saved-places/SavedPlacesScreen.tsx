@@ -134,7 +134,8 @@ export function SavedPlacesScreen({
 
   const {recentSearches, saveRecentSearch} = useRecentSearches();
 
-  const reelProcessing = useReelProcessing({
+  // 처리 중 릴스를 지켜보는 일은 훅 안에서 끝나고, 밖으로는 링크 저장을 알리는 동작만 돌려받습니다.
+  const linkSaveProgress = useReelProcessing({
     isGuest,
     loadSavedPlaces,
     onSharedResultConsumed,
@@ -153,7 +154,7 @@ export function SavedPlacesScreen({
   } = useLinkSave({
     isGuest,
     onRequireLogin,
-    progress: reelProcessing,
+    progress: linkSaveProgress,
   });
 
   const confirmDeleteSelectedPlaces = useCallback(() => {
