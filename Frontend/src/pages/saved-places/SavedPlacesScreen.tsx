@@ -1,7 +1,5 @@
 import React, {
   useCallback,
-  useEffect,
-  useRef,
   useState,
 } from 'react';
 import {
@@ -20,7 +18,6 @@ import {v4 as uuidv4} from 'uuid';
 
 import {
   captureSavedPlaceSelected,
-  captureSavedPlacesViewed,
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
 import {
@@ -41,6 +38,8 @@ import {useRecentSearches} from './hooks/useRecentSearches';
 import {useReelProcessing} from './hooks/useReelProcessing';
 import {useSavedPlacesEditing} from './hooks/useSavedPlacesEditing';
 import {useSavedPlacesList} from './hooks/useSavedPlacesList';
+import {useSavedPlacesScroll} from './hooks/useSavedPlacesScroll';
+import {useSavedPlacesViewedEvent} from './hooks/useSavedPlacesViewedEvent';
 
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
@@ -107,37 +106,14 @@ export function SavedPlacesScreen({
     refreshSavedPlaces,
     removePlaces,
   } = useSavedPlacesList({providedPlaces, isGuest, onAuthenticationRequired});
-  const scrollViewRef = useRef<ScrollView>(null);
-  const hasCapturedViewRef = useRef(false);
   const hasSavedPlaces = places.length > 0;
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
-
-  useEffect(() => {
-    if (isLoading || error || hasCapturedViewRef.current) {
-      return;
-    }
-
-    hasCapturedViewRef.current = true;
-    captureSavedPlacesViewed(posthog, {
-      placeCount: places.length,
-      entryType: 'direct',
-    });
-  }, [error, isLoading, places.length, posthog]);
-
-  useEffect(() => {
-    if (isLoading || !hasSavedPlaces || initialScrollOffset <= 0) {
-      return;
-    }
-
-    const restoreScrollPosition = requestAnimationFrame(() => {
-      scrollViewRef.current?.scrollTo({
-        y: initialScrollOffset,
-        animated: false,
-      });
-    });
-
-    return () => cancelAnimationFrame(restoreScrollPosition);
-  }, [hasSavedPlaces, initialScrollOffset, isLoading]);
+  useSavedPlacesViewedEvent(posthog, {isLoading, error, placeCount: places.length});
+  const {scrollViewRef, scrollToTop} = useSavedPlacesScroll({
+    initialScrollOffset,
+    isLoading,
+    hasSavedPlaces,
+  });
 
   const {
     isEditing,
@@ -182,10 +158,6 @@ export function SavedPlacesScreen({
     onRequireLogin,
     progress: reelProcessing,
   });
-
-  const scrollToTop = () => {
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-  };
 
   const confirmDeleteSelectedPlaces = useCallback(() => {
     if (isDeleting || selectedPlaceIds.size === 0) {
