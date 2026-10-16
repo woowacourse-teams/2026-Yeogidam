@@ -880,6 +880,28 @@ test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('스크롤 없이 상세에서 돌아오면 복원 표시가 남아, 나중에 항목 수가 바뀔 때 그때의 위치로 한 번 스크롤한다', async () => {
+  // 지금 동작을 고정한다. useHistoryScrollRestore의 TODO(review)가 가리키는 동작이다.
+  jest
+    .mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: page([2, 1]), nextCursor: null})
+    .mockResolvedValue({reels: page([3, 2, 1]), nextCursor: null});
+  const renderer = await render();
+
+  await press(historyItem(renderer, '2'));
+  await pressDetailBack(renderer);
+  await tick(0);
+  expect(scrollToMock(renderer)).not.toHaveBeenCalled();
+
+  await scrollTo(renderer, 500);
+  await tick(3000);
+  expect(renderedIds(renderer)).toEqual(['3', '2', '1']);
+  await tick(0);
+  expect(scrollToMock(renderer)).toHaveBeenCalledTimes(1);
+  expect(scrollToMock(renderer)).toHaveBeenCalledWith({y: 500, animated: false});
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 접수가 지워 이후 목록이 바뀌어도 스크롤을 옮기지 않는다', async () => {
   jest
     .mocked(getHistoryReels)
