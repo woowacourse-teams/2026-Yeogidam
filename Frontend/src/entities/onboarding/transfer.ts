@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {ApiError} from '../../lib/api/errors';
 import {createSpringApiClient} from '../../lib/api/spring-client';
+import {requestSharesPage} from '../content/api';
 import type {Place} from '../place/types';
 import {ONBOARDING_PLACES} from './data';
 
@@ -67,14 +68,9 @@ export async function cancelGuestOnboardingTransfer(): Promise<void> {
  * 회원을 새 회원으로 봅니다. 공유한 적 없는 기존 회원도 새 회원으로 잡히는 한계가 있습니다.
  */
 async function hasNoShareHistory(): Promise<boolean> {
-  const response = await client.request<{sharedMedias: unknown[] | null}>(
-    '/api/v1/shares',
-  );
-  // 모양이 어긋난 응답을 이력 없음으로 보면 기존 회원에게 온보딩 장소를 보내게 되므로, 다른 공유 목록 호출처처럼 오류로 받습니다.
-  if (!Array.isArray(response?.sharedMedias)) {
-    throw new ApiError({kind: 'invalid_response', message: '공유 목록 응답을 처리하지 못했어요.'});
-  }
-  return response.sharedMedias.length === 0;
+  // 모양이 어긋난 응답은 requestSharesPage가 ApiError(invalid_response)로 던지므로, 이력 없음으로 보아 기존 회원에게 온보딩 장소를 보내지 않습니다.
+  const {sharedMedias} = await requestSharesPage();
+  return sharedMedias.length === 0;
 }
 
 /** 다시 보내도 결과가 같지 않은 요청 오류(앱 번들과 서버 시드 불일치 등)인지 확인합니다. */

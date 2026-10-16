@@ -44,7 +44,8 @@ test('공유 목록을 히스토리 카드 형태와 다음 커서로 바꾼다'
 
   const result = await getHistoryReels();
 
-  expect(mockRequest).toHaveBeenCalledWith('/api/v1/shares', {query: undefined});
+  // 첫 쪽은 상태 확인과 온보딩 전환처럼 커서 쿼리 없이 읽는다.
+  expect(mockRequest).toHaveBeenCalledWith('/api/v1/shares');
   expect(result.nextCursor).toEqual({created_at: '2026-10-14T00:00:00Z', id: '7'});
   expect(result.reels.map(reel => reel.processing_status)).toEqual([
     'PROCESSING',

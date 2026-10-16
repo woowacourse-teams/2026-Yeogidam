@@ -1,7 +1,14 @@
 import {ApiError} from '../../lib/api/errors';
 import {PROCESSING_ERROR} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
-import {toReelApiError, toReelStatus, type SpringShareHistoryItem} from './api';
+import {
+  SHARES_PATH,
+  requestSharesPage,
+  toReelApiError,
+  toReelStatus,
+  type SpringShareHistoryItem,
+  type SpringSharesPage,
+} from './api';
 import type {
   HistoryCursor,
   HistoryReel,
@@ -12,12 +19,6 @@ import type {
 import {ReelApiError} from './errors';
 
 const client = createSpringApiClient();
-const SHARES_PATH = '/api/v1/shares';
-
-type SpringShareHistoryResponse = {
-  sharedMedias: SpringShareHistoryItem[] | null;
-  nextCursor: {createdAt: string; id: number} | null;
-};
 
 /** 서버 ShareHistoryPlaceResponse. 좌표·카카오 URL·사진 출처는 내려오지 않습니다. */
 type SpringShareHistoryPlace = {
@@ -71,30 +72,20 @@ export function toHistoryReelPlace(
   };
 }
 
-async function requestShares(cursor?: HistoryCursor): Promise<SpringShareHistoryResponse> {
-  try {
-    return await client.request<SpringShareHistoryResponse>(SHARES_PATH, {
-      query: cursor
-        ? {cursorCreatedAt: cursor.created_at, cursorId: cursor.id}
-        : undefined,
-    });
-  } catch (error) {
-    throw toReelApiError(error);
-  }
-}
-
+/** 공유 목록 한 쪽을 히스토리 카드와 다음 커서로 바꿉니다. 모양이 어긋난 응답은 빈 목록이 아니라 응답 처리 오류(CLIENT000_003)입니다. */
 export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
   nextCursor: HistoryCursor | null;
 }> {
-  const response = await requestShares(cursor);
-  // 같은 공유 목록 응답을 상태 확인(content/api.ts)과 같은 기준으로 받습니다. 모양이 어긋나면 빈 목록이 아니라 응답 처리 오류입니다.
-  if (!Array.isArray(response?.sharedMedias)) {
-    throw new ReelApiError({...PROCESSING_ERROR});
+  let page: SpringSharesPage;
+  try {
+    page = await requestSharesPage(cursor);
+  } catch (error) {
+    throw toReelApiError(error);
   }
-  const nextCursor = response.nextCursor;
+  const nextCursor = page.nextCursor;
   return {
-    reels: response.sharedMedias.map(toHistoryReel),
+    reels: page.sharedMedias.map(toHistoryReel),
     nextCursor: nextCursor
       ? {created_at: nextCursor.createdAt, id: String(nextCursor.id)}
       : null,
