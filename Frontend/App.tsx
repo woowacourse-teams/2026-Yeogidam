@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import { Alert, AppState, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
-import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
@@ -104,58 +103,12 @@ import {
   getSharedSaveState,
   setSharedSaveState,
 } from './src/lib/reel-save-state';
-import * as Sentry from '@sentry/react-native';
+import type { SocialProvider } from './src/lib/auth/social-provider';
+import { captureSocialLoginError } from './src/lib/monitoring/login-errors';
+import { initSentry, withSentry } from './src/lib/monitoring/sentry';
+import { captureShareLoginHandoffError } from './src/lib/monitoring/share-errors';
 
-Sentry.init({
-  dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
-  environment: Config.APP_ENV?.trim() || 'development',
-
-  // Adds more context data to events (IP address, cookies, user, etc.)
-  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
-  sendDefaultPii: false,
-
-  // Enable Logs
-  enableLogs: false,
-
-  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
-  // spotlight: __DEV__,
-});
-
-function captureShareLoginHandoffError(errorCode: string) {
-  const messages: Record<string, {title: string; description: string}> = {
-    SHARE_LOGIN_STATE_READ_FAILED: {
-      title: '장소 공유 오류 · 로그인 상태 확인',
-      description: '공유 후 앱으로 돌아온 뒤 로그인 상태를 확인하지 못했습니다.',
-    },
-  };
-  const event = messages[errorCode];
-  if (!event) return;
-
-  const rawEnvironment = Config.APP_ENV?.trim() || 'development';
-  const environment = rawEnvironment.toLowerCase() === 'development'
-    ? '개발'
-    : rawEnvironment.toLowerCase() === 'production'
-      ? '운영'
-      : rawEnvironment;
-  const platform = Platform.OS === 'ios' ? 'iOS' : 'Android';
-  const message = `${event.description}\n` +
-    `환경·기기: ${environment} · ${platform}\n` +
-    `원인: 저장된 로그인 세션 조회 실패 (${errorCode})`;
-
-  const error = new Error(message);
-  error.name = event.title;
-
-  Sentry.withScope(scope => {
-    scope.setLevel('error');
-    scope.setTag('feature', 'instagram_share');
-    scope.setTag('share.stage', 'login_handoff');
-    scope.setTag('share.source', 'instagram');
-    scope.setTag('share.platform', Platform.OS);
-    scope.setTag('share.error_code', errorCode);
-    scope.setFingerprint(['instagram-share', 'login_handoff', Platform.OS, errorCode]);
-    Sentry.captureException(error);
-  });
-}
+initSentry();
 
 const INITIAL_FLOW_STATE: AppFlowState = {
   kind: 'auth',
@@ -176,122 +129,7 @@ const GUEST_HISTORY_DETAILS = {
 const SPLASH_MIN_DURATION_MS = 2000;
 const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
-type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
-
-const SOCIAL_PROVIDER_LABELS: Record<SocialProvider, string> = {
-  apple: '애플',
-  kakao: '카카오',
-  google: '구글',
-};
-
-const LOGIN_STAGE_LABELS: Record<string, string> = {
-  login_setup: '로그인 시작 준비',
-  authorization_url: '인증 URL 요청',
-  provider_authorization: '외부 서비스 인증',
-  callback: '로그인 콜백 처리',
-  backend_exchange: '백엔드 토큰 교환',
-  session_persist: '로그인 세션 저장',
-  unknown: '로그인 처리',
-};
-
-function describeSocialLoginError(
-  provider: SocialProvider,
-  error: NormalizedAuthError,
-): string {
-  const providerLabel = SOCIAL_PROVIDER_LABELS[provider];
-  const reason =
-    error.errorCode === 'CLIENT000_001'
-      ? '네트워크 연결 오류'
-      : error.errorCode === 'CLIENT000_002'
-        ? '요청 시간 초과'
-        : error.errorCode === 'CLIENT000_003'
-          ? '응답 처리 오류'
-          : error.status != null && error.status >= 500
-            ? '서버 오류'
-            : error.errorCode === 'AUTH502_001'
-              ? '로그인 제공자 연결 오류'
-              : '로그인 처리 오류';
-  const rawEnvironment = Config.APP_ENV?.trim() || 'development';
-  const environment = rawEnvironment.toLowerCase() === 'development'
-    ? '개발'
-    : rawEnvironment.toLowerCase() === 'production'
-      ? '운영'
-      : rawEnvironment;
-  const platform = Platform.OS === 'ios' ? 'iOS' : 'Android';
-  const codes = [
-    error.errorCode,
-    error.backendErrorCode && error.backendErrorCode !== error.errorCode
-      ? error.backendErrorCode
-      : null,
-    error.status == null ? null : `HTTP ${error.status}`,
-  ].filter(Boolean).join(', ');
-
-  return `${providerLabel} 로그인 중 오류가 발생했습니다.\n` +
-    `환경·기기: ${environment} · ${platform}\n` +
-    `원인: ${reason} (${codes})`;
-}
-
-function getSocialLoginErrorTitle(error: NormalizedAuthError): string {
-  const stageLabel = LOGIN_STAGE_LABELS[error.stage ?? 'unknown'] ?? '로그인 처리';
-  return `소셜 로그인 오류 · ${stageLabel}`;
-}
-
-function captureSocialLoginError(
-  provider: SocialProvider,
-  error: NormalizedAuthError,
-) {
-  // 사용자의 취소와 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
-  const backendErrorCode = error.backendErrorCode;
-  if (
-    error.errorCode === 'AUTH000_001' ||
-    error.errorCode === 'AUTH400_001' ||
-    backendErrorCode === 'AUTH401_002'
-  ) {
-    return;
-  }
-
-  const reportableCodes = [
-    'CLIENT000_001',
-    'CLIENT000_002',
-    'CLIENT000_003',
-    'AUTH502_001',
-  ];
-  if (
-    !(error.status != null && error.status >= 500) &&
-    !reportableCodes.includes(error.errorCode) &&
-    !['AUTH502_001', 'AUTH502_002', 'AUTH503_001', 'AUTH503_002'].includes(
-      backendErrorCode ?? '',
-    )
-  ) {
-    return;
-  }
-
-  Sentry.withScope(scope => {
-    scope.setTag('feature', 'social_login');
-    scope.setTag('login.provider', provider);
-    scope.setTag('login.stage', error.stage ?? 'unknown');
-    scope.setTag('login.error_code', error.errorCode);
-    if (backendErrorCode) {
-      scope.setTag('login.backend_error_code', backendErrorCode);
-    }
-    if (error.status != null) {
-      scope.setTag('http.status_code', String(error.status));
-    }
-    scope.setExtra('request_id', error.requestId);
-    scope.setExtra('retryable', error.retryable);
-    scope.setFingerprint([
-      'social-login',
-      provider,
-      backendErrorCode ?? error.errorCode,
-      String(error.status ?? 'no-status'),
-    ]);
-
-    const safeError = new Error(describeSocialLoginError(provider, error));
-    safeError.name = getSocialLoginErrorTitle(error);
-    Sentry.captureException(safeError);
-  });
-}
 
 configureDataSources();
 
@@ -1497,4 +1335,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Sentry.wrap(App);
+export default withSentry(App);
