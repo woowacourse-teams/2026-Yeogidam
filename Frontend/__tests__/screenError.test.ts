@@ -99,3 +99,15 @@ test('기능 표는 바꾼 행만 쓰고 나머지 종류는 기본 표를 따�
   expect(toScreenApiError(httpError(401, 'AUTH401_001', '인증 토큰이 유효하지 않습니다.'), table))
     .toMatchObject({errorCode: 'AUTH401_001', message: '로그인이 필요해요.'});
 });
+
+test('요청 ID는 화면 오류에 싣지 않는다', () => {
+  const error = new ApiError({
+    kind: 'http',
+    status: 404,
+    errorCode: 'PLACE404_001',
+    message: '저장된 장소가 아닙니다.',
+    requestId: 'req-1',
+  });
+
+  expect(toScreenApiError(error)).not.toHaveProperty('requestId');
+});

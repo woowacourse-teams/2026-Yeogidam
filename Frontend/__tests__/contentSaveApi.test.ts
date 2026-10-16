@@ -73,6 +73,7 @@ test('서버 오류 코드와 문구를 유지하고 401은 로그인 필요로 
     status: 400,
     errorCode: 'MEDIA400_010',
     message: '올바른 인스타그램 링크 형식이 아닙니다.',
+    requestId: 'req-1',
   }));
   const invalid = saveContent('https://www.instagram.com/reel/abc/', 'url_input');
   await expect(invalid).rejects.toBeInstanceOf(ReelApiError);
@@ -81,6 +82,8 @@ test('서버 오류 코드와 문구를 유지하고 401은 로그인 필요로 
     message: '올바른 인스타그램 링크 형식이 아닙니다.',
     status: 400,
   });
+  // 요청 ID는 화면 오류에 싣지 않습니다.
+  await expect(invalid).rejects.not.toHaveProperty('requestId');
 
   request.mockRejectedValueOnce(new ApiError({
     kind: 'http',
@@ -95,9 +98,14 @@ test('서버 오류 코드와 문구를 유지하고 401은 로그인 필요로 
   await expect(saveContent('https://www.instagram.com/reel/abc/', 'url_input'))
     .rejects.toMatchObject({errorCode: 'CLIENT000_002', retryable: true});
 
+  // 연결 실패 문구는 전송 계층이 무슨 문구를 주든 고정입니다.
   request.mockRejectedValueOnce(new ApiError({kind: 'network', message: 'offline'}));
   await expect(saveContent('https://www.instagram.com/reel/abc/', 'url_input'))
-    .rejects.toMatchObject({errorCode: 'CLIENT000_001', retryable: true});
+    .rejects.toMatchObject({
+      errorCode: 'CLIENT000_001',
+      message: '인터넷 연결을 확인해주세요.',
+      retryable: true,
+    });
 });
 
 test('상태 조회는 공유 목록에서 같은 ID를 찾아 화면 모델로 바꾼다', async () => {

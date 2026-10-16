@@ -1,5 +1,6 @@
 import {
   LOGIN_REQUIRED_ERROR,
+  NETWORK_ERROR,
   PROCESSING_ERROR,
   SCREEN_ERROR_TABLE,
   TIMEOUT_ERROR,
@@ -55,12 +56,14 @@ export function toReelStatus(
 
 /**
  * 공유 API의 오류 표입니다. 기본 표와 달리 토큰을 읽지 못한 경우도 401 로그인 필요로 보고,
- * 시간 초과는 토큰 재발급 대기 중이어도 같은 문구로 알리며, 응답을 읽지 못하면 상태를 남기지 않습니다.
+ * 시간 초과와 연결 실패는 전송 계층 문구와 관계없이 늘 같은 문구로 알리며,
+ * 응답을 읽지 못하면 상태를 남기지 않습니다.
  */
 const REEL_ERROR_TABLE: ScreenErrorTable = {
   ...SCREEN_ERROR_TABLE,
   auth: () => ({...LOGIN_REQUIRED_ERROR}),
   timeout: () => ({...TIMEOUT_ERROR}),
+  network: () => ({...NETWORK_ERROR}),
   invalid_response: () => ({...PROCESSING_ERROR}),
 };
 

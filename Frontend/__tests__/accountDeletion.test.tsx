@@ -221,6 +221,31 @@ describe('탈퇴 요청 오류 표', () => {
       new Error('secure storage unavailable'),
       {status: null, errorCode: 'CLIENT000_003', message: '응답을 처리하지 못했어요.', retryable: false},
     ],
+    [
+      '시간 초과는 전송 계층 문구(토큰 재발급 대기 등)를 그대로 쓴다',
+      new ApiError({kind: 'timeout', message: '로그인 정보를 확인하고 있어요. 잠시 후 다시 시도해주세요.'}),
+      {
+        status: null,
+        errorCode: 'CLIENT000_002',
+        message: '로그인 정보를 확인하고 있어요. 잠시 후 다시 시도해주세요.',
+        retryable: true,
+      },
+    ],
+    [
+      '응답을 읽지 못하면 처리 실패로 보고 응답 상태를 남긴다',
+      new ApiError({kind: 'invalid_response', status: 200, message: '응답을 처리하지 못했어요.'}),
+      {status: 200, errorCode: 'CLIENT000_003', message: '응답을 처리하지 못했어요.', retryable: false},
+    ],
+    [
+      '취소는 처리 실패 코드로 다시 시도할 수 있다',
+      new ApiError({kind: 'cancelled', message: '요청이 취소됐어요.'}),
+      {status: null, errorCode: 'CLIENT000_003', message: '요청이 취소됐어요.', retryable: true},
+    ],
+    [
+      '요청 ID는 화면 오류에 싣지 않는다',
+      new ApiError({kind: 'http', status: 404, errorCode: 'USER404_001', message: '존재하지 않는 사용자입니다.', requestId: 'req-1'}),
+      {status: 404, errorCode: 'USER404_001', message: '존재하지 않는 사용자입니다.', retryable: false},
+    ],
   ])('%s', async (_rule, cause, expected) => {
     mockRequest.mockRejectedValueOnce(cause);
 
@@ -230,6 +255,21 @@ describe('탈퇴 요청 오류 표', () => {
     }).catch(e => e);
 
     expect(error).toEqual(expected);
+  });
+
+  test.each([
+    ['시간 초과는 서버 측 실패로 보아 탈퇴된 것처럼 처리한다', new ApiError({kind: 'timeout', message: '응답이 늦어지고 있어요.'}), true],
+    ['응답 처리 실패는 서버 측 실패가 아니다', new ApiError({kind: 'invalid_response', status: 200, message: '응답을 처리하지 못했어요.'}), false],
+    ['취소는 서버 측 실패가 아니다', new ApiError({kind: 'cancelled', message: '요청이 취소됐어요.'}), false],
+  ])('%s', async (_rule, cause, expected) => {
+    mockRequest.mockRejectedValueOnce(cause);
+
+    const error = await deleteAccount({
+      confirmation: 'DELETE',
+      providerTokens: {kakao: 'code'},
+    }).catch(e => e);
+
+    expect(isServerSideDeletionFailure(error)).toBe(expected);
   });
 });
 
