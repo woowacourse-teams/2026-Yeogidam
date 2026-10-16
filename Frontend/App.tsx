@@ -36,6 +36,7 @@ import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
 import { PlaceDetailScreen } from './src/pages/place-detail/PlaceDetailScreen';
 import { SavedPlacesScreen } from './src/pages/saved-places/SavedPlacesScreen';
+import { clearSavedPlacesCache } from './src/pages/saved-places/hooks/useSavedPlacesList';
 import { SplashScreen } from './src/pages/splash/SplashScreen';
 import { clearShareResult } from './src/lib/share-intent';
 import { GUEST_MAIN_FLOW_STATE } from './src/app/navigation';
@@ -122,6 +123,8 @@ function App() {
     deleteAccountAndSignOut,
   } = useSpringAuthFlow({posthog, hasCompletedGuide}, {
     onGuestSession: signedInOnThisInstall => {
+      // 로그아웃, 세션 만료, 탈퇴는 모두 여기를 지나므로 이전 회원의 보관함 목록이 다음 회원에게 보이지 않게 비웁니다.
+      clearSavedPlacesCache();
       if (signedInOnThisInstall) openLogin();
       else openGuestMain();
       setMyPageOverlay(null);

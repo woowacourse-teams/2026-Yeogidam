@@ -38,6 +38,7 @@ import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
+import {clearSavedPlacesCache} from '../src/pages/saved-places/hooks/useSavedPlacesList';
 
 const DISMISSED_RECOMMENDED_VERSION_KEY =
   '@yeogidam/dismissed-recommended-update-version';
@@ -122,6 +123,10 @@ jest.mock('../src/pages/login/LoginScreen', () => ({
 
 jest.mock('../src/pages/saved-places/SavedPlacesScreen', () => ({
   SavedPlacesScreen: () => null,
+}));
+
+jest.mock('../src/pages/saved-places/hooks/useSavedPlacesList', () => ({
+  clearSavedPlacesCache: jest.fn(),
 }));
 
 jest.mock('../src/pages/map/MapScreen', () => ({
@@ -871,5 +876,20 @@ test('비회원이 지운 시드 장소는 회원이 됐다가 다시 비회원�
   expect(
     renderer.root.findByType(SavedPlacesScreen).props.places.map((place: {id: string}) => place.id),
   ).toContain(firstSeedId);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('세션이 끝나면(로그아웃, 탈퇴) 보관함 목록 캐시를 비워 다음 회원에게 이전 목록이 보이지 않게 한다', async () => {
+  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+  restoreSpringSession('member-1');
+  const renderer = await renderAfterSplash();
+  expect(clearSavedPlacesCache).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(async () => {
+    authChangeHandler('SIGNED_OUT', 'member-1');
+    await Promise.resolve();
+  });
+  expect(clearSavedPlacesCache).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
