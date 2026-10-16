@@ -1,4 +1,5 @@
 import React, { useEffect, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 import Config from 'react-native-config';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 
@@ -48,6 +49,14 @@ function PostHogAuthIdentity({ children }: PostHogRootProps) {
       isMounted = false;
       unsubscribe();
     };
+  }, [posthog]);
+
+  // 실험 플래그는 앱을 열 때 받아 캐시하므로, 포그라운드로 돌아올 때 다시 받아야 끈 실험이 빨리 거둬집니다.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') posthog.reloadFeatureFlagsAsync().catch(() => undefined);
+    });
+    return () => subscription.remove();
   }, [posthog]);
 
   return <>{children}</>;
