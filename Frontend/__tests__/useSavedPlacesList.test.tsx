@@ -8,13 +8,11 @@ import type {Place} from '../src/entities/place/types';
 import {useSavedPlacesList} from '../src/pages/saved-places/hooks/useSavedPlacesList';
 import {deferred} from './support/deferred';
 import {flushMicrotasks, renderTracked} from './support/renderers';
-import {BAKERY, CAFE, savedPlace} from './support/savedPlacesFixtures';
+import {BAKERY, CAFE, RESTAURANT} from './support/savedPlacesFixtures';
 
 jest.mock('../src/entities/info/api', () => ({getSavedPlaces: jest.fn()}));
 
 // 화면 테스트(savedPlacesScreen.test.tsx)가 보지 못하는 읽기 상태와 loadSavedPlaces의 반환값을 봅니다.
-
-const RESTAURANT = savedPlace(3, '식당');
 
 let latest: ReturnType<typeof useSavedPlacesList>;
 
@@ -103,6 +101,56 @@ test('읽는 동안 세션이 끝나 캐시를 비우면 응답을 버리고 다
   expect(await pending).toBeNull();
   expect(names()).toEqual(['카페', '빵집']);
   expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+});
+
+test('두 번째 낡은 응답을 버리며 읽기를 끝내는 일은 그 응답을 처리하는 동기 구간에서 하므로, 같은 묶음에서 시작한 새 읽기의 읽는 중 상태를 덮지 않는다', async () => {
+  await renderLoaded([CAFE, BAKERY, RESTAURANT]);
+  const lateLoad = deferred<SavedPlaceListItem[]>();
+  const reload = deferred<SavedPlaceListItem[]>();
+  const newerLoad = deferred<SavedPlaceListItem[]>();
+  startLoad(lateLoad.promise, reload.promise, newerLoad.promise);
+
+  act(() => latest.removePlaces(place => place.name === '카페'));
+  await act(async () => lateLoad.resolve([CAFE, BAKERY, RESTAURANT]));
+  await flushMicrotasks();
+  act(() => latest.removePlaces(place => place.name === '빵집'));
+
+  // 두 번째 낡은 응답을 처리하는 같은 마이크로태스크 묶음에서 다른 호출자가 새로 읽기 시작한다.
+  reload.promise.then(() => latest.loadSavedPlaces());
+  await act(async () => reload.resolve([BAKERY, RESTAURANT]));
+  await flushMicrotasks();
+  expect(getSavedPlaces).toHaveBeenCalledTimes(4);
+  expect(latest.isLoading).toBe(true);
+
+  await act(async () => newerLoad.resolve([RESTAURANT]));
+  await flushMicrotasks();
+  expect(latest.isLoading).toBe(false);
+  expect(names()).toEqual(['식당']);
+});
+
+test('첫 낡은 응답을 처리하는 같은 묶음에서 다른 읽기가 시작되면, 다시 읽기가 먼저 요청 번호를 받아 그 다른 읽기에 밀린다', async () => {
+  await renderLoaded([CAFE, BAKERY]);
+  const lateLoad = deferred<SavedPlaceListItem[]>();
+  const retry = deferred<SavedPlaceListItem[]>();
+  const otherLoad = deferred<SavedPlaceListItem[]>();
+  const first = startLoad(lateLoad.promise, retry.promise, otherLoad.promise);
+  act(() => latest.removePlaces(place => place.name === '카페'));
+
+  // 첫 낡은 응답을 처리하는 같은 마이크로태스크 묶음에서 다른 호출자가 읽기 시작한다. 다시 읽기가 먼저 번호를 받는다.
+  let other!: Promise<Place[] | null>;
+  lateLoad.promise.then(() => {
+    other = latest.loadSavedPlaces();
+  });
+  await act(async () => lateLoad.resolve([CAFE, BAKERY]));
+  await flushMicrotasks();
+  expect(getSavedPlaces).toHaveBeenCalledTimes(4);
+
+  await act(async () => retry.resolve([BAKERY, RESTAURANT]));
+  await act(async () => otherLoad.resolve([BAKERY]));
+  await flushMicrotasks();
+  expect(await first).toBeNull();
+  expect((await other)?.map(place => place.name)).toEqual(['빵집']);
+  expect(names()).toEqual(['빵집']);
 });
 
 test('더 새 조회에 밀린 응답은 버리고 null을 돌려주며, 새 조회의 응답만 반영한다', async () => {

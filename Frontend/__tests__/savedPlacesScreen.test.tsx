@@ -28,7 +28,7 @@ import {
   LINK,
   listing,
   reelStatus,
-  savedPlace,
+  RESTAURANT,
   SERVER_ERROR,
   sharedShare,
   TIMEOUT_ERROR,
@@ -896,8 +896,6 @@ describe('지운 장소와 메모리 캐시', () => {
 });
 
 describe('조회 중에 지운 장소', () => {
-  const RESTAURANT = savedPlace(3, '식당');
-
   test('다시 연 화면의 조회가 끝나기 전에 지운 장소는 늦게 끝난 그 조회로 되살아나지 않고, 목록을 한 번 더 읽어 반영한다', async () => {
     await unmountTracked(await renderLoaded([CAFE, BAKERY]));
 

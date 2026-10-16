@@ -22,9 +22,10 @@ const LOADING: SavedPlacesLoadState = {status: 'loading'};
 const SUCCESS: SavedPlacesLoadState = {status: 'success'};
 
 /**
- * 목록을 한 번 읽은 결과입니다. applied만 화면과 캐시에 반영합니다.
- * superseded는 더 새 요청에 밀린 응답, cleared는 읽는 동안 세션이 끝나 캐시를 비운 뒤 온 응답(화면도 곧 내려감),
- * stale은 읽는 동안 장소를 지워(캐시 세대가 바뀜) 지운 장소가 들어 있는 응답을 버린 결과입니다.
+ * 목록을 읽은 결과입니다. applied만 화면과 캐시에 반영합니다.
+ * superseded는 더 새 요청에 밀린 응답입니다. cleared는 읽는 동안 캐시 세대가 바뀌었는데 캐시가 비어 있는 경우로,
+ * 세션이 끝나 캐시를 비웠을 때(화면도 곧 내려감)와 캐시가 없는 첫 읽기 동안 다른 화면에서 장소를 지웠을 때이며 다시 읽지 않습니다.
+ * stale은 읽는 동안 장소를 지워(캐시 세대가 바뀜) 지운 장소가 들어 있는 응답을 두 번 다 버린 결과입니다.
  */
 type SavedPlacesReadResult =
   | {type: 'applied'; places: Place[]}
@@ -57,8 +58,12 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
   // 늦게 도착한 이전 조회 응답이 최신 목록을 덮지 않도록 요청마다 번호를 붙입니다.
   const loadRequestIdRef = useRef(0);
 
-  /** 목록을 한 번 읽어 응답을 반영할 수 있으면 반영하고, 어떻게 끝났는지 돌려줍니다. */
-  const readSavedPlacesOnce = useCallback(async (): Promise<SavedPlacesReadResult> => {
+  /**
+   * 목록을 한 번 읽어 응답을 반영할 수 있으면 반영하고, 어떻게 끝났는지 돌려줍니다.
+   * 읽는 동안 장소를 지워 응답이 낡았으면 canRetry일 때만 한 번 더 읽습니다. 다시 읽기 시작과 읽기 끝내기(SUCCESS)는
+   * 요청 번호를 비교한 같은 동기 구간에서 해야, 그사이에 시작한 다른 읽기의 loading을 덮거나 그 읽기와 밀리는 순서가 바뀌지 않습니다.
+   */
+  const readSavedPlaces = useCallback(async (canRetry: boolean): Promise<SavedPlacesReadResult> => {
     const requestId = loadRequestIdRef.current + 1;
     loadRequestIdRef.current = requestId;
     const cacheGeneration = getSavedPlacesCacheGeneration();
@@ -69,7 +74,14 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
         return {type: 'superseded'};
       }
       if (cacheGeneration !== getSavedPlacesCacheGeneration()) {
-        return readSavedPlacesCache() === null ? {type: 'cleared'} : {type: 'stale'};
+        if (readSavedPlacesCache() === null) {
+          return {type: 'cleared'};
+        }
+        if (canRetry) {
+          return readSavedPlaces(false);
+        }
+        setLoadState(SUCCESS);
+        return {type: 'stale'};
       }
       const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
       writeSavedPlacesCache(nextPlaces, cacheGeneration);
@@ -91,7 +103,7 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
 
   /**
    * 목록을 읽어 반영하고 읽은 목록을 돌려줍니다. 반영하지 못했으면 null입니다. 조회가 실패했거나, 더 새 요청에 밀렸거나,
-   * 읽는 동안 세션이 끝나 캐시를 비웠거나, 두 번 읽는 동안 두 번 다 장소를 지웠을 때입니다.
+   * 읽는 동안 세대가 바뀌었는데 캐시가 비어 있거나(cleared), 두 번 읽는 동안 두 번 다 장소를 지웠을 때(stale)입니다.
    */
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
@@ -99,17 +111,9 @@ export function useSavedPlacesList({providedPlaces, onAuthenticationRequired}: O
       return providedPlaces;
     }
 
-    let read = await readSavedPlacesOnce();
-    if (read.type === 'stale') {
-      // 읽는 동안 지운 장소가 응답에 들어 있으므로 버리고 한 번 더 읽는다.
-      read = await readSavedPlacesOnce();
-      if (read.type === 'stale') {
-        // 다시 읽는 동안에도 지웠으면 그 응답도 버리고 화면이 들고 있는 목록을 둔다.
-        setLoadState(SUCCESS);
-      }
-    }
+    const read = await readSavedPlaces(true);
     return read.type === 'applied' ? read.places : null;
-  }, [providedPlaces, readSavedPlacesOnce]);
+  }, [providedPlaces, readSavedPlaces]);
 
   /** 당겨서 새로고침합니다. 새로고침이 끝나기 전에 다시 당기면 무시합니다. */
   const refreshSavedPlaces = useCallback(async () => {

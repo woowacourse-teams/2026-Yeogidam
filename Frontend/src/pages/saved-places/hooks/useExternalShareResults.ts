@@ -20,7 +20,7 @@ import {
 type Options = {
   /** 꺼져 있으면(비회원) 공유 상태를 구독하지 않습니다. */
   enabled: boolean;
-  /** 보관함 목록을 다시 읽습니다. 읽은 목록을 반영하지 못했으면(실패, 더 새 요청에 밀림, 세션 끝, 읽는 동안 두 번 지움) null을 돌려줍니다. */
+  /** 보관함 목록을 다시 읽습니다. 읽은 목록을 반영하지 못했으면(실패, 더 새 요청에 밀림, 읽는 동안 세대가 바뀌었는데 캐시가 비어 있음, 두 번 읽는 동안 두 번 다 지움) null을 돌려줍니다. */
   loadSavedPlaces: () => Promise<Place[] | null>;
   /** 외부 공유 결과를 다 보여 준 뒤 네이티브에 남은 결과를 지웁니다. */
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;

@@ -16,6 +16,7 @@ export const savedPlace = (index: number, name: string): SavedPlaceListItem => (
 });
 export const CAFE = savedPlace(1, '카페');
 export const BAKERY = savedPlace(2, '빵집');
+export const RESTAURANT = savedPlace(3, '식당');
 
 /** 화면과 캐시가 다루는 회원 장소입니다. 지우기와 캐시 빼기는 savedPlaceId로 찾습니다. */
 export const place = (name: string, savedPlaceId: string): Place =>
