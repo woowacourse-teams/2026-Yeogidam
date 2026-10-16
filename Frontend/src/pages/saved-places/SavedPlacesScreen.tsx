@@ -28,9 +28,8 @@ import {
   bottomNavigationBarContainerStyle,
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
-import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
-import { deleteSavedPlaces, getSavedPlaces } from '../../entities/info/api';
+import { deleteSavedPlaces } from '../../entities/info/api';
 import type { SavedPlacesApiError } from '../../entities/info/types';
 import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
 import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
@@ -53,14 +52,11 @@ import {
   subscribeSharedSaveState,
 } from '../../lib/reel-save-state';
 import {useRecentSearches} from './hooks/useRecentSearches';
+import {useSavedPlacesList} from './hooks/useSavedPlacesList';
 
 const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
-
-// 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
-// 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
-let cachedSavedPlaces: Place[] | null = null;
 
 type SavedPlacesScreenProps = {
   onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
@@ -124,14 +120,15 @@ export function SavedPlacesScreen({
   );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
-  const [places, setPlaces] = useState<Place[]>(
-    providedPlaces ?? cachedSavedPlaces ?? [],
-  );
-  const [error, setError] = useState<SavedPlacesApiError | null>(null);
-  const [isLoading, setIsLoading] = useState(
-    providedPlaces === undefined && cachedSavedPlaces === null,
-  );
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const {
+    places,
+    isLoading,
+    error,
+    isRefreshing,
+    loadSavedPlaces,
+    refreshSavedPlaces,
+    removePlaces,
+  } = useSavedPlacesList({providedPlaces, isGuest, onAuthenticationRequired});
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -142,7 +139,6 @@ export function SavedPlacesScreen({
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const hasCapturedViewRef = useRef(false);
-  const isRefreshingRef = useRef(false);
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
@@ -179,71 +175,6 @@ export function SavedPlacesScreen({
   useEffect(() => {
     return () => onEditModeChange?.(false);
   }, [onEditModeChange]);
-
-  // App이 다시 그려질 때마다 콜백 참조가 바뀌어도 목록을 다시 읽지 않도록 ref로 둡니다.
-  const onAuthenticationRequiredRef = useRef(onAuthenticationRequired);
-  onAuthenticationRequiredRef.current = onAuthenticationRequired;
-  // 늦게 도착한 이전 조회 응답이 최신 목록을 덮지 않도록 요청마다 번호를 붙입니다.
-  const loadRequestIdRef = useRef(0);
-
-  const loadSavedPlaces = useCallback(async () => {
-    if (providedPlaces !== undefined) {
-      if (isGuest) {
-        cachedSavedPlaces = null;
-      }
-      setPlaces(providedPlaces);
-      return providedPlaces;
-    }
-
-    const requestId = loadRequestIdRef.current + 1;
-    loadRequestIdRef.current = requestId;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const savedPlaces = await getSavedPlaces();
-      if (requestId !== loadRequestIdRef.current) {
-        return null;
-      }
-      const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
-      cachedSavedPlaces = nextPlaces;
-      setPlaces(nextPlaces);
-      return nextPlaces;
-    } catch (nextError) {
-      if (requestId !== loadRequestIdRef.current) {
-        return null;
-      }
-      const apiError = nextError as SavedPlacesApiError;
-      setError(apiError);
-      if (apiError.errorCode === 'AUTH401_001') {
-        onAuthenticationRequiredRef.current?.();
-      }
-      return null;
-    } finally {
-      if (requestId === loadRequestIdRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [isGuest, providedPlaces]);
-
-  const refreshSavedPlaces = useCallback(async () => {
-    if (isRefreshingRef.current) {
-      return;
-    }
-
-    isRefreshingRef.current = true;
-    setIsRefreshing(true);
-
-    try {
-      await loadSavedPlaces();
-    } finally {
-      isRefreshingRef.current = false;
-      setIsRefreshing(false);
-    }
-  }, [loadSavedPlaces]);
-
-  useEffect(() => {
-    loadSavedPlaces();
-  }, [loadSavedPlaces]);
 
   const {recentSearches, saveRecentSearch} = useRecentSearches();
 
@@ -694,7 +625,7 @@ export function SavedPlacesScreen({
     }
 
     if (isGuest) {
-      setPlaces(current => current.filter(place => !selectedPlaceIds.has(place.id)));
+      removePlaces(place => selectedPlaceIds.has(place.id));
       onDeleteGuestPlaces?.([...selectedPlaceIds]);
       setSelectedPlaceIds(new Set());
       setIsEditing(false);
@@ -722,9 +653,7 @@ export function SavedPlacesScreen({
     try {
       await deleteSavedPlaces(savedPlaceIds);
       const deletedIds = new Set(savedPlaceIds);
-      setPlaces(current =>
-        current.filter(place => !deletedIds.has(place.savedPlaceId ?? '')),
-      );
+      removePlaces(place => deletedIds.has(place.savedPlaceId ?? ''));
       setSelectedPlaceIds(new Set());
       setIsEditing(false);
       onEditModeChange?.(false);
@@ -760,6 +689,7 @@ export function SavedPlacesScreen({
     onDeleteGuestPlaces,
     onEditModeChange,
     places,
+    removePlaces,
     selectedPlaceIds,
   ]);
 
