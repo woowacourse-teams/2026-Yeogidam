@@ -13,7 +13,7 @@ type Options = {
 
 /**
  * 비회원이 메인 화면을 포그라운드에서 3분 동안 보면 로그인 유도를 띄웁니다.
- * 유도를 닫으면 다시 띄우지 않고, 회원이 되면 잰 시간을 버립니다.
+ * 유도를 닫으면 다시 띄우지 않고, 회원이 되면 타이머를 끝내 로그아웃해도 앱을 다시 켜기 전까지는 띄우지 않습니다.
  */
 export function useGuestLoginPrompt({isGuestBrowsing, isAuthenticated}: Options) {
   const [isPromptRequested, setIsPromptRequested] = useState(false);

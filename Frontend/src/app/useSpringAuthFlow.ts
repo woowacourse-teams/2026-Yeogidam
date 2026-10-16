@@ -59,8 +59,14 @@ const SIGN_IN_BY_PROVIDER = {
  * 화면 이동은 handlers로 넘기므로 이 훅은 내비게이션 상태를 모릅니다.
  * 비회원 체험 장소 전환은 로그인한 회원 ID를 알아야 해서 이 안에서 함께 돌립니다.
  */
+type Options = {
+  posthog: AnalyticsClient | null | undefined;
+  /** 앱 안내를 마쳤는지입니다. 안내를 마친 회원이 확인될 때만 이 설치에서 로그인했다고 기록합니다. */
+  hasCompletedGuide: boolean | null;
+};
+
 export function useSpringAuthFlow(
-  posthog: AnalyticsClient | null | undefined,
+  {posthog, hasCompletedGuide}: Options,
   handlers: SpringAuthFlowHandlers,
 ) {
   const [authStatus, setAuthStatus] = useState<AuthStatus>('loading');
@@ -111,10 +117,11 @@ export function useSpringAuthFlow(
       }
 
       activeMemberIdRef.current = memberId;
-      setAuthStatus('member');
       resumeWaitingShares().catch(() => undefined);
       if (memberId) resumeTransfer(memberId);
       trackAppOpenedOnce(true);
+      // 상태 변경과 화면 이동은 붙여 두어 둘 중 하나만 반영되는 틈을 만들지 않습니다.
+      setAuthStatus('member');
       handlersRef.current.onMemberSession('restored');
     };
 
@@ -171,7 +178,8 @@ export function useSpringAuthFlow(
     trackLoginStarted(posthog, provider);
 
     try {
-      if (guestTransferPlaces) {
+      // 빈 배열도 전환 대상입니다. 비회원이 체험 장소를 모두 지웠어도 기록은 남깁니다.
+      if (hasGuestTransfer) {
         await beginTransfer(guestTransferPlaces);
       }
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
@@ -275,11 +283,13 @@ export function useSpringAuthFlow(
     return 'completed';
   };
 
-  /** 안내를 마친 회원이 확인되면 이 설치에서 로그인했다고 기록해, 다음 로그아웃 뒤에는 로그인 화면으로 보냅니다. */
-  const markSignedInOnThisInstall = useCallback(() => {
-    hasSignedInOnThisInstallRef.current = true;
-    rememberSignInOnThisInstall().catch(() => undefined);
-  }, []);
+  // 안내를 마친 회원이 확인되면 이 설치에서 로그인했다고 기록해, 다음 로그아웃 뒤에는 로그인 화면으로 보냅니다.
+  useEffect(() => {
+    if (authStatus === 'member' && hasCompletedGuide === true) {
+      hasSignedInOnThisInstallRef.current = true;
+      rememberSignInOnThisInstall().catch(() => undefined);
+    }
+  }, [authStatus, hasCompletedGuide]);
 
   return {
     authStatus,
@@ -293,6 +303,5 @@ export function useSpringAuthFlow(
     logout,
     resolveDeletionProviders,
     deleteAccountAndSignOut,
-    markSignedInOnThisInstall,
   };
 }

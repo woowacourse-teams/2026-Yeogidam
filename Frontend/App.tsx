@@ -93,6 +93,10 @@ function App() {
   } = useAppNavigation();
   const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
+  const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
+    null,
+  );
   const savedPlacesScrollOffsetRef = useRef(0);
   const {
     authStatus,
@@ -106,8 +110,7 @@ function App() {
     logout,
     resolveDeletionProviders,
     deleteAccountAndSignOut,
-    markSignedInOnThisInstall,
-  } = useSpringAuthFlow(posthog, {
+  } = useSpringAuthFlow({posthog, hasCompletedGuide}, {
     onGuestSession: signedInOnThisInstall => {
       if (signedInOnThisInstall) openLogin();
       else openGuestMain();
@@ -124,10 +127,6 @@ function App() {
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
-  const [isSplashVisible, setIsSplashVisible] = useState(true);
-  const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
-    null,
-  );
   const {
     requiredUpdateStoreUrl,
     recommendedUpdate,
@@ -143,6 +142,8 @@ function App() {
   >([]);
   // const [inBoxEntryType, setInBoxEntryType] = useState<InboxEntryType>('direct');
 
+  // 핸들러는 렌더가 끝난 뒤 비동기로만 불리므로 아래 useGuestLoginPrompt가 돌려주는 dismissGuestLoginPrompt를 써도 안전합니다.
+  // isGuestBrowsing이 hasPendingShareLogin을 읽어야 해서 useGuestLoginPrompt를 useNativeShareResults보다 먼저 부를 수 없습니다.
   const {hasPendingShareLogin, cancelPendingShareLogin, resetPendingShareLogin} =
     useNativeShareResults(isAuthReady, {
       onGuestLoginPrompt: () => {
@@ -196,12 +197,6 @@ function App() {
     const deletedIds = new Set(placeIds);
     setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));
   }, []);
-
-  useEffect(() => {
-    if (isAuthenticated === true && hasCompletedGuide === true) {
-      markSignedInOnThisInstall();
-    }
-  }, [hasCompletedGuide, isAuthenticated, markSignedInOnThisInstall]);
 
   useLocationPermissionRequest(
     isAuthReady &&

@@ -722,3 +722,20 @@ test('재인증 문제로 회원탈퇴가 실패하면 탈퇴 화면에 오류�
   expect(renderer.root.findAllByType(AccountDeletionScreen)).toHaveLength(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
+
+test('로그인하면 비회원이 보던 보관함 스크롤 위치를 처음으로 되돌린다', async () => {
+  (hasCompletedAppGuide as jest.Mock).mockResolvedValue(true);
+  const renderer = await renderAfterSplash();
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onScrollOffsetChange(300);
+  });
+  await ReactTestRenderer.act(async () => {
+    authChangeHandler('SIGNED_IN', 'user');
+  });
+
+  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
+  expect(renderer.root.findByType(SavedPlacesScreen).props.initialScrollOffset).toBe(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
