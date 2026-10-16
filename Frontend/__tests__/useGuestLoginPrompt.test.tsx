@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import {AppState, type AppStateStatus} from 'react-native';
 
 import {useGuestLoginPrompt} from '../src/app/useGuestLoginPrompt';
+import {renderTracked} from './support/renderers';
 
 type Props = {isGuestBrowsing: boolean; isMember: boolean};
 let latest: ReturnType<typeof useGuestLoginPrompt>;
@@ -21,10 +22,7 @@ const advance = (ms: number) =>
 const appState = (state: AppStateStatus) => act(async () => emitAppState(state));
 
 async function render(props: Props) {
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await act(async () => {
-    renderer = ReactTestRenderer.create(<Harness {...props} />);
-  });
+  const renderer = await renderTracked(<Harness {...props} />);
   return (next: Props) => act(async () => renderer.update(<Harness {...next} />));
 }
 

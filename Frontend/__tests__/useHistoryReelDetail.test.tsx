@@ -5,6 +5,7 @@ import {getHistoryReelDetail} from '../src/entities/content/history-api';
 import type {HistoryReel, HistoryReelDetail} from '../src/entities/content/types';
 import {useHistoryReelDetail} from '../src/pages/history/useHistoryReelDetail';
 import {deferred} from './support/deferred';
+import {renderTracked, unmountTracked} from './support/renderers';
 
 jest.mock('../src/entities/content/history-api', () => ({getHistoryReelDetail: jest.fn()}));
 
@@ -36,29 +37,19 @@ function Harness({target, guestDetail}: HarnessProps) {
   return null;
 }
 
-let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
-
 async function render(props: HarnessProps) {
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(<Harness {...props} />);
-  });
+  const renderer = await renderTracked(<Harness {...props} />);
   return {
+    renderer,
     rerender: (next: HarnessProps) =>
       ReactTestRenderer.act(async () => {
-        renderer?.update(<Harness {...next} />);
+        renderer.update(<Harness {...next} />);
       }),
   };
 }
 
 beforeEach(() => {
   jest.mocked(getHistoryReelDetail).mockReset();
-});
-
-afterEach(async () => {
-  await ReactTestRenderer.act(async () => {
-    renderer?.unmount();
-  });
-  renderer = null;
 });
 
 test('회원은 상세를 읽는 동안 loading이고, 읽으면 상세를 담은 success가 된다', async () => {
@@ -154,12 +145,9 @@ test('상세를 닫은 뒤 늦게 온 응답은 버린다', async () => {
   const request = deferred<HistoryReelDetail>();
   jest.mocked(getHistoryReelDetail).mockReturnValueOnce(request.promise);
 
-  await render({target: reel(1)});
+  const {renderer} = await render({target: reel(1)});
   expect(latest).toEqual({status: 'loading'});
-  await ReactTestRenderer.act(async () => {
-    renderer?.unmount();
-  });
-  renderer = null;
+  await unmountTracked(renderer);
 
   await ReactTestRenderer.act(async () => request.resolve(detailOf(reel(1))));
   expect(latest).toEqual({status: 'loading'});
