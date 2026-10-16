@@ -10,10 +10,10 @@ import {
 const SPLASH_MIN_DURATION_MS = 2000;
 
 /**
- * 앱 안내를 보여 줘야 하는지입니다. checking은 저장소를 아직 읽는 중, required는 안내가 필요함,
+ * 앱 안내를 보여 줘야 하는지입니다. loading은 저장소를 아직 읽는 중, required는 안내가 필요함,
  * completed는 안내를 마쳤거나 이 설치에서 로그인한 적이 있음입니다.
  */
-export type GuideStatus = 'checking' | 'required' | 'completed';
+export type GuideStatus = 'loading' | 'required' | 'completed';
 
 /**
  * 앱 첫 화면의 문지기입니다. 안내 완료 여부와 업데이트 정책을 읽는 동안 스플래시를 최소 시간만큼 보여 주고,
@@ -21,7 +21,7 @@ export type GuideStatus = 'checking' | 'required' | 'completed';
  */
 export function useSplashGate(refreshUpdatePolicy: () => Promise<unknown>) {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
-  const [guideStatus, setGuideStatus] = useState<GuideStatus>('checking');
+  const [guideStatus, setGuideStatus] = useState<GuideStatus>('loading');
 
   useEffect(() => {
     let isMounted = true;

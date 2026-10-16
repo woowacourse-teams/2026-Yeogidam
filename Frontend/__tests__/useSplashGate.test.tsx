@@ -100,7 +100,7 @@ test('저장소 읽기가 최소 시간보다 늦으면 읽기가 끝날 때까�
     await Promise.resolve();
   });
   expect(latest.isSplashVisible).toBe(true);
-  expect(latest.guideStatus).toBe('checking');
+  expect(latest.guideStatus).toBe('loading');
 
   guide.resolve(true);
   await act(async () => {

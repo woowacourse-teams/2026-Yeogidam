@@ -452,7 +452,7 @@ function App() {
   const isMapScreen = currentScreen === 'map';
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
-  if (!isAuthReady || isSplashVisible || guideStatus === 'checking') {
+  if (!isAuthReady || isSplashVisible || guideStatus === 'loading') {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
