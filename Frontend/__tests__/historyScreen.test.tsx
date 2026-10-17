@@ -88,6 +88,12 @@ async function tick(ms: number) {
   });
 }
 
+let alertSpy: jest.SpyInstance<void, Parameters<typeof Alert.alert>>;
+let openURLSpy: jest.SpyInstance<
+  ReturnType<typeof Linking.openURL>,
+  Parameters<typeof Linking.openURL>
+>;
+
 beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
@@ -95,9 +101,18 @@ beforeEach(() => {
   jest.mocked(getHistoryReelDetail).mockClear();
   jest.mocked(retryHistoryReelExtraction).mockReset();
   jest.mocked(reportHistoryReel).mockReset();
+  // 알림과 링크 열기는 모든 테스트에서 beforeEach가 한 번 가로채고, 안내와 이동을 확인하는 테스트는 alertSpy와 openURLSpy로 단언합니다.
+  // Alert는 호출만 기록하고 jest preset의 AlertManager mock까지 그대로 부릅니다. 되돌리기는 afterEach가 맡습니다.
+  alertSpy = jest.spyOn(Alert, 'alert');
+  openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
 });
 
+// 단언이 중간에 실패해도 가로챈 Alert와 Linking.openURL과 가짜 타이머가 다음 테스트로 넘어가지 않게 되돌립니다.
+// 그린 화면은 setupFilesAfterEnv가 먼저 내립니다. Linking.openURL은 jest preset의 jest.fn()이라 spyOn이 같은 mock을 돌려주고,
+// mockRestore가 정한 구현을 지워 preset 상태(구현 없음)로 되돌립니다.
 afterEach(() => {
+  alertSpy.mockRestore();
+  openURLSpy.mockRestore();
   jest.clearAllTimers();
   jest.useRealTimers();
 });
@@ -318,12 +333,14 @@ test('이전 기록 불러오기가 실패한 뒤 폴링이 커서를 비워도 
   expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
 });
 
+// 실패 항목 7의 상세를 열고 다시 시도 확인 창에서 확인을 누릅니다. 확인 창 뒤에 뜬 안내만 alertSpy에 남깁니다.
 async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer) {
   const failed = renderer.root.find(
     node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
   );
   await ReactTestRenderer.act(async () => failed.props.onPress());
-  const alertSpy = jest.spyOn(Alert, 'alert');
+  // 다시 시도하기를 누른 뒤 처음 뜬 알림을 확인 창으로 읽도록 상세를 열기까지의 기록을 지웁니다.
+  alertSpy.mockClear();
   const retryButton = renderer.root.find(
     node =>
       typeof node.props.onPress === 'function' &&
@@ -336,7 +353,6 @@ async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer
     confirm?.onPress?.();
     await Promise.resolve();
   });
-  return alertSpy;
 }
 
 test('재시도 접수에 성공하면 임시 카드 없이 목록으로 돌아가 바로 다시 읽는다', async () => {
@@ -354,7 +370,7 @@ test('재시도 접수에 성공하면 임시 카드 없이 목록으로 돌아�
   });
   const renderer = await render();
 
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
   await ReactTestRenderer.act(async () => {
     await Promise.resolve();
   });
@@ -364,7 +380,6 @@ test('재시도 접수에 성공하면 임시 카드 없이 목록으로 돌아�
   expect(renderedIds(renderer)).toEqual(['8', '7']);
   expect(renderedIds(renderer).some(id => id.startsWith('retry-'))).toBe(false);
   expect(alertSpy).not.toHaveBeenCalled();
-  alertSpy.mockRestore();
 });
 
 test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카드 내용으로 새 카드를 보여 준다', async () => {
@@ -381,7 +396,7 @@ test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카�
   });
   const renderer = await render();
 
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
   await ReactTestRenderer.act(async () => {
     await Promise.resolve();
   });
@@ -394,7 +409,6 @@ test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카�
     instagram_description: '게시물 7',
     instagram_thumbnail_url: 'https://cdn.example.com/7.jpg',
   });
-  alertSpy.mockRestore();
   // 앱 공용 폴러의 진행 중 요청을 끝내 다음 테스트로 넘어가지 않게 한다.
   await ReactTestRenderer.act(async () => {
     finishListRequest({reels: [reel(8, 'PROCESSING'), reel(7, 'FAILED')], nextCursor: null});
@@ -409,13 +423,12 @@ test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다'
   jest.mocked(retryHistoryReelExtraction).mockRejectedValue(new Error('offline'));
   const renderer = await render();
 
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
 
   expect(alertSpy).toHaveBeenCalledWith('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
   expect(
     renderer.root.findAll(node => node.props.children === '장소 분석에 실패했어요ㅠ').length,
   ).toBeGreaterThan(0);
-  alertSpy.mockRestore();
 });
 
 // 아래는 화면을 훅과 컴포넌트로 나누기 전에 지금 동작을 고정하려고 더한 테스트다.
@@ -475,7 +488,7 @@ const storedSnapshots = () =>
     .map(([, value]) => JSON.parse(value));
 
 // 마지막으로 띄운 Alert의 확인 버튼을 누른다.
-async function confirmAlert(alertSpy: jest.SpyInstance<void, Parameters<typeof Alert.alert>>) {
+async function confirmAlert() {
   const buttons = alertSpy.mock.calls[alertSpy.mock.calls.length - 1][2];
   const confirm = buttons?.find(button => button.text === '확인');
   await ReactTestRenderer.act(async () => {
@@ -771,10 +784,8 @@ test('성공 항목을 누르면 장소 상세를 열고, 뒤로 가면 목록�
   expect(hasText(renderer, '성수 카페')).toBe(true);
   expect(hasText(renderer, '도로명 주소 1')).toBe(true);
 
-  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
   await press(findButton(renderer, '원본 릴스로 이동'));
-  expect(openURL).toHaveBeenCalledWith('https://www.instagram.com/reel/2/');
-  openURL.mockRestore();
+  expect(openURLSpy).toHaveBeenCalledWith('https://www.instagram.com/reel/2/');
 
   await pressDetailBack(renderer);
   expect(renderedIds(renderer)).toEqual(['2', '1']);
@@ -816,16 +827,14 @@ test('제보를 확인하면 제보 API를 부르고 버튼이 제보 완료로 
   const renderer = await render();
   await press(historyItem(renderer, '7'));
 
-  const alertSpy = jest.spyOn(Alert, 'alert');
   await press(findButton(renderer, '제보하기'));
   expect(alertSpy).toHaveBeenCalledWith('제보할까요?', '', expect.any(Array));
   expect(reportHistoryReel).not.toHaveBeenCalled();
 
-  await confirmAlert(alertSpy);
+  await confirmAlert();
   expect(reportHistoryReel).toHaveBeenCalledWith('7');
   expect(hasText(renderer, '제보 완료')).toBe(true);
   expect(alertSpy).toHaveBeenCalledTimes(1);
-  alertSpy.mockRestore();
 });
 
 test('제보에 실패하면 버튼을 되돌리고 안내한다', async () => {
@@ -834,15 +843,13 @@ test('제보에 실패하면 버튼을 되돌리고 안내한다', async () => {
   const renderer = await render();
   await press(historyItem(renderer, '7'));
 
-  const alertSpy = jest.spyOn(Alert, 'alert');
   await press(findButton(renderer, '제보하기'));
-  await confirmAlert(alertSpy);
+  await confirmAlert();
   await settleAsyncWork();
 
   expect(alertSpy).toHaveBeenLastCalledWith('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
   expect(hasText(renderer, '제보하기')).toBe(true);
   expect(hasText(renderer, '제보 완료')).toBe(false);
-  alertSpy.mockRestore();
 });
 
 test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남기고 이전 스크롤 위치로 되돌리지 않는다', async () => {
@@ -858,7 +865,7 @@ test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남�
   const renderer = await render();
   await scrollTo(renderer, 300);
 
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
   await settleAsyncWork();
 
   expect(trackExtractionRequestStarted).toHaveBeenCalledWith(null, {
@@ -887,7 +894,6 @@ test('재시도가 접수되면 추출 요청 지표와 본 히스토리를 남�
   await pressDetailBack(renderer);
   await tick(0);
   expect(scrollToMock(renderer)).not.toHaveBeenCalled();
-  alertSpy.mockRestore();
 });
 
 test('스크롤 없이 상세에서 돌아오면 복원 표시를 지워, 나중에 항목 수가 바뀌어도 스크롤을 옮기지 않는다', async () => {
@@ -939,7 +945,7 @@ test('재시도 접수 뒤 다시 읽기가 실패해도 목록을 유지하고 
   });
   const renderer = await render();
 
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
   await settleAsyncWork();
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
@@ -948,7 +954,6 @@ test('재시도 접수 뒤 다시 읽기가 실패해도 목록을 유지하고 
   await tick(3000);
   expect(renderedIds(renderer)).toEqual(['8', '7']);
   expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
-  alertSpy.mockRestore();
 });
 
 test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 접수가 지워 이후 목록이 바뀌어도 스크롤을 옮기지 않는다', async () => {
@@ -974,7 +979,7 @@ test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 
   expect(scrollToMock(renderer)).not.toHaveBeenCalled();
 
   await scrollTo(renderer, 300);
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
   await settleAsyncWork();
   expect(renderedIds(renderer)).toEqual(['8', '7', '6']);
 
@@ -984,7 +989,6 @@ test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 
   expect(renderedIds(renderer)).toEqual(['9', '8', '7', '6']);
   await tick(0);
   expect(scrollToMock(renderer)).not.toHaveBeenCalled();
-  alertSpy.mockRestore();
 });
 
 test('이미 있는 공유로 재시도가 접수되면 임시 카드 없이 목록 조회 결과를 기다린다', async () => {
@@ -1001,7 +1005,7 @@ test('이미 있는 공유로 재시도가 접수되면 임시 카드 없이 목
   });
   const renderer = await render();
 
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
   await settleAsyncWork();
   expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['7']);
@@ -1010,7 +1014,6 @@ test('이미 있는 공유로 재시도가 접수되면 임시 카드 없이 목
     list.resolve({reels: [reel(9), reel(7, 'FAILED')], nextCursor: null}),
   );
   expect(renderedIds(renderer)).toEqual(['9', '7']);
-  alertSpy.mockRestore();
 });
 
 test('재시도 접수를 기다리는 동안 진행 문구를 보이고, 실패를 지표로 남긴 뒤 MEDIA 오류는 서버 문구로 안내한다', async () => {
@@ -1019,7 +1022,7 @@ test('재시도 접수를 기다리는 동안 진행 문구를 보이고, 실패
   jest.mocked(retryHistoryReelExtraction).mockReturnValue(accepted.promise);
   const renderer = await render();
 
-  const alertSpy = await openFailureAndRetry(renderer);
+  await openFailureAndRetry(renderer);
   expect(hasText(renderer, '다시 시도하는 중...')).toBe(true);
   expect(trackExtractionRequestStarted).toHaveBeenCalledTimes(1);
 
@@ -1042,7 +1045,6 @@ test('재시도 접수를 기다리는 동안 진행 문구를 보이고, 실패
   expect(alertSpy).toHaveBeenCalledWith('다시 시도하지 못했어요', '서버가 내려 준 안내 문구');
   expect(hasText(renderer, '다시 시도하기')).toBe(true);
   expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(true);
-  alertSpy.mockRestore();
 });
 
 test('비회원은 API 없이 체험 목록과 체험 상세를 보인다', async () => {
@@ -1066,7 +1068,6 @@ test('비회원은 API 없이 체험 목록과 체험 상세를 보인다', asyn
 
 test('비회원이 실패 상세에서 다시 시도하거나 제보하면 확인 창 없이 로그인을 요청한다', async () => {
   const onRequireLogin = jest.fn();
-  const alertSpy = jest.spyOn(Alert, 'alert');
   const renderer = await render({
     guestReels: [reel(10, 'FAILED')],
     guestDetails: {},
@@ -1083,7 +1084,6 @@ test('비회원이 실패 상세에서 다시 시도하거나 제보하면 확�
   expect(retryHistoryReelExtraction).not.toHaveBeenCalled();
   expect(reportHistoryReel).not.toHaveBeenCalled();
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
-  alertSpy.mockRestore();
 });
 
 test('비회원 실패 상세는 목록 카드처럼 앱에 들어 있는 체험 그림을 썸네일로 보인다', async () => {

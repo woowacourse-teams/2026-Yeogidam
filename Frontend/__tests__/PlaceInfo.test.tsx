@@ -34,13 +34,30 @@ const place: Place = {
   image: { uri: 'https://example.com/place.png' },
 };
 
+let openURLSpy: jest.SpyInstance<
+  ReturnType<typeof Linking.openURL>,
+  Parameters<typeof Linking.openURL>
+>;
+
+// 링크 열기는 beforeEach가 한 번 가로채고, 열기 결과는 테스트마다 정합니다. describe 안이 아니라 파일 맨 위에 두어
+// setupFilesAfterEnv가 그린 화면을 내린 뒤에 되돌립니다.
+beforeEach(() => {
+  openURLSpy = jest.spyOn(Linking, 'openURL');
+});
+
+// 단언이 중간에 실패해도 테스트가 정한 열기 결과가 다음 테스트로 넘어가지 않게 되돌립니다. Linking.openURL은
+// jest preset의 jest.fn()이라 spyOn이 같은 mock을 돌려주고, mockRestore가 정한 구현을 지워 preset 상태(구현 없음)로 되돌립니다.
+afterEach(() => {
+  openURLSpy.mockRestore();
+});
+
 describe('PlaceInfo', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   test('opens the Kakao Map link and records the saved place event', async () => {
-    jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    openURLSpy.mockResolvedValue(undefined);
     const renderer = await renderTracked(
       <CopyToastProvider>
         <PlaceInfo place={place} viewContext={viewContext} />
@@ -71,7 +88,7 @@ describe('PlaceInfo', () => {
   });
 
   test('does not record the event when all Kakao Map links fail to open', async () => {
-    jest.spyOn(Linking, 'openURL').mockRejectedValue(new Error('open failed'));
+    openURLSpy.mockRejectedValue(new Error('open failed'));
     const renderer = await renderTracked(
       <CopyToastProvider>
         <PlaceInfo place={place} viewContext={viewContext} />
