@@ -27,7 +27,7 @@ VALUES ('Db4gRWqkuUg', '군자역 디저트 저장각 🍰
 💌 댓글에 “군자” 남기면 팔로우 여부 상관없이 지도 링크 DM으로 보내드려요!
 
 #군자역카페 #윤숲 #군자역맛집 #광진구카페 #디저트맛집',
-        'yeogidam/prod/instagram-thumbnails/Db4gRWqkuUg.jpg', '@yeogidamm', 'SUCCEEDED', NULL, 1, 'SEEDED') AS onboarding_media
+        'yeogidam/prod/instagram-thumbnails/Db4gRWqkuUg.webp', '@yeogidamm', 'SUCCEEDED', NULL, 1, 'SEEDED') AS onboarding_media
 ON DUPLICATE KEY UPDATE
     caption = onboarding_media.caption,
     thumbnail_key = onboarding_media.thumbnail_key,
@@ -41,20 +41,20 @@ INSERT INTO places (kakao_place_id, name, category, land_lot_address, road_addre
                     telephone, thumbnail_key, thumbnail_source)
 VALUES ('1775568752', '윤숲 후르츠산도점', '음식점 > 카페', '서울 광진구 중곡동 628-7', '서울 광진구 면목로7길 8',
         37.5595478228, 127.0772756026, 'https://place.map.kakao.com/1775568752', '010-7901-7239',
-        'yeogidam/prod/place-thumbnails/1775568752.jpg', 'KAKAO'),
+        'yeogidam/prod/place-thumbnails/1775568752.webp', 'KAKAO'),
        ('137070444', '에프씨씨', '음식점 > 카페', '서울 광진구 중곡동 134-1', '서울 광진구 용마산로3길 88',
         37.5571767489, 127.0833823915, 'https://place.map.kakao.com/137070444', '0507-1363-2949',
-        'yeogidam/prod/place-thumbnails/137070444.jpg', 'KAKAO'),
+        'yeogidam/prod/place-thumbnails/137070444.webp', 'KAKAO'),
        ('337953507', '책방고즈넉', '음식점 > 카페', '서울 광진구 군자동 467-15', '서울 광진구 동일로60길 41-13',
         37.5578428719, 127.0762971247, 'https://place.map.kakao.com/337953507', '010-3524-2064',
-        'yeogidam/prod/place-thumbnails/337953507.jpg', 'KAKAO'),
+        'yeogidam/prod/place-thumbnails/337953507.webp', 'KAKAO'),
        ('98016856', '윤키', '음식점 > 카페 > 테마카페 > 디저트카페', '서울 광진구 중곡동 142-21',
         '서울 광진구 능동로38길 27', 37.5573429525, 127.0814902707,
         'https://place.map.kakao.com/98016856', '0502-5553-0774',
-        'yeogidam/prod/place-thumbnails/98016856.jpg', 'KAKAO'),
+        'yeogidam/prod/place-thumbnails/98016856.webp', 'KAKAO'),
        ('1107844606', '연필', '음식점 > 카페 > 커피전문점', '서울 광진구 군자동 49-17', '서울 광진구 면목로 12',
         37.5552241288, 127.0755882553, 'https://place.map.kakao.com/1107844606', '0502-5552-2000',
-        'yeogidam/prod/place-thumbnails/1107844606.jpg', 'KAKAO') AS onboarding_place
+        'yeogidam/prod/place-thumbnails/1107844606.webp', 'KAKAO') AS onboarding_place
 ON DUPLICATE KEY UPDATE
     name = onboarding_place.name,
     category = onboarding_place.category,
