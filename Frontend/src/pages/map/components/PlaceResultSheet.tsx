@@ -132,13 +132,22 @@ export function PlaceResultSheet({
   const { width: windowWidth } = useWindowDimensions();
   const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  // 지우는 동안 상세를 닫고 다른 장소를 열 수 있으므로, 지우기가 끝났을 때 그때 보이는 상세를 읽도록 그릴 때마다 담아 둡니다.
+  const selectedPlaceRef = useRef(selectedPlace);
+  selectedPlaceRef.current = selectedPlace;
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(false);
   const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // 지우는 중인 저장 장소 ID입니다. 지우는 동안 다른 장소를 열어도 그 장소의 삭제 버튼은 막지 않도록 장소마다 둡니다.
+  const [deletingSavedPlaceIds, setDeletingSavedPlaceIds] = useState<
+    string[]
+  >([]);
+  const isSelectedPlaceDeleting =
+    selectedPlace?.savedPlaceId !== undefined &&
+    deletingSavedPlaceIds.includes(selectedPlace.savedPlaceId);
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
     null,
   );
@@ -675,23 +684,29 @@ export function PlaceResultSheet({
     }
   };
 
-  const backToPlaceList = useCallback(() => {
+  // 상세와 삭제 시트를 닫고 상세를 연 높이의 목록으로 돌아갑니다. 높이는 목록이 그려진 뒤 아래 effect가 맞춥니다.
+  // 뒤로 가기의 마지막 단계와 지운 뒤 이탈이 함께 쓰고, 지운 뒤에는 지운 장소의 상세가 보이면 펼쳐져 있어도 바로 부릅니다.
+  const closePlaceDetail = useCallback(() => {
     setIsActionSheetVisible(false);
+    pendingBackSnapIndex.current = detailEntrySnapIndex.current;
+    setSelectedPlace(null);
+    setSelectedPlaceViewContext(null);
+  }, []);
 
+  const backToPlaceList = useCallback(() => {
     // If the detail was expanded after it opened from a shorter list sheet,
     // the first back action only restores the detail to that prior height.
     if (
       activeSnapIndex === 0 &&
       detailEntrySnapIndex.current !== 0
     ) {
+      setIsActionSheetVisible(false);
       snapTo(snapOffsets[detailEntrySnapIndex.current]);
       return;
     }
 
-    pendingBackSnapIndex.current = detailEntrySnapIndex.current;
-    setSelectedPlace(null);
-    setSelectedPlaceViewContext(null);
-  }, [activeSnapIndex, snapOffsets, snapTo]);
+    closePlaceDetail();
+  }, [activeSnapIndex, closePlaceDetail, snapOffsets, snapTo]);
 
   useEffect(() => {
     if (selectedPlace || pendingBackSnapIndex.current === null) {
@@ -727,13 +742,12 @@ export function PlaceResultSheet({
   }, [canOpenDetailMore, detailMoreSignal, selectedPlace]);
 
   const handleDelete = useCallback(async () => {
-    if (isDeleting || !selectedPlace) {
+    if (isSelectedPlaceDeleting || !selectedPlace) {
       return;
     }
     if (onDeleteGuestPlaces) {
       onDeleteGuestPlaces([selectedPlace.id]);
-      setIsActionSheetVisible(false);
-      backToPlaceList();
+      closePlaceDetail();
       return;
     }
     if (!selectedPlace.savedPlaceId) {
@@ -742,24 +756,34 @@ export function PlaceResultSheet({
     }
 
     const savedPlaceId = selectedPlace.savedPlaceId;
-    setIsDeleting(true);
+    // 지우기가 끝났을 때 다른 장소의 상세가 보이면, 보이는 상세를 닫지 않고 보이는 삭제 시트에 지우기 오류를 보이지 않습니다.
+    // 캐시에서 빼기와 지도 화면에 알리기와 로그인 요청은 보이는 상세와 상관없이 합니다.
+    const isDeletingPlaceShown = () =>
+      selectedPlaceRef.current?.savedPlaceId === savedPlaceId;
+    setDeletingSavedPlaceIds(current => [...current, savedPlaceId]);
     setDeleteError(null);
     try {
       await deleteSavedPlaceAndRemoveFromCache(savedPlaceId);
       onSavedPlaceDeleted?.(savedPlaceId);
-      backToPlaceList();
+      if (isDeletingPlaceShown()) {
+        closePlaceDetail();
+      }
     } catch (nextError) {
       const apiError = normalizeScreenApiError(nextError);
-      setDeleteError(apiError);
+      if (isDeletingPlaceShown()) {
+        setDeleteError(apiError);
+      }
       if (isLoginRequiredError(apiError)) {
         onAuthenticationRequired?.();
       }
     } finally {
-      setIsDeleting(false);
+      setDeletingSavedPlaceIds(current =>
+        current.filter(id => id !== savedPlaceId),
+      );
     }
   }, [
-    backToPlaceList,
-    isDeleting,
+    closePlaceDetail,
+    isSelectedPlaceDeleting,
     onAuthenticationRequired,
     onDeleteGuestPlaces,
     onSavedPlaceDeleted,
@@ -849,7 +873,7 @@ export function PlaceResultSheet({
                 setIsActionSheetVisible(false);
               }}
               onDelete={handleDelete}
-              isDeleting={isDeleting}
+              isDeleting={isSelectedPlaceDeleting}
               deleteError={deleteError}
             />
           </CopyToastProvider>
