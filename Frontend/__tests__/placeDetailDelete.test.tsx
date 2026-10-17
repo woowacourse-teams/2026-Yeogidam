@@ -57,7 +57,8 @@ type DetailCallbacks = {onBack: jest.Mock; onAuthenticationRequired: jest.Mock};
 
 /**
  * 회원의 상세 화면을 그립니다. App이 넘기는 onBack(closeDetail)은 그때 보이는 상세를 조건 없이 닫으므로, 불린 횟수로 상세를 닫았는지 봅니다.
- * 상세 화면이 내려간 뒤 새 화면을 그릴 때는 App처럼 앞 화면과 같은 콜백을 넘깁니다.
+ * 상세 화면이 내려간 뒤 새 화면을 그릴 때는 앞 화면의 콜백 mock을 그대로 넘겨 두 화면이 부른 횟수를 함께 셉니다.
+ * App에서 onBack은 늘 같은 함수이고, onAuthenticationRequired는 App이 그릴 때마다 새로 만들지만 하는 일은 같습니다.
  */
 async function renderDetail(
   target: Place,
@@ -71,7 +72,7 @@ async function renderDetail(
     renderer,
     onBack,
     onAuthenticationRequired,
-    /** App이 같은 상세 화면에 다른 장소를 넘겨 다시 그리는 일을 흉내 냅니다. */
+    /** 같은 상세 화면이 다른 장소를 받아 다시 그려지는 일을 흉내 냅니다. 지금 App에서는 일어나지 않는 길입니다(showInSameScreen 주석). */
     showPlace: (place: Place) => act(async () => renderer.update(detailOf(place))),
   };
 }
