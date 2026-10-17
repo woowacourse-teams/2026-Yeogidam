@@ -3,16 +3,15 @@
 인스타그램 게시물에서 장소 검색 단서를 얻고, 카카오 지도에서 찾은 장소를 회원 보관함에 저장하는 흐름이다.
 Gemini가 만드는 결과는 검색 단서이고, 최종 장소 이름, 주소, 좌표는 카카오 검색 결과에서 가져온다.
 
-이 문서는 2026-10-12 기준 구현을 설명한다.
-현재 파이프라인 버전은 `1`이다.
+2026-10-17 기준 구현을 설명하며, 현재 파이프라인 버전은 `1`이다.
 
 ## 1. 먼저 알아둘 규칙
 
 | 질문 | 현재 동작 |
 | --- | --- |
-| 모든 게시물을 영상과 이미지까지 분석하는가? | 기본은 캡션 우선이다. 캡션에서 장소 단서가 0개일 때만 첨부 분석을 실행한다. |
+| 모든 게시물을 영상과 이미지까지 분석하는가? | 기본은 캡션 우선이다. 캡션에서 장소 단서가 0개이거나, 캡션 단서로 카카오에서 장소를 한 곳도 찾지 못했을 때만 첨부 분석을 실행한다. |
 | 예외가 있는가? | 작성자 핸들이 정확히 `with_sol_mate`이면 처음부터 캡션과 전체 첨부를 함께 분석한다. |
-| 캡션에서 찾은 장소가 지도에 없으면 첨부 분석을 하는가? | 하지 않는다. 첨부 분석 여부는 지도 검색 전에 결정된다. |
+| 캡션에서 찾은 장소가 지도에 없으면 첨부 분석을 하는가? | 캡션 단서로 카카오에서 한 곳도 찾지 못하면 캡션과 첨부를 함께 다시 분석한다. 한 곳이라도 찾으면 첨부는 읽지 않는다. |
 | 소개한 모든 장소가 지도에서 찾아져야 성공하는가? | 한 장소 이상 매칭되면 성공한다. 결과가 없는 단서는 건너뛴다. |
 | 같은 게시물을 다시 공유하면 재분석하는가? | 성공 결과는 재사용한다. 진행 중이면 같은 분석에 합류하고, 실패는 재시도 조건을 확인한다. |
 | 장소를 회원이 선택한 뒤 저장하는가? | 일반 공유는 매칭된 장소를 자동으로 보관함에 저장한다. 온보딩의 사전 준비 장소 선택은 별도 흐름이다. |
@@ -75,7 +74,7 @@ sequenceDiagram
 ## 4. 분석 경로를 고르는 기준
 
 일반 작성자는 **캡션 분석 -> 카카오 검색 -> 보관함 저장** 순서로 진행한다.
-첨부 분석은 캡션에서 단서를 못 찾았을 때, 또는 지정 작성자일 때 실행한다.
+첨부 분석은 캡션에서 단서를 못 찾았거나 캡션 단서로 카카오에서 한 곳도 찾지 못했을 때, 또는 지정 작성자일 때 실행한다.
 
 ```mermaid
 flowchart LR
@@ -85,23 +84,27 @@ flowchart LR
 
     A -->|with_sol_mate| C["캡션 + 첨부 분석"]
     B -->|단서 없음| C
-    C -->|단서 있음| D
+    D -->|0개 매칭| C
+    C -->|단서 있음| F["카카오 검색"]
+    F -->|1개 이상 매칭| E
 
     style A fill:#f8fafc,stroke:#94a3b8,color:#1e293b
     style B fill:#f8fafc,stroke:#94a3b8,color:#1e293b
     style C fill:#fff7ed,stroke:#fb923c,color:#9a3412
     style D fill:#f8fafc,stroke:#94a3b8,color:#1e293b
     style E fill:#ecfdf5,stroke:#34d399,color:#065f46
+    style F fill:#f8fafc,stroke:#94a3b8,color:#1e293b
 ```
 
-**첨부 분석은 주황색 보조 경로다.** 캡션에서 단서를 찾았다면 카카오 검색으로 바로 넘어간다.
+**첨부 분석은 주황색 보조 경로다.** 캡션에서 단서를 찾았다면 카카오 검색으로 바로 넘어가고, 카카오에서 한 곳도 찾지 못했을 때만 첨부 분석으로 넘어간다.
+첨부 분석에서 얻은 단서로 카카오 검색을 한 번 더 하고, 그래도 못 찾으면 `PLACE_NOT_MATCHED`로 끝낸다.
 `with_sol_mate`는 캡션만 분석하는 단계를 건너뛰고, 캡션과 전체 첨부를 함께 분석한다.
 
 | 분석이 종료되는 조건 | 실패 이유 |
 | --- | --- |
 | 게시물 설명을 읽지 못했거나 캡션이 없음 | `CONTENT_UNAVAILABLE` |
-| 첨부까지 분석했지만 장소 단서가 없음 | `PLACE_NOT_EXTRACTED` |
-| 지도 검색을 정상 완료했지만 매칭한 장소가 없음 | `PLACE_NOT_MATCHED` |
+| 캡션 단서가 없거나 지정 작성자라서 첨부까지 분석했지만 장소 단서가 없음 | `PLACE_NOT_EXTRACTED` |
+| 지도 검색을 정상 완료했지만 매칭한 장소가 없음. 캡션 단서가 지도에 없어 첨부를 읽었는데 첨부에서 단서가 나오지 않은 경우도 포함 | `PLACE_NOT_MATCHED` |
 
 그림은 정상 응답에서의 경로 선택을 보여준다. 외부 요청, 파일 처리, 응답 검증, 저장 중 예외도 실패 처리 경로로 전달된다.
 
@@ -120,8 +123,9 @@ flowchart LR
 ### 4.2. 캡션 우선과 지정 작성자 예외
 
 일반 작성자는 `PlaceNameExtractor.extract(caption)`을 먼저 호출한다.
-장소 단서가 하나라도 있으면 그 단서만 카카오 검색에 전달한다. 일부 장소가 첨부에만 등장해도 추가 분석하지 않는다.
-캡션 분석이 예외로 실패한 경우에도 첨부 분석으로 전환하지 않는다. 정상 응답의 `places`가 빈 배열인 경우에만 전환한다.
+장소 단서가 하나라도 있으면 캡션 단서로 카카오 검색을 하고, 한 곳이라도 찾으면 찾은 장소만 저장한다. 일부 장소가 첨부에만 등장해도 추가 분석하지 않는다.
+캡션 단서로 카카오에서 한 곳도 찾지 못하면 `extractFile(caption, instagramUrl)`로 캡션과 첨부를 함께 다시 분석하고, 첨부 분석에서 얻은 단서로 다시 검색한다.
+캡션 분석이 예외로 실패한 경우에는 첨부 분석으로 전환하지 않는다. 정상 응답의 `places`가 빈 배열이거나 캡션 단서의 카카오 매칭이 0건인 경우에만 전환한다.
 
 `with_sol_mate`는 캡션에서 일부 장소를 찾더라도 첨부에 있는 장소를 놓치지 않도록 예외로 지정했다.
 이 작성자는 `/p/`, `/reel/`에 관계없이 `extractFile(caption, instagramUrl)`을 직접 호출한다.
@@ -186,6 +190,23 @@ Gemini의 주소와 업종은 검색 단서이며 최종 검증된 장소 정보
 첨부 응답의 추론용 텍스트는 제외하고 결과 텍스트를 모아 읽는다. 토큰 한도 등으로 중단된 결과는 부분 성공으로 사용하지 않는다.
 두 경로 모두 JSON 스키마를 요청하고 `PlaceSearchHints`로 역직렬화한다. 응답 구조나 필수값이 잘못되면 `PROCESSING_FAILED`다.
 
+### 5.4. Gemini key 전환
+
+Gemini key는 `GEMINI_API_KEY`(먼저 부르는 key), `GEMINI_API_KEY_FALLBACKS`(쉼표로 적은 예비 key) 순서로 쓴다.
+같은 key를 두 번 적으면 한 번만 쓰고, 예비 key가 비어 있으면 전환하지 않는다.
+캡션 분석과 첨부 분석 요청이 아래 오류로 실패하면 같은 요청을 다음 key로 다시 보낸다.
+첨부 분석은 올린 파일이 key의 Google 프로젝트에 묶이므로, 앞 key로 올린 파일을 지우고 다음 key로 원본을 다시 올린다.
+
+| 오류 | 처리 |
+| --- | --- |
+| 429 한도 초과 | `Retry-After` 값 동안, 값이 없으면 1분 동안 해당 key를 건너뛴다. |
+| 429 선불 잔액 소진(`prepayment credits are depleted`), 402, 401, 403 | 10분 동안 해당 key를 건너뛰고, 결제 잔액이나 key 설정을 확인하라는 오류 로그를 남긴다. |
+| 408, 500번대, 시간 초과와 네트워크 오류 | key를 막아 두지 않고 다음 key로만 넘긴다. |
+| 나머지 4xx(잘못된 요청 등) | 다른 key로 다시 보내지 않고 `PROCESSING_FAILED`로 끝낸다. |
+
+모든 key가 실패하거나 모든 key를 건너뛰는 중이면 `PROCESSING_FAILED`이고, 마지막 key에서 시간을 두고 다시 보내지는 않는다.
+업로드와 처리 상태 조회 중 오류는 key를 바꾸지 않고 바로 `PROCESSING_FAILED`로 끝난다. 로그에는 key 대신 순번(1번이 먼저 부르는 key)을 남긴다.
+
 ## 6. 이미지와 영상 원본의 확보 및 정리
 
 `InstagramMediaSourceReader`는 다음 순서로 대상 shortcode의 원본 목록을 찾는다.
@@ -206,13 +227,14 @@ Gemini의 주소와 업종은 검색 단서이며 최종 검증된 장소 정보
 `PROCESSING` 상태이면 1초 간격으로 조회하고, `ACTIVE`가 되면 분석 요청에 사용한다.
 처리 대기 기한은 2분이며, 진행 중인 HTTP 요청 때문에 실제 경과 시간이 이 기한을 넘길 수 있다.
 
-캡션과 모든 업로드 파일 참조를 순서대로 한 분석 요청에 넣는다. 현재 요청의 미디어 해상도 설정은 `MEDIA_RESOLUTION_HIGH`다.
+캡션과 모든 업로드 파일 참조를 순서대로 한 분석 요청에 넣는다. 미디어 해상도는 따로 정하지 않아 Gemini 기본값으로 분석한다.
 분석 성공 여부와 관계없이 Gemini 업로드 파일과 로컬 임시 파일을 정리한다.
 업로드 중 실패한 파일도 이름을 확보했다면 삭제를 시도한다. 삭제 실패는 경고 로그를 남기며 원래 분석 결과나 예외를 덮어쓰지 않는다.
 
 ## 7. 카카오에서 최종 장소를 고르는 기준
 
 `KakaoPlaceSearcher`는 장소 단서 한 개당 최종 장소를 최대 한 개 반환한다.
+주소 단서를 좌표로 바꿀 수 있으면 7.2의 반경 검색을 먼저 하고, 아니면 7.1에서 고른 지역으로 7.3의 키워드 검색을 한다.
 
 ### 7.1. 검색명과 지역 선택
 
@@ -234,7 +256,22 @@ Gemini의 주소와 업종은 검색 단서이며 최종 검증된 장소 정보
 예: `A카페`, 주소 `서울특별시 마포구 서교동 123`이면 `A카페 서교동`으로 먼저 검색한다.
 선택한 지역명이 이미 검색명에 있으면 중복해서 붙이지 않는다. 이 판단에서는 유니코드 표기, 대소문자, 공백, 구두점, 기호를 정규화한다.
 
-### 7.2. 검색 결과 선택
+### 7.2. 주소 좌표 반경 검색
+
+`ADDRESS` 단서는 카카오 주소 검색으로 좌표를 얻는다. 주소 뒤에 붙은 층, 호수, 건물명 때문에 결과가 비면 끝 낱말을 하나씩 떼고 최대 3번 더 찾는다.
+좌표를 얻으면 반경 3km 안에서 장소명으로 검색하고, 카카오 기본 정렬(정확도)에서 첫 유효 장소를 고른다.
+골든셋에서 4.8km 떨어진 같은 이름의 다른 지점이 붙은 일이 있어 반경을 3km로 잡았다.
+
+| 주소 출처 | 반경 안에 없을 때 |
+| --- | --- |
+| `CAPTION` | 찾지 못한 것으로 둔다. 지역이나 이름만으로 다시 찾으면 같은 이름의 다른 지점이 붙기 때문이다. |
+| `VIDEO`, `IMAGE`, `INFERRED` 순서로 처음 얻은 좌표 | 7.3의 키워드 검색으로 넘어간다. Gemini가 영상 속 지명을 틀리게 적거나 같은 동 이름의 다른 구로 좌표가 잡힐 수 있기 때문이다. |
+
+캡션 주소를 좌표로 바꾸지 못하면 영상, 이미지, 추론 주소의 좌표를 찾고, 아무 좌표도 얻지 못하면 반경 검색 없이 7.3으로 넘어간다.
+
+### 7.3. 키워드 검색과 결과 선택
+
+주소 좌표가 없거나, 영상, 이미지, 추론 주소의 반경 안에서 찾지 못했을 때 다음 순서로 검색한다.
 
 1. 지역이 있으면 `장소명 + 지역`으로 검색한다.
 2. 결과 목록이 비어 있으면 장소명만으로 다시 검색한다. 중복 검색어는 제거한다.
@@ -245,7 +282,7 @@ Gemini의 주소와 업종은 검색 단서이며 최종 검증된 장소 정보
 개별 결과가 잘못됐으면 건너뛰지만, 결과 문서가 있는데 유효 장소가 하나도 없으면 `PROCESSING_FAILED`다.
 이 경우 장소명만으로 다시 검색하지 않는다. HTTP 실패나 잘못된 응답 구조도 다음 검색으로 넘기지 않는다.
 
-현재 구현에는 자체 이름 유사도 점수, 주소 일치 점수, 거리 기준, 업종 필터가 없다.
+현재 구현에는 자체 이름 유사도 점수, 주소 일치 점수, 업종 필터가 없고, 거리 기준은 7.2의 반경 3km뿐이다.
 따라서 지도 검색에 성공했다는 것은 이 기준으로 카카오 장소를 선택했다는 뜻이며, 게시물의 실제 방문 장소와 정확히 일치한다는 보장은 아니다.
 
 ## 8. 성공 판정, 썸네일과 저장
@@ -282,7 +319,7 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 | --- | --- |
 | `CONTENT_UNAVAILABLE` | 공개 메타데이터 페이지 요청 실패, 빈 HTML, 캡션 누락. |
 | `PLACE_NOT_EXTRACTED` | 필요한 분석 경로를 정상 완료했지만 장소 단서가 0개. |
-| `PLACE_NOT_MATCHED` | 장소 단서는 있지만 모든 정상 지도 검색 결과가 비어 있음. |
+| `PLACE_NOT_MATCHED` | 장소 단서는 있지만 모든 정상 지도 검색 결과가 비어 있음. 캡션 단서가 지도에 없어 첨부를 읽었는데 첨부에서 단서가 나오지 않은 경우도 포함. |
 | `PROCESSING_FAILED` | Gemini 또는 카카오 요청 실패, 잘못된 분석 응답, 미디어 원본 확보 및 파일 처리 실패, 인터럽트. |
 | `UNEXPECTED` | 위 유형으로 분류하지 않은 런타임 예외. 결과 저장 예외도 이 경로에 포함될 수 있음. |
 
@@ -319,16 +356,16 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 | 재시도 조건 | [ExtractionSnapshot](../src/main/java/com/yeogidam/media/extraction/domain/ExtractionSnapshot.java) |
 | 커밋 후 실행과 실패 기록 | [MediaExtractionDispatcher](../src/main/java/com/yeogidam/media/extraction/service/MediaExtractionDispatcher.java) |
 | 분석 경로 선택과 성공 판정 | [MediaExtractionPipeline](../src/main/java/com/yeogidam/media/extraction/service/MediaExtractionPipeline.java) |
-| 프롬프트, 응답 스키마, Gemini 요청 | [GeminiPlaceNameExtractor](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractor.java) |
+| 프롬프트, 응답 스키마, Gemini 요청, 예비 key 전환 | [GeminiPlaceNameExtractor](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractor.java), [GeminiApiKeys](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiApiKeys.java) |
 | 원본 목록 조회와 파일 다운로드 | [InstagramMediaSourceReader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReader.java), [InstagramMediaDownloader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaDownloader.java) |
 | 업로드, 처리 상태 확인, 삭제 | [GeminiFileClient](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiFileClient.java) |
-| 지도 검색어와 결과 선택 | [KakaoPlaceSearcher](../src/main/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcher.java) |
+| 주소 반경 검색, 지도 검색어와 결과 선택 | [KakaoPlaceSearcher](../src/main/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcher.java) |
 | 결과 저장 | [MediaExtractionResultWriter](../src/main/java/com/yeogidam/media/extraction/service/MediaExtractionResultWriter.java) |
 | 썸네일 선택 | [PlaceThumbnailService](../src/main/java/com/yeogidam/place/service/PlaceThumbnailService.java) |
 
 ### 설정과 실행 제한
 
-모델은 코드에 고정하지 않고 `GEMINI_MODEL`로 주입한다. 분석에는 `GEMINI_API_KEY`, `KAKAO_CLIENT_ID`가 필요하다.
+모델은 코드에 고정하지 않고 `GEMINI_MODEL`로 주입한다. 분석에는 `GEMINI_API_KEY`, `KAKAO_CLIENT_ID`가 필요하고, 예비 key는 선택 설정인 `GEMINI_API_KEY_FALLBACKS`에 쉼표로 적는다.
 썸네일 저장에는 S3 및 공개 URL 설정도 필요하다. 값과 필수 설정은 [application.yml](../src/main/resources/application.yml)을 확인한다.
 
 | 설정 | 현재 값 |
@@ -339,6 +376,8 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 | 첨부 원본 조회 및 다운로드 HTTP 연결 및 읽기 제한 | 30초 |
 | 카카오 지도 검색 HTTP 연결 및 읽기 제한 | 5초 |
 | Gemini 파일 처리 상태 대기 기한 | 2분, 조회 간격 1초 |
+| Gemini key를 건너뛰는 시간 | 429는 `Retry-After` 값이나 1분, 선불 잔액 소진과 402, 401, 403은 10분 |
+| 카카오 주소 반경 검색 | 반경 3km, 주소 끝 낱말을 떼며 최대 3번 더 좌표 검색 |
 
 이 값들은 요청별 제한이다. 전체 파이프라인의 총 실행 시간 제한을 뜻하지 않는다.
 메타데이터 HTML 조회는 별도 `instagramRestClient`를 사용하며 위 첨부 다운로드용 30초 설정의 대상이 아니다.
@@ -346,8 +385,9 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 
 ### 테스트로 규칙 확인하기
 
-- [MediaExtractionPipelineIntegrationTest](../src/test/java/com/yeogidam/media/extraction/service/MediaExtractionPipelineIntegrationTest.java): 부분 매칭 성공, 결과 재사용, 지정 작성자 예외, 실패 기록, 저장 롤백.
-- [KakaoPlaceSearcherTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcherTest.java): 검색명, 지역 우선순위, 응답 결과 선택.
+- [MediaExtractionPipelineIntegrationTest](../src/test/java/com/yeogidam/media/extraction/service/MediaExtractionPipelineIntegrationTest.java): 부분 매칭 성공, 결과 재사용, 캡션 단서로 카카오에서 못 찾을 때의 첨부 분석, 지정 작성자 예외, 실패 기록, 저장 롤백.
+- [KakaoPlaceSearcherTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcherTest.java): 검색명, 지역 우선순위, 주소 반경 검색, 응답 결과 선택.
+- [GeminiPlaceNameExtractorTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractorTest.java): 캡션 요청 스키마, 응답 검증, 예비 key 전환과 건너뛰는 시간.
 - [InstagramMediaSourceReaderTest](../src/test/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReaderTest.java): 캐러셀 순서와 누락 처리, 릴스 썸네일 이후 원본 조회.
 - [InstagramMediaDownloaderTest](../src/test/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaDownloaderTest.java): 원본 유형 검증과 임시 파일 정리.
 - [GeminiFileClientTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiFileClientTest.java): 파일 업로드, 처리 대기, 시간 초과 시 정리.
