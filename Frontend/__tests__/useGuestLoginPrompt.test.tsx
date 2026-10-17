@@ -26,6 +26,12 @@ async function render(props: Props) {
   return (next: Props) => act(async () => renderer.update(<Harness {...next} />));
 }
 
+// jest preset의 AppState mock에서 테스트가 바꾸는 두 값을 잡아 둡니다. currentState는 값이 jest.fn()이라 jest.replaceProperty를 쓸 수 없어
+// Object.defineProperty로 되돌립니다. addEventListener는 기본 구현을 가진 jest.fn()이라 spyOn이 같은 mock을 돌려주고
+// mockRestore는 기본 구현까지 지우므로, afterEach가 잡아 둔 구현을 다시 넣습니다.
+const presetCurrentState = AppState.currentState;
+const presetAddEventListener = jest.mocked(AppState.addEventListener).getMockImplementation();
+
 beforeEach(() => {
   jest.useFakeTimers();
   jest.setSystemTime(0);
@@ -36,7 +42,10 @@ beforeEach(() => {
   });
 });
 
+// 단언이 중간에 실패해도 바꾼 AppState와 가짜 타이머가 다음 테스트로 넘어가지 않게 되돌립니다. 그린 훅은 setupFilesAfterEnv가 먼저 내립니다.
 afterEach(() => {
+  Object.defineProperty(AppState, 'currentState', {value: presetCurrentState, configurable: true});
+  jest.mocked(AppState.addEventListener).mockReset().mockImplementation(presetAddEventListener);
   jest.clearAllTimers();
   jest.useRealTimers();
 });

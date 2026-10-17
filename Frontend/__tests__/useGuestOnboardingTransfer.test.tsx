@@ -36,6 +36,7 @@ const act = ReactTestRenderer.act;
 const settle = async () => {
   for (let i = 0; i < 5; i += 1) await Promise.resolve();
 };
+let warnSpy: jest.SpyInstance<void, Parameters<typeof console.warn>>;
 
 beforeEach(() => {
   activeMemberIdRef.current = 'member-1';
@@ -43,6 +44,13 @@ beforeEach(() => {
   jest.mocked(getSpringMemberId).mockReset();
   jest.mocked(AppState.addEventListener).mockClear();
   onTransferFailed.mockClear();
+  // 옮기기가 실패하면 훅이 남기는 console.warn이 출력에 섞이지 않게 모든 테스트에서 beforeEach가 한 번 가로챕니다.
+  warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+});
+
+// 단언이 중간에 실패해도 가로챈 console.warn이 다음 테스트로 넘어가지 않게 되돌립니다. 그린 훅은 setupFilesAfterEnv가 먼저 내립니다.
+afterEach(() => {
+  warnSpy.mockRestore();
 });
 
 test('옮기기가 끝나면 회원 데이터 버전을 올리고, 다른 회원이 됐으면 올리지 않는다', async () => {
@@ -64,7 +72,6 @@ test('옮기기가 끝나면 회원 데이터 버전을 올리고, 다른 회원
 });
 
 test('실패 안내 요청은 한 번만 보내고, 로그아웃으로 초기화하면 다시 보낸다', async () => {
-  const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   jest.mocked(resumeGuestOnboardingTransfer).mockRejectedValue(new Error('network'));
   await renderTracked(<Harness enabled />);
 
@@ -82,8 +89,6 @@ test('실패 안내 요청은 한 번만 보내고, 로그아웃으로 초기화
     await settle();
   });
   expect(onTransferFailed).toHaveBeenCalledTimes(2);
-
-  warn.mockRestore();
 });
 
 test('회원일 때만 포그라운드 복귀를 구독하고, 복귀하면 조용히 다시 시도한다', async () => {

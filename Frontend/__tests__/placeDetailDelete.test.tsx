@@ -11,7 +11,7 @@ import {
 import type {Place} from '../src/entities/place/types';
 import {PlaceDetailActionSheet} from '../src/pages/place-detail/components/PlaceDetailActionSheet';
 import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
-import {flushMicrotasks, renderTracked, type Renderer} from './support/renderers';
+import {renderTracked, settleAsyncWork, type Renderer} from './support/renderers';
 import {cachedPlaceNames} from './support/cachedPlaceNames';
 import {BAKERY, CACHED_CAFE, CACHED_PLACES, CAFE, SERVER_ERROR, TIMEOUT_ERROR} from './support/savedPlacesFixtures';
 
@@ -52,7 +52,7 @@ async function deleteFromSheet(renderer: Renderer) {
   await act(async () => {
     buttons.find((button: {text: string}) => button.text === '삭제').onPress();
   });
-  await flushMicrotasks();
+  await settleAsyncWork();
 }
 
 beforeEach(() => {

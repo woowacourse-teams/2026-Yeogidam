@@ -15,7 +15,7 @@ import {PlaceDetailContent} from '../src/pages/place-detail/components/PlaceDeta
 import {cachedPlaceNames} from './support/cachedPlaceNames';
 import {deferred} from './support/deferred';
 import {pressLabel} from './support/pressLabel';
-import {flushMicrotasks, renderTracked, type Renderer} from './support/renderers';
+import {settleAsyncWork, renderTracked, type Renderer} from './support/renderers';
 import {
   AUTH_ERROR,
   AUTH_ERROR_WITHOUT_STATUS,
@@ -195,7 +195,7 @@ test('지우기에 실패한 뒤 다시 누르면 지난 오류를 지우고 지
   expect(deleteSheetState(renderer)).toEqual({visible: true, isDeleting: true, deleteError: null});
 
   await act(async () => retry.resolve());
-  await flushMicrotasks();
+  await settleAsyncWork();
   expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]], [[CAFE.id]]]);
   expect(events).toEqual([
     {detailShown: false, placeId: null},
@@ -224,7 +224,7 @@ test('지우는 동안에는 상세와 삭제 시트에 머물며 삭제 버튼�
   expect(shownView(renderer)).toBe('상세');
 
   await act(async () => request.resolve());
-  await flushMicrotasks();
+  await settleAsyncWork();
   expect(events).toEqual([
     {detailShown: false, placeId: null},
     {detailShown: true, placeId: CAFE.place.id},

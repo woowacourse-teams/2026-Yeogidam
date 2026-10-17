@@ -1,6 +1,6 @@
 import ReactTestRenderer from 'react-test-renderer';
 
-import {flushMicrotasks, type Renderer} from './renderers';
+import {settleAsyncWork, type Renderer} from './renderers';
 
 /**
  * 접근성 레이블이 같은 첫 번째 누를 수 있는 요소를 누르고, 이어지는 갱신을 기다립니다.
@@ -13,5 +13,5 @@ export async function pressLabel(renderer: Renderer, label: string) {
   await ReactTestRenderer.act(async () => {
     target.props.onPress();
   });
-  await flushMicrotasks();
+  await settleAsyncWork();
 }
