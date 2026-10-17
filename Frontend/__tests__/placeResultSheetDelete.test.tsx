@@ -43,36 +43,67 @@ jest.mock('../src/pages/place-detail/components/PlaceDetailContent', () => ({
 
 const act = ReactTestRenderer.act;
 const DELETE_LABEL = '장소 삭제하기';
+const EXPAND_LABEL = '검색 결과 펼치기';
 
-/** 시트가 지도 화면에 알린 일을 차례로 적습니다. 지운 장소를 알릴 때는 그때 캐시에 남은 이름도 적어, 캐시에서 뺀 뒤에 알렸는지 봅니다. */
+/**
+ * 시트가 지도 화면에 알린 일을 차례로 적습니다. 지운 장소를 알릴 때는 그때 캐시에 남은 이름도 적어, 캐시에서 뺀 뒤에 알렸는지 봅니다.
+ * expanded는 시트가 페이지처럼 펼쳐졌는지이고, 지도 화면은 상세가 펼쳐졌을 때만 머리글의 뒤로 가기와 더보기를 보입니다.
+ */
 type SheetEvent =
   | {detailShown: boolean; placeId: string | null}
+  | {expanded: boolean}
   | {deletedSavedPlaceId: string; cachedNames: string[] | undefined};
 
-async function renderSheet(props: Partial<React.ComponentProps<typeof PlaceResultSheet>> = {}) {
+type SheetProps = React.ComponentProps<typeof PlaceResultSheet>;
+type Sheet = Awaited<ReturnType<typeof renderSheet>>;
+
+async function renderSheet(props: Partial<SheetProps> = {}) {
   const events: SheetEvent[] = [];
   const onAuthenticationRequired = jest.fn();
-  const renderer = await renderTracked(
-    <PlaceResultSheet
-      places={CACHED_PLACES}
-      height={700}
-      onDetailViewChange={(isDetailView, placeId) => {
-        events.push({detailShown: isDetailView, placeId});
-      }}
-      onSavedPlaceDeleted={savedPlaceId => {
-        events.push({deletedSavedPlaceId: savedPlaceId, cachedNames: cachedPlaceNames()});
-      }}
-      onAuthenticationRequired={onAuthenticationRequired}
-      {...props}
-    />,
-  );
-  return {renderer, events, onAuthenticationRequired};
+  // 다시 그릴 때 콜백이 새로 만들어지면 콜백에 걸린 effect가 다시 돌아 같은 알림을 또 적으므로, 처음 만든 props를 이어 씁니다.
+  let currentProps: SheetProps = {
+    places: CACHED_PLACES,
+    height: 700,
+    onDetailViewChange: (isDetailView, placeId) => {
+      events.push({detailShown: isDetailView, placeId});
+    },
+    onExpandedChange: expanded => {
+      events.push({expanded});
+    },
+    onSavedPlaceDeleted: savedPlaceId => {
+      events.push({deletedSavedPlaceId: savedPlaceId, cachedNames: cachedPlaceNames()});
+    },
+    onAuthenticationRequired,
+    ...props,
+  };
+  const renderer = await renderTracked(<PlaceResultSheet {...currentProps} />);
+
+  /** 지도 화면이 신호 props를 올려 다시 그리는 일을 흉내 냅니다. 넘기지 않은 props는 앞의 값을 그대로 씁니다. */
+  async function rerender(nextProps: Partial<SheetProps>) {
+    currentProps = {...currentProps, ...nextProps};
+    await act(async () => renderer.update(<PlaceResultSheet {...currentProps} />));
+    await flushMicrotasks();
+  }
+
+  return {renderer, events, onAuthenticationRequired, rerender};
 }
 
 /** 목록에서 장소를 눌러 상세를 열고, 상세의 더보기로 삭제 시트를 엽니다. */
 async function openDeleteSheet(renderer: Renderer, placeName: string) {
   await pressLabel(renderer, `${placeName} 상세 보기`);
+  await openShownPlaceDeleteSheet(renderer);
+}
+
+/** 지금 보이는 상세의 더보기로 삭제 시트를 엽니다. */
+async function openShownPlaceDeleteSheet(renderer: Renderer) {
   await act(async () => renderer.root.findByType(PlaceDetailContent).props.onPressMore());
+}
+
+/** 삭제 시트를 닫고 지도 화면의 뒤로 가기로 목록에 돌아가 다른 장소를 엽니다. 닫기와 뒤로 가기는 지우는 동안에도 막지 않습니다. */
+async function closeDeleteSheetAndOpenPlace(sheet: Sheet, placeName: string) {
+  await act(async () => sheet.renderer.root.findByType(PlaceDetailActionSheet).props.onClose());
+  await sheet.rerender({backToPlaceListSignal: 1});
+  await pressLabel(sheet.renderer, `${placeName} 상세 보기`);
 }
 
 /** 시트가 상세와 목록 가운데 어느 쪽을 그리는지 봅니다. 둘 다 그리지 않으면 '없음'입니다. */
@@ -252,4 +283,55 @@ test('비회원 체험 장소는 API 대신 비회원 삭제 콜백으로 지우
     {detailShown: false, placeId: null},
   ]);
   expect(shownView(renderer)).toBe('목록');
+});
+
+test('중간 높이 목록에서 연 상세를 펼친 뒤 뒤로 가면 먼저 상세를 펼치기 전 높이로 내리기만 하고, 한 번 더 뒤로 가야 목록으로 돌아간다', async () => {
+  const {renderer, events, rerender} = await renderSheet();
+  await pressLabel(renderer, '카페 상세 보기');
+  await pressLabel(renderer, EXPAND_LABEL);
+
+  await rerender({backToPlaceListSignal: 1});
+  expect(events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {expanded: true},
+    {expanded: false},
+  ]);
+  expect(shownView(renderer)).toBe('상세');
+
+  await rerender({backToPlaceListSignal: 2});
+  expect(events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {expanded: true},
+    {expanded: false},
+    {detailShown: false, placeId: null},
+  ]);
+  expect(shownView(renderer)).toBe('목록');
+});
+
+test('지우는 동안 목록으로 갔다가 지우던 장소를 다시 열면 그 삭제 버튼은 막혀 있고, 지우기가 끝나면 지운 장소의 상세를 닫고 목록으로 돌아간다', async () => {
+  const request = deferred<void>();
+  jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+  const sheet = await renderSheet();
+  await openDeleteSheet(sheet.renderer, '카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  await closeDeleteSheetAndOpenPlace(sheet, '카페');
+  await openShownPlaceDeleteSheet(sheet.renderer);
+
+  expect(deleteSheetState(sheet.renderer)).toEqual({visible: true, isDeleting: true, deleteError: null});
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]]]);
+
+  await act(async () => request.resolve());
+  await flushMicrotasks();
+  expect(sheet.events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
+    {detailShown: false, placeId: null},
+  ]);
+  expect(shownView(sheet.renderer)).toBe('목록');
 });
