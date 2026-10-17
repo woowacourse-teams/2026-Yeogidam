@@ -45,6 +45,8 @@ jest.mock('../src/pages/place-detail/components/PlaceDetailContent', () => ({
 const act = ReactTestRenderer.act;
 const DELETE_LABEL = '장소 삭제하기';
 const EXPAND_LABEL = '검색 결과 펼치기';
+/** 높이 700인 시트가 높이마다 지도 화면에 알리는 보이는 높이입니다. 중간은 높이의 58%이고, 접힘은 손잡이 44와 접힌 내용 91을 더한 값입니다. */
+const VISIBLE_HEIGHT = {middle: 406, collapsed: 135};
 
 /**
  * 시트가 지도 화면에 알린 일을 차례로 적습니다. 지운 장소를 알릴 때는 그때 캐시에 남은 이름도 적어, 캐시에서 뺀 뒤에 알렸는지 봅니다.
@@ -61,6 +63,8 @@ type Sheet = Awaited<ReturnType<typeof renderSheet>>;
 async function renderSheet(props: Partial<SheetProps> = {}) {
   const events: SheetEvent[] = [];
   const onAuthenticationRequired = jest.fn();
+  // 시트가 지도 화면에 마지막으로 알린 보이는 높이입니다. 지도 화면은 이 값으로 지도 카메라의 아래 여백을 정합니다.
+  let lastVisibleHeight: number | null = null;
   // 다시 그릴 때 콜백이 새로 만들어지면 콜백에 걸린 effect가 다시 돌아 같은 알림을 또 적으므로, 처음 만든 props를 이어 씁니다.
   let currentProps: SheetProps = {
     places: CACHED_PLACES,
@@ -70,6 +74,9 @@ async function renderSheet(props: Partial<SheetProps> = {}) {
     },
     onExpandedChange: expanded => {
       events.push({expanded});
+    },
+    onVisibleHeightChange: height => {
+      lastVisibleHeight = height;
     },
     onSavedPlaceDeleted: savedPlaceId => {
       events.push({deletedSavedPlaceId: savedPlaceId, cachedNames: cachedPlaceNames()});
@@ -86,7 +93,7 @@ async function renderSheet(props: Partial<SheetProps> = {}) {
     await flushMicrotasks();
   }
 
-  return {renderer, events, onAuthenticationRequired, rerender};
+  return {renderer, events, onAuthenticationRequired, rerender, visibleHeight: () => lastVisibleHeight};
 }
 
 /** 목록에서 장소를 눌러 상세를 열고, 상세의 더보기로 삭제 시트를 엽니다. */
@@ -101,7 +108,7 @@ async function openShownPlaceDeleteSheet(renderer: Renderer) {
 }
 
 /**
- * 중간 높이 목록에서 장소를 열고 손잡이를 눌러 상세를 펼친 뒤, 지도 화면 머리글의 더보기로 삭제 시트를 엽니다.
+ * 지금 높이의 목록에서 장소를 열고 손잡이를 눌러 상세를 펼친 뒤, 지도 화면 머리글의 더보기로 삭제 시트를 엽니다.
  * 펼친 상세는 본문 머리글을 숨기므로 더보기는 지도 화면 머리글에만 있고, 지도 화면은 더보기 신호를 올려 시트에 알립니다.
  */
 async function openDeleteSheetFromExpandedDetail(sheet: Sheet, placeName: string) {
@@ -297,7 +304,7 @@ test('비회원 체험 장소는 API 대신 비회원 삭제 콜백으로 지우
 });
 
 test('중간 높이 목록에서 연 상세를 펼친 뒤 뒤로 가면 먼저 상세를 펼치기 전 높이로 내리기만 하고, 한 번 더 뒤로 가야 목록으로 돌아간다', async () => {
-  const {renderer, events, rerender} = await renderSheet();
+  const {renderer, events, rerender, visibleHeight} = await renderSheet();
   await pressLabel(renderer, '카페 상세 보기');
   await pressLabel(renderer, EXPAND_LABEL);
 
@@ -309,6 +316,7 @@ test('중간 높이 목록에서 연 상세를 펼친 뒤 뒤로 가면 먼저 �
     {expanded: false},
   ]);
   expect(shownView(renderer)).toBe('상세');
+  expect(visibleHeight()).toBe(VISIBLE_HEIGHT.middle);
 
   await rerender({backToPlaceListSignal: 2});
   expect(events).toEqual([
@@ -319,6 +327,7 @@ test('중간 높이 목록에서 연 상세를 펼친 뒤 뒤로 가면 먼저 �
     {detailShown: false, placeId: null},
   ]);
   expect(shownView(renderer)).toBe('목록');
+  expect(visibleHeight()).toBe(VISIBLE_HEIGHT.middle);
 });
 
 test('지우는 동안 목록으로 갔다가 지우던 장소를 다시 열면 그 삭제 버튼은 막혀 있고, 지우기가 끝나면 지운 장소의 상세를 닫고 목록으로 돌아간다', async () => {
@@ -361,6 +370,7 @@ test('중간 높이 목록에서 연 상세를 펼쳐 지도 화면 머리글의
     {expanded: false},
   ]);
   expect(shownView(sheet.renderer)).toBe('목록');
+  expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.middle);
 });
 
 test('비회원 체험 장소도 펼친 상세에서 지우면 비회원 삭제 콜백으로 지운 뒤 한 번에 목록으로 돌아가고 시트를 상세를 연 높이로 되돌린다', async () => {
@@ -378,6 +388,26 @@ test('비회원 체험 장소도 펼친 상세에서 지우면 비회원 삭제 
     {expanded: false},
   ]);
   expect(shownView(sheet.renderer)).toBe('목록');
+  expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.middle);
+});
+
+test('지도를 움직여 접은 목록에서 연 상세를 펼쳐 지도 화면 머리글의 더보기로 지우면, 한 번에 목록으로 돌아가고 시트를 다시 접힌 높이로 되돌린다', async () => {
+  const sheet = await renderSheet();
+  await sheet.rerender({mapPanCollapseSignal: 1});
+  expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.collapsed);
+
+  await openDeleteSheetFromExpandedDetail(sheet, '카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  expect(sheet.events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {expanded: true},
+    {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
+    {detailShown: false, placeId: null},
+    {expanded: false},
+  ]);
+  expect(shownView(sheet.renderer)).toBe('목록');
+  expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.collapsed);
 });
 
 test('지우는 동안 삭제 시트를 닫고 목록에서 다른 장소를 열면, 늦게 끝난 지우기는 캐시에서 뺀 뒤 지운 저장 ID만 알리고 새로 연 상세와 그 삭제 시트를 닫지 않는다', async () => {
