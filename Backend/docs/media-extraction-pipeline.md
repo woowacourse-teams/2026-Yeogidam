@@ -145,7 +145,16 @@ flowchart LR
 - 하나의 장면이나 이미지에 여러 장소가 있으면 각각 추출한다. 한 장소가 여러 장면에 걸쳐 나오면 같은 장소라는 근거가 있을 때만 정보를 합친다.
 - 같은 장소는 한 번만 반환하고, 같은 이름이어도 다른 지점임이 확인되면 별도 항목으로 반환한다.
 - 전달된 자료에 처음 등장한 순서로 반환한다. 배경에 우연히 나온 가게, 메뉴명, 상품명, 협찬 브랜드를 소개 장소로 혼동하지 않도록 요청한다.
+- `팥빙수집`처럼 메뉴나 업종을 설명한 말을 실제 상호로 만들지 않는다. 캡션에 주소만 있고 상호가 없으면 첨부에서 상호를 확인한다. 일반 단어가 실제 간판의 상호로 확인되면 추출할 수 있다.
 - 상호명이 명확하면 주소나 지역이 없어도 추출할 수 있다. 음식 모습, 인테리어, 분위기만으로 가게를 단정하지 않는다.
+- 동네나 시군 같은 지역명 자체는 장소로 추출하지 않는다. 식별한 장소의 위치 단서로만 사용하며, 지역 이름을 유명 관광지 이름으로 바꾸지 않는다.
+- 여러 지점이 있는 브랜드는 지점명, 구체적 주소, 해당 지점의 공식 계정 등 식별 근거가 있을 때만 추출한다. 상품 후기의 브랜드명이나 주변 간판만으로 특정 지점을 만들지 않는다.
+- 브랜드 이름을 인식했어도 실제 지점명, 구체 주소, 해당 지점 계정 등 소개 매장을 식별할 근거가 없으면 검색용 `places`에 넣지 않는다. 원문이 `OO역 맥도날드`처럼 매장과 지역을 직접 함께 지칭한 표현도 보존한다. 브랜드와 연결되지 않은 도시나 동네만으로 지점을 확정하지 않는다. 캡션 결과가 비면 첨부를 읽고, 첨부에서도 근거가 없으면 최종 빈 배열로 반환해 카카오 검색을 하지 않는다. 일반 가게 전체에 지역을 필수로 요구하지 않는다.
+- 상품 후기에서도 작성자가 실제 가게 이름을 명시하며 추천하거나 방문 경험을 비교했다면 그 가게는 추출한다. 개별 가게의 상호에 지점명을 무조건 요구하지 않는다.
+- 공원이나 문화시설 본체를 소개했으면 부설 주차장, 안내소, 전망 시설로 대체하지 않는다. 그 하위 시설 자체를 소개했다면 별도 장소로 추출할 수 있다.
+- 지역 이름에 `점`이나 `본점`을 붙여 지점명을 만들지 않는다. 지역과 상호가 붙은 해시태그는 확실히 분리할 때만 상호를 검색 이름으로, 지역을 위치 단서로 나눈다. 원문 주소 표기는 보존하고 작성자의 거주지를 매장 위치로 사용하지 않는다.
+- 작성자 활동 지역이거나 소개 매장과 연결되는 근거가 없는 광역 해시태그, 다른 시설 간판의 지역명을 매장 위치로 옮기지 않는다. 그 매장을 소개하는 문구, 주소, 지점 표기 등과 연결되는 위치 근거를 요구한다.
+- 출력 직전에는 소개 대상 여부, 위치 단서의 귀속, 브랜드 지점 식별 근거를 순서대로 점검한다. 부적격 항목만 제외하고, 상품 이야기 안에서 실제 추천한 다른 가게는 보존한다.
 - 확인하지 못한 상호명, 지점명, 주소, 계정, URL을 만들지 않도록 요청한다. 식별 근거가 부족하면 추출하지 않는다.
 
 예를 들어 영상에서 "A카페"와 "B식당"을 따로 소개했다면 두 항목을 만든다.
@@ -166,8 +175,8 @@ URL Context는 URL의 내용을 분석 입력으로 읽는 기능이다.
 
 | 필드 | 의미와 형식 |
 | --- | --- |
-| `nameInCaption` | 원문에서 확인한 상호명과 지점명. 첨부 분석에서도 기존 필드명을 유지하며 영상이나 이미지에서 확인한 이름을 담는다. 필수이며 공백만 있을 수 없다. |
-| `nameSearchHint` | 확신 있게 보정한 표기, 확인된 별칭 또는 정식 이름. 없으면 `null`이며 빈 문자열은 허용하지 않는다. |
+| `nameInCaption` | 원문에서 읽은 상호명과 지점명. 오타도 보존한다. 첨부 분석에서도 기존 필드명을 유지하며 영상이나 이미지에서 읽은 이름을 담는다. 필수이며 공백만 있을 수 없다. |
+| `nameSearchHint` | 문맥으로 식별한 실제 상호의 오타, 음역, 영문 표기, 띄어쓰기, 약칭과 별칭을 교정한 검색명. 필요 없거나 근거가 부족하면 `null`이며 빈 문자열은 허용하지 않는다. |
 | `accountHints` | 장소 계정 단서 목록. 없으면 빈 배열이다. |
 | `locationHints` | 해당 장소와 연결된 주소 또는 지역 단서 목록. 없으면 빈 배열이다. |
 | `categoryHint` | 확인한 업종 단서. 없으면 `null`이며 빈 문자열은 허용하지 않는다. |
@@ -184,6 +193,8 @@ URL Context는 URL의 내용을 분석 입력으로 읽는 기능이다.
 
 `basis`는 주소나 지역의 출처다. 상호명의 출처 또는 장소 전체의 신뢰도 점수가 아니다.
 Gemini의 주소와 업종은 검색 단서이며 최종 검증된 장소 정보로 취급하지 않는다.
+`nameSearchHint`도 모델이 문맥으로 보정한 검색명이며 카카오 API에서 직접 확인한 표기는 아니다.
+보정명은 원문을 덮어쓰지 않으며 실제 지점명이나 주소를 새로 만드는 근거로 사용하지 않는다.
 
 캡션 분석은 Interactions API를 사용하고 `completed` 응답의 텍스트를 읽는다.
 첨부 분석은 `generateContent` API를 사용하며 첫 후보의 종료 사유가 `STOP`이어야 한다.
@@ -238,7 +249,10 @@ Gemini key는 `GEMINI_API_KEY`(먼저 부르는 key), `GEMINI_API_KEY_FALLBACKS`
 
 ### 7.1. 검색명과 지역 선택
 
-검색명은 `nameSearchHint`가 있으면 우선 사용하고, 없으면 `nameInCaption`을 사용한다.
+검색명은 원문 `nameInCaption`을 먼저 사용한다. 원문의 기존 검색 경로에서 결과를 찾지 못했을 때만
+보정명 `nameSearchHint`로 같은 경로를 다시 시도한다. 보정명이 없거나 공백을 제거한 원문과 같으면 중복 검색하지 않는다.
+캡션 주소의 좌표가 있으면 두 이름 모두 같은 반경 안에서만 찾는다.
+그 외에는 각 이름의 근처 검색, 지역을 붙인 검색, 이름만 검색을 마친 뒤 다음 이름으로 넘어간다.
 현재 `accountHints`와 `categoryHint`를 별도 카카오 검색어, 필터, 점수 계산에 사용하지 않는다.
 
 지역 선택은 다음 우선순위를 따른다. 같은 출처에 유효한 단서가 여러 개면 목록에서 처음 찾은 것을 사용한다.
@@ -259,13 +273,16 @@ Gemini key는 `GEMINI_API_KEY`(먼저 부르는 key), `GEMINI_API_KEY_FALLBACKS`
 ### 7.2. 주소 좌표 반경 검색
 
 `ADDRESS` 단서는 카카오 주소 검색으로 좌표를 얻는다. 주소 뒤에 붙은 층, 호수, 건물명 때문에 결과가 비면 끝 낱말을 하나씩 떼고 최대 3번 더 찾는다.
-좌표를 얻으면 반경 3km 안에서 장소명으로 검색하고, 카카오 기본 정렬(정확도)에서 첫 유효 장소를 고른다.
+좌표를 얻으면 반경 3km 안에서 장소명으로 검색하고, 필수 정보와 도메인 검증을 통과한 첫 장소를 선택한다.
 골든셋에서 4.8km 떨어진 같은 이름의 다른 지점이 붙은 일이 있어 반경을 3km로 잡았다.
 
 | 주소 출처 | 반경 안에 없을 때 |
 | --- | --- |
 | `CAPTION` | 찾지 못한 것으로 둔다. 지역이나 이름만으로 다시 찾으면 같은 이름의 다른 지점이 붙기 때문이다. |
 | `VIDEO`, `IMAGE`, `INFERRED` 순서로 처음 얻은 좌표 | 7.3의 키워드 검색으로 넘어간다. Gemini가 영상 속 지명을 틀리게 적거나 같은 동 이름의 다른 구로 좌표가 잡힐 수 있기 때문이다. |
+
+주소 좌표는 이름 후보마다 다시 구하지 않고 공유한다. 캡션 주소 반경에 원문과 보정명 모두 없으면 빈 결과다.
+영상, 이미지, 추론 주소는 원문의 반경 및 키워드 검색에 모두 실패한 뒤 보정명의 반경 검색부터 다시 시도한다.
 
 캡션 주소를 좌표로 바꾸지 못하면 영상, 이미지, 추론 주소의 좌표를 찾고, 아무 좌표도 얻지 못하면 반경 검색 없이 7.3으로 넘어간다.
 
@@ -274,15 +291,28 @@ Gemini key는 `GEMINI_API_KEY`(먼저 부르는 key), `GEMINI_API_KEY_FALLBACKS`
 주소 좌표가 없거나, 영상, 이미지, 추론 주소의 반경 안에서 찾지 못했을 때 다음 순서로 검색한다.
 
 1. 지역이 있으면 `장소명 + 지역`으로 검색한다.
-2. 결과 목록이 비어 있으면 장소명만으로 다시 검색한다. 중복 검색어는 제거한다.
+2. 결과가 없으면 장소명만으로 다시 검색한다. 중복 검색어는 제거한다.
 3. 각 요청은 첫 페이지의 최대 15개 결과를 읽는다. 다음 페이지를 조회하지 않는다.
-4. 필수 정보와 도메인 검증을 통과한 결과 중 카카오 응답 순서상 첫 장소를 선택한다.
+4. 필수 정보와 도메인 검증을 통과한 첫 장소를 선택한다. 일반 검색과 좌표 반경 검색에 같은 방식을 적용한다.
 
 필수 정보는 카카오 장소 ID, 이름, 지번 주소, 위도, 경도다. 좌표는 위도 절댓값 90 이하, 경도 절댓값 180 이하여야 한다.
 개별 결과가 잘못됐으면 건너뛰지만, 결과 문서가 있는데 유효 장소가 하나도 없으면 `PROCESSING_FAILED`다.
 이 경우 장소명만으로 다시 검색하지 않는다. HTTP 실패나 잘못된 응답 구조도 다음 검색으로 넘기지 않는다.
+보정명 재검색도 정상적인 빈 결과일 때만 진행한다. 원문 검색에서 오류가 나면 보정명으로 넘기지 않고 실패를 전달한다.
 
-현재 구현에는 자체 이름 유사도 점수, 주소 일치 점수, 업종 필터가 없고, 거리 기준은 7.2의 반경 3km뿐이다.
+원문의 이름만 검색에서 다른 지역의 장소가 나오면 그 결과를 선택하므로 보정명 검색에 도달하지 않을 수 있다.
+이 순서는 사용자가 선택한 원문 우선 정책이며, 위치 제약과 검색 순서를 바꾸는 후속 판단은
+[ADR-03](adr-03-original-name-first-search.md)에 기록한 한계를 함께 고려한다.
+
+지역명, 상품 브랜드, 실제 소개한 시설과 지점의 구분은 Gemini 추출 프롬프트에 요구한다.
+Java에서 장소 이름, 카테고리, 주소 문자열을 추가 비교해 후보를 거르거나 순서를 바꾸지 않는다.
+주소 검색 API가 반환한 좌표는 검색 중심으로 사용하고, 입력 주소와 후보 주소를 문자열로 일치시키지 않는다.
+캡션 주소의 반경 3km 제한은 유지한다.
+
+프롬프트는 카카오 후보 목록을 받지 않는다. 따라서 모델이 본체 이름을 올바르게 추출해도 카카오가 주차장이나
+안내소를 먼저 반환하면 그 장소가 선택될 수 있다. 이 한계는 실제 골든셋 결과에 남기며,
+본체 선택을 Java 코드가 보장한다고 설명하지 않는다.
+현재 구현에는 자체 이름 유사도 점수나 주소 일치 점수가 없고, 거리 기준은 7.2의 반경 3km뿐이다.
 따라서 지도 검색에 성공했다는 것은 이 기준으로 카카오 장소를 선택했다는 뜻이며, 게시물의 실제 방문 장소와 정확히 일치한다는 보장은 아니다.
 
 ## 8. 성공 판정, 썸네일과 저장
@@ -359,7 +389,7 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 | 프롬프트, 응답 스키마, Gemini 요청, 예비 key 전환 | [GeminiPlaceNameExtractor](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractor.java), [GeminiApiKeys](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiApiKeys.java) |
 | 원본 목록 조회와 파일 다운로드 | [InstagramMediaSourceReader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReader.java), [InstagramMediaDownloader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaDownloader.java) |
 | 업로드, 처리 상태 확인, 삭제 | [GeminiFileClient](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiFileClient.java) |
-| 주소 반경 검색, 지도 검색어와 결과 선택 | [KakaoPlaceSearcher](../src/main/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcher.java) |
+| 주소 반경 검색, 지도 검색어와 결과 변환 | [KakaoPlaceSearcher](../src/main/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcher.java) |
 | 결과 저장 | [MediaExtractionResultWriter](../src/main/java/com/yeogidam/media/extraction/service/MediaExtractionResultWriter.java) |
 | 썸네일 선택 | [PlaceThumbnailService](../src/main/java/com/yeogidam/place/service/PlaceThumbnailService.java) |
 
@@ -385,9 +415,10 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 
 ### 테스트로 규칙 확인하기
 
-- [MediaExtractionPipelineIntegrationTest](../src/test/java/com/yeogidam/media/extraction/service/MediaExtractionPipelineIntegrationTest.java): 부분 매칭 성공, 결과 재사용, 캡션 단서로 카카오에서 못 찾을 때의 첨부 분석, 지정 작성자 예외, 실패 기록, 저장 롤백.
-- [KakaoPlaceSearcherTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcherTest.java): 검색명, 지역 우선순위, 주소 반경 검색, 응답 결과 선택.
-- [GeminiPlaceNameExtractorTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractorTest.java): 캡션 요청 스키마, 응답 검증, 예비 key 전환과 건너뛰는 시간.
+- [MediaExtractionPipelineIntegrationTest](../src/test/java/com/yeogidam/media/extraction/service/MediaExtractionPipelineIntegrationTest.java): 부분 매칭 성공, 결과 재사용, 캡션 단서로 카카오에서 못 찾을 때의 첨부 분석, 지정 작성자 예외, 캡션과 첨부 모두 빈 결과일 때 지도 미호출, 실패 기록, 저장 롤백.
+- [KakaoPlaceSearcherTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcherTest.java): 원문 우선 후 보정명 재검색, 같은 이름 중복 방지, 지역 우선순위, 주소 반경 검색, 카테고리와 무관한 첫 유효 결과 선택과 오류 응답 처리.
+- [GoldenSetEvaluationTest](../src/test/java/com/yeogidam/media/extraction/eval/GoldenSetEvaluationTest.java): 검증 상태별 채점, 정상 빈 결과와 실패의 구분, 정답 별칭과 완료된 원시 실행의 보존.
+- [GeminiPlaceNameExtractorTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractorTest.java): 캡션 요청 스키마, 원문과 보정명 보존, 응답 검증, 예비 key 전환과 건너뛰는 시간.
 - [InstagramMediaSourceReaderTest](../src/test/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReaderTest.java): 캐러셀 순서와 누락 처리, 릴스 썸네일 이후 원본 조회.
 - [InstagramMediaDownloaderTest](../src/test/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaDownloaderTest.java): 원본 유형 검증과 임시 파일 정리.
 - [GeminiFileClientTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiFileClientTest.java): 파일 업로드, 처리 대기, 시간 초과 시 정리.
@@ -395,3 +426,14 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 - [GeminiMediaExtractionLiveTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiMediaExtractionLiveTest.java): 실제 외부 API를 사용하는 검증. `YEOGIDAM_GEMINI_SMOKE=true`일 때만 실행하며 API 비용이 발생한다.
 
 일반 테스트는 입력과 응답을 통제해서 코드의 분기를 검증한다. 실제 게시물의 접근 가능성이나 Gemini의 의미 해석 정확도는 실제 API 테스트와 별도로 확인해야 한다.
+
+### 실제 골든셋 평가 결과
+
+2026-10-18 03:40 KST 완료 평가에서 원문 우선 검색을 실제 Gemini 분석과 함께 검증했다.
+C001~C004는 첫 실행에서 보존하고, 키 교체 후 C005~C040을 재실행한 두 구간의 결합 결과다.
+검증 완료 28건의 정답 46곳 중 43곳(93.5%)을 찾았고 오탐 4곳, 게시물 완전 일치 23/28이다.
+전체 40건의 수집 실패 0건, 처리 실패 0건이다.
+미확정 10건과 원본 미확보 2건은 정답률 집계에서 제외한다. C024/C026은 같은 장소 카드의 재게시물이다.
+검색 순서 외에 모델 변동과 캡션 성공에 따른 첨부 진입 변화도 있으므로 전후 차이를 단일 원인으로 설명하지 않는다.
+[채점표](../eval/results/summary.md), [기준 및 변경 전 비교](../eval/results/comparison-d0bf8d6.json),
+[원시 결과](../eval/results/both.json)에서 사례별 예측과 실행 근거를 확인할 수 있다.

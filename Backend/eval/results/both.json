@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "runner": "java-operational",
   "inputStrategy": "caption_then_media",
-  "recordedAt": "2026-10-16T12:53:59.604762Z",
+  "recordedAt": "2026-10-17T18:40:43.379398Z",
   "model": "gemini-3.5-flash-lite",
-  "goldenSha256": "091af9b3df4ea18b7a0bb87a87b0f0dfa020ec6de005be042e3b2acfef4d58b8",
+  "goldenSha256": "2b7d85f301bd8eb52a49dd39092b4569ae738eda52bf8cd4dfda5b24d09606d9",
   "plannedCaseIds": [
     "C001",
     "C002",
@@ -69,29 +69,34 @@
       },
       "predicted": [
         {
-          "id": "10555898",
-          "name": "수완택지지구",
-          "address": "전남광주통합특별시 광산구 장덕동 1295"
+          "id": "1286915693",
+          "name": "득량집",
+          "address": "전남광주통합특별시 광산구 수완동 1273"
         }
       ],
       "hints": [
         {
-          "nameInCaption": "수완지구",
-          "nameSearchHint": null,
+          "nameInCaption": "득량집",
+          "nameSearchHint": "득량집",
           "accountHints": [],
           "locationHints": [
             {
+              "type": "ADDRESS",
+              "value": "광주 광산구 수완로74번길 11-2 1층",
+              "basis": "VIDEO"
+            },
+            {
               "type": "REGION",
               "value": "수완지구",
-              "basis": "CAPTION"
+              "basis": "VIDEO"
             }
           ],
-          "categoryHint": "음식점"
+          "categoryHint": "한식당"
         }
       ],
       "stage": "ok",
-      "path": "캡션",
-      "seconds": 5.988
+      "path": "캡션→첨부",
+      "seconds": 22.373
     },
     {
       "goldenCase": {
@@ -107,11 +112,17 @@
         ],
         "acceptedAliases": {}
       },
-      "predicted": [],
+      "predicted": [
+        {
+          "id": "2091664639",
+          "name": "참붕어빵",
+          "address": "전남광주통합특별시 담양군 담양읍 지침리 136-15"
+        }
+      ],
       "hints": [
         {
-          "nameInCaption": "복개도로 카페온리 전남대점 앞 흑미찹쌀 참붕어빵",
-          "nameSearchHint": "흑미찹쌀 참붕어빵 전대점",
+          "nameInCaption": "흑미찹쌀 참붕어빵",
+          "nameSearchHint": "참붕어빵",
           "accountHints": [],
           "locationHints": [
             {
@@ -120,22 +131,22 @@
               "basis": "CAPTION"
             },
             {
-              "type": "ADDRESS",
-              "value": "전남대 후문 복개도로 카페온리 전남대점 앞",
+              "type": "REGION",
+              "value": "전대후문",
               "basis": "CAPTION"
             },
             {
               "type": "ADDRESS",
-              "value": "용봉로 28",
+              "value": "복개도로 카페온리 전남대점 앞",
               "basis": "VIDEO"
             }
           ],
-          "categoryHint": "길거리음식"
+          "categoryHint": "붕어빵"
         }
       ],
-      "stage": "카카오 0건",
+      "stage": "ok",
       "path": "캡션→카카오0건→첨부",
-      "seconds": 28.331
+      "seconds": 17.132
     },
     {
       "goldenCase": {
@@ -160,29 +171,47 @@
       },
       "predicted": [
         {
-          "id": "8070994",
-          "name": "죽녹원",
-          "address": "전남광주통합특별시 담양군 담양읍 향교리 산 44"
+          "id": "15649056",
+          "name": "52년전통원조 대나무국수",
+          "address": "전남광주통합특별시 담양군 담양읍 객사리 211-39"
+        },
+        {
+          "id": "1007647837",
+          "name": "담양당",
+          "address": "전남광주통합특별시 담양군 담양읍 객사리 211-35"
         }
       ],
       "hints": [
         {
-          "nameInCaption": "담양",
-          "nameSearchHint": null,
+          "nameInCaption": "대나무 국수",
+          "nameSearchHint": "담양대나무국수",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "담양",
-              "basis": "CAPTION"
+              "basis": "VIDEO"
             }
           ],
-          "categoryHint": null
+          "categoryHint": "국수집"
+        },
+        {
+          "nameInCaption": "담양당",
+          "nameSearchHint": "담양당",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "담양",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "아이스크림"
         }
       ],
       "stage": "ok",
-      "path": "캡션",
-      "seconds": 2.688
+      "path": "캡션→첨부",
+      "seconds": 21.866
     },
     {
       "goldenCase": {
@@ -202,7 +231,7 @@
       "hints": [],
       "stage": "추출 0건",
       "path": "캡션→첨부",
-      "seconds": 34.109
+      "seconds": 19.165
     },
     {
       "goldenCase": {
@@ -222,11 +251,31 @@
         ],
         "acceptedAliases": {}
       },
-      "predicted": [],
-      "hints": [],
-      "stage": "처리 실패: 장소 정보를 처리하지 못했어요 <- 503 Service Unavailable: \"{<EOL>  \"error\": {<EOL>    \"code\": 503,<EOL>    \"message\": \"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",<EOL>    \"status\": \"UNAVAILABLE\"<EOL>  }<EOL>}<EOL>\"",
+      "predicted": [
+        {
+          "id": "303939175",
+          "name": "미드나잇익스프레스",
+          "address": "전남광주통합특별시 남구 양림동 66-38"
+        }
+      ],
+      "hints": [
+        {
+          "nameInCaption": "MIDNIGHT EXPRESS",
+          "nameSearchHint": "미드나잇익스프레스",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "Yongjin-dong",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "아시안 음식점"
+        }
+      ],
+      "stage": "ok",
       "path": "캡션→첨부",
-      "seconds": 22.575
+      "seconds": 26.578
     },
     {
       "goldenCase": {
@@ -279,21 +328,39 @@
           "nameInCaption": "마카리조",
           "nameSearchHint": null,
           "accountHints": [],
-          "locationHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "광주",
+              "basis": "CAPTION"
+            }
+          ],
           "categoryHint": null
         },
         {
           "nameInCaption": "케쿠당",
           "nameSearchHint": null,
           "accountHints": [],
-          "locationHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "광주",
+              "basis": "CAPTION"
+            }
+          ],
           "categoryHint": null
         },
         {
           "nameInCaption": "등화",
           "nameSearchHint": null,
           "accountHints": [],
-          "locationHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "광주",
+              "basis": "CAPTION"
+            }
+          ],
           "categoryHint": null
         },
         {
@@ -307,12 +374,12 @@
               "basis": "CAPTION"
             }
           ],
-          "categoryHint": "떡집"
+          "categoryHint": null
         }
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 6.166
+      "seconds": 6.051
     },
     {
       "goldenCase": {
@@ -342,18 +409,13 @@
       "hints": [
         {
           "nameInCaption": "초면",
-          "nameSearchHint": "동명동 초면",
+          "nameSearchHint": "초면",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "동명동",
-              "basis": "CAPTION"
-            },
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "CAPTION"
+              "basis": "VIDEO"
             }
           ],
           "categoryHint": "술집"
@@ -361,7 +423,7 @@
       ],
       "stage": "ok",
       "path": "캡션→첨부",
-      "seconds": 19.663
+      "seconds": 23.223
     },
     {
       "goldenCase": {
@@ -391,13 +453,18 @@
       "hints": [
         {
           "nameInCaption": "FRUTO FRUTA",
-          "nameSearchHint": "프루토프루타 전포",
+          "nameSearchHint": "프루토프루타",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "전포",
               "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "전포",
+              "basis": "VIDEO"
             }
           ],
           "categoryHint": "카페"
@@ -405,7 +472,7 @@
       ],
       "stage": "ok",
       "path": "캡션→첨부",
-      "seconds": 19.343
+      "seconds": 25.803
     },
     {
       "goldenCase": {
@@ -427,6 +494,11 @@
       },
       "predicted": [
         {
+          "id": "1588548327",
+          "name": "왕코등갈비",
+          "address": "경기 수원시 권선구 탑동 853-5"
+        },
+        {
           "id": "1897775353",
           "name": "금호대패삼겹살 금호점",
           "address": "전남광주통합특별시 서구 금호동 762-10"
@@ -434,18 +506,25 @@
       ],
       "hints": [
         {
-          "nameInCaption": "양념대패",
-          "nameSearchHint": null,
+          "nameInCaption": "왕코등갈비",
+          "nameSearchHint": "왕코등갈비",
+          "accountHints": [],
+          "locationHints": [],
+          "categoryHint": "음식점"
+        },
+        {
+          "nameInCaption": "금호 대패 삼겹살",
+          "nameSearchHint": "금호대패삼겹살",
           "accountHints": [],
           "locationHints": [
             {
-              "type": "REGION",
-              "value": "금호동",
-              "basis": "CAPTION"
+              "type": "ADDRESS",
+              "value": "광주 서구 금화로85번길 4-32",
+              "basis": "VIDEO"
             },
             {
               "type": "REGION",
-              "value": "광주금호동",
+              "value": "금호동",
               "basis": "CAPTION"
             }
           ],
@@ -453,8 +532,8 @@
         }
       ],
       "stage": "ok",
-      "path": "캡션",
-      "seconds": 4.599
+      "path": "캡션→첨부",
+      "seconds": 19.328
     },
     {
       "goldenCase": {
@@ -483,13 +562,13 @@
       ],
       "hints": [
         {
-          "nameInCaption": "카페인중독 충장점",
+          "nameInCaption": "카페인중독",
           "nameSearchHint": "카페인중독 충장점",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
-              "value": "광주",
+              "value": "충장점",
               "basis": "CAPTION"
             }
           ],
@@ -498,7 +577,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 12.248
+      "seconds": 1.466
     },
     {
       "goldenCase": {
@@ -518,11 +597,38 @@
         ],
         "acceptedAliases": {}
       },
-      "predicted": [],
-      "hints": [],
-      "stage": "처리 실패: 장소 정보를 처리하지 못했어요 <- 503 Service Unavailable: \"{\"error\":{\"message\":\"gemini-3.5-flash-lite is currently experiencing high demand, spikes in demand are usually temporary. Please try again later.\",\"code\":\"service_unavailable\"}}\"",
+      "predicted": [
+        {
+          "id": "1847742837",
+          "name": "어텐션플리즈",
+          "address": "전남광주통합특별시 담양군 금성면 대성리 1049-4"
+        }
+      ],
+      "hints": [
+        {
+          "nameInCaption": "어텐션플리즈",
+          "nameSearchHint": "어텐션플리즈",
+          "accountHints": [
+            "@attentionplzzz"
+          ],
+          "locationHints": [
+            {
+              "type": "ADDRESS",
+              "value": "전남광주 담양군 금성면 대성리 1049-4",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "담양",
+              "basis": "CAPTION"
+            }
+          ],
+          "categoryHint": "카페"
+        }
+      ],
+      "stage": "ok",
       "path": "캡션",
-      "seconds": 7.343
+      "seconds": 5.141
     },
     {
       "goldenCase": {
@@ -551,18 +657,13 @@
       ],
       "hints": [
         {
-          "nameInCaption": "전남광주 남구 봉선동 1130-8",
+          "nameInCaption": "봉선동 국밥집",
           "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "ADDRESS",
               "value": "전남광주 남구 봉선동 1130-8",
-              "basis": "CAPTION"
-            },
-            {
-              "type": "REGION",
-              "value": "광주 남구 봉선동",
               "basis": "CAPTION"
             }
           ],
@@ -571,7 +672,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 4.746
+      "seconds": 3.187
     },
     {
       "goldenCase": {
@@ -600,8 +701,8 @@
       ],
       "hints": [
         {
-          "nameInCaption": "광주 광산구 신창동 1224-1",
-          "nameSearchHint": null,
+          "nameInCaption": "육미제당 신창점",
+          "nameSearchHint": "육미제당 신창점",
           "accountHints": [],
           "locationHints": [
             {
@@ -611,16 +712,16 @@
             },
             {
               "type": "REGION",
-              "value": "광주 광산구 신창동",
+              "value": "신창동",
               "basis": "CAPTION"
             }
           ],
-          "categoryHint": "음식점"
+          "categoryHint": "고기집"
         }
       ],
       "stage": "ok",
-      "path": "캡션",
-      "seconds": 5.386
+      "path": "캡션→카카오0건→첨부",
+      "seconds": 20.997
     },
     {
       "goldenCase": {
@@ -649,9 +750,11 @@
       ],
       "hints": [
         {
-          "nameInCaption": "수완지구정동",
+          "nameInCaption": "라봉봉",
           "nameSearchHint": "정동 수완점",
-          "accountHints": [],
+          "accountHints": [
+            "@labongbong___"
+          ],
           "locationHints": [
             {
               "type": "ADDRESS",
@@ -660,16 +763,16 @@
             },
             {
               "type": "REGION",
-              "value": "광주 광산구",
+              "value": "수완지구",
               "basis": "CAPTION"
             }
           ],
-          "categoryHint": "일식당"
+          "categoryHint": "음식점"
         }
       ],
       "stage": "ok",
-      "path": "캡션→카카오0건→첨부",
-      "seconds": 25.664
+      "path": "캡션",
+      "seconds": 2.098
     },
     {
       "goldenCase": {
@@ -720,7 +823,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 10.975
+      "seconds": 4.091
     },
     {
       "goldenCase": {
@@ -749,23 +852,18 @@
       ],
       "hints": [
         {
-          "nameInCaption": "화정동 확불장군 참숯닭갈비",
+          "nameInCaption": "확불장군 참숯닭갈비",
           "nameSearchHint": "확불장군",
           "accountHints": [],
           "locationHints": [
             {
               "type": "ADDRESS",
-              "value": "광주 서구 쌍촌로 13-1 1층",
+              "value": "광주 서구 쌍촌로 13-1",
               "basis": "CAPTION"
             },
             {
               "type": "REGION",
-              "value": "화정동",
-              "basis": "CAPTION"
-            },
-            {
-              "type": "REGION",
-              "value": "광주 서구",
+              "value": "광주 서구 화정동",
               "basis": "CAPTION"
             }
           ],
@@ -774,7 +872,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 6.081
+      "seconds": 4.085
     },
     {
       "goldenCase": {
@@ -804,9 +902,14 @@
       "hints": [
         {
           "nameInCaption": "김금자숯불갈비",
-          "nameSearchHint": "양산동 김금자숯불갈비",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
+            {
+              "type": "REGION",
+              "value": "양산동",
+              "basis": "CAPTION"
+            },
             {
               "type": "ADDRESS",
               "value": "광주 북구 연양로81번길 42",
@@ -814,7 +917,7 @@
             },
             {
               "type": "REGION",
-              "value": "양산동",
+              "value": "광주 북구",
               "basis": "CAPTION"
             }
           ],
@@ -823,7 +926,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 9.212
+      "seconds": 3.861
     },
     {
       "goldenCase": {
@@ -872,7 +975,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 4.253
+      "seconds": 3.954
     },
     {
       "goldenCase": {
@@ -901,18 +1004,23 @@
       ],
       "hints": [
         {
-          "nameInCaption": "더플러스참치",
+          "nameInCaption": "더플러스참치 (산수본점)",
           "nameSearchHint": "더플러스참치 산수본점",
           "accountHints": [],
           "locationHints": [
             {
-              "type": "ADDRESS",
-              "value": "전남광주통합특별시 동구 밤실로 152-1",
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             },
             {
               "type": "REGION",
-              "value": "광주 산수동",
+              "value": "산수동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "ADDRESS",
+              "value": "동구 밤실로 152-1",
               "basis": "CAPTION"
             }
           ],
@@ -921,7 +1029,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 5.849
+      "seconds": 4.472
     },
     {
       "goldenCase": {
@@ -946,18 +1054,18 @@
       "predicted": [],
       "hints": [
         {
-          "nameInCaption": "문현동 금빛돼지 본점",
-          "nameSearchHint": "금빛돼지 본점",
+          "nameInCaption": "문현동_금빛돼지 본점",
+          "nameSearchHint": "문현동 금빛돼지",
           "accountHints": [],
           "locationHints": [
             {
-              "type": "REGION",
-              "value": "부산 남구",
+              "type": "ADDRESS",
+              "value": "부산 남구 수영로 12 세종그랑시아 아파트 상가 1층",
               "basis": "CAPTION"
             },
             {
-              "type": "ADDRESS",
-              "value": "부산 남구 수영로 12 세종그랑시아 아파트 상가 1층",
+              "type": "REGION",
+              "value": "문현동",
               "basis": "CAPTION"
             }
           ],
@@ -966,7 +1074,7 @@
       ],
       "stage": "카카오 0건",
       "path": "캡션→카카오0건→첨부",
-      "seconds": 29.618
+      "seconds": 19.892
     },
     {
       "goldenCase": {
@@ -1006,16 +1114,16 @@
             },
             {
               "type": "REGION",
-              "value": "부산 부산진구 전포동",
+              "value": "전포동",
               "basis": "CAPTION"
             }
           ],
-          "categoryHint": "고기집"
+          "categoryHint": "음식점"
         }
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 5.266
+      "seconds": 2.019
     },
     {
       "goldenCase": {
@@ -1054,18 +1162,8 @@
               "basis": "CAPTION"
             },
             {
-              "type": "ADDRESS",
-              "value": "송도 트리플스트리트 C동 220호",
-              "basis": "CAPTION"
-            },
-            {
               "type": "REGION",
-              "value": "송도",
-              "basis": "CAPTION"
-            },
-            {
-              "type": "REGION",
-              "value": "인천",
+              "value": "인천 연수구 송도동",
               "basis": "CAPTION"
             }
           ],
@@ -1074,7 +1172,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 8.92
+      "seconds": 3.838
     },
     {
       "goldenCase": {
@@ -1103,22 +1201,27 @@
       ],
       "hints": [
         {
-          "nameInCaption": "광주 광산구 임방울대로332번길 25",
-          "nameSearchHint": null,
+          "nameInCaption": "치즈당",
+          "nameSearchHint": "치즈당 수완점",
           "accountHints": [],
           "locationHints": [
             {
               "type": "ADDRESS",
               "value": "광주 광산구 임방울대로332번길 25",
               "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "수완동",
+              "basis": "IMAGE"
             }
           ],
           "categoryHint": "카페"
         }
       ],
       "stage": "ok",
-      "path": "캡션",
-      "seconds": 11.031
+      "path": "캡션→첨부",
+      "seconds": 53.413
     },
     {
       "goldenCase": {
@@ -1291,1001 +1394,11 @@
         ],
         "acceptedAliases": {}
       },
-      "predicted": [
-        {
-          "id": "1449283463",
-          "name": "디올 성수",
-          "address": "서울 성동구 성수동2가 302-11"
-        },
-        {
-          "id": "10849847",
-          "name": "청계천",
-          "address": "서울 종로구 서린동 148"
-        },
-        {
-          "id": "10952963",
-          "name": "여의도한강공원",
-          "address": "서울 영등포구 여의도동 85"
-        },
-        {
-          "id": "21851507",
-          "name": "동묘시장",
-          "address": "서울 종로구 숭인동 239-9"
-        },
-        {
-          "id": "27560699",
-          "name": "롯데월드 어드벤처",
-          "address": "서울 송파구 잠실동 40-1"
-        },
-        {
-          "id": "17552574",
-          "name": "반얀트리클럽&스파서울 오아시스 아이스링크",
-          "address": "서울 중구 장충동2가 201-3"
-        },
-        {
-          "id": "1662602781",
-          "name": "더현대 서울",
-          "address": "서울 영등포구 여의도동 22"
-        },
-        {
-          "id": "10305191",
-          "name": "덕수궁",
-          "address": "서울 중구 정동 5-1"
-        },
-        {
-          "id": "12740477",
-          "name": "흑성산성",
-          "address": "충남 천안시 동남구 목천읍 교촌리 산 32-1"
-        },
-        {
-          "id": "7923501",
-          "name": "삽교호관광지",
-          "address": "충남 당진시 신평면 운정리 187-3"
-        },
-        {
-          "id": "25724011",
-          "name": "곡교천",
-          "address": "충남 천안시 동남구 광덕면 대평리"
-        },
-        {
-          "id": "1953545751",
-          "name": "신방2공원",
-          "address": "충남 천안시 동남구 신방동 896"
-        },
-        {
-          "id": "8571684",
-          "name": "태조산공원",
-          "address": "충남 천안시 동남구 유량동 6"
-        },
-        {
-          "id": "7834305",
-          "name": "독립기념관",
-          "address": "충남 천안시 동남구 목천읍 남화리 230-1"
-        },
-        {
-          "id": "1716582149",
-          "name": "성성호수공원 주차장",
-          "address": "충남 천안시 서북구 성성동 290-10"
-        },
-        {
-          "id": "23578013",
-          "name": "뚜쥬루 빵돌가마점",
-          "address": "충남 천안시 동남구 구룡동 564-27"
-        },
-        {
-          "id": "17733090",
-          "name": "성심당 본점",
-          "address": "대전 중구 은행동 145-1"
-        },
-        {
-          "id": "8130712",
-          "name": "한밭수목원",
-          "address": "대전 서구 만년동 396"
-        },
-        {
-          "id": "13115302",
-          "name": "상소동산림욕장",
-          "address": "대전 동구 상소동 산 1-1"
-        },
-        {
-          "id": "7830214",
-          "name": "대전시립미술관",
-          "address": "대전 서구 만년동 396"
-        },
-        {
-          "id": "11505186",
-          "name": "대전오월드",
-          "address": "대전 중구 사정동 117-1"
-        },
-        {
-          "id": "1528777731",
-          "name": "장태산자연휴양림",
-          "address": "대전 서구 장안동 259"
-        },
-        {
-          "id": "781216001",
-          "name": "꿈돌이하우스",
-          "address": "대전 동구 중동 62-5"
-        },
-        {
-          "id": "17385261",
-          "name": "내장산조각공원",
-          "address": "전북특별자치도 정읍시 쌍암동 389-2"
-        },
-        {
-          "id": "133400567",
-          "name": "정읍허브원",
-          "address": "전북특별자치도 정읍시 구룡동 14-8"
-        },
-        {
-          "id": "242956793",
-          "name": "제이포렛",
-          "address": "전북특별자치도 정읍시 신월동 808"
-        },
-        {
-          "id": "10705394",
-          "name": "용산저수지",
-          "address": "전북특별자치도 정읍시 용산동 243"
-        },
-        {
-          "id": "1455041104",
-          "name": "아양사랑숲",
-          "address": "전북특별자치도 정읍시 시기동 산 9"
-        },
-        {
-          "id": "7875980",
-          "name": "무성서원",
-          "address": "전북특별자치도 정읍시 칠보면 무성리 500"
-        },
-        {
-          "id": "8191811",
-          "name": "내장산국립공원케이블카",
-          "address": "전북특별자치도 정읍시 내장동 산 231"
-        },
-        {
-          "id": "575905160",
-          "name": "국립아시아문화전당 광주전남관광안내소",
-          "address": "전남광주통합특별시 동구 광산동 13"
-        },
-        {
-          "id": "24449004",
-          "name": "사직공원 전망타워",
-          "address": "전남광주통합특별시 남구 양림동 315"
-        },
-        {
-          "id": "801525831",
-          "name": "동리단길 카페거리",
-          "address": "전남광주통합특별시 동구 동명동 292"
-        },
-        {
-          "id": "27455633",
-          "name": "무등산리프트&모노레일",
-          "address": "전남광주통합특별시 동구 지산동 산 63-1"
-        },
-        {
-          "id": "27595040",
-          "name": "무등산양떼목장",
-          "address": "전남광주통합특별시 화순군 화순읍 수만리 326-1"
-        },
-        {
-          "id": "27368555",
-          "name": "펭귄마을",
-          "address": "전남광주통합특별시 남구 양림동 201-64"
-        },
-        {
-          "id": "27006179",
-          "name": "우일선선교사사택",
-          "address": "전남광주통합특별시 남구 양림동 226-25"
-        },
-        {
-          "id": "8114840",
-          "name": "광주패밀리랜드",
-          "address": "전남광주통합특별시 북구 생용동 산 127-2"
-        },
-        {
-          "id": "8157548",
-          "name": "한수제",
-          "address": "전남광주통합특별시 나주시 경현동 125"
-        },
-        {
-          "id": "1444276767",
-          "name": "행운분식",
-          "address": "전남광주통합특별시 나주시 중앙동 50-1"
-        },
-        {
-          "id": "11932760",
-          "name": "칠석고싸움놀이테마파크 고싸움놀이4D영상체험관",
-          "address": "전남광주통합특별시 남구 칠석동 619"
-        },
-        {
-          "id": "333648152",
-          "name": "나주죽산보경비행장",
-          "address": "전남광주통합특별시 나주시 다시면 죽산리 1073"
-        },
-        {
-          "id": "27335084",
-          "name": "남평은행나무길",
-          "address": "전남광주통합특별시 나주시 남평읍 광촌리 659"
-        },
-        {
-          "id": "26992140",
-          "name": "전남광주통합특별시산림연구원",
-          "address": "전남광주통합특별시 나주시 산포면 산제리 23-7"
-        },
-        {
-          "id": "8066485",
-          "name": "유달산조각공원",
-          "address": "전남광주통합특별시 목포시 죽교동 187-4"
-        },
-        {
-          "id": "480887558",
-          "name": "서산동 시화골목",
-          "address": "전남광주통합특별시 목포시 서산동"
-        },
-        {
-          "id": "1906020777",
-          "name": "목포해상케이블카 북항승강장",
-          "address": "전남광주통합특별시 목포시 죽교동 516-101"
-        },
-        {
-          "id": "1251479184",
-          "name": "고하도전망대",
-          "address": "전남광주통합특별시 목포시 달동 산 188-7"
-        },
-        {
-          "id": "8040367",
-          "name": "유달유원지",
-          "address": "전남광주통합특별시 목포시 죽교동 465-142"
-        },
-        {
-          "id": "27289320",
-          "name": "노을공원",
-          "address": "전남광주통합특별시 목포시 산정동 1110-8"
-        },
-        {
-          "id": "351172983",
-          "name": "연희네슈퍼",
-          "address": "전남광주통합특별시 목포시 서산동 12-89"
-        },
-        {
-          "id": "25338826",
-          "name": "유달산",
-          "address": "전남광주통합특별시 목포시 죽교동 산 42-2"
-        }
-      ],
-      "hints": [
-        {
-          "nameInCaption": "디올성수",
-          "nameSearchHint": "디올 성수",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "포토존"
-        },
-        {
-          "nameInCaption": "청계천",
-          "nameSearchHint": "청계천",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "하천"
-        },
-        {
-          "nameInCaption": "한강공원",
-          "nameSearchHint": "한강공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "공원"
-        },
-        {
-          "nameInCaption": "동묘 구제시장",
-          "nameSearchHint": "동묘구제시장",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "시장"
-        },
-        {
-          "nameInCaption": "롯데월드",
-          "nameSearchHint": "롯데월드",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "놀이공원"
-        },
-        {
-          "nameInCaption": "서울광장 스케이트장",
-          "nameSearchHint": "서울광장 스케이트장",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "스케이트장"
-        },
-        {
-          "nameInCaption": "더현대서울",
-          "nameSearchHint": "더현대 서울",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "백화점"
-        },
-        {
-          "nameInCaption": "덕수궁",
-          "nameSearchHint": "덕수궁",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "서울",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "궁궐"
-        },
-        {
-          "nameInCaption": "흑성산성",
-          "nameSearchHint": "흑성산성",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "산"
-        },
-        {
-          "nameInCaption": "삽교호",
-          "nameSearchHint": "삽교호관광지",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "관광지"
-        },
-        {
-          "nameInCaption": "곡교천",
-          "nameSearchHint": "곡교천",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "하천"
-        },
-        {
-          "nameInCaption": "신방공원",
-          "nameSearchHint": "신방공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "공원"
-        },
-        {
-          "nameInCaption": "태조산공원",
-          "nameSearchHint": "태조산공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "공원"
-        },
-        {
-          "nameInCaption": "독립기념관",
-          "nameSearchHint": "독립기념관",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "기념관"
-        },
-        {
-          "nameInCaption": "성성호수공원",
-          "nameSearchHint": "성성호수공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "호수공원"
-        },
-        {
-          "nameInCaption": "뚜쥬루",
-          "nameSearchHint": "뚜쥬루과자점",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "천안",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "베이커리"
-        },
-        {
-          "nameInCaption": "성심당",
-          "nameSearchHint": "성심당 본점",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "베이커리"
-        },
-        {
-          "nameInCaption": "한밭수목원",
-          "nameSearchHint": "한밭수목원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "수목원"
-        },
-        {
-          "nameInCaption": "상소동산림욕장",
-          "nameSearchHint": "상소동산림욕장",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "휴양림"
-        },
-        {
-          "nameInCaption": "대전시립미술관",
-          "nameSearchHint": "대전시립미술관",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "미술관"
-        },
-        {
-          "nameInCaption": "대전오월드",
-          "nameSearchHint": "오월드",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "놀이공원"
-        },
-        {
-          "nameInCaption": "장태산휴양림",
-          "nameSearchHint": "장태산자연휴양림",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "휴양림"
-        },
-        {
-          "nameInCaption": "엑스포아쿠아리움",
-          "nameSearchHint": "대전 신세계 엑스포아쿠아리움",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "아쿠아리움"
-        },
-        {
-          "nameInCaption": "꿈돌이하우스",
-          "nameSearchHint": "꿈돌이하우스",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "대전",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "소품샵"
-        },
-        {
-          "nameInCaption": "내장산조각공원",
-          "nameSearchHint": "내장산조각공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "조각공원"
-        },
-        {
-          "nameInCaption": "허브원",
-          "nameSearchHint": "정읍허브원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "관광농원"
-        },
-        {
-          "nameInCaption": "제이포렛",
-          "nameSearchHint": "제이포렛",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "카페"
-        },
-        {
-          "nameInCaption": "구절초 지방정원",
-          "nameSearchHint": "옥정호 구절초 지방정원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "공원"
-        },
-        {
-          "nameInCaption": "용산저수지",
-          "nameSearchHint": "용산저수지",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "저수지"
-        },
-        {
-          "nameInCaption": "아양사랑숲",
-          "nameSearchHint": "아양사랑숲",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "산"
-        },
-        {
-          "nameInCaption": "무성서원",
-          "nameSearchHint": "정읍 무성서원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "서원"
-        },
-        {
-          "nameInCaption": "내장산",
-          "nameSearchHint": "내장산국립공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "정읍",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "산"
-        },
-        {
-          "nameInCaption": "아시아문화전당",
-          "nameSearchHint": "국립아시아문화전당",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "문화전당"
-        },
-        {
-          "nameInCaption": "사직공원",
-          "nameSearchHint": "사직공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "공원"
-        },
-        {
-          "nameInCaption": "동명동카페거리",
-          "nameSearchHint": "동명동 카페거리",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "거리"
-        },
-        {
-          "nameInCaption": "무등산모노레일",
-          "nameSearchHint": "무등산 리프트 모노레일",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "모노레일"
-        },
-        {
-          "nameInCaption": "무등산양떼목장",
-          "nameSearchHint": "무등산양떼목장",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "목장"
-        },
-        {
-          "nameInCaption": "펭귄마을",
-          "nameSearchHint": "양림동 펭귄마을",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "마을"
-        },
-        {
-          "nameInCaption": "우일선선교사사택",
-          "nameSearchHint": "우일선 선교사 사택",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "유적지"
-        },
-        {
-          "nameInCaption": "패밀리랜드",
-          "nameSearchHint": "광주 패밀리랜드",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "놀이공원"
-        },
-        {
-          "nameInCaption": "한수제",
-          "nameSearchHint": "한수제",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "저수지"
-        },
-        {
-          "nameInCaption": "파밀리에",
-          "nameSearchHint": "빛가람호수공원 파밀리에",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "거리"
-        },
-        {
-          "nameInCaption": "행운분식",
-          "nameSearchHint": "나주 행운분식",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "분식점"
-        },
-        {
-          "nameInCaption": "메타세콰이어길",
-          "nameSearchHint": "나주 메타세콰이어길",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "가로수길"
-        },
-        {
-          "nameInCaption": "영상테마파크",
-          "nameSearchHint": "나주 영상테마파크",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "테마파크"
-        },
-        {
-          "nameInCaption": "죽산보경비행장",
-          "nameSearchHint": "죽산보경비행장",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "비행장"
-        },
-        {
-          "nameInCaption": "남평은행나무길",
-          "nameSearchHint": "나주 남평은행나무길",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "길"
-        },
-        {
-          "nameInCaption": "산림자원연구소",
-          "nameSearchHint": "전라남도산림자원연구소",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "나주",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "연구소"
-        },
-        {
-          "nameInCaption": "유달산조각공원",
-          "nameSearchHint": "유달산조각공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "조각공원"
-        },
-        {
-          "nameInCaption": "시화골목",
-          "nameSearchHint": "목포 서산동 시화골목",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "마을"
-        },
-        {
-          "nameInCaption": "유달산케이블카",
-          "nameSearchHint": "목포해상케이블카",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "케이블카"
-        },
-        {
-          "nameInCaption": "고하도전망대",
-          "nameSearchHint": "고하도전망대",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "전망대"
-        },
-        {
-          "nameInCaption": "유달유원지",
-          "nameSearchHint": "유달유원지",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "유원지"
-        },
-        {
-          "nameInCaption": "노을공원",
-          "nameSearchHint": "목포 노을공원",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "공원"
-        },
-        {
-          "nameInCaption": "연희네슈퍼",
-          "nameSearchHint": "연희네슈퍼",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "슈퍼"
-        },
-        {
-          "nameInCaption": "유달산",
-          "nameSearchHint": "유달산",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "목포",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "산"
-        }
-      ],
-      "stage": "ok",
+      "predicted": [],
+      "hints": [],
+      "stage": "추출 0건",
       "path": "캡션→첨부",
-      "seconds": 67.394
+      "seconds": 55.731
     },
     {
       "goldenCase": {
@@ -2327,11 +1440,6 @@
               "type": "REGION",
               "value": "상무지구",
               "basis": "CAPTION"
-            },
-            {
-              "type": "REGION",
-              "value": "치평동",
-              "basis": "CAPTION"
             }
           ],
           "categoryHint": "카페"
@@ -2339,7 +1447,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 8.919
+      "seconds": 4.192
     },
     {
       "goldenCase": {
@@ -2559,9 +1667,9 @@
           "address": "충남 천안시 동남구 목천읍 교촌리 산 32-1"
         },
         {
-          "id": "7923501",
-          "name": "삽교호관광지",
-          "address": "충남 당진시 신평면 운정리 187-3"
+          "id": "740266352",
+          "name": "블루인터내셔널 천안지점",
+          "address": "충남 천안시 서북구 두정동 808"
         },
         {
           "id": "25724011",
@@ -2669,13 +1777,13 @@
           "address": "전북특별자치도 정읍시 칠보면 무성리 500"
         },
         {
-          "id": "8191811",
-          "name": "내장산국립공원케이블카",
-          "address": "전북특별자치도 정읍시 내장동 산 231"
+          "id": "15166499",
+          "name": "내장산",
+          "address": "전북특별자치도 순창군 복흥면 봉덕리 산 8-10"
         },
         {
-          "id": "575905160",
-          "name": "국립아시아문화전당 광주전남관광안내소",
+          "id": "27233966",
+          "name": "국립아시아문화전당",
           "address": "전남광주통합특별시 동구 광산동 13"
         },
         {
@@ -2704,6 +1812,11 @@
           "address": "전남광주통합특별시 남구 양림동 201-64"
         },
         {
+          "id": "27006179",
+          "name": "우일선선교사사택",
+          "address": "전남광주통합특별시 남구 양림동 226-25"
+        },
+        {
           "id": "8114840",
           "name": "광주패밀리랜드",
           "address": "전남광주통합특별시 북구 생용동 산 127-2"
@@ -2714,9 +1827,19 @@
           "address": "전남광주통합특별시 나주시 경현동 125"
         },
         {
+          "id": "27551740",
+          "name": "카페파밀리에",
+          "address": "전남광주통합특별시 나주시 이창동 727-6"
+        },
+        {
           "id": "1444276767",
           "name": "행운분식",
           "address": "전남광주통합특별시 나주시 중앙동 50-1"
+        },
+        {
+          "id": "25033443",
+          "name": "메타세쿼이아 가로수길",
+          "address": "전남광주통합특별시 담양군 담양읍 학동리 583-4"
         },
         {
           "id": "11932760",
@@ -2734,8 +1857,8 @@
           "address": "전남광주통합특별시 나주시 남평읍 광촌리 659"
         },
         {
-          "id": "26992140",
-          "name": "전남광주통합특별시산림연구원",
+          "id": "26598933",
+          "name": "전남광주통합특별시산림연구원 토피어리",
           "address": "전남광주통합특별시 나주시 산포면 산제리 23-7"
         },
         {
@@ -2749,9 +1872,9 @@
           "address": "전남광주통합특별시 목포시 서산동"
         },
         {
-          "id": "1906020777",
-          "name": "목포해상케이블카 북항승강장",
-          "address": "전남광주통합특별시 목포시 죽교동 516-101"
+          "id": "1801290298",
+          "name": "목포연희네 낙지꼬막집 유달산케이블카점",
+          "address": "전남광주통합특별시 목포시 해안동2가 7"
         },
         {
           "id": "1251479184",
@@ -2782,7 +1905,7 @@
       "hints": [
         {
           "nameInCaption": "디올성수",
-          "nameSearchHint": "디올 성수",
+          "nameSearchHint": "디올성수",
           "accountHints": [],
           "locationHints": [
             {
@@ -2791,7 +1914,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "관광지"
+          "categoryHint": "포토존"
         },
         {
           "nameInCaption": "청계천",
@@ -2804,7 +1927,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "공원"
+          "categoryHint": "산책로"
         },
         {
           "nameInCaption": "한강공원",
@@ -2869,7 +1992,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "쇼핑몰"
+          "categoryHint": "백화점"
         },
         {
           "nameInCaption": "덕수궁",
@@ -2899,7 +2022,7 @@
         },
         {
           "nameInCaption": "삽교호",
-          "nameSearchHint": "삽교호관광지",
+          "nameSearchHint": "삽교호",
           "accountHints": [],
           "locationHints": [
             {
@@ -2977,7 +2100,7 @@
         },
         {
           "nameInCaption": "뚜쥬루",
-          "nameSearchHint": "뚜쥬루과자점",
+          "nameSearchHint": "뚜쥬루",
           "accountHints": [],
           "locationHints": [
             {
@@ -2990,7 +2113,7 @@
         },
         {
           "nameInCaption": "성심당",
-          "nameSearchHint": "성심당 본점",
+          "nameSearchHint": "성심당",
           "accountHints": [],
           "locationHints": [
             {
@@ -3025,7 +2148,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "휴양림"
+          "categoryHint": "산림욕장"
         },
         {
           "nameInCaption": "대전시립미술관",
@@ -3055,7 +2178,7 @@
         },
         {
           "nameInCaption": "장태산휴양림",
-          "nameSearchHint": "장태산자연휴양림",
+          "nameSearchHint": "장태산휴양림",
           "accountHints": [],
           "locationHints": [
             {
@@ -3068,7 +2191,7 @@
         },
         {
           "nameInCaption": "엑스포아쿠아리움",
-          "nameSearchHint": "대전 엑스포아쿠아리움",
+          "nameSearchHint": "엑스포아쿠아리움",
           "accountHints": [],
           "locationHints": [
             {
@@ -3107,7 +2230,7 @@
         },
         {
           "nameInCaption": "허브원",
-          "nameSearchHint": "정읍 허브원",
+          "nameSearchHint": "허브원",
           "accountHints": [],
           "locationHints": [
             {
@@ -3133,7 +2256,7 @@
         },
         {
           "nameInCaption": "구절초 지방정원",
-          "nameSearchHint": "정읍 구절초 지방정원",
+          "nameSearchHint": "구절초지방정원",
           "accountHints": [],
           "locationHints": [
             {
@@ -3185,7 +2308,7 @@
         },
         {
           "nameInCaption": "내장산",
-          "nameSearchHint": "내장산국립공원",
+          "nameSearchHint": "내장산",
           "accountHints": [],
           "locationHints": [
             {
@@ -3207,7 +2330,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "복합문화공간"
+          "categoryHint": "문화시설"
         },
         {
           "nameInCaption": "사직공원",
@@ -3224,7 +2347,7 @@
         },
         {
           "nameInCaption": "동명동카페거리",
-          "nameSearchHint": "동명동 카페거리",
+          "nameSearchHint": "동명동카페거리",
           "accountHints": [],
           "locationHints": [
             {
@@ -3233,11 +2356,11 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "카페거리"
+          "categoryHint": "거리"
         },
         {
           "nameInCaption": "무등산모노레일",
-          "nameSearchHint": "무등산 모노레일",
+          "nameSearchHint": "무등산모노레일",
           "accountHints": [],
           "locationHints": [
             {
@@ -3246,7 +2369,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "관광지"
+          "categoryHint": "모노레일"
         },
         {
           "nameInCaption": "무등산양떼목장",
@@ -3255,7 +2378,7 @@
           "locationHints": [
             {
               "type": "REGION",
-              "value": "화순",
+              "value": "광주",
               "basis": "IMAGE"
             }
           ],
@@ -3263,7 +2386,7 @@
         },
         {
           "nameInCaption": "펭귄마을",
-          "nameSearchHint": "양림동 펭귄마을",
+          "nameSearchHint": "펭귄마을",
           "accountHints": [],
           "locationHints": [
             {
@@ -3275,8 +2398,8 @@
           "categoryHint": "마을"
         },
         {
-          "nameInCaption": "우일선교사사택",
-          "nameSearchHint": "우일선교사사택",
+          "nameInCaption": "우일선선교사사택",
+          "nameSearchHint": "우일선선교사사택",
           "accountHints": [],
           "locationHints": [
             {
@@ -3289,7 +2412,7 @@
         },
         {
           "nameInCaption": "패밀리랜드",
-          "nameSearchHint": "광주 패밀리랜드",
+          "nameSearchHint": "패밀리랜드",
           "accountHints": [],
           "locationHints": [
             {
@@ -3302,7 +2425,7 @@
         },
         {
           "nameInCaption": "한수제",
-          "nameSearchHint": "나주 한수제",
+          "nameSearchHint": "한수제",
           "accountHints": [],
           "locationHints": [
             {
@@ -3315,7 +2438,7 @@
         },
         {
           "nameInCaption": "파밀리에",
-          "nameSearchHint": "나주 빛가람호수공원 파밀리에",
+          "nameSearchHint": "나주 패밀리에",
           "accountHints": [],
           "locationHints": [
             {
@@ -3328,7 +2451,7 @@
         },
         {
           "nameInCaption": "행운분식",
-          "nameSearchHint": "나주 행운분식",
+          "nameSearchHint": "행운분식",
           "accountHints": [],
           "locationHints": [
             {
@@ -3341,7 +2464,7 @@
         },
         {
           "nameInCaption": "메타세콰이어길",
-          "nameSearchHint": "나주 산림자원연구소 메타세콰이어길",
+          "nameSearchHint": "메타세콰이어길",
           "accountHints": [],
           "locationHints": [
             {
@@ -3350,11 +2473,11 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "가로수길"
+          "categoryHint": "산책로"
         },
         {
           "nameInCaption": "영상테마파크",
-          "nameSearchHint": "나주영상테마파크",
+          "nameSearchHint": "영상테마파크",
           "accountHints": [],
           "locationHints": [
             {
@@ -3393,7 +2516,7 @@
         },
         {
           "nameInCaption": "산림자원연구소",
-          "nameSearchHint": "전라남도산림자원연구소",
+          "nameSearchHint": "산림자원연구소",
           "accountHints": [],
           "locationHints": [
             {
@@ -3419,7 +2542,7 @@
         },
         {
           "nameInCaption": "시화골목",
-          "nameSearchHint": "목포 서산동 시화골목",
+          "nameSearchHint": "시화골목",
           "accountHints": [],
           "locationHints": [
             {
@@ -3432,7 +2555,7 @@
         },
         {
           "nameInCaption": "유달산케이블카",
-          "nameSearchHint": "목포해상케이블카",
+          "nameSearchHint": "유달산케이블카",
           "accountHints": [],
           "locationHints": [
             {
@@ -3471,7 +2594,7 @@
         },
         {
           "nameInCaption": "노을공원",
-          "nameSearchHint": "목포 노을공원",
+          "nameSearchHint": "노을공원",
           "accountHints": [],
           "locationHints": [
             {
@@ -3493,7 +2616,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": "관광명소"
+          "categoryHint": "명소"
         },
         {
           "nameInCaption": "유달산",
@@ -3511,7 +2634,7 @@
       ],
       "stage": "ok",
       "path": "캡션→첨부",
-      "seconds": 74.186
+      "seconds": 66.25
     },
     {
       "goldenCase": {
@@ -3562,6 +2685,11 @@
         "acceptedAliases": {}
       },
       "predicted": [
+        {
+          "id": "337086242",
+          "name": "롯데백화점 부산본점",
+          "address": "부산 부산진구 부전동 503-15"
+        },
         {
           "id": "939648636",
           "name": "쥬디스태화",
@@ -3616,17 +2744,12 @@
           "id": "23870662",
           "name": "동보서적주차빌딩",
           "address": "부산 부산진구 부전동 168-300"
-        },
-        {
-          "id": "27459769",
-          "name": "부산대역 부산1호선 3번출구",
-          "address": "부산 금정구 장전동 427"
         }
       ],
       "hints": [
         {
           "nameInCaption": "서면 롯백 지하 분수대 앞",
-          "nameSearchHint": "롯데백화점 부산본점 분수대",
+          "nameSearchHint": "롯데백화점 부산본점",
           "accountHints": [],
           "locationHints": [
             {
@@ -3635,7 +2758,7 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": null
+          "categoryHint": "백화점"
         },
         {
           "nameInCaption": "쥬디스 태화",
@@ -3648,19 +2771,13 @@
               "basis": "IMAGE"
             }
           ],
-          "categoryHint": null
+          "categoryHint": "쇼핑몰"
         },
         {
           "nameInCaption": "남포문고",
           "nameSearchHint": "남포문고",
           "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "남포동",
-              "basis": "IMAGE"
-            }
-          ],
+          "locationHints": [],
           "categoryHint": "서점"
         },
         {
@@ -3680,26 +2797,14 @@
           "nameInCaption": "부산극장",
           "nameSearchHint": "부산극장",
           "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "남포동",
-              "basis": "IMAGE"
-            }
-          ],
+          "locationHints": [],
           "categoryHint": "영화관"
         },
         {
           "nameInCaption": "대영시네마",
           "nameSearchHint": "대영시네마",
           "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "남포동",
-              "basis": "IMAGE"
-            }
-          ],
+          "locationHints": [],
           "categoryHint": "영화관"
         },
         {
@@ -3730,12 +2835,12 @@
         },
         {
           "nameInCaption": "마리포사",
-          "nameSearchHint": "서면 마리포사",
+          "nameSearchHint": "마리포사",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
-              "value": "서면",
+              "value": "서면 1번가",
               "basis": "IMAGE"
             }
           ],
@@ -3779,24 +2884,11 @@
             }
           ],
           "categoryHint": "서점"
-        },
-        {
-          "nameInCaption": "부산대 지하철역 3번 출구",
-          "nameSearchHint": "부산대역 3번출구",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "부산대",
-              "basis": "IMAGE"
-            }
-          ],
-          "categoryHint": "지하철역"
         }
       ],
       "stage": "ok",
       "path": "캡션→첨부",
-      "seconds": 76.569
+      "seconds": 67.532
     },
     {
       "goldenCase": {
@@ -3825,27 +2917,27 @@
       ],
       "hints": [
         {
-          "nameInCaption": "부산 금정구 상현로 51",
-          "nameSearchHint": null,
+          "nameInCaption": "우리밀찐빵",
+          "nameSearchHint": "우리밀찐빵",
           "accountHints": [],
           "locationHints": [
+            {
+              "type": "REGION",
+              "value": "회동수원지",
+              "basis": "IMAGE"
+            },
             {
               "type": "ADDRESS",
               "value": "부산 금정구 상현로 51",
               "basis": "CAPTION"
-            },
-            {
-              "type": "REGION",
-              "value": "부산 금정구",
-              "basis": "CAPTION"
             }
           ],
-          "categoryHint": "음식점"
+          "categoryHint": "디저트맛집"
         }
       ],
       "stage": "ok",
-      "path": "캡션",
-      "seconds": 10.401
+      "path": "캡션→첨부",
+      "seconds": 54.361
     },
     {
       "goldenCase": {
@@ -3970,7 +3062,7 @@
         },
         {
           "nameInCaption": "카페 목리",
-          "nameSearchHint": null,
+          "nameSearchHint": "카페목리",
           "accountHints": [],
           "locationHints": [
             {
@@ -4005,7 +3097,7 @@
               "basis": "CAPTION"
             }
           ],
-          "categoryHint": null
+          "categoryHint": "음식점"
         },
         {
           "nameInCaption": "해오름식당",
@@ -4036,7 +3128,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 14.225
+      "seconds": 4.114
     },
     {
       "goldenCase": {
@@ -4164,8 +3256,6 @@
           "슬라이폭스"
         ],
         "apiMissingIds": [
-          "1583065726",
-          "1693369512",
           "1635643136"
         ],
         "verificationStatus": "PARTIAL",
@@ -5226,7 +4316,7 @@
           "locationHints": [
             {
               "type": "REGION",
-              "value": "광주",
+              "value": "광주 수완지구",
               "basis": "CAPTION"
             }
           ],
@@ -5305,7 +4395,7 @@
               "basis": "CAPTION"
             }
           ],
-          "categoryHint": "카페"
+          "categoryHint": "베이커리"
         },
         {
           "nameInCaption": "브레드누아젯",
@@ -5440,7 +4530,7 @@
               "basis": "CAPTION"
             }
           ],
-          "categoryHint": "카페"
+          "categoryHint": "베이커리"
         },
         {
           "nameInCaption": "아베쏘케이커리",
@@ -5505,7 +4595,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 24.315
+      "seconds": 16.443
     },
     {
       "goldenCase": {
@@ -5597,12 +4687,17 @@
       "hints": [
         {
           "nameInCaption": "치키프렌즈",
-          "nameSearchHint": "치키프렌즈",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "첨단",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5610,12 +4705,17 @@
         },
         {
           "nameInCaption": "테넌트커피",
-          "nameSearchHint": "테넌트커피",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "동명동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5623,12 +4723,17 @@
         },
         {
           "nameInCaption": "더블플롯",
-          "nameSearchHint": "더블플롯",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "동명동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5636,7 +4741,7 @@
         },
         {
           "nameInCaption": "프츠",
-          "nameSearchHint": "프츠",
+          "nameSearchHint": "프릳츠",
           "accountHints": [],
           "locationHints": [
             {
@@ -5649,7 +4754,7 @@
         },
         {
           "nameInCaption": "모이핀 시티점",
-          "nameSearchHint": "모이핀 시티점",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
@@ -5662,12 +4767,17 @@
         },
         {
           "nameInCaption": "킷사시오리",
-          "nameSearchHint": "킷사시오리",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "동명동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5675,12 +4785,17 @@
         },
         {
           "nameInCaption": "샌드나스",
-          "nameSearchHint": "샌드나스",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "동명동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5688,12 +4803,17 @@
         },
         {
           "nameInCaption": "칙투칙커피스튜디오",
-          "nameSearchHint": "칙투칙커피스튜디오",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "우산동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5701,12 +4821,17 @@
         },
         {
           "nameInCaption": "마일드스탠다드",
-          "nameSearchHint": "마일드스탠다드",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "동명동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5714,12 +4839,17 @@
         },
         {
           "nameInCaption": "앵치커피",
-          "nameSearchHint": "앵치커피",
+          "nameSearchHint": null,
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "산수동",
+              "basis": "CAPTION"
+            },
+            {
+              "type": "REGION",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5728,7 +4858,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 7.759
+      "seconds": 7.848
     },
     {
       "goldenCase": {
@@ -5756,9 +4886,9 @@
       },
       "predicted": [
         {
-          "id": "11887885",
-          "name": "영미오리탕 상무점",
-          "address": "전남광주통합특별시 서구 치평동 1211-11"
+          "id": "8441874",
+          "name": "영미오리탕",
+          "address": "전남광주통합특별시 북구 유동 102-31"
         },
         {
           "id": "66480816",
@@ -5779,7 +4909,7 @@
           "locationHints": [
             {
               "type": "REGION",
-              "value": "광주 서구",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5792,7 +4922,7 @@
           "locationHints": [
             {
               "type": "REGION",
-              "value": "광주 서구",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5805,7 +4935,7 @@
           "locationHints": [
             {
               "type": "REGION",
-              "value": "광주 서구",
+              "value": "광주",
               "basis": "CAPTION"
             }
           ],
@@ -5814,7 +4944,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 6.408
+      "seconds": 2.305
     },
     {
       "goldenCase": {
@@ -5908,7 +5038,7 @@
       "hints": [
         {
           "nameInCaption": "하숙집",
-          "nameSearchHint": null,
+          "nameSearchHint": "하숙집",
           "accountHints": [],
           "locationHints": [
             {
@@ -5921,7 +5051,7 @@
         },
         {
           "nameInCaption": "나미집",
-          "nameSearchHint": null,
+          "nameSearchHint": "나미집",
           "accountHints": [],
           "locationHints": [
             {
@@ -5934,7 +5064,7 @@
         },
         {
           "nameInCaption": "부연 숯불갈비",
-          "nameSearchHint": null,
+          "nameSearchHint": "부연숯불갈비",
           "accountHints": [],
           "locationHints": [
             {
@@ -5947,7 +5077,7 @@
         },
         {
           "nameInCaption": "먹때돼",
-          "nameSearchHint": null,
+          "nameSearchHint": "먹때돼",
           "accountHints": [],
           "locationHints": [
             {
@@ -5960,7 +5090,7 @@
         },
         {
           "nameInCaption": "이조숯불갈비",
-          "nameSearchHint": null,
+          "nameSearchHint": "이조숯불갈비",
           "accountHints": [],
           "locationHints": [
             {
@@ -5973,7 +5103,7 @@
         },
         {
           "nameInCaption": "돼지한마리",
-          "nameSearchHint": null,
+          "nameSearchHint": "돼지한마리",
           "accountHints": [],
           "locationHints": [
             {
@@ -5986,7 +5116,7 @@
         },
         {
           "nameInCaption": "삼굽살",
-          "nameSearchHint": null,
+          "nameSearchHint": "삼굽살",
           "accountHints": [],
           "locationHints": [
             {
@@ -5999,7 +5129,7 @@
         },
         {
           "nameInCaption": "기억돼",
-          "nameSearchHint": null,
+          "nameSearchHint": "기억돼",
           "accountHints": [],
           "locationHints": [
             {
@@ -6012,7 +5142,7 @@
         },
         {
           "nameInCaption": "태화식당",
-          "nameSearchHint": null,
+          "nameSearchHint": "태화식당",
           "accountHints": [],
           "locationHints": [
             {
@@ -6026,7 +5156,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 7.437
+      "seconds": 6.664
     },
     {
       "goldenCase": {
@@ -6215,7 +5345,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 10.452
+      "seconds": 4.499
     },
     {
       "goldenCase": {
@@ -6264,7 +5394,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 6.754
+      "seconds": 2.197
     },
     {
       "goldenCase": {
@@ -6278,25 +5408,11 @@
         "observedNames": [],
         "acceptedAliases": {}
       },
-      "predicted": [
-        {
-          "id": "838424581",
-          "name": "GS25 육군부사관학교점",
-          "address": "전북특별자치도 익산시 여산면 제남리 532-22"
-        }
-      ],
-      "hints": [
-        {
-          "nameInCaption": "gs25",
-          "nameSearchHint": "GS25",
-          "accountHints": [],
-          "locationHints": [],
-          "categoryHint": "편의점"
-        }
-      ],
-      "stage": "ok",
-      "path": "캡션",
-      "seconds": 4.656
+      "predicted": [],
+      "hints": [],
+      "stage": "추출 0건",
+      "path": "캡션→첨부",
+      "seconds": 15.839
     },
     {
       "goldenCase": {
@@ -6340,7 +5456,7 @@
       ],
       "stage": "ok",
       "path": "캡션",
-      "seconds": 10.303
+      "seconds": 1.695
     },
     {
       "goldenCase": {
@@ -6378,103 +5494,11 @@
         ],
         "acceptedAliases": {}
       },
-      "predicted": [
-        {
-          "id": "8202439",
-          "name": "광주과학기술원",
-          "address": "전남광주통합특별시 북구 오룡동 1"
-        },
-        {
-          "id": "10144763",
-          "name": "광주대학교",
-          "address": "전남광주통합특별시 남구 진월동 592-1"
-        },
-        {
-          "id": "8912477",
-          "name": "동강대학교",
-          "address": "전남광주통합특별시 북구 두암동 887-2"
-        },
-        {
-          "id": "2064978683",
-          "name": "엔제리너스 광주호남대점 전용주차장",
-          "address": "전남광주통합특별시 광산구 선암동 785"
-        },
-        {
-          "id": "252492227",
-          "name": "중소벤처기업진흥공단 전남청년창업사관학교",
-          "address": "전남광주통합특별시 나주시 빛가람동 196-3"
-        }
-      ],
-      "hints": [
-        {
-          "nameInCaption": "광주과학기술원",
-          "nameSearchHint": null,
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "CAPTION"
-            }
-          ],
-          "categoryHint": null
-        },
-        {
-          "nameInCaption": "광주대",
-          "nameSearchHint": "광주대학교",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "CAPTION"
-            }
-          ],
-          "categoryHint": null
-        },
-        {
-          "nameInCaption": "동강대",
-          "nameSearchHint": "동강대학교",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "CAPTION"
-            }
-          ],
-          "categoryHint": null
-        },
-        {
-          "nameInCaption": "호남대",
-          "nameSearchHint": "호남대학교",
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "CAPTION"
-            }
-          ],
-          "categoryHint": null
-        },
-        {
-          "nameInCaption": "광주청년창업사관학교",
-          "nameSearchHint": null,
-          "accountHints": [],
-          "locationHints": [
-            {
-              "type": "REGION",
-              "value": "광주",
-              "basis": "CAPTION"
-            }
-          ],
-          "categoryHint": null
-        }
-      ],
-      "stage": "ok",
-      "path": "캡션",
-      "seconds": 12.268
+      "predicted": [],
+      "hints": [],
+      "stage": "추출 0건",
+      "path": "캡션→첨부",
+      "seconds": 16.077
     },
     {
       "goldenCase": {
@@ -6495,55 +5519,156 @@
       },
       "predicted": [
         {
-          "id": "20152378",
-          "name": "대마도",
-          "address": "경남 남해군 남면 덕월리 산 171"
+          "id": "1794486862",
+          "name": "토요코인호텔 서울영등포점",
+          "address": "서울 영등포구 영등포동1가 106"
+        },
+        {
+          "id": "305087586",
+          "name": "한국차박물관 전망대",
+          "address": "전남광주통합특별시 보성군 보성읍 봉산리 1199-3"
+        },
+        {
+          "id": "19926356",
+          "name": "모스버거 센트럴시티점",
+          "address": "서울 서초구 반포동 19-3"
         }
       ],
       "hints": [
         {
-          "nameInCaption": "대마도",
-          "nameSearchHint": "대마도",
+          "nameInCaption": "유타리 랜드 쓰시마온천",
+          "nameSearchHint": "유타리랜드 쓰시마온천",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "대마도",
-              "basis": "CAPTION"
+              "basis": "VIDEO"
             }
           ],
-          "categoryHint": null
+          "categoryHint": "온천"
         },
         {
-          "nameInCaption": "토요코인",
+          "nameInCaption": "도요코인호텔",
           "nameSearchHint": "토요코인 대마도",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "대마도",
-              "basis": "CAPTION"
+              "basis": "VIDEO"
             }
           ],
-          "categoryHint": "숙소"
+          "categoryHint": "호텔"
         },
         {
-          "nameInCaption": "티아라몰",
-          "nameSearchHint": "티아라몰 대마도",
+          "nameInCaption": "한국전망대",
+          "nameSearchHint": "한국전망대",
           "accountHints": [],
           "locationHints": [
             {
               "type": "REGION",
               "value": "대마도",
-              "basis": "CAPTION"
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "관광지"
+        },
+        {
+          "nameInCaption": "슈시삼나무길",
+          "nameSearchHint": "슈시삼나무길",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "대마도",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "관광지"
+        },
+        {
+          "nameInCaption": "덕혜옹주 결혼기념비",
+          "nameSearchHint": "덕혜옹주 결혼기념비",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "대마도",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "관광지"
+        },
+        {
+          "nameInCaption": "나카로이 토스이 기념관",
+          "nameSearchHint": "나카로이 토스이 기념관",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "대마도",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "관광지"
+        },
+        {
+          "nameInCaption": "팔번궁신사",
+          "nameSearchHint": "하치만구 신사",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "대마도",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "관광지"
+        },
+        {
+          "nameInCaption": "티아라몰",
+          "nameSearchHint": "티아라몰",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "대마도",
+              "basis": "VIDEO"
             }
           ],
           "categoryHint": "쇼핑몰"
+        },
+        {
+          "nameInCaption": "matsukiyo",
+          "nameSearchHint": "마츠모토 키요시",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "대마도",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "드럭스토어"
+        },
+        {
+          "nameInCaption": "모스버거",
+          "nameSearchHint": "모스버거",
+          "accountHints": [],
+          "locationHints": [
+            {
+              "type": "REGION",
+              "value": "대마도",
+              "basis": "VIDEO"
+            }
+          ],
+          "categoryHint": "패스트푸드"
         }
       ],
       "stage": "ok",
-      "path": "캡션",
-      "seconds": 7.938
+      "path": "캡션→첨부",
+      "seconds": 32.183
     },
     {
       "goldenCase": {
@@ -6557,25 +5682,67 @@
         "observedNames": [],
         "acceptedAliases": {}
       },
-      "predicted": [
-        {
-          "id": "76206032",
-          "name": "스타벅스 더북한산점",
-          "address": "서울 은평구 진관동 277-11"
-        }
+      "predicted": [],
+      "hints": [],
+      "stage": "추출 0건",
+      "path": "캡션→첨부",
+      "seconds": 14.513
+    }
+  ],
+  "resumedFromCaseId": "C005",
+  "searchNameStrategy": "original_first_then_corrected",
+  "executionSegments": [
+    {
+      "caseIds": [
+        "C001",
+        "C002",
+        "C003",
+        "C004"
       ],
-      "hints": [
-        {
-          "nameInCaption": "스타벅스",
-          "nameSearchHint": "스타벅스",
-          "accountHints": [],
-          "locationHints": [],
-          "categoryHint": "카페"
-        }
+      "startedAt": "2026-10-17T18:24:48.023707+00:00",
+      "sourceAttemptRecordedAt": "2026-10-17T18:27:36.374647Z"
+    },
+    {
+      "caseIds": [
+        "C005",
+        "C006",
+        "C007",
+        "C008",
+        "C009",
+        "C010",
+        "C011",
+        "C012",
+        "C013",
+        "C014",
+        "C015",
+        "C016",
+        "C017",
+        "C018",
+        "C019",
+        "C020",
+        "C021",
+        "C022",
+        "C023",
+        "C024",
+        "C025",
+        "C026",
+        "C027",
+        "C028",
+        "C029",
+        "C030",
+        "C031",
+        "C032",
+        "C033",
+        "C034",
+        "C035",
+        "C036",
+        "C037",
+        "C038",
+        "C039",
+        "C040"
       ],
-      "stage": "ok",
-      "path": "캡션",
-      "seconds": 4.785
+      "startedAt": "2026-10-17T18:29:54.799848+00:00",
+      "recordedAt": "2026-10-17T18:40:43.379398Z"
     }
   ]
 }

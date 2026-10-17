@@ -37,7 +37,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 검색명은 nameSearchHint(오타 등을 Gemini가 보정한 이름)를 우선 사용한다.
+ * 원문 nameInCaption으로 먼저 검색하고 결과가 없으면 nameSearchHint(오타 등을 Gemini가 보정한 이름)로 검색한다.
+ * 각 이름의 주소 반경, 지역, 이름만 검색을 마친 뒤 다음 이름을 시도한다.
  * 캡션 주소가 있으면 카카오 주소 검색으로 좌표를 얻어 그 반경 안에서만 찾고, 반경 안에 없으면 찾지 못한 것으로 둔다.
  * 지역이나 이름만으로 다시 찾으면 카카오가 다른 지점을 돌려주기 때문이다. 영상, 이미지에서 읽은 주소와 추론 주소는 단서일 뿐이라
  * 반경 안에서 먼저 찾되, 없으면 지역을 캡션, 영상, 이미지, 추론 주소(읍, 면, 동 우선, 없으면 구, 군, 그다음 시)와
@@ -91,18 +92,48 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         Coordinate captionAnchor = anchorCoordinate(hint.locationHints(), Basis.CAPTION);
         if (captionAnchor != null) {
             // 캡션에 적힌 주소는 사실이라 그 근처만 믿는다. 근처에 없는 가게를 지역이나 이름만으로 찾으면 다른 지점이 붙는다.
-            return searchNearby(hint, captionAnchor);
+            return searchNearCaptionAddress(hint, captionAnchor);
         }
-        Coordinate softAnchor = softAnchor(hint.locationHints());
-        if (softAnchor != null) {
-            // 영상, 이미지에서 읽거나 프로필 등에서 추론한 주소는 단서일 뿐이라, 근처에 없으면 지역과 이름으로 다시 찾는다.
-            List<Place> nearby = searchNearby(hint, softAnchor);
+        return searchByNames(hint, softAnchor(hint.locationHints()));
+    }
+
+    private List<Place> searchNearCaptionAddress(PlaceSearchHint hint, Coordinate anchor) {
+        for (String searchName : getSearchNames(hint)) {
+            List<Place> nearby = searchNearby(searchName, anchor);
             if (!nearby.isEmpty()) {
                 return nearby;
             }
         }
+        return List.of();
+    }
 
-        for (String query : searchQueries(hint)) {
+    private List<Place> searchByNames(PlaceSearchHint hint, Coordinate softAnchor) {
+        for (String searchName : getSearchNames(hint)) {
+            List<Place> places = searchByName(searchName, hint.locationHints(), softAnchor);
+            if (!places.isEmpty()) {
+                return places;
+            }
+        }
+        return List.of();
+    }
+
+    private List<Place> searchByName(
+            String searchName,
+            List<LocationHint> locationHints,
+            Coordinate softAnchor
+    ) {
+        if (softAnchor != null) {
+            // 영상, 이미지에서 읽거나 프로필 등에서 추론한 주소는 단서일 뿐이라, 근처에 없으면 지역과 이름으로 다시 찾는다.
+            List<Place> nearby = searchNearby(searchName, softAnchor);
+            if (!nearby.isEmpty()) {
+                return nearby;
+            }
+        }
+        return searchKeywords(searchName, locationHints);
+    }
+
+    private List<Place> searchKeywords(String searchName, List<LocationHint> locationHints) {
+        for (String query : searchQueries(searchName, locationHints)) {
             JsonNode response = requestPage(query);
             List<Place> places = readPlaces(response.path("documents"));
 
@@ -114,8 +145,8 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return List.of();
     }
 
-    private List<Place> searchNearby(PlaceSearchHint hint, Coordinate anchor) {
-        JsonNode response = requestNearby(placeNameToSearch(hint).strip(), anchor);
+    private List<Place> searchNearby(String searchName, Coordinate anchor) {
+        JsonNode response = requestNearby(searchName, anchor);
         List<Place> places = readPlaces(response.path("documents"));
         if (places.isEmpty()) {
             return List.of();
@@ -177,11 +208,9 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return null;
     }
 
-    private List<String> searchQueries(PlaceSearchHint hint) {
-        String searchName = placeNameToSearch(hint).strip();
-
+    private List<String> searchQueries(String searchName, List<LocationHint> locationHints) {
         List<String> queries = new ArrayList<>();
-        for (String region : regionCandidates(hint.locationHints())) {
+        for (String region : regionCandidates(locationHints)) {
             queries.add(searchQuery(searchName, region));
         }
 
@@ -193,11 +222,15 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
                 .toList();
     }
 
-    private String placeNameToSearch(PlaceSearchHint hint) {
+    private List<String> getSearchNames(PlaceSearchHint hint) {
+        List<String> names = new ArrayList<>();
+        names.add(hint.nameInCaption().strip());
         if (hint.nameSearchHint() != null) {
-            return hint.nameSearchHint();
+            names.add(hint.nameSearchHint().strip());
         }
-        return hint.nameInCaption();
+        return names.stream()
+                .distinct()
+                .toList();
     }
 
     private List<String> regionCandidates(List<LocationHint> locationHints) {

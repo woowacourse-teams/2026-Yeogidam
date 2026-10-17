@@ -30,6 +30,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -83,6 +84,31 @@ class GeminiPlaceNameExtractorTest {
         assertThat(hints.places().get(1).nameSearchHint()).isEqualTo("Dub+");
         assertThat(hints.places().get(1).locationHints().getFirst().value()).isEqualTo("이태원");
         assertRequestUsesFrozenSchema();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "FRUTO FRUTA, 프루토프루타",
+            "프르토푸루타, 프루토프루타",
+            "용욘선생, 용용선생"
+    })
+    void 원문_표기와_모델이_교정한_검색명을_서로_덮어쓰지_않고_반환한다(String originalName, String searchName) throws Exception {
+        // given
+        String output = """
+                {"places":[{"nameInCaption":"%s","nameSearchHint":"%s","accountHints":[],
+                  "locationHints":[{"type":"REGION","value":"전포","basis":"CAPTION"}],"categoryHint":null}]}
+                """.formatted(originalName, searchName);
+        geminiServer.respondWith(interactionResponse(output));
+
+        // when
+        PlaceSearchHints hints = extractor("test-gemini-key").extract(originalName + " 전포에 다녀왔어요");
+
+        // then
+        assertAll(
+                () -> assertThat(hints.places().getFirst().nameInCaption()).isEqualTo(originalName),
+                () -> assertThat(hints.places().getFirst().nameSearchHint()).isEqualTo(searchName),
+                () -> assertThat(hints.places().getFirst().locationHints().getFirst().value()).isEqualTo("전포")
+        );
     }
 
     @Test

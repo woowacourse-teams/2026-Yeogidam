@@ -260,9 +260,10 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    void Gemini가_장소를_찾지_못하면_PLACE_NOT_EXTRACTED로_기록한다() throws Exception {
+    void 캡션과_첨부_모두_검색용_장소가_없으면_지도를_조회하지_않고_미추출로_기록한다() throws Exception {
         // given
         placeNameExtractor.respondWith(List.of());
+        placeNameExtractor.respondToMediaWith(List.of());
 
         // when
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
@@ -270,12 +271,16 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         awaitStatus(mediaId, "FAILED");
 
         // then
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT failure_reason FROM media WHERE id = ?", String.class, mediaId))
-                .isEqualTo("PLACE_NOT_EXTRACTED");
-        assertThat(count("places")).isZero();
-        assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1);
-        assertThat(placeSearcher.requestCount()).isZero();
+        assertAll(
+                () -> assertThat(jdbcTemplate.queryForObject(
+                        "SELECT failure_reason FROM media WHERE id = ?", String.class, mediaId))
+                        .isEqualTo("PLACE_NOT_EXTRACTED"),
+                () -> assertThat(count("places")).isZero(),
+                () -> assertThat(count("saved_places")).isZero(),
+                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1),
+                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(placeSearcher.requestCount()).isZero()
+        );
     }
 
     @ParameterizedTest

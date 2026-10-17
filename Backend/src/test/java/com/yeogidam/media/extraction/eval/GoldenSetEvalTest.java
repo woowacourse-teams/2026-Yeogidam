@@ -308,7 +308,10 @@ class GoldenSetEvalTest {
         List<CaseResult> mediaCases = pipeline.stream().filter(result -> result.path().contains("첨부")).toList();
         out.append(String.format("- 지금 코드는 %d건 가운데 %d건에서 영상과 사진까지 읽었다. 한 건 처리에 평균 %.0f초, 영상과 사진까지 읽은 건은 평균 %.0f초가 걸렸다.%n",
                 pipeline.size(), mediaCases.size(), averageSeconds(pipeline), averageSeconds(mediaCases)));
-        out.append("- 운영 코드는 변경하지 않았다. 캡션에서 한 곳이라도 찾으면 첨부를 생략하므로 전체 소개 장소를 놓칠 수 있다.\n");
+        out.append("- 추출 프롬프트는 오타·음역을 교정하되 불필요한 상호 확장을 금지한다. ")
+                .append("카카오는 원문으로 먼저 검색하고 결과가 없으면 보정명으로 같은 경로를 다시 검색한다. ")
+                .append("카카오는 업종 단서로 후보를 다시 고르지 않고 첫 유효 후보를 선택한다. ")
+                .append("검색용 장소나 검색 결과가 없으면 첨부를 읽지만, 캡션에서 한 곳이라도 찾으면 첨부를 생략하므로 전체 소개 장소를 놓칠 수 있다.\n");
         out.append("- Gemini 응답은 실행마다 달라질 수 있다. 부분 실행도 원시 결과를 저장하지만 전체 채점표는 덮어쓰지 않는다.\n\n");
         appendVerificationDiagnostics(out, pipeline);
         out.append("## 실패, 누락 및 미검증 사례의 잠정 결과\n\n");

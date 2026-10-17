@@ -2,6 +2,7 @@ package com.yeogidam.media.extraction.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
@@ -104,7 +105,7 @@ class KakaoPlaceSearcherTest {
     }
 
     @Test
-    void 오타가_있으면_Gemini의_검색_이름_단서를_우선해_찾는다() {
+    void 원문으로_찾지_못하면_보정명에_지역을_붙여_찾는다() {
         // given
         kakaoServer.respondWith("송화산시도삭면 건대", documents(
                 document("200", "송화산시도삭면", "서울 광진구 자양동 1", "서울 광진구 뚝섬로27길 48")));
@@ -114,9 +115,105 @@ class KakaoPlaceSearcherTest {
         List<Place> result = searcher().search(hint);
 
         // then
-        assertThat(result).hasSize(1);
-        assertThat(result.getFirst().externalSource().placeId()).isEqualTo("200");
-        assertThat(kakaoServer.queries()).contains("송화산시도삭면 건대");
+        assertAll(
+                () -> assertThat(result)
+                        .extracting(place -> place.externalSource().placeId())
+                        .containsExactly("200"),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("송화산시도삭멘 건대", "송화산시도삭멘", "송화산시도삭면 건대"));
+    }
+
+    @Test
+    void 원문과_보정명으로_모두_찾을_수_있으면_원문의_장소를_반환한다() {
+        // given
+        kakaoServer.respondWith("카페 목리 강진", documents(
+                document("770900327", "카페목리", "전남 강진군 강진읍 목리 348", "")));
+        kakaoServer.respondWith("목리 강진", documents(
+                document("102607646", "강진역", "전남 강진군 강진읍 목리 265-14", "")));
+        PlaceSearchHint hint = hint("카페 목리", "목리", Type.REGION, "강진");
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .extracting(place -> place.externalSource().placeId())
+                        .containsExactly("770900327"),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("카페 목리 강진"));
+    }
+
+    @Test
+    void 영문_원문으로_장소를_찾으면_잘못된_보정명으로_검색하지_않는다() {
+        // given
+        kakaoServer.respondWith("FRUTO FRUTA 전포", documents(
+                document("1731570544", "프루토프루타", "부산 부산진구 전포동 306-2", "")));
+        PlaceSearchHint hint = hint("FRUTO FRUTA", "푸르토프루타", Type.REGION, "전포");
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .extracting(place -> place.externalSource().placeId())
+                        .containsExactly("1731570544"),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("FRUTO FRUTA 전포"));
+    }
+
+    @Test
+    void 지역_검색에_실패해도_보정명보다_원문_이름만_검색을_먼저_시도한다() {
+        // given
+        kakaoServer.respondWith("원문상호", documents(
+                document("100", "원문상호", "서울 용산구 한남동 1", "")));
+        kakaoServer.respondWith("보정상호 해방촌", documents(
+                document("200", "보정상호", "서울 용산구 용산동2가 1", "")));
+        PlaceSearchHint hint = hint("원문상호", "보정상호", Type.REGION, "해방촌");
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .extracting(place -> place.externalSource().placeId())
+                        .containsExactly("100"),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("원문상호 해방촌", "원문상호"));
+    }
+
+    @Test
+    void 원문과_보정명으로_모두_찾지_못하면_빈_목록을_반환한다() {
+        // given
+        PlaceSearchHint hint = hint("원문상호", "보정상호", Type.REGION, "해방촌");
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .isEmpty(),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("원문상호 해방촌", "원문상호", "보정상호 해방촌", "보정상호"));
+    }
+
+    @Test
+    void 원문과_보정명이_같으면_같은_검색을_반복하지_않는다() {
+        // given
+        PlaceSearchHint hint = hint("원문상호", "원문상호", Type.REGION, "해방촌");
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .isEmpty(),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("원문상호 해방촌", "원문상호"));
     }
 
     @Test
@@ -342,6 +439,55 @@ class KakaoPlaceSearcherTest {
     }
 
     @Test
+    void 캡션_주소_반경에서_원문으로_찾지_못하면_같은_반경에서_보정명으로_찾는다() {
+        // given
+        String address = "서울 광진구 뚝섬로27길 48";
+        kakaoServer.respondToAddress(address, "127.06", "37.54");
+        kakaoServer.respondNearby("송화산시도삭면", documents(
+                document("200", "송화산시도삭면", "서울 광진구 자양동 1", address)));
+        PlaceSearchHint hint = hint("송화산시도삭멘", "송화산시도삭면", Type.ADDRESS, address);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .extracting(place -> place.externalSource().placeId())
+                        .containsExactly("200"),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("송화산시도삭멘", "송화산시도삭면"),
+                () -> assertThat(kakaoServer.lastKeywordParameters())
+                        .containsEntry("x", "127.06")
+                        .containsEntry("y", "37.54")
+                        .containsEntry("radius", "3000"));
+    }
+
+    @Test
+    void 캡션_주소_반경에서_원문과_보정명을_찾지_못해도_반경_밖으로_검색하지_않는다() {
+        // given
+        String address = "부산 남구 수영로 12";
+        kakaoServer.respondToAddress(address, "129.07", "35.14");
+        kakaoServer.respondWith("원문상호", documents(
+                document("100", "원문상호", "서울 용산구 한남동 1", "")));
+        kakaoServer.respondWith("보정상호", documents(
+                document("200", "보정상호", "서울 용산구 한남동 2", "")));
+        PlaceSearchHint hint = hint("원문상호", "보정상호", Type.ADDRESS, address);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .isEmpty(),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("원문상호", "보정상호"),
+                () -> assertThat(kakaoServer.lastKeywordParameters())
+                        .containsEntry("radius", "3000"));
+    }
+
+    @Test
     void 카테고리에_관계없이_첫_번째_유효_장소를_반환한다() {
         // given
         kakaoServer.respondWith("덕수궁", documents(
@@ -383,17 +529,70 @@ class KakaoPlaceSearcherTest {
         assertThat(kakaoServer.queries()).containsExactly("미드나잇익스프레스", "미드나잇익스프레스 용봉동");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"INFERRED", "VIDEO", "IMAGE"})
+    void 첨부와_추론_주소도_원문의_지역_검색까지_시도한_뒤_보정명으로_넘어간다(String basis) {
+        // given
+        kakaoServer.respondToAddress("용봉동", "126.90", "35.18");
+        kakaoServer.respondWith("원문상호 용봉동", documents(
+                document("100", "원문상호", "광주 북구 용봉동 1", "")));
+        kakaoServer.respondNearby("보정상호", documents(
+                document("200", "보정상호", "광주 북구 용봉동 2", "")));
+        PlaceSearchHint hint = new PlaceSearchHint("원문상호", "보정상호", List.of(),
+                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .extracting(place -> place.externalSource().placeId())
+                        .containsExactly("100"),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("원문상호", "원문상호 용봉동"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"INFERRED", "VIDEO", "IMAGE"})
+    void 첨부와_추론_주소에서_원문_검색에_모두_실패하면_보정명으로_근처부터_다시_찾는다(String basis) {
+        // given
+        kakaoServer.respondToAddress("용봉동", "126.90", "35.18");
+        kakaoServer.respondNearby("보정상호", documents(
+                document("200", "보정상호", "광주 북구 용봉동 2", "")));
+        PlaceSearchHint hint = new PlaceSearchHint("원문상호", "보정상호", List.of(),
+                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null);
+
+        // when
+        List<Place> result = searcher().search(hint);
+
+        // then
+        assertAll(
+                () -> assertThat(result)
+                        .extracting(place -> place.externalSource().placeId())
+                        .containsExactly("200"),
+                () -> assertThat(kakaoServer.queries())
+                        .containsExactly("원문상호", "원문상호 용봉동", "원문상호", "보정상호"),
+                () -> assertThat(kakaoServer.lastKeywordParameters())
+                        .containsEntry("x", "126.90")
+                        .containsEntry("y", "35.18")
+                        .containsEntry("radius", "3000"));
+    }
+
     @Test
     void 카카오가_503을_반환하면_요청_예외가_발생한다() {
         // given
         kakaoServer.respondWithStatus(503);
-        PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(), List.of(), null);
+        PlaceSearchHint hint = new PlaceSearchHint("올드빅", "보정상호", List.of(), List.of(), null);
 
         // when & then
         assertThatThrownBy(() -> searcher().search(hint))
                 .isInstanceOf(ExtractionFailedException.class)
                 .extracting(exception -> ((ExtractionFailedException) exception).reason())
                 .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+        assertThat(kakaoServer.queries())
+                .isNotEmpty()
+                .containsOnly("올드빅");
     }
 
     @ParameterizedTest
