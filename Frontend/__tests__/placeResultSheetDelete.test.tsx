@@ -28,7 +28,8 @@ import {
 } from './support/savedPlacesFixtures';
 
 // 지도 결과 시트에서 장소를 지우는 흐름을 확인합니다. 지우고 확인하고 캐시에서 빼는 일은 savedPlaceDeletion.test.ts가 맡으므로,
-// 시트가 맡은 일(지도 화면에 알리는 차례, 목록으로 돌아가기, 오류 전달, 로그인 요청, 지우는 동안 막기)만 확인합니다.
+// 시트가 맡은 일(지도 화면에 알리는 차례, 목록으로 돌아가기, 오류 전달, 로그인 요청, 지우는 동안 막기,
+// 지우는 동안 다른 장소로 옮긴 뒤 끝난 지우기의 처리)만 확인합니다.
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
 jest.mock('../src/entities/info/api', () => ({
@@ -378,3 +379,85 @@ test('비회원 체험 장소도 펼친 상세에서 지우면 비회원 삭제 
   ]);
   expect(shownView(sheet.renderer)).toBe('목록');
 });
+
+test('지우는 동안 삭제 시트를 닫고 목록에서 다른 장소를 열면, 늦게 끝난 지우기는 캐시에서 뺀 뒤 지운 저장 ID만 알리고 새로 연 상세와 그 삭제 시트를 닫지 않는다', async () => {
+  const request = deferred<void>();
+  jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+  const sheet = await renderSheet();
+  await openDeleteSheet(sheet.renderer, '카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  await closeDeleteSheetAndOpenPlace(sheet, '빵집');
+  await openShownPlaceDeleteSheet(sheet.renderer);
+
+  await act(async () => request.resolve());
+  await flushMicrotasks();
+  expect(sheet.events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: BAKERY.place.id},
+    {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
+  ]);
+  expect(shownView(sheet.renderer)).toBe('상세');
+  expect(deleteSheetState(sheet.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
+});
+
+test('지우는 동안 다른 장소를 열면 그 장소의 삭제 버튼은 막지 않아 바로 지울 수 있고, 먼저 보낸 지우기가 끝나도 새 장소를 지우는 중 상태는 그대로 둔다', async () => {
+  const cafeRequest = deferred<void>();
+  const bakeryRequest = deferred<void>();
+  jest.mocked(deleteSavedPlaces).mockReturnValueOnce(cafeRequest.promise).mockReturnValueOnce(bakeryRequest.promise);
+  const sheet = await renderSheet();
+  await openDeleteSheet(sheet.renderer, '카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  await closeDeleteSheetAndOpenPlace(sheet, '빵집');
+  await openShownPlaceDeleteSheet(sheet.renderer);
+  expect(deleteSheetState(sheet.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
+
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]], [[BAKERY.id]]]);
+
+  await act(async () => cafeRequest.resolve());
+  await flushMicrotasks();
+  expect(deleteSheetState(sheet.renderer)).toEqual({visible: true, isDeleting: true, deleteError: null});
+
+  await act(async () => bakeryRequest.resolve());
+  await flushMicrotasks();
+  expect(sheet.events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: BAKERY.place.id},
+    {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
+    {deletedSavedPlaceId: BAKERY.id, cachedNames: []},
+    {detailShown: false, placeId: null},
+  ]);
+  expect(shownView(sheet.renderer)).toBe('목록');
+});
+
+test.each([
+  ['서버 오류로', '요청하지 않는다', SERVER_ERROR, []],
+  ['로그인이 필요하다는 서버 응답으로', '요청한다', AUTH_ERROR, [[]]],
+])(
+  '지우는 동안 다른 장소로 옮긴 뒤 먼저 보낸 지우기가 %s 실패하면, 새로 연 장소의 삭제 시트에 그 오류를 보이지 않고 로그인은 %s',
+  async (_condition, _login, error, expectedLoginRequests) => {
+    const request = deferred<void>();
+    jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+    const sheet = await renderSheet();
+    await openDeleteSheet(sheet.renderer, '카페');
+    await pressLabel(sheet.renderer, DELETE_LABEL);
+    await closeDeleteSheetAndOpenPlace(sheet, '빵집');
+    await openShownPlaceDeleteSheet(sheet.renderer);
+
+    await act(async () => request.reject(error));
+    await flushMicrotasks();
+    expect(deleteSheetState(sheet.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
+    expect(sheet.onAuthenticationRequired.mock.calls).toEqual(expectedLoginRequests);
+    expect(sheet.events).toEqual([
+      {detailShown: false, placeId: null},
+      {detailShown: true, placeId: CAFE.place.id},
+      {detailShown: false, placeId: null},
+      {detailShown: true, placeId: BAKERY.place.id},
+    ]);
+    expect(shownView(sheet.renderer)).toBe('상세');
+  },
+);
