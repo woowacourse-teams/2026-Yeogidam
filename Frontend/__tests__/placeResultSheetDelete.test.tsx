@@ -99,6 +99,16 @@ async function openShownPlaceDeleteSheet(renderer: Renderer) {
   await act(async () => renderer.root.findByType(PlaceDetailContent).props.onPressMore());
 }
 
+/**
+ * 중간 높이 목록에서 장소를 열고 손잡이를 눌러 상세를 펼친 뒤, 지도 화면 머리글의 더보기로 삭제 시트를 엽니다.
+ * 펼친 상세는 본문 머리글을 숨기므로 더보기는 지도 화면 머리글에만 있고, 지도 화면은 더보기 신호를 올려 시트에 알립니다.
+ */
+async function openDeleteSheetFromExpandedDetail(sheet: Sheet, placeName: string) {
+  await pressLabel(sheet.renderer, `${placeName} 상세 보기`);
+  await pressLabel(sheet.renderer, EXPAND_LABEL);
+  await sheet.rerender({detailMoreSignal: 1});
+}
+
 /** 삭제 시트를 닫고 지도 화면의 뒤로 가기로 목록에 돌아가 다른 장소를 엽니다. 닫기와 뒤로 가기는 지우는 동안에도 막지 않습니다. */
 async function closeDeleteSheetAndOpenPlace(sheet: Sheet, placeName: string) {
   await act(async () => sheet.renderer.root.findByType(PlaceDetailActionSheet).props.onClose());
@@ -332,6 +342,39 @@ test('지우는 동안 목록으로 갔다가 지우던 장소를 다시 열면 
     {detailShown: true, placeId: CAFE.place.id},
     {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
     {detailShown: false, placeId: null},
+  ]);
+  expect(shownView(sheet.renderer)).toBe('목록');
+});
+
+test('중간 높이 목록에서 연 상세를 펼쳐 지도 화면 머리글의 더보기로 지우면, 지운 저장 ID를 알린 뒤 한 번에 목록으로 돌아가고 시트를 상세를 연 높이로 되돌린다', async () => {
+  const sheet = await renderSheet();
+  await openDeleteSheetFromExpandedDetail(sheet, '카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+
+  expect(sheet.events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {expanded: true},
+    {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
+    {detailShown: false, placeId: null},
+    {expanded: false},
+  ]);
+  expect(shownView(sheet.renderer)).toBe('목록');
+});
+
+test('비회원 체험 장소도 펼친 상세에서 지우면 비회원 삭제 콜백으로 지운 뒤 한 번에 목록으로 돌아가고 시트를 상세를 연 높이로 되돌린다', async () => {
+  const onDeleteGuestPlaces = jest.fn();
+  const sheet = await renderSheet({places: GUEST_PLACES, guestReelsByPlace: {}, onDeleteGuestPlaces});
+  await openDeleteSheetFromExpandedDetail(sheet, '체험 카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+
+  expect(onDeleteGuestPlaces.mock.calls).toEqual([[['guest-1']]]);
+  expect(sheet.events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: 'guest-1'},
+    {expanded: true},
+    {detailShown: false, placeId: null},
+    {expanded: false},
   ]);
   expect(shownView(sheet.renderer)).toBe('목록');
 });

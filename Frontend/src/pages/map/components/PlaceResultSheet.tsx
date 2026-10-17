@@ -675,23 +675,29 @@ export function PlaceResultSheet({
     }
   };
 
-  const backToPlaceList = useCallback(() => {
+  // 상세와 삭제 시트를 닫고 상세를 연 높이의 목록으로 돌아갑니다. 높이는 목록이 그려진 뒤 아래 effect가 맞춥니다.
+  // 뒤로 가기의 마지막 단계와 지운 뒤 이탈이 함께 쓰고, 지운 뒤에는 상세가 펼쳐져 있어도 바로 부릅니다.
+  const closePlaceDetail = useCallback(() => {
     setIsActionSheetVisible(false);
+    pendingBackSnapIndex.current = detailEntrySnapIndex.current;
+    setSelectedPlace(null);
+    setSelectedPlaceViewContext(null);
+  }, []);
 
+  const backToPlaceList = useCallback(() => {
     // If the detail was expanded after it opened from a shorter list sheet,
     // the first back action only restores the detail to that prior height.
     if (
       activeSnapIndex === 0 &&
       detailEntrySnapIndex.current !== 0
     ) {
+      setIsActionSheetVisible(false);
       snapTo(snapOffsets[detailEntrySnapIndex.current]);
       return;
     }
 
-    pendingBackSnapIndex.current = detailEntrySnapIndex.current;
-    setSelectedPlace(null);
-    setSelectedPlaceViewContext(null);
-  }, [activeSnapIndex, snapOffsets, snapTo]);
+    closePlaceDetail();
+  }, [activeSnapIndex, closePlaceDetail, snapOffsets, snapTo]);
 
   useEffect(() => {
     if (selectedPlace || pendingBackSnapIndex.current === null) {
@@ -732,8 +738,7 @@ export function PlaceResultSheet({
     }
     if (onDeleteGuestPlaces) {
       onDeleteGuestPlaces([selectedPlace.id]);
-      setIsActionSheetVisible(false);
-      backToPlaceList();
+      closePlaceDetail();
       return;
     }
     if (!selectedPlace.savedPlaceId) {
@@ -747,7 +752,7 @@ export function PlaceResultSheet({
     try {
       await deleteSavedPlaceAndRemoveFromCache(savedPlaceId);
       onSavedPlaceDeleted?.(savedPlaceId);
-      backToPlaceList();
+      closePlaceDetail();
     } catch (nextError) {
       const apiError = normalizeScreenApiError(nextError);
       setDeleteError(apiError);
@@ -758,7 +763,7 @@ export function PlaceResultSheet({
       setIsDeleting(false);
     }
   }, [
-    backToPlaceList,
+    closePlaceDetail,
     isDeleting,
     onAuthenticationRequired,
     onDeleteGuestPlaces,
