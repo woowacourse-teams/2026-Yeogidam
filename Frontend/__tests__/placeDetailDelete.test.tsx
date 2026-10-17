@@ -14,7 +14,7 @@ import {PlaceDetailContent} from '../src/pages/place-detail/components/PlaceDeta
 import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
 import {cachedPlaceNames} from './support/cachedPlaceNames';
 import {deferred} from './support/deferred';
-import {renderTracked, settleAsyncWork, type Renderer} from './support/renderers';
+import {renderTracked, settleAsyncWork, unmountTracked, type Renderer} from './support/renderers';
 import {
   AUTH_ERROR,
   BAKERY,
@@ -119,6 +119,23 @@ async function renderCafeAndStartDeleting() {
   await closeDeleteSheet(detail.renderer);
   return detail;
 }
+
+// App은 상세 화면을 하나만 그리므로, 지우는 동안 다른 장소를 열면 같은 상세 화면이 다른 장소를 받거나 상세 화면이 내려간 뒤 새로 올라옵니다.
+// 아래 두 도우미가 두 경우를 흉내 내고, 옮긴 뒤 보이는 상세 화면을 돌려줍니다.
+type Detail = Awaited<ReturnType<typeof renderDetail>>;
+type MoveToOtherPlace = (detail: Detail, place: Place) => Promise<Detail>;
+
+/** 같은 상세 화면이 다른 장소를 받습니다. */
+const showInSameScreen: MoveToOtherPlace = async (detail, place) => {
+  await detail.showPlace(place);
+  return detail;
+};
+
+/** App이 상세를 닫아 상세 화면이 내려간 뒤, 다른 장소의 상세 화면이 새로 올라옵니다. 새 화면에는 App처럼 앞 화면과 같은 콜백을 넘깁니다. */
+const showInNewScreen: MoveToOtherPlace = async (detail, place) => {
+  await unmountTracked(detail.renderer);
+  return renderDetail(place, detail);
+};
 
 beforeEach(() => {
   clearSavedPlacesCache();
@@ -240,4 +257,69 @@ test('지우는 동안 같은 상세 화면에서 다른 장소를 연 사이 �
   expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]], [[CAFE.id]]]);
   expect(cachedPlaceNames()).toEqual(['빵집']);
   expect(detail.onBack).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+  ['같은 상세 화면에서', showInSameScreen],
+  ['상세 화면이 내려간 뒤 새 상세 화면에서', showInNewScreen],
+])(
+  '지우는 동안 삭제 시트를 닫고 %s 다른 장소를 열면, 늦게 끝난 지우기는 캐시에서 빼기만 하고 돌아가지 않아 새로 연 장소의 상세와 삭제 시트를 닫지 않는다',
+  async (_move, moveToOtherPlace) => {
+    const request = deferred<void>();
+    jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+    const bakery = await moveToOtherPlace(await renderCafeAndStartDeleting(), CACHED_BAKERY);
+    await openDeleteSheet(bakery.renderer);
+
+    await act(async () => request.resolve());
+    await settleAsyncWork();
+    expect(cachedPlaceNames()).toEqual(['빵집']);
+    expect(bakery.onBack).not.toHaveBeenCalled();
+    expect(deleteSheetState(bakery.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
+  },
+);
+
+test.each([
+  ['같은 상세 화면에서', '서버 오류로', '요청하지 않는다', showInSameScreen, SERVER_ERROR, []],
+  ['같은 상세 화면에서', '로그인이 필요하다는 서버 응답으로', '요청한다', showInSameScreen, AUTH_ERROR, [[]]],
+  ['상세 화면이 내려간 뒤 새 상세 화면에서', '서버 오류로', '요청하지 않는다', showInNewScreen, SERVER_ERROR, []],
+  ['상세 화면이 내려간 뒤 새 상세 화면에서', '로그인이 필요하다는 서버 응답으로', '요청한다', showInNewScreen, AUTH_ERROR, [[]]],
+])(
+  '지우는 동안 삭제 시트를 닫고 %s 다른 장소를 연 뒤 먼저 보낸 지우기가 %s 실패하면, 새로 연 장소의 삭제 시트에 실패 오류를 보이지 않고 로그인은 %s',
+  async (_move, _condition, _login, moveToOtherPlace, error, expectedLoginRequests) => {
+    const request = deferred<void>();
+    jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+    const bakery = await moveToOtherPlace(await renderCafeAndStartDeleting(), CACHED_BAKERY);
+    await openDeleteSheet(bakery.renderer);
+
+    await act(async () => request.reject(error));
+    await settleAsyncWork();
+    expect(cachedPlaceNames()).toEqual(['카페', '빵집']);
+    expect(bakery.onBack).not.toHaveBeenCalled();
+    expect(deleteSheetState(bakery.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
+    expect(bakery.onAuthenticationRequired.mock.calls).toEqual(expectedLoginRequests);
+  },
+);
+
+test('지우는 동안 같은 상세 화면에서 다른 장소를 열면 새로 연 장소의 삭제 버튼은 막지 않아 바로 지울 수 있고, 먼저 보낸 지우기가 끝나도 새로 연 장소를 지우는 중 상태는 그대로 둔다', async () => {
+  const cafeRequest = deferred<void>();
+  const bakeryRequest = deferred<void>();
+  jest.mocked(deleteSavedPlaces).mockReturnValueOnce(cafeRequest.promise).mockReturnValueOnce(bakeryRequest.promise);
+  const detail = await renderCafeAndStartDeleting();
+  await detail.showPlace(CACHED_BAKERY);
+  await openDeleteSheet(detail.renderer);
+  expect(deleteSheetState(detail.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
+
+  await deleteFromSheet(detail.renderer);
+  expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]], [[BAKERY.id]]]);
+
+  await act(async () => cafeRequest.resolve());
+  await settleAsyncWork();
+  expect(detail.onBack).not.toHaveBeenCalled();
+  expect(deleteSheetState(detail.renderer)).toEqual({visible: true, isDeleting: true, deleteError: null});
+
+  await act(async () => bakeryRequest.resolve());
+  await settleAsyncWork();
+  expect(cachedPlaceNames()).toEqual([]);
+  expect(detail.onBack).toHaveBeenCalledTimes(1);
+  expect(deleteSheetState(detail.renderer)).toEqual({visible: false, isDeleting: false, deleteError: null});
 });
