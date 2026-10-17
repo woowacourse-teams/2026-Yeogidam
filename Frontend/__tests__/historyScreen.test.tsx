@@ -197,10 +197,11 @@ test('끝까지 읽은 뒤에는 폴링이 커서를 되살리지 않아 이전 
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
 
   await tick(3000);
-  const callsAfterPoll = jest.mocked(getHistoryReels).mock.calls.length;
+  // 첫 페이지, 이전 기록, 폴링으로 세 번 읽었다.
+  expect(getHistoryReels).toHaveBeenCalledTimes(3);
   await scrollToBottom(renderer);
 
-  expect(jest.mocked(getHistoryReels).mock.calls).toHaveLength(callsAfterPoll);
+  expect(getHistoryReels).toHaveBeenCalledTimes(3);
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
 });
 
@@ -245,9 +246,7 @@ test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다
   );
   await ReactTestRenderer.act(async () => olderItem.props.onPress());
 
-  expect(getHistoryReelDetail).toHaveBeenCalledWith(
-    expect.objectContaining({id: '1', processing_status: 'COMPLETED'}),
-  );
+  expect(getHistoryReelDetail).toHaveBeenCalledWith(reel(1));
 });
 
 const hasText = (renderer: ReactTestRenderer.ReactTestRenderer, text: string) =>
@@ -291,10 +290,10 @@ test('이전 기록 불러오기가 실패하면 목록은 두고 아래에서 �
   expect(hasText(renderer, '히스토리를 불러오지 못했어요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['5', '4', '3']);
 
-  // 실패한 뒤에는 스크롤만으로 다시 요청하지 않는다.
-  const callsAfterFailure = jest.mocked(getHistoryReels).mock.calls.length;
+  // 첫 페이지와 실패한 이전 기록으로 두 번 읽었고, 실패한 뒤에는 스크롤만으로 다시 요청하지 않는다.
+  expect(getHistoryReels).toHaveBeenCalledTimes(2);
   await scrollToBottom(renderer);
-  expect(jest.mocked(getHistoryReels).mock.calls).toHaveLength(callsAfterFailure);
+  expect(getHistoryReels).toHaveBeenCalledTimes(2);
 
   const retry = renderer.root.find(
     node =>
@@ -777,7 +776,7 @@ test('성공 항목을 누르면 장소 상세를 열고, 뒤로 가면 목록�
   expect(hasText(renderer, '장소를 불러오는 중이에요.')).toBe(true);
   expect(trackHistoryContentDetailViewed).toHaveBeenCalledTimes(1);
   expect(trackHistoryContentDetailViewed).toHaveBeenCalledWith(null, '2', 'success');
-  expect(getHistoryReelDetail).toHaveBeenCalledWith(expect.objectContaining({id: '2'}));
+  expect(getHistoryReelDetail).toHaveBeenCalledWith(reel(2));
 
   await ReactTestRenderer.act(async () => places.resolve(detailOf(reel(2), ['성수 카페', '서울숲 식당'])));
   expect(hasText(renderer, '총 2개의 장소를 찾았어요')).toBe(true);
@@ -815,7 +814,7 @@ test('실패 항목을 누르면 실패 이유를 보이고, 뒤로 가면 목�
   expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(true);
   expect(hasText(renderer, '지도에서 장소를 찾지 못했어요.')).toBe(true);
   expect(trackHistoryContentDetailViewed).toHaveBeenCalledWith(null, '7', 'failed');
-  expect(getHistoryReelDetail).toHaveBeenCalledWith(expect.objectContaining({id: '7'}));
+  expect(getHistoryReelDetail).toHaveBeenCalledWith(reel(7, 'FAILED'));
 
   await pressDetailBack(renderer);
   expect(renderedIds(renderer)).toEqual(['7']);

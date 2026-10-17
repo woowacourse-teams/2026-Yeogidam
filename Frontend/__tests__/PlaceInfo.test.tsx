@@ -75,6 +75,9 @@ describe('PlaceInfo', () => {
     expect(Linking.openURL).toHaveBeenCalledWith(
       'https://map.kakao.com/example',
     );
+    // 이벤트가 정하는 여섯 속성은 모두 적고, capture가 모든 이벤트에 붙이는 공통 속성(environment, platform, release)은
+    // 기기 정보 mock에서 오는 값이라 savedPlaceEvents 테스트에 맡깁니다. is_revisit은 저장 시각(2026-09-28)과
+    // 테스트를 돌리는 시각의 차이로 정하므로, 2026-09-29 뒤에 돌리면 늘 true입니다.
     expect(mockCapture).toHaveBeenCalledWith(
       'place_map_viewed',
       expect.objectContaining({
@@ -83,6 +86,7 @@ describe('PlaceInfo', () => {
         place_view_id: 'view-1',
         source: 'saved_places_grid',
         map_provider: 'kakao',
+        is_revisit: true,
       }),
     );
   });
