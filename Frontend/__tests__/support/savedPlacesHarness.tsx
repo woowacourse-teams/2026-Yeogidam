@@ -16,14 +16,14 @@ import {SavedPlacesSearchPanel} from '../../src/pages/saved-places/components/Sa
 import {clearSavedPlacesCache} from '../../src/entities/info/saved-places-cache';
 import {SavedPlacesScreen} from '../../src/pages/saved-places/SavedPlacesScreen';
 import {LINK, listing, NOW} from './savedPlacesFixtures';
-import {flushMicrotasks, renderTracked, type Renderer} from './renderers';
+import {renderTracked, settleAsyncWork, type Renderer} from './renderers';
 
 // 보관함 화면 테스트들이 함께 쓰는 렌더, 시간 진행, 조작 도우미와 테스트마다의 준비, 정리입니다.
 // 여기서 부르는 API와 저장소 모듈은 테스트 파일이 jest.mock으로 바꿔 둬야 합니다.
 // jest.mock은 선언한 파일의 맨 위로 끌어올려지므로 각 테스트 파일에 둡니다.
 // 그린 화면은 renderTracked로 기록해 setupFilesAfterEnv가 내리므로 여기서는 내리지 않습니다.
 
-export {flushMicrotasks, unmountTracked, type Renderer} from './renderers';
+export {settleAsyncWork, unmountTracked, type Renderer} from './renderers';
 type ScreenProps = React.ComponentProps<typeof SavedPlacesScreen>;
 
 export const act = ReactTestRenderer.act;
@@ -43,7 +43,7 @@ export function render(props: Partial<ScreenProps> = {}) {
 export async function renderLoaded(items: SavedPlaceListItem[], props: Partial<ScreenProps> = {}) {
   jest.mocked(getSavedPlaces).mockResolvedValue(items);
   const renderer = await render(props);
-  await flushMicrotasks();
+  await settleAsyncWork();
   return renderer;
 }
 
@@ -74,7 +74,7 @@ export async function pressLabel(renderer: Renderer, label: string) {
   await act(async () => {
     target.props.onPress();
   });
-  await flushMicrotasks();
+  await settleAsyncWork();
 }
 
 /** 글자나 아이콘을 감싼 가장 가까운 누를 수 있는 요소를 누릅니다. */
@@ -88,7 +88,7 @@ export async function pressAround(
   await act(async () => {
     target?.props.onPress();
   });
-  await flushMicrotasks();
+  await settleAsyncWork();
 }
 
 export const pressText = (renderer: Renderer, label: string) =>
@@ -100,7 +100,7 @@ export async function confirmDeleteAlert() {
   await act(async () => {
     buttons?.find(button => button.text === '삭제')?.onPress?.();
   });
-  await flushMicrotasks();
+  await settleAsyncWork();
 }
 
 export async function selectAndDelete(renderer: Renderer, placeId: string) {
@@ -116,7 +116,7 @@ export async function openDialogAndSave(renderer: Renderer, value = LINK) {
   await act(async () => {
     await dialog(renderer).props.onSubmit();
   });
-  await flushMicrotasks();
+  await settleAsyncWork();
 }
 
 /**

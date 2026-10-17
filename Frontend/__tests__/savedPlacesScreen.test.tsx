@@ -37,7 +37,6 @@ import {
   act,
   deleteAction,
   dialog,
-  flushMicrotasks,
   grid,
   header,
   openDialogAndSave,
@@ -51,6 +50,7 @@ import {
   renderLoaded,
   searchPanel,
   selectAndDelete,
+  settleAsyncWork,
   setUpSavedPlacesScreenTests,
   texts,
   tick,
@@ -115,13 +115,13 @@ describe('목록 읽기', () => {
   test('첫 조회가 실패하면 오류 화면을 보이고, 다시 시도해 성공하면 그리드와 조회 이벤트를 보낸다', async () => {
     jest.mocked(getSavedPlaces).mockRejectedValueOnce(SERVER_ERROR).mockResolvedValueOnce([CAFE]);
     const renderer = await render();
-    await flushMicrotasks();
+    await settleAsyncWork();
     const errorState = renderer.root.findByType(SavedPlacesErrorState);
     expect(errorState.props.error).toEqual(SERVER_ERROR);
     expect(captureSavedPlacesViewed).not.toHaveBeenCalled();
 
     await act(async () => errorState.props.onRetry());
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(renderer)).toEqual(['카페']);
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(captureSavedPlacesViewed).toHaveBeenCalledWith(mockPostHog, {
@@ -137,10 +137,10 @@ describe('목록 읽기', () => {
       .mockRejectedValueOnce(SERVER_ERROR)
       .mockResolvedValueOnce([CAFE, BAKERY]);
     const renderer = await render();
-    await flushMicrotasks();
+    await settleAsyncWork();
 
     await act(async () => refreshControl(renderer).props.onRefresh());
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(texts(renderer)).toContain(SERVER_ERROR.message);
     expect(placeNames(renderer)).toEqual(['카페']);
 
@@ -153,7 +153,7 @@ describe('목록 읽기', () => {
     const onAuthenticationRequired = jest.fn();
     jest.mocked(getSavedPlaces).mockRejectedValue(AUTH_ERROR);
     await render({onAuthenticationRequired});
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(onAuthenticationRequired).toHaveBeenCalledTimes(1);
   });
 
@@ -172,7 +172,7 @@ describe('목록 읽기', () => {
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
 
     await act(async () => refresh.resolve([CAFE, BAKERY]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(refreshControl(renderer).props.refreshing).toBe(false);
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
 
@@ -198,7 +198,7 @@ describe('목록 읽기', () => {
     });
     await act(async () => refreshLoad.resolve([CAFE, BAKERY]));
     await act(async () => mountLoad.resolve([BAKERY]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
   });
 
@@ -222,7 +222,7 @@ describe('목록 읽기', () => {
     await unmountTracked(await render());
     clearSavedPlacesCache();
     await act(async () => lateLoad.resolve([CAFE]));
-    await flushMicrotasks();
+    await settleAsyncWork();
 
     jest.mocked(getSavedPlaces).mockReturnValue(deferred<SavedPlaceListItem[]>().promise);
     const renderer = await render();
@@ -296,7 +296,7 @@ describe('편집과 삭제', () => {
     expect(deleteAction(renderer).props.disabled).toBe(true);
 
     await act(async () => request.resolve());
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(grid(renderer).props.isEditing).toBe(false);
     expect(placeNames(renderer)).toEqual(['빵집']);
   });
@@ -464,7 +464,7 @@ describe('링크 저장', () => {
     expect(dialog(renderer).props.visible).toBe(true);
 
     await act(async () => request.resolve({reelId: '8', status: 'COMPLETED', reused: true}));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(dialog(renderer).props.visible).toBe(false);
   });
 
@@ -528,7 +528,7 @@ describe('링크 저장', () => {
     await tick(1500);
     jest.mocked(getSavedPlaces).mockRejectedValueOnce(SERVER_ERROR);
     await act(async () => refreshControl(renderer).props.onRefresh());
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(texts(renderer)).toContain(SERVER_ERROR.message);
 
     await tick(1499);
@@ -612,7 +612,7 @@ describe('링크 저장', () => {
     // 응답 뒤의 목록 조회만 센다.
     jest.mocked(getHistoryReels).mockClear();
     await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
-    await flushMicrotasks();
+    await settleAsyncWork();
     for (let i = 0; i < 6; i += 1) await tick(3000);
     expect(getHistoryReels).toHaveBeenCalledTimes(3);
   });
@@ -631,7 +631,7 @@ describe('링크 저장', () => {
     expect(getSharedSaveState()).toBeNull();
 
     await act(async () => request.resolve({reelId: '8', status: 'PROCESSING', reused: false}));
-    await flushMicrotasks();
+    await settleAsyncWork();
     await tick(2999);
     expect(getHistoryReels).not.toHaveBeenCalled();
     await tick(1);
@@ -646,7 +646,7 @@ describe('외부 공유 결과', () => {
     jest.mocked(getSavedPlaces).mockResolvedValue([CAFE, BAKERY]);
 
     await act(async () => setSharedSaveState(sharedShare(reelStatus('8', 'COMPLETED'))));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(getSharedSaveState()).toBeNull();
     expect(onSharedResultConsumed).not.toHaveBeenCalled();
@@ -665,7 +665,7 @@ describe('외부 공유 결과', () => {
     jest.mocked(getSavedPlaces).mockRejectedValueOnce(SERVER_ERROR);
 
     await act(async () => setSharedSaveState(sharedShare(reelStatus('8', 'COMPLETED'))));
-    await flushMicrotasks();
+    await settleAsyncWork();
     await tick(700);
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(onSharedResultConsumed).not.toHaveBeenCalled();
@@ -837,7 +837,7 @@ describe('이벤트와 스크롤', () => {
       refreshControl(renderer).props.onRefresh();
     });
     await act(async () => refresh.resolve([CAFE]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(captureSavedPlacesViewed).toHaveBeenCalledTimes(1);
   });
 
@@ -889,7 +889,7 @@ describe('지운 장소와 메모리 캐시', () => {
 
     jest.mocked(getSavedPlaces).mockRejectedValue(SERVER_ERROR);
     const reopened = await render();
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(reopened)).toEqual(['빵집']);
     expect(texts(reopened)).toContain(SERVER_ERROR.message);
   });
@@ -910,14 +910,14 @@ describe('조회 중에 지운 장소', () => {
 
     // 지우기 전에 보낸 조회가 지운 장소를 담은 채 끝난다.
     await act(async () => lateLoad.resolve([CAFE, BAKERY]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(reopened)).toEqual(['빵집']);
     // 첫 방문, 다시 열기, 낡은 응답을 버린 뒤 다시 읽기로 세 번 조회한다.
     expect(getSavedPlaces).toHaveBeenCalledTimes(3);
 
     // 다시 읽은 목록은 화면이 들고 있던 목록과 달라도 그대로 반영한다.
     await act(async () => reload.resolve([BAKERY, RESTAURANT]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(reopened)).toEqual(['빵집', '식당']);
   });
 
@@ -931,7 +931,7 @@ describe('조회 중에 지운 장소', () => {
 
     await selectAndDelete(reopened, 'place-1');
     await act(async () => lateLoad.resolve([CAFE, BAKERY, RESTAURANT]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getSavedPlaces).toHaveBeenCalledTimes(3);
 
     await selectAndDelete(reopened, 'place-2');
@@ -939,7 +939,7 @@ describe('조회 중에 지운 장소', () => {
 
     // 다시 읽기도 두 번째로 지우기 전에 보낸 조회라 지운 장소를 담은 채 끝난다.
     await act(async () => reload.resolve([BAKERY, RESTAURANT]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(reopened)).toEqual(['식당']);
     expect(getSavedPlaces).toHaveBeenCalledTimes(3);
   });
@@ -955,7 +955,7 @@ describe('조회 중에 지운 장소', () => {
     // App이 비회원 세션으로 바뀌면서 캐시를 비운다. 화면은 곧 내려간다.
     clearSavedPlacesCache();
     await act(async () => lateLoad.resolve([CAFE]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(reopened)).toEqual(['카페', '빵집']);
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
   });

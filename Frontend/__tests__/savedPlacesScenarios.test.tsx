@@ -24,13 +24,13 @@ import {
 import {
   act,
   dialog,
-  flushMicrotasks,
   openDialogAndSave,
   placeNames,
   pressLabel,
   refreshControl,
   render,
   renderLoaded,
+  settleAsyncWork,
   setUpSavedPlacesScreenTests,
   texts,
   tick,
@@ -87,10 +87,10 @@ describe('보관함 화면의 겹치는 순서', () => {
     });
     expect(refreshControl(renderer).props.refreshing).toBe(true);
     await act(async () => refreshLoad.resolve([CAFE, BAKERY]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(refreshControl(renderer).props.refreshing).toBe(false);
     await act(async () => mountLoad.reject(SERVER_ERROR));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(texts(renderer)).not.toContain(SERVER_ERROR.message);
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
   });
@@ -101,15 +101,15 @@ describe('보관함 화면의 겹치는 순서', () => {
     jest.mocked(getSavedPlaces).mockReturnValueOnce(mountLoad.promise).mockReturnValueOnce(successLoad.promise);
     setSharedSaveState({url: LINK, status: 'COMPLETED', source: 'url_input', reel: reelStatus('8', 'COMPLETED')});
     const renderer = await render();
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
     await act(async () => mountLoad.resolve([CAFE]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
     expect(renderer.root.findAllByType(SavedPlacesEmptyState)).toHaveLength(0);
     await act(async () => successLoad.resolve([CAFE, BAKERY]));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
   });
 
@@ -123,7 +123,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     expect(getReelProcessingStatus).toHaveBeenCalledTimes(1);
     await unmountTracked(renderer);
     await act(async () => status.resolve(null));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getSharedSaveState()).toBe(share);
     expect(onSharedResultConsumed).not.toHaveBeenCalled();
   });
@@ -140,7 +140,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     jest.mocked(getReelProcessingStatus).mockResolvedValue(reelStatus('9', 'PROCESSING'));
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('9', 'COMPLETED')));
     await act(async () => setSharedSaveState(sharedShare(reelStatus('9', 'PROCESSING'))));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getReelProcessingStatus).toHaveBeenCalledWith('9');
     await tick(3000);
     expect(getHistoryReels).toHaveBeenCalledTimes(2);
@@ -206,7 +206,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     await openDialogAndSave(renderer);
     expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
     await act(async () => status.resolve(reelStatus('8', 'PROCESSING')));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
 
     jest.mocked(getHistoryReels).mockResolvedValue(listing(historyReel('9', 'COMPLETED')));
@@ -225,7 +225,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     await renderLoaded([CAFE]);
     await act(async () => setSharedSaveState({...sharedShare(reelStatus('8', 'PENDING')), reused: true}));
     await act(async () => status.resolve(reelStatus('8', 'PROCESSING')));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getReelProcessingStatus).toHaveBeenCalledTimes(1);
     expect(getSharedSaveState()).toMatchObject({reused: true, status: 'PROCESSING', reel: {id: '8'}});
   });
@@ -239,7 +239,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
     await openDialogAndSave(renderer);
     await act(async () => status.resolve(null));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getSharedSaveState()).toMatchObject({source: 'url_input', reel: {id: '9'}});
     expect(onSharedResultConsumed).not.toHaveBeenCalled();
 
@@ -262,7 +262,7 @@ describe('보관함 화면의 겹치는 순서', () => {
     jest.mocked(saveContent).mockResolvedValue({reelId: '9', status: 'PROCESSING', reused: false});
     await openDialogAndSave(renderer);
     await act(async () => fetch1.resolve(listing(historyReel('8', 'COMPLETED'))));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(getSavedPlaces).toHaveBeenCalledTimes(1);
     expect(getSharedSaveState()).toMatchObject({reel: {id: '9'}, status: 'PROCESSING'});
   });
@@ -299,7 +299,7 @@ describe('보관함 화면의 겹치는 순서', () => {
         new ReelApiError({errorCode: 'COMMON500_001', message: '서버가 잠시 불안정해요.', retryable: true}),
       ),
     );
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(dialog(renderer).props.errorMessage).toBe('서버가 잠시 불안정해요.');
     expect(getSharedSaveState()).toBe(share);
   });

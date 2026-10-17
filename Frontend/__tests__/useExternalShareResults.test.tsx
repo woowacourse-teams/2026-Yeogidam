@@ -3,7 +3,7 @@ import React from 'react';
 import type {Place} from '../src/entities/place/types';
 import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state';
 import {useExternalShareResults} from '../src/pages/saved-places/hooks/useExternalShareResults';
-import {flushMicrotasks, renderTracked} from './support/renderers';
+import {renderTracked, settleAsyncWork} from './support/renderers';
 import {reelStatus, sharedShare} from './support/savedPlacesFixtures';
 
 // 공유 API 모듈은 그대로 쓰고 네트워크 경계(spring-client)만 바꿔, 응답 모양 확인이 외부 공유 확인 흐름까지 이어지는지 본다.
@@ -28,7 +28,7 @@ async function renderVerifying() {
   // 앱 진입 때 받은 처리 중 외부 공유는 서버 상태를 한 번 확인한 뒤에 보여 준다.
   setSharedSaveState(sharedShare(reelStatus('8', 'PROCESSING')));
   await renderTracked(<Harness />);
-  await flushMicrotasks();
+  await settleAsyncWork();
 }
 
 beforeEach(() => {
