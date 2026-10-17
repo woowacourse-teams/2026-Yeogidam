@@ -1,0 +1,89 @@
+name: Close issues after development merge
+
+on:
+  pull_request:
+    branches: [fe-dev, be-dev]
+    types: [closed]
+
+permissions:
+  issues: write
+
+concurrency:
+  group: close-merged-issues-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  close-issues:
+    # Fork and Dependabot PRs have read-only tokens.
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Do not check out or run PR code with the issue-write token.
+      - name: Close issues referenced by closing keywords
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const repository = `${context.repo.owner}/${context.repo.repo}`.toLowerCase();
+            if (context.actor === 'dependabot[bot]' || !pr?.merged ||
+                !['fe-dev', 'be-dev'].includes(pr.base.ref) ||
+                pr.head.repo?.full_name.toLowerCase() !== repository) {
+              core.info('Not a same-repository development merge; skipping.');
+              return;
+            }
+
+            // Ignore examples in comments, fenced code, blockquotes and inline code.
+            // A sentinel prevents removed examples from joining into a reference.
+            const lines = (pr.body ?? '').replace(/<!--[\s\S]*?(?:-->|$)/g, '\0').split(/\r?\n/);
+            const prose = [];
+            let fence;
+            for (const line of lines) {
+              const normalized = line.replace(/^ {0,3}(?:[-+*]|\d+[.)])[ \t]+/, '');
+              const marker = normalized.match(/^ {0,3}(`{3,}|~{3,})/);
+              if (fence) {
+                if (marker && marker[1][0] === fence[0] &&
+                    marker[1].length >= fence.length &&
+                    normalized.slice(marker[0].length).trim() === '') {
+                  fence = undefined;
+                }
+                continue;
+              }
+              if (marker) {
+                fence = marker[1];
+                continue;
+              }
+              if (!/^ {0,3}>/.test(normalized) && !/^(?: {4}|\t)/.test(line)) prose.push(line);
+            }
+            const body = prose.join('\n').replace(/(`+)[\s\S]*?\1/g, '\0');
+            // Each issue needs its own keyword, as with GitHub closing keywords.
+            // Qualified references are accepted only for this repository.
+            const reference = /(?:^|[^\w])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)[ \t]*:?[ \t]+(?:([\w.-]+\/[\w.-]+))?#([1-9]\d*)(?=$|[\s.,;:!?)\]}])/gi;
+            const numbers = new Set();
+            for (const match of body.matchAll(reference)) {
+              if (match[1] && match[1].toLowerCase() !== repository) continue;
+              const number = Number(match[2]);
+              if (Number.isSafeInteger(number)) numbers.add(number);
+            }
+
+            let failures = 0;
+            for (const issue_number of numbers) {
+              try {
+                const params = { ...context.repo, issue_number };
+                const { data: issue } = await github.rest.issues.get(params);
+                if (issue.pull_request || issue.state === 'closed') {
+                  core.info(`Skipping #${issue_number}: already closed or a pull request.`);
+                  continue;
+                }
+                await github.rest.issues.update({ ...params, state: 'closed', state_reason: 'completed' });
+                core.info(`Closed #${issue_number} after merging PR #${pr.number}.`);
+              } catch (error) {
+                failures += 1;
+                core.error(`Could not close #${issue_number}: ${error.message}`);
+              }
+            }
+            if (numbers.size === 0) core.info('No closing references found.');
+            if (failures > 0) core.setFailed(`Failed to close ${failures} issue(s).`);
