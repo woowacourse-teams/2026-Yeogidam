@@ -14,6 +14,8 @@ import org.springframework.web.client.RestClient;
 public class ExtractionConfig {
 
     private static final Duration GEMINI_HTTP_TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration GEMINI_MEDIA_HTTP_TIMEOUT = Duration.ofSeconds(120);
+    private static final Duration MEDIA_DOWNLOAD_HTTP_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration KAKAO_LOCAL_HTTP_TIMEOUT = Duration.ofSeconds(5);
 
     /*
@@ -39,6 +41,18 @@ public class ExtractionConfig {
     @Bean("kakaoLocalRestClient")
     public RestClient kakaoLocalRestClient(RestClient.Builder builder) {
         return builder.requestFactory(createRequestFactory(KAKAO_LOCAL_HTTP_TIMEOUT))
+                .build();
+    }
+
+    @Bean("geminiMediaRestClient")
+    public RestClient geminiMediaRestClient(RestClient.Builder builder) {
+        return builder.requestFactory(createRequestFactory(GEMINI_MEDIA_HTTP_TIMEOUT))
+                .build();
+    }
+
+    @Bean("instagramMediaRestClient")
+    public RestClient instagramMediaRestClient(RestClient.Builder builder) {
+        return builder.requestFactory(createRequestFactory(MEDIA_DOWNLOAD_HTTP_TIMEOUT))
                 .build();
     }
 
