@@ -8,6 +8,11 @@ import {
   toHistoryReel,
 } from '../src/entities/content/history-api';
 import {ApiError} from '../src/lib/api/errors';
+import {
+  MALFORMED_ACCEPTED_SHARE_BODIES,
+  PROCESSING_ERROR_FIELDS,
+  REEL_REQUEST_ERRORS,
+} from './support/reelApiFixtures';
 
 const mockRequest = jest.fn();
 
@@ -142,6 +147,14 @@ test('추출 중·실패 공유의 상세는 장소를 조회하지 않는다', 
   expect(mockRequest).not.toHaveBeenCalled();
 });
 
+test.each(REEL_REQUEST_ERRORS)('상세의 장소 요청이 %s로 끝나면 공유 API 오류 표가 정한 필드의 ReelApiError로 던진다', async (_case, error, expected) => {
+  mockRequest.mockRejectedValue(error);
+
+  const detail = getHistoryReelDetail(toHistoryReel(share(8, 'SUCCEEDED')));
+  await expect(detail).rejects.toBeInstanceOf(ReelApiError);
+  await expect(detail).rejects.toMatchObject(expected);
+});
+
 test('제보는 reports API를 호출하고 이미 신고한 공유는 성공으로 본다', async () => {
   mockRequest.mockResolvedValueOnce(undefined);
   await expect(reportHistoryReel('7')).resolves.toBeUndefined();
@@ -189,6 +202,35 @@ test('추출 재시도는 extraction-retries API를 호출하고 새 공유 ID�
     errorCode: 'MEDIA400_016',
     message: '현재 분석 버전에서는 재시도가 불가능합니다.',
   });
+});
+
+test.each(REEL_REQUEST_ERRORS)('추출 재시도 요청이 %s로 끝나면 공유 API 오류 표가 정한 필드의 ReelApiError로 던진다', async (_case, error, expected) => {
+  mockRequest.mockRejectedValue(error);
+
+  const retry = retryHistoryReelExtraction('7');
+  await expect(retry).rejects.toBeInstanceOf(ReelApiError);
+  await expect(retry).rejects.toMatchObject(expected);
+});
+
+test.each(MALFORMED_ACCEPTED_SHARE_BODIES)('추출 재시도 응답의 %s 응답 처리 오류(CLIENT000_003)로 던진다', async (_shape, body) => {
+  mockRequest.mockResolvedValue(body);
+
+  const retry = retryHistoryReelExtraction('7');
+  await expect(retry).rejects.toBeInstanceOf(ReelApiError);
+  await expect(retry).rejects.toMatchObject(PROCESSING_ERROR_FIELDS);
+});
+
+// 짝 없는 서로게이트는 encodeURIComponent가 URIError로 거절합니다. 경로를 만들다 난 오류도 요청 오류처럼 공유 API 오류로 바꿉니다.
+const UNENCODABLE_ID = '\uD800';
+
+test.each([
+  ['상세', () => getHistoryReelDetail({...toHistoryReel(share(8, 'SUCCEEDED')), id: UNENCODABLE_ID})],
+  ['추출 재시도', () => retryHistoryReelExtraction(UNENCODABLE_ID)],
+])('%s의 공유 ID로 요청 경로를 만들지 못하면 요청을 보내지 않고 처리 실패(CLIENT000_003)로 던진다', async (_name, call) => {
+  const failed = call();
+  await expect(failed).rejects.toBeInstanceOf(ReelApiError);
+  await expect(failed).rejects.toMatchObject(PROCESSING_ERROR_FIELDS);
+  expect(mockRequest).not.toHaveBeenCalled();
 });
 
 test('공유 목록 응답에 sharedMedias 배열이 없으면 빈 목록이 아니라 응답 처리 오류로 던진다', async () => {

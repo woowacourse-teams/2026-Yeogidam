@@ -63,6 +63,19 @@ export function toReelApiError(error: unknown): ReelApiError {
   });
 }
 
+/**
+ * 공유 API 요청을 실행하고, 요청이 실패하면 오류를 toReelApiError로 바꿔 던집니다.
+ * run 안에서 던진 ReelApiError도 ApiError가 아니므로 응답 처리 오류(CLIENT000_003)로 바뀝니다.
+ * 그래서 응답 모양 확인과 응답 변환은 감싸기 밖에 두어, 확인과 변환에서 난 오류가 다른 오류로 바뀌지 않게 합니다.
+ */
+export async function withReelError<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    throw toReelApiError(error);
+  }
+}
+
 export function normalizeInstagramContentUrl(url: string): string | null {
   try {
     const parsedUrl = new URL(url.trim());
@@ -88,15 +101,12 @@ export function normalizeInstagramContentUrl(url: string): string | null {
 export async function saveInstagramReel(
   instagramUrl: string,
 ): Promise<SaveInstagramReelResponse> {
-  let response: SpringShareResponse;
-  try {
-    response = await client.request<SpringShareResponse>(SHARES_PATH, {
+  const response = await withReelError(() =>
+    client.request<SpringShareResponse>(SHARES_PATH, {
       method: 'POST',
       body: {instagramUrl},
-    });
-  } catch (error) {
-    throw toReelApiError(error);
-  }
+    }),
+  );
 
   if (response?.sharedMediaId == null || !response.extractionStatus) {
     throw new ReelApiError({...PROCESSING_ERROR});
@@ -141,12 +151,8 @@ function toReelProcessingStatus(item: SpringShareHistoryItem): ReelProcessingSta
  * 상태 확인과 히스토리가 함께 씁니다. 요청과 목록 배열 확인은 shares-request의 requestSharesPage가 맡습니다(이 폴더에서 request는
  * 날 ApiError, get은 ReelApiError). 다음 커서의 모양은 확인하지 않습니다(SpringSharesPage 설명 참고).
  */
-export async function getSharesPage(cursor?: SpringSharesCursor): Promise<SpringSharesPage> {
-  try {
-    return await requestSharesPage(cursor);
-  } catch (error) {
-    throw toReelApiError(error);
-  }
+export function getSharesPage(cursor?: SpringSharesCursor): Promise<SpringSharesPage> {
+  return withReelError(() => requestSharesPage(cursor));
 }
 
 /**

@@ -1,5 +1,6 @@
 import {
   getReelProcessingStatus,
+  getSharesPage,
   saveContent,
   toReelApiError,
   toReelStatus,
@@ -7,6 +8,11 @@ import {
 import {requestSharesPage} from '../src/entities/content/shares-request';
 import {ReelApiError, normalizeReelError} from '../src/entities/content/errors';
 import {ApiError} from '../src/lib/api/errors';
+import {
+  MALFORMED_ACCEPTED_SHARE_BODIES,
+  PROCESSING_ERROR_FIELDS,
+  REEL_REQUEST_ERRORS,
+} from './support/reelApiFixtures';
 
 // api.ts와 shares-request.ts가 각자 만든 클라이언트가 같은 요청 mock을 쓰게 합니다.
 const mockRequest = jest.fn();
@@ -115,6 +121,22 @@ test('서버 오류 코드와 문구를 유지하고 401은 로그인 필요로 
     });
 });
 
+test.each(REEL_REQUEST_ERRORS)('링크 저장 요청이 %s로 끝나면 공유 API 오류 표가 정한 필드의 ReelApiError로 던진다', async (_case, error, expected) => {
+  request.mockRejectedValue(error);
+
+  const saving = saveContent('https://www.instagram.com/reel/abc/');
+  await expect(saving).rejects.toBeInstanceOf(ReelApiError);
+  await expect(saving).rejects.toMatchObject(expected);
+});
+
+test.each(MALFORMED_ACCEPTED_SHARE_BODIES)('저장 응답의 %s 응답 처리 오류(CLIENT000_003)로 던진다', async (_shape, body) => {
+  request.mockResolvedValue(body);
+
+  const saving = saveContent('https://www.instagram.com/reel/abc/');
+  await expect(saving).rejects.toBeInstanceOf(ReelApiError);
+  await expect(saving).rejects.toMatchObject(PROCESSING_ERROR_FIELDS);
+});
+
 test('상태 조회는 공유 목록에서 같은 ID를 찾아 화면 모델로 바꾼다', async () => {
   request.mockResolvedValue({
     sharedMedias: [share(13, 'EXTRACTING'), share(12, 'FAILED', 'PLACE_NOT_MATCHED')],
@@ -211,6 +233,16 @@ describe('공유 목록 한 쪽 읽기(requestSharesPage)', () => {
     request.mockRejectedValue(offline);
 
     await expect(requestSharesPage()).rejects.toBe(offline);
+  });
+});
+
+describe('공유 API 오류로 바꾸는 공유 목록 한 쪽 읽기(getSharesPage)', () => {
+  test.each(REEL_REQUEST_ERRORS)('요청이 %s로 끝나면 공유 API 오류 표가 정한 필드의 ReelApiError로 던진다', async (_case, error, expected) => {
+    request.mockRejectedValue(error);
+
+    const page = getSharesPage();
+    await expect(page).rejects.toBeInstanceOf(ReelApiError);
+    await expect(page).rejects.toMatchObject(expected);
   });
 });
 

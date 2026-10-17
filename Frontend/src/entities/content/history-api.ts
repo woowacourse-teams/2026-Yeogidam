@@ -1,7 +1,7 @@
 import {ApiError} from '../../lib/api/errors';
 import {PROCESSING_ERROR} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
-import {getSharesPage, toReelApiError, toReelStatus} from './api';
+import {getSharesPage, toReelApiError, toReelStatus, withReelError} from './api';
 import {SHARES_PATH, type SpringShareHistoryItem, type SpringSharesCursor} from './shares-request';
 import type {
   HistoryCursor,
@@ -104,14 +104,11 @@ export async function getHistoryReelDetail(
     return {...reel, extraction: null};
   }
 
-  let places: SpringShareHistoryPlacesResponse;
-  try {
-    places = await client.request<SpringShareHistoryPlacesResponse>(
+  const places = await withReelError(() =>
+    client.request<SpringShareHistoryPlacesResponse>(
       `${SHARES_PATH}/${encodeURIComponent(reel.id)}/places`,
-    );
-  } catch (error) {
-    throw toReelApiError(error);
-  }
+    ),
+  );
 
   return {
     ...reel,
@@ -121,7 +118,10 @@ export async function getHistoryReelDetail(
   };
 }
 
-/** 이미 신고한 공유(MEDIA409_001)는 성공으로 봅니다. */
+/**
+ * 이미 신고한 공유(MEDIA409_001)는 성공으로 봅니다. 성공으로 볼 오류를 거르는 분기가 있어 withReelError로 감싸면
+ * catch가 두 겹이 되므로, catch 하나에서 성공과 변환을 가립니다.
+ */
 export async function reportHistoryReel(reelId: string): Promise<void> {
   try {
     await client.request<void>(`${SHARES_PATH}/${encodeURIComponent(reelId)}/reports`, {
@@ -145,15 +145,12 @@ type SpringExtractionRetryResponse = {
 export async function retryHistoryReelExtraction(
   reelId: string,
 ): Promise<SaveInstagramReelResponse> {
-  let response: SpringExtractionRetryResponse;
-  try {
-    response = await client.request<SpringExtractionRetryResponse>(
+  const response = await withReelError(() =>
+    client.request<SpringExtractionRetryResponse>(
       `${SHARES_PATH}/${encodeURIComponent(reelId)}/extraction-retries`,
       {method: 'POST'},
-    );
-  } catch (error) {
-    throw toReelApiError(error);
-  }
+    ),
+  );
 
   if (response?.sharedMediaId == null || !response.extractionStatus) {
     throw new ReelApiError({...PROCESSING_ERROR});
