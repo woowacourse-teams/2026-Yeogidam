@@ -87,6 +87,16 @@ async function tick(ms: number) {
   });
 }
 
+// 테스트가 끝낼 때를 정하는 목록 요청이다. 앱 공용 폴러는 진행 중인 요청을 모듈 변수에 쥐고 다음 읽기에 그대로 돌려주므로,
+// 단언이 중간에 실패해 끝내지 못한 요청은 afterEach가 빈 목록으로 끝내 다음 테스트로 넘어가지 않게 한다.
+const pendingListRequests: Array<(page: Awaited<ReturnType<typeof getHistoryReels>>) => void> = [];
+
+function pendingListRequest() {
+  const request = deferred<Awaited<ReturnType<typeof getHistoryReels>>>();
+  pendingListRequests.push(request.resolve);
+  return request;
+}
+
 let alertSpy: jest.SpyInstance<void, Parameters<typeof Alert.alert>>;
 let openURLSpy: jest.SpyInstance<
   ReturnType<typeof Linking.openURL>,
@@ -102,20 +112,23 @@ beforeEach(() => {
   jest
     .mocked(getHistoryReelDetail)
     .mockReset()
-    .mockImplementation(reel => Promise.resolve({...reel, extraction: null}));
+    .mockImplementation(requestedReel => Promise.resolve({...requestedReel, extraction: null}));
   jest.mocked(retryHistoryReelExtraction).mockReset();
   jest.mocked(reportHistoryReel).mockReset();
   // 알림과 링크 열기는 모든 테스트에서 beforeEach가 한 번 가로채고, 안내와 이동을 확인하는 테스트는 alertSpy와 openURLSpy로 단언한다.
   // Alert는 호출만 기록하고 jest preset의 AlertManager mock까지 그대로 부른다. 링크 열기 결과는 링크를 누르는 테스트가 누르기 직전에 정한다.
-  // 정하기 전에는 preset처럼 undefined를 돌려주므로, 화면이 뜻하지 않은 때 링크를 열면 .catch를 부르다 실패한다. 되돌리기는 afterEach가 맡는다.
+  // 정한 호출 밖에서는 preset처럼 undefined를 돌려주므로, 화면이 뜻하지 않은 때 링크를 열면 .catch를 부르다 실패한다. 되돌리기는 afterEach가 맡는다.
   alertSpy = jest.spyOn(Alert, 'alert');
   openURLSpy = jest.spyOn(Linking, 'openURL');
 });
 
-// 단언이 중간에 실패해도 가로챈 Alert와 Linking.openURL과 가짜 타이머가 다음 테스트로 넘어가지 않게 되돌린다.
-// 그린 화면은 setupFilesAfterEnv가 먼저 내린다. Linking.openURL은 jest preset의 jest.fn()이라 spyOn이 같은 mock을 돌려주고,
-// mockRestore가 정한 구현을 지워 preset 상태(구현 없음)로 되돌린다.
-afterEach(() => {
+// 단언이 중간에 실패해도 끝내지 못한 목록 요청과 가로챈 Alert와 Linking.openURL과 가짜 타이머가 다음 테스트로 넘어가지 않게
+// 정리한다. 그린 화면은 setupFilesAfterEnv가 먼저 내리므로 남은 요청을 끝내도 화면은 바뀌지 않는다. Linking.openURL은
+// jest preset의 jest.fn()이라 spyOn이 같은 mock을 돌려주고, mockRestore가 정한 구현을 지워 preset 상태(구현 없음)로 되돌린다.
+afterEach(async () => {
+  for (const finish of pendingListRequests.splice(0)) {
+    await ReactTestRenderer.act(async () => finish({reels: [], nextCursor: null}));
+  }
   alertSpy.mockRestore();
   openURLSpy.mockRestore();
   jest.clearAllTimers();
@@ -387,12 +400,11 @@ test('재시도 접수에 성공하면 임시 카드 없이 목록으로 돌아�
 });
 
 test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카드 내용으로 새 카드를 보여 준다', async () => {
-  let finishListRequest!: (value: Awaited<ReturnType<typeof getHistoryReels>>) => void;
   jest
     .mocked(getHistoryReels)
     .mockResolvedValueOnce({reels: page([7], 'FAILED'), nextCursor: null})
     // 접수 뒤 목록 조회가 아직 끝나지 않았다.
-    .mockImplementation(() => new Promise(resolve => { finishListRequest = resolve; }));
+    .mockImplementation(() => pendingListRequest().promise);
   jest.mocked(retryHistoryReelExtraction).mockResolvedValue({
     reelId: '8',
     status: 'PROCESSING',
@@ -412,10 +424,6 @@ test('재시도가 접수되면 목록 조회를 기다리지 않고 실패 카�
     failure_reason: null,
     instagram_description: '게시물 7',
     instagram_thumbnail_url: 'https://cdn.example.com/7.jpg',
-  });
-  // 앱 공용 폴러의 진행 중 요청을 끝내 다음 테스트로 넘어가지 않게 한다.
-  await ReactTestRenderer.act(async () => {
-    finishListRequest({reels: [reel(8, 'PROCESSING'), reel(7, 'FAILED')], nextCursor: null});
   });
 });
 
@@ -551,14 +559,14 @@ test('첫 페이지를 불러오면 목록을 보이고, 맨 위 항목을 본 �
 });
 
 test('첫 페이지를 기다리는 동안 불러오는 중 문구만 보인다', async () => {
-  const firstPage = deferred<Awaited<ReturnType<typeof getHistoryReels>>>();
+  const firstPage = pendingListRequest();
   jest.mocked(getHistoryReels).mockReturnValueOnce(firstPage.promise);
   const renderer = await render();
 
   expect(hasText(renderer, '히스토리를 불러오는 중이에요.')).toBe(true);
   expect(hasText(renderer, '아직 공유된 콘텐츠가 없어요')).toBe(false);
 
-  // 앱 공용 폴러의 진행 중 요청을 끝내 다음 테스트로 넘어가지 않게 한다.
+  // 첫 페이지가 오면 불러오는 중 문구 대신 목록을 보인다.
   await ReactTestRenderer.act(async () => firstPage.resolve({reels: page([1]), nextCursor: null}));
   expect(hasText(renderer, '히스토리를 불러오는 중이에요.')).toBe(false);
   expect(renderedIds(renderer)).toEqual(['1']);
@@ -788,7 +796,7 @@ test('성공 항목을 누르면 장소 상세를 열고, 뒤로 가면 목록�
   expect(hasText(renderer, '성수 카페')).toBe(true);
   expect(hasText(renderer, '도로명 주소 1')).toBe(true);
 
-  openURLSpy.mockResolvedValue(true);
+  openURLSpy.mockResolvedValueOnce(true);
   await press(findButton(renderer, '원본 릴스로 이동'));
   expect(openURLSpy).toHaveBeenCalledWith('https://www.instagram.com/reel/2/');
 
@@ -831,8 +839,8 @@ test('제보를 확인하면 제보 API를 부르고 버튼이 제보 완료로 
   jest.mocked(reportHistoryReel).mockResolvedValue(undefined);
   const renderer = await render();
   await press(historyItem(renderer, '7'));
-  // 제보하기를 누른 뒤에 뜬 알림만 보도록 상세를 열기까지의 기록을 지운다.
-  alertSpy.mockClear();
+  // 화면을 그리고 상세를 열기까지는 알림이 없으므로, 아래 알림 단언은 모두 제보하기를 누른 뒤에 뜬 알림을 본다.
+  expect(alertSpy).not.toHaveBeenCalled();
 
   await press(findButton(renderer, '제보하기'));
   expect(alertSpy).toHaveBeenCalledWith('제보할까요?', '', expect.any(Array));
@@ -849,8 +857,8 @@ test('제보에 실패하면 버튼을 되돌리고 안내한다', async () => {
   jest.mocked(reportHistoryReel).mockRejectedValue(new Error('offline'));
   const renderer = await render();
   await press(historyItem(renderer, '7'));
-  // 제보하기를 누른 뒤에 뜬 알림만 보도록 상세를 열기까지의 기록을 지운다.
-  alertSpy.mockClear();
+  // 화면을 그리고 상세를 열기까지는 알림이 없으므로, 아래 알림 단언은 모두 제보하기를 누른 뒤에 뜬 알림을 본다.
+  expect(alertSpy).not.toHaveBeenCalled();
 
   await press(findButton(renderer, '제보하기'));
   await confirmAlert();
@@ -1001,7 +1009,7 @@ test('스크롤 없이 상세에서 돌아와 남은 복원 표시도 재시도 
 });
 
 test('이미 있는 공유로 재시도가 접수되면 임시 카드 없이 목록 조회 결과를 기다린다', async () => {
-  const list = deferred<Awaited<ReturnType<typeof getHistoryReels>>>();
+  const list = pendingListRequest();
   jest
     .mocked(getHistoryReels)
     .mockResolvedValueOnce({reels: page([7], 'FAILED'), nextCursor: null})
