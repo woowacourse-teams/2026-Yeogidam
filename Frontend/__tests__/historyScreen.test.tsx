@@ -48,8 +48,7 @@ jest.mock('../src/assets/icons/actions/report.svg', () => 'ReportIcon');
 jest.mock('../src/assets/icons/social/instagram-color.svg', () => 'InstagramIcon');
 jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
-  // 서버가 완료되지 않은 공유에 돌려주는 값처럼 장소 없는 상세를 돌려준다.
-  getHistoryReelDetail: jest.fn((reel: object) => Promise.resolve({...reel, extraction: null})),
+  getHistoryReelDetail: jest.fn(),
   reportHistoryReel: jest.fn(),
   retryHistoryReelExtraction: jest.fn(),
 }));
@@ -97,19 +96,25 @@ let openURLSpy: jest.SpyInstance<
 beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
+  // 앞 테스트가 쓰지 않고 남긴 Once 값이 넘어오지 않게, 테스트가 응답을 정하는 요청 mock은 mockClear가 아니라 mockReset으로 비운다.
   jest.mocked(getHistoryReels).mockReset();
-  jest.mocked(getHistoryReelDetail).mockClear();
+  // 서버가 완료되지 않은 공유에 돌려주는 값처럼 장소 없는 상세를 돌려준다.
+  jest
+    .mocked(getHistoryReelDetail)
+    .mockReset()
+    .mockImplementation(reel => Promise.resolve({...reel, extraction: null}));
   jest.mocked(retryHistoryReelExtraction).mockReset();
   jest.mocked(reportHistoryReel).mockReset();
-  // 알림과 링크 열기는 모든 테스트에서 beforeEach가 한 번 가로채고, 안내와 이동을 확인하는 테스트는 alertSpy와 openURLSpy로 단언합니다.
-  // Alert는 호출만 기록하고 jest preset의 AlertManager mock까지 그대로 부릅니다. 되돌리기는 afterEach가 맡습니다.
+  // 알림과 링크 열기는 모든 테스트에서 beforeEach가 한 번 가로채고, 안내와 이동을 확인하는 테스트는 alertSpy와 openURLSpy로 단언한다.
+  // Alert는 호출만 기록하고 jest preset의 AlertManager mock까지 그대로 부른다. 링크 열기 결과는 링크를 누르는 테스트가 누르기 직전에 정한다.
+  // 정하기 전에는 preset처럼 undefined를 돌려주므로, 화면이 뜻하지 않은 때 링크를 열면 .catch를 부르다 실패한다. 되돌리기는 afterEach가 맡는다.
   alertSpy = jest.spyOn(Alert, 'alert');
-  openURLSpy = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  openURLSpy = jest.spyOn(Linking, 'openURL');
 });
 
-// 단언이 중간에 실패해도 가로챈 Alert와 Linking.openURL과 가짜 타이머가 다음 테스트로 넘어가지 않게 되돌립니다.
-// 그린 화면은 setupFilesAfterEnv가 먼저 내립니다. Linking.openURL은 jest preset의 jest.fn()이라 spyOn이 같은 mock을 돌려주고,
-// mockRestore가 정한 구현을 지워 preset 상태(구현 없음)로 되돌립니다.
+// 단언이 중간에 실패해도 가로챈 Alert와 Linking.openURL과 가짜 타이머가 다음 테스트로 넘어가지 않게 되돌린다.
+// 그린 화면은 setupFilesAfterEnv가 먼저 내린다. Linking.openURL은 jest preset의 jest.fn()이라 spyOn이 같은 mock을 돌려주고,
+// mockRestore가 정한 구현을 지워 preset 상태(구현 없음)로 되돌린다.
 afterEach(() => {
   alertSpy.mockRestore();
   openURLSpy.mockRestore();
@@ -332,13 +337,13 @@ test('이전 기록 불러오기가 실패한 뒤 폴링이 커서를 비워도 
   expect(hasText(renderer, '이전 기록을 불러오지 못했어요.')).toBe(false);
 });
 
-// 실패 항목 7의 상세를 열고 다시 시도 확인 창에서 확인을 누릅니다. 확인 창 뒤에 뜬 안내만 alertSpy에 남깁니다.
+// 실패 항목 7의 상세를 열고 다시 시도 확인 창에서 확인을 누른다. 확인 창 뒤에 뜬 안내만 alertSpy에 남긴다.
 async function openFailureAndRetry(renderer: ReactTestRenderer.ReactTestRenderer) {
   const failed = renderer.root.find(
     node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
   );
   await ReactTestRenderer.act(async () => failed.props.onPress());
-  // 다시 시도하기를 누른 뒤 처음 뜬 알림을 확인 창으로 읽도록 상세를 열기까지의 기록을 지웁니다.
+  // 다시 시도하기를 누른 뒤 처음 뜬 알림을 확인 창으로 읽도록 상세를 열기까지의 기록을 지운다.
   alertSpy.mockClear();
   const retryButton = renderer.root.find(
     node =>
@@ -783,6 +788,7 @@ test('성공 항목을 누르면 장소 상세를 열고, 뒤로 가면 목록�
   expect(hasText(renderer, '성수 카페')).toBe(true);
   expect(hasText(renderer, '도로명 주소 1')).toBe(true);
 
+  openURLSpy.mockResolvedValue(true);
   await press(findButton(renderer, '원본 릴스로 이동'));
   expect(openURLSpy).toHaveBeenCalledWith('https://www.instagram.com/reel/2/');
 
@@ -825,6 +831,8 @@ test('제보를 확인하면 제보 API를 부르고 버튼이 제보 완료로 
   jest.mocked(reportHistoryReel).mockResolvedValue(undefined);
   const renderer = await render();
   await press(historyItem(renderer, '7'));
+  // 제보하기를 누른 뒤에 뜬 알림만 보도록 상세를 열기까지의 기록을 지운다.
+  alertSpy.mockClear();
 
   await press(findButton(renderer, '제보하기'));
   expect(alertSpy).toHaveBeenCalledWith('제보할까요?', '', expect.any(Array));
@@ -841,6 +849,8 @@ test('제보에 실패하면 버튼을 되돌리고 안내한다', async () => {
   jest.mocked(reportHistoryReel).mockRejectedValue(new Error('offline'));
   const renderer = await render();
   await press(historyItem(renderer, '7'));
+  // 제보하기를 누른 뒤에 뜬 알림만 보도록 상세를 열기까지의 기록을 지운다.
+  alertSpy.mockClear();
 
   await press(findButton(renderer, '제보하기'));
   await confirmAlert();
