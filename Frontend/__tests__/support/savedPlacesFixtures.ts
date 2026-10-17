@@ -41,6 +41,13 @@ export const AUTH_ERROR: SavedPlacesApiError = {
   message: '로그인이 필요해요.',
   retryable: false,
 };
+/** 토큰을 읽지 못하면 로그인 필요 오류가 상태 없이 옵니다(SCREEN_ERROR_TABLE의 auth 행). */
+export const AUTH_ERROR_WITHOUT_STATUS: SavedPlacesApiError = {
+  status: null,
+  errorCode: 'AUTH401_001',
+  message: '로그인 정보를 확인하지 못했어요.',
+  retryable: false,
+};
 export const TIMEOUT_ERROR: SavedPlacesApiError = {
   status: null,
   errorCode: 'CLIENT000_002',
