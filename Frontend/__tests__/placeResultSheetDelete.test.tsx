@@ -90,7 +90,7 @@ async function renderSheet(props: Partial<SheetProps> = {}) {
   async function rerender(nextProps: Partial<SheetProps>) {
     currentProps = {...currentProps, ...nextProps};
     await act(async () => renderer.update(<PlaceResultSheet {...currentProps} />));
-    await flushMicrotasks();
+    await settleAsyncWork();
   }
 
   return {renderer, events, onAuthenticationRequired, rerender, visibleHeight: () => lastVisibleHeight};
@@ -349,7 +349,7 @@ test('지우는 동안 목록으로 갔다가 지우던 장소를 다시 열면 
   expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]]]);
 
   await act(async () => request.resolve());
-  await flushMicrotasks();
+  await settleAsyncWork();
   expect(sheet.events).toEqual([
     {detailShown: false, placeId: null},
     {detailShown: true, placeId: CAFE.place.id},
@@ -425,7 +425,7 @@ test('지우는 동안 삭제 시트를 닫고 목록에서 다른 장소를 열
   await openShownPlaceDeleteSheet(sheet.renderer);
 
   await act(async () => request.resolve());
-  await flushMicrotasks();
+  await settleAsyncWork();
   expect(sheet.events).toEqual([
     {detailShown: false, placeId: null},
     {detailShown: true, placeId: CAFE.place.id},
@@ -452,11 +452,11 @@ test('지우는 동안 다른 장소를 열면 그 장소의 삭제 버튼은 �
   expect(jest.mocked(deleteSavedPlaces).mock.calls).toEqual([[[CAFE.id]], [[BAKERY.id]]]);
 
   await act(async () => cafeRequest.resolve());
-  await flushMicrotasks();
+  await settleAsyncWork();
   expect(deleteSheetState(sheet.renderer)).toEqual({visible: true, isDeleting: true, deleteError: null});
 
   await act(async () => bakeryRequest.resolve());
-  await flushMicrotasks();
+  await settleAsyncWork();
   expect(sheet.events).toEqual([
     {detailShown: false, placeId: null},
     {detailShown: true, placeId: CAFE.place.id},
@@ -484,7 +484,7 @@ test.each([
     await openShownPlaceDeleteSheet(sheet.renderer);
 
     await act(async () => request.reject(error));
-    await flushMicrotasks();
+    await settleAsyncWork();
     expect(deleteSheetState(sheet.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
     expect(sheet.onAuthenticationRequired.mock.calls).toEqual(expectedLoginRequests);
     expect(sheet.events).toEqual([
@@ -505,7 +505,7 @@ test('지우는 동안 삭제 시트를 닫고 목록으로 돌아간 뒤 지우
   await pressLabel(sheet.renderer, DELETE_LABEL);
   await closeDeleteSheetAndGoBackToList(sheet);
   await act(async () => request.resolve());
-  await flushMicrotasks();
+  await settleAsyncWork();
 
   await pressLabel(sheet.renderer, EXPAND_LABEL);
   expect(sheet.events).toEqual([
