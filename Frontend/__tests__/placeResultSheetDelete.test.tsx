@@ -46,7 +46,7 @@ const act = ReactTestRenderer.act;
 const DELETE_LABEL = '장소 삭제하기';
 const EXPAND_LABEL = '검색 결과 펼치기';
 /** 높이 700인 시트가 높이마다 지도 화면에 알리는 보이는 높이입니다. 중간은 높이의 58%이고, 접힘은 손잡이 44와 접힌 내용 91을 더한 값입니다. */
-const VISIBLE_HEIGHT = {middle: 406, collapsed: 135};
+const VISIBLE_HEIGHT = {expanded: 700, middle: 406, collapsed: 135};
 
 /**
  * 시트가 지도 화면에 알린 일을 차례로 적습니다. 지운 장소를 알릴 때는 그때 캐시에 남은 이름도 적어, 캐시에서 뺀 뒤에 알렸는지 봅니다.
@@ -117,10 +117,15 @@ async function openDeleteSheetFromExpandedDetail(sheet: Sheet, placeName: string
   await sheet.rerender({detailMoreSignal: 1});
 }
 
-/** 삭제 시트를 닫고 지도 화면의 뒤로 가기로 목록에 돌아가 다른 장소를 엽니다. 닫기와 뒤로 가기는 지우는 동안에도 막지 않습니다. */
-async function closeDeleteSheetAndOpenPlace(sheet: Sheet, placeName: string) {
+/** 삭제 시트를 닫고 지도 화면의 뒤로 가기로 목록에 돌아갑니다. 닫기와 뒤로 가기는 지우는 동안에도 막지 않습니다. */
+async function closeDeleteSheetAndGoBackToList(sheet: Sheet) {
   await act(async () => sheet.renderer.root.findByType(PlaceDetailActionSheet).props.onClose());
   await sheet.rerender({backToPlaceListSignal: 1});
+}
+
+/** 삭제 시트를 닫고 목록에 돌아가 다른 장소를 엽니다. */
+async function closeDeleteSheetAndOpenPlace(sheet: Sheet, placeName: string) {
+  await closeDeleteSheetAndGoBackToList(sheet);
   await pressLabel(sheet.renderer, `${placeName} 상세 보기`);
 }
 
@@ -491,3 +496,25 @@ test.each([
     expect(shownView(sheet.renderer)).toBe('상세');
   },
 );
+
+test('지우는 동안 삭제 시트를 닫고 목록으로 돌아간 뒤 지우기가 끝나면, 목록 높이를 건드리지 않아 그 뒤에 펼친 목록이 다시 접히지 않는다', async () => {
+  const request = deferred<void>();
+  jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+  const sheet = await renderSheet();
+  await openDeleteSheet(sheet.renderer, '카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  await closeDeleteSheetAndGoBackToList(sheet);
+  await act(async () => request.resolve());
+  await flushMicrotasks();
+
+  await pressLabel(sheet.renderer, EXPAND_LABEL);
+  expect(sheet.events).toEqual([
+    {detailShown: false, placeId: null},
+    {detailShown: true, placeId: CAFE.place.id},
+    {detailShown: false, placeId: null},
+    {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
+    {expanded: true},
+  ]);
+  expect(shownView(sheet.renderer)).toBe('목록');
+  expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.expanded);
+});
