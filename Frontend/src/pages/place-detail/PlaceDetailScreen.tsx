@@ -51,15 +51,17 @@ export function PlaceDetailScreen({
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
   const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
-  // 지우는 중인 저장 장소 ID입니다. 지우는 동안 다른 장소를 받으면 받은 장소의 삭제 버튼은 막지 않도록 장소마다 둡니다.
+  // 지우는 중인 저장 장소 ID입니다. 지우는 동안 같은 화면이 다른 장소를 받으면 받은 장소의 삭제 버튼은 막지 않도록 장소마다 둡니다.
+  // 지금 App은 상세를 닫은 뒤에만 다른 장소를 열어 새 화면으로 그리므로, 장소마다 두는 상태와 아래 placeRef는 화면이 App의 그리기 방식에 기대지 않게 하는 대비입니다.
   const [deletingSavedPlaceIds, setDeletingSavedPlaceIds] = useState<string[]>([]);
   const isPlaceDeleting =
     place.savedPlaceId !== undefined && deletingSavedPlaceIds.includes(place.savedPlaceId);
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
-  // 지우는 동안 삭제 시트를 닫고 다른 장소로 옮길 수 있으므로, 지우기가 끝났을 때 그때 보이는 장소를 읽도록 그릴 때마다 담아 둡니다.
+  // 지우는 동안 같은 화면이 다른 장소를 받을 수 있으므로, 지우기가 끝났을 때 그때 보이는 장소를 읽도록 그릴 때마다 담아 둡니다.
   const placeRef = useRef(place);
   placeRef.current = place;
-  // onBack(App의 closeDetail)은 그때 보이는 상세를 닫으므로, 지우는 동안 화면이 내려갔으면 끝난 지우기가 onBack을 부르지 않도록 내려갔는지 적어 둡니다.
+  // onBack(App의 closeDetail)은 그때 보이는 상세를 닫으므로, 지우는 동안 뒤로 가서 화면이 내려갔으면 끝난 지우기가 onBack을 부르지 않도록 내려갔는지 적어 둡니다.
+  // 내려간 화면은 지금 보이는 상세를 알 수 없어, 지우던 장소를 새 화면으로 다시 열었어도 닫지 않습니다. 닫으려면 App이 보이는 상세와 지운 저장 ID를 비교해야 합니다.
   // StrictMode와 Fast Refresh가 effect를 다시 돌려도 false로 굳지 않게 setup에서 true로 되돌립니다.
   const isMountedRef = useRef(true);
   useEffect(() => {

@@ -22,6 +22,7 @@ import {
   CACHED_CAFE,
   CACHED_PLACES,
   CAFE,
+  GUEST_PLACES,
   SERVER_ERROR,
   TIMEOUT_ERROR,
 } from './support/savedPlacesFixtures';
@@ -120,12 +121,12 @@ async function renderCafeAndStartDeleting() {
   return detail;
 }
 
-// App은 상세 화면을 하나만 그리므로, 지우는 동안 다른 장소를 열면 같은 상세 화면이 다른 장소를 받거나 상세 화면이 내려간 뒤 새로 올라옵니다.
-// 아래 두 도우미가 두 경우를 흉내 내고, 옮긴 뒤 보이는 상세 화면을 돌려줍니다.
+// 지우는 동안 다른 장소를 여는 두 길을 흉내 내는 도우미입니다. 두 도우미는 옮긴 뒤 보이는 상세 화면을 돌려줍니다.
+// 지금 App은 상세를 닫아 목록으로 돌아간 뒤에만 다른 장소를 열므로, 상세 화면이 내려간 뒤 새로 올라오는 길만 일어납니다.
 type Detail = Awaited<ReturnType<typeof renderDetail>>;
 type MoveToOtherPlace = (detail: Detail, place: Place) => Promise<Detail>;
 
-/** 같은 상세 화면이 다른 장소를 받습니다. */
+/** 같은 상세 화면이 다른 장소를 받습니다. 지금 App에서는 일어나지 않지만, 화면이 App의 그리기 방식에 기대지 않도록 함께 고정합니다. */
 const showInSameScreen: MoveToOtherPlace = async (detail, place) => {
   await detail.showPlace(place);
   return detail;
@@ -169,6 +170,8 @@ test('삭제 응답이 늦어 실패해도 다시 읽은 목록에 없으면 지
   expect(onBack).toHaveBeenCalledTimes(1);
 });
 
+// App의 로그인 요청은 회원이면 로그인 화면으로 옮겨 상세를 내리므로, 사용자는 로그인 필요 오류를 삭제 시트에서 보지 못합니다.
+// 여기서는 화면이 삭제 시트에 오류를 넣고 로그인을 요청하는지만 봅니다.
 test.each([
   ['서버 오류로', '요청하지 않는다', SERVER_ERROR, []],
   ['로그인이 필요하다는 서버 응답으로', '요청한다', AUTH_ERROR, [[]]],
@@ -186,6 +189,22 @@ test.each([
     expect(onAuthenticationRequired.mock.calls).toEqual(expectedLoginRequests);
   },
 );
+
+test('비회원 체험 장소는 API 대신 비회원 삭제 콜백으로 지우고, 삭제 시트를 닫고 돌아간다', async () => {
+  const onBack = jest.fn();
+  const onDeleteGuestPlaces = jest.fn();
+  const [guestCafe] = GUEST_PLACES;
+  const renderer = await renderTracked(
+    <PlaceDetailScreen onBack={onBack} place={guestCafe} guestReels={[]} onDeleteGuestPlaces={onDeleteGuestPlaces} />,
+  );
+  await openDeleteSheet(renderer);
+  await deleteFromSheet(renderer);
+
+  expect(onDeleteGuestPlaces.mock.calls).toEqual([[['guest-1']]]);
+  expect(deleteSavedPlaces).not.toHaveBeenCalled();
+  expect(onBack).toHaveBeenCalledTimes(1);
+  expect(deleteSheetState(renderer)).toEqual({visible: false, isDeleting: false, deleteError: null});
+});
 
 test('지우는 동안에는 삭제 버튼을 막고 다시 눌러도 확인 창을 띄우지 않아 지우기를 한 번만 보내며, 끝나면 삭제 시트를 닫고 돌아간다', async () => {
   const request = deferred<void>();
@@ -322,4 +341,20 @@ test('지우는 동안 같은 상세 화면에서 다른 장소를 열면 새로
   expect(cachedPlaceNames()).toEqual([]);
   expect(detail.onBack).toHaveBeenCalledTimes(1);
   expect(deleteSheetState(detail.renderer)).toEqual({visible: false, isDeleting: false, deleteError: null});
+});
+
+// 알려진 한계입니다. 내려간 화면은 지금 보이는 상세를 알 수 없어 다시 연 같은 장소의 상세도 닫지 않고, 새 화면은 앞 화면이 지우는 중인지 몰라 삭제 버튼을 막지 않습니다.
+// 상세를 닫으려면 App이 보이는 상세와 지운 저장 ID를 비교해야 하고, 버튼을 막으려면 화면끼리 지우는 중인 장소를 나눠 봐야 합니다.
+test('지우는 동안 상세 화면이 내려간 뒤 지우던 장소를 새 상세 화면에서 다시 열면, 늦게 끝난 지우기는 캐시에서 빼기만 하고 돌아가지 않으며 새 화면의 삭제 버튼도 막지 않는다', async () => {
+  const request = deferred<void>();
+  jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+  const cafe = await showInNewScreen(await renderCafeAndStartDeleting(), CACHED_CAFE);
+  await openDeleteSheet(cafe.renderer);
+  expect(deleteSheetState(cafe.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
+
+  await act(async () => request.resolve());
+  await settleAsyncWork();
+  expect(cachedPlaceNames()).toEqual(['빵집']);
+  expect(cafe.onBack).not.toHaveBeenCalled();
+  expect(deleteSheetState(cafe.renderer)).toEqual({visible: true, isDeleting: false, deleteError: null});
 });
