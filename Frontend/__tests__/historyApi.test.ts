@@ -220,6 +220,19 @@ test.each(MALFORMED_ACCEPTED_SHARE_BODIES)('추출 재시도 응답의 %s 응답
   await expect(retry).rejects.toMatchObject(PROCESSING_ERROR_FIELDS);
 });
 
+// 짝 없는 서로게이트는 encodeURIComponent가 URIError로 거절합니다. 경로를 만들다 난 오류도 요청 오류처럼 공유 API 오류로 바꿉니다.
+const UNENCODABLE_ID = '\uD800';
+
+test.each([
+  ['상세', () => getHistoryReelDetail({...toHistoryReel(share(8, 'SUCCEEDED')), id: UNENCODABLE_ID})],
+  ['추출 재시도', () => retryHistoryReelExtraction(UNENCODABLE_ID)],
+])('%s의 공유 ID로 요청 경로를 만들지 못하면 요청을 보내지 않고 처리 실패(CLIENT000_003)로 던진다', async (_name, call) => {
+  const failed = call();
+  await expect(failed).rejects.toBeInstanceOf(ReelApiError);
+  await expect(failed).rejects.toMatchObject(PROCESSING_ERROR_FIELDS);
+  expect(mockRequest).not.toHaveBeenCalled();
+});
+
 test('공유 목록 응답에 sharedMedias 배열이 없으면 빈 목록이 아니라 응답 처리 오류로 던진다', async () => {
   mockRequest.mockResolvedValue({nextCursor: null});
 
