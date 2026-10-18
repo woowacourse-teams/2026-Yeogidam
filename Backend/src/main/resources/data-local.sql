@@ -5,6 +5,8 @@
 -- 시각 리터럴은 UTC 기준이다. 애플리케이션은 connectionTimeZone=UTC와 forceConnectionTimeZoneToSession=true로 연결된다.
 -- 화면에 KST 기준 시각을 보여주려면, sql에 값 작성 시 KST 시간에서 9시간을 빼서 작성한다. (예: 12:00 KST -> 03:00 UTC)
 -- CLI에서 직접 INSERT할 때도 먼저 SET SESSION time_zone = '+00:00'을 실행한다.
+-- 시드 게시물(SEEDED)은 Spring 분석을 거치지 않아 분석 버전을 0으로 두고, 그 게시물의 공유도 게시물 값을 복사해 0이다.
+-- 작성자는 Spring 분석 결과처럼 @ 없이 넣는다(data-onboarding.sql, 운영 data migration과 같은 규칙).
 
 -- 시나리오
 --   정콩(1): 릴스 5개를 6회 공유. 같은 릴스를 다시 공유한 이력과 추출 실패·진행 중 상태가 있다.
@@ -46,21 +48,21 @@ VALUES (1, '26338954', '카페 온월', '음식점 > 카페', '서울 성동구 
 INSERT INTO media (id, media_shortcode, caption, thumbnail_key, author, extraction_status,
                    failure_reason, extraction_version, created_at, source_type)
 VALUES (10, 'C1seongsu', '성수 카페 투어 🧁 온월 → 블루보틀 성수 카페 → 베이커리 #성수카페 #성수데이트',
-        'yeogidam/instagram-thumbnails/C1seongsu.jpg', '@seongsu_life', 'SUCCEEDED', NULL, 1,
+        'yeogidam/instagram-thumbnails/C1seongsu.jpg', 'seongsu_life', 'SUCCEEDED', NULL, 0,
         '2026-09-10 09:00:00', 'SEEDED'),
        (11, 'C2gyeongbok', '경복궁 야간개장 다녀왔어요 🌙 #경복궁 #서울야경',
-        'yeogidam/instagram-thumbnails/C2gyeongbok.jpg', '@seoul_walk', 'SUCCEEDED', NULL, 1,
+        'yeogidam/instagram-thumbnails/C2gyeongbok.jpg', 'seoul_walk', 'SUCCEEDED', NULL, 0,
         '2026-09-11 09:00:00', 'SEEDED'),
        (12, 'C3euljiro', '을지로 노가리골목에서 시원하게 🍺 #을지로 #힙지로',
-        'yeogidam/instagram-thumbnails/C3euljiro.jpg', '@night_seoul', 'SUCCEEDED', NULL, 1,
+        'yeogidam/instagram-thumbnails/C3euljiro.jpg', 'night_seoul', 'SUCCEEDED', NULL, 0,
         '2026-09-12 09:00:00', 'SEEDED'),
        (13, 'C4private', NULL, NULL, NULL, 'FAILED', 'CONTENT_UNAVAILABLE', 1,
         '2026-09-13 09:00:00', 'EXTRACTED'),
        (14, 'C5mangwon', '망원한강공원 피크닉 🧺 광장시장 들렀다가 #망원 #한강',
-        'yeogidam/instagram-thumbnails/C5mangwon.jpg', '@picnic_daily', 'SUCCEEDED', NULL, 1,
+        'yeogidam/instagram-thumbnails/C5mangwon.jpg', 'picnic_daily', 'SUCCEEDED', NULL, 0,
         '2026-09-14 09:00:00', 'SEEDED'),
        (15, 'C6bukchon', '북촌 한옥마을 골목 산책 🏘️ #북촌 #한옥',
-        'yeogidam/instagram-thumbnails/C6bukchon.jpg', '@hanok_lover', 'SUCCEEDED', NULL, 1,
+        'yeogidam/instagram-thumbnails/C6bukchon.jpg', 'hanok_lover', 'SUCCEEDED', NULL, 0,
         '2026-09-15 09:00:00', 'SEEDED'),
        (16, 'C7extracting', NULL, NULL, NULL, 'EXTRACTING', NULL, 1,
         '2026-09-16 09:00:00', 'EXTRACTED');
@@ -77,15 +79,15 @@ VALUES (1, 10, 1), (2, 10, 2), (3, 10, 4),
 INSERT INTO shared_media (
     id, member_id, media_id, shared_url, created_at, extraction_status, failure_reason, extraction_version
 )
-VALUES (100, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-10 10:00:00', 'SUCCEEDED', NULL, 1),
-       (101, 1, 11, 'https://www.instagram.com/reel/C2gyeongbok/', '2026-09-11 10:00:00', 'SUCCEEDED', NULL, 1),
-       (102, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-12 10:00:00', 'SUCCEEDED', NULL, 1),
-       (103, 1, 12, 'https://www.instagram.com/reel/C3euljiro/', '2026-09-13 10:00:00', 'SUCCEEDED', NULL, 1),
+VALUES (100, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-10 10:00:00', 'SUCCEEDED', NULL, 0),
+       (101, 1, 11, 'https://www.instagram.com/reel/C2gyeongbok/', '2026-09-11 10:00:00', 'SUCCEEDED', NULL, 0),
+       (102, 1, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-12 10:00:00', 'SUCCEEDED', NULL, 0),
+       (103, 1, 12, 'https://www.instagram.com/reel/C3euljiro/', '2026-09-13 10:00:00', 'SUCCEEDED', NULL, 0),
        (104, 1, 13, 'https://www.instagram.com/reel/C4private/', '2026-09-14 10:00:00', 'FAILED', 'CONTENT_UNAVAILABLE', 1),
        (105, 1, 16, 'https://www.instagram.com/reel/C7extracting/', '2026-09-16 10:00:00', 'EXTRACTING', NULL, 1),
-       (200, 2, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-11 11:00:00', 'SUCCEEDED', NULL, 1),
-       (201, 2, 14, 'https://www.instagram.com/reel/C5mangwon/', '2026-09-14 11:00:00', 'SUCCEEDED', NULL, 1),
-       (202, 2, 15, 'https://www.instagram.com/reel/C6bukchon/', '2026-09-15 11:00:00', 'SUCCEEDED', NULL, 1);
+       (200, 2, 10, 'https://www.instagram.com/reel/C1seongsu/', '2026-09-11 11:00:00', 'SUCCEEDED', NULL, 0),
+       (201, 2, 14, 'https://www.instagram.com/reel/C5mangwon/', '2026-09-14 11:00:00', 'SUCCEEDED', NULL, 0),
+       (202, 2, 15, 'https://www.instagram.com/reel/C6bukchon/', '2026-09-15 11:00:00', 'SUCCEEDED', NULL, 0);
 
 -- 회원별 보관함
 INSERT INTO saved_places (id, member_id, place_id, last_saved_at)
