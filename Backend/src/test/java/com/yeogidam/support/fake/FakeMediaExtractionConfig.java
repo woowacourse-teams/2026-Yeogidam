@@ -6,6 +6,7 @@ import com.yeogidam.media.instagram.infrastructure.InstagramMediaHtmlReader;
 import com.yeogidam.media.instagram.infrastructure.InstagramThumbnailStore;
 import com.yeogidam.place.infrastructure.KakaoPlaceMetaReader;
 import java.net.http.HttpClient;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -18,7 +19,7 @@ public class FakeMediaExtractionConfig {
 
     @Bean
     @Primary
-    public InstagramMediaHtmlReader fakeInstagramMediaHtmlReader() {
+    public FakeInstagramMediaHtmlReader fakeInstagramMediaHtmlReader() {
         return new FakeInstagramMediaHtmlReader();
     }
 
@@ -58,16 +59,22 @@ public class FakeMediaExtractionConfig {
         }
     }
 
-    private static class FakeInstagramMediaHtmlReader extends InstagramMediaHtmlReader {
+    public static class FakeInstagramMediaHtmlReader extends InstagramMediaHtmlReader {
+
+        private final AtomicReference<String> author = new AtomicReference<>("yeogidam");
 
         private FakeInstagramMediaHtmlReader() {
             super(RestClient.create());
         }
 
+        public void respondWithAuthor(String value) {
+            author.set(value);
+        }
+
         @Override
         public MediaMetadataWithUrl read(InstagramUrl instagramUrl) {
             return new MediaMetadataWithUrl("올드빅과 Dub.+에 다녀왔어요",
-                    "https://instagram.example.com/thumbnail.jpg", "yeogidam");
+                    "https://instagram.example.com/thumbnail.jpg", author.get());
         }
     }
 }

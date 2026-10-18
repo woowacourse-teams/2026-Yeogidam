@@ -68,6 +68,8 @@ media:
     gemini:
       api-key: ${GEMINI_API_KEY}
       model: ${GEMINI_MODEL}
+      # 앞 key가 한도(429)나 결제, 인증 문제로 막혔을 때 차례로 부르는 key. 쉼표로 여러 개를 적을 수 있고 비워 두면 폴백하지 않는다.
+      fallback-api-keys: ${GEMINI_API_KEY_FALLBACKS:}
     kakao:
       api-key: ${KAKAO_CLIENT_ID}
 

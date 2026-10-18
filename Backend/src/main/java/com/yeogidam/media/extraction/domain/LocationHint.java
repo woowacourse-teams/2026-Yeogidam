@@ -22,7 +22,9 @@ public record LocationHint(
 
     public enum Basis {
         CAPTION,
-        INFERRED
+        INFERRED,
+        VIDEO,
+        IMAGE
 
     }
 }
