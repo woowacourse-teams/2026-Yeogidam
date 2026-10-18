@@ -38,8 +38,7 @@ C001~C004는 첫 실행의 정상 결과를 보존하고, 일일 한도 소진 �
 자동 채점표는 수집 실패를 분모에서 제외하지만 비교 보고서는 고정 분모 46곳을 유지한다. 위 세 결과는 수집 실패가 없어 수치가 같다.
 미확정 10건과 원본 미확보 2건은 위 비율에서 제외한다. 정답 목록 밖 예측을 일괄 오탐으로 판정하지 않는다.
 고정된 추출 단서의 검색 실험 44/46은 이번 실제 Gemini 분석 결과와 구분한다.
-[전체 채점표](results/summary.md), [기준 및 변경 전 비교 결과](results/comparison-d0bf8d6.json),
-[원시 결과](results/both.json), [원문 우선 결정](../docs/adr-03-original-name-first-search.md)에 근거를 남겼다.
+[전체 채점표](results/summary.md)와 [원시 결과](results/both.json)에 근거를 남겼다.
 
 ## 어떻게
 
