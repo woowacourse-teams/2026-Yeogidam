@@ -339,8 +339,7 @@ if [[ ! "$EXPECTED_SPRING_PROFILE" =~ ^[a-z][a-z0-9-]*$ ]]; then
   fail "EXPECTED_SPRING_PROFILE은 소문자로 시작하는 프로필 이름이어야 합니다."
 fi
 
-# 프로필을 빠뜨리면 profiles.default인 local로 기동하고, application-local.yml의
-# sql.init.mode=always가 DROP TABLE로 시작하는 schema.sql을 실행해 테이블이 지워진다.
+# 프로필을 빠뜨리면 profiles.default인 local로 기동해 로컬 전용 DB 초기화와 샘플 삽입 설정이 선택된다.
 # --env-file은 같은 키가 여러 번 나오면 마지막 줄을 쓰므로 마지막 줄만 대조한다.
 # 실제 값은 로그에 내지 않고 기대하는 형식만 알린다.
 ACTIVE_PROFILE_LINE="$(grep -E '^SPRING_PROFILES_ACTIVE=' "$BACKEND_ENV_FILE" | tail -n 1 || true)"

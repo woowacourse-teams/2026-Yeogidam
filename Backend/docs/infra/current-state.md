@@ -2,7 +2,7 @@
 
 지금 실제로 돌아가는 것과 ADR이 정했는데 아직 못 한 것을 적는다. **ADR은 결정 기록이라 함부로 고치지 않지만 현재 상태 문서는 바뀔 때마다 고친다.** 인프라를 건드리는 PR은 현재 상태 문서도 같이 고친다.
 
-마지막 갱신 2026-10-02.
+마지막 갱신 2026-10-20. Flyway 관련 내용은 로컬 코드 변경을 반영한 것이며, 이번 작업에서 개발 서버와 운영 DB에 접속하거나 마이그레이션을 적용하지 않았다.
 
 ## 배포 경로
 
@@ -74,7 +74,7 @@ GitHub 저장소 설정에 다음이 있어야 배포가 돈다.
 | 배포 이력을 서버 외부에 기록 | 안 됨. `GITHUB_STEP_SUMMARY`까지다 |
 | 동일 Git SHA 태그 재push 차단 | 부분. `Check Existing SHA Image`가 있으면 재사용하고 덮어쓰지는 않는다 |
 | 레지스트리 보존 정책 | 안 됨 |
-| DB 마이그레이션 호환성 정책 | 안 됨. 스키마는 개발과 운영에 손으로 적용한다. 운영 첫 스키마는 2026-10-02에 `schema.sql`을 RDS에 그대로 넣었고, 파일이 DROP TABLE로 시작하므로 운영에 다시 돌리면 안 된다 |
+| DB 마이그레이션 호환성 정책 | 부분. 로컬 코드에 Flyway V1 도입을 반영했다. 기존 DB는 최초 서버 시작 시 baseline 1을 자동 등록하고 이후 미적용 버전만 실행하도록 한다. 서버 적용과 변경 버전 간 호환성 정책은 남아 있다([Flyway 적용 구조](../flyway.md)) |
 
 #### Build Once, Promote를 지키는 방법
 
@@ -236,7 +236,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고 같은 날 
 4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔고(2026-09-29) verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
 5. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
 6. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 GitHub 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
-7. **DB 마이그레이션 도구가 없다.** 개발 DB(2026-09-29, `yeogidam-dev-db`의 Docker MySQL)와 운영 DB(2026-10-02, RDS `yeogidam-prod-db`)가 다 있고 스키마는 양쪽 다 `schema.sql`을 손으로 넣었다. 다음 스키마 변경부터는 바뀐 문장만 골라 두 DB에 손으로 적용해야 하고 `schema.sql`은 DROP TABLE로 시작해 운영에 다시 돌릴 수 없다. 컷오버 전에 Flyway를 넣는다.
+7. **Flyway 서버 적용이 남았다.** 개발 DB(2026-09-29, `yeogidam-dev-db`의 Docker MySQL)와 운영 DB(2026-10-02, RDS `yeogidam-prod-db`)의 기존 테이블 구조를 V1과 비교한 뒤 최초 서버 시작 시 baseline 1을 자동 등록한다. 로컬 코드에서는 `schema.sql`을 삭제하고 `db/migration`의 버전 파일로 구조를 관리하도록 바꿨다. 이후 구조 변경은 새 버전 SQL로 작성한다. 운영 앱 계정의 기존 권한 기록은 업무 데이터 조회와 변경만 허용하므로, 서버 적용 전에 Flyway 이력 테이블 생성과 마이그레이션 실행에 필요한 권한도 확인한다. [Flyway 적용 구조](../flyway.md)을 따른다.
 8. **운영 디스크가 빠듯하다.** 2026-09-29에 러너 옛 버전 448MB를 지워 여유가 2.3G에서 2.7G로 늘었다. 그래도 8GB 중 2GB를 `/swapfile`이 가져가 실제로 쓸 수 있는 것은 6GB다. `current`와 `previous`와 `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. journal은 상한이 없어 운영 256MB, 개발 185MB까지 자랐다. `ec2-user`의 `~/.warp` 196MB도 지울 수 있는데 아직 안 지웠다.
 9. **린터와 커버리지가 없다.** Gradle에는 checkstyle도 spotless도 jacoco도 없고, checkstyle은 IDEA 설정에만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
 10. **CODEOWNERS와 dependabot이 없다.**
