@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,11 +37,13 @@ import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 
 /**
- * 검색명은 nameSearchHint(오타 등을 Gemini가 보정한 이름)를 우선 사용하고,
- * 지역은 캡션 주소 → 추론 주소(읍·면·동 우선, 없으면 구·군, 그다음 시) → 추론 지역 → 캡션 지역 순으로 선택한다.
- * 중복 없이 붙여 검색하며,
- * 선택한 지역명을 검색명에 공백으로 붙여 '장소명 + 지역' 으로 먼저 검색하고,
- * 장소 목록이 비어 있으면 검색명만으로 다시 검색해 첫 번째 유효 장소를 반환한다.
+ * 원문 nameInCaption으로 먼저 검색하고 결과가 없으면 nameSearchHint(오타 등을 Gemini가 보정한 이름)로 검색한다.
+ * 각 이름의 주소 반경, 지역, 이름만 검색을 마친 뒤 다음 이름을 시도한다.
+ * 캡션 주소가 있으면 카카오 주소 검색으로 좌표를 얻어 그 반경 안에서만 찾고, 반경 안에 없으면 찾지 못한 것으로 둔다.
+ * 지역이나 이름만으로 다시 찾으면 카카오가 다른 지점을 돌려주기 때문이다. 영상, 이미지에서 읽은 주소와 추론 주소는 단서일 뿐이라
+ * 반경 안에서 먼저 찾되, 없으면 지역을 캡션, 영상, 이미지, 추론 주소(읍, 면, 동 우선, 없으면 구, 군, 그다음 시)와
+ * 영상, 이미지, 추론, 캡션 지역 순으로 골라 '장소명 + 지역'으로 검색하고, 장소 목록이 비어 있으면 검색명만으로 다시 검색해
+ * 첫 번째 유효 장소를 반환한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -49,6 +52,22 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
     private static final URI API_ENDPOINT = URI.create("https://dapi.kakao.com/v2/local/search/keyword.json");
 
     private static final int PAGE_SIZE = 15;
+
+    // 주소 좌표를 기준으로 같은 이름의 장소를 찾는 반경. 같은 도시 안의 다른 지점(골든셋에서 4.8km 밖 지점이 붙은 일이 있었다)은
+    // 거르고 같은 동네 안에서는 넉넉한 값이다.
+    private static final int NEARBY_RADIUS_METERS = 3_000;
+
+    // 주소 뒤에 붙은 층, 호수, 건물명 때문에 주소 검색이 비면 끝 낱말을 하나씩 떼고 다시 찾는 최대 횟수
+    private static final int ADDRESS_TRIM_ATTEMPTS = 3;
+
+    private static final List<Basis> ADDRESS_BASES = List.of(
+            Basis.CAPTION, Basis.VIDEO, Basis.IMAGE, Basis.INFERRED);
+    private static final List<Basis> REGION_BASES = List.of(
+            Basis.VIDEO, Basis.IMAGE, Basis.INFERRED, Basis.CAPTION);
+
+    // 근처를 먼저 찾되 없으면 지역과 이름으로 다시 찾는 주소의 출처. Gemini가 영상 속 지명을 틀리게 적거나
+    // 동 이름이 겹치는 다른 구로 좌표가 잡히는 일이 있어(골든셋 C005), 캡션 주소처럼 반경 안에만 묶지 않는다.
+    private static final List<Basis> SOFT_ADDRESS_BASES = List.of(Basis.VIDEO, Basis.IMAGE, Basis.INFERRED);
 
     private static final Pattern LOCAL_REGION =
             Pattern.compile("(?<!\\S)([가-힣0-9]+(?:읍|면|동))(?=\\s|$)");
@@ -70,9 +89,51 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
 
     @Override
     public List<Place> search(PlaceSearchHint hint) {
-        List<String> queries = searchQueries(hint);
+        Coordinate captionAnchor = anchorCoordinate(hint.locationHints(), Basis.CAPTION);
+        if (captionAnchor != null) {
+            // 캡션에 적힌 주소는 사실이라 그 근처만 믿는다. 근처에 없는 가게를 지역이나 이름만으로 찾으면 다른 지점이 붙는다.
+            return searchNearCaptionAddress(hint, captionAnchor);
+        }
+        return searchByNames(hint, softAnchor(hint.locationHints()));
+    }
 
-        for (String query : queries) {
+    private List<Place> searchNearCaptionAddress(PlaceSearchHint hint, Coordinate anchor) {
+        for (String searchName : getSearchNames(hint)) {
+            List<Place> nearby = searchNearby(searchName, anchor);
+            if (!nearby.isEmpty()) {
+                return nearby;
+            }
+        }
+        return List.of();
+    }
+
+    private List<Place> searchByNames(PlaceSearchHint hint, Coordinate softAnchor) {
+        for (String searchName : getSearchNames(hint)) {
+            List<Place> places = searchByName(searchName, hint.locationHints(), softAnchor);
+            if (!places.isEmpty()) {
+                return places;
+            }
+        }
+        return List.of();
+    }
+
+    private List<Place> searchByName(
+            String searchName,
+            List<LocationHint> locationHints,
+            Coordinate softAnchor
+    ) {
+        if (softAnchor != null) {
+            // 영상, 이미지에서 읽거나 프로필 등에서 추론한 주소는 단서일 뿐이라, 근처에 없으면 지역과 이름으로 다시 찾는다.
+            List<Place> nearby = searchNearby(searchName, softAnchor);
+            if (!nearby.isEmpty()) {
+                return nearby;
+            }
+        }
+        return searchKeywords(searchName, locationHints);
+    }
+
+    private List<Place> searchKeywords(String searchName, List<LocationHint> locationHints) {
+        for (String query : searchQueries(searchName, locationHints)) {
             JsonNode response = requestPage(query);
             List<Place> places = readPlaces(response.path("documents"));
 
@@ -84,11 +145,72 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return List.of();
     }
 
-    private List<String> searchQueries(PlaceSearchHint hint) {
-        String searchName = placeNameToSearch(hint).strip();
+    private List<Place> searchNearby(String searchName, Coordinate anchor) {
+        JsonNode response = requestNearby(searchName, anchor);
+        List<Place> places = readPlaces(response.path("documents"));
+        if (places.isEmpty()) {
+            return List.of();
+        }
+        return List.of(places.getFirst());
+    }
 
+    private Coordinate softAnchor(List<LocationHint> locationHints) {
+        for (Basis basis : SOFT_ADDRESS_BASES) {
+            Coordinate coordinate = anchorCoordinate(locationHints, basis);
+            if (coordinate != null) {
+                return coordinate;
+            }
+        }
+        return null;
+    }
+
+    private Coordinate anchorCoordinate(List<LocationHint> locationHints, Basis basis) {
+        for (LocationHint location : locationHints) {
+            if (location.type() != Type.ADDRESS || location.basis() != basis) {
+                continue;
+            }
+            Coordinate coordinate = geocode(location.value());
+            if (coordinate != null) {
+                return coordinate;
+            }
+        }
+        return null;
+    }
+
+    private Coordinate geocode(String address) {
+        String query = address.strip();
+        for (int attempt = 0; attempt <= ADDRESS_TRIM_ATTEMPTS && !query.isBlank(); attempt++) {
+            Coordinate coordinate = readCoordinate(requestAddress(query).path("documents"));
+            if (coordinate != null) {
+                return coordinate;
+            }
+            query = withoutLastWord(query);
+        }
+        return null;
+    }
+
+    private String withoutLastWord(String query) {
+        int lastSpace = query.lastIndexOf(' ');
+        if (lastSpace < 0) {
+            return "";
+        }
+        return query.substring(0, lastSpace).strip();
+    }
+
+    private Coordinate readCoordinate(JsonNode documents) {
+        for (JsonNode document : documents) {
+            String latitude = optional(document, "y");
+            String longitude = optional(document, "x");
+            if (latitude != null && longitude != null) {
+                return new Coordinate(new BigDecimal(latitude), new BigDecimal(longitude));
+            }
+        }
+        return null;
+    }
+
+    private List<String> searchQueries(String searchName, List<LocationHint> locationHints) {
         List<String> queries = new ArrayList<>();
-        for (String region : regionCandidates(hint.locationHints())) {
+        for (String region : regionCandidates(locationHints)) {
             queries.add(searchQuery(searchName, region));
         }
 
@@ -100,38 +222,35 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
                 .toList();
     }
 
-    private String placeNameToSearch(PlaceSearchHint hint) {
+    private List<String> getSearchNames(PlaceSearchHint hint) {
+        List<String> names = new ArrayList<>();
+        names.add(hint.nameInCaption().strip());
         if (hint.nameSearchHint() != null) {
-            return hint.nameSearchHint();
+            names.add(hint.nameSearchHint().strip());
         }
-        return hint.nameInCaption();
+        return names.stream()
+                .distinct()
+                .toList();
     }
 
     private List<String> regionCandidates(List<LocationHint> locationHints) {
         // 주소에서 지역을 얻을 수 있으면 그 지역을 우선 검색한다.
-        String addressRegion = addressRegion(locationHints, Basis.CAPTION);
-
-        if (addressRegion == null) {
-            addressRegion = addressRegion(locationHints, Basis.INFERRED);
-        }
+        String addressRegion = ADDRESS_BASES.stream()
+                .map(basis -> addressRegion(locationHints, basis))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
         if (addressRegion != null) {
             return List.of(addressRegion);
         }
 
         // 주소가 없거나 지역을 추출할 수 없을 때 Gemini의 지역 힌트를 사용한다.
-        String inferredRegion = regionCandidate(locationHints, Basis.INFERRED);
-
-        if (inferredRegion != null) {
-            return List.of(inferredRegion);
-        }
-
-        String captionRegion = regionCandidate(locationHints, Basis.CAPTION);
-
-        if (captionRegion == null) {
-            return List.of();
-        }
-
-        return List.of(captionRegion);
+        return REGION_BASES.stream()
+                .map(basis -> regionCandidate(locationHints, basis))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .stream()
+                .toList();
     }
 
     private String searchQuery(String searchName, String region) {
@@ -208,6 +327,37 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
                 .build()
                 .encode()
                 .toUri();
+        return request(uri);
+    }
+
+    // 좌표 반경 안으로 결과를 좁힌다. 같은 이름의 다른 도시 지점이 먼저 오는 일을 막는다.
+    // 정렬은 카카오 기본값(정확도)을 둔다. 거리순으로 바꾸면 같은 건물의 다른 가게가 앞에 오는 일이 있었다.
+    private JsonNode requestNearby(String query, Coordinate anchor) {
+        URI uri = UriComponentsBuilder.fromUri(apiEndpoint)
+                .queryParam("query", query)
+                .queryParam("x", anchor.longitude().toPlainString())
+                .queryParam("y", anchor.latitude().toPlainString())
+                .queryParam("radius", NEARBY_RADIUS_METERS)
+                .queryParam("size", PAGE_SIZE)
+                .queryParam("page", 1)
+                .build()
+                .encode()
+                .toUri();
+        return request(uri);
+    }
+
+    // 주소 검색은 키워드 검색과 같은 경로 아래의 address.json이다.
+    private JsonNode requestAddress(String address) {
+        URI uri = UriComponentsBuilder.fromUri(apiEndpoint.resolve("address.json"))
+                .queryParam("query", address)
+                .queryParam("size", 1)
+                .build()
+                .encode()
+                .toUri();
+        return request(uri);
+    }
+
+    private JsonNode request(URI uri) {
         try {
             JsonNode response = restClient.get()
                     .uri(uri)

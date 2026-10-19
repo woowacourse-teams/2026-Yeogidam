@@ -18,7 +18,7 @@ class SharedMediaReportTest {
     private static final Instant REPORTED_AT = Instant.parse("2026-10-06T01:00:00Z");
 
     @Test
-    void 실패한_이력은_신고를_만들_수_있다() {
+    void 실패한_이력은_제보를_만들_수_있다() {
         // when
         SharedMediaReport report = new SharedMediaReport(SHARED_MEDIA_ID, ExtractionStatus.FAILED, REPORTED_AT);
 
@@ -32,7 +32,7 @@ class SharedMediaReportTest {
 
     @ParameterizedTest
     @EnumSource(value = ExtractionStatus.class, names = {"EXTRACTING", "SUCCEEDED"})
-    void 실패하지_않은_이력으로_신고를_만들면_예외가_발생한다(ExtractionStatus status) {
+    void 실패하지_않은_이력으로_제보를_만들면_예외가_발생한다(ExtractionStatus status) {
         // when & then
         assertThatThrownBy(() -> new SharedMediaReport(SHARED_MEDIA_ID, status, REPORTED_AT))
                 .isInstanceOfSatisfying(MediaException.class, exception ->

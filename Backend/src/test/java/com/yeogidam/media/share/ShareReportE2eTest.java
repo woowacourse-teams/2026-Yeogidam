@@ -61,7 +61,7 @@ class ShareReportE2eTest extends E2eTestSupport {
 
     @ParameterizedTest
     @EnumSource(ExtractionFailureReason.class)
-    void 본인의_실패_이력을_신고할_수_있다(ExtractionFailureReason failureReason) {
+    void 본인의_실패_이력을_제보할_수_있다(ExtractionFailureReason failureReason) {
         // given
         LoginResult member = loginAsKakao("report-owner");
         insertFailedHistory(member.memberId(), 101L, failureReason);
@@ -87,7 +87,7 @@ class ShareReportE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 같은_미디어를_공유한_서로_다른_회원이_각자의_실패_이력을_신고할_수_있다() {
+    void 같은_미디어를_공유한_서로_다른_회원이_각자의_실패_이력을_제보할_수_있다() {
         // given
         LoginResult first = loginAsKakao("report-first-member");
         LoginResult second = loginAsKakao("report-second-member");
@@ -111,7 +111,7 @@ class ShareReportE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 토큰_없이_신고하면_401_예외를_던진다() {
+    void 토큰_없이_제보하면_401_예외를_던진다() {
         // given
         LoginResult member = loginAsKakao("report-owner");
         insertFailedHistory(member.memberId(), 101L, ExtractionFailureReason.UNEXPECTED);
@@ -128,7 +128,7 @@ class ShareReportE2eTest extends E2eTestSupport {
 
     @ParameterizedTest
     @ValueSource(longs = {102L, 999L})
-    void 존재하지_않거나_다른_회원의_이력을_신고하면_404_예외를_던진다(Long sharedMediaId) {
+    void 존재하지_않거나_다른_회원의_이력을_제보하면_404_예외를_던진다(Long sharedMediaId) {
         // given
         LoginResult member = loginAsKakao("report-owner");
         LoginResult other = loginAsKakao("report-other-member");
@@ -145,7 +145,7 @@ class ShareReportE2eTest extends E2eTestSupport {
 
     @ParameterizedTest
     @EnumSource(value = ExtractionStatus.class, names = {"EXTRACTING", "SUCCEEDED"})
-    void 실패하지_않은_이력을_신고하면_400_예외를_던진다(ExtractionStatus status) {
+    void 실패하지_않은_이력을_제보하면_400_예외를_던진다(ExtractionStatus status) {
         // given
         LoginResult member = loginAsKakao("report-owner");
         insertMedia(jdbcTemplate, 201L, 1, status);
@@ -160,7 +160,7 @@ class ShareReportE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 이미_신고한_이력을_다시_신고하면_409_예외를_던진다() {
+    void 이미_제보한_이력을_다시_제보하면_409_예외를_던진다() {
         // given
         LoginResult member = loginAsKakao("report-owner");
         insertFailedHistory(member.memberId(), 101L, ExtractionFailureReason.UNEXPECTED);

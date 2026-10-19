@@ -34,7 +34,8 @@ class AuthE2eTest extends E2eTestSupport {
                 .body("member.id", notNullValue())
                 .body("member.nickname", equalTo(provider + "-user-1"))
                 .body("member.email", equalTo("user-1@example.com"))
-                .body("member.oauthProvider", equalTo(provider.toUpperCase()));
+                .body("member.oauthProvider", equalTo(provider.toUpperCase()))
+                .body("isNewMember", equalTo(true));
     }
 
     @Test
@@ -42,7 +43,8 @@ class AuthE2eTest extends E2eTestSupport {
         loginWithApple("user-1", "홍길동")
                 .then().statusCode(200)
                 .body("member.nickname", equalTo("홍길동"))
-                .body("member.oauthProvider", equalTo("APPLE"));
+                .body("member.oauthProvider", equalTo("APPLE"))
+                .body("isNewMember", equalTo(true));
     }
 
     @Test
@@ -63,7 +65,8 @@ class AuthE2eTest extends E2eTestSupport {
         // when & then
         login("apple", "user-1")
                 .then().statusCode(200)
-                .body("member.nickname", equalTo(nickname));
+                .body("member.nickname", equalTo(nickname))
+                .body("isNewMember", equalTo(false));
     }
 
     @Test
@@ -74,18 +77,21 @@ class AuthE2eTest extends E2eTestSupport {
         // when & then
         loginWithApple("user-1", "김철수")
                 .then().statusCode(200)
-                .body("member.nickname", equalTo("홍길동"));
+                .body("member.nickname", equalTo("홍길동"))
+                .body("isNewMember", equalTo(false));
     }
 
-    @Test
-    void 같은_계정으로_다시_로그인하면_같은_회원이다() {
+    @ParameterizedTest
+    @ValueSource(strings = {"kakao", "google"})
+    void 같은_계정으로_다시_로그인하면_같은_회원이고_새_회원이_아니다(String provider) {
         // given
-        int memberId = login("kakao", "user-1").then().extract().jsonPath().getInt("member.id");
+        int memberId = login(provider, "user-1").then().extract().jsonPath().getInt("member.id");
 
         // when & then
-        login("kakao", "user-1")
+        login(provider, "user-1")
                 .then().statusCode(200)
-                .body("member.id", equalTo(memberId));
+                .body("member.id", equalTo(memberId))
+                .body("isNewMember", equalTo(false));
     }
 
     @Test

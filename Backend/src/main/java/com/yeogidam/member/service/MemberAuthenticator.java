@@ -1,6 +1,7 @@
 package com.yeogidam.member.service;
 
 import com.yeogidam.member.domain.Member;
+import com.yeogidam.member.domain.MemberAuthentication;
 import com.yeogidam.member.domain.MemberProfile;
 import com.yeogidam.member.domain.OAuthAccount;
 import com.yeogidam.member.repository.MemberDao;
@@ -22,17 +23,17 @@ public class MemberAuthenticator {
      * 제공자가 닉네임을 주지 않으면 랜덤 닉네임으로 가입시킨다. 이미 가입한 회원은 닉네임을 바꾸지 않는다.
      */
     @Transactional
-    public Member authenticate(OAuthAccount account, MemberProfile profile) {
+    public MemberAuthentication authenticate(OAuthAccount account, MemberProfile profile) {
         MemberProfile profileWithNickname = profile.withNicknameIfAbsent(randomNicknameGenerator.generate());
         Optional<Member> existingMember = memberDao.findByOAuthAccount(account);
         if (existingMember.isPresent()) {
-            return updateExistingMember(account, profileWithNickname);
+            return new MemberAuthentication(updateExistingMember(account, profileWithNickname), false);
         }
 
         try {
-            return memberDao.save(new Member(profileWithNickname, account));
+            return new MemberAuthentication(memberDao.save(new Member(profileWithNickname, account)), true);
         } catch (DuplicateKeyException exception) {
-            return updateExistingMember(account, profileWithNickname);
+            return new MemberAuthentication(updateExistingMember(account, profileWithNickname), false);
         }
     }
 
