@@ -1,0 +1,59 @@
+# 데이터소스 접속 정보와 스키마는 MySqlContainerSupport가 Testcontainers MySQL을 띄우며 채운다.
+# Docker가 없으면 부팅에 실패하는 것이 의도된 동작이다.
+# 컨텍스트가 뜰 때마다 schema.sql로 테이블을 새로 만든다. data-local.sql은 읽지 않는다.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+  sql:
+    init:
+      mode: always
+
+jwt:
+  secret: dGVzdC1vbmx5LWtleS13aXRoLWF0LWxlYXN0LXRoaXJ0eS10d28tYnl0ZXM=
+  issuer: yeogidam
+  access-token-ttl: 30m
+  refresh-token-ttl: 30d
+
+media:
+  thumbnail:
+    public-base-url: https://img.example.com
+    bucket: test-thumbnails
+    region: ap-northeast-2
+    instagram-key-prefix: yeogidam/instagram-thumbnails
+    place-key-prefix: yeogidam/place-thumbnails
+  place-thumbnail:
+    timeout: 1s
+
+# 온보딩 E2E가 넣는 미디어 17번(shortcode fixture-media-17)이다.
+onboarding:
+  instagram-url: https://www.instagram.com/p/fixture-media-17/
+
+# 제공자 클라이언트 빈을 만들고 인가 URL E2E가 확인하는 자리값. 로그인 E2E는 FakeOAuthClientConfig가 제공자를 대신한다.
+oauth:
+  # 콜백 E2E가 Location에서 확인하는 앱 주소로, application.yml과 같은 값을 둔다.
+  app-callback-uri: com.yeogidamm.app://auth-callback
+  providers:
+    kakao:
+      client-id: test-kakao-client
+      client-secret: test-kakao-secret
+      redirect-uri: https://app.example.com/oauth/kakao
+    google:
+      client-id: test-google-client
+      client-secret: test-google-secret
+      redirect-uri: https://app.example.com/oauth/google
+    apple:
+      client-id: test-apple-client
+      team-id: test-team-id
+      key-id: test-apple-key
+
+# 앱 업데이트 정책 E2E용. 1.1.x는 강제, 1.2.x ~ 1.3.x는 권고, 1.4.0 이상은 없음
+app-update:
+  ios:
+    minimum-supported-version: 1.2.0
+    latest-version: 1.4.0
+    store-url: https://apps.apple.com/kr/app/id0000000000
+  android:
+    minimum-supported-version: 1.1.0
+    latest-version: 1.3.0
+    store-url: https://play.google.com/store/apps/details?id=com.yeogidam.app

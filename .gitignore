@@ -13,6 +13,9 @@
 ### 환경 변수 ###
 .env
 
+### Python ###
+__pycache__/
+
 ### AI 도구 ###
 AGENTS.md
 CLAUDE.md

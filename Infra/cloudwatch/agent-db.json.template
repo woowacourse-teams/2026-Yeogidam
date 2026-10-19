@@ -1,0 +1,42 @@
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root",
+    "omit_hostname": true
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/lib/docker/volumes/yeogidam-mysql-data/_data/slow.log",
+            "log_group_name": "/yeogidam/${ENV_NAME}/mysql",
+            "log_stream_name": "slow",
+            "multi_line_start_pattern": "^# Time:"
+          },
+          {
+            "file_path": "/var/lib/docker/volumes/yeogidam-mysql-data/_data/error.log",
+            "log_group_name": "/yeogidam/${ENV_NAME}/mysql",
+            "log_stream_name": "error"
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "namespace": "Yeogidam/${ENV_NAME}",
+    "append_dimensions": {
+      "InstanceId": "${aws:InstanceId}"
+    },
+    "metrics_collected": {
+      "mem": {
+        "measurement": ["mem_used_percent"]
+      },
+      "disk": {
+        "measurement": ["disk_used_percent"],
+        "resources": ["/"],
+        "drop_device": true
+      }
+    }
+  }
+}

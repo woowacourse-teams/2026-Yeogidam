@@ -1,0 +1,117 @@
+package com.yeogidam.auth.infrastructure.oauth.apple;
+
+import com.yeogidam.auth.config.oauth.AppleProperties;
+import com.yeogidam.auth.domain.oauth.OAuthClient;
+import com.yeogidam.auth.domain.oauth.OAuthIdentity;
+import com.yeogidam.auth.dto.response.OAuthTokenResponse;
+import com.yeogidam.auth.exception.AuthErrorCode;
+import com.yeogidam.auth.exception.AuthException;
+import com.yeogidam.auth.infrastructure.oauth.OAuthClientErrorHandler;
+import com.yeogidam.member.domain.OAuthAccount;
+import com.yeogidam.member.domain.OAuthProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+@Component
+public class AppleClient implements OAuthClient {
+
+    private static final String TOKEN_URI = "https://appleid.apple.com/auth/token";
+    private static final String REVOKE_URI = "https://appleid.apple.com/auth/revoke";
+
+    private final RestClient restClient;
+    private final AppleProperties properties;
+    private final AppleIdentityTokenVerifier tokenVerifier;
+    private final AppleClientSecretGenerator clientSecretGenerator;
+    private final OAuthClientErrorHandler errorHandler;
+
+    public AppleClient(
+            @Qualifier("oauthRestClient") RestClient restClient,
+            AppleProperties properties,
+            AppleIdentityTokenVerifier tokenVerifier,
+            AppleClientSecretGenerator clientSecretGenerator,
+            OAuthClientErrorHandler errorHandler
+    ) {
+        this.restClient = restClient;
+        this.properties = properties;
+        this.tokenVerifier = tokenVerifier;
+        this.clientSecretGenerator = clientSecretGenerator;
+        this.errorHandler = errorHandler;
+    }
+
+    @Override
+    public OAuthProvider getProvider() {
+        return OAuthProvider.APPLE;
+    }
+
+    @Override
+    public OAuthIdentity readIdentity(String authorizationCode) {
+        OAuthTokenResponse token = requestToken(authorizationCode);
+        return createIdentity(token);
+    }
+
+    @Override
+    public void deleteAccount(String authorizationCode, OAuthAccount expectedAccount) {
+        OAuthTokenResponse token = requestToken(authorizationCode);
+        OAuthIdentity identity = createIdentity(token);
+        if (!expectedAccount.equals(identity.getAccount())) {
+            throw new AuthException(AuthErrorCode.INVALID_CREDENTIAL);
+        }
+        String refreshToken = token.refreshToken();
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new AuthException(AuthErrorCode.INVALID_PROVIDER_RESPONSE);
+        }
+        revokeToken(refreshToken);
+    }
+
+    private OAuthTokenResponse requestToken(String authorizationCode) {
+        String clientSecret = clientSecretGenerator.generate();
+        try {
+            OAuthTokenResponse response = restClient.post()
+                    .uri(TOKEN_URI)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(properties.createTokenRequestBody(authorizationCode, clientSecret))
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError,
+                            (request, providerResponse) -> errorHandler.handle(getProvider(), providerResponse))
+                    .body(OAuthTokenResponse.class);
+            if (response == null || response.idToken() == null || response.idToken().isBlank()) {
+                throw new AuthException(AuthErrorCode.INVALID_PROVIDER_RESPONSE);
+            }
+            return response;
+        } catch (RestClientException exception) {
+            throw errorHandler.handle(getProvider(), exception);
+        }
+    }
+
+    private OAuthIdentity createIdentity(OAuthTokenResponse token) {
+        Jwt identity = tokenVerifier.verify(token.idToken());
+        String email = null;
+        Boolean emailVerified = identity.getClaimAsBoolean("email_verified");
+
+        if (Boolean.TRUE.equals(emailVerified)) {
+            email = identity.getClaimAsString("email");
+        }
+        return new OAuthIdentity(getProvider(), identity.getSubject(), null, email, null);
+    }
+
+    private void revokeToken(String refreshToken) {
+        String clientSecret = clientSecretGenerator.generate();
+        try {
+            restClient.post()
+                    .uri(REVOKE_URI)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(properties.createRevokeRequestBody(refreshToken, clientSecret))
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError,
+                            (request, providerResponse) -> errorHandler.handle(getProvider(), providerResponse))
+                    .toBodilessEntity();
+        } catch (RestClientException exception) {
+            throw errorHandler.handle(getProvider(), exception);
+        }
+    }
+}

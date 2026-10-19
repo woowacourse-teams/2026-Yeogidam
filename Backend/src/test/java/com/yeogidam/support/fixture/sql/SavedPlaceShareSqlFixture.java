@@ -1,0 +1,30 @@
+package com.yeogidam.support.fixture.sql;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/**
+ * shared_media_saved_places(어느 공유에서 저장했나) 행을 DAO를 거치지 않고 직접 넣는다.
+ * 보관함 행 하나와 공유 건 하나에 연결 행 하나라는 불변식(saved_place_id, shared_media_id UNIQUE)은 테스트가 지켜서 넣는다.
+ */
+public final class SavedPlaceShareSqlFixture {
+
+    private SavedPlaceShareSqlFixture() {
+    }
+
+    public static void insertSavedPlaceShare(
+            JdbcTemplate jdbcTemplate,
+            Long savedPlaceShareId,
+            Long savedPlaceId,
+            Long sharedMediaId,
+            Instant createdAt
+    ) {
+        jdbcTemplate.update("""
+                INSERT INTO shared_media_saved_places (id, saved_place_id, shared_media_id, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                savedPlaceShareId, savedPlaceId, sharedMediaId, Timestamp.from(createdAt)
+        );
+    }
+}
