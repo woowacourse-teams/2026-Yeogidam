@@ -3,6 +3,8 @@
 -- 자연키(media_shortcode, kakao_place_id) 기준 upsert라 여러 번 적용해도 중복되지 않는다.
 -- 썸네일 키는 data migration이 S3에 올린 사진(게시물은 첫 장, 장소는 카카오맵 대표 사진)이고, dev와 prod가 같은 버킷을 보므로
 -- 두 환경에 같은 키를 쓴다. 공개 주소는 media.thumbnail.public-base-url이 붙인다.
+-- 게시물은 Spring 분석을 거치지 않은 시드라 분석 버전을 0으로 두고(data migration이 넣은 시드 게시물과 같다),
+-- 작성자는 Spring 분석 결과처럼 @ 없이 넣는다.
 
 INSERT INTO media (media_shortcode, caption, thumbnail_key, author, extraction_status, failure_reason, extraction_version,
                    source_type)
@@ -27,7 +29,7 @@ VALUES ('Db4gRWqkuUg', '군자역 디저트 저장각 🍰
 💌 댓글에 “군자” 남기면 팔로우 여부 상관없이 지도 링크 DM으로 보내드려요!
 
 #군자역카페 #윤숲 #군자역맛집 #광진구카페 #디저트맛집',
-        'yeogidam/prod/instagram-thumbnails/Db4gRWqkuUg.webp', '@yeogidamm', 'SUCCEEDED', NULL, 1, 'SEEDED') AS onboarding_media
+        'yeogidam/prod/instagram-thumbnails/Db4gRWqkuUg.webp', 'yeogidamm', 'SUCCEEDED', NULL, 0, 'SEEDED') AS onboarding_media
 ON DUPLICATE KEY UPDATE
     caption = onboarding_media.caption,
     thumbnail_key = onboarding_media.thumbnail_key,
