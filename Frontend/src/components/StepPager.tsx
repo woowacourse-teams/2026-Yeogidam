@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  type LayoutChangeEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -32,13 +33,16 @@ type StepPagerProps = {
 const MEDIA_RATIO = 500 / 300;
 // 영상의 둥근 모서리 바깥은 검은색이라, 영상 모서리(폭의 약 13%)보다 살짝 크게 잘라 가린다.
 const MEDIA_CORNER_RATIO = 0.145;
+const MEDIA_BOTTOM_GAP = 16;
 
-// 화면 높이에 맞춰 데모 프레임 크기를 정한다.
-function useMediaFrame() {
-  const { width, height } = useWindowDimensions();
+// 실제 영상 영역의 높이에 맞춰 데모 프레임 크기를 정한다.
+function useMediaFrame(mediaAreaHeight: number) {
+  const { width } = useWindowDimensions();
   const maxWidth = Math.min(width - 96, 320);
-  const maxHeight = Math.max(280, height - 380);
-  const frameWidth = Math.round(Math.min(maxWidth, maxHeight / MEDIA_RATIO));
+  const maxHeight = Math.max(0, mediaAreaHeight - MEDIA_BOTTOM_GAP - 2);
+  const frameWidth = Math.round(
+    Math.max(0, Math.min(maxWidth, maxHeight / MEDIA_RATIO)),
+  );
 
   return {
     frameWidth,
@@ -73,7 +77,8 @@ export function StepPager({
   lastButtonAccessibilityLabel,
 }: StepPagerProps) {
   const [pageIndex, setPageIndex] = useState(0);
-  const { frameWidth, frameHeight, frameRadius } = useMediaFrame();
+  const [mediaAreaHeight, setMediaAreaHeight] = useState(0);
+  const { frameWidth, frameHeight, frameRadius } = useMediaFrame(mediaAreaHeight);
   const page = pages[pageIndex];
   const isLast = pageIndex === pages.length - 1;
   const nextLabel = isLast ? lastButtonLabel : '다음';
@@ -84,6 +89,10 @@ export function StepPager({
       return;
     }
     setPageIndex(prev => prev + 1);
+  };
+
+  const handleMediaAreaLayout = (event: LayoutChangeEvent) => {
+    setMediaAreaHeight(event.nativeEvent.layout.height);
   };
 
   return (
@@ -100,18 +109,22 @@ export function StepPager({
           </Text>
         </View>
 
-        <View
-          key={page.key}
-          style={[
-            styles.frame,
-            {
-              width: frameWidth + 2,
-              borderTopLeftRadius: frameRadius,
-              borderTopRightRadius: frameRadius,
-            },
-          ]}
-        >
-          {page.renderMedia({ width: frameWidth, height: frameHeight })}
+        <View style={styles.mediaArea} onLayout={handleMediaAreaLayout}>
+          {frameWidth > 0 ? (
+            <View
+              key={page.key}
+              style={[
+                styles.frame,
+                {
+                  width: frameWidth + 2,
+                  borderTopLeftRadius: frameRadius,
+                  borderTopRightRadius: frameRadius,
+                },
+              ]}
+            >
+              {page.renderMedia({ width: frameWidth, height: frameHeight })}
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -200,8 +213,17 @@ const styles = StyleSheet.create({
     borderColor: '#e1e3e8',
     backgroundColor: '#ffffff',
   },
+  mediaArea: {
+    flex: 1,
+    minHeight: 0,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: MEDIA_BOTTOM_GAP,
+  },
   footer: {
     flexDirection: 'row',
+    flexShrink: 0,
     gap: 28,
     paddingHorizontal: 28,
     paddingTop: 16,
