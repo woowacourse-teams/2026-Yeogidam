@@ -1,5 +1,4 @@
 import UIKit
-import UniformTypeIdentifiers
 final class ShareViewController: UIViewController {
   private var hasProcessedShare = false
   private let shareId = UUID().uuidString
@@ -41,7 +40,7 @@ final class ShareViewController: UIViewController {
 
       var extractedPayload: ShareIntentPayload?
       do {
-        let payload = try await self.extractPayload()
+        let payload = try await ShareIntake.extractPayload(from: self.extensionContext, shareId: self.shareId)
         extractedPayload = payload
         guard try await self.prepareTransfer(payload) else { return }
         self.statusLabel.text = "링크를 받았어요. 여기담 앱에서 확인해 주세요."
@@ -79,18 +78,18 @@ final class ShareViewController: UIViewController {
     }
   }
 
+  /// 접수 결과를 화면에 반영합니다. 계속 진행해 공유 화면을 닫아도 되면 true를 반환합니다.
   private func prepareTransfer(_ payload: ShareIntentPayload) async throws -> Bool {
-    let auth = await ShareAuth.ensureAccessToken()
-    if case .loginRequired = auth, payload.text == ShareIntentConstants.guestPracticePostURL {
-      ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
-        properties: ["outcome": "guest_practice_success"])
+    switch try await ShareIntake.prepareTransfer(payload, shareId: shareId) {
+    case .accepted:
+      return true
+    case .guestPracticeSuccess:
       statusLabel.text = "공유에 성공했어요."
       showStatusLabel(feedbackType: "received")
       try? await Task.sleep(nanoseconds: 2_000_000_000)
       extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
       return false
-    }
-    if case .loginRequired(let reason) = auth {
+    case .loginRequired(let reason):
       pendingLoginPayload = payload
       pendingGuestLogin = reason == "never_logged_in"
       statusLabel.text = "장소를 추출하려면 로그인이 필요해요."
@@ -102,68 +101,13 @@ final class ShareViewController: UIViewController {
       )
       return false
     }
-    try ShareIntentStorage.saveResult(ShareReelResult(
-      requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
-      status: "PENDING", transferStatus: "SAVED", reelId: nil,
-      failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000,
-      release: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-    ))
-    ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
-      properties: ["outcome": "saved"])
-    guard var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == payload.id }) else {
-      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "queue_registration_failed")
-      return true
-    }
-    switch auth {
-    case .ready(let token):
-      guard await ShareNetwork.isAvailable() else {
-        result.transferStatus = "WAITING_FOR_NETWORK"
-        result.updatedAt = Date().timeIntervalSince1970 * 1000
-        try ShareIntentStorage.saveResult(result)
-        ShareSentryReporter.capture(
-          "SHARE_EXTRACTION_NETWORK_DEFERRED", stage: "place_extraction_request",
-          exceptionType: String(URLError.notConnectedToInternet.rawValue)
-        )
-        ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "network_unavailable", release: result.release)
-        return true
-      }
-      do {
-        try ShareBackgroundTransfer.shared.enqueue(
-          requestId: payload.id, url: payload.text, rawText: payload.rawText, token: token
-        )
-        return true
-      } catch {
-        ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "queue_registration_failed", release: result.release)
-        return true
-      }
-    case .loginRequired:
-      return false
-    case .waitingForNetwork:
-      result.transferStatus = "WAITING_FOR_NETWORK"
-      result.updatedAt = Date().timeIntervalSince1970 * 1000
-      try? ShareIntentStorage.saveResult(result)
-      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "network_unavailable", release: result.release)
-    case .waitingForAuth:
-      result.transferStatus = "WAITING_FOR_AUTH"
-      result.updatedAt = Date().timeIntervalSince1970 * 1000
-      try? ShareIntentStorage.saveResult(result)
-      ShareAnalyticsStore.recordDeliveryStatus(payload.id, status: "deferred", reason: "auth_pending", release: result.release)
-    }
-    return true
   }
 
   @objc private func handleLoginButton() {
     guard !hasSelectedLogin, let payload = pendingLoginPayload else { return }
     hasSelectedLogin = true
     do {
-      try ShareIntentStorage.saveResult(ShareReelResult(
-        requestId: payload.id, url: payload.text, rawSharedText: payload.rawText,
-        status: "PENDING", transferStatus: pendingGuestLogin ? "GUEST_LOGIN_PROMPT" : "LOGIN_HANDOFF", reelId: nil,
-        failureReason: nil, retryable: false, updatedAt: Date().timeIntervalSince1970 * 1000,
-        release: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-      ))
-      ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
-        properties: ["outcome": "saved"])
+      try ShareIntake.saveLoginHandoff(payload, isGuestLogin: pendingGuestLogin, shareId: shareId)
       loginButton.isHidden = true
       openAppForLogin()
     } catch {
@@ -263,137 +207,6 @@ final class ShareViewController: UIViewController {
       var properties: [String: Any] = ["outcome": outcome]
       if let reason { properties["reason"] = reason }
       ShareAnalyticsStore.record("reel_share_outcome_viewed", shareId: shareId, properties: properties)
-    }
-  }
-
-  private func extractPayload() async throws -> ShareIntentPayload {
-    let extensionItems = extensionContext?.inputItems.compactMap { $0 as? NSExtensionItem } ?? []
-    // 공유 시트의 이번 호출에서 전달된 최신 항목 하나만 사용합니다.
-    guard let item = extensionItems.last else {
-      throw ShareIntentStorageError.unsupportedContent
-    }
-    do {
-      let subject = item.attributedTitle?.string.trimmingCharacters(in: .whitespacesAndNewlines)
-
-      for provider in item.attachments ?? [] {
-        if
-          let urlString = try await loadURLString(from: provider),
-          ShareIntentStorage.isInstagramContentURL(urlString)
-        {
-          return ShareIntentStorage.makePayload(
-            text: urlString,
-            subject: subject,
-            mimeType: UTType.url.identifier,
-            id: shareId
-          )
-        }
-      }
-
-      for provider in item.attachments ?? [] {
-        if let sharedText = try await loadText(from: provider) {
-          let payload = ShareIntentStorage.makePayload(
-            text: sharedText,
-            subject: subject,
-            mimeType: UTType.plainText.identifier,
-            id: shareId
-          )
-          if ShareIntentStorage.isInstagramContentURL(payload.text) {
-            return payload
-          }
-        }
-      }
-
-      let additionalTexts = [
-        item.attributedContentText?.string,
-        item.attributedTitle?.string,
-      ]
-      for additionalText in additionalTexts.compactMap({ $0 }) {
-        let payload = ShareIntentStorage.makePayload(
-          text: additionalText,
-          subject: subject,
-          mimeType: UTType.plainText.identifier,
-          id: shareId
-        )
-        if ShareIntentStorage.isInstagramContentURL(payload.text) {
-          return payload
-        }
-      }
-    } catch {
-      throw error
-    }
-
-    throw ShareIntentStorageError.unsupportedContent
-  }
-
-  private func loadURLString(from provider: NSItemProvider) async throws -> String? {
-    guard provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) else {
-      return nil
-    }
-
-    let item = try await loadItem(
-      from: provider,
-      typeIdentifier: UTType.url.identifier
-    )
-
-    if let url = item as? URL {
-      return url.absoluteString
-    }
-
-    if let nsUrl = item as? NSURL, let absoluteString = nsUrl.absoluteString {
-      return absoluteString
-    }
-
-    if let sharedText = item as? String {
-      return sharedText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    return nil
-  }
-
-  private func loadText(from provider: NSItemProvider) async throws -> String? {
-    let textTypeIdentifiers = [
-      UTType.plainText.identifier,
-      UTType.text.identifier,
-    ]
-
-    for typeIdentifier in textTypeIdentifiers where provider.hasItemConformingToTypeIdentifier(typeIdentifier) {
-      let item = try await loadItem(from: provider, typeIdentifier: typeIdentifier)
-
-      if let sharedText = item as? String {
-        let trimmedText = sharedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedText.isEmpty {
-          return trimmedText
-        }
-      }
-
-      if let url = item as? URL {
-        return url.absoluteString
-      }
-
-      if let data = item as? Data, let sharedText = String(data: data, encoding: .utf8) {
-        let trimmedText = sharedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedText.isEmpty {
-          return trimmedText
-        }
-      }
-    }
-
-    return nil
-  }
-
-  private func loadItem(
-    from provider: NSItemProvider,
-    typeIdentifier: String
-  ) async throws -> NSSecureCoding? {
-    try await withCheckedThrowingContinuation { continuation in
-      provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, error in
-        if let error {
-          continuation.resume(throwing: error)
-          return
-        }
-
-        continuation.resume(returning: item)
-      }
     }
   }
 }
