@@ -14,6 +14,7 @@
 		19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */; };
 		19FBFE81302C722200049FC4 /* RCTKakaoMapView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */; };
 		19FBFE82302C722200049FC4 /* KakaoMapContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */; };
+		1B84B8BFF820C001CDE4B471 /* ShareCardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D2D1BE9D1D47A1148A1CCF2 /* ShareCardViewController.swift */; };
 		2093165182064A13401C5F29 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F6D98302FFD7E95E67CBD2 /* ShareViewController.swift */; };
 		61D730BB77CEB9174B449446 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		6576508F23F65F7CD0DE36B4 /* ShareIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCD8035599E85B2CFA6F31 /* ShareIntake.swift */; };
@@ -29,6 +30,7 @@
 		ABCDEF0123456789ABCDEF02 /* LocationPermissionModule.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */; };
 		B4285DA2BB719CBECE7B841F /* ShareIntentModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C962E32A69AAB6305A26757E /* ShareIntentModule.swift */; };
 		D433F81EE00664605F168386 /* ShareIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47CCD8035599E85B2CFA6F31 /* ShareIntake.swift */; };
+		DE4DC736F5EABB6C761E02F3 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5A233ADE5631D060A744756D /* Images.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +82,7 @@
 		47CCD8035599E85B2CFA6F31 /* ShareIntake.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Shared/ShareIntake.swift; sourceTree = "<group>"; };
 		48F6D98302FFD7E95E67CBD2 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareViewController.swift; path = ShareExtension/ShareViewController.swift; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-Frontend.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Frontend.release.xcconfig"; path = "Target Support Files/Pods-Frontend/Pods-Frontend.release.xcconfig"; sourceTree = "<group>"; };
+		5A233ADE5631D060A744756D /* Images.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Shared/Images.xcassets; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Frontend.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D2E9E46C95CE6A28284A1B4 /* Images.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareIntentStorage.swift; path = Shared/ShareIntentStorage.swift; sourceTree = "<group>"; };
@@ -88,6 +91,7 @@
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Frontend/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		839212E671E094FF98C86DEE /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ShareExtension.xcconfig; sourceTree = "<group>"; };
+		9D2D1BE9D1D47A1148A1CCF2 /* ShareCardViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareCardViewController.swift; path = Shared/ShareCardViewController.swift; sourceTree = "<group>"; };
 		A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FrontendShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LocationPermissionModule.m; path = Frontend/LocationPermissionModule.m; sourceTree = "<group>"; };
 		AC85E11497FD35504877336D /* ActionExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ActionExtension.entitlements; sourceTree = "<group>"; };
@@ -227,6 +231,8 @@
 			children = (
 				705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */,
 				47CCD8035599E85B2CFA6F31 /* ShareIntake.swift */,
+				9D2D1BE9D1D47A1148A1CCF2 /* ShareCardViewController.swift */,
+				5A233ADE5631D060A744756D /* Images.xcassets */,
 			);
 			name = Shared;
 			sourceTree = "<group>";
@@ -366,6 +372,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				055EEBFF2A88E6A25FBD05EE /* Images.xcassets in Resources */,
+				DE4DC736F5EABB6C761E02F3 /* Images.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -482,6 +489,7 @@
 				817D2F88A4018F9F83ABFF64 /* ActionViewController.swift in Sources */,
 				87632E4783468A119A938956 /* ShareIntentStorage.swift in Sources */,
 				D433F81EE00664605F168386 /* ShareIntake.swift in Sources */,
+				1B84B8BFF820C001CDE4B471 /* ShareCardViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
