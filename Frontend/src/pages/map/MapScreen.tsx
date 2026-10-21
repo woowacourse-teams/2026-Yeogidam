@@ -51,6 +51,7 @@ type MapScreenProps = {
   isActive?: boolean;
   isGuest?: boolean;
   onAuthenticationRequired?: () => void;
+  onShowGuestLoginPrompt?: () => void;
 };
 
 type MapCamera = {
@@ -63,6 +64,7 @@ export function MapScreen({
   isActive = true,
   isGuest = false,
   onAuthenticationRequired,
+  onShowGuestLoginPrompt,
 }: MapScreenProps) {
   const posthog = usePostHog();
   const [locationGranted, setLocationGranted] = useState(false);
@@ -242,6 +244,13 @@ export function MapScreen({
     sheetVisibleHeightRef.current = height;
     setSheetVisibleHeight(height);
   }, []);
+
+  const handleSheetExpandedChange = (expanded: boolean) => {
+    setIsSheetExpanded(expanded);
+    if (isGuest && expanded) {
+      onShowGuestLoginPrompt?.();
+    }
+  };
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
@@ -437,7 +446,7 @@ export function MapScreen({
                 current.filter(place => place.savedPlaceId !== savedPlaceId),
               );
             }}
-            onExpandedChange={setIsSheetExpanded}
+            onExpandedChange={handleSheetExpandedChange}
             onVisibleHeightChange={handleSheetVisibleHeightChange}
             isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
           />
@@ -489,6 +498,7 @@ export function MapScreen({
             }}
           >
             <SearchBar
+              onPress={isGuest ? onShowGuestLoginPrompt : undefined}
               backButtonPosition={
                 hasActiveSearch ||
                 isSearchFocused ||

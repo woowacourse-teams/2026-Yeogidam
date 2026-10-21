@@ -1208,6 +1208,7 @@ function App() {
           key={isAuthenticated === false ? 'guest-map' : 'member-map'}
           isGuest={isAuthenticated === false}
           onAuthenticationRequired={handleRequireLogin}
+          onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
         />
       );
     }

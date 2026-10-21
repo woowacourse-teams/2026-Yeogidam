@@ -438,6 +438,26 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('비회원 지도 인터랙션은 공통 로그인 안내 모달을 연다', async () => {
+  const renderer = await renderGuestMain();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('map');
+  });
+
+  const map = renderer.root.findByType(MapScreen);
+  const prompt = renderer.root.findByType(GuestLoginPrompt);
+  expect(prompt.props.visible).toBe(false);
+  expect(map.props.onShowGuestLoginPrompt).toEqual(expect.any(Function));
+
+  await ReactTestRenderer.act(async () =>
+    map.props.onShowGuestLoginPrompt(),
+  );
+  expect(prompt.props.visible).toBe(true);
+
+  await ReactTestRenderer.act(async () => prompt.props.onContinueBrowsing());
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async () => {
   const renderer = await renderGuestMain();
 
