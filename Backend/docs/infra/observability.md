@@ -175,7 +175,7 @@ CloudWatch > 대시보드 > `yeogidam-observability` 하나를 만들고 아래 
 ### 4. SNS와 Lambda
 
 1. SNS > 주제 > 주제 생성. 유형은 표준으로, 이름은 `yeogidam-alerts`로 만든다.
-2. Lambda 함수 등록은 `Infra/lambda/alerts_to_discord.py` 머리 docstring의 여섯 단계를 따른다. 함수 이름은 `yeogidam-alerts-to-discord`, 런타임은 Python 3.13, 실행 역할은 `techcourse-lambda-execution-role`로 정한다. 코드는 파일 내용을 콘솔 편집기에 붙여 넣고, 환경 변수 `DISCORD_WEBHOOK_URL`에 Discord 채널의 웹훅 URL을 넣은 뒤 트리거로 SNS `yeogidam-alerts`를 건다. 핸들러 이름은 콘솔 기본값 `lambda_function.lambda_handler` 그대로 두면 되고 표준 라이브러리만 쓰므로 배포 패키지가 필요 없다.
+2. Lambda 알림 동작과 필수 설정은 [디스코드 알림 운영 안내](../../../Infra/lambda/discord-alerts-guide.md)에서 확인한다. 함수 이름은 `yeogidam-alerts-to-discord`, 런타임은 Python 3.13, 실행 역할은 `techcourse-lambda-execution-role`로 정한다. 콘솔의 `lambda_function.py`에 코드를 붙여 넣고 환경 변수 `DISCORD_WEBHOOK_URL`에 Discord 채널의 웹훅 URL을 설정한다. 핸들러는 `lambda_function.lambda_handler`다. SNS `yeogidam-alerts` 트리거를 유지하고, 장소 추출 실패 로그는 안내 문서의 CloudWatch Logs 구독으로 같은 함수에 연결한다.
 3. 연결은 SNS 콘솔에서 `yeogidam-alerts`에 아무 문장이나 게시해 확인한다. 본문이 그대로 Discord에 오면 된 것이고 실제 알람은 색 있는 embed(ALARM 빨강, OK 초록)로 오며 시각은 KST로 바꿔 보여 준다.
 4. 알람을 만들 때 알림 대상으로 앞에서 만든 토픽을 고른다. 알람 생성 화면에서는 이미 있는 토픽만 고를 수 있으므로 토픽을 알람보다 먼저 만든다.
 5. 2026-10-01에 토픽과 메일 구독(팀 공용 주소 1건, 확인 완료)과 Lambda를 만들었고, 토픽에 시험 메시지를 게시해 메일과 Discord 양쪽에 도착하는 것을 확인했다. Discord 채널은 지금 하나를 두 환경이 같이 쓰고, 출시 뒤 개발 알람이 운영 알람을 묻으면 토픽 `yeogidam-alerts-prod`와 Lambda 하나를 더 만들어 다른 웹훅을 넣는다.
