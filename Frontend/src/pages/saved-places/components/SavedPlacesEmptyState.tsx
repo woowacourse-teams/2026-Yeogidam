@@ -1,7 +1,15 @@
 import React from 'react';
-import {Image, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 
-export function SavedPlacesEmptyState() {
+type SavedPlacesEmptyStateProps = {
+  isGuest?: boolean;
+  onLogin?: () => void;
+};
+
+export function SavedPlacesEmptyState({
+  isGuest = false,
+  onLogin,
+}: SavedPlacesEmptyStateProps) {
   return (
     <View style={styles.content}>
       <Image
@@ -10,9 +18,30 @@ export function SavedPlacesEmptyState() {
       />
       <Text style={styles.title}>아직 저장된 장소가 없어요</Text>
       <Text style={styles.description}>
-        인스타그램 릴스나 유튜브 쇼츠에서{'\n'}
-        공유하기를 통해 여기담에 저장해보세요.
+        {isGuest ? (
+          <>
+            로그인하고 마음에 드는 장소를{'\n'}
+            나만의 보관함에 담아보세요.
+          </>
+        ) : (
+          <>
+            인스타그램 릴스를 공유하고{'\n'}
+            마음에 드는 장소를 나만의 보관함에 담아보세요.
+          </>
+        )}
       </Text>
+      {isGuest ? (
+        <Pressable
+          accessibilityLabel="보관함 로그인"
+          accessibilityRole="button"
+          onPress={onLogin}
+          style={({pressed}) => [
+            styles.loginButton,
+            pressed && styles.loginButtonPressed,
+          ]}>
+          <Text style={styles.loginButtonText}>로그인하기</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -42,5 +71,22 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     textAlign: 'center',
     marginTop: 8,
+  },
+  loginButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#1F2238',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  loginButtonPressed: {
+    opacity: 0.82,
+  },
+  loginButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

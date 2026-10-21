@@ -1073,7 +1073,10 @@ export function SavedPlacesScreen({
           ) : error ? (
             <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
           ) : (
-            <SavedPlacesEmptyState />
+            <SavedPlacesEmptyState
+              isGuest={isGuest}
+              onLogin={onAuthenticationRequired}
+            />
           )}
         </>
       )}

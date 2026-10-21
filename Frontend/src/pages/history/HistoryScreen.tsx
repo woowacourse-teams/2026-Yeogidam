@@ -975,9 +975,24 @@ export function HistoryScreen({
             <View style={styles.emptyText}>
               <Text style={styles.emptyTitle}>아직 공유된 콘텐츠가 없어요</Text>
               <Text style={styles.emptyDescription}>
-                인스타그램 릴스나 유튜브 쇼츠에서{'\n'}공유하기를 통해 여기담에
-                저장해보세요.
+                {guestReels !== undefined ? (
+                  <>로그인하고 공유한 콘텐츠의{'\n'}장소 추출 결과를 확인해보세요.</>
+                ) : (
+                  <>인스타그램 릴스를 공유하고 장소 추출 결과를{'\n'}확인해보세요.</>
+                )}
               </Text>
+              {guestReels !== undefined ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="히스토리 로그인"
+                  onPress={onRequireLogin}
+                  style={({pressed}) => [
+                    styles.emptyLoginButton,
+                    pressed && styles.emptyLoginButtonPressed,
+                  ]}>
+                  <Text style={styles.emptyLoginButtonText}>로그인하기</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         ) : (
@@ -1084,14 +1099,14 @@ const styles = StyleSheet.create({
     paddingBottom: 72,
     paddingHorizontal: 24,
   },
-  emptyBody: { alignItems: 'center' },
+  emptyBody: { alignItems: 'center', width: '100%' },
   emptyCharacter: {
     width: 250,
     height: 183,
     transform: [{translateX: -16}],
     marginBottom: 24,
   },
-  emptyText: { alignItems: 'center' },
+  emptyText: { alignItems: 'center', width: '100%' },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -1105,6 +1120,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  emptyLoginButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#1F2238',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  emptyLoginButtonPressed: { opacity: 0.82 },
+  emptyLoginButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   detailContent: { paddingBottom: 60 },
   detailHero: { alignItems: 'center', marginTop: 48 },
   detailThumbnail: {
