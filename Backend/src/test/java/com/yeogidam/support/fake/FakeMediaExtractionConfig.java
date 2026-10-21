@@ -62,6 +62,7 @@ public class FakeMediaExtractionConfig {
     public static class FakeInstagramMediaHtmlReader extends InstagramMediaHtmlReader {
 
         private final AtomicReference<String> author = new AtomicReference<>("yeogidam");
+        private final AtomicReference<RuntimeException> failure = new AtomicReference<>();
 
         private FakeInstagramMediaHtmlReader() {
             super(RestClient.create());
@@ -71,8 +72,15 @@ public class FakeMediaExtractionConfig {
             author.set(value);
         }
 
+        public void failWith(RuntimeException exception) {
+            failure.set(exception);
+        }
+
         @Override
         public MediaMetadataWithUrl read(InstagramUrl instagramUrl) {
+            if (failure.get() != null) {
+                throw failure.get();
+            }
             return new MediaMetadataWithUrl("올드빅과 Dub.+에 다녀왔어요",
                     "https://instagram.example.com/thumbnail.jpg", author.get());
         }

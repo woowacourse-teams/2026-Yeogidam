@@ -6,30 +6,25 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
-import com.yeogidam.media.extraction.domain.LocationHint;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.LocationHint.Basis;
 import com.yeogidam.media.extraction.domain.LocationHint.Type;
+import com.yeogidam.media.extraction.domain.LocationHint;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.place.domain.Place;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
+import com.yeogidam.support.fake.FakeKakaoServer;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 class KakaoPlaceSearcherTest {
 
@@ -373,8 +368,10 @@ class KakaoPlaceSearcherTest {
                 document("999", "이가돈", "광주 서구 치평동 1", "광주 서구 상무중앙로 1")));
         PlaceSearchHint hint = hint("금호대패삼겹살", null, Type.ADDRESS, address);
 
+        ExtractionReport report = new ExtractionReport();
+
         // when
-        List<Place> result = searcher().search(hint);
+        List<Place> result = searcher().search(hint, report);
 
         // then
         assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("300");
@@ -385,6 +382,14 @@ class KakaoPlaceSearcherTest {
                 .containsEntry("y", "35.14")
                 .containsEntry("radius", "3000")
                 .doesNotContainKey("sort");
+
+        JsonNode requests = new JsonMapper().valueToTree(report.toLogFields()).path("kakao_requests");
+        assertThat(requests.get(0).path("stage").asString()).isEqualTo("KAKAO_ADDRESS");
+        JsonNode nearby = requests.get(requests.size() - 1).path("parameters");
+        assertThat(nearby.path("x").asString()).isEqualTo(kakaoServer.lastKeywordParameters().get("x"));
+        assertThat(nearby.path("y").asString()).isEqualTo(kakaoServer.lastKeywordParameters().get("y"));
+        assertThat(nearby.path("radius").asString()).isEqualTo("3000");
+        assertThat(nearby.path("size").asString()).isEqualTo("15");
     }
 
     @Test
@@ -579,20 +584,51 @@ class KakaoPlaceSearcherTest {
                         .containsEntry("radius", "3000"));
     }
 
-    @Test
-    void 카카오가_503을_반환하면_요청_예외가_발생한다() {
+    @ParameterizedTest
+    @ValueSource(ints = {401, 503})
+    void 카카오가_401이나_503을_반환하면_HTTP_상태를_보존하고_요청_예외가_발생한다(int status) {
         // given
-        kakaoServer.respondWithStatus(503);
+        kakaoServer.respondWithStatus(status);
         PlaceSearchHint hint = new PlaceSearchHint("올드빅", "보정상호", List.of(), List.of(), null);
+        ExtractionReport report = new ExtractionReport();
 
         // when & then
-        assertThatThrownBy(() -> searcher().search(hint))
+        assertThatThrownBy(() -> searcher().search(hint, report))
+                .isInstanceOf(ExtractionFailedException.class)
+                .hasCauseInstanceOf(RestClientResponseException.class)
+                .extracting(exception -> ((ExtractionFailedException) exception).reason())
+                .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+        JsonNode request = new JsonMapper().valueToTree(report.toLogFields()).path("kakao_requests").get(0);
+        assertAll(
+                () -> assertThat(request.path("http_status").asInt()).isEqualTo(status),
+                () -> assertThat(request.path("response_count").isNull()).isTrue(),
+                () -> assertThat(kakaoServer.queries())
+                        .isNotEmpty()
+                        .containsOnly("올드빅")
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {200, 201})
+    void 응답_JSON을_읽지_못해도_HTTP_상태를_보존하고_요청_예외가_발생한다(int status) {
+        // given
+        kakaoServer.respondWithStatus(status);
+        kakaoServer.respondWith("올드빅", "{\"documents\":[broken");
+        PlaceSearchHint hint = new PlaceSearchHint("올드빅", "보정상호", List.of(), List.of(), null);
+        ExtractionReport report = new ExtractionReport();
+
+        // when & then
+        assertThatThrownBy(() -> searcher().search(hint, report))
                 .isInstanceOf(ExtractionFailedException.class)
                 .extracting(exception -> ((ExtractionFailedException) exception).reason())
                 .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
-        assertThat(kakaoServer.queries())
-                .isNotEmpty()
-                .containsOnly("올드빅");
+        JsonNode request = new JsonMapper().valueToTree(report.toLogFields()).path("kakao_requests").get(0);
+        assertAll(
+                () -> assertThat(request.path("http_status").asInt()).isEqualTo(status),
+                () -> assertThat(request.path("response_count").isNull()).isTrue(),
+                () -> assertThat(request.path("candidates").isEmpty()).isTrue(),
+                () -> assertThat(kakaoServer.queries()).containsExactly("올드빅")
+        );
     }
 
     @ParameterizedTest
@@ -635,7 +671,12 @@ class KakaoPlaceSearcherTest {
         return new KakaoPlaceSearcher(RestClient.create(), properties, kakaoServer.endpoint());
     }
 
-    private PlaceSearchHint hint(String name, String searchName, Type type, String location) {
+    private PlaceSearchHint hint(
+            String name,
+            String searchName,
+            Type type,
+            String location
+    ) {
         return new PlaceSearchHint(name, searchName, List.of(),
                 List.of(new LocationHint(type, location, Basis.CAPTION)), null);
     }
@@ -644,137 +685,35 @@ class KakaoPlaceSearcherTest {
         return "{\"documents\":[" + String.join(",", documents) + "]}";
     }
 
-    private String document(String id, String name, String address, String roadAddress) {
+    private String document(
+            String id,
+            String name,
+            String address,
+            String roadAddress
+    ) {
         return documentWithCategory(id, name, address, "음식점 > 중식", roadAddress);
     }
 
-    private String documentWithCategory(String id, String name, String address, String category) {
+    private String documentWithCategory(
+            String id,
+            String name,
+            String address,
+            String category
+    ) {
         return documentWithCategory(id, name, address, category, "");
     }
 
-    private String documentWithCategory(String id, String name, String address, String category, String roadAddress) {
+    private String documentWithCategory(
+            String id,
+            String name,
+            String address,
+            String category,
+            String roadAddress
+    ) {
         return """
                 {"id":"%s","place_name":"%s","address_name":"%s","road_address_name":"%s",
                  "x":"127.0","y":"37.5","category_name":"%s","phone":"",
                  "place_url":"https://place.map.kakao.com/%s"}
                 """.formatted(id, name, address, roadAddress, category, id);
-    }
-
-    private static class FakeKakaoServer {
-
-        private final HttpServer server;
-        private final Map<String, String> responses = new HashMap<>();
-        private final Map<String, String> addressResponses = new HashMap<>();
-        private final Map<String, String> nearbyResponses = new HashMap<>();
-        private final List<String> queries = new ArrayList<>();
-        private final List<String> addressQueries = new ArrayList<>();
-        private Map<String, String> lastKeywordParameters = new HashMap<>();
-        private String authorization;
-        private int status = 200;
-
-        private FakeKakaoServer() throws IOException {
-            server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-            server.createContext("/v2/local/search/keyword.json", this::handle);
-            server.createContext("/v2/local/search/address.json", this::handleAddress);
-            server.start();
-        }
-
-        private void handle(HttpExchange exchange) throws IOException {
-            String query = readQuery(exchange.getRequestURI());
-            int page = readPage(exchange.getRequestURI());
-            queries.add(query);
-            lastKeywordParameters = readParameters(exchange.getRequestURI());
-            authorization = exchange.getRequestHeaders().getFirst("Authorization");
-            Map<String, String> table = lastKeywordParameters.containsKey("x") ? nearbyResponses : responses;
-            respond(exchange, table.getOrDefault(query + "|" + page, "{\"documents\":[]}"));
-        }
-
-        private void handleAddress(HttpExchange exchange) throws IOException {
-            String query = readQuery(exchange.getRequestURI());
-            addressQueries.add(query);
-            respond(exchange, addressResponses.getOrDefault(query, "{\"documents\":[]}"));
-        }
-
-        private void respond(HttpExchange exchange, String body) throws IOException {
-            byte[] response = body.getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
-            exchange.sendResponseHeaders(status, response.length);
-            try (OutputStream output = exchange.getResponseBody()) {
-                output.write(response);
-            }
-        }
-
-        private Map<String, String> readParameters(URI requestUri) {
-            Map<String, String> parameters = new HashMap<>();
-            for (String parameter : requestUri.getRawQuery().split("&")) {
-                String[] pair = parameter.split("=", 2);
-                parameters.put(pair[0], URLDecoder.decode(pair.length > 1 ? pair[1] : "", StandardCharsets.UTF_8));
-            }
-            return parameters;
-        }
-
-        private String readQuery(URI requestUri) {
-            for (String parameter : requestUri.getRawQuery().split("&")) {
-                if (parameter.startsWith("query=")) {
-                    return URLDecoder.decode(parameter.substring("query=".length()), StandardCharsets.UTF_8);
-                }
-            }
-            throw new IllegalStateException("카카오 테스트 요청에 검색어가 없습니다.");
-        }
-
-        private int readPage(URI requestUri) {
-            for (String parameter : requestUri.getRawQuery().split("&")) {
-                if (parameter.startsWith("page=")) {
-                    return Integer.parseInt(parameter.substring("page=".length()));
-                }
-            }
-            return 1;
-        }
-
-        private void respondWith(String query, String response) {
-            respondWithPage(query, 1, response);
-        }
-
-        private void respondWithPage(String query, int page, String response) {
-            responses.put(query + "|" + page, response);
-        }
-
-        private void respondWithStatus(int status) {
-            this.status = status;
-        }
-
-        private void respondNearby(String query, String response) {
-            nearbyResponses.put(query + "|1", response);
-        }
-
-        private void respondToAddress(String address, String x, String y) {
-            addressResponses.put(address,
-                    "{\"documents\":[{\"address_name\":\"" + address + "\",\"x\":\"" + x + "\",\"y\":\"" + y + "\"}]}");
-        }
-
-        private List<String> addressQueries() {
-            return addressQueries;
-        }
-
-        private Map<String, String> lastKeywordParameters() {
-            return lastKeywordParameters;
-        }
-
-        private URI endpoint() {
-            return URI.create("http://localhost:" + server.getAddress().getPort()
-                    + "/v2/local/search/keyword.json");
-        }
-
-        private List<String> queries() {
-            return queries;
-        }
-
-        private String authorization() {
-            return authorization;
-        }
-
-        private void close() {
-            server.stop(0);
-        }
     }
 }

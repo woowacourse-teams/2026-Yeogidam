@@ -2,36 +2,34 @@ package com.yeogidam.media.extraction.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
+import com.yeogidam.support.fake.FakeGeminiServer;
 import com.yeogidam.support.fixture.MutableClock;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -56,16 +54,22 @@ class GeminiPlaceNameExtractorTest {
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-13T00:00:00Z"));
+    private final Logger logger = (Logger) LoggerFactory.getLogger(GeminiPlaceNameExtractor.class);
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
     private FakeGeminiServer geminiServer;
 
     @BeforeEach
     void setUp() throws IOException {
         geminiServer = new FakeGeminiServer();
+        logs.start();
+        logger.addAppender(logs);
     }
 
     @AfterEach
     void tearDown() {
         geminiServer.close();
+        logger.detachAppender(logs);
+        logs.stop();
     }
 
     @Test
@@ -165,11 +169,20 @@ class GeminiPlaceNameExtractorTest {
         // given
         geminiServer.respondWith(interactionResponse("{\"unexpected\":[]}"));
 
-        // when & then
-        assertThatThrownBy(() -> extractor("test-gemini-key").extract(CAPTION))
-                .isInstanceOf(ExtractionFailedException.class)
-                .extracting(exception -> ((ExtractionFailedException) exception).reason())
-                .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+        ExtractionReport report = new ExtractionReport();
+
+        // when
+        Throwable error = catchThrowable(() -> extractor("test-gemini-key").extract(CAPTION, report));
+
+        // then
+        assertThat(error).isInstanceOf(ExtractionFailedException.class);
+        ExtractionFailedException failure = (ExtractionFailedException) error;
+        assertAll(
+                () -> assertThat(failure.reason()).isEqualTo(ExtractionFailureReason.PROCESSING_FAILED),
+                () -> assertThat(jsonMapper.valueToTree(report.toLogFields()).path("gemini_results").get(0)
+                        .path("raw_json").asString()).isEqualTo("{\"unexpected\":[]}"),
+                () -> assertThat(report.failureStage()).isEqualTo("GEMINI_CAPTION")
+        );
     }
 
     @Test
@@ -187,13 +200,17 @@ class GeminiPlaceNameExtractorTest {
         geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
         geminiServer.respondToKeyWith(FREE_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
 
+        ExtractionReport report = new ExtractionReport();
+
         // when
-        PlaceSearchHints hints = extractor(FREE_KEY, PAID_KEY).extract(CAPTION);
+        PlaceSearchHints hints = extractor(FREE_KEY, PAID_KEY).extract(CAPTION, report);
 
         // then
         assertAll(
                 () -> assertThat(hints.places()).hasSize(2),
-                () -> assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY)
+                () -> assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY),
+                () -> assertThat(jsonMapper.valueToTree(report.toLogFields()).path("gemini_results").get(0)
+                        .path("raw_json").asString()).isEqualTo(EXTRACTED_PLACES)
         );
     }
 
@@ -231,6 +248,9 @@ class GeminiPlaceNameExtractorTest {
 
         // then
         assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY, PAID_KEY);
+        assertThat(logs.list)
+                .extracting(ILoggingEvent::getLevel)
+                .containsExactly(Level.WARN);
     }
 
     @Test
@@ -293,6 +313,20 @@ class GeminiPlaceNameExtractorTest {
         assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY);
     }
 
+    @Test
+    void 완료되지_않은_응답도_모델이_생성한_JSON을_보존하고_예외가_발생한다() throws Exception {
+        // given
+        String output = "{\"places\":[]}";
+        geminiServer.respondWith(interactionResponse(output).replace("completed", "in_progress"));
+        ExtractionReport report = new ExtractionReport();
+
+        // when & then
+        assertThatThrownBy(() -> extractor("test-gemini-key").extract(CAPTION, report))
+                .isInstanceOf(ExtractionFailedException.class);
+        assertThat(jsonMapper.valueToTree(report.toLogFields()).path("gemini_results").get(0).path("raw_json").asString())
+                .isEqualTo(output);
+    }
+
     private GeminiPlaceNameExtractor extractor(String apiKey) {
         return extractor(apiKey, List.of());
     }
@@ -348,82 +382,5 @@ class GeminiPlaceNameExtractorTest {
         Set<String> names = new HashSet<>();
         object.properties().forEach(property -> names.add(property.getKey()));
         return names;
-    }
-
-    private static class FakeGeminiServer {
-
-        private final HttpServer server;
-        private final AtomicReference<String> responseBody = new AtomicReference<>();
-        private final AtomicReference<String> requestBody = new AtomicReference<>();
-        private final AtomicReference<String> apiKey = new AtomicReference<>();
-        private final AtomicInteger requestCount = new AtomicInteger();
-        private final Map<String, KeyResponse> keyResponses = new ConcurrentHashMap<>();
-        private final List<String> requestedKeys = new CopyOnWriteArrayList<>();
-
-        private FakeGeminiServer() throws IOException {
-            server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-            server.createContext("/v1/interactions", this::handle);
-            server.start();
-        }
-
-        private void handle(HttpExchange exchange) throws IOException {
-            requestCount.incrementAndGet();
-            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-            String requestKey = exchange.getRequestHeaders().getFirst("x-goog-api-key");
-            apiKey.set(requestKey);
-            requestedKeys.add(requestKey);
-            KeyResponse keyResponse = keyResponses.getOrDefault(requestKey, new KeyResponse(200, responseBody.get(), Map.of()));
-            byte[] response = keyResponse.body().getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
-            keyResponse.headers().forEach((name, value) -> exchange.getResponseHeaders().set(name, value));
-            exchange.sendResponseHeaders(keyResponse.status(), response.length);
-            try (OutputStream output = exchange.getResponseBody()) {
-                output.write(response);
-            }
-        }
-
-        private void respondWith(String response) {
-            responseBody.set(response);
-        }
-
-        // 특정 key로 온 요청에만 정한 상태와 본문으로 답한다. 나머지 key는 respondWith의 정상 응답을 받는다.
-        private void respondToKeyWith(String key, int status, String body, Map<String, String> headers) {
-            keyResponses.put(key, new KeyResponse(status, body, headers));
-        }
-
-        private void clearKeyResponse(String key) {
-            keyResponses.remove(key);
-        }
-
-        private List<String> requestedKeys() {
-            return List.copyOf(requestedKeys);
-        }
-
-        private URI endpoint() {
-            return URI.create("http://localhost:" + server.getAddress().getPort() + "/v1/interactions");
-        }
-
-        private String requestBody() {
-            return requestBody.get();
-        }
-
-        private String apiKey() {
-            return apiKey.get();
-        }
-
-        private int requestCount() {
-            return requestCount.get();
-        }
-
-        private void close() {
-            server.stop(0);
-        }
-    }
-
-    private record KeyResponse(
-            int status,
-            String body,
-            Map<String, String> headers
-    ) {
     }
 }
