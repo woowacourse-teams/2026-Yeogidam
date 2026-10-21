@@ -37,23 +37,23 @@ export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
       Animated.timing(value, { toValue: 0, duration: 0, useNativeDriver: true });
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.delay(700),
+        Animated.delay(250),
         Animated.timing(scroll, {
           toValue: 1,
-          duration: 2200,
+          duration: 700,
           useNativeDriver: true,
         }),
-        Animated.delay(500),
+        Animated.delay(200),
         Animated.timing(mapOpacity, {
           toValue: 1,
-          duration: 500,
+          duration: 250,
           useNativeDriver: true,
         }),
         Animated.parallel([
-          // 지도 크기는 고정하고 기존 시트 전환 시간을 유지한다.
-          Animated.delay(3600),
+          // 지도 크기는 고정하고 장소 시트를 읽을 시간을 남긴다.
+          Animated.delay(1800),
           Animated.sequence([
-            Animated.delay(600),
+            Animated.delay(250),
             Animated.spring(sheet, {
               toValue: 1,
               friction: 8,
@@ -61,12 +61,12 @@ export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
             }),
           ]),
         ]),
-        Animated.delay(800),
+        Animated.delay(400),
         // 지도가 덮고 있을 때 보관함을 맨 위로, 지도가 사라진 뒤 지도를 처음 상태로 되돌린다.
         snap(scroll),
         Animated.timing(mapOpacity, {
           toValue: 0,
-          duration: 500,
+          duration: 250,
           useNativeDriver: true,
         }),
         snap(sheet),
