@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadataWithUrl;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
@@ -18,6 +19,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
@@ -107,18 +109,47 @@ class InstagramMetadataServiceIntegrationTest extends JdbcTestSupport {
         FakeInstagramMediaHtmlReader instagramMediaHtmlReader = new FakeInstagramMediaHtmlReader(mediaMetadataWithUrl);
         FakeInstagramThumbnailStore thumbnailStore = new FakeInstagramThumbnailStore(S3_OBJECT_KEY);
         InstagramMetadataService service = createService(instagramMediaHtmlReader, thumbnailStore);
+        ExtractionReport report = new ExtractionReport();
 
         // when & then
-        assertThatThrownBy(() -> service.readAndStore(MEDIA_ID, new InstagramUrl(INSTAGRAM_URL)))
+        assertThatThrownBy(() -> service.readAndStore(MEDIA_ID, new InstagramUrl(INSTAGRAM_URL), report))
                 .isInstanceOf(InstagramContentUnavailableException.class);
 
         var storedMetadata = jdbcTemplate.queryForMap(
                 "SELECT caption, thumbnail_key, author, extraction_status FROM media WHERE id = ?",
                 MEDIA_ID);
         assertAll(
+                () -> assertThat(report.failureStage()).isEqualTo("CAPTION_VALIDATE"),
                 () -> assertThat(storedMetadata.get("caption")).isEqualTo(caption),
                 () -> assertThat(storedMetadata.get("thumbnail_key")).isEqualTo(S3_OBJECT_KEY),
                 () -> assertThat(storedMetadata.get("author")).isEqualTo("yeogidam"),
+                () -> assertThat(storedMetadata.get("extraction_status")).isEqualTo("EXTRACTING")
+        );
+    }
+
+    @Test
+    void 메타데이터_저장에_실패하면_단계를_기록하고_예외가_발생한다() {
+        // given
+        insertMedia();
+        MediaMetadataWithUrl pageMetadata = new MediaMetadataWithUrl(
+                "캡션", INSTAGRAM_THUMBNAIL_URL, "a".repeat(101));
+        FakeInstagramMediaHtmlReader instagramMediaHtmlReader = new FakeInstagramMediaHtmlReader(pageMetadata);
+        FakeInstagramThumbnailStore thumbnailStore = new FakeInstagramThumbnailStore(S3_OBJECT_KEY);
+        InstagramMetadataService service = createService(instagramMediaHtmlReader, thumbnailStore);
+        ExtractionReport report = new ExtractionReport();
+
+        // when & then
+        assertThatThrownBy(() -> service.readAndStore(MEDIA_ID, new InstagramUrl(INSTAGRAM_URL), report))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        var storedMetadata = jdbcTemplate.queryForMap(
+                "SELECT caption, thumbnail_key, author, extraction_status FROM media WHERE id = ?",
+                MEDIA_ID);
+        assertAll(
+                () -> assertThat(report.failureStage()).isEqualTo("METADATA_STORE"),
+                () -> assertThat(storedMetadata.get("caption")).isNull(),
+                () -> assertThat(storedMetadata.get("thumbnail_key")).isNull(),
+                () -> assertThat(storedMetadata.get("author")).isNull(),
                 () -> assertThat(storedMetadata.get("extraction_status")).isEqualTo("EXTRACTING")
         );
     }

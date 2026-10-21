@@ -2,6 +2,7 @@ package com.yeogidam.media.extraction.infrastructure;
 
 import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.extraction.service.PlaceNameExtractor;
@@ -305,17 +306,34 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
 
     @Override
     public PlaceSearchHints extract(String caption) {
+        return extract(caption, new ExtractionReport());
+    }
+
+    @Override
+    public PlaceSearchHints extract(String caption, ExtractionReport report) {
+        report.enterStage("GEMINI_CAPTION");
         validateRequest(caption);
-        String output = requestWithKeys(apiKey -> readGeneratedJson(requestInteraction(apiKey, caption)));
+        String output = requestWithKeys(apiKey -> readGeneratedJson(requestInteraction(apiKey, caption), report));
         return parsePlaces(output);
     }
 
     @Override
     public PlaceSearchHints extractFile(String caption, InstagramUrl instagramUrl) {
+        return extractFile(caption, instagramUrl, new ExtractionReport());
+    }
+
+    @Override
+    public PlaceSearchHints extractFile(
+            String caption,
+            InstagramUrl instagramUrl,
+            ExtractionReport report
+    ) {
         validateRequest(caption);
+        report.enterStage("MEDIA_DOWNLOAD");
         List<DownloadedMedia> downloaded = mediaDownloader.download(instagramUrl);
+        report.enterStage("GEMINI_MEDIA");
         try {
-            String output = requestWithKeys(apiKey -> analyzeMedia(caption, downloaded, apiKey));
+            String output = requestWithKeys(apiKey -> analyzeMedia(caption, downloaded, apiKey, report));
             return parsePlaces(output);
         } finally {
             mediaDownloader.delete(downloaded);
@@ -323,13 +341,19 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
     }
 
     // 올린 파일은 key의 Google 프로젝트에 묶이므로, key마다 원본을 올리고 분석이 끝나면 같은 key로 지운다.
-    private String analyzeMedia(String caption, List<DownloadedMedia> downloaded, String apiKey) {
+    private String analyzeMedia(
+            String caption,
+            List<DownloadedMedia> downloaded,
+            String apiKey,
+            ExtractionReport report
+    ) {
         List<GeminiUploadedFile> uploaded = new ArrayList<>();
         try {
             for (DownloadedMedia media : downloaded) {
-                uploaded.add(fileClient.upload(media, apiKey));
+                uploaded.add(fileClient.upload(media, apiKey, report));
             }
-            return readMediaJson(requestMedia(apiKey, caption, uploaded));
+            report.enterStage("GEMINI_MEDIA");
+            return readMediaJson(requestMedia(apiKey, caption, uploaded), report);
         } finally {
             uploaded.forEach(file -> fileClient.delete(file.name(), apiKey));
         }
@@ -378,7 +402,11 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
                 .body(JsonNode.class);
     }
 
-    private JsonNode requestMedia(String apiKey, String caption, List<GeminiUploadedFile> files) {
+    private JsonNode requestMedia(
+            String apiKey,
+            String caption,
+            List<GeminiUploadedFile> files
+    ) {
         Map<String, Object> body = Map.of(
                 "systemInstruction", Map.of("parts", List.of(Map.of("text", MEDIA_SYSTEM_INSTRUCTION))),
                 "contents", List.of(Map.of("role", "user", "parts", mediaParts(caption, files))),
@@ -416,7 +444,7 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
         if (status.isSameCodeAs(HttpStatus.TOO_MANY_REQUESTS)
                 || KEY_PROBLEM_STATUSES.stream().anyMatch(status::isSameCodeAs)) {
             apiKeys.block(apiKey, KEY_PROBLEM_BLOCK);
-            log.error("Gemini key {}번이 {}로 거절되어 {}분 동안 건너뛰고 다음 key로 넘깁니다. 결제 잔액이나 key 설정을 확인해야 합니다.",
+            log.warn("Gemini key {}번이 {}로 거절되어 {}분 동안 건너뛰고 다음 key로 넘깁니다. 결제 잔액이나 key 설정을 확인해야 합니다.",
                     keyNumber, status.value(), KEY_PROBLEM_BLOCK.toMinutes());
             return;
         }
@@ -511,13 +539,18 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
                 "additionalProperties", false);
     }
 
-    private String readGeneratedJson(JsonNode response) {
-        if (response == null || !"completed".equals(response.path("status").asString())) {
+    private String readGeneratedJson(JsonNode response, ExtractionReport report) {
+        if (response == null) {
             throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
         }
         for (JsonNode step : response.path("steps")) {
             if ("model_output".equals(step.path("type").asString())) {
-                return readTextContent(step.path("content"));
+                String output = readTextContent(step.path("content"));
+                report.recordGeminiJson("GEMINI_CAPTION", output);
+                if (!"completed".equals(response.path("status").asString())) {
+                    throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
+                }
+                return output;
             }
         }
         throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
@@ -541,21 +574,21 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
         return List.copyOf(parts);
     }
 
-    private String readMediaJson(JsonNode response) {
+    private String readMediaJson(JsonNode response, ExtractionReport report) {
         if (response == null) {
             throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
         }
         JsonNode candidate = response.path("candidates").path(0);
-        if (!"STOP".equals(candidate.path("finishReason").asString())) {
-            throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
-        }
         StringBuilder output = new StringBuilder();
         for (JsonNode part : candidate.path("content").path("parts")) {
             if (part.has("text") && !part.path("thought").asBoolean()) {
                 output.append(part.path("text").asString());
             }
         }
-        if (output.isEmpty()) {
+        if (!output.isEmpty()) {
+            report.recordGeminiJson("GEMINI_MEDIA", output.toString());
+        }
+        if (!"STOP".equals(candidate.path("finishReason").asString()) || output.isEmpty()) {
             throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
         }
         return output.toString();
