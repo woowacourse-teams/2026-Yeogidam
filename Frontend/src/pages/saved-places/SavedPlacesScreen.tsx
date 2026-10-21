@@ -88,6 +88,7 @@ type SavedPlacesScreenProps = {
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
+  onShowGuestLoginPrompt?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
@@ -128,6 +129,7 @@ export function SavedPlacesScreen({
   initialScrollOffset = 0,
   onScrollOffsetChange,
   onAuthenticationRequired,
+  onShowGuestLoginPrompt,
   onEditModeChange,
   onRequireLogin,
   // onOpenInbox,
@@ -486,7 +488,7 @@ export function SavedPlacesScreen({
 
   const openDialog = () => {
     if (isGuest) {
-      onRequireLogin?.();
+      (onShowGuestLoginPrompt ?? onRequireLogin)?.();
       return;
     }
     setLinkError(null);

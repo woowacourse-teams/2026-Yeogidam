@@ -27,6 +27,7 @@ import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
+import {GuestLoginPrompt} from '../src/components/GuestLoginPrompt';
 import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
 
 const DISMISSED_RECOMMENDED_VERSION_KEY =
@@ -383,6 +384,21 @@ test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다',
     renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원 보관함의 추가 버튼은 로그인 안내 모달을 연다', async () => {
+  const renderer = await renderGuestMain();
+  const prompt = renderer.root.findByType(GuestLoginPrompt);
+
+  expect(prompt.props.visible).toBe(false);
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onShowGuestLoginPrompt();
+  });
+  expect(prompt.props.visible).toBe(true);
+
+  await ReactTestRenderer.act(async () => prompt.props.onContinueBrowsing());
+  expect(prompt.props.visible).toBe(false);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

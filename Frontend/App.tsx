@@ -46,7 +46,6 @@ import {
   getDismissedRecommendedVersion,
   rememberDismissedRecommendedVersion,
 } from './src/lib/app-update-policy-storage';
-import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   toLoginFailureType,
   trackAppOpened,
@@ -153,7 +152,6 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
 };
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
 const SPLASH_MIN_DURATION_MS = 2000;
-const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
@@ -324,15 +322,6 @@ function App() {
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
-  const [isAppActive, setIsAppActive] = useState(
-    AppState.currentState === 'active',
-  );
-  const [guestLoginPromptTimer] = useState(
-    () =>
-      new ForegroundElapsedTimer(GUEST_LOGIN_PROMPT_DELAY_MS, () => {
-        setIsGuestLoginPromptVisible(true);
-      }),
-  );
   const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
@@ -413,29 +402,11 @@ function App() {
     recommendedUpdate === null;
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      setIsAppActive(state === 'active');
-    });
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    if (isGuestBrowsing && isAppActive) {
-      guestLoginPromptTimer.start();
-    } else {
-      guestLoginPromptTimer.pause();
-    }
-  }, [guestLoginPromptTimer, isAppActive, isGuestBrowsing]);
-
-  useEffect(() => {
     if (isAuthenticated) {
-      guestLoginPromptTimer.cancel();
       setIsGuestLoginPromptVisible(false);
       guestReturnFlowRef.current = null;
     }
-  }, [guestLoginPromptTimer, isAuthenticated]);
-
-  useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated === true) {
@@ -987,6 +958,12 @@ function App() {
     setFlowState(INITIAL_FLOW_STATE);
   };
 
+  const handleShowGuestLoginPrompt = () => {
+    if (isAuthenticated === false) {
+      setIsGuestLoginPromptVisible(true);
+    }
+  };
+
   // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
   const handleBrowseAsGuest = () => {
     setSocialLoginError(null);
@@ -1203,6 +1180,7 @@ function App() {
             savedPlacesScrollOffsetRef.current = offset;
           }}
           onRequireLogin={handleRequireLogin}
+          onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
           onSharedResultConsumed={clearShareResult}
         />
       );
@@ -1343,7 +1321,7 @@ function App() {
         }}
       />
       <GuestLoginPrompt
-        visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}
+        visible={isGuestLoginPromptVisible && isGuestBrowsing}
         onLogin={handleOpenGuestLogin}
         onContinueBrowsing={() => setIsGuestLoginPromptVisible(false)}
       />
