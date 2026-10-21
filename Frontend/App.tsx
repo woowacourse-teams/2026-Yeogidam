@@ -69,14 +69,12 @@ import {
 } from './src/analytics/userEntryEvents';
 // import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
-  completeAppGuide,
-  hasCompletedAppGuide,
-  hasSignedInOnThisInstall,
   rememberSignInOnThisInstall,
 } from './src/lib/app-guide-storage';
 import { AppGuideScreen } from './src/pages/guide/AppGuideScreen';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
+import { OnboardingScreen } from './src/pages/onboarding/OnboardingScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
 // 대기함(inBoxScreen, inbox-api)은 Supabase 전용이라 삭제했습니다. 다시 쓰려면 Spring API로 새로 만들어야 합니다.
@@ -324,13 +322,11 @@ function App() {
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
-  const hasSignedInOnThisInstallRef = useRef(false);
   const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
-  const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
-    null,
-  );
+  // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
+  const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
@@ -429,7 +425,7 @@ function App() {
   const isGuestBrowsing =
     isAuthReady &&
     !isSplashVisible &&
-    hasCompletedGuide === true &&
+    !isOnboardingVisible &&
     flowState.kind === 'main' &&
     isAuthenticated === false &&
     !hasPendingShareLogin &&
@@ -475,16 +471,15 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated === true && hasCompletedGuide === true) {
-      hasSignedInOnThisInstallRef.current = true;
+    if (isAuthenticated === true) {
       rememberSignInOnThisInstall().catch(() => undefined);
     }
-  }, [hasCompletedGuide, isAuthenticated]);
+  }, [isAuthenticated]);
 
   const canRequestLocation =
     isAuthReady &&
     !isSplashVisible &&
-    hasCompletedGuide === true &&
+    !isOnboardingVisible &&
     flowState.kind === 'main' &&
     !requiredUpdateStoreUrl;
   useEffect(() => {
@@ -614,17 +609,14 @@ function App() {
     };
 
     const syncFlowState = async () => {
-      const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
+      const [tokens, memberId] = await Promise.all([
         getSpringTokens().catch(() => null),
         getSpringMemberId().catch(() => null),
-        hasSignedInOnThisInstall(),
       ]);
 
       if (!isMounted) {
         return;
       }
-      hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
-
       if (!tokens) {
         activeUserIdRef.current = null;
         setIsAuthenticated(false);
@@ -636,9 +628,8 @@ function App() {
         // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
         await syncShareSession(null).catch(() => undefined);
 
-        setFlowState(
-          signedInOnThisInstall ? INITIAL_FLOW_STATE : GUEST_MAIN_FLOW_STATE,
-        );
+        setFlowState(INITIAL_FLOW_STATE);
+        setIsOnboardingVisible(true);
         setMyPageOverlay(null);
         setIsAuthReady(true);
         return;
@@ -668,18 +659,6 @@ function App() {
       if (isMounted) applyUpdatePolicy(policy);
     };
 
-    const loadGuideCompletion = async () => {
-      const [completed, signedInOnThisInstall] = await Promise.all([
-        hasCompletedAppGuide(),
-        hasSignedInOnThisInstall(),
-      ]);
-
-      if (isMounted) {
-        hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
-        setHasCompletedGuide(completed || signedInOnThisInstall);
-      }
-    };
-
     const splashDelay = new Promise<void>(resolve => {
       splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
     });
@@ -687,7 +666,6 @@ function App() {
     Promise.allSettled([
       syncFlowState(),
       checkUpdatePolicy(),
-      loadGuideCompletion(),
       splashDelay,
     ]).finally(() => {
       if (!isMounted) {
@@ -710,11 +688,8 @@ function App() {
         activeUserIdRef.current = null;
         transferErrorShownRef.current = false;
         setIsAuthenticated(false);
-        setFlowState(
-          hasSignedInOnThisInstallRef.current
-            ? INITIAL_FLOW_STATE
-            : GUEST_MAIN_FLOW_STATE,
-        );
+        setFlowState(INITIAL_FLOW_STATE);
+        setIsOnboardingVisible(true);
         setMyPageOverlay(null);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
@@ -725,6 +700,7 @@ function App() {
       setSocialLoginError(null);
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
+      setIsOnboardingVisible(false);
       setSelectedPlace(null);
       setSelectedPlaceViewContext(null);
       savedPlacesScrollOffsetRef.current = 0;
@@ -1024,8 +1000,7 @@ function App() {
       return;
     }
     loginAttemptInFlightRef.current = true;
-    const hasGuestTransfer =
-      isAuthenticated === false && hasCompletedGuide === true;
+    const hasGuestTransfer = isAuthenticated === false;
     const signIn = {
       apple: signInWithApple,
       kakao: signInWithKakao,
@@ -1086,11 +1061,6 @@ function App() {
     setHasPendingShareLogin(false);
   };
 
-  const handleCompleteGuide = () => {
-    setHasCompletedGuide(true);
-    completeAppGuide();
-  };
-
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
@@ -1134,7 +1104,7 @@ function App() {
     setIsLogoutPending(true);
 
     // 로컬 중심 로그아웃: 서버 세션 폐기는 best-effort이고, 로컬 정리가 끝나면 SIGNED_OUT으로
-    // 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
+    // 온보딩을 거쳐 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
     try {
       const result = await logoutSpringSession();
       if (!result.serverConfirmed) {
@@ -1412,7 +1382,7 @@ function App() {
   const isMapScreen = currentScreen === 'map';
   const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
 
-  if (!isAuthReady || isSplashVisible || hasCompletedGuide === null) {
+  if (!isAuthReady || isSplashVisible) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
@@ -1421,7 +1391,7 @@ function App() {
     );
   }
 
-  if (!hasCompletedGuide) {
+  if (isOnboardingVisible) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -1429,8 +1399,14 @@ function App() {
           edges={['top', 'left', 'right', 'bottom']}
           style={styles.safeArea}
         >
-          <AppGuideScreen onComplete={handleCompleteGuide} />
+          <OnboardingScreen onComplete={() => setIsOnboardingVisible(false)} />
         </SafeAreaView>
+        {/* 필수 업데이트는 온보딩 중에도 막는다. 권장 업데이트는 온보딩 뒤에 안내한다. */}
+        <AppUpdateModal
+          mode="required"
+          storeUrl={requiredUpdateStoreUrl ?? ''}
+          visible={requiredUpdateStoreUrl !== null}
+        />
       </SafeAreaProvider>
     );
   }
