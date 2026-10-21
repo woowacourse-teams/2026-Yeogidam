@@ -1,6 +1,7 @@
 package com.yeogidam.media.extraction.infrastructure;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.instagram.domain.DownloadedMedia;
 import java.net.URI;
@@ -70,6 +71,15 @@ public class GeminiFileClient {
      * @throws ExtractionFailedException 업로드, 응답 검증 또는 처리 상태 확인에 실패한 경우
      */
     public GeminiUploadedFile upload(DownloadedMedia media, String apiKey) {
+        return upload(media, apiKey, new ExtractionReport());
+    }
+
+    public GeminiUploadedFile upload(
+            DownloadedMedia media,
+            String apiKey,
+            ExtractionReport report
+    ) {
+        report.enterStage("GEMINI_FILE_UPLOAD");
         String name = null;
         try {
             URI uploadUri = startUpload(media, apiKey);
@@ -87,7 +97,7 @@ public class GeminiFileClient {
             file = file.path("file");
             name = file.path("name").asString();
             validateName(name);
-            file = awaitActive(file, name, apiKey);
+            file = awaitActive(file, name, apiKey, report);
             String uri = file.path("uri").asString();
             if (uri == null || uri.isBlank()) {
                 throw new IllegalStateException("Gemini 파일 참조가 없습니다.");
@@ -126,7 +136,13 @@ public class GeminiFileClient {
     }
 
     /** PROCESSING 동안 대기하며 상태를 조회하고, ACTIVE 외의 최종 상태는 실패로 처리한다. */
-    private JsonNode awaitActive(JsonNode file, String name, String apiKey) throws InterruptedException {
+    private JsonNode awaitActive(
+            JsonNode file,
+            String name,
+            String apiKey,
+            ExtractionReport report
+    ) throws InterruptedException {
+        report.enterStage("GEMINI_FILE_PROCESSING");
         long deadline = System.nanoTime() + processingTimeout.toNanos();
         while ("PROCESSING".equals(file.path("state").asString())) {
             // 조회를 시작하기 전에 대기 기한을 확인하므로, 진행 중인 HTTP 요청이 기한을 넘길 수 있다.
