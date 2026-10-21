@@ -24,7 +24,6 @@ import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen'
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
-import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
@@ -433,9 +432,8 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(renderer.root.findByType(BottomNavigationBar).props.isGuest).toBe(true);
   const historyProps = renderer.root.findByType(HistoryScreen).props;
-  expect(historyProps.guestReels).toEqual([ONBOARDING_HISTORY_REEL]);
-  expect(historyProps.guestReels[0].processing_status).toBe('COMPLETED');
-  expect(historyProps.guestDetails[ONBOARDING_HISTORY_REEL.id].extraction.extraction_places).toHaveLength(5);
+  expect(historyProps.guestReels).toEqual([]);
+  expect(historyProps.guestDetails).toBeUndefined();
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(HistoryScreen).props.onBack();

@@ -13,11 +13,8 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
-import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
 import {
-  ONBOARDING_HISTORY_DETAIL,
-  ONBOARDING_HISTORY_REEL,
   ONBOARDING_PLACES,
   ONBOARDING_PLACE_REELS,
 } from './src/entities/onboarding/data';
@@ -159,10 +156,6 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   detailSource: null,
 };
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
-const GUEST_HISTORY_REELS: HistoryReel[] = [ONBOARDING_HISTORY_REEL];
-const GUEST_HISTORY_DETAILS = {
-  [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
-};
 const SPLASH_MIN_DURATION_MS = 2000;
 const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
@@ -1140,8 +1133,7 @@ function App() {
     if (currentScreen === 'history') {
       return (
         <HistoryScreen
-          guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
-          guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
+          guestReels={isAuthenticated === false ? [] : undefined}
           onBack={() => openMainScreen(historyReturnScreenRef.current)}
           onRequireLogin={handleRequireLogin}
         />

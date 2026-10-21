@@ -63,8 +63,6 @@ type HistoryScreenProps = {
 const thumbnail =
   'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
 
-const emptyCharacter =
-  'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
 const placeThumbnail =
   'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
 function getHistoryTitle(reel: HistoryReel) {
@@ -971,7 +969,7 @@ export function HistoryScreen({
         ) : reels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
-              source={{ uri: emptyCharacter }}
+              source={require('../../assets/illustrations/empty-illustration.png')}
               style={styles.emptyCharacter}
             />
             <View style={styles.emptyText}>
