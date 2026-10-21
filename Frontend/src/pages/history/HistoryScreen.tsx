@@ -1096,7 +1096,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 0,
-    paddingBottom: 72,
+    paddingBottom: 112,
     paddingHorizontal: 24,
   },
   emptyBody: { alignItems: 'center', width: '100%' },

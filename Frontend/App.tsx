@@ -1172,6 +1172,7 @@ function App() {
           isGuest={isAuthenticated === false}
           places={isAuthenticated === false ? [] : undefined}
           onAuthenticationRequired={handleRequireLogin}
+          onOpenGuide={() => setMyPageOverlay('guide')}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
             openDetailFrom('saved', place, context)

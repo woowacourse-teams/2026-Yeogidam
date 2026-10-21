@@ -1,15 +1,27 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {SavedPlacesGuideNotice} from './SavedPlacesGuideNotice';
 
 type SavedPlacesEmptyStateProps = {
   isGuest?: boolean;
   onLogin?: () => void;
+  onOpenGuide?: () => void;
 };
 
 export function SavedPlacesEmptyState({
   isGuest = false,
   onLogin,
+  onOpenGuide,
 }: SavedPlacesEmptyStateProps) {
+  const [guideTopOffset, setGuideTopOffset] = useState<number | null>(null);
+
+  const positionGuideAfter = (
+    event: {nativeEvent: {layout: {y: number; height: number}}},
+    gap: number,
+  ) => {
+    setGuideTopOffset(event.nativeEvent.layout.y + event.nativeEvent.layout.height + gap);
+  };
+
   return (
     <View style={styles.content}>
       <Image
@@ -17,7 +29,14 @@ export function SavedPlacesEmptyState({
         style={styles.image}
       />
       <Text style={styles.title}>아직 저장된 장소가 없어요</Text>
-      <Text style={styles.description}>
+      <Text
+        testID="saved-places-empty-description"
+        onLayout={
+          isGuest
+            ? undefined
+            : event => positionGuideAfter(event, 24)
+        }
+        style={styles.description}>
         {isGuest ? (
           <>
             로그인하고 마음에 드는 장소를{'\n'}
@@ -35,12 +54,19 @@ export function SavedPlacesEmptyState({
           accessibilityLabel="보관함 로그인"
           accessibilityRole="button"
           onPress={onLogin}
+          onLayout={event => positionGuideAfter(event, 12)}
           style={({pressed}) => [
             styles.loginButton,
             pressed && styles.loginButtonPressed,
           ]}>
           <Text style={styles.loginButtonText}>로그인하기</Text>
         </Pressable>
+      ) : null}
+      {guideTopOffset !== null && onOpenGuide ? (
+        <SavedPlacesGuideNotice
+          topOffset={guideTopOffset}
+          onOpenGuide={onOpenGuide}
+        />
       ) : null}
     </View>
   );
@@ -53,6 +79,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingBottom: 72,
     paddingHorizontal: 24,
+    position: 'relative',
+    transform: [{translateY: -20}],
   },
   image: {
     width: 250,
@@ -68,7 +96,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     color: '#8e8e93',
-    lineHeight: 23,
+    lineHeight: 22.4,
     textAlign: 'center',
     marginTop: 8,
   },

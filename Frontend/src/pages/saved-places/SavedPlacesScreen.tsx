@@ -88,6 +88,7 @@ type SavedPlacesScreenProps = {
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
+  onOpenGuide?: () => void;
   onShowGuestLoginPrompt?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
@@ -129,6 +130,7 @@ export function SavedPlacesScreen({
   initialScrollOffset = 0,
   onScrollOffsetChange,
   onAuthenticationRequired,
+  onOpenGuide,
   onShowGuestLoginPrompt,
   onEditModeChange,
   onRequireLogin,
@@ -1076,6 +1078,7 @@ export function SavedPlacesScreen({
             <SavedPlacesEmptyState
               isGuest={isGuest}
               onLogin={onAuthenticationRequired}
+              onOpenGuide={onOpenGuide}
             />
           )}
         </>
