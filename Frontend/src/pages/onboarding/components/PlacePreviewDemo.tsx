@@ -1,7 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Image, StyleSheet, Text, View } from 'react-native';
 
-import { SearchBar } from '../../../components/SearchBar';
+import {
+  SEARCH_BAR_HEIGHT,
+  SEARCH_BAR_TOP_GAP,
+  SearchBar,
+} from '../../../components/SearchBar';
 import type { StepMediaFrame } from '../../../components/StepPager';
 import { ONBOARDING_PLACES } from '../../../entities/onboarding/data';
 import { SavedPlaceGrid } from '../../saved-places/components/SavedPlaceGrid';
@@ -9,9 +13,9 @@ import { SavedPlaceGrid } from '../../saved-places/components/SavedPlaceGrid';
 // 실제 화면 크기로 그린 뒤 프레임에 맞게 줄인다.
 const CANVAS_WIDTH = 402;
 const CANVAS_HEIGHT = Math.round((CANVAS_WIDTH * 500) / 300);
-// 비회원 지도 화면(온보딩 장소 마커 포함) 캡처, 900x1291
-const GUEST_MAP_IMAGE = require('../../../assets/onboarding/guest-map.jpg');
-const GUEST_MAP_HEIGHT = Math.round((CANVAS_WIDTH * 1291) / 900);
+// 온보딩 장소 핀이 보이는 지도 배경, 1047x1502
+const GUEST_MAP_IMAGE = require('../../../assets/onboarding/guest-map-centered.png');
+const GUEST_MAP_HEIGHT = Math.round((CANVAS_WIDTH * 1502) / 1047);
 const SHEET_HEIGHT = 262;
 const SHEET_PLACES = ONBOARDING_PLACES.slice(0, 2);
 const LIBRARY_SCROLL = 150;
@@ -26,7 +30,6 @@ function getMiddleCategory(category?: string) {
 export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
   const scroll = useRef(new Animated.Value(0)).current;
   const mapOpacity = useRef(new Animated.Value(0)).current;
-  const mapZoom = useRef(new Animated.Value(0)).current;
   const sheet = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -47,11 +50,8 @@ export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
           useNativeDriver: true,
         }),
         Animated.parallel([
-          Animated.timing(mapZoom, {
-            toValue: 1,
-            duration: 3600,
-            useNativeDriver: true,
-          }),
+          // 지도 크기는 고정하고 기존 시트 전환 시간을 유지한다.
+          Animated.delay(3600),
           Animated.sequence([
             Animated.delay(600),
             Animated.spring(sheet, {
@@ -69,13 +69,12 @@ export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
           duration: 500,
           useNativeDriver: true,
         }),
-        snap(mapZoom),
         snap(sheet),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [mapOpacity, mapZoom, scroll, sheet]);
+  }, [mapOpacity, scroll, sheet]);
 
   const scale = width / CANVAS_WIDTH;
 
@@ -97,7 +96,7 @@ export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
         ]}
       >
         <View style={styles.library}>
-          <SearchBar layout="header" onPress={noop} />
+          <View style={styles.searchHeaderSpace} />
           <View style={styles.editActionRow}>
             <Text style={styles.editButtonText}>편집</Text>
           </View>
@@ -118,22 +117,10 @@ export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
         </View>
 
         <Animated.View style={[styles.mapLayer, { opacity: mapOpacity }]}>
-          <Animated.Image
+          <Image
             source={GUEST_MAP_IMAGE}
             resizeMode="cover"
-            style={[
-              styles.map,
-              {
-                transform: [
-                  {
-                    scale: mapZoom.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.06],
-                    }),
-                  },
-                ],
-              },
-            ]}
+            style={styles.map}
           />
           <Animated.View
             style={[
@@ -175,6 +162,7 @@ export function PlacePreviewDemo({ width, height }: StepMediaFrame) {
             ))}
           </Animated.View>
         </Animated.View>
+        <SearchBar layout="overlay" onPress={noop} />
       </View>
     </View>
   );
@@ -196,6 +184,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     backgroundColor: '#ffffff',
   },
+  searchHeaderSpace: {
+    height: SEARCH_BAR_HEIGHT + SEARCH_BAR_TOP_GAP * 2,
+  },
   editActionRow: {
     alignItems: 'flex-end',
     marginHorizontal: 24,
@@ -212,6 +203,7 @@ const styles = StyleSheet.create({
   mapLayer: {
     ...StyleSheet.absoluteFill,
     backgroundColor: '#ffffff',
+    overflow: 'hidden',
   },
   map: {
     width: CANVAS_WIDTH,
