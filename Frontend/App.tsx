@@ -1069,6 +1069,14 @@ function App() {
     setFlowState(INITIAL_FLOW_STATE);
   };
 
+  const handleOpenGuestLoginFromMyPage = () => {
+    if (flowState.kind !== 'main' || isAuthenticated !== false) return;
+
+    setIsGuestLoginPromptVisible(false);
+    guestReturnFlowRef.current = null;
+    setFlowState(INITIAL_FLOW_STATE);
+  };
+
   const handleRequireLogin = () => {
     if (isAuthenticated === false) {
       handleOpenGuestLogin();
@@ -1090,6 +1098,18 @@ function App() {
     cancelGuestOnboardingTransfer().catch(() => undefined);
     guestReturnFlowRef.current = null;
     setFlowState(previousFlow);
+  };
+
+  const handleBrowseFromLogin = async () => {
+    if (guestReturnFlowRef.current) {
+      handleContinueBrowsing();
+      return;
+    }
+
+    if (hasPendingShareLogin) {
+      await handleCancelShareLogin();
+    }
+    handleBrowseAsGuest();
   };
 
   const showPreparingAlert = (featureName: string) => {
@@ -1235,14 +1255,7 @@ function App() {
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
-          onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
-          onBrowseAsGuest={
-            isAuthenticated === false &&
-            !guestReturnFlowRef.current &&
-            !hasPendingShareLogin
-              ? handleBrowseAsGuest
-              : undefined
-          }
+          onBrowseAsGuest={isAuthenticated === false ? handleBrowseFromLogin : undefined}
         />
       );
     }
@@ -1364,7 +1377,7 @@ function App() {
         onOpenContact={openKakaoChannelChat}
         onOpenGuide={() => setMyPageOverlay('guide')}
         onLogout={handleLogout}
-        onLogin={handleOpenGuestLogin}
+        onLogin={handleOpenGuestLoginFromMyPage}
         onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={handleRetryProfile}
         onWithdraw={handleOpenAccountDeletion}

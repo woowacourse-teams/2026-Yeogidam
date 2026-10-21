@@ -24,8 +24,7 @@ type LoginScreenProps = {
   socialLoginError: NormalizedAuthError | null;
   pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
   onCancelShareLogin?: () => void | Promise<void>;
-  onContinueBrowsing?: () => void;
-  /** 로그인 없이 비회원으로 둘러보기. 로그인 화면이 첫 화면일 때(로그아웃 뒤 등) 보여준다. */
+  /** 로그인 없이 비회원으로 둘러보기. */
   onBrowseAsGuest?: () => void;
 };
 
@@ -72,26 +71,20 @@ export function LoginScreen({
   socialLoginError,
   pendingSocialProvider,
   onCancelShareLogin,
-  onContinueBrowsing,
   onBrowseAsGuest,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
   useEffect(() => {
-    if (!onCancelShareLogin && !onContinueBrowsing) return;
+    if (!onCancelShareLogin) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (isSocialLoginPending) return true;
-      if (onContinueBrowsing && !onCancelShareLogin) {
-        onContinueBrowsing();
-        return true;
-      }
-      if (!onCancelShareLogin) return false;
       Promise.resolve(onCancelShareLogin())
         .then(() => BackHandler.exitApp())
         .catch(() => Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'));
       return true;
     });
     return () => subscription.remove();
-  }, [isSocialLoginPending, onCancelShareLogin, onContinueBrowsing]);
+  }, [isSocialLoginPending, onCancelShareLogin]);
   const visibleSocialButtons = isAppleLoginAvailable
     ? socialButtons
     : socialButtons.filter(button => button.variant !== 'apple');
@@ -106,9 +99,7 @@ export function LoginScreen({
   } as const;
 
   return (
-    <AuthScaffold
-      contentStyle={styles.main}
-      onBack={isSocialLoginPending ? undefined : onContinueBrowsing}>
+    <AuthScaffold contentStyle={styles.main}>
       <View style={styles.buttonList}>
         {onCancelShareLogin ? (
           <Pressable

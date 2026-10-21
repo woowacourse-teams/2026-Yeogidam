@@ -383,7 +383,7 @@ test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이�
   expect(resumeWaitingShares).not.toHaveBeenCalled();
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
+    renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -405,7 +405,7 @@ test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다',
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
+    renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -428,7 +428,7 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
+    renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
   });
   expect(renderer.root.findByType(MapScreen).props.isGuest).toBe(true);
 
@@ -470,6 +470,15 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
   expect(renderer.root.findByType(MyPageScreen).props.isGuest).toBe(true);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(getCurrentProfile).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(MyPageScreen).props.onLogin();
+  });
+  expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
+  expect(renderer.root.findByType(LoginScreen).props).toMatchObject({
+    onBrowseAsGuest: expect.any(Function),
+  });
+
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
