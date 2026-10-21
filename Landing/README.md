@@ -84,12 +84,16 @@ python3 -m http.server 8000
 | `demo_step` | 데모가 다음 단계로 넘어갈 때. 페이지를 한 번 열면 같은 단계는 한 번만 보낸다 | `step`(share, send, open_app, result, library, map, detail, end), `mode`(tap 또는 auto) |
 | `store_click` | App Store나 Google Play 링크를 누를 때 | `store`(app_store 또는 google_play), `placement`(hero, demo_end, start, footer), `demo_progress`(누른 시점까지 간 가장 먼 데모 단계, 시작 전이면 none) |
 
-- 매개변수로 나눠 보려면 GA4의 관리, 데이터 표시, 맞춤 정의 순서로 들어가 이벤트 범위 맞춤 측정기준으로 등록해야 한다. 위 다섯 매개변수는 2026-10-19에 등록했고, 맞춤 측정기준은 등록한 뒤에 들어온 데이터에만 붙으므로 매개변수를 더하면 바로 등록한다.
-- 유입 경로는 링크 끝에 붙이는 UTM 파라미터(`utm_source` 같은 유입 꼬리표)로 나눈다. 홍보 채널마다 따로 만든 링크를 쓰고, 팀원은 꼬리표 없는 기본 주소로 들어가 실험 숫자에 섞이지 않게 한다.
+- 매개변수로 나눠 보려면 GA4의 관리, 데이터 표시, 맞춤 정의 순서로 들어가 이벤트 범위 맞춤 측정기준으로 등록해야 한다. 위 다섯 매개변수는 2026-10-21에 등록했고, 맞춤 측정기준은 등록한 뒤에 들어온 데이터에만 붙으므로 매개변수를 더하면 바로 등록한다.
+- 유입 경로는 링크 끝에 붙이는 UTM 파라미터(유입 꼬리표)로 나누고, 어느 채널에서 왔는지는 `utm_source`에 채널 이름을 그대로 적는다. GA4에서는 첫 사용자 소스로 보면 채널별로 나뉜다. `utm_medium`은 모두 `social`로 맞춰 기본 채널 그룹에서 소셜 유입으로 잡히게 하고, `utm_campaign`은 같은 채널 안에서 홍보를 구분할 때만 쓴다.
+- 팀원은 아래 팀원 확인 링크로 들어가 실험 숫자에 섞이지 않게 한다.
 
-```
-https://yeogidam.vercel.app/?utm_source=threads&utm_medium=profile&utm_campaign=week1
-```
+| 채널 | 링크 |
+|---|---|
+| 스레드 | `https://yeogidam.vercel.app/?utm_source=threads&utm_medium=social&utm_campaign=threads_profile` |
+| 에브리타임 | `https://yeogidam.vercel.app/?utm_source=everytime&utm_medium=social&utm_campaign=everytime_post` |
+| 인스타그램 | `https://yeogidam.vercel.app/?utm_source=instagram&utm_medium=social&utm_campaign=food_post_to_app` |
+| 팀원 확인 | `https://yeogidam.vercel.app/?utm_source=test&utm_medium=internal&utm_campaign=test` |
 
 - 배포 뒤에는 GA4 보고서의 실시간 개요에서 이벤트 이름별 이벤트 수 카드에 `demo_step`과 `store_click`이 보이는지 확인한다. 표준 보고서는 하루 이틀 늦게 채워진다.
 - 로컬 서버로 열어도 같은 속성으로 이벤트가 가므로, 보고서를 볼 때 호스트 이름이 localhost인 방문은 빼고 본다.
