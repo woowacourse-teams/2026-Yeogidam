@@ -28,7 +28,7 @@ import {
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
-import { ONBOARDING_MAP_CENTER, ONBOARDING_PLACE_REELS } from '../../entities/onboarding/data';
+import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
 import {
   SEARCH_BAR_HEIGHT,
@@ -50,9 +50,6 @@ import {
 type MapScreenProps = {
   isActive?: boolean;
   isGuest?: boolean;
-  guestPlaces?: Place[];
-  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
-  onDeleteGuestPlaces?: (placeIds: string[]) => void;
   onAuthenticationRequired?: () => void;
 };
 
@@ -65,8 +62,6 @@ type MapCamera = {
 export function MapScreen({
   isActive = true,
   isGuest = false,
-  guestPlaces,
-  onDeleteGuestPlaces,
   onAuthenticationRequired,
 }: MapScreenProps) {
   const posthog = usePostHog();
@@ -155,7 +150,7 @@ export function MapScreen({
   } | null>(null);
   useEffect(() => {
     if (isGuest) {
-      setSavedPlaces(guestPlaces ?? []);
+      setSavedPlaces([]);
       setSavedPlacesLoadFailed(false);
       setIsSavedPlacesLoading(false);
       return;
@@ -191,7 +186,7 @@ export function MapScreen({
     return () => {
       isMounted = false;
     };
-  }, [guestPlaces, isGuest]);
+  }, [isGuest]);
   const placesWithCoordinates = useMemo(
     () =>
       savedPlaces.filter(
@@ -435,14 +430,13 @@ export function MapScreen({
               setSelectedPlaceId(placeId);
               setIsPlaceDetailVisible(isDetailView);
             }}
-            guestReelsByPlace={isGuest ? ONBOARDING_PLACE_REELS : undefined}
+            guestReelsByPlace={isGuest ? {} : undefined}
             onAuthenticationRequired={onAuthenticationRequired}
             onSavedPlaceDeleted={savedPlaceId => {
               setSavedPlaces(current =>
                 current.filter(place => place.savedPlaceId !== savedPlaceId),
               );
             }}
-            onDeleteGuestPlaces={onDeleteGuestPlaces}
             onExpandedChange={setIsSheetExpanded}
             onVisibleHeightChange={handleSheetVisibleHeightChange}
             isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
@@ -544,7 +538,7 @@ export function MapScreen({
               <Text numberOfLines={1} style={styles.expandedDetailTitle}>
                 {selectedPlaceForHeader.name}
               </Text>
-              {!isGuest || onDeleteGuestPlaces ? (
+              {!isGuest ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="더보기"

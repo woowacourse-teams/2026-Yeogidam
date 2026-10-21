@@ -395,7 +395,7 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
   });
-  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
+  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toBeUndefined();
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(MapScreen).props.onAuthenticationRequired();
@@ -417,9 +417,8 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   });
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
-    guestPlaces: expect.any(Array),
   });
-  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
+  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toBeUndefined();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
