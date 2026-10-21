@@ -969,7 +969,7 @@ export function HistoryScreen({
         ) : reels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
-              source={require('../../assets/illustrations/empty-illustration.png')}
+              source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}
               style={styles.emptyCharacter}
             />
             <View style={styles.emptyText}>
@@ -1086,9 +1086,9 @@ const styles = StyleSheet.create({
   },
   emptyBody: { alignItems: 'center' },
   emptyCharacter: {
-    width: 195,
-    height: 195,
-    borderRadius: 30,
+    width: 250,
+    height: 183,
+    transform: [{translateX: -16}],
     marginBottom: 24,
   },
   emptyText: { alignItems: 'center' },

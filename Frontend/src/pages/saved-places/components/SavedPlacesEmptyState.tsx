@@ -5,7 +5,7 @@ export function SavedPlacesEmptyState() {
   return (
     <View style={styles.content}>
       <Image
-        source={require('../../../assets/illustrations/empty-illustration.png')}
+        source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
         style={styles.image}
       />
       <Text style={styles.title}>아직 저장된 장소가 없어요</Text>
@@ -26,9 +26,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   image: {
-    width: 195,
-    height: 195,
-    borderRadius: 30,
+    width: 250,
+    height: 183,
+    transform: [{translateX: -16}],
     marginBottom: 24,
   },
   title: {
