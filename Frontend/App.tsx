@@ -238,10 +238,33 @@ function captureSocialLoginError(
   provider: SocialProvider,
   error: NormalizedAuthError,
 ) {
-  // 사용자의 취소와 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
+  if (error.errorCode === 'AUTH000_001') {
+    // 브라우저 종료에는 실제 사용자 취소도 포함될 수 있어 진단용 경고로 기록합니다.
+    const cancelOrigin = error.cancelOrigin;
+    if (
+      Platform.OS === 'android' &&
+      (cancelOrigin === 'browser_cancel' || cancelOrigin === 'browser_dismiss')
+    ) {
+      Sentry.withScope(scope => {
+        scope.setTag('feature', 'social_login');
+        scope.setTag('login.provider', provider);
+        scope.setTag('login.stage', error.stage ?? 'unknown');
+        scope.setTag('login.error_code', error.errorCode);
+        scope.setTag('login.cancel_origin', cancelOrigin);
+        scope.setFingerprint([
+          'social-login-browser-without-callback',
+          provider,
+          cancelOrigin,
+        ]);
+        Sentry.captureMessage('소셜 로그인 브라우저가 콜백 없이 종료됨', 'warning');
+      });
+    }
+    return;
+  }
+
+  // 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
   const backendErrorCode = error.backendErrorCode;
   if (
-    error.errorCode === 'AUTH000_001' ||
     error.errorCode === 'AUTH400_001' ||
     backendErrorCode === 'AUTH401_002'
   ) {
