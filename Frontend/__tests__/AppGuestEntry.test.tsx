@@ -390,49 +390,14 @@ test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로그인을 누르고 넘어오면 로그인 화면을 보여준다', async () => {
+test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로그인을 누르고 넘어오면 로그인 화면을 유지한다', async () => {
   const renderer = await renderGuestMain();
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
-
-  // 이전 공유 결과가 화면에 열려 있는 상태에서 새 공유의 로그인 이동 결과가 도착한다.
-  setSharedSaveState({
-    shareResultId: 'previous-request',
-    url: 'https://www.instagram.com/p/previous/',
-    status: 'COMPLETED',
-    source: 'instagram_share',
-    reel: {
-      id: 'previous-reel',
-      processing_status: 'COMPLETED',
-      failure_reason: null,
-      instagram_thumbnail_url: null,
-      created_at: new Date(Date.now() - 60_000).toISOString(),
-    },
-  });
-  (getShareResults as jest.Mock).mockResolvedValue([
-    {
-      requestId: 'previous-request',
-      url: 'https://www.instagram.com/p/previous/',
-      status: 'COMPLETED',
-      transferStatus: 'API_SUCCEEDED',
-      reelId: 'previous-reel',
-      retryable: false,
-      updatedAt: Date.now() - 60_000,
-    },
-    {
-      requestId: 'login-request',
-      url: 'https://www.instagram.com/reel/loginRequired/',
-      status: 'PENDING',
-      transferStatus: 'LOGIN_HANDOFF',
-      retryable: false,
-      updatedAt: Date.now(),
-    },
-  ]);
 
   // 앱이 포그라운드일 때만 1초 간격 폴링이 공유 결과를 읽는다.
   const previousAppState = AppState.currentState;
   (AppState as {currentState: string}).currentState = 'active';
-
-  try {
+  const pollOnce = async () => {
     await ReactTestRenderer.act(async () => {
       jest.advanceTimersByTime(1000);
       // getShareResults → getSpringTokens 비동기 체인이 끝나도록 비웁니다.
@@ -440,8 +405,43 @@ test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로
         await Promise.resolve();
       }
     });
+  };
+  const previousShare = {
+    requestId: 'previous-request',
+    url: 'https://www.instagram.com/p/previous/',
+    status: 'COMPLETED',
+    transferStatus: 'API_SUCCEEDED',
+    reelId: 'previous-reel',
+    retryable: false,
+    updatedAt: Date.now() - 60_000,
+  };
 
+  try {
+    // 이전 공유가 먼저 처리되어 화면에 열려 있다.
+    (getShareResults as jest.Mock).mockResolvedValue([previousShare]);
+    await pollOnce();
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+
+    // 새 공유의 로그인 이동 결과가 도착한다.
+    (getShareResults as jest.Mock).mockResolvedValue([
+      previousShare,
+      {
+        requestId: 'login-request',
+        url: 'https://www.instagram.com/reel/loginRequired/',
+        status: 'PENDING',
+        transferStatus: 'LOGIN_HANDOFF',
+        retryable: false,
+        updatedAt: Date.now(),
+      },
+    ]);
+    await pollOnce();
     expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+
+    // 폴링이 계속 돌아도 이전 결과를 다시 처리해 둘러보기 화면으로 되돌아가지 않는다.
+    for (let second = 0; second < 3; second += 1) {
+      await pollOnce();
+      expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+    }
   } finally {
     (AppState as {currentState: string}).currentState = previousAppState;
     (getShareResults as jest.Mock).mockResolvedValue([]);

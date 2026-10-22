@@ -357,7 +357,8 @@ function App() {
   const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
-  const lastHandledShareResultRef = useRef<string | null>(null);
+  // 이미 처리한 공유 결과 키. 서로 다른 결과가 번갈아 선택돼 화면이 오가지 않게 전부 기억한다.
+  const handledShareResultKeysRef = useRef<Set<string>>(new Set());
   const lastLoggedShareResultsRef = useRef<string | null>(null);
   const savedPlacesScrollOffsetRef = useRef(0);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
@@ -796,8 +797,9 @@ function App() {
             item =>
               (item.transferStatus === 'LOGIN_HANDOFF' ||
                 item.transferStatus === 'GUEST_LOGIN_PROMPT') &&
-              `${item.requestId ?? item.url}:${item.updatedAt}` !==
-                lastHandledShareResultRef.current,
+              !handledShareResultKeysRef.current.has(
+                `${item.requestId ?? item.url}:${item.updatedAt}`,
+              ),
           );
           const result = pendingLoginResult
             ? pendingLoginResult
@@ -829,7 +831,7 @@ function App() {
             );
           }
           if (!result) {
-            lastHandledShareResultRef.current = null;
+            handledShareResultKeysRef.current.clear();
             if (currentShareState?.source === 'instagram_share') {
               setSharedSaveState(null);
             }
@@ -838,8 +840,8 @@ function App() {
           const resultKey = `${result.requestId ?? result.url}:${
             result.updatedAt
           }`;
-          if (lastHandledShareResultRef.current === resultKey) return;
-          lastHandledShareResultRef.current = resultKey;
+          if (handledShareResultKeysRef.current.has(resultKey)) return;
+          handledShareResultKeysRef.current.add(resultKey);
           if (__DEV__) {
             console.log('[InstagramShare][native-result-selected]', {
               requestId: result.requestId ?? null,
