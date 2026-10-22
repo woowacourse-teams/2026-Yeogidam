@@ -206,6 +206,7 @@ class ShareCardViewController: UIViewController {
   private func show(_ state: CardState, message: String, buttonTitle: String) {
     cardState = state
     messageLabel.text = message
+    mascotView.image = UIImage(named: state == .loginRequired ? "MascotSad" : "Mascot")
     var configuration = actionButton.configuration ?? UIButton.Configuration.plain()
     var title = AttributedString(buttonTitle)
     title.font = .systemFont(ofSize: 18, weight: .semibold)
