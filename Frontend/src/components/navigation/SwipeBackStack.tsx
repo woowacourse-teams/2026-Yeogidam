@@ -20,6 +20,7 @@ export type BackScreen = { key: string; content: React.ReactNode };
 
 type ScreenMotion = {
   translation: Animated.Value;
+  clipTranslation: Animated.Value;
   radius: Animated.Value;
   shade: Animated.Value;
 };
@@ -27,6 +28,7 @@ type ScreenMotion = {
 function createScreenMotion(): ScreenMotion {
   return {
     translation: new Animated.Value(0),
+    clipTranslation: new Animated.Value(0),
     radius: new Animated.Value(0),
     shade: new Animated.Value(0),
   };
@@ -116,6 +118,8 @@ export function SwipeBackStack({
     const current = motions.get(activeKey);
     current?.translation.stopAnimation();
     current?.translation.setValue(0);
+    current?.clipTranslation.stopAnimation();
+    current?.clipTranslation.setValue(0);
     current?.radius.setValue(0);
     current?.shade.setValue(0);
     busy.current = false;
@@ -129,6 +133,8 @@ export function SwipeBackStack({
         if (key === activeKey || key === gestureRef.current?.to) continue;
         motion.translation.stopAnimation();
         motion.translation.setValue(0);
+        motion.clipTranslation.stopAnimation();
+        motion.clipTranslation.setValue(-width);
         motion.radius.setValue(0);
         motion.shade.setValue(0);
       }
@@ -142,6 +148,7 @@ export function SwipeBackStack({
       mounted.current = false;
       for (const motion of motions.values()) {
         motion.translation.stopAnimation();
+        motion.clipTranslation.stopAnimation();
         motion.radius.stopAnimation();
         motion.shade.stopAnimation();
       }
@@ -167,6 +174,10 @@ export function SwipeBackStack({
         ...config,
         toValue: -gesture.width * 0.22,
       }).start();
+      Animated.spring(gesture.destination.clipTranslation, {
+        ...config,
+        toValue: -gesture.width,
+      }).start();
       Animated.spring(gesture.destination.shade, {
         ...config,
         toValue: 0.12,
@@ -178,6 +189,8 @@ export function SwipeBackStack({
         if (finished && mounted.current && gestureRef.current === gesture) {
           gesture.destination.translation.stopAnimation();
           gesture.destination.translation.setValue(0);
+          gesture.destination.clipTranslation.stopAnimation();
+          gesture.destination.clipTranslation.setValue(-gesture.width);
           gesture.destination.shade.stopAnimation();
           gesture.destination.shade.setValue(0);
           gestureRef.current = null;
@@ -218,6 +231,7 @@ export function SwipeBackStack({
           destination,
         };
         destination.translation.setValue(-current.width * 0.22);
+        destination.clipTranslation.setValue(-current.width);
         destination.shade.setValue(0.12);
         setDragging(true);
       },
@@ -226,6 +240,7 @@ export function SwipeBackStack({
         if (!gesture) return;
         const distance = Math.min(gesture.width, Math.max(0, pan.dx));
         gesture.foreground.translation.setValue(distance);
+        gesture.destination.clipTranslation.setValue(distance - gesture.width);
         gesture.foreground.radius.setValue(Math.min(18, (distance * 18) / 32));
         gesture.destination.translation.setValue(
           -0.22 * (gesture.width - distance),
@@ -257,6 +272,10 @@ export function SwipeBackStack({
           ...config,
           toValue: 0,
         }).start();
+        Animated.timing(gesture.destination.clipTranslation, {
+          ...config,
+          toValue: 0,
+        }).start();
         Animated.timing(gesture.destination.shade, {
           ...config,
           toValue: 0,
@@ -274,6 +293,8 @@ export function SwipeBackStack({
             return;
           gesture.destination.translation.stopAnimation();
           gesture.destination.translation.setValue(0);
+          gesture.destination.clipTranslation.stopAnimation();
+          gesture.destination.clipTranslation.setValue(0);
           gesture.destination.shade.stopAnimation();
           gesture.destination.shade.setValue(0);
           // Release responder ownership before promoting the destination.
@@ -318,8 +339,6 @@ export function SwipeBackStack({
           dragging={dragging}
           motion={motions.get(screen.key)!}
           transparent={transparent}
-          revealTranslation={motions.get(activeKey)!.translation}
-          width={width}
         />
       ))}
       {enabled && backKey ? (
@@ -343,8 +362,6 @@ function RetainedBackScreen({
   dragging,
   motion,
   transparent,
-  revealTranslation,
-  width,
 }: {
   screen: BackScreen;
   active: boolean;
@@ -352,20 +369,16 @@ function RetainedBackScreen({
   dragging: boolean;
   motion: ScreenMotion;
   transparent: boolean;
-  revealTranslation: Animated.Value;
-  width: number;
 }) {
   // Transparent pages share the map underneath. Clip the destination to the
   // portion uncovered by the foreground so its sheet cannot bleed through.
-  const clipTranslation =
-    transparent && behind ? Animated.subtract(revealTranslation, width) : 0;
-  const contentTranslation =
-    transparent && behind
-      ? Animated.subtract(
-          Animated.add(motion.translation, width),
-          revealTranslation,
-        )
-      : motion.translation;
+  // Keep the same native animation graph when a retained preview becomes
+  // active. Replacing an animated clip transform with a plain zero lets the
+  // detached native graph restore its old offscreen transform after a pop.
+  const contentTranslation = useMemo(
+    () => Animated.subtract(motion.translation, motion.clipTranslation),
+    [motion],
+  );
   // Each native view keeps its own animation values even when its role changes.
   return (
     <Animated.View
@@ -378,7 +391,7 @@ function RetainedBackScreen({
         active ? styles.active : behind ? styles.behind : styles.hidden,
         transparent && {
           overflow: 'hidden',
-          transform: [{ translateX: clipTranslation }],
+          transform: [{ translateX: motion.clipTranslation }],
         },
       ]}
     >
@@ -387,7 +400,15 @@ function RetainedBackScreen({
         style={[
           styles.animatedScreen,
           active && dragging ? styles.shadow : null,
-          { transform: [{ translateX: contentTranslation }] },
+          {
+            transform: [
+              {
+                translateX: transparent
+                  ? contentTranslation
+                  : motion.translation,
+              },
+            ],
+          },
         ]}
       >
         <Animated.View
