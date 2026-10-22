@@ -1,7 +1,9 @@
+import {SwipeBackStack} from '../../components/navigation/SwipeBackStack';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   Linking,
   Platform,
@@ -54,7 +56,9 @@ import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
 type HistoryScreenProps = {
+  isActive?: boolean;
   onBack: () => void;
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
   onRequireLogin?: () => void;
@@ -567,7 +571,9 @@ function HistoryFailureDetail({
 const LIST_POLL_INTERVAL_MS = 3000;
 
 export function HistoryScreen({
+  isActive = true,
   onBack,
+  onNestedBackStateChange,
   guestReels,
   guestDetails,
   onRequireLogin,
@@ -597,6 +603,40 @@ export function HistoryScreen({
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
 
+  const handleDetailBack = useCallback(() => {
+    shouldRestoreScrollRef.current = true;
+    setSelectedSuccess(false);
+    setSelectedFailure(false);
+    setSelectedReel(null);
+  }, []);
+
+  useEffect(() => {
+    const canGoBack = isActive && (selectedSuccess || selectedFailure);
+    onNestedBackStateChange?.(canGoBack);
+    if (Platform.OS !== 'android' || !canGoBack) {
+      return () => onNestedBackStateChange?.(false);
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        handleDetailBack();
+        return true;
+      },
+    );
+
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [
+    handleDetailBack,
+    isActive,
+    onNestedBackStateChange,
+    selectedFailure,
+    selectedSuccess,
+  ]);
+
   // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
   const hasReelsRef = useRef(false);
   hasReelsRef.current = reels.length > 0;
@@ -614,7 +654,7 @@ export function HistoryScreen({
   }));
 
   const evaluateVisibleCards = useCallback(() => {
-    if (selectedSuccess || selectedFailure) return;
+    if (!isActive || selectedSuccess || selectedFailure) return;
     const top = scrollOffsetRef.current;
     const bottom = top + viewportHeightRef.current;
     for (const [contentId, layout] of cardLayoutsRef.current) {
@@ -646,7 +686,7 @@ export function HistoryScreen({
         visibleTimersRef.current.delete(key);
       }
     }
-  }, [posthog, selectedSuccess, selectedFailure]);
+  }, [isActive, posthog, selectedSuccess, selectedFailure]);
 
   useEffect(() => {
     evaluateVisibleCards();
@@ -658,11 +698,11 @@ export function HistoryScreen({
   }, []);
 
   useEffect(() => {
-    if (selectedSuccess || selectedFailure) {
+    if (!isActive || selectedSuccess || selectedFailure) {
       visibleTimersRef.current.forEach(clearTimeout);
       visibleTimersRef.current.clear();
     }
-  }, [selectedSuccess, selectedFailure]);
+  }, [isActive, selectedSuccess, selectedFailure]);
 
   const sharesSubscriptionRef = useRef<RecentSharesSubscription | null>(null);
 
@@ -826,7 +866,7 @@ export function HistoryScreen({
   }, [load, posthog]);
 
   useEffect(() => {
-    if (guestReels !== undefined) return;
+    if (!isActive || guestReels !== undefined) return;
     const subscription = subscribeRecentShares({
       intervalMs: LIST_POLL_INTERVAL_MS,
       onResult: result => {
@@ -840,7 +880,7 @@ export function HistoryScreen({
       subscription.unsubscribe();
       sharesSubscriptionRef.current = null;
     };
-  }, [applyFirstPage, guestReels, showErrorIfEmpty]);
+  }, [applyFirstPage, guestReels, isActive, showErrorIfEmpty]);
 
   useEffect(() => {
     load().catch(() => undefined);
@@ -880,27 +920,15 @@ export function HistoryScreen({
     ? undefined
     : guestDetails?.[selectedReel?.id ?? ''] ?? null;
 
-  if (selectedSuccess) {
-    return (
+  const detailContent = selectedSuccess ? (
       <HistorySuccessDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          setSelectedSuccess(false);
-          setSelectedReel(null);
-        }}
+        onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
       />
-    );
-  }
-  if (selectedFailure) {
-    return (
+  ) : selectedFailure ? (
       <HistoryFailureDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          setSelectedFailure(false);
-          setSelectedReel(null);
-        }}
+        onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
         onRequireLogin={onRequireLogin}
@@ -912,10 +940,9 @@ export function HistoryScreen({
           await retryHistoryReel(selectedReel as HistoryReel);
         }}
       />
-    );
-  }
+  ) : null;
 
-  return (
+  const listContent = (
     <View style={styles.container}>
       <View style={styles.header}>
         <Pressable
@@ -1051,6 +1078,19 @@ export function HistoryScreen({
       <View style={styles.homeIndicator} />
     </View>
   );
+  return (
+    <SwipeBackStack
+      activeKey={detailContent ? 'detail' : 'list'}
+      backKey={detailContent ? 'list' : null}
+      onBack={handleDetailBack}
+      enabled={isActive}
+      screens={[
+        {key: 'list', content: listContent},
+        ...(detailContent ? [{key: 'detail', content: detailContent}] : []),
+      ]}
+    />
+  );
+
 }
 
 const styles = StyleSheet.create({
