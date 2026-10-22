@@ -18,8 +18,8 @@ import android.util.Log
 import android.widget.FrameLayout
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.ReactContext
 import com.facebook.react.common.LifecycleState
+import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
@@ -38,11 +38,13 @@ import org.json.JSONArray
 import kotlin.math.roundToInt
 
 class KakaoMapView(
-    context: Context,
+    context: ThemedReactContext,
 ) : FrameLayout(context), LifecycleEventListener {
 
     private val nativeMapView = MapView(context)
-    private val reactContext = context as ReactContext
+    private val reactContext = context
+    private val applicationReactContext = context.reactApplicationContext
+    private var isDisposed = false
     private val locationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var kakaoMap: KakaoMap? = null
@@ -143,6 +145,7 @@ class KakaoMapView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        if (isDisposed) return
 
         if (!nativeMapView.isStarted) {
             startMap()
@@ -165,6 +168,11 @@ class KakaoMapView(
             },
             object : KakaoMapReadyCallback() {
                 override fun onMapReady(map: KakaoMap) {
+                    if (isDisposed) return
+                    // SDK 2.14.1 ignores this setting before the renderer is
+                    // initialized. Retain the engine during Fabric reorders
+                    // and finish it explicitly when this view is dropped.
+                    nativeMapView.setFinishManually(true)
                     kakaoMap = map
                     applyCameraPadding()
                     map.setOnLabelClickListener { _, _, label ->
@@ -445,7 +453,7 @@ class KakaoMapView(
     }
 
     private fun startCurrentLocationIfNeeded() {
-        if (!showsCurrentLocation || !isAttachedToWindow || kakaoMap == null) {
+        if (isDisposed || !showsCurrentLocation || !isAttachedToWindow || kakaoMap == null) {
             return
         }
 
@@ -607,9 +615,12 @@ class KakaoMapView(
 
     private fun resumeMapIfNeeded() {
         if (
+            !isDisposed &&
             isAttachedToWindow &&
             nativeMapView.isStarted &&
-            reactContext.lifecycleState == LifecycleState.RESUMED
+            // ThemedReactContext forwards listeners but keeps its own initial
+            // lifecycle state. Read the actual host state from the app context.
+            applicationReactContext.lifecycleState == LifecycleState.RESUMED
         ) {
             nativeMapView.resume()
         }
@@ -686,17 +697,25 @@ class KakaoMapView(
     override fun onHostPause() {
         stopLocationUpdates()
 
-        if (nativeMapView.isStarted) {
+        if (!isDisposed && nativeMapView.isStarted) {
             nativeMapView.pause()
         }
     }
 
     override fun onHostDestroy() {
+        dispose()
+    }
+
+    fun dispose() {
+        if (isDisposed) return
+        isDisposed = true
         stopLocationUpdates()
         removeCallbacks(moveToDefaultPosition)
         removeCallbacks(fitSearchResultPoints)
-        nativeMapView.finish()
         reactContext.removeLifecycleEventListener(this)
+        nativeMapView.finish()
+        kakaoMap = null
+        currentLocationLabel = null
     }
 
     override fun onDetachedFromWindow() {
@@ -704,7 +723,7 @@ class KakaoMapView(
         removeCallbacks(moveToDefaultPosition)
         removeCallbacks(fitSearchResultPoints)
 
-        if (nativeMapView.isStarted) {
+        if (!isDisposed && nativeMapView.isStarted) {
             nativeMapView.pause()
         }
 
