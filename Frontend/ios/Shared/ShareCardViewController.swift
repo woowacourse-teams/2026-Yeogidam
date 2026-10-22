@@ -165,24 +165,67 @@ class ShareCardViewController: UIViewController {
     }
   }
 
+  /// 앱을 엽니다. 공식 경로(`extensionContext.open`)가 실패하면 responder chain의 대체 경로를 시도하고,
+  /// 그래도 열지 못하면 직접 열어 달라는 안내 카드로 바꿉니다.
   private func openApp(fallbackMessage: String) {
     autoDismissTask?.cancel()
-    guard let extensionContext else {
+    let url = ShareIntentConstants.shareExtensionOpenURL
+    let fail = { [weak self] in
+      guard let self else { return }
       ShareSentryReporter.capture("SHARE_LOGIN_APP_OPEN_FAILED", stage: "login_handoff")
-      show(.failure, message: fallbackMessage, buttonTitle: "닫기")
+      self.show(.failure, message: fallbackMessage, buttonTitle: "닫기")
+    }
+    guard let extensionContext else {
+      fail()
       return
     }
-    extensionContext.open(ShareIntentConstants.shareExtensionOpenURL) { [weak self] opened in
+    extensionContext.open(url) { [weak self] opened in
       DispatchQueue.main.async {
         guard let self else { return }
         if opened {
           self.finish()
-        } else {
-          ShareSentryReporter.capture("SHARE_LOGIN_APP_OPEN_FAILED", stage: "login_handoff")
-          self.show(.failure, message: fallbackMessage, buttonTitle: "닫기")
+          return
+        }
+        // 공유·작업 확장에서는 공식 open이 보통 false를 돌려줍니다.
+        self.openViaResponderChain(url) { opened in
+          if opened { self.finish() } else { fail() }
         }
       }
     }
+  }
+
+  private typealias OpenURLCompletion = @convention(block) (Bool) -> Void
+  private typealias OpenURLImplementation = @convention(c) (
+    AnyObject, Selector, NSURL, NSDictionary, OpenURLCompletion?
+  ) -> Void
+
+  /// responder chain에서 `UIApplication` 객체를 찾아 같은 URL을 엽니다.
+  /// Apple이 확장에서 공식 지원하는 방법이 아니라서 OS 버전에 따라 동작하지 않을 수 있습니다.
+  private func openViaResponderChain(_ url: URL, completion: @escaping (Bool) -> Void) {
+    let selector = NSSelectorFromString("openURL:options:completionHandler:")
+    guard let applicationClass = NSClassFromString("UIApplication") else {
+      completion(false)
+      return
+    }
+    var responder: UIResponder? = self
+    while let current = responder {
+      responder = current.next
+      guard current.isKind(of: applicationClass), current.responds(to: selector) else { continue }
+
+      // completion이 호출되지 않는 OS 조합에서도 화면이 멈추지 않도록 한 번만 완료합니다.
+      var didComplete = false
+      let finishOnce: (Bool) -> Void = { opened in
+        guard !didComplete else { return }
+        didComplete = true
+        completion(opened)
+      }
+      let handler: OpenURLCompletion = { opened in DispatchQueue.main.async { finishOnce(opened) } }
+      let openURL = unsafeBitCast(current.method(for: selector), to: OpenURLImplementation.self)
+      openURL(current, selector, url as NSURL, [:] as NSDictionary, handler)
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) { finishOnce(true) }
+      return
+    }
+    completion(false)
   }
 
   private func scheduleAutoDismiss() {
