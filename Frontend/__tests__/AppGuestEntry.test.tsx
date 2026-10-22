@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Alert} from 'react-native';
+import {Alert, AppState} from 'react-native';
 
 import App from '../App';
 import {
@@ -31,6 +31,7 @@ import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteA
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
+import {setSharedSaveState} from '../src/lib/reel-save-state';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
@@ -387,6 +388,66 @@ test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이�
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로그인을 누르고 넘어오면 로그인 화면을 보여준다', async () => {
+  const renderer = await renderGuestMain();
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+
+  // 이전 공유 결과가 화면에 열려 있는 상태에서 새 공유의 로그인 이동 결과가 도착한다.
+  setSharedSaveState({
+    shareResultId: 'previous-request',
+    url: 'https://www.instagram.com/p/previous/',
+    status: 'COMPLETED',
+    source: 'instagram_share',
+    reel: {
+      id: 'previous-reel',
+      processing_status: 'COMPLETED',
+      failure_reason: null,
+      instagram_thumbnail_url: null,
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    },
+  });
+  (getShareResults as jest.Mock).mockResolvedValue([
+    {
+      requestId: 'previous-request',
+      url: 'https://www.instagram.com/p/previous/',
+      status: 'COMPLETED',
+      transferStatus: 'API_SUCCEEDED',
+      reelId: 'previous-reel',
+      retryable: false,
+      updatedAt: Date.now() - 60_000,
+    },
+    {
+      requestId: 'login-request',
+      url: 'https://www.instagram.com/reel/loginRequired/',
+      status: 'PENDING',
+      transferStatus: 'LOGIN_HANDOFF',
+      retryable: false,
+      updatedAt: Date.now(),
+    },
+  ]);
+
+  // 앱이 포그라운드일 때만 1초 간격 폴링이 공유 결과를 읽는다.
+  const previousAppState = AppState.currentState;
+  (AppState as {currentState: string}).currentState = 'active';
+
+  try {
+    await ReactTestRenderer.act(async () => {
+      jest.advanceTimersByTime(1000);
+      // getShareResults → getSpringTokens 비동기 체인이 끝나도록 비웁니다.
+      for (let i = 0; i < 10; i += 1) {
+        await Promise.resolve();
+      }
+    });
+
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  } finally {
+    (AppState as {currentState: string}).currentState = previousAppState;
+    (getShareResults as jest.Mock).mockResolvedValue([]);
+    setSharedSaveState(null);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  }
 });
 
 test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다', async () => {

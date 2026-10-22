@@ -790,11 +790,22 @@ function App() {
               ? currentShareState.shareResultId
               : undefined;
           const latestResult = results[results.length - 1];
-          const result = latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
-            ? latestResult
-            : activeRequestId
-              ? results.find(item => item.requestId === activeRequestId) ?? latestResult
-              : latestResult;
+          // 공유 화면에서 로그인을 누르고 넘어온 결과는 열려 있던 공유 상태보다 먼저 처리한다.
+          // 둘러보기 중 이전 공유 결과가 남아 있어도 로그인 화면으로 이동해야 한다.
+          const pendingLoginResult = [...results].reverse().find(
+            item =>
+              (item.transferStatus === 'LOGIN_HANDOFF' ||
+                item.transferStatus === 'GUEST_LOGIN_PROMPT') &&
+              `${item.requestId ?? item.url}:${item.updatedAt}` !==
+                lastHandledShareResultRef.current,
+          );
+          const result = pendingLoginResult
+            ? pendingLoginResult
+            : latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
+              ? latestResult
+              : activeRequestId
+                ? results.find(item => item.requestId === activeRequestId) ?? latestResult
+                : latestResult;
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
