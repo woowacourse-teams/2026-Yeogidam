@@ -24,6 +24,7 @@ type LoginScreenProps = {
   socialLoginError: NormalizedAuthError | null;
   pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
   onCancelShareLogin?: () => void | Promise<void>;
+  onClose?: () => void;
   /** 로그인 없이 비회원으로 둘러보기. */
   onBrowseAsGuest?: () => void;
 };
@@ -71,6 +72,7 @@ export function LoginScreen({
   socialLoginError,
   pendingSocialProvider,
   onCancelShareLogin,
+  onClose,
   onBrowseAsGuest,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
@@ -99,7 +101,7 @@ export function LoginScreen({
   } as const;
 
   return (
-    <AuthScaffold contentStyle={styles.main}>
+    <AuthScaffold onBack={onClose} contentStyle={styles.main}>
       <View style={styles.buttonList}>
         {onCancelShareLogin ? (
           <Pressable

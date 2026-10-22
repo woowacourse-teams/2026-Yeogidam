@@ -365,7 +365,7 @@ test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다', async () => {
+test('비회원 기능에서 연 로그인 화면은 X로 이전 화면에 돌아온다', async () => {
   const renderer = await renderGuestMain();
 
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
@@ -380,9 +380,10 @@ test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다',
   expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
 
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
-  });
+  const loginProps = renderer.root.findByType(LoginScreen).props;
+  expect(loginProps.onBrowseAsGuest).toBeUndefined();
+  expect(loginProps.onClose).toEqual(expect.any(Function));
+  await ReactTestRenderer.act(async () => loginProps.onClose());
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
@@ -402,7 +403,7 @@ test('비회원 보관함의 추가 버튼은 로그인 안내 모달을 연다'
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 시 새로 표시된다', async () => {
+test('비회원 지도에서 연 로그인 화면은 X로 지도로 돌아온다', async () => {
   const renderer = await renderGuestMain();
 
   await ReactTestRenderer.act(async () => {
@@ -418,9 +419,9 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   });
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
 
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
-  });
+  const loginProps = renderer.root.findByType(LoginScreen).props;
+  expect(loginProps.onBrowseAsGuest).toBeUndefined();
+  await ReactTestRenderer.act(async () => loginProps.onClose());
   expect(renderer.root.findByType(MapScreen).props.isGuest).toBe(true);
 
   await ReactTestRenderer.act(async () => {
@@ -485,8 +486,14 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
   });
   expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
   expect(renderer.root.findByType(LoginScreen).props).toMatchObject({
-    onBrowseAsGuest: expect.any(Function),
+    onBrowseAsGuest: undefined,
+    onClose: expect.any(Function),
   });
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(LoginScreen).props.onClose();
+  });
+  expect(renderer.root.findByType(MyPageScreen).props.isGuest).toBe(true);
 
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

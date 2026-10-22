@@ -292,6 +292,7 @@ function App() {
     };
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
+  const [showLoginCloseButton, setShowLoginCloseButton] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
@@ -405,6 +406,7 @@ function App() {
     if (isAuthenticated) {
       setIsGuestLoginPromptVisible(false);
       guestReturnFlowRef.current = null;
+      setShowLoginCloseButton(false);
     }
   }, [isAuthenticated]);
 
@@ -939,6 +941,7 @@ function App() {
 
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
+    setShowLoginCloseButton(true);
     setFlowState(INITIAL_FLOW_STATE);
   };
 
@@ -946,7 +949,8 @@ function App() {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
     setIsGuestLoginPromptVisible(false);
-    guestReturnFlowRef.current = null;
+    guestReturnFlowRef.current = flowState;
+    setShowLoginCloseButton(true);
     setFlowState(INITIAL_FLOW_STATE);
   };
 
@@ -967,6 +971,7 @@ function App() {
   // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
   const handleBrowseAsGuest = () => {
     setSocialLoginError(null);
+    setShowLoginCloseButton(false);
     setFlowState(GUEST_MAIN_FLOW_STATE);
   };
 
@@ -975,7 +980,15 @@ function App() {
     if (!previousFlow) return;
 
     guestReturnFlowRef.current = null;
+    setShowLoginCloseButton(false);
     setFlowState(previousFlow);
+  };
+
+  const handleCloseGuestLogin = () => {
+    const previousFlow = guestReturnFlowRef.current;
+    guestReturnFlowRef.current = null;
+    setShowLoginCloseButton(false);
+    setFlowState(previousFlow ?? GUEST_MAIN_FLOW_STATE);
   };
 
   const handleBrowseFromLogin = async () => {
@@ -1132,7 +1145,12 @@ function App() {
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
-          onBrowseAsGuest={isAuthenticated === false ? handleBrowseFromLogin : undefined}
+          onClose={showLoginCloseButton ? handleCloseGuestLogin : undefined}
+          onBrowseAsGuest={
+            isAuthenticated === false && !showLoginCloseButton
+              ? handleBrowseFromLogin
+              : undefined
+          }
         />
       );
     }
