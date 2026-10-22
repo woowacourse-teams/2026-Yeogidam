@@ -2,7 +2,6 @@ package com.yeogidam.media.instagram.repository;
 
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
@@ -19,7 +18,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @Import(InstagramMediaDao.class)
@@ -41,10 +39,12 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
                 metadata, new InProgressExtraction());
 
         // when
-        Long mediaId = instagramMediaDao.save(media, PIPELINE_VERSION);
+        MediaSaveProjection projection = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+        Long mediaId = projection.mediaId();
 
         // then
         assertAll(
+                () -> assertThat(projection.isCreated()).isTrue(),
                 () -> assertThat(mediaId).isPositive(),
                 () -> assertThat(jdbcTemplate.queryForObject(
                         "SELECT media_shortcode FROM media WHERE id = ?", String.class, mediaId))
@@ -55,20 +55,55 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
         );
     }
 
-    @Test
-    void 이미_저장된_shortcode로_새_미디어를_저장하면_중복_예외가_발생한다() {
+    @ParameterizedTest
+    @CsvSource({
+            "EXTRACTING,,2,EXTRACTED",
+            "SUCCEEDED,,1,EXTRACTED",
+            "SUCCEEDED,,1,SEEDED",
+            "FAILED,UNEXPECTED,2,EXTRACTED",
+            "FAILED,PLACE_NOT_MATCHED,2,EXTRACTED"
+    })
+    void 이미_저장된_shortcode는_기존_ID와_미생성을_반환하고_분석_상태와_메타데이터를_보존한다(
+            String status,
+            String failureReason,
+            int version,
+            String sourceType
+    ) {
         // given
-        insertMedia(jdbcTemplate, 1L, "기존 게시글", "existing.jpg", "@existing");
+        insertMedia(jdbcTemplate, 1L, "기존 게시글", "existing.jpg", "@existing",
+                status, failureReason, version, sourceType);
         InstagramMedia media = new InstagramMedia(new MediaShortcode("fixture-media-1"));
 
-        // when & then
-        assertThatThrownBy(() -> instagramMediaDao.save(media, PIPELINE_VERSION))
-                .isInstanceOf(DuplicateKeyException.class);
+        // when
+        MediaSaveProjection projection = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+
+        // then
         assertAll(
+                () -> assertThat(projection).isEqualTo(new MediaSaveProjection(1L, false)),
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media", Integer.class))
                         .isEqualTo(1),
                 () -> assertThat(readMetadata(1L))
-                        .isEqualTo(new MediaMetadata("기존 게시글", "existing.jpg", "@existing"))
+                        .isEqualTo(new MediaMetadata("기존 게시글", "existing.jpg", "@existing")),
+                () -> assertThat(readExtractionState(1L))
+                        .isEqualTo(new ExtractionState(status, failureReason, version, sourceType))
+        );
+    }
+
+    @Test
+    void 새로_저장한_미디어를_같은_연결에서_다시_저장하면_최초_생성으로_판단하지_않는다() {
+        // given
+        InstagramMedia media = new InstagramMedia(new MediaShortcode("repeated-media"));
+        MediaSaveProjection first = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+
+        // when
+        MediaSaveProjection repeated = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+
+        // then
+        assertAll(
+                () -> assertThat(first.isCreated()).isTrue(),
+                () -> assertThat(repeated).isEqualTo(new MediaSaveProjection(first.mediaId(), false)),
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media", Integer.class))
+                        .isEqualTo(1)
         );
     }
 
@@ -206,12 +241,8 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
                         .contains(1L),
                 () -> assertThat(instagramMediaDao.findIdByShortcode(new MediaShortcode("missing-media")))
                         .isEmpty(),
-                () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("fixture-media-1")))
-                        .contains(1L),
-                () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("fixture-media-2")))
-                        .contains(2L),
-                () -> assertThat(instagramMediaDao.findIdByShortcodeForUpdate(new MediaShortcode("missing-media")))
-                        .isEmpty()
+                () -> assertThat(instagramMediaDao.findIdByShortcode(new MediaShortcode("fixture-media-2")))
+                        .contains(2L)
         );
     }
 

@@ -7,16 +7,20 @@ import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramMedia;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@RequiredArgsConstructor
 public class InstagramMediaDao {
 
     private static final RowMapper<Long> ID_ROW_MAPPER = (resultSet, rowNumber)
@@ -40,30 +44,48 @@ public class InstagramMediaDao {
 
     private final JdbcTemplate jdbcTemplate;
 
-    private final SimpleJdbcInsert jdbcInsert;
-
-    public InstagramMediaDao(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
-                .withTableName("media")
-                .usingColumns("media_shortcode", "caption", "thumbnail_key", "author",
-                        "extraction_status", "extraction_version", "source_type")
-                .usingGeneratedKeyColumns("id");
+    public MediaSaveProjection saveIfAbsent(InstagramMedia instagramMedia, int pipelineVersion) {
+        Optional<Long> createdMediaId = insertIfAbsent(instagramMedia, pipelineVersion);
+        if (createdMediaId.isPresent()) {
+            return new MediaSaveProjection(createdMediaId.orElseThrow(), true);
+        }
+        Long mediaId = findIdByShortcode(new MediaShortcode(instagramMedia.getShortcode()))
+                .orElseThrow(() -> new IllegalStateException("저장된 게시물을 찾을 수 없습니다."));
+        return new MediaSaveProjection(mediaId, false);
     }
 
-    public Long save(InstagramMedia instagramMedia, int pipelineVersion) {
-        return jdbcInsert.executeAndReturnKey(insertParameters(instagramMedia, pipelineVersion)).longValue();
+    private Optional<Long> insertIfAbsent(InstagramMedia instagramMedia, int pipelineVersion) {
+        String sql = """
+                INSERT INTO media (
+                    media_shortcode, caption, thumbnail_key, author,
+                    extraction_status, extraction_version, source_type
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE id = id
+                """;
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+            bindInsertParameters(statement, instagramMedia, pipelineVersion);
+            return statement;
+        }, keyHolder);
+        // id = id 중복 분기는 생성 키가 없다.
+        return Optional.ofNullable(keyHolder.getKey())
+                .map(Number::longValue);
     }
 
-    private MapSqlParameterSource insertParameters(InstagramMedia instagramMedia, int pipelineVersion) {
-        return new MapSqlParameterSource()
-                .addValue("media_shortcode", instagramMedia.getShortcode())
-                .addValue("caption", instagramMedia.metadata().caption())
-                .addValue("thumbnail_key", instagramMedia.metadata().thumbnailKey())
-                .addValue("author", instagramMedia.metadata().author())
-                .addValue("extraction_status", instagramMedia.extraction().status().name())
-                .addValue("extraction_version", pipelineVersion)
-                .addValue("source_type", MediaSourceType.EXTRACTED.name());
+    private void bindInsertParameters(
+            PreparedStatement statement,
+            InstagramMedia instagramMedia,
+            int pipelineVersion
+    ) throws SQLException {
+        statement.setString(1, instagramMedia.getShortcode());
+        statement.setString(2, instagramMedia.metadata().caption());
+        statement.setString(3, instagramMedia.metadata().thumbnailKey());
+        statement.setString(4, instagramMedia.metadata().author());
+        statement.setString(5, instagramMedia.extraction().status().name());
+        statement.setInt(6, pipelineVersion);
+        statement.setString(7, MediaSourceType.EXTRACTED.name());
     }
 
     public void updateMetadata(Long mediaId, MediaMetadata metadata) {
@@ -122,18 +144,6 @@ public class InstagramMediaDao {
                 SELECT id
                 FROM media
                 WHERE media_shortcode = ?
-                """;
-        return jdbcTemplate.query(sql, ID_ROW_MAPPER, shortcode.value())
-                .stream()
-                .findFirst();
-    }
-
-    public Optional<Long> findIdByShortcodeForUpdate(MediaShortcode shortcode) {
-        String sql = """
-                SELECT id
-                FROM media
-                WHERE media_shortcode = ?
-                FOR UPDATE
                 """;
         return jdbcTemplate.query(sql, ID_ROW_MAPPER, shortcode.value())
                 .stream()
