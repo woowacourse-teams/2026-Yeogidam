@@ -1320,7 +1320,7 @@ function App() {
           key={
             isAuthenticated === false
               ? 'guest-saved'
-              : `member-saved-${memberDataRevision}`
+              : 'member-saved'
           }
           isActive={currentScreen === 'saved' && myPageOverlay === null}
           onNestedBackStateChange={reportSavedBackState}
@@ -1369,7 +1369,7 @@ function App() {
           key={
             isAuthenticated === false
               ? 'guest-map'
-              : `member-map-${memberDataRevision}`
+              : 'member-map'
           }
           isGuest={isAuthenticated === false}
           isActive={currentScreen === 'map' && myPageOverlay === null}
@@ -1530,7 +1530,7 @@ function App() {
         translucent={isMapScreen}
       />
       <SwipeBackStack
-        key={`${flowState.kind}-${isAuthenticated}-${memberDataRevision}`}
+        key={`${flowState.kind}-${isAuthenticated}`}
         screens={screenLayers}
         activeKey={activeLayerKey}
         gestureRegion={currentScreen === 'map' ? mapBackGestureRegion : undefined}
