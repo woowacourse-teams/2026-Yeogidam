@@ -208,7 +208,7 @@ class ShareCardViewController: UIViewController {
     messageLabel.text = message
     var configuration = actionButton.configuration ?? UIButton.Configuration.plain()
     var title = AttributedString(buttonTitle)
-    title.font = .systemFont(ofSize: 16, weight: .semibold)
+    title.font = .systemFont(ofSize: 18, weight: .semibold)
     configuration.attributedTitle = title
     actionButton.configuration = configuration
 
@@ -242,7 +242,7 @@ class ShareCardViewController: UIViewController {
   private func configureCard() {
     cardView.translatesAutoresizingMaskIntoConstraints = false
     cardView.backgroundColor = Palette.card
-    cardView.layer.cornerRadius = 16
+    cardView.layer.cornerRadius = 20
     cardView.layer.cornerCurve = .continuous
     cardView.alpha = 0
     cardView.transform = CGAffineTransform(translationX: 0, y: 24)
@@ -253,12 +253,12 @@ class ShareCardViewController: UIViewController {
     mascotView.image = UIImage(named: "Mascot")
     mascotView.contentMode = .scaleAspectFill
     mascotView.clipsToBounds = true
-    mascotView.layer.cornerRadius = 26
+    mascotView.layer.cornerRadius = 34
     mascotView.isAccessibilityElement = false
 
     messageLabel.translatesAutoresizingMaskIntoConstraints = false
     messageLabel.textColor = Palette.text
-    messageLabel.font = .systemFont(ofSize: 17, weight: .semibold)
+    messageLabel.font = .systemFont(ofSize: 20, weight: .semibold)
     messageLabel.numberOfLines = 2
     messageLabel.adjustsFontSizeToFitWidth = true
     messageLabel.minimumScaleFactor = 0.8
@@ -285,25 +285,25 @@ class ShareCardViewController: UIViewController {
 
     let guide = view.safeAreaLayoutGuide
     NSLayoutConstraint.activate([
-      cardView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 24),
-      cardView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -24),
+      cardView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
+      cardView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
       // 공유 시트 안쪽 하단에 들어가도록 홈 인디케이터 영역까지 내려 붙입니다.
-      cardView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -24),
-      cardView.heightAnchor.constraint(equalToConstant: 68),
+      cardView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16),
+      cardView.heightAnchor.constraint(equalToConstant: 96),
 
-      mascotView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 12),
+      mascotView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 14),
       mascotView.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
-      mascotView.widthAnchor.constraint(equalToConstant: 52),
-      mascotView.heightAnchor.constraint(equalToConstant: 52),
+      mascotView.widthAnchor.constraint(equalToConstant: 68),
+      mascotView.heightAnchor.constraint(equalToConstant: 68),
 
       messageLabel.leadingAnchor.constraint(equalTo: mascotView.trailingAnchor, constant: 12),
       messageLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
       messageLabel.trailingAnchor.constraint(lessThanOrEqualTo: actionButton.leadingAnchor, constant: -12),
 
-      actionButton.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -12),
+      actionButton.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -16),
       actionButton.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
-      actionButton.heightAnchor.constraint(equalToConstant: 44),
-      actionButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
+      actionButton.heightAnchor.constraint(equalToConstant: 52),
+      actionButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 108),
     ])
   }
 }
