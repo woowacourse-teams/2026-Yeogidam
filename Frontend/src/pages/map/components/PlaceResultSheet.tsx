@@ -1044,7 +1044,7 @@ export function PlaceResultSheet({
             ) : !hasSavedPlaces ? (
               <>
                 <Image
-                  source={require('../../../assets/illustrations/empty-illustration.png')}
+                  source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
                   style={styles.emptyIllustration}
                 />
                 <Text style={styles.emptyResultTitle}>
@@ -1053,6 +1053,21 @@ export function PlaceResultSheet({
                 <Text style={styles.emptyResultText}>
                   장소를 저장하면 지도에서 확인할 수 있어요.
                 </Text>
+                {guestReelsByPlace !== undefined ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="지도 빈 상태 로그인"
+                    onPress={onAuthenticationRequired}
+                    style={({pressed}) => [
+                      styles.emptyLoginButton,
+                      pressed && styles.emptyLoginButtonPressed,
+                    ]}
+                  >
+                    <Text style={styles.emptyLoginButtonText}>
+                      로그인하기
+                    </Text>
+                  </Pressable>
+                ) : null}
               </>
             ) : (
               <>
@@ -1329,6 +1344,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8e8e93',
     textAlign: 'center',
+  },
+  emptyLoginButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#1F2238',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  emptyLoginButtonPressed: {
+    opacity: 0.82,
+  },
+  emptyLoginButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   resultCard: {
     flexDirection: 'row',
