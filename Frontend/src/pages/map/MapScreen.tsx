@@ -665,6 +665,9 @@ export function MapScreen({
           onDetailViewChange={setIsPlaceDetailVisible}
           guestReelsByPlace={isGuest ? {} : undefined}
           onAuthenticationRequired={onAuthenticationRequired}
+          onGuestExpandInteraction={
+            isGuest ? onShowGuestLoginPrompt : undefined
+          }
           onSavedPlaceDeleted={savedPlaceId => {
             setSavedPlaces(current =>
               current.filter(place => place.savedPlaceId !== savedPlaceId),

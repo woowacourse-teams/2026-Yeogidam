@@ -94,6 +94,7 @@ type PlaceResultSheetProps = {
   detailMoreSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
+  onGuestExpandInteraction?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
   guestReelsByPlace?: Record<string, PlaceReel[]>;
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
@@ -154,6 +155,7 @@ export function PlaceResultSheet({
   detailMoreSignal = 0,
   onDetailViewChange,
   onAuthenticationRequired,
+  onGuestExpandInteraction,
   onSavedPlaceDeleted,
   guestReelsByPlace,
   onDeleteGuestPlaces,
@@ -596,6 +598,10 @@ export function PlaceResultSheet({
           translateY.setValue(nextOffset);
         },
         onPanResponderRelease: (_, gesture) => {
+          if (gesture.dy < -4 || gesture.vy < -0.35) {
+            onGuestExpandInteraction?.();
+          }
+
           if (Math.abs(gesture.dy) < 3) {
             snapTo(isExpanded ? collapsedOffset : 0);
             return;
@@ -637,6 +643,7 @@ export function PlaceResultSheet({
       snapOffsets,
       snapTo,
       translateY,
+      onGuestExpandInteraction,
       updatePageMode,
     ],
   );
@@ -1053,21 +1060,6 @@ export function PlaceResultSheet({
                 <Text style={styles.emptyResultText}>
                   장소를 저장하면 지도에서 확인할 수 있어요.
                 </Text>
-                {guestReelsByPlace !== undefined ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="지도 빈 상태 로그인"
-                    onPress={onAuthenticationRequired}
-                    style={({pressed}) => [
-                      styles.emptyLoginButton,
-                      pressed && styles.emptyLoginButtonPressed,
-                    ]}
-                  >
-                    <Text style={styles.emptyLoginButtonText}>
-                      로그인하기
-                    </Text>
-                  </Pressable>
-                ) : null}
               </>
             ) : (
               <>
@@ -1344,23 +1336,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8e8e93',
     textAlign: 'center',
-  },
-  emptyLoginButton: {
-    width: '100%',
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#1F2238',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  emptyLoginButtonPressed: {
-    opacity: 0.82,
-  },
-  emptyLoginButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
   },
   resultCard: {
     flexDirection: 'row',
