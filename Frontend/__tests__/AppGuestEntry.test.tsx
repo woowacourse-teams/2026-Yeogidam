@@ -4,6 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Alert} from 'react-native';
 
 import App from '../App';
+import {SwipeBackStack} from '../src/components/navigation/SwipeBackStack';
+
+function activeBar(renderer: ReactTestRenderer.ReactTestRenderer) {
+  const stack = renderer.root.findByType(SwipeBackStack);
+  return renderer.root.findByProps({testID: `back-screen-${stack.props.activeKey}`}).findByType(BottomNavigationBar);
+}
+
 import {
   clearSpringSession,
   getSpringMemberId,
@@ -118,7 +125,7 @@ jest.mock('../src/pages/saved-places/SavedPlacesScreen', () => ({
 }));
 
 jest.mock('../src/pages/map/MapScreen', () => ({
-  MapScreen: () => null,
+  MapScreen: ({bottomNavigationBar}: {bottomNavigationBar?: React.ReactNode}) => bottomNavigationBar ?? null,
 }));
 
 jest.mock('../src/pages/history/HistoryScreen', () => ({
@@ -411,11 +418,11 @@ test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다',
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 시 새로 표시된다', async () => {
+test('비회원 지도는 로그인 취소 후 다시 보이고 탭 이동 중에는 상태를 유지한다', async () => {
   const renderer = await renderGuestMain();
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('map');
+    activeBar(renderer).props.onNavigate('map');
   });
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
@@ -433,12 +440,12 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   expect(renderer.root.findByType(MapScreen).props.isGuest).toBe(true);
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('saved');
+    activeBar(renderer).props.onNavigate('saved');
   });
-  expect(renderer.root.findAllByType(MapScreen)).toHaveLength(0);
+  expect(renderer.root.findByType(MapScreen).props.isActive).toBe(false);
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('map');
+    activeBar(renderer).props.onNavigate('map');
   });
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
@@ -452,10 +459,10 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
   const renderer = await renderGuestMain();
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('history');
+    activeBar(renderer).props.onNavigate('history');
   });
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
-  expect(renderer.root.findByType(BottomNavigationBar).props.isGuest).toBe(true);
+  expect(activeBar(renderer).props.isGuest).toBe(true);
   const historyProps = renderer.root.findByType(HistoryScreen).props;
   expect(historyProps.guestReels).toEqual([ONBOARDING_HISTORY_REEL]);
   expect(historyProps.guestReels[0].processing_status).toBe('COMPLETED');
@@ -465,7 +472,7 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
     renderer.root.findByType(HistoryScreen).props.onBack();
   });
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+    activeBar(renderer).props.onNavigate('my');
   });
   expect(renderer.root.findByType(MyPageScreen).props.isGuest).toBe(true);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
@@ -623,7 +630,7 @@ test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다',
   const renderer = await renderAfterSplash();
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+    activeBar(renderer).props.onNavigate('my');
   });
   await ReactTestRenderer.act(async () => {
     await renderer.root.findByType(MyPageScreen).props.onWithdraw();
@@ -703,7 +710,7 @@ async function openAccountDeletion() {
   (getLinkedDeletionProviders as jest.Mock).mockReturnValue(['kakao']);
   const renderer = await renderAfterSplash();
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(BottomNavigationBar).props.onNavigate('my');
+    activeBar(renderer).props.onNavigate('my');
   });
   await ReactTestRenderer.act(async () => {
     await renderer.root.findByType(MyPageScreen).props.onWithdraw();

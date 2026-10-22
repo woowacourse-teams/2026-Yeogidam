@@ -159,6 +159,9 @@ export function BottomNavigationBar({
         {navigationItems.map(navigation => (
           <Pressable
             key={navigation.id}
+            accessibilityRole="button"
+            accessibilityLabel={navigation.label}
+            accessibilityState={{selected: active === navigation.id}}
             onPress={() => {
               // 마지막 확인 시점은 히스토리 화면이 첫 페이지를 읽을 때 저장한다.
               if (navigation.id === 'history') setIsHistoryUnread(false);

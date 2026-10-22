@@ -20,6 +20,7 @@ import {
   BottomNavigationBar,
   SystemNavigationGradient,
 } from './src/components/BottomNavigationBar';
+import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
@@ -382,9 +383,37 @@ function App() {
   const historyReturnScreenRef = useRef<MainScreen>('saved');
   const mainTabHistoryRef = useRef<MainScreen[]>([]);
   const nestedBackStateRef = useRef(false);
-  const reportNestedBackState = useCallback((canGoBack: boolean) => {
-    nestedBackStateRef.current = canGoBack;
+  const [mapBackGestureRegion, setMapBackGestureRegion] = useState<BackGestureRegion>({top: Number.MAX_SAFE_INTEGER, bottom: 0});
+  const reportMapBackGestureRegion = useCallback((region: BackGestureRegion) => {
+    setMapBackGestureRegion(current => current.top === region.top && current.bottom === region.bottom ? current : region);
   }, []);
+  const [nestedBackStates, setNestedBackStates] = useState({
+    map: false,
+    history: false,
+    saved: false,
+  });
+  const reportMapBackState = useCallback((canGoBack: boolean) => {
+    setNestedBackStates(current =>
+      current.map === canGoBack ? current : {...current, map: canGoBack},
+    );
+  }, []);
+  const reportHistoryBackState = useCallback((canGoBack: boolean) => {
+    setNestedBackStates(current =>
+      current.history === canGoBack ? current : {...current, history: canGoBack},
+    );
+  }, []);
+  const reportSavedBackState = useCallback((canGoBack: boolean) => {
+    setNestedBackStates(current =>
+      current.saved === canGoBack ? current : {...current, saved: canGoBack},
+    );
+  }, []);
+  const visitedTabsRef = useRef(new Set<MainScreen>(['saved']));
+  const tabSessionRef = useRef(isAuthenticated);
+  if (tabSessionRef.current !== isAuthenticated) {
+    visitedTabsRef.current = new Set(['saved']);
+    tabSessionRef.current = isAuthenticated;
+  }
+  if (flowState.kind === 'main') visitedTabsRef.current.add(flowState.activeTab);
   useEffect(() => {
     mainTabHistoryRef.current = [];
   }, [isAuthenticated]);
@@ -440,6 +469,11 @@ function App() {
       : flowState.detailSource
       ? 'detail'
       : flowState.activeTab;
+
+  nestedBackStateRef.current = flowState.kind === 'main' &&
+    (flowState.activeTab === 'map' ? nestedBackStates.map :
+      flowState.activeTab === 'history' ? nestedBackStates.history :
+      flowState.activeTab === 'saved' ? nestedBackStates.saved : false);
 
   const isGuestBrowsing =
     isAuthReady &&
@@ -1280,40 +1314,25 @@ function App() {
     }
   };
 
-  const renderScreen = () => {
-    if (currentScreen === 'history') {
+  const requireLoginHandlerRef = useRef(handleRequireLogin);
+  requireLoginHandlerRef.current = handleRequireLogin;
+  const requestLogin = useCallback(() => requireLoginHandlerRef.current(), []);
+
+  const renderScreen = (screen: Screen) => {
+    if (screen === 'history') {
       return (
         <HistoryScreen
           guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
           guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
           onBack={goBackMainTab}
-          onNestedBackStateChange={reportNestedBackState}
-          onRequireLogin={handleRequireLogin}
+          isActive={currentScreen === 'history' && myPageOverlay === null}
+          onNestedBackStateChange={reportHistoryBackState}
+          onRequireLogin={requestLogin}
         />
       );
     }
 
-    if (myPageOverlay === 'terms') {
-      return <TermsAgreementScreen onBack={() => setMyPageOverlay(null)} />;
-    }
-
-    if (myPageOverlay === 'accountDeletion') {
-      return (
-        <AccountDeletionScreen
-          linkedProviders={linkedDeletionProviders}
-          onBack={() => setMyPageOverlay(null)}
-          onDeleteAccount={handleDeleteAccount}
-        />
-      );
-    }
-
-    if (myPageOverlay === 'guide') {
-      return (
-        <AppGuideScreen onComplete={() => setMyPageOverlay(null)} />
-      );
-    }
-
-    if (currentScreen === 'login') {
+    if (screen === 'login') {
       return (
         <LoginScreen
           isAppleLoginAvailable={isAppleSignInSupported}
@@ -1337,7 +1356,7 @@ function App() {
       );
     }
 
-    if (currentScreen === 'emailLogin') {
+    if (screen === 'emailLogin') {
       return (
         <EmailLoginScreen
           onBack={popAuthScreen}
@@ -1348,7 +1367,7 @@ function App() {
       );
     }
 
-    if (currentScreen === 'signup') {
+    if (screen === 'signup') {
       return (
         <SignUpScreen
           onBack={popAuthScreen}
@@ -1359,11 +1378,11 @@ function App() {
       );
     }
 
-    if (currentScreen === 'terms') {
+    if (screen === 'terms') {
       return <TermsAgreementScreen onBack={popAuthScreen} />;
     }
 
-    if (currentScreen === 'saved') {
+    if (screen === 'saved') {
       // 대기함 복원 시 onOpenInbox={() => openMainScreen('inBox')} 연결을 되살립니다.
       return (
         <SavedPlacesScreen
@@ -1372,13 +1391,15 @@ function App() {
               ? 'guest-saved'
               : `member-saved-${memberDataRevision}`
           }
+          isActive={currentScreen === 'saved' && myPageOverlay === null}
+          onNestedBackStateChange={reportSavedBackState}
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
           places={isAuthenticated === false ? guestPlaces : undefined}
           onDeleteGuestPlaces={
             isAuthenticated === false ? deleteGuestPlaces : undefined
           }
-          onAuthenticationRequired={handleRequireLogin}
+          onAuthenticationRequired={requestLogin}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
             openDetailFrom('saved', place, context)
@@ -1386,7 +1407,7 @@ function App() {
           onScrollOffsetChange={offset => {
             savedPlacesScrollOffsetRef.current = offset;
           }}
-          onRequireLogin={handleRequireLogin}
+          onRequireLogin={requestLogin}
           onSharedResultConsumed={clearShareResult}
         />
       );
@@ -1394,13 +1415,13 @@ function App() {
 
     // 대기함 흐름을 다시 사용할 때 복원합니다.
     /*
-    if (currentScreen === 'inBox') {
+    if (screen === 'inBox') {
       return (
         <InBoxScreen
           entryType={inBoxEntryType}
           guestItems={isAuthenticated === false ? EMPTY_GUEST_INBOX : undefined}
           onOpenHistory={() => openMainScreen('history')}
-          onRequireLogin={handleRequireLogin}
+          onRequireLogin={requestLogin}
           onSelectionChange={setIsInBoxSelecting}
         />
       );
@@ -1408,9 +1429,13 @@ function App() {
 
     */
 
-    if (currentScreen === 'map') {
+    if (screen === 'map') {
       return (
         <MapScreen
+          onBackGestureRegionChange={reportMapBackGestureRegion}
+          bottomNavigationBar={
+            <BottomNavigationBar active="map" isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+          }
           key={
             isAuthenticated === false
               ? 'guest-map'
@@ -1421,13 +1446,14 @@ function App() {
           onDeleteGuestPlaces={
             isAuthenticated === false ? deleteGuestPlaces : undefined
           }
-          onNestedBackStateChange={reportNestedBackState}
-          onAuthenticationRequired={handleRequireLogin}
+          isActive={currentScreen === 'map' && myPageOverlay === null}
+          onNestedBackStateChange={reportMapBackState}
+          onAuthenticationRequired={requestLogin}
         />
       );
     }
 
-    if (currentScreen === 'detail' && selectedPlace) {
+    if (screen === 'detail' && selectedPlace) {
       return (
         <PlaceDetailScreen
           bottomNavigationBar={
@@ -1440,7 +1466,7 @@ function App() {
             ) : undefined
           }
           onBack={closeDetail}
-          onAuthenticationRequired={handleRequireLogin}
+          onAuthenticationRequired={requestLogin}
           place={selectedPlace}
           guestReels={
             isAuthenticated === false
@@ -1473,14 +1499,80 @@ function App() {
     );
   };
 
-  const showTabBar =
-    flowState.kind === 'main' &&
-    flowState.detailSource === null &&
-    myPageOverlay === null &&
-    !isSavedPlacesEditing;
+  const renderMyPageOverlay = () => {
+    if (myPageOverlay === 'terms') {
+      return <TermsAgreementScreen onBack={() => setMyPageOverlay(null)} />;
+    }
+
+    if (myPageOverlay === 'accountDeletion') {
+      return (
+        <AccountDeletionScreen
+          linkedProviders={linkedDeletionProviders}
+          onBack={() => setMyPageOverlay(null)}
+          onDeleteAccount={handleDeleteAccount}
+        />
+      );
+    }
+
+    if (myPageOverlay === 'guide') {
+      return (
+        <AppGuideScreen onComplete={() => setMyPageOverlay(null)} />
+      );
+    }
+
+    return null;
+  };
 
   const isMapScreen = currentScreen === 'map';
-  const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
+  const previousTab = flowState.kind === 'main'
+    ? mainTabHistoryRef.current[mainTabHistoryRef.current.length - 1] ??
+      (flowState.activeTab === 'saved' ? null : 'saved')
+    : null;
+  const activeLayerKey = flowState.kind === 'auth'
+    ? `auth-${flowState.stack.length - 1}-${currentScreen}`
+    : myPageOverlay !== null ? `myPage-${myPageOverlay}`
+    : flowState.detailSource !== null ? 'detail' : flowState.activeTab;
+  const backLayerKey = flowState.kind === 'auth'
+    ? flowState.stack.length > 1
+      ? `auth-${flowState.stack.length - 2}-${flowState.stack[flowState.stack.length - 2]}`
+      : null
+    : myPageOverlay !== null ? flowState.activeTab
+    : flowState.detailSource ?? previousTab;
+
+  const handleSwipeBack = () => {
+    if (myPageOverlay !== null) setMyPageOverlay(null);
+    else if (flowState.kind === 'auth') popAuthScreen();
+    else if (flowState.detailSource !== null) closeDetail();
+    else goBackMainTab();
+  };
+
+  const wrapScreen = (content: React.ReactNode, map = false) => (
+    <SafeAreaView edges={map ? ['left', 'right'] : ['top', 'left', 'right']} style={styles.safeArea}>
+      {content}
+    </SafeAreaView>
+  );
+  const screenLayers: BackScreen[] = flowState.kind === 'auth'
+    ? flowState.stack.map((screen, index) => ({
+        key: `auth-${index}-${screen}`,
+        content: wrapScreen(renderScreen(screen)),
+      }))
+    : [...visitedTabsRef.current].map(tab => ({
+        key: tab,
+        content: wrapScreen(
+          <View style={styles.container}>
+            {renderScreen(tab)}
+            {tab !== 'map' && !(tab === 'saved' && isSavedPlacesEditing) ? (
+              <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+            ) : null}
+          </View>, tab === 'map',
+        ),
+      }));
+  if (flowState.kind === 'main' && flowState.detailSource !== null) {
+    screenLayers.push({key: 'detail', content: wrapScreen(renderScreen('detail'))});
+  }
+  if (flowState.kind === 'main' && myPageOverlay !== null) {
+    screenLayers.push({key: `myPage-${myPageOverlay}`, content: wrapScreen(renderMyPageOverlay())});
+  }
 
   if (!isAuthReady || isSplashVisible) {
     return (
@@ -1513,32 +1605,20 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView
-        edges={
-          isMapScreen
-            ? ['left', 'right']
-            : currentScreen === 'detail'
-              ? ['top', 'left', 'right']
-              : ['top', 'left', 'right']
-        }
-        style={styles.safeArea}
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
-          translucent={isMapScreen}
-        />
-        <View style={styles.container}>
-          {renderScreen()}
-          {showTabBar && activeTab ? (
-            <BottomNavigationBar
-              active={activeTab}
-              isGuest={isAuthenticated === false}
-              onNavigate={navigateMainTab}
-            />
-          ) : null}
-        </View>
-      </SafeAreaView>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
+        translucent={isMapScreen}
+      />
+      <SwipeBackStack
+        key={`${flowState.kind}-${isAuthenticated}-${memberDataRevision}`}
+        screens={screenLayers}
+        activeKey={activeLayerKey}
+        gestureRegion={currentScreen === 'map' ? mapBackGestureRegion : undefined}
+        backKey={backLayerKey}
+        onBack={handleSwipeBack}
+        enabled={!nestedBackStateRef.current || currentScreen === 'detail' || myPageOverlay !== null}
+      />
       {currentScreen === 'detail' ? <SystemNavigationGradient /> : null}
       <AppUpdateModal
         mode="required"

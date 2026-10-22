@@ -1,3 +1,4 @@
+import {SwipeBackStack} from '../../components/navigation/SwipeBackStack';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -55,6 +56,7 @@ import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
 type HistoryScreenProps = {
+  isActive?: boolean;
   onBack: () => void;
   onNestedBackStateChange?: (canGoBack: boolean) => void;
   guestReels?: HistoryReel[];
@@ -571,6 +573,7 @@ function HistoryFailureDetail({
 const LIST_POLL_INTERVAL_MS = 3000;
 
 export function HistoryScreen({
+  isActive = true,
   onBack,
   onNestedBackStateChange,
   guestReels,
@@ -610,7 +613,7 @@ export function HistoryScreen({
   }, []);
 
   useEffect(() => {
-    const canGoBack = selectedSuccess || selectedFailure;
+    const canGoBack = isActive && (selectedSuccess || selectedFailure);
     onNestedBackStateChange?.(canGoBack);
     if (Platform.OS !== 'android' || !canGoBack) {
       return () => onNestedBackStateChange?.(false);
@@ -630,6 +633,7 @@ export function HistoryScreen({
     };
   }, [
     handleDetailBack,
+    isActive,
     onNestedBackStateChange,
     selectedFailure,
     selectedSuccess,
@@ -652,7 +656,7 @@ export function HistoryScreen({
   }));
 
   const evaluateVisibleCards = useCallback(() => {
-    if (selectedSuccess || selectedFailure) return;
+    if (!isActive || selectedSuccess || selectedFailure) return;
     const top = scrollOffsetRef.current;
     const bottom = top + viewportHeightRef.current;
     for (const [contentId, layout] of cardLayoutsRef.current) {
@@ -684,7 +688,7 @@ export function HistoryScreen({
         visibleTimersRef.current.delete(key);
       }
     }
-  }, [posthog, selectedSuccess, selectedFailure]);
+  }, [isActive, posthog, selectedSuccess, selectedFailure]);
 
   useEffect(() => {
     evaluateVisibleCards();
@@ -696,11 +700,11 @@ export function HistoryScreen({
   }, []);
 
   useEffect(() => {
-    if (selectedSuccess || selectedFailure) {
+    if (!isActive || selectedSuccess || selectedFailure) {
       visibleTimersRef.current.forEach(clearTimeout);
       visibleTimersRef.current.clear();
     }
-  }, [selectedSuccess, selectedFailure]);
+  }, [isActive, selectedSuccess, selectedFailure]);
 
   const sharesSubscriptionRef = useRef<RecentSharesSubscription | null>(null);
 
@@ -864,7 +868,7 @@ export function HistoryScreen({
   }, [load, posthog]);
 
   useEffect(() => {
-    if (guestReels !== undefined) return;
+    if (!isActive || guestReels !== undefined) return;
     const subscription = subscribeRecentShares({
       intervalMs: LIST_POLL_INTERVAL_MS,
       onResult: result => {
@@ -878,7 +882,7 @@ export function HistoryScreen({
       subscription.unsubscribe();
       sharesSubscriptionRef.current = null;
     };
-  }, [applyFirstPage, guestReels, showErrorIfEmpty]);
+  }, [applyFirstPage, guestReels, isActive, showErrorIfEmpty]);
 
   useEffect(() => {
     load().catch(() => undefined);
@@ -918,17 +922,13 @@ export function HistoryScreen({
     ? undefined
     : guestDetails?.[selectedReel?.id ?? ''] ?? null;
 
-  if (selectedSuccess) {
-    return (
+  const detailContent = selectedSuccess ? (
       <HistorySuccessDetail
         onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
       />
-    );
-  }
-  if (selectedFailure) {
-    return (
+  ) : selectedFailure ? (
       <HistoryFailureDetail
         onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
@@ -942,10 +942,9 @@ export function HistoryScreen({
           await retryHistoryReel(selectedReel as HistoryReel);
         }}
       />
-    );
-  }
+  ) : null;
 
-  return (
+  const listContent = (
     <View style={styles.container}>
       <View style={styles.header}>
         <Pressable
@@ -1066,6 +1065,19 @@ export function HistoryScreen({
       <View style={styles.homeIndicator} />
     </View>
   );
+  return (
+    <SwipeBackStack
+      activeKey={detailContent ? 'detail' : 'list'}
+      backKey={detailContent ? 'list' : null}
+      onBack={handleDetailBack}
+      enabled={isActive}
+      screens={[
+        {key: 'list', content: listContent},
+        ...(detailContent ? [{key: 'detail', content: detailContent}] : []),
+      ]}
+    />
+  );
+
 }
 
 const styles = StyleSheet.create({

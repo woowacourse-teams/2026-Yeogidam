@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -30,7 +31,10 @@ import {
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
-import { ONBOARDING_MAP_CENTER, ONBOARDING_PLACE_REELS } from '../../entities/onboarding/data';
+import {
+  ONBOARDING_MAP_CENTER,
+  ONBOARDING_PLACE_REELS,
+} from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
 import {
   SEARCH_BAR_HEIGHT,
@@ -40,6 +44,7 @@ import {
 import {
   COLLAPSED_SHEET_HEIGHT,
   PlaceResultSheet,
+  type MapSheetPage,
 } from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
@@ -49,7 +54,11 @@ import {
   subscribeLocationPermission,
 } from '../../lib/location-permission';
 
+import type { BackGestureRegion } from '../../components/navigation/SwipeBackStack';
+
 type MapScreenProps = {
+  bottomNavigationBar?: React.ReactNode;
+  onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   isActive?: boolean;
   isGuest?: boolean;
   guestPlaces?: Place[];
@@ -63,9 +72,12 @@ type MapCamera = {
   latitude: number;
   longitude: number;
   zoomLevel: number;
+  bottomInset: number;
 };
 
 export function MapScreen({
+  bottomNavigationBar,
+  onBackGestureRegionChange,
   isActive = true,
   isGuest = false,
   guestPlaces,
@@ -105,17 +117,19 @@ export function MapScreen({
   const [backToPlaceListSignal, setBackToPlaceListSignal] = useState(0);
   const [detailMoreSignal, setDetailMoreSignal] = useState(0);
   const [mapCenter, setMapCenter] = useState(
-    isGuest ? ONBOARDING_MAP_CENTER : {latitude: 37.5448, longitude: 127.0557},
+    isGuest
+      ? ONBOARDING_MAP_CENTER
+      : { latitude: 37.5448, longitude: 127.0557 },
   );
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
   const lastMapCameraRef = useRef<MapCamera>({
     latitude: 37.5448,
     longitude: 127.0557,
     zoomLevel: 14,
+    bottomInset: 0,
   });
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
-  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
     viewContext: SavedPlaceViewContext | null;
@@ -123,16 +137,30 @@ export function MapScreen({
   }>({ place: null, viewContext: null, signal: 0 });
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailHeaderProgress = useRef(new Animated.Value(0)).current;
+  const listHeaderProgress = useRef(new Animated.Value(0)).current;
+  const detailCameraRef = useRef<MapCamera | null>(null);
+  if (!isPlaceDetailVisible) detailCameraRef.current = null;
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [mapPanCollapseSignal, setMapPanCollapseSignal] = useState(0);
-  const [sheetVisibleHeight, setSheetVisibleHeight] = useState(
-    COLLAPSED_SHEET_HEIGHT,
-  );
-  const sheetVisibleHeightRef = useRef(COLLAPSED_SHEET_HEIGHT);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
+  // A retained native map must not receive 1 -> 0 -> 1 just because it
+  // goes behind a detail: every changed ID is a new camera command.
+  const pageLocationRequests = useRef({ list: 0, detail: 0 });
+  const assignedLocationRequest = useRef(0);
+  if (!isPlaceDetailVisible) pageLocationRequests.current.detail = 0;
+  if (assignedLocationRequest.current !== currentLocationRequestId) {
+    assignedLocationRequest.current = currentLocationRequestId;
+    pageLocationRequests.current[isPlaceDetailVisible ? 'detail' : 'list'] =
+      currentLocationRequestId;
+  }
+
   useEffect(() => {
-    if (isGuest || !locationGranted || didRequestInitialCurrentLocation.current) {
+    if (
+      isGuest ||
+      !locationGranted ||
+      didRequestInitialCurrentLocation.current
+    ) {
       return;
     }
 
@@ -146,11 +174,6 @@ export function MapScreen({
   const bottomNavigationOffset =
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
 
-  const sheetBottomOffset = isPlaceDetailVisible ? 0 : bottomNavigationOffset;
-  const sheetHeight = Math.max(
-    COLLAPSED_SHEET_HEIGHT,
-    mapHeight - sheetBottomOffset,
-  );
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
     northLatitude: number;
@@ -219,18 +242,10 @@ export function MapScreen({
     );
   }, [placesWithCoordinates, searchedPlaces, visibleBounds]);
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
-  const selectedPlaceForHeader = selectedPlaceId
-    ? markerPlaces.find(place => place.id === selectedPlaceId) ??
-      resultPlaces.find(place => place.id === selectedPlaceId)
-    : undefined;
   const showExpandedDetailHeader = isPlaceDetailVisible && isSheetExpanded;
 
-  useEffect(() => {
-    Animated.timing(detailHeaderProgress, {
-      toValue: showExpandedDetailHeader ? 1 : 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
+  useLayoutEffect(() => {
+    detailHeaderProgress.setValue(showExpandedDetailHeader ? 1 : 0);
   }, [detailHeaderProgress, showExpandedDetailHeader]);
   const cameraFitPointsJson = useMemo(
     () =>
@@ -242,15 +257,6 @@ export function MapScreen({
       ),
     [searchedPlaces],
   );
-
-  const handleSheetVisibleHeightChange = useCallback((height: number) => {
-    if (sheetVisibleHeightRef.current === height) {
-      return;
-    }
-
-    sheetVisibleHeightRef.current = height;
-    setSheetVisibleHeight(height);
-  }, []);
 
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
@@ -323,7 +329,11 @@ export function MapScreen({
 
   useEffect(() => {
     const hasSearchBackState =
-      isPlaceDetailVisible || isSheetExpanded || hasActiveSearch || isSearchFocused;
+      isActive &&
+      (isPlaceDetailVisible ||
+        isSheetExpanded ||
+        hasActiveSearch ||
+        isSearchFocused);
     onNestedBackStateChange?.(hasSearchBackState);
     if (Platform.OS !== 'android' || !hasSearchBackState) {
       return () => onNestedBackStateChange?.(false);
@@ -343,6 +353,7 @@ export function MapScreen({
     };
   }, [
     handleSearchBack,
+    isActive,
     hasActiveSearch,
     isPlaceDetailVisible,
     isSearchFocused,
@@ -350,40 +361,74 @@ export function MapScreen({
     onNestedBackStateChange,
   ]);
 
-  return (
-    <View
-      style={[
-        styles.container,
-        !isActive && [styles.inactiveContainer, { top: -topInset }],
-      ]}
-      onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
-    >
+  const renderMapPage = (sheet: React.ReactNode, page: MapSheetPage) => {
+    if (page.isDetail && !detailCameraRef.current) {
+      detailCameraRef.current = { ...lastMapCameraRef.current };
+    }
+    const pageCamera = page.isBackPreview
+      ? lastMapCameraRef.current
+      : page.isDetail && detailCameraRef.current
+      ? detailCameraRef.current
+      : { ...mapCenter, zoomLevel: mapZoomLevel };
+    const cameraBottomInset =
+      page.isDetail && detailCameraRef.current
+        ? detailCameraRef.current.bottomInset
+        : page.isExpanded
+        ? 0
+        : page.sheetVisibleHeight;
+    const isCurrentPage =
+      !page.isBackPreview && page.isDetail === isPlaceDetailVisible;
+    const pageShowsDetailHeader = page.isDetail && page.isExpanded;
+    const pageHeaderProgress =
+      page.isDetail && !page.isBackPreview
+        ? detailHeaderProgress
+        : listHeaderProgress;
+    const locationButtonOpacity =
+      typeof page.translateY === 'number'
+        ? Math.min(1, Math.max(0, page.translateY / COLLAPSED_SHEET_HEIGHT))
+        : page.translateY.interpolate({
+            inputRange: [0, COLLAPSED_SHEET_HEIGHT],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+          });
+    return (
       <View style={styles.mapStage}>
         <View style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}>
           {mapHeight > 0 ? (
             <KakaoMapNativeComponent
               style={styles.map}
-              latitude={mapCenter.latitude}
-              longitude={mapCenter.longitude}
-              zoomLevel={mapZoomLevel}
+              latitude={pageCamera.latitude}
+              longitude={pageCamera.longitude}
+              zoomLevel={pageCamera.zoomLevel}
               cameraFitPointsJson={cameraFitPointsJson}
-              cameraFitRequestId={cameraFitRequestId}
-              cameraBottomInset={isSheetExpanded ? 0 : sheetVisibleHeight}
+              cameraFitRequestId={
+                page.isDetail || page.isBackPreview ? 0 : cameraFitRequestId
+              }
+              cameraBottomInset={cameraBottomInset}
               savedPlacesJson={JSON.stringify(
-                markerPlaces.map(({ id, name, latitude, longitude }) => ({
-                  id,
-                  name,
-                  selected: id === selectedPlaceId,
-                  latitude,
-                  longitude,
-                })),
+                (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
+                  ({ id, name, latitude, longitude }) => ({
+                    id,
+                    name,
+                    selected: id === page.place?.id,
+                    latitude,
+                    longitude,
+                  }),
+                ),
               )}
               showsCurrentLocation={locationGranted}
-              currentLocationRequestId={currentLocationRequestId}
+              currentLocationRequestId={
+                page.isBackPreview
+                  ? 0
+                  : pageLocationRequests.current[
+                      page.isDetail ? 'detail' : 'list'
+                    ]
+              }
               onMapReady={event => {
                 console.log('지도 준비:', event.nativeEvent.ready);
               }}
               onMapError={event => {
+                if (!isCurrentPage) return;
                 setMapMessage(event.nativeEvent.message);
               }}
               onMarkerPressed={event => {
@@ -411,9 +456,11 @@ export function MapScreen({
                 }));
               }}
               onMapPanStarted={() => {
+                if (!isCurrentPage) return;
                 setMapPanCollapseSignal(signal => signal + 1);
               }}
               onCameraChanged={event => {
+                if (!isCurrentPage) return;
                 const {
                   latitude,
                   longitude,
@@ -431,10 +478,18 @@ export function MapScreen({
                   southLatitude > northLatitude ||
                   westLongitude > eastLongitude
                 ) {
-                  setVisibleBounds(null);
+                  if (!page.isDetail) setVisibleBounds(null);
                   return;
                 }
-                lastMapCameraRef.current = { latitude, longitude, zoomLevel };
+                lastMapCameraRef.current = {
+                  latitude,
+                  longitude,
+                  zoomLevel,
+                  bottomInset: cameraBottomInset,
+                };
+                // Detail owns a separate native map. Its camera/margins must
+                // not refilter the retained results underneath it.
+                if (page.isDetail) return;
                 setVisibleBounds({
                   southLatitude,
                   northLatitude,
@@ -445,55 +500,16 @@ export function MapScreen({
             />
           ) : null}
         </View>
-        {mapHeight > 0 ? (
-          <PlaceResultSheet
-            height={sheetHeight}
-            translateY={sheetTranslateY}
-            topInset={topInset}
-            bottomTabOffset={bottomNavigationOffset}
-            places={resultPlaces}
-            hasSavedPlaces={savedPlaces.length > 0}
-            isSavedPlacesLoading={isSavedPlacesLoading}
-            savedPlacesLoadFailed={savedPlacesLoadFailed}
-            isSearchActive={hasActiveSearch}
-            expandSignal={searchResultSignal}
-            openPlace={openedMarker.place}
-            openPlaceContext={openedMarker.viewContext}
-            openPlaceSignal={openedMarker.signal}
-            backToPlaceListSignal={backToPlaceListSignal}
-            detailMoreSignal={detailMoreSignal}
-            collapseSignal={collapseSignal}
-            mapPanCollapseSignal={mapPanCollapseSignal}
-            onDetailViewChange={(isDetailView, placeId) => {
-              setSelectedPlaceId(placeId);
-              setIsPlaceDetailVisible(isDetailView);
-            }}
-            guestReelsByPlace={isGuest ? ONBOARDING_PLACE_REELS : undefined}
-            onAuthenticationRequired={onAuthenticationRequired}
-            onSavedPlaceDeleted={savedPlaceId => {
-              setSavedPlaces(current =>
-                current.filter(place => place.savedPlaceId !== savedPlaceId),
-              );
-            }}
-            onDeleteGuestPlaces={onDeleteGuestPlaces}
-            onExpandedChange={setIsSheetExpanded}
-            onVisibleHeightChange={handleSheetVisibleHeightChange}
-            isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
-          />
-        ) : null}
+        {sheet}
         {mapHeight > 0 ? (
           <Animated.View
-            pointerEvents={isSheetExpanded ? 'none' : 'auto'}
+            pointerEvents={page.isExpanded ? 'none' : 'auto'}
             style={[
               styles.currentLocationButtonContainer,
               {
-                bottom: sheetBottomOffset + sheetHeight + 16,
-                opacity: sheetTranslateY.interpolate({
-                  inputRange: [0, COLLAPSED_SHEET_HEIGHT],
-                  outputRange: [0, 1],
-                  extrapolate: 'clamp',
-                }),
-                transform: [{ translateY: sheetTranslateY }],
+                bottom: page.sheetBottomOffset + page.sheetHeight + 16,
+                opacity: locationButtonOpacity,
+                transform: [{ translateY: page.translateY }],
               },
             ]}
           >
@@ -519,9 +535,9 @@ export function MapScreen({
         ) : null}
         <View pointerEvents="box-none" style={styles.searchOverlay}>
           <Animated.View
-            pointerEvents={showExpandedDetailHeader ? 'none' : 'auto'}
+            pointerEvents={pageShowsDetailHeader ? 'none' : 'auto'}
             style={{
-              opacity: detailHeaderProgress.interpolate({
+              opacity: pageHeaderProgress.interpolate({
                 inputRange: [0, 1],
                 outputRange: [1, 0],
               }),
@@ -529,14 +545,14 @@ export function MapScreen({
           >
             <SearchBar
               backButtonPosition={
-                hasActiveSearch ||
-                isSearchFocused ||
-                isSheetExpanded ||
-                isPlaceDetailVisible
+                (!page.clearsSearch && hasActiveSearch) ||
+                (!page.isBackPreview && isSearchFocused) ||
+                page.isExpanded ||
+                page.isDetail
                   ? 'leading'
                   : 'inside'
               }
-              value={searchKeyword}
+              value={page.clearsSearch ? '' : searchKeyword}
               onChangeText={handleSearchKeywordChange}
               onFocus={() => setIsSearchFocused(true)}
               onBlur={() => setIsSearchFocused(false)}
@@ -544,24 +560,24 @@ export function MapScreen({
               onPressSearchAction={handleSearch}
               topInset={topInset}
               onPressBack={
-                hasActiveSearch ||
-                isSearchFocused ||
-                isSheetExpanded ||
-                isPlaceDetailVisible
+                (!page.clearsSearch && hasActiveSearch) ||
+                (!page.isBackPreview && isSearchFocused) ||
+                page.isExpanded ||
+                page.isDetail
                   ? handleSearchBack
                   : undefined
               }
             />
           </Animated.View>
-          {selectedPlaceForHeader ? (
+          {page.place ? (
             <Animated.View
-              pointerEvents={showExpandedDetailHeader ? 'auto' : 'none'}
+              pointerEvents={pageShowsDetailHeader ? 'auto' : 'none'}
               style={[
                 styles.expandedDetailHeader,
                 {
                   top: topInset + SEARCH_BAR_TOP_GAP,
                   height: SEARCH_BAR_HEIGHT,
-                  opacity: detailHeaderProgress,
+                  opacity: pageHeaderProgress,
                 },
               ]}
             >
@@ -575,7 +591,7 @@ export function MapScreen({
                 <Text style={styles.expandedDetailBackText}>‹</Text>
               </Pressable>
               <Text numberOfLines={1} style={styles.expandedDetailTitle}>
-                {selectedPlaceForHeader.name}
+                {page.place.name}
               </Text>
               {!isGuest || onDeleteGuestPlaces ? (
                 <Pressable
@@ -603,7 +619,62 @@ export function MapScreen({
             <Text style={styles.mapMessageText}>{mapMessage}</Text>
           </Pressable>
         ) : null}
+        {bottomNavigationBar}
       </View>
+    );
+  };
+
+  return (
+    <View
+      style={styles.container}
+      onLayout={event => setMapHeight(event.nativeEvent.layout.height)}
+    >
+      {mapHeight > 0 ? (
+        <PlaceResultSheet
+          isActive={isActive}
+          onBackGestureRegionChange={onBackGestureRegionChange}
+          pageHeight={mapHeight}
+          pageBackAvailable={hasActiveSearch || isSearchFocused}
+          pageBackStateKey={`${searchKeyword}:${isSearchFocused}`}
+          onPageBack={handleSearchBack}
+          backPlaces={placesWithCoordinates.filter(
+            place =>
+              !visibleBounds ||
+              (place.latitude! >= visibleBounds.southLatitude &&
+                place.latitude! <= visibleBounds.northLatitude &&
+                place.longitude! >= visibleBounds.westLongitude &&
+                place.longitude! <= visibleBounds.eastLongitude),
+          )}
+          renderPage={renderMapPage}
+          translateY={sheetTranslateY}
+          topInset={topInset}
+          bottomTabOffset={bottomNavigationOffset}
+          places={resultPlaces}
+          hasSavedPlaces={savedPlaces.length > 0}
+          isSavedPlacesLoading={isSavedPlacesLoading}
+          savedPlacesLoadFailed={savedPlacesLoadFailed}
+          isSearchActive={hasActiveSearch}
+          expandSignal={searchResultSignal}
+          openPlace={openedMarker.place}
+          openPlaceContext={openedMarker.viewContext}
+          openPlaceSignal={openedMarker.signal}
+          backToPlaceListSignal={backToPlaceListSignal}
+          detailMoreSignal={detailMoreSignal}
+          collapseSignal={collapseSignal}
+          mapPanCollapseSignal={mapPanCollapseSignal}
+          onDetailViewChange={setIsPlaceDetailVisible}
+          guestReelsByPlace={isGuest ? ONBOARDING_PLACE_REELS : undefined}
+          onAuthenticationRequired={onAuthenticationRequired}
+          onSavedPlaceDeleted={savedPlaceId => {
+            setSavedPlaces(current =>
+              current.filter(place => place.savedPlaceId !== savedPlaceId),
+            );
+          }}
+          onDeleteGuestPlaces={onDeleteGuestPlaces}
+          onExpandedChange={setIsSheetExpanded}
+          isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
+        />
+      ) : null}
     </View>
   );
 }
