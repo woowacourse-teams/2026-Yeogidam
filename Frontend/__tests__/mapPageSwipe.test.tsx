@@ -1,5 +1,14 @@
 import React from 'react';
-import { Animated, FlatList, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  FlatList,
+  PanResponder,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type PanResponderGestureState,
+} from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { Place } from '../src/entities/place/types';
 import { SwipeBackStack } from '../src/components/navigation/SwipeBackStack';
@@ -182,6 +191,32 @@ test('중간 높이에서 펼친 상세의 첫 뒤로가기는 기존 <와 동�
     renderer.root.findByType(SwipeBackStack).props.onBack(),
   );
   expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('list');
+  await act(async () => renderer.unmount());
+});
+
+test('드래그로 전체 목록에 도달하면 손을 놓기 전부터 뒤로가기 상태도 전체 높이가 된다', async () => {
+  const create = jest.spyOn(PanResponder, 'create');
+  const translateY = new Animated.Value(336);
+  const setValue = jest.spyOn(translateY, 'setValue');
+  const renderer = await render({ translateY });
+  const handlers = create.mock.calls[0][0];
+  let reportStoppedPosition: ((value: number) => void) | undefined;
+  jest.spyOn(translateY, 'stopAnimation').mockImplementation(callback => {
+    reportStoppedPosition = callback;
+  });
+  const event = {} as GestureResponderEvent;
+  const pan = { dy: -300, dx: 0, vy: -1 } as PanResponderGestureState;
+  await act(async () => handlers.onPanResponderGrant?.(event, pan));
+  await act(async () => handlers.onPanResponderMove?.(event, pan));
+  const full = renderer.root.findByType(SwipeBackStack);
+  expect(full.props.transitionKey).toBe('0:');
+  expect(full.props.backKey).toBe('state-back');
+  expect(full.props.gestureRegion.top).toBe(0);
+  // The native stop callback can arrive after the list has reached the top.
+  await act(async () => reportStoppedPosition?.(336));
+  await act(async () => handlers.onPanResponderTerminate?.(event, pan));
+  expect(renderer.root.findByType(SwipeBackStack).props.transitionKey).toBe('0:');
+  expect(setValue).toHaveBeenLastCalledWith(0);
   await act(async () => renderer.unmount());
 });
 

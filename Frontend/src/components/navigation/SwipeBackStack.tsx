@@ -200,6 +200,26 @@ export function SwipeBackStack({
       });
     };
     const callbacks: PanResponderCallbacks = {
+      // A full-height native list can claim the touch before the movement
+      // threshold is reached. Reserve the back edge at the ancestor first.
+      onStartShouldSetPanResponderCapture: event => {
+        const { pageX, pageY } = event.nativeEvent;
+        const current = latest.current;
+        return (
+          current.enabled &&
+          !!current.backKey &&
+          motions.has(current.backKey) &&
+          !busy.current &&
+          pageX >= 0 &&
+          pageX <= BACK_EDGE_WIDTH &&
+          (!current.gestureRegion ||
+            (pageY >= bounds.current.y + current.gestureRegion.top &&
+              pageY <=
+                bounds.current.y +
+                  bounds.current.height -
+                  current.gestureRegion.bottom))
+        );
+      },
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
         latest.current.enabled &&
         !!latest.current.backKey &&
@@ -306,7 +326,7 @@ export function SwipeBackStack({
         });
       },
       onPanResponderTerminationRequest: () => gestureRef.current === null,
-      onShouldBlockNativeResponder: () => false,
+      onShouldBlockNativeResponder: () => gestureRef.current !== null,
       onPanResponderTerminate: cancel,
     };
     return {

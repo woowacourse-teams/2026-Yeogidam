@@ -221,6 +221,7 @@ export function PlaceResultSheet({
     selectedPlace?.id ?? null,
   );
   const startedInPageMode = useRef(false);
+  const sheetDragRevision = useRef(0);
   const previousGeometry = useRef({
     sheetHeight,
     middleOffset,
@@ -570,14 +571,20 @@ export function PlaceResultSheet({
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
+          const revision = ++sheetDragRevision.current;
           startedInPageMode.current = isPageModeRef.current;
           dragStartSnapIndex.current = activeSnapIndex;
+          dragStartOffset.current = currentOffset.current;
           translateY.stopAnimation(value => {
+            if (sheetDragRevision.current !== revision) return;
             dragStartOffset.current = value;
             currentOffset.current = value;
           });
         },
         onPanResponderMove: (_, gesture) => {
+          // Ignore a delayed stopAnimation callback once dragging has moved
+          // the sheet; it must not restore the old middle-height position.
+          sheetDragRevision.current += 1;
           let nextOffset = Math.max(
             0,
             Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
@@ -598,9 +605,13 @@ export function PlaceResultSheet({
           }
 
           currentOffset.current = nextOffset;
+          // Reaching page mode removes the handle that owns this responder.
+          // Commit the logical snap now, before its release can be lost.
+          if (nextOffset === 0) setActiveSnapIndex(0);
           translateY.setValue(nextOffset);
         },
         onPanResponderRelease: (_, gesture) => {
+          sheetDragRevision.current += 1;
           if (gesture.dy < -4 || gesture.vy < -0.35) {
             onGuestExpandInteraction?.();
           }
@@ -637,7 +648,10 @@ export function PlaceResultSheet({
 
           snapTo(releasedOffset);
         },
-        onPanResponderTerminate: () => snapTo(currentOffset.current),
+        onPanResponderTerminate: () => {
+          sheetDragRevision.current += 1;
+          snapTo(currentOffset.current);
+        },
       }),
     [
       activeSnapIndex,

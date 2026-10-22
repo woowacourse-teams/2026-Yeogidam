@@ -190,6 +190,35 @@ test('가장자리 바깥·세로 스크롤과 중복 뒤로가기·루트 스�
   await act(async () => renderer.unmount());
 });
 
+test('목록보다 먼저 가장자리 터치를 받고 취소 후에도 다시 스와이프할 수 있다', async () => {
+  const { renderer, handlers, onBack } = await render();
+  const touchAt = (pageX: number) =>
+    ({ nativeEvent: { pageX, pageY: 300 } } as GestureResponderEvent);
+  const edge = touchAt(20);
+  // GestureState.x0 is not initialized at touch-down; use native pageX.
+  expect(
+    handlers.onStartShouldSetPanResponderCapture?.(touchAt(100), gesture(0)),
+  ).toBe(false);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    expect(
+      handlers.onStartShouldSetPanResponderCapture?.(edge, gesture(0)),
+    ).toBe(true);
+    await act(async () => {
+      handlers.onPanResponderGrant?.(edge, gesture(0));
+      expect(handlers.onShouldBlockNativeResponder?.(edge, gesture(0))).toBe(
+        true,
+      );
+      handlers.onPanResponderMove?.(edge, gesture(20));
+      handlers.onPanResponderRelease?.(edge, gesture(20));
+    });
+    expect(handlers.onShouldBlockNativeResponder?.(edge, gesture(0))).toBe(
+      false,
+    );
+  }
+  expect(onBack).not.toHaveBeenCalled();
+  await act(async () => renderer.unmount());
+});
+
 test('장식 애니메이션의 종료 통지가 없어도 뒤로가기를 확정하고 이전 화면의 입력을 복구한다', async () => {
   const { renderer, handlers, onBack } = await render();
   const foreground = translation(renderer, 'map');
