@@ -7,7 +7,9 @@ import React, {
 } from 'react';
 import {
   Animated,
+  BackHandler,
   Keyboard,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -53,6 +55,7 @@ type MapScreenProps = {
   guestPlaces?: Place[];
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
   onAuthenticationRequired?: () => void;
 };
 
@@ -67,6 +70,7 @@ export function MapScreen({
   isGuest = false,
   guestPlaces,
   onDeleteGuestPlaces,
+  onNestedBackStateChange,
   onAuthenticationRequired,
 }: MapScreenProps) {
   const posthog = usePostHog();
@@ -288,7 +292,7 @@ export function MapScreen({
       setSearchedPlaces(null);
     }
   };
-  const handleSearchBack = () => {
+  const handleSearchBack = useCallback(() => {
     if (isPlaceDetailVisible) {
       setBackToPlaceListSignal(signal => signal + 1);
       setIsSearchFocused(false);
@@ -315,7 +319,36 @@ export function MapScreen({
       setIsSearchFocused(false);
       Keyboard.dismiss();
     }
-  };
+  }, [hasActiveSearch, isPlaceDetailVisible, isSearchFocused, isSheetExpanded]);
+
+  useEffect(() => {
+    const hasSearchBackState =
+      isPlaceDetailVisible || isSheetExpanded || hasActiveSearch || isSearchFocused;
+    onNestedBackStateChange?.(hasSearchBackState);
+    if (Platform.OS !== 'android' || !hasSearchBackState) {
+      return () => onNestedBackStateChange?.(false);
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        handleSearchBack();
+        return true;
+      },
+    );
+
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [
+    handleSearchBack,
+    hasActiveSearch,
+    isPlaceDetailVisible,
+    isSearchFocused,
+    isSheetExpanded,
+    onNestedBackStateChange,
+  ]);
 
   return (
     <View

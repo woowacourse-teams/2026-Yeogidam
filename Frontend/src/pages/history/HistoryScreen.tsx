@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   Linking,
   Platform,
@@ -55,6 +56,7 @@ import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage
 
 type HistoryScreenProps = {
   onBack: () => void;
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
   onRequireLogin?: () => void;
@@ -570,6 +572,7 @@ const LIST_POLL_INTERVAL_MS = 3000;
 
 export function HistoryScreen({
   onBack,
+  onNestedBackStateChange,
   guestReels,
   guestDetails,
   onRequireLogin,
@@ -598,6 +601,39 @@ export function HistoryScreen({
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+
+  const handleDetailBack = useCallback(() => {
+    shouldRestoreScrollRef.current = true;
+    setSelectedSuccess(false);
+    setSelectedFailure(false);
+    setSelectedReel(null);
+  }, []);
+
+  useEffect(() => {
+    const canGoBack = selectedSuccess || selectedFailure;
+    onNestedBackStateChange?.(canGoBack);
+    if (Platform.OS !== 'android' || !canGoBack) {
+      return () => onNestedBackStateChange?.(false);
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        handleDetailBack();
+        return true;
+      },
+    );
+
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [
+    handleDetailBack,
+    onNestedBackStateChange,
+    selectedFailure,
+    selectedSuccess,
+  ]);
 
   // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
   const hasReelsRef = useRef(false);
@@ -885,11 +921,7 @@ export function HistoryScreen({
   if (selectedSuccess) {
     return (
       <HistorySuccessDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          setSelectedSuccess(false);
-          setSelectedReel(null);
-        }}
+        onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
       />
@@ -898,11 +930,7 @@ export function HistoryScreen({
   if (selectedFailure) {
     return (
       <HistoryFailureDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          setSelectedFailure(false);
-          setSelectedReel(null);
-        }}
+        onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
         onRequireLogin={onRequireLogin}

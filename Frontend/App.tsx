@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  AppState,
+  BackHandler,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 import Config from 'react-native-config';
@@ -372,6 +380,14 @@ function App() {
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
+  const mainTabHistoryRef = useRef<MainScreen[]>([]);
+  const nestedBackStateRef = useRef(false);
+  const reportNestedBackState = useCallback((canGoBack: boolean) => {
+    nestedBackStateRef.current = canGoBack;
+  }, []);
+  useEffect(() => {
+    mainTabHistoryRef.current = [];
+  }, [isAuthenticated]);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -545,6 +561,38 @@ function App() {
     // if (nextScreen === 'inBox') setInBoxEntryType(entryType);
   };
 
+  const navigateMainTab = (nextScreen: MainScreen) => {
+    if (
+      flowState.kind === 'main' &&
+      flowState.detailSource === null &&
+      flowState.activeTab !== nextScreen
+    ) {
+      mainTabHistoryRef.current.push(flowState.activeTab);
+    }
+
+    openMainScreen(nextScreen);
+  };
+
+  const goBackMainTab = useCallback(() => {
+    if (flowState.kind !== 'main' || flowState.detailSource !== null) {
+      return false;
+    }
+
+    const previousTab =
+      mainTabHistoryRef.current.pop() ??
+      (flowState.activeTab === 'saved' ? null : 'saved');
+    if (!previousTab) {
+      return false;
+    }
+
+    setFlowState(current =>
+      current.kind === 'main'
+        ? { ...current, activeTab: previousTab, detailSource: null }
+        : current,
+    );
+    return true;
+  }, [flowState]);
+
   const openMainScreenRef = useRef(openMainScreen);
   openMainScreenRef.current = openMainScreen;
 
@@ -566,7 +614,7 @@ function App() {
     );
   };
 
-  const closeDetail = () => {
+  const closeDetail = useCallback(() => {
     setSelectedPlace(null);
     setSelectedPlaceViewContext(null);
     setFlowState(current =>
@@ -577,7 +625,45 @@ function App() {
           }
         : current,
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (myPageOverlay !== null) {
+          setMyPageOverlay(null);
+          return true;
+        }
+
+        if (flowState.kind === 'main' && flowState.detailSource !== null) {
+          closeDetail();
+          return true;
+        }
+
+        if (flowState.kind === 'auth' && flowState.stack.length > 1) {
+          setFlowState(current =>
+            current.kind === 'auth' && current.stack.length > 1
+              ? { ...current, stack: current.stack.slice(0, -1) }
+              : current,
+          );
+          return true;
+        }
+
+        if (nestedBackStateRef.current) {
+          return false;
+        }
+
+        return goBackMainTab();
+      },
+    );
+
+    return () => subscription.remove();
+  }, [closeDetail, flowState, goBackMainTab, myPageOverlay]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1200,7 +1286,8 @@ function App() {
         <HistoryScreen
           guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
           guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
-          onBack={() => openMainScreen(historyReturnScreenRef.current)}
+          onBack={goBackMainTab}
+          onNestedBackStateChange={reportNestedBackState}
           onRequireLogin={handleRequireLogin}
         />
       );
@@ -1334,6 +1421,7 @@ function App() {
           onDeleteGuestPlaces={
             isAuthenticated === false ? deleteGuestPlaces : undefined
           }
+          onNestedBackStateChange={reportNestedBackState}
           onAuthenticationRequired={handleRequireLogin}
         />
       );
@@ -1437,7 +1525,7 @@ function App() {
             <BottomNavigationBar
               active={activeTab}
               isGuest={isAuthenticated === false}
-              onNavigate={openMainScreen}
+              onNavigate={navigateMainTab}
             />
           ) : null}
         </View>
