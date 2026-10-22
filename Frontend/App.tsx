@@ -1430,6 +1430,15 @@ function App() {
     if (currentScreen === 'detail' && selectedPlace) {
       return (
         <PlaceDetailScreen
+          bottomNavigationBar={
+            flowState.kind === 'main' && flowState.detailSource !== null ? (
+              <BottomNavigationBar
+                active={flowState.activeTab}
+                isGuest={isAuthenticated === false}
+                onNavigate={navigateMainTab}
+              />
+            ) : undefined
+          }
           onBack={closeDetail}
           onAuthenticationRequired={handleRequireLogin}
           place={selectedPlace}
@@ -1509,7 +1518,7 @@ function App() {
           isMapScreen
             ? ['left', 'right']
             : currentScreen === 'detail'
-              ? ['top', 'left', 'right', 'bottom']
+              ? ['top', 'left', 'right']
               : ['top', 'left', 'right']
         }
         style={styles.safeArea}

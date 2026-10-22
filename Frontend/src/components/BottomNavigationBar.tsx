@@ -269,6 +269,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 20,
+    elevation: 20,
     flexDirection: 'row',
     backgroundColor: '#ffffff',
   },
