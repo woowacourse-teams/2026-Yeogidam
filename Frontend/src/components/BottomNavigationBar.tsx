@@ -34,6 +34,29 @@ export function getBottomNavigationBarOffset(bottomInset: number) {
   return bottomInset;
 }
 
+export function SystemNavigationGradient() {
+  const { bottom } = useSafeAreaInsets();
+
+  if (Platform.OS !== 'android' || bottom <= 0) {
+    return null;
+  }
+
+  return (
+    <LinearGradient
+      pointerEvents="none"
+      colors={[
+        'rgba(31, 34, 56, 0.08)',
+        'rgba(31, 34, 56, 0.24)',
+        'rgba(31, 34, 56, 0.42)',
+      ]}
+      end={{ x: 0.5, y: 1 }}
+      locations={[0, 0.52, 1]}
+      start={{ x: 0.5, y: 0 }}
+      style={[styles.systemNavigationGradient, { height: bottom }]}
+    />
+  );
+}
+
 export const bottomNavigationBarContainerStyle: ViewStyle = {
   position: 'absolute',
   left: 16,
@@ -131,19 +154,7 @@ export function BottomNavigationBar({
         },
       ]}
     >
-      {Platform.OS === 'android' && bottom > 0 ? (
-        <LinearGradient
-          colors={[
-            'rgba(31, 34, 56, 0.08)',
-            'rgba(31, 34, 56, 0.24)',
-            'rgba(31, 34, 56, 0.42)',
-          ]}
-          end={{ x: 0.5, y: 1 }}
-          locations={[0, 0.52, 1]}
-          start={{ x: 0.5, y: 0 }}
-          style={[styles.systemNavigationGradient, { top: BOTTOM_NAVIGATION_BAR_HEIGHT }]}
-        />
-      ) : null}
+      <SystemNavigationGradient />
       <View style={styles.navigationItems}>
         {navigationItems.map(navigation => (
           <Pressable

@@ -8,7 +8,10 @@ import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
-import { BottomNavigationBar } from './src/components/BottomNavigationBar';
+import {
+  BottomNavigationBar,
+  SystemNavigationGradient,
+} from './src/components/BottomNavigationBar';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
@@ -1414,7 +1417,13 @@ function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView
-        edges={isMapScreen ? ['left', 'right'] : ['top', 'left', 'right']}
+        edges={
+          isMapScreen
+            ? ['left', 'right']
+            : currentScreen === 'detail'
+              ? ['top', 'left', 'right', 'bottom']
+              : ['top', 'left', 'right']
+        }
         style={styles.safeArea}
       >
         <StatusBar
@@ -1433,6 +1442,7 @@ function App() {
           ) : null}
         </View>
       </SafeAreaView>
+      {currentScreen === 'detail' ? <SystemNavigationGradient /> : null}
       <AppUpdateModal
         mode="required"
         storeUrl={requiredUpdateStoreUrl ?? ''}
