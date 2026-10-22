@@ -229,7 +229,14 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     position: MapPoint
   ) {
     guard layerID == Self.savedPlaceLayerID else { return }
-    onMarkerPressed?(["id": poiID])
+    let coordinate = cameraTarget(in: kakaoMap)
+    onMarkerPressed?([
+      "id": poiID,
+      "latitude": coordinate.latitude,
+      "longitude": coordinate.longitude,
+      "zoomLevel": kakaoMap.zoomLevel,
+      "cameraBottomInset": kakaoMap.margins.bottom
+    ])
   }
 
   // The direct camera-stopped handler is not called for every user gesture on
@@ -696,6 +703,17 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     savedPlaceSelectionByID = nextSelectionByID
   }
 
+  private func cameraTarget(in kakaoMap: KakaoMap) -> GeoCoordinate {
+    // CameraUpdate.make(target:..., mapView:...) targets the centre AFTER
+    // margins. Use that same centre when cloning a map for a detail scene.
+    let margins = kakaoMap.margins
+    let centre = CGPoint(
+      x: (margins.left + kakaoMap.viewRect.width - margins.right) / 2,
+      y: (margins.top + kakaoMap.viewRect.height - margins.bottom) / 2
+    )
+    return kakaoMap.getPosition(centre).wgsCoord
+  }
+
   private func emitCameraChanged() {
     guard
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
@@ -711,15 +729,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       width: kakaoMap.viewRect.width,
       height: kakaoMap.viewRect.height
     )
-    // CameraUpdate.make(target:..., mapView:...) targets the centre AFTER
-    // margins. Reporting the full-view midpoint here shifts a cloned map by
-    // half the bottom margin every time a detail scene is opened.
-    let margins = kakaoMap.margins
-    let cameraCentre = CGPoint(
-      x: (visibleRect.minX + margins.left + visibleRect.maxX - margins.right) / 2,
-      y: (visibleRect.minY + margins.top + visibleRect.maxY - margins.bottom) / 2
-    )
-    let coordinate = kakaoMap.getPosition(cameraCentre).wgsCoord
+    let coordinate = cameraTarget(in: kakaoMap)
     let corners = [
       CGPoint(x: visibleRect.minX, y: visibleRect.minY),
       CGPoint(x: visibleRect.maxX, y: visibleRect.minY),

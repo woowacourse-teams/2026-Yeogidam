@@ -1,5 +1,14 @@
 import React from 'react';
-import { Animated, FlatList, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  FlatList,
+  PanResponder,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type PanResponderGestureState,
+} from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { Place } from '../src/entities/place/types';
 import { SwipeBackStack } from '../src/components/navigation/SwipeBackStack';
@@ -38,7 +47,9 @@ const renderPage = (sheet: React.ReactNode, page: MapSheetPage) => (
     <Text>하단 메뉴</Text>
   </View>
 );
-async function render() {
+async function render(
+  overrides: Partial<React.ComponentProps<typeof PlaceResultSheet>> = {},
+) {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -48,6 +59,7 @@ async function render() {
         places={places}
         guestReelsByPlace={guestReelsByPlace}
         renderPage={renderPage}
+        {...overrides}
       />,
     );
   });
@@ -75,6 +87,39 @@ afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   jest.restoreAllMocks();
+});
+
+test('핀 상세 진입과 복귀 중 공유 지도는 한 인스턴스를 유지한다', async () => {
+  const mount = jest.fn();
+  const unmount = jest.fn();
+  function NativeMap({ selectedId }: { selectedId: string | null }) {
+    React.useEffect(() => {
+      mount();
+      return () => unmount();
+    }, []);
+    return <View testID="shared-map" accessibilityLabel={selectedId ?? ''} />;
+  }
+  const renderer = await render({
+    renderMap: page => <NativeMap selectedId={page.place?.id ?? null} />,
+  });
+  const map = renderer.root.findByType(NativeMap);
+  expect(
+    renderer.root.findByType(SwipeBackStack).findAllByType(NativeMap),
+  ).toHaveLength(0);
+  for (let entry = 0; entry < 2; entry += 1) {
+    await openDetail(renderer);
+    expect(renderer.root.findByType(NativeMap)).toBe(map);
+    expect(map.props.selectedId).toBe(place.id);
+    await act(async () =>
+      renderer.root.findByType(SwipeBackStack).props.onBack(),
+    );
+    expect(renderer.root.findByType(NativeMap)).toBe(map);
+    expect(map.props.selectedId).toBeNull();
+  }
+  expect(mount).toHaveBeenCalledTimes(1);
+  expect(unmount).not.toHaveBeenCalled();
+  await act(async () => renderer.unmount());
+  expect(unmount).toHaveBeenCalledTimes(1);
 });
 
 test('스와이프 레이어가 지도·검색창·시트·하단 메뉴 전체를 포함하고 목록 인스턴스를 유지한다', async () => {
@@ -146,6 +191,32 @@ test('중간 높이에서 펼친 상세의 첫 뒤로가기는 기존 <와 동�
     renderer.root.findByType(SwipeBackStack).props.onBack(),
   );
   expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('list');
+  await act(async () => renderer.unmount());
+});
+
+test('드래그로 전체 목록에 도달하면 손을 놓기 전부터 뒤로가기 상태도 전체 높이가 된다', async () => {
+  const create = jest.spyOn(PanResponder, 'create');
+  const translateY = new Animated.Value(336);
+  const setValue = jest.spyOn(translateY, 'setValue');
+  const renderer = await render({ translateY });
+  const handlers = create.mock.calls[0][0];
+  let reportStoppedPosition: ((value: number) => void) | undefined;
+  jest.spyOn(translateY, 'stopAnimation').mockImplementation(callback => {
+    reportStoppedPosition = callback;
+  });
+  const event = {} as GestureResponderEvent;
+  const pan = { dy: -300, dx: 0, vy: -1 } as PanResponderGestureState;
+  await act(async () => handlers.onPanResponderGrant?.(event, pan));
+  await act(async () => handlers.onPanResponderMove?.(event, pan));
+  const full = renderer.root.findByType(SwipeBackStack);
+  expect(full.props.transitionKey).toBe('0:');
+  expect(full.props.backKey).toBe('state-back');
+  expect(full.props.gestureRegion.top).toBe(0);
+  // The native stop callback can arrive after the list has reached the top.
+  await act(async () => reportStoppedPosition?.(336));
+  await act(async () => handlers.onPanResponderTerminate?.(event, pan));
+  expect(renderer.root.findByType(SwipeBackStack).props.transitionKey).toBe('0:');
+  expect(setValue).toHaveBeenLastCalledWith(0);
   await act(async () => renderer.unmount());
 });
 

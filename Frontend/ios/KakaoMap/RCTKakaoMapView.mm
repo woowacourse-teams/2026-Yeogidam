@@ -122,7 +122,11 @@ using namespace facebook::react;
   const auto &eventEmitter =
     static_cast<const YeogidamKakaoMapViewEventEmitter &>(*_eventEmitter);
   eventEmitter.onMarkerPressed({
-    .id = std::string(markerID.UTF8String ?: "")
+    .id = std::string(markerID.UTF8String ?: ""),
+    .latitude = [event[@"latitude"] doubleValue],
+    .longitude = [event[@"longitude"] doubleValue],
+    .zoomLevel = [event[@"zoomLevel"] intValue],
+    .cameraBottomInset = [event[@"cameraBottomInset"] doubleValue]
   });
 }
 

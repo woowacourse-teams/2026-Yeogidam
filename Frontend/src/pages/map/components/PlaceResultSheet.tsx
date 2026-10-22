@@ -66,6 +66,8 @@ export type MapSheetPage = {
 type PlaceResultSheetProps = {
   pageHeight: number;
   renderPage: (sheet: React.ReactNode, page: MapSheetPage) => React.ReactNode;
+  /** Keep the native map outside the sheet navigation stack. */
+  renderMap?: (page: MapSheetPage) => React.ReactNode;
   isActive?: boolean;
   pageBackAvailable?: boolean;
   pageBackStateKey?: string;
@@ -94,6 +96,7 @@ type PlaceResultSheetProps = {
   detailMoreSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
+  onGuestExpandInteraction?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
   guestReelsByPlace?: Record<string, PlaceReel[]>;
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
@@ -126,6 +129,7 @@ function getMiddleCategory(category?: string) {
 export function PlaceResultSheet({
   pageHeight,
   renderPage,
+  renderMap,
   isActive = true,
   pageBackAvailable = false,
   pageBackStateKey = '',
@@ -154,6 +158,7 @@ export function PlaceResultSheet({
   detailMoreSignal = 0,
   onDetailViewChange,
   onAuthenticationRequired,
+  onGuestExpandInteraction,
   onSavedPlaceDeleted,
   guestReelsByPlace,
   onDeleteGuestPlaces,
@@ -216,6 +221,7 @@ export function PlaceResultSheet({
     selectedPlace?.id ?? null,
   );
   const startedInPageMode = useRef(false);
+  const sheetDragRevision = useRef(0);
   const previousGeometry = useRef({
     sheetHeight,
     middleOffset,
@@ -565,14 +571,20 @@ export function PlaceResultSheet({
           Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
+          const revision = ++sheetDragRevision.current;
           startedInPageMode.current = isPageModeRef.current;
           dragStartSnapIndex.current = activeSnapIndex;
+          dragStartOffset.current = currentOffset.current;
           translateY.stopAnimation(value => {
+            if (sheetDragRevision.current !== revision) return;
             dragStartOffset.current = value;
             currentOffset.current = value;
           });
         },
         onPanResponderMove: (_, gesture) => {
+          // Ignore a delayed stopAnimation callback once dragging has moved
+          // the sheet; it must not restore the old middle-height position.
+          sheetDragRevision.current += 1;
           let nextOffset = Math.max(
             0,
             Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
@@ -593,9 +605,17 @@ export function PlaceResultSheet({
           }
 
           currentOffset.current = nextOffset;
+          // Reaching page mode removes the handle that owns this responder.
+          // Commit the logical snap now, before its release can be lost.
+          if (nextOffset === 0) setActiveSnapIndex(0);
           translateY.setValue(nextOffset);
         },
         onPanResponderRelease: (_, gesture) => {
+          sheetDragRevision.current += 1;
+          if (gesture.dy < -4 || gesture.vy < -0.35) {
+            onGuestExpandInteraction?.();
+          }
+
           if (Math.abs(gesture.dy) < 3) {
             snapTo(isExpanded ? collapsedOffset : 0);
             return;
@@ -628,7 +648,10 @@ export function PlaceResultSheet({
 
           snapTo(releasedOffset);
         },
-        onPanResponderTerminate: () => snapTo(currentOffset.current),
+        onPanResponderTerminate: () => {
+          sheetDragRevision.current += 1;
+          snapTo(currentOffset.current);
+        },
       }),
     [
       activeSnapIndex,
@@ -637,6 +660,7 @@ export function PlaceResultSheet({
       snapOffsets,
       snapTo,
       translateY,
+      onGuestExpandInteraction,
       updatePageMode,
     ],
   );
@@ -1053,21 +1077,6 @@ export function PlaceResultSheet({
                 <Text style={styles.emptyResultText}>
                   장소를 저장하면 지도에서 확인할 수 있어요.
                 </Text>
-                {guestReelsByPlace !== undefined ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="지도 빈 상태 로그인"
-                    onPress={onAuthenticationRequired}
-                    style={({pressed}) => [
-                      styles.emptyLoginButton,
-                      pressed && styles.emptyLoginButtonPressed,
-                    ]}
-                  >
-                    <Text style={styles.emptyLoginButtonText}>
-                      로그인하기
-                    </Text>
-                  </Pressable>
-                ) : null}
               </>
             ) : (
               <>
@@ -1180,7 +1189,17 @@ export function PlaceResultSheet({
     ) : null;
   return (
     <View style={styles.page}>
+      {renderMap?.({
+        isDetail: selectedPlace !== null,
+        isExpanded,
+        place: selectedPlace,
+        sheetHeight,
+        sheetBottomOffset: selectedPlace ? 0 : bottomTabOffset,
+        sheetVisibleHeight: sheetHeight - currentOffset.current,
+        translateY,
+      })}
       <SwipeBackStack
+        transparent={!!renderMap}
         gestureRegion={{ top: backGestureTop, bottom: bottomTabOffset }}
         activeKey={selectedPlace ? 'detail' : 'list'}
         backKey={hasStateBack ? 'state-back' : selectedPlace ? 'list' : null}
@@ -1344,23 +1363,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8e8e93',
     textAlign: 'center',
-  },
-  emptyLoginButton: {
-    width: '100%',
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: '#1F2238',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  emptyLoginButtonPressed: {
-    opacity: 0.82,
-  },
-  emptyLoginButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
   },
   resultCard: {
     flexDirection: 'row',

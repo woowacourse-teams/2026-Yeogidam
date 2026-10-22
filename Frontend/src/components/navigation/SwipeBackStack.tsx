@@ -20,6 +20,7 @@ export type BackScreen = { key: string; content: React.ReactNode };
 
 type ScreenMotion = {
   translation: Animated.Value;
+  clipTranslation: Animated.Value;
   radius: Animated.Value;
   shade: Animated.Value;
 };
@@ -27,6 +28,7 @@ type ScreenMotion = {
 function createScreenMotion(): ScreenMotion {
   return {
     translation: new Animated.Value(0),
+    clipTranslation: new Animated.Value(0),
     radius: new Animated.Value(0),
     shade: new Animated.Value(0),
   };
@@ -46,6 +48,7 @@ export function SwipeBackStack({
   transitionKey,
   onSwipeStart,
   gestureRegion,
+  transparent = false,
 }: {
   screens: BackScreen[];
   activeKey: string;
@@ -57,6 +60,8 @@ export function SwipeBackStack({
   onSwipeStart?: () => void;
   /** Insets of the area in which a back swipe may start. */
   gestureRegion?: BackGestureRegion;
+  /** Allow a shared native map behind the navigated sheets to receive touches. */
+  transparent?: boolean;
 }) {
   const { width } = useWindowDimensions();
   const containerRef = useRef<View>(null);
@@ -113,6 +118,8 @@ export function SwipeBackStack({
     const current = motions.get(activeKey);
     current?.translation.stopAnimation();
     current?.translation.setValue(0);
+    current?.clipTranslation.stopAnimation();
+    current?.clipTranslation.setValue(0);
     current?.radius.setValue(0);
     current?.shade.setValue(0);
     busy.current = false;
@@ -126,6 +133,8 @@ export function SwipeBackStack({
         if (key === activeKey || key === gestureRef.current?.to) continue;
         motion.translation.stopAnimation();
         motion.translation.setValue(0);
+        motion.clipTranslation.stopAnimation();
+        motion.clipTranslation.setValue(-width);
         motion.radius.setValue(0);
         motion.shade.setValue(0);
       }
@@ -139,6 +148,7 @@ export function SwipeBackStack({
       mounted.current = false;
       for (const motion of motions.values()) {
         motion.translation.stopAnimation();
+        motion.clipTranslation.stopAnimation();
         motion.radius.stopAnimation();
         motion.shade.stopAnimation();
       }
@@ -164,6 +174,10 @@ export function SwipeBackStack({
         ...config,
         toValue: -gesture.width * 0.22,
       }).start();
+      Animated.spring(gesture.destination.clipTranslation, {
+        ...config,
+        toValue: -gesture.width,
+      }).start();
       Animated.spring(gesture.destination.shade, {
         ...config,
         toValue: 0.12,
@@ -175,6 +189,8 @@ export function SwipeBackStack({
         if (finished && mounted.current && gestureRef.current === gesture) {
           gesture.destination.translation.stopAnimation();
           gesture.destination.translation.setValue(0);
+          gesture.destination.clipTranslation.stopAnimation();
+          gesture.destination.clipTranslation.setValue(-gesture.width);
           gesture.destination.shade.stopAnimation();
           gesture.destination.shade.setValue(0);
           gestureRef.current = null;
@@ -184,6 +200,26 @@ export function SwipeBackStack({
       });
     };
     const callbacks: PanResponderCallbacks = {
+      // A full-height native list can claim the touch before the movement
+      // threshold is reached. Reserve the back edge at the ancestor first.
+      onStartShouldSetPanResponderCapture: event => {
+        const { pageX, pageY } = event.nativeEvent;
+        const current = latest.current;
+        return (
+          current.enabled &&
+          !!current.backKey &&
+          motions.has(current.backKey) &&
+          !busy.current &&
+          pageX >= 0 &&
+          pageX <= BACK_EDGE_WIDTH &&
+          (!current.gestureRegion ||
+            (pageY >= bounds.current.y + current.gestureRegion.top &&
+              pageY <=
+                bounds.current.y +
+                  bounds.current.height -
+                  current.gestureRegion.bottom))
+        );
+      },
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
         latest.current.enabled &&
         !!latest.current.backKey &&
@@ -215,6 +251,7 @@ export function SwipeBackStack({
           destination,
         };
         destination.translation.setValue(-current.width * 0.22);
+        destination.clipTranslation.setValue(-current.width);
         destination.shade.setValue(0.12);
         setDragging(true);
       },
@@ -223,6 +260,7 @@ export function SwipeBackStack({
         if (!gesture) return;
         const distance = Math.min(gesture.width, Math.max(0, pan.dx));
         gesture.foreground.translation.setValue(distance);
+        gesture.destination.clipTranslation.setValue(distance - gesture.width);
         gesture.foreground.radius.setValue(Math.min(18, (distance * 18) / 32));
         gesture.destination.translation.setValue(
           -0.22 * (gesture.width - distance),
@@ -254,6 +292,10 @@ export function SwipeBackStack({
           ...config,
           toValue: 0,
         }).start();
+        Animated.timing(gesture.destination.clipTranslation, {
+          ...config,
+          toValue: 0,
+        }).start();
         Animated.timing(gesture.destination.shade, {
           ...config,
           toValue: 0,
@@ -271,6 +313,8 @@ export function SwipeBackStack({
             return;
           gesture.destination.translation.stopAnimation();
           gesture.destination.translation.setValue(0);
+          gesture.destination.clipTranslation.stopAnimation();
+          gesture.destination.clipTranslation.setValue(0);
           gesture.destination.shade.stopAnimation();
           gesture.destination.shade.setValue(0);
           // Release responder ownership before promoting the destination.
@@ -282,7 +326,7 @@ export function SwipeBackStack({
         });
       },
       onPanResponderTerminationRequest: () => gestureRef.current === null,
-      onShouldBlockNativeResponder: () => false,
+      onShouldBlockNativeResponder: () => gestureRef.current !== null,
       onPanResponderTerminate: cancel,
     };
     return {
@@ -301,8 +345,9 @@ export function SwipeBackStack({
   return (
     <View
       ref={containerRef}
+      pointerEvents={transparent ? 'box-none' : 'auto'}
       onLayout={measureBounds}
-      style={styles.container}
+      style={[styles.container, transparent && styles.transparent]}
       {...responder.panHandlers}
     >
       {screens.map(screen => (
@@ -313,6 +358,7 @@ export function SwipeBackStack({
           behind={screen.key === backKey}
           dragging={dragging}
           motion={motions.get(screen.key)!}
+          transparent={transparent}
         />
       ))}
       {enabled && backKey ? (
@@ -335,34 +381,63 @@ function RetainedBackScreen({
   behind,
   dragging,
   motion,
+  transparent,
 }: {
   screen: BackScreen;
   active: boolean;
   behind: boolean;
   dragging: boolean;
   motion: ScreenMotion;
+  transparent: boolean;
 }) {
+  // Transparent pages share the map underneath. Clip the destination to the
+  // portion uncovered by the foreground so its sheet cannot bleed through.
+  // Keep the same native animation graph when a retained preview becomes
+  // active. Replacing an animated clip transform with a plain zero lets the
+  // detached native graph restore its old offscreen transform after a pop.
+  const contentTranslation = useMemo(
+    () => Animated.subtract(motion.translation, motion.clipTranslation),
+    [motion],
+  );
   // Each native view keeps its own animation values even when its role changes.
   return (
-    <View
+    <Animated.View
       testID={`back-screen-${screen.key}`}
-      pointerEvents={active ? 'auto' : 'none'}
+      pointerEvents={active ? (transparent ? 'box-none' : 'auto') : 'none'}
       accessibilityElementsHidden={!active}
       importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
       style={[
         styles.screen,
         active ? styles.active : behind ? styles.behind : styles.hidden,
+        transparent && {
+          overflow: 'hidden',
+          transform: [{ translateX: motion.clipTranslation }],
+        },
       ]}
     >
       <Animated.View
+        pointerEvents={transparent ? 'box-none' : 'auto'}
         style={[
           styles.animatedScreen,
           active && dragging ? styles.shadow : null,
-          { transform: [{ translateX: motion.translation }] },
+          {
+            transform: [
+              {
+                translateX: transparent
+                  ? contentTranslation
+                  : motion.translation,
+              },
+            ],
+          },
         ]}
       >
         <Animated.View
-          style={[styles.content, { borderRadius: motion.radius }]}
+          pointerEvents={transparent ? 'box-none' : 'auto'}
+          style={[
+            styles.content,
+            transparent && styles.transparent,
+            { borderRadius: motion.radius },
+          ]}
         >
           {screen.content}
           <Animated.View
@@ -371,11 +446,12 @@ function RetainedBackScreen({
           />
         </Animated.View>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  transparent: { backgroundColor: 'transparent' },
   container: { flex: 1, backgroundColor: '#ffffff' },
   gestureEdge: {
     position: 'absolute',
