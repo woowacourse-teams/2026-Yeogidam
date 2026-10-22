@@ -122,9 +122,8 @@ export function MapScreen({
   );
   const [mapZoomLevel, setMapZoomLevel] = useState(14);
   const lastMapCameraRef = useRef<MapCamera>({
-    latitude: 37.5448,
-    longitude: 127.0557,
-    zoomLevel: 14,
+    ...mapCenter,
+    zoomLevel: mapZoomLevel,
     bottomInset: 0,
   });
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
@@ -132,8 +131,17 @@ export function MapScreen({
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
     viewContext: SavedPlaceViewContext | null;
+    camera: MapCamera | null;
     signal: number;
-  }>({ place: null, viewContext: null, signal: 0 });
+  }>({ place: null, viewContext: null, camera: null, signal: 0 });
+  const handleDetailViewChange = useCallback((isDetailView: boolean) => {
+    setIsPlaceDetailVisible(isDetailView);
+    if (!isDetailView) {
+      setOpenedMarker(current =>
+        current.camera ? { ...current, camera: null } : current,
+      );
+    }
+  }, []);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailHeaderProgress = useRef(new Animated.Value(0)).current;
   const listHeaderProgress = useRef(new Animated.Value(0)).current;
@@ -362,7 +370,11 @@ export function MapScreen({
 
   const renderMapPage = (sheet: React.ReactNode, page: MapSheetPage) => {
     if (page.isDetail && !detailCameraRef.current) {
-      detailCameraRef.current = { ...lastMapCameraRef.current };
+      // Opening detail mounts another native map. Freeze the camera captured
+      // with the marker tap, including its actual padding, before mounting it.
+      const markerCamera =
+        openedMarker.place?.id === page.place?.id ? openedMarker.camera : null;
+      detailCameraRef.current = { ...(markerCamera ?? lastMapCameraRef.current) };
     }
     const pageCamera = page.isBackPreview
       ? lastMapCameraRef.current
@@ -448,9 +460,16 @@ export function MapScreen({
                   captureSavedPlaceSelected(posthog, viewContext);
                 }
 
+                const camera: MapCamera = {
+                  latitude: event.nativeEvent.latitude,
+                  longitude: event.nativeEvent.longitude,
+                  zoomLevel: event.nativeEvent.zoomLevel,
+                  bottomInset: event.nativeEvent.cameraBottomInset,
+                };
                 setOpenedMarker(current => ({
                   place,
                   viewContext,
+                  camera,
                   signal: current.signal + 1,
                 }));
               }}
@@ -662,7 +681,7 @@ export function MapScreen({
           detailMoreSignal={detailMoreSignal}
           collapseSignal={collapseSignal}
           mapPanCollapseSignal={mapPanCollapseSignal}
-          onDetailViewChange={setIsPlaceDetailVisible}
+          onDetailViewChange={handleDetailViewChange}
           guestReelsByPlace={isGuest ? {} : undefined}
           onAuthenticationRequired={onAuthenticationRequired}
           onGuestExpandInteraction={

@@ -169,10 +169,21 @@ class KakaoMapView(
                     applyCameraPadding()
                     map.setOnLabelClickListener { _, _, label ->
                         val placeId = label.tag as? String ?: return@setOnLabelClickListener false
+                        val cameraPosition = map.cameraPosition ?: return@setOnLabelClickListener false
                         reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
                             id,
                             "onMarkerPressed",
-                            Arguments.createMap().apply { putString("id", placeId) },
+                            Arguments.createMap().apply {
+                                putString("id", placeId)
+                                putDouble("latitude", cameraPosition.position.latitude)
+                                putDouble("longitude", cameraPosition.position.longitude)
+                                putInt("zoomLevel", cameraPosition.zoomLevel)
+                                putDouble(
+                                    "cameraBottomInset",
+                                    cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0)) /
+                                        resources.displayMetrics.density.toDouble(),
+                                )
+                            },
                         )
                         true
                     }

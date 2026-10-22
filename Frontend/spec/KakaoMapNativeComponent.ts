@@ -23,6 +23,10 @@ export interface NativeProps extends ViewProps {
   }> | null;
   onMarkerPressed?: CodegenTypes.DirectEventHandler<{
     id: string;
+    latitude: CodegenTypes.Double;
+    longitude: CodegenTypes.Double;
+    zoomLevel: CodegenTypes.Int32;
+    cameraBottomInset: CodegenTypes.Double;
   }> | null;
   onMapPanStarted?: CodegenTypes.DirectEventHandler<{
     started: boolean;
