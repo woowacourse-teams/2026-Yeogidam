@@ -46,6 +46,7 @@ export function SwipeBackStack({
   transitionKey,
   onSwipeStart,
   gestureRegion,
+  transparent = false,
 }: {
   screens: BackScreen[];
   activeKey: string;
@@ -57,6 +58,8 @@ export function SwipeBackStack({
   onSwipeStart?: () => void;
   /** Insets of the area in which a back swipe may start. */
   gestureRegion?: BackGestureRegion;
+  /** Allow a shared native map behind the navigated sheets to receive touches. */
+  transparent?: boolean;
 }) {
   const { width } = useWindowDimensions();
   const containerRef = useRef<View>(null);
@@ -301,8 +304,9 @@ export function SwipeBackStack({
   return (
     <View
       ref={containerRef}
+      pointerEvents={transparent ? 'box-none' : 'auto'}
       onLayout={measureBounds}
-      style={styles.container}
+      style={[styles.container, transparent && styles.transparent]}
       {...responder.panHandlers}
     >
       {screens.map(screen => (
@@ -313,6 +317,9 @@ export function SwipeBackStack({
           behind={screen.key === backKey}
           dragging={dragging}
           motion={motions.get(screen.key)!}
+          transparent={transparent}
+          revealTranslation={motions.get(activeKey)!.translation}
+          width={width}
         />
       ))}
       {enabled && backKey ? (
@@ -335,34 +342,61 @@ function RetainedBackScreen({
   behind,
   dragging,
   motion,
+  transparent,
+  revealTranslation,
+  width,
 }: {
   screen: BackScreen;
   active: boolean;
   behind: boolean;
   dragging: boolean;
   motion: ScreenMotion;
+  transparent: boolean;
+  revealTranslation: Animated.Value;
+  width: number;
 }) {
+  // Transparent pages share the map underneath. Clip the destination to the
+  // portion uncovered by the foreground so its sheet cannot bleed through.
+  const clipTranslation =
+    transparent && behind ? Animated.subtract(revealTranslation, width) : 0;
+  const contentTranslation =
+    transparent && behind
+      ? Animated.subtract(
+          Animated.add(motion.translation, width),
+          revealTranslation,
+        )
+      : motion.translation;
   // Each native view keeps its own animation values even when its role changes.
   return (
-    <View
+    <Animated.View
       testID={`back-screen-${screen.key}`}
-      pointerEvents={active ? 'auto' : 'none'}
+      pointerEvents={active ? (transparent ? 'box-none' : 'auto') : 'none'}
       accessibilityElementsHidden={!active}
       importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
       style={[
         styles.screen,
         active ? styles.active : behind ? styles.behind : styles.hidden,
+        transparent && {
+          overflow: 'hidden',
+          transform: [{ translateX: clipTranslation }],
+        },
       ]}
     >
       <Animated.View
+        pointerEvents={transparent ? 'box-none' : 'auto'}
         style={[
           styles.animatedScreen,
           active && dragging ? styles.shadow : null,
-          { transform: [{ translateX: motion.translation }] },
+          { transform: [{ translateX: contentTranslation }] },
         ]}
       >
         <Animated.View
-          style={[styles.content, { borderRadius: motion.radius }]}
+          pointerEvents={transparent ? 'box-none' : 'auto'}
+          style={[
+            styles.content,
+            transparent && styles.transparent,
+            { borderRadius: motion.radius },
+          ]}
         >
           {screen.content}
           <Animated.View
@@ -371,11 +405,12 @@ function RetainedBackScreen({
           />
         </Animated.View>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  transparent: { backgroundColor: 'transparent' },
   container: { flex: 1, backgroundColor: '#ffffff' },
   gestureEdge: {
     position: 'absolute',

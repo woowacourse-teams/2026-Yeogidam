@@ -151,16 +151,6 @@ export function MapScreen({
   const [mapPanCollapseSignal, setMapPanCollapseSignal] = useState(0);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const [currentLocationRequestId, setCurrentLocationRequestId] = useState(0);
-  // A retained native map must not receive 1 -> 0 -> 1 just because it
-  // goes behind a detail: every changed ID is a new camera command.
-  const pageLocationRequests = useRef({ list: 0, detail: 0 });
-  const assignedLocationRequest = useRef(0);
-  if (!isPlaceDetailVisible) pageLocationRequests.current.detail = 0;
-  if (assignedLocationRequest.current !== currentLocationRequestId) {
-    assignedLocationRequest.current = currentLocationRequestId;
-    pageLocationRequests.current[isPlaceDetailVisible ? 'detail' : 'list'] =
-      currentLocationRequestId;
-  }
 
   useEffect(() => {
     if (
@@ -368,27 +358,131 @@ export function MapScreen({
     onNestedBackStateChange,
   ]);
 
-  const renderMapPage = (sheet: React.ReactNode, page: MapSheetPage) => {
+  const renderMap = (page: MapSheetPage) => {
     if (page.isDetail && !detailCameraRef.current) {
-      // Opening detail mounts another native map. Freeze the camera captured
-      // with the marker tap, including its actual padding, before mounting it.
+      // Keep the map padding unchanged while the detail sheet opens.
       const markerCamera =
         openedMarker.place?.id === page.place?.id ? openedMarker.camera : null;
-      detailCameraRef.current = { ...(markerCamera ?? lastMapCameraRef.current) };
+      detailCameraRef.current = {
+        ...(markerCamera ?? lastMapCameraRef.current),
+      };
     }
-    const pageCamera = page.isBackPreview
-      ? lastMapCameraRef.current
-      : page.isDetail && detailCameraRef.current
-      ? detailCameraRef.current
-      : { ...mapCenter, zoomLevel: mapZoomLevel };
+    const pageCamera = { ...mapCenter, zoomLevel: mapZoomLevel };
     const cameraBottomInset =
       page.isDetail && detailCameraRef.current
         ? detailCameraRef.current.bottomInset
         : page.isExpanded
         ? 0
         : page.sheetVisibleHeight;
-    const isCurrentPage =
-      !page.isBackPreview && page.isDetail === isPlaceDetailVisible;
+    const isCurrentPage = isActive;
+    return (
+      <View style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}>
+        {mapHeight > 0 ? (
+          <KakaoMapNativeComponent
+            style={styles.map}
+            latitude={pageCamera.latitude}
+            longitude={pageCamera.longitude}
+            zoomLevel={pageCamera.zoomLevel}
+            cameraFitPointsJson={cameraFitPointsJson}
+            cameraFitRequestId={cameraFitRequestId}
+            cameraBottomInset={cameraBottomInset}
+            savedPlacesJson={JSON.stringify(
+              (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
+                ({ id, name, latitude, longitude }) => ({
+                  id,
+                  name,
+                  selected: id === page.place?.id,
+                  latitude,
+                  longitude,
+                }),
+              ),
+            )}
+            showsCurrentLocation={locationGranted}
+            currentLocationRequestId={currentLocationRequestId}
+            onMapReady={event => {
+              console.log('지도 준비:', event.nativeEvent.ready);
+            }}
+            onMapError={event => {
+              if (!isCurrentPage) return;
+              setMapMessage(event.nativeEvent.message);
+            }}
+            onMarkerPressed={event => {
+              const place = markerPlaces.find(
+                candidate => candidate.id === event.nativeEvent.id,
+              );
+              if (!place) return;
+
+              const viewContext = place.savedPlaceId
+                ? {
+                    placeId: place.id,
+                    savedPlaceId: place.savedPlaceId,
+                    placeViewId: uuidv4(),
+                    source: 'map_marker' as const,
+                  }
+                : null;
+              if (viewContext) {
+                captureSavedPlaceSelected(posthog, viewContext);
+              }
+
+              const camera: MapCamera = {
+                latitude: event.nativeEvent.latitude,
+                longitude: event.nativeEvent.longitude,
+                zoomLevel: event.nativeEvent.zoomLevel,
+                bottomInset: event.nativeEvent.cameraBottomInset,
+              };
+              setOpenedMarker(current => ({
+                place,
+                viewContext,
+                camera,
+                signal: current.signal + 1,
+              }));
+            }}
+            onMapPanStarted={() => {
+              if (!isCurrentPage) return;
+              setMapPanCollapseSignal(signal => signal + 1);
+            }}
+            onCameraChanged={event => {
+              if (!isCurrentPage) return;
+              const {
+                latitude,
+                longitude,
+                zoomLevel,
+                southLatitude,
+                northLatitude,
+                westLongitude,
+                eastLongitude,
+              } = event.nativeEvent;
+
+              // Native sends an inverted range while a camera gesture is
+              // active. Clear the old area immediately; the final, valid
+              // range arrives once the gesture stops.
+              if (
+                southLatitude > northLatitude ||
+                westLongitude > eastLongitude
+              ) {
+                setVisibleBounds(null);
+                return;
+              }
+              lastMapCameraRef.current = {
+                latitude,
+                longitude,
+                zoomLevel,
+                bottomInset: cameraBottomInset,
+              };
+              setVisibleBounds({
+                southLatitude,
+                northLatitude,
+                westLongitude,
+                eastLongitude,
+              });
+            }}
+          />
+        ) : null}
+      </View>
+    );
+  };
+
+  const renderMapPage = (sheet: React.ReactNode, page: MapSheetPage) => {
     const pageShowsDetailHeader = page.isDetail && page.isExpanded;
     const pageHeaderProgress =
       page.isDetail && !page.isBackPreview
@@ -403,121 +497,7 @@ export function MapScreen({
             extrapolate: 'clamp',
           });
     return (
-      <View style={styles.mapStage}>
-        <View style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}>
-          {mapHeight > 0 ? (
-            <KakaoMapNativeComponent
-              style={styles.map}
-              latitude={pageCamera.latitude}
-              longitude={pageCamera.longitude}
-              zoomLevel={pageCamera.zoomLevel}
-              cameraFitPointsJson={cameraFitPointsJson}
-              cameraFitRequestId={
-                page.isDetail || page.isBackPreview ? 0 : cameraFitRequestId
-              }
-              cameraBottomInset={cameraBottomInset}
-              savedPlacesJson={JSON.stringify(
-                (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
-                  ({ id, name, latitude, longitude }) => ({
-                    id,
-                    name,
-                    selected: id === page.place?.id,
-                    latitude,
-                    longitude,
-                  }),
-                ),
-              )}
-              showsCurrentLocation={locationGranted}
-              currentLocationRequestId={
-                page.isBackPreview
-                  ? 0
-                  : pageLocationRequests.current[
-                      page.isDetail ? 'detail' : 'list'
-                    ]
-              }
-              onMapReady={event => {
-                console.log('지도 준비:', event.nativeEvent.ready);
-              }}
-              onMapError={event => {
-                if (!isCurrentPage) return;
-                setMapMessage(event.nativeEvent.message);
-              }}
-              onMarkerPressed={event => {
-                const place = markerPlaces.find(
-                  candidate => candidate.id === event.nativeEvent.id,
-                );
-                if (!place) return;
-
-                const viewContext = place.savedPlaceId
-                  ? {
-                      placeId: place.id,
-                      savedPlaceId: place.savedPlaceId,
-                      placeViewId: uuidv4(),
-                      source: 'map_marker' as const,
-                    }
-                  : null;
-                if (viewContext) {
-                  captureSavedPlaceSelected(posthog, viewContext);
-                }
-
-                const camera: MapCamera = {
-                  latitude: event.nativeEvent.latitude,
-                  longitude: event.nativeEvent.longitude,
-                  zoomLevel: event.nativeEvent.zoomLevel,
-                  bottomInset: event.nativeEvent.cameraBottomInset,
-                };
-                setOpenedMarker(current => ({
-                  place,
-                  viewContext,
-                  camera,
-                  signal: current.signal + 1,
-                }));
-              }}
-              onMapPanStarted={() => {
-                if (!isCurrentPage) return;
-                setMapPanCollapseSignal(signal => signal + 1);
-              }}
-              onCameraChanged={event => {
-                if (!isCurrentPage) return;
-                const {
-                  latitude,
-                  longitude,
-                  zoomLevel,
-                  southLatitude,
-                  northLatitude,
-                  westLongitude,
-                  eastLongitude,
-                } = event.nativeEvent;
-
-                // Native sends an inverted range while a camera gesture is
-                // active. Clear the old area immediately; the final, valid
-                // range arrives once the gesture stops.
-                if (
-                  southLatitude > northLatitude ||
-                  westLongitude > eastLongitude
-                ) {
-                  if (!page.isDetail) setVisibleBounds(null);
-                  return;
-                }
-                lastMapCameraRef.current = {
-                  latitude,
-                  longitude,
-                  zoomLevel,
-                  bottomInset: cameraBottomInset,
-                };
-                // Detail owns a separate native map. Its camera/margins must
-                // not refilter the retained results underneath it.
-                if (page.isDetail) return;
-                setVisibleBounds({
-                  southLatitude,
-                  northLatitude,
-                  westLongitude,
-                  eastLongitude,
-                });
-              }}
-            />
-          ) : null}
-        </View>
+      <View style={styles.mapStage} pointerEvents="box-none">
         {sheet}
         {mapHeight > 0 ? (
           <Animated.View
@@ -664,6 +644,7 @@ export function MapScreen({
                 place.longitude! >= visibleBounds.westLongitude &&
                 place.longitude! <= visibleBounds.eastLongitude),
           )}
+          renderMap={renderMap}
           renderPage={renderMapPage}
           translateY={sheetTranslateY}
           topInset={topInset}

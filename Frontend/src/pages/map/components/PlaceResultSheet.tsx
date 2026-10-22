@@ -66,6 +66,8 @@ export type MapSheetPage = {
 type PlaceResultSheetProps = {
   pageHeight: number;
   renderPage: (sheet: React.ReactNode, page: MapSheetPage) => React.ReactNode;
+  /** Keep the native map outside the sheet navigation stack. */
+  renderMap?: (page: MapSheetPage) => React.ReactNode;
   isActive?: boolean;
   pageBackAvailable?: boolean;
   pageBackStateKey?: string;
@@ -127,6 +129,7 @@ function getMiddleCategory(category?: string) {
 export function PlaceResultSheet({
   pageHeight,
   renderPage,
+  renderMap,
   isActive = true,
   pageBackAvailable = false,
   pageBackStateKey = '',
@@ -1172,7 +1175,17 @@ export function PlaceResultSheet({
     ) : null;
   return (
     <View style={styles.page}>
+      {renderMap?.({
+        isDetail: selectedPlace !== null,
+        isExpanded,
+        place: selectedPlace,
+        sheetHeight,
+        sheetBottomOffset: selectedPlace ? 0 : bottomTabOffset,
+        sheetVisibleHeight: sheetHeight - currentOffset.current,
+        translateY,
+      })}
       <SwipeBackStack
+        transparent={!!renderMap}
         gestureRegion={{ top: backGestureTop, bottom: bottomTabOffset }}
         activeKey={selectedPlace ? 'detail' : 'list'}
         backKey={hasStateBack ? 'state-back' : selectedPlace ? 'list' : null}

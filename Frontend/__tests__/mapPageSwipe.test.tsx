@@ -38,7 +38,9 @@ const renderPage = (sheet: React.ReactNode, page: MapSheetPage) => (
     <Text>하단 메뉴</Text>
   </View>
 );
-async function render() {
+async function render(
+  overrides: Partial<React.ComponentProps<typeof PlaceResultSheet>> = {},
+) {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(
@@ -48,6 +50,7 @@ async function render() {
         places={places}
         guestReelsByPlace={guestReelsByPlace}
         renderPage={renderPage}
+        {...overrides}
       />,
     );
   });
@@ -75,6 +78,39 @@ afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   jest.restoreAllMocks();
+});
+
+test('핀 상세 진입과 복귀 중 공유 지도는 한 인스턴스를 유지한다', async () => {
+  const mount = jest.fn();
+  const unmount = jest.fn();
+  function NativeMap({ selectedId }: { selectedId: string | null }) {
+    React.useEffect(() => {
+      mount();
+      return () => unmount();
+    }, []);
+    return <View testID="shared-map" accessibilityLabel={selectedId ?? ''} />;
+  }
+  const renderer = await render({
+    renderMap: page => <NativeMap selectedId={page.place?.id ?? null} />,
+  });
+  const map = renderer.root.findByType(NativeMap);
+  expect(
+    renderer.root.findByType(SwipeBackStack).findAllByType(NativeMap),
+  ).toHaveLength(0);
+  for (let entry = 0; entry < 2; entry += 1) {
+    await openDetail(renderer);
+    expect(renderer.root.findByType(NativeMap)).toBe(map);
+    expect(map.props.selectedId).toBe(place.id);
+    await act(async () =>
+      renderer.root.findByType(SwipeBackStack).props.onBack(),
+    );
+    expect(renderer.root.findByType(NativeMap)).toBe(map);
+    expect(map.props.selectedId).toBeNull();
+  }
+  expect(mount).toHaveBeenCalledTimes(1);
+  expect(unmount).not.toHaveBeenCalled();
+  await act(async () => renderer.unmount());
+  expect(unmount).toHaveBeenCalledTimes(1);
 });
 
 test('스와이프 레이어가 지도·검색창·시트·하단 메뉴 전체를 포함하고 목록 인스턴스를 유지한다', async () => {
