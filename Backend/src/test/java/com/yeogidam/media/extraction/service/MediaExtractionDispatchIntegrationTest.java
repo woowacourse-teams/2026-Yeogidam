@@ -1,7 +1,13 @@
 package com.yeogidam.media.extraction.service;
 
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertExtractingMedia;
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.sharedUrl;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.config.ExtractionProperties;
 import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
@@ -10,6 +16,9 @@ import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.ShareResponse;
 import com.yeogidam.media.share.service.ShareService;
 import com.yeogidam.support.IntegrationTestSupport;
+import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -18,6 +27,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +35,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -51,9 +62,98 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
     @Autowired
     private FakeMediaExtractionPipeline extractionPipeline;
 
+    @Autowired
+    private FakeExtractionRetryExecutor extractionExecutor;
+
     @BeforeEach
     void setUp() {
         extractionPipeline.reset();
+        extractionExecutor.reset();
+    }
+
+    @AfterEach
+    void finishExtractions() throws Exception {
+        extractionPipeline.allowExtractionToFinish();
+        extractionExecutor.awaitCompletion();
+    }
+
+    @Test
+    void 같은_새_미디어를_동시에_공유해도_미디어는_하나이고_최초_분석은_한번만_등록한다() throws Exception {
+        // given
+        insertKakaoMember(jdbcTemplate, MEMBER_ID, "concurrent-share-user", "동시 공유 회원",
+                "concurrent-share@example.com", null);
+        insertKakaoMember(jdbcTemplate, OTHER_MEMBER_ID, "other-share-user", "다른 공유 회원",
+                "other-share@example.com", null);
+        extractionPipeline.blockExtraction();
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            // when
+            Future<ShareResponse> first = executor.submit(() -> {
+                awaitLatch(start);
+                return shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+            });
+            Future<ShareResponse> second = executor.submit(() -> {
+                awaitLatch(start);
+                return shareService.createShare(OTHER_MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+            });
+            start.countDown();
+            ShareResponse firstResponse = first.get(10, TimeUnit.SECONDS);
+            ShareResponse secondResponse = second.get(10, TimeUnit.SECONDS);
+
+            // then
+            assertAll(
+                    () -> assertThat(firstResponse.extractionStatus()).isEqualTo("EXTRACTING"),
+                    () -> assertThat(secondResponse.extractionStatus()).isEqualTo("EXTRACTING"),
+                    () -> assertThat(firstResponse.sharedMediaId()).isNotEqualTo(secondResponse.sharedMediaId()),
+                    () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media", Integer.class))
+                            .isEqualTo(1),
+                    () -> assertThat(jdbcTemplate.queryForList(
+                            "SELECT member_id FROM shared_media ORDER BY member_id", Long.class))
+                            .containsExactly(MEMBER_ID, OTHER_MEMBER_ID),
+                    () -> assertThat(jdbcTemplate.queryForObject(
+                            "SELECT COUNT(DISTINCT media_id) FROM shared_media", Integer.class)).isEqualTo(1),
+                    () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1)
+            );
+        } finally {
+            extractionPipeline.allowExtractionToFinish();
+        }
+    }
+
+    @Test
+    void 공유_이력_저장이_실패하면_새_미디어도_롤백하고_최초_분석을_등록하지_않는다() {
+        // given: 존재하지 않는 회원이 공유하면 공유 이력의 외래키 제약으로 저장이 실패한다.
+        ShareRequest request = new ShareRequest(INSTAGRAM_URL);
+
+        // when & then
+        assertThatThrownBy(() -> shareService.createShare(MEMBER_ID, request))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertAll(
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media", Integer.class)).isZero(),
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shared_media", Integer.class))
+                        .isZero(),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isZero()
+        );
+    }
+
+    @Test
+    void 공유_이력_저장이_실패하면_재시도_상태_변경도_롤백하고_재분석을_등록하지_않는다() {
+        // given
+        int failedVersion = extractionProperties.pipelineVersion() - 1;
+        Long mediaId = insertFailedMedia("async-stage-one", failedVersion);
+        ShareRequest request = new ShareRequest(INSTAGRAM_URL);
+
+        // when & then
+        assertThatThrownBy(() -> shareService.createShare(MEMBER_ID, request))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertAll(
+                () -> assertThat(readExtractionStatus(mediaId)).isEqualTo("FAILED"),
+                () -> assertThat(readFailureReason(mediaId)).isEqualTo("UNEXPECTED"),
+                () -> assertThat(readExtractionVersion(mediaId)).isEqualTo(failedVersion),
+                () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM shared_media", Integer.class))
+                        .isZero(),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isZero()
+        );
     }
 
     @Test
@@ -63,7 +163,9 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
         insertKakaoMember(jdbcTemplate, MEMBER_ID, "async-extraction-user", "async-extraction-user",
                 "async-extraction-user@example.com", null);
         extractionPipeline.blockExtraction();
-        ExecutorService executor = Executors.newSingleThreadExecutor();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch shareSaved = new CountDownLatch(1);
+        CountDownLatch allowCommit = new CountDownLatch(1);
 
         try {
             // when
@@ -71,13 +173,26 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
                     .executeWithoutResult(status -> {
                         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
 
-                        // then: 트랜잭션이 열린 동안 추출 작업은 시작하지 않는다.
-                        assertThat(extractionPipeline.pollRequest(250, TimeUnit.MILLISECONDS)).isNull();
+                        // then: RR 트랜잭션이 열린 동안 분석을 실행기에 등록하지 않는다.
+                        assertThat(jdbcTemplate.queryForObject("SELECT @@transaction_isolation", String.class))
+                                .isEqualTo("REPEATABLE-READ");
+                        assertThat(extractionExecutor.countSubmittedTasks()).isZero();
+                        shareSaved.countDown();
+                        awaitLatch(allowCommit);
                     }));
+            assertThat(shareSaved.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<ShareResponse> concurrentShare = executor.submit(() -> shareService.createShare(
+                    MEMBER_ID, new ShareRequest(INSTAGRAM_URL)));
+            awaitMediaUpsertWaiter();
+            assertThat(extractionExecutor.countSubmittedTasks()).isZero();
+            allowCommit.countDown();
             MetadataRequest request = extractionPipeline.takeRequest(5, TimeUnit.SECONDS);
 
             // then: 추출 작업이 대기 중이어도 공유 트랜잭션은 커밋되어 반환된다.
             assertThat(shareTransaction.get(1, TimeUnit.SECONDS)).isNull();
+            assertThat(concurrentShare.get(5, TimeUnit.SECONDS).extractionStatus()).isEqualTo("EXTRACTING");
+            assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1);
+            assertThat(request).isNotNull();
             assertThat(request.instagramUrl()).isEqualTo(new InstagramUrl(INSTAGRAM_URL));
             assertThat(request.mediaId()).isEqualTo(jdbcTemplate.queryForObject(
                     "SELECT id FROM media WHERE media_shortcode = ?", Long.class, "async-stage-one"));
@@ -85,7 +200,7 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
                     "SELECT COUNT(*) FROM shared_media WHERE member_id = ? AND media_id = ?",
                     Integer.class,
                     MEMBER_ID,
-                    request.mediaId())).isEqualTo(1);
+                    request.mediaId())).isEqualTo(2);
 
             // when: 기존 추출이 진행 중인 미디어를 다시 공유한다.
             shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
@@ -93,8 +208,10 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
             // then: 진행 중인 추출 작업이 있으므로 새 추출 요청을 발행하지 않는다.
             assertThat(extractionPipeline.pollRequest(1, TimeUnit.SECONDS)).isNull();
         } finally {
+            allowCommit.countDown();
             extractionPipeline.allowExtractionToFinish();
             executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
         }
         assertThat(extractionPipeline.awaitExtractionFinish(5, TimeUnit.SECONDS)).isTrue();
         assertThat(extractionPipeline.extractionFailure()).isNull();
@@ -108,6 +225,58 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
 
         // then: 완료된 미디어도 추출 요청을 다시 발행하지 않는다.
         assertThat(extractionPipeline.pollRequest(1, TimeUnit.SECONDS)).isNull();
+    }
+
+    @Test
+    void 분석_완료_커밋을_기다린_공유는_최신_성공_상태와_장소를_사용한다() throws Exception {
+        // given
+        insertKakaoMember(jdbcTemplate, MEMBER_ID, "completed-share-user", "분석 완료 대기 회원",
+                "completed-share@example.com", null);
+        insertExtractingMedia(jdbcTemplate, 1L);
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 1L, "place-1", "기존 장소", "서울 광진구",
+                new BigDecimal("37.5"), new BigDecimal("127.0"));
+        CountDownLatch resultSaved = new CountDownLatch(1);
+        CountDownLatch allowCommit = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> completion = executor.submit(() -> new TransactionTemplate(transactionManager)
+                    .executeWithoutResult(status -> {
+                        jdbcTemplate.queryForObject("SELECT id FROM media WHERE id = ? FOR UPDATE", Long.class, 1L);
+                        insertMediaPlace(jdbcTemplate, 1L, 1L, 1L);
+                        jdbcTemplate.update("UPDATE media SET extraction_status = 'SUCCEEDED' WHERE id = ?", 1L);
+                        resultSaved.countDown();
+                        awaitLatch(allowCommit);
+                    }));
+            assertThat(resultSaved.await(5, TimeUnit.SECONDS)).isTrue();
+
+            // when
+            Future<ShareResponse> share = executor.submit(() -> shareService.createShare(
+                    MEMBER_ID, new ShareRequest(sharedUrl(1L))));
+            awaitMediaUpsertWaiter();
+            allowCommit.countDown();
+            completion.get(5, TimeUnit.SECONDS);
+            ShareResponse response = share.get(5, TimeUnit.SECONDS);
+
+            // then
+            assertAll(
+                    () -> assertThat(response.extractionStatus()).isEqualTo("SUCCEEDED"),
+                    () -> assertThat(jdbcTemplate.queryForObject(
+                            "SELECT extraction_status FROM shared_media WHERE id = ?",
+                            String.class, response.sharedMediaId())).isEqualTo("SUCCEEDED"),
+                    () -> assertThat(jdbcTemplate.queryForList("""
+                            SELECT sp.place_id
+                            FROM saved_places sp
+                            JOIN shared_media_saved_places smsp ON smsp.saved_place_id = sp.id
+                            WHERE sp.member_id = ? AND smsp.shared_media_id = ?
+                            """, Long.class, MEMBER_ID, response.sharedMediaId())).containsExactly(1L),
+                    () -> assertThat(extractionExecutor.countSubmittedTasks()).isZero()
+            );
+        } finally {
+            allowCommit.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+        }
     }
 
     @Test
@@ -214,12 +383,48 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
 
         @Bean
         @Primary
+        FakeExtractionRetryExecutor fakeExtractionRetryExecutor() {
+            return new FakeExtractionRetryExecutor();
+        }
+
+        @Bean
+        @Primary
         FakeMediaExtractionPipeline fakeMediaExtractionPipeline() {
             return new FakeMediaExtractionPipeline();
         }
     }
 
     record MetadataRequest(Long mediaId, InstagramUrl instagramUrl) {
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("동시 공유 요청의 대기 신호를 받지 못했습니다.");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("동시 공유 요청 대기가 중단되었습니다.", exception);
+        }
+    }
+
+    private void awaitMediaUpsertWaiter() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        List<String> statements = List.of();
+        while (System.nanoTime() < deadline) {
+            statements = jdbcTemplate.queryForList("SHOW FULL PROCESSLIST")
+                    .stream()
+                    .map(row -> row.get("Info"))
+                    .filter(info -> info != null)
+                    .map(Object::toString)
+                    .filter(info -> info.contains("INSERT INTO media") && info.contains("ON DUPLICATE KEY UPDATE"))
+                    .toList();
+            if (!statements.isEmpty()) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("미디어 UPSERT가 잠금을 기다리지 않습니다. 보인 문장: " + statements);
     }
 
     static class FakeMediaExtractionPipeline extends MediaExtractionPipeline {
@@ -293,10 +498,6 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
         private void blockExtraction() {
             extractionCanFinish = new CountDownLatch(1);
             extractionFinished = new CountDownLatch(1);
-        }
-
-        private void failNextExtraction() {
-            failNextExtraction(new IllegalStateException("테스트용 메타데이터 추출 실패"));
         }
 
         private void failNextExtraction(RuntimeException failure) {
