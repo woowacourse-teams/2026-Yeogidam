@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import {
+  Alert,
+  AppState,
+  BackHandler,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 import Config from 'react-native-config';
@@ -8,25 +16,16 @@ import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
-import { BottomNavigationBar } from './src/components/BottomNavigationBar';
+import {
+  BottomNavigationBar,
+  SystemNavigationGradient,
+} from './src/components/BottomNavigationBar';
+import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
-import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
-import {
-  ONBOARDING_HISTORY_DETAIL,
-  ONBOARDING_HISTORY_REEL,
-  ONBOARDING_PLACES,
-  ONBOARDING_PLACE_REELS,
-} from './src/entities/onboarding/data';
-import {
-  beginGuestOnboardingTransfer,
-  cancelGuestOnboardingTransfer,
-  resumeGuestOnboardingTransfer,
-  toOnboardingKakaoPlaceIds,
-} from './src/entities/onboarding/transfer';
 import {
   withAuthErrorStage,
   type NormalizedAuthError,
@@ -59,24 +58,20 @@ import {
   getDismissedRecommendedVersion,
   rememberDismissedRecommendedVersion,
 } from './src/lib/app-update-policy-storage';
-import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   toLoginFailureType,
   trackAppOpened,
-  trackGuestTransferFinished,
   trackLoginFinished,
   trackLoginStarted,
 } from './src/analytics/userEntryEvents';
 // import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
-  completeAppGuide,
-  hasCompletedAppGuide,
-  hasSignedInOnThisInstall,
   rememberSignInOnThisInstall,
 } from './src/lib/app-guide-storage';
 import { AppGuideScreen } from './src/pages/guide/AppGuideScreen';
 import { EmailLoginScreen } from './src/pages/login/EmailLoginScreen';
 import { LoginScreen } from './src/pages/login/LoginScreen';
+import { OnboardingScreen } from './src/pages/onboarding/OnboardingScreen';
 import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
 // 대기함(inBoxScreen, inbox-api)은 Supabase 전용이라 삭제했습니다. 다시 쓰려면 Spring API로 새로 만들어야 합니다.
@@ -168,12 +163,7 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   detailSource: null,
 };
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
-const GUEST_HISTORY_REELS: HistoryReel[] = [ONBOARDING_HISTORY_REEL];
-const GUEST_HISTORY_DETAILS = {
-  [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
-};
 const SPLASH_MIN_DURATION_MS = 2000;
-const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
@@ -240,10 +230,33 @@ function captureSocialLoginError(
   provider: SocialProvider,
   error: NormalizedAuthError,
 ) {
-  // 사용자의 취소와 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
+  if (error.errorCode === 'AUTH000_001') {
+    // 브라우저 종료에는 실제 사용자 취소도 포함될 수 있어 진단용 경고로 기록합니다.
+    const cancelOrigin = error.cancelOrigin;
+    if (
+      Platform.OS === 'android' &&
+      (cancelOrigin === 'browser_cancel' || cancelOrigin === 'browser_dismiss')
+    ) {
+      Sentry.withScope(scope => {
+        scope.setTag('feature', 'social_login');
+        scope.setTag('login.provider', provider);
+        scope.setTag('login.stage', error.stage ?? 'unknown');
+        scope.setTag('login.error_code', error.errorCode);
+        scope.setTag('login.cancel_origin', cancelOrigin);
+        scope.setFingerprint([
+          'social-login-browser-without-callback',
+          provider,
+          cancelOrigin,
+        ]);
+        Sentry.captureMessage('소셜 로그인 브라우저가 콜백 없이 종료됨', 'warning');
+      });
+    }
+    return;
+  }
+
+  // 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
   const backendErrorCode = error.backendErrorCode;
   if (
-    error.errorCode === 'AUTH000_001' ||
     error.errorCode === 'AUTH400_001' ||
     backendErrorCode === 'AUTH401_002'
   ) {
@@ -314,23 +327,19 @@ function App() {
     };
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
+  const [showLoginCloseButton, setShowLoginCloseButton] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
-  const [memberDataRevision, setMemberDataRevision] = useState(0);
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
-  const hasSignedInOnThisInstallRef = useRef(false);
-  const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
-  const [hasCompletedGuide, setHasCompletedGuide] = useState<boolean | null>(
-    null,
-  );
+  // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
+  const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
@@ -349,19 +358,11 @@ function App() {
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
-  const [isAppActive, setIsAppActive] = useState(
-    AppState.currentState === 'active',
-  );
-  const [guestLoginPromptTimer] = useState(
-    () =>
-      new ForegroundElapsedTimer(GUEST_LOGIN_PROMPT_DELAY_MS, () => {
-        setIsGuestLoginPromptVisible(true);
-      }),
-  );
   const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
-  const lastHandledShareResultRef = useRef<string | null>(null);
+  // 이미 처리한 공유 결과 키. 서로 다른 결과가 번갈아 선택돼 화면이 오가지 않게 전부 기억한다.
+  const handledShareResultKeysRef = useRef<Set<string>>(new Set());
   const lastLoggedShareResultsRef = useRef<string | null>(null);
   const savedPlacesScrollOffsetRef = useRef(0);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
@@ -373,6 +374,42 @@ function App() {
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
+  const mainTabHistoryRef = useRef<MainScreen[]>([]);
+  const nestedBackStateRef = useRef(false);
+  const [mapBackGestureRegion, setMapBackGestureRegion] = useState<BackGestureRegion>({top: Number.MAX_SAFE_INTEGER, bottom: 0});
+  const reportMapBackGestureRegion = useCallback((region: BackGestureRegion) => {
+    setMapBackGestureRegion(current => current.top === region.top && current.bottom === region.bottom ? current : region);
+  }, []);
+  const [nestedBackStates, setNestedBackStates] = useState({
+    map: false,
+    history: false,
+    saved: false,
+  });
+  const reportMapBackState = useCallback((canGoBack: boolean) => {
+    setNestedBackStates(current =>
+      current.map === canGoBack ? current : {...current, map: canGoBack},
+    );
+  }, []);
+  const reportHistoryBackState = useCallback((canGoBack: boolean) => {
+    setNestedBackStates(current =>
+      current.history === canGoBack ? current : {...current, history: canGoBack},
+    );
+  }, []);
+  const reportSavedBackState = useCallback((canGoBack: boolean) => {
+    setNestedBackStates(current =>
+      current.saved === canGoBack ? current : {...current, saved: canGoBack},
+    );
+  }, []);
+  const visitedTabsRef = useRef(new Set<MainScreen>(['saved']));
+  const tabSessionRef = useRef(isAuthenticated);
+  if (tabSessionRef.current !== isAuthenticated) {
+    visitedTabsRef.current = new Set(['saved']);
+    tabSessionRef.current = isAuthenticated;
+  }
+  if (flowState.kind === 'main') visitedTabsRef.current.add(flowState.activeTab);
+  useEffect(() => {
+    mainTabHistoryRef.current = [];
+  }, [isAuthenticated]);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -426,10 +463,15 @@ function App() {
       ? 'detail'
       : flowState.activeTab;
 
+  nestedBackStateRef.current = flowState.kind === 'main' &&
+    (flowState.activeTab === 'map' ? nestedBackStates.map :
+      flowState.activeTab === 'history' ? nestedBackStates.history :
+      flowState.activeTab === 'saved' ? nestedBackStates.saved : false);
+
   const isGuestBrowsing =
     isAuthReady &&
     !isSplashVisible &&
-    hasCompletedGuide === true &&
+    !isOnboardingVisible &&
     flowState.kind === 'main' &&
     isAuthenticated === false &&
     !hasPendingShareLogin &&
@@ -438,53 +480,23 @@ function App() {
     recommendedUpdate === null;
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      setIsAppActive(state === 'active');
-    });
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    if (isGuestBrowsing && isAppActive) {
-      guestLoginPromptTimer.start();
-    } else {
-      guestLoginPromptTimer.pause();
-    }
-  }, [guestLoginPromptTimer, isAppActive, isGuestBrowsing]);
-
-  useEffect(() => {
     if (isAuthenticated) {
-      guestLoginPromptTimer.cancel();
       setIsGuestLoginPromptVisible(false);
       guestReturnFlowRef.current = null;
-    }
-  }, [guestLoginPromptTimer, isAuthenticated]);
-
-  useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
-
-  // 비회원이 지운 시드 장소는 메모리에만 두고, 다음 비회원 진입 때 시드로 되돌립니다.
-  useEffect(() => {
-    if (isAuthenticated !== false) {
-      setGuestPlaces(ONBOARDING_PLACES);
+      setShowLoginCloseButton(false);
     }
   }, [isAuthenticated]);
 
-  const deleteGuestPlaces = useCallback((placeIds: string[]) => {
-    const deletedIds = new Set(placeIds);
-    setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));
-  }, []);
-
   useEffect(() => {
-    if (isAuthenticated === true && hasCompletedGuide === true) {
-      hasSignedInOnThisInstallRef.current = true;
+    if (isAuthenticated === true) {
       rememberSignInOnThisInstall().catch(() => undefined);
     }
-  }, [hasCompletedGuide, isAuthenticated]);
+  }, [isAuthenticated]);
 
   const canRequestLocation =
     isAuthReady &&
     !isSplashVisible &&
-    hasCompletedGuide === true &&
+    !isOnboardingVisible &&
     flowState.kind === 'main' &&
     !requiredUpdateStoreUrl;
   useEffect(() => {
@@ -547,8 +559,45 @@ function App() {
     // if (nextScreen === 'inBox') setInBoxEntryType(entryType);
   };
 
+  const navigateMainTab = (nextScreen: MainScreen) => {
+    if (
+      flowState.kind === 'main' &&
+      flowState.detailSource === null &&
+      flowState.activeTab !== nextScreen
+    ) {
+      mainTabHistoryRef.current.push(flowState.activeTab);
+    }
+
+    openMainScreen(nextScreen);
+  };
+
+  const goBackMainTab = useCallback(() => {
+    if (flowState.kind !== 'main' || flowState.detailSource !== null) {
+      return false;
+    }
+
+    const previousTab =
+      mainTabHistoryRef.current.pop() ??
+      (flowState.activeTab === 'saved' ? null : 'saved');
+    if (!previousTab) {
+      return false;
+    }
+
+    setFlowState(current =>
+      current.kind === 'main'
+        ? { ...current, activeTab: previousTab, detailSource: null }
+        : current,
+    );
+    return true;
+  }, [flowState]);
+
   const openMainScreenRef = useRef(openMainScreen);
   openMainScreenRef.current = openMainScreen;
+  // 공유 결과를 읽는 effect는 isAuthReady에만 의존하므로 현재 화면 흐름과 로그인 여부는 ref로 읽는다.
+  const flowStateRef = useRef(flowState);
+  flowStateRef.current = flowState;
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  isAuthenticatedRef.current = isAuthenticated;
 
   const openDetailFrom = (
     sourceScreen: 'saved' | 'map',
@@ -568,7 +617,7 @@ function App() {
     );
   };
 
-  const closeDetail = () => {
+  const closeDetail = useCallback(() => {
     setSelectedPlace(null);
     setSelectedPlaceViewContext(null);
     setFlowState(current =>
@@ -579,52 +628,59 @@ function App() {
           }
         : current,
     );
-  };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (myPageOverlay !== null) {
+          setMyPageOverlay(null);
+          return true;
+        }
+
+        if (flowState.kind === 'main' && flowState.detailSource !== null) {
+          closeDetail();
+          return true;
+        }
+
+        if (flowState.kind === 'auth' && flowState.stack.length > 1) {
+          setFlowState(current =>
+            current.kind === 'auth' && current.stack.length > 1
+              ? { ...current, stack: current.stack.slice(0, -1) }
+              : current,
+          );
+          return true;
+        }
+
+        if (nestedBackStateRef.current) {
+          return false;
+        }
+
+        return goBackMainTab();
+      },
+    );
+
+    return () => subscription.remove();
+  }, [closeDetail, flowState, goBackMainTab, myPageOverlay]);
 
   useEffect(() => {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const resumeOnboardingTransfer = (memberId: string, isNewMember?: boolean) => {
-      resumeGuestOnboardingTransfer(memberId, isNewMember)
-        .then(completed => {
-          if (completed) trackGuestTransferFinished(posthog, 'success');
-          if (
-            !isMounted ||
-            !completed ||
-            activeUserIdRef.current !== memberId
-          ) return;
-          transferErrorShownRef.current = false;
-          setMemberDataRevision(revision => revision + 1);
-        })
-        .catch(error => {
-          trackGuestTransferFinished(posthog, 'failure');
-          console.warn('군자역 게시물 저장 실패', error);
-          if (
-            !isMounted ||
-            activeUserIdRef.current !== memberId ||
-            transferErrorShownRef.current
-          ) return;
-          transferErrorShownRef.current = true;
-          Alert.alert(
-            '군자역 게시물을 저장하지 못했어요',
-            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
-          );
-        });
-    };
-
     const syncFlowState = async () => {
-      const [tokens, memberId, signedInOnThisInstall] = await Promise.all([
+      const [tokens, memberId] = await Promise.all([
         getSpringTokens().catch(() => null),
         getSpringMemberId().catch(() => null),
-        hasSignedInOnThisInstall(),
       ]);
 
       if (!isMounted) {
         return;
       }
-      hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
-
       if (!tokens) {
         activeUserIdRef.current = null;
         setIsAuthenticated(false);
@@ -636,9 +692,8 @@ function App() {
         // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
         await syncShareSession(null).catch(() => undefined);
 
-        setFlowState(
-          signedInOnThisInstall ? INITIAL_FLOW_STATE : GUEST_MAIN_FLOW_STATE,
-        );
+        setFlowState(INITIAL_FLOW_STATE);
+        setIsOnboardingVisible(true);
         setMyPageOverlay(null);
         setIsAuthReady(true);
         return;
@@ -647,7 +702,6 @@ function App() {
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
-      if (memberId) resumeOnboardingTransfer(memberId);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -668,18 +722,6 @@ function App() {
       if (isMounted) applyUpdatePolicy(policy);
     };
 
-    const loadGuideCompletion = async () => {
-      const [completed, signedInOnThisInstall] = await Promise.all([
-        hasCompletedAppGuide(),
-        hasSignedInOnThisInstall(),
-      ]);
-
-      if (isMounted) {
-        hasSignedInOnThisInstallRef.current = signedInOnThisInstall;
-        setHasCompletedGuide(completed || signedInOnThisInstall);
-      }
-    };
-
     const splashDelay = new Promise<void>(resolve => {
       splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
     });
@@ -687,7 +729,6 @@ function App() {
     Promise.allSettled([
       syncFlowState(),
       checkUpdatePolicy(),
-      loadGuideCompletion(),
       splashDelay,
     ]).finally(() => {
       if (!isMounted) {
@@ -697,7 +738,7 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const unsubscribe = onSpringSessionChange((event, memberId, details) => {
+    const unsubscribe = onSpringSessionChange((event, memberId) => {
       if (event === 'SIGNED_IN') {
         resumeWaitingShares().catch(() => undefined);
       }
@@ -708,13 +749,9 @@ function App() {
 
       if (event === 'SIGNED_OUT') {
         activeUserIdRef.current = null;
-        transferErrorShownRef.current = false;
         setIsAuthenticated(false);
-        setFlowState(
-          hasSignedInOnThisInstallRef.current
-            ? INITIAL_FLOW_STATE
-            : GUEST_MAIN_FLOW_STATE,
-        );
+        setFlowState(INITIAL_FLOW_STATE);
+        setIsOnboardingVisible(true);
         setMyPageOverlay(null);
         setIsLogoutPending(false);
         setPendingSocialProvider(null);
@@ -725,6 +762,7 @@ function App() {
       setSocialLoginError(null);
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
+      setIsOnboardingVisible(false);
       setSelectedPlace(null);
       setSelectedPlaceViewContext(null);
       savedPlacesScrollOffsetRef.current = 0;
@@ -737,7 +775,6 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
-      if (memberId) resumeOnboardingTransfer(memberId, details?.isNewMember);
     });
 
     return () => {
@@ -748,33 +785,6 @@ function App() {
       unsubscribe();
     };
   }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
-
-  useEffect(() => {
-    if (isAuthenticated !== true) return;
-
-    let isActive = true;
-    const subscription = AppState.addEventListener('change', state => {
-      if (state !== 'active') return;
-      getSpringMemberId()
-        .then(memberId => {
-          if (!memberId) return;
-          resumeGuestOnboardingTransfer(memberId)
-            .then(completed => {
-              if (
-                isActive &&
-                completed &&
-                activeUserIdRef.current === memberId
-              ) setMemberDataRevision(revision => revision + 1);
-            })
-            .catch(error => console.warn('군자역 게시물 재시도 실패', error));
-        })
-        .catch(() => undefined);
-    });
-    return () => {
-      isActive = false;
-      subscription.remove();
-    };
-  }, [isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
@@ -814,11 +824,23 @@ function App() {
               ? currentShareState.shareResultId
               : undefined;
           const latestResult = results[results.length - 1];
-          const result = latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
-            ? latestResult
-            : activeRequestId
-              ? results.find(item => item.requestId === activeRequestId) ?? latestResult
-              : latestResult;
+          // 공유 화면에서 로그인을 누르고 넘어온 결과는 열려 있던 공유 상태보다 먼저 처리한다.
+          // 둘러보기 중 이전 공유 결과가 남아 있어도 로그인 화면으로 이동해야 한다.
+          const pendingLoginResult = [...results].reverse().find(
+            item =>
+              (item.transferStatus === 'LOGIN_HANDOFF' ||
+                item.transferStatus === 'GUEST_LOGIN_PROMPT') &&
+              !handledShareResultKeysRef.current.has(
+                `${item.requestId ?? item.url}:${item.updatedAt}`,
+              ),
+          );
+          const result = pendingLoginResult
+            ? pendingLoginResult
+            : latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
+              ? latestResult
+              : activeRequestId
+                ? results.find(item => item.requestId === activeRequestId) ?? latestResult
+                : latestResult;
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
@@ -842,7 +864,7 @@ function App() {
             );
           }
           if (!result) {
-            lastHandledShareResultRef.current = null;
+            handledShareResultKeysRef.current.clear();
             if (currentShareState?.source === 'instagram_share') {
               setSharedSaveState(null);
             }
@@ -851,8 +873,8 @@ function App() {
           const resultKey = `${result.requestId ?? result.url}:${
             result.updatedAt
           }`;
-          if (lastHandledShareResultRef.current === resultKey) return;
-          lastHandledShareResultRef.current = resultKey;
+          if (handledShareResultKeysRef.current.has(resultKey)) return;
+          handledShareResultKeysRef.current.add(resultKey);
           if (__DEV__) {
             console.log('[InstagramShare][native-result-selected]', {
               requestId: result.requestId ?? null,
@@ -884,15 +906,28 @@ function App() {
             return;
           }
           if (result.transferStatus === 'LOGIN_HANDOFF') {
+            // 로그인 화면으로 보내는 것으로 이 결과의 역할은 끝난다. 로그인해도 이 공유는 추출하지
+            // 않으므로, 로그인 대기 상태로 남겨 두지 않고 정리한다.
+            const showLoginForHandoff = () => {
+              clearShareResult(result.requestId).catch(() => undefined);
+              setHasPendingShareLogin(false);
+              // 둘러보는 중에 넘어왔다면 앱 안에서 연 로그인 화면과 같게 X로 직전 화면에 돌아간다.
+              const currentFlow = flowStateRef.current;
+              if (isAuthenticatedRef.current === false && currentFlow.kind === 'main') {
+                guestReturnFlowRef.current = currentFlow;
+                setShowLoginCloseButton(true);
+              }
+              setFlowState(INITIAL_FLOW_STATE);
+            };
             getSpringTokens().then(tokens => {
               if (tokens) {
                 resumeWaitingShares().catch(() => undefined);
                 return;
               }
-              setFlowState(INITIAL_FLOW_STATE);
+              showLoginForHandoff();
             }).catch(() => {
               captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
-              setFlowState(INITIAL_FLOW_STATE);
+              showLoginForHandoff();
             });
             return;
           }
@@ -1024,8 +1059,6 @@ function App() {
       return;
     }
     loginAttemptInFlightRef.current = true;
-    const hasGuestTransfer =
-      isAuthenticated === false && hasCompletedGuide === true;
     const signIn = {
       apple: signInWithApple,
       kakao: signInWithKakao,
@@ -1037,9 +1070,6 @@ function App() {
     trackLoginStarted(posthog, provider);
 
     try {
-      if (hasGuestTransfer) {
-        await beginGuestOnboardingTransfer(toOnboardingKakaoPlaceIds(guestPlaces));
-      }
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
       if (!(await getSpringTokens().catch(() => null))) {
         await syncShareSession(null).catch(() => undefined);
@@ -1052,10 +1082,8 @@ function App() {
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
-        hasGuestTransfer,
       });
     } catch (error) {
-      cancelGuestOnboardingTransfer().catch(() => undefined);
       const normalizedError = withAuthErrorStage(
         error,
         signInStarted ? 'provider_authorization' : 'login_setup',
@@ -1065,7 +1093,6 @@ function App() {
         provider,
         outcome: 'failure',
         failureType: toLoginFailureType(normalizedError),
-        hasGuestTransfer,
       });
       if (!signInStarted) {
         Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
@@ -1086,16 +1113,21 @@ function App() {
     setHasPendingShareLogin(false);
   };
 
-  const handleCompleteGuide = () => {
-    setHasCompletedGuide(true);
-    completeAppGuide();
-  };
-
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
+    setShowLoginCloseButton(true);
+    setFlowState(INITIAL_FLOW_STATE);
+  };
+
+  const handleOpenGuestLoginFromMyPage = () => {
+    if (flowState.kind !== 'main' || isAuthenticated !== false) return;
+
+    setIsGuestLoginPromptVisible(false);
+    guestReturnFlowRef.current = flowState;
+    setShowLoginCloseButton(true);
     setFlowState(INITIAL_FLOW_STATE);
   };
 
@@ -1107,9 +1139,16 @@ function App() {
     setFlowState(INITIAL_FLOW_STATE);
   };
 
+  const handleShowGuestLoginPrompt = () => {
+    if (isAuthenticated === false) {
+      setIsGuestLoginPromptVisible(true);
+    }
+  };
+
   // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
   const handleBrowseAsGuest = () => {
     setSocialLoginError(null);
+    setShowLoginCloseButton(false);
     setFlowState(GUEST_MAIN_FLOW_STATE);
   };
 
@@ -1117,9 +1156,28 @@ function App() {
     const previousFlow = guestReturnFlowRef.current;
     if (!previousFlow) return;
 
-    cancelGuestOnboardingTransfer().catch(() => undefined);
     guestReturnFlowRef.current = null;
+    setShowLoginCloseButton(false);
     setFlowState(previousFlow);
+  };
+
+  const handleCloseGuestLogin = () => {
+    const previousFlow = guestReturnFlowRef.current;
+    guestReturnFlowRef.current = null;
+    setShowLoginCloseButton(false);
+    setFlowState(previousFlow ?? GUEST_MAIN_FLOW_STATE);
+  };
+
+  const handleBrowseFromLogin = async () => {
+    if (guestReturnFlowRef.current) {
+      handleContinueBrowsing();
+      return;
+    }
+
+    if (hasPendingShareLogin) {
+      await handleCancelShareLogin();
+    }
+    handleBrowseAsGuest();
   };
 
   const showPreparingAlert = (featureName: string) => {
@@ -1134,7 +1192,7 @@ function App() {
     setIsLogoutPending(true);
 
     // 로컬 중심 로그아웃: 서버 세션 폐기는 best-effort이고, 로컬 정리가 끝나면 SIGNED_OUT으로
-    // 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
+    // 온보딩을 거쳐 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
     try {
       const result = await logoutSpringSession();
       if (!result.serverConfirmed) {
@@ -1221,18 +1279,176 @@ function App() {
     }
   };
 
-  const renderScreen = () => {
-    if (currentScreen === 'history') {
+  const requireLoginHandlerRef = useRef(handleRequireLogin);
+  requireLoginHandlerRef.current = handleRequireLogin;
+  const requestLogin = useCallback(() => requireLoginHandlerRef.current(), []);
+
+  const renderScreen = (screen: Screen) => {
+    if (screen === 'history') {
       return (
         <HistoryScreen
-          guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
-          guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
-          onBack={() => openMainScreen(historyReturnScreenRef.current)}
-          onRequireLogin={handleRequireLogin}
+          guestReels={isAuthenticated === false ? [] : undefined}
+          onBack={goBackMainTab}
+          isActive={currentScreen === 'history' && myPageOverlay === null}
+          onNestedBackStateChange={reportHistoryBackState}
+          onRequireLogin={requestLogin}
         />
       );
     }
 
+    if (screen === 'login') {
+      return (
+        <LoginScreen
+          isAppleLoginAvailable={isAppleSignInSupported}
+          pendingSocialProvider={pendingSocialProvider}
+          socialLoginError={socialLoginError}
+          onContinueWithApple={() => handleContinueWithSocial('apple')}
+          onContinueWithGoogle={() => handleContinueWithSocial('google')}
+          onContinueWithKakao={() => handleContinueWithSocial('kakao')}
+          onOpenContact={openKakaoChannelChat}
+          onOpenTerms={() => pushAuthScreen('terms')}
+          onClose={showLoginCloseButton ? handleCloseGuestLogin : undefined}
+          onBrowseAsGuest={
+            isAuthenticated === false && !showLoginCloseButton
+              ? handleBrowseFromLogin
+              : undefined
+          }
+        />
+      );
+    }
+
+    if (screen === 'emailLogin') {
+      return (
+        <EmailLoginScreen
+          onBack={popAuthScreen}
+          onLogin={() => showPreparingAlert('이메일 로그인')}
+          onOpenSignup={() => pushAuthScreen('signup')}
+          onOpenTerms={() => pushAuthScreen('terms')}
+        />
+      );
+    }
+
+    if (screen === 'signup') {
+      return (
+        <SignUpScreen
+          onBack={popAuthScreen}
+          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
+          onOpenTerms={() => pushAuthScreen('terms')}
+          onSignUp={() => showPreparingAlert('이메일 회원가입')}
+        />
+      );
+    }
+
+    if (screen === 'terms') {
+      return <TermsAgreementScreen onBack={popAuthScreen} />;
+    }
+
+    if (screen === 'saved') {
+      // 대기함 복원 시 onOpenInbox={() => openMainScreen('inBox')} 연결을 되살립니다.
+      return (
+        <SavedPlacesScreen
+          key={
+            isAuthenticated === false
+              ? 'guest-saved'
+              : 'member-saved'
+          }
+          isActive={currentScreen === 'saved' && myPageOverlay === null}
+          onNestedBackStateChange={reportSavedBackState}
+          initialScrollOffset={savedPlacesScrollOffsetRef.current}
+          isGuest={isAuthenticated === false}
+          places={isAuthenticated === false ? [] : undefined}
+          onAuthenticationRequired={requestLogin}
+          onOpenGuide={() => setMyPageOverlay('guide')}
+          onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
+          onEditModeChange={setIsSavedPlacesEditing}
+          onOpenDetail={(place, context) =>
+            openDetailFrom('saved', place, context)
+          }
+          onScrollOffsetChange={offset => {
+            savedPlacesScrollOffsetRef.current = offset;
+          }}
+          onRequireLogin={requestLogin}
+          onSharedResultConsumed={clearShareResult}
+        />
+      );
+    }
+
+    // 대기함 흐름을 다시 사용할 때 복원합니다.
+    /*
+    if (screen === 'inBox') {
+      return (
+        <InBoxScreen
+          entryType={inBoxEntryType}
+          guestItems={isAuthenticated === false ? EMPTY_GUEST_INBOX : undefined}
+          onOpenHistory={() => openMainScreen('history')}
+          onRequireLogin={requestLogin}
+          onSelectionChange={setIsInBoxSelecting}
+        />
+      );
+    }
+
+    */
+
+    if (screen === 'map') {
+      return (
+        <MapScreen
+          onBackGestureRegionChange={reportMapBackGestureRegion}
+          bottomNavigationBar={
+            <BottomNavigationBar active="map" isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+          }
+          key={
+            isAuthenticated === false
+              ? 'guest-map'
+              : 'member-map'
+          }
+          isGuest={isAuthenticated === false}
+          isActive={currentScreen === 'map' && myPageOverlay === null}
+          onNestedBackStateChange={reportMapBackState}
+          onAuthenticationRequired={requestLogin}
+          onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
+        />
+      );
+    }
+
+    if (screen === 'detail' && selectedPlace) {
+      return (
+        <PlaceDetailScreen
+          bottomNavigationBar={
+            flowState.kind === 'main' && flowState.detailSource !== null ? (
+              <BottomNavigationBar
+                active={flowState.activeTab}
+                isGuest={isAuthenticated === false}
+                onNavigate={navigateMainTab}
+              />
+            ) : undefined
+          }
+          onBack={closeDetail}
+          onAuthenticationRequired={requestLogin}
+          place={selectedPlace}
+          viewContext={selectedPlaceViewContext ?? undefined}
+        />
+      );
+    }
+
+    return (
+      <MyPageScreen
+        currentProfile={currentProfile}
+        isGuest={isAuthenticated === false}
+        isProfileLoading={isProfileLoading}
+        isLogoutPending={isLogoutPending}
+        onOpenContact={openKakaoChannelChat}
+        onOpenGuide={() => setMyPageOverlay('guide')}
+        onLogout={handleLogout}
+        onLogin={handleOpenGuestLoginFromMyPage}
+        onOpenTerms={() => setMyPageOverlay('terms')}
+        onRetryProfile={handleRetryProfile}
+        onWithdraw={handleOpenAccountDeletion}
+        profileError={profileError}
+      />
+    );
+  };
+
+  const renderMyPageOverlay = () => {
     if (myPageOverlay === 'terms') {
       return <TermsAgreementScreen onBack={() => setMyPageOverlay(null)} />;
     }
@@ -1253,166 +1469,61 @@ function App() {
       );
     }
 
-    if (currentScreen === 'login') {
-      return (
-        <LoginScreen
-          isAppleLoginAvailable={isAppleSignInSupported}
-          pendingSocialProvider={pendingSocialProvider}
-          socialLoginError={socialLoginError}
-          onContinueWithApple={() => handleContinueWithSocial('apple')}
-          onContinueWithGoogle={() => handleContinueWithSocial('google')}
-          onContinueWithKakao={() => handleContinueWithSocial('kakao')}
-          onOpenContact={openKakaoChannelChat}
-          onOpenTerms={() => pushAuthScreen('terms')}
-          onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
-          onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
-          onBrowseAsGuest={
-            isAuthenticated === false &&
-            !guestReturnFlowRef.current &&
-            !hasPendingShareLogin
-              ? handleBrowseAsGuest
-              : undefined
-          }
-        />
-      );
-    }
-
-    if (currentScreen === 'emailLogin') {
-      return (
-        <EmailLoginScreen
-          onBack={popAuthScreen}
-          onLogin={() => showPreparingAlert('이메일 로그인')}
-          onOpenSignup={() => pushAuthScreen('signup')}
-          onOpenTerms={() => pushAuthScreen('terms')}
-        />
-      );
-    }
-
-    if (currentScreen === 'signup') {
-      return (
-        <SignUpScreen
-          onBack={popAuthScreen}
-          onOpenEmailLogin={() => pushAuthScreen('emailLogin')}
-          onOpenTerms={() => pushAuthScreen('terms')}
-          onSignUp={() => showPreparingAlert('이메일 회원가입')}
-        />
-      );
-    }
-
-    if (currentScreen === 'terms') {
-      return <TermsAgreementScreen onBack={popAuthScreen} />;
-    }
-
-    if (currentScreen === 'saved') {
-      // 대기함 복원 시 onOpenInbox={() => openMainScreen('inBox')} 연결을 되살립니다.
-      return (
-        <SavedPlacesScreen
-          key={
-            isAuthenticated === false
-              ? 'guest-saved'
-              : `member-saved-${memberDataRevision}`
-          }
-          initialScrollOffset={savedPlacesScrollOffsetRef.current}
-          isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? guestPlaces : undefined}
-          onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
-          }
-          onAuthenticationRequired={handleRequireLogin}
-          onEditModeChange={setIsSavedPlacesEditing}
-          onOpenDetail={(place, context) =>
-            openDetailFrom('saved', place, context)
-          }
-          onScrollOffsetChange={offset => {
-            savedPlacesScrollOffsetRef.current = offset;
-          }}
-          onRequireLogin={handleRequireLogin}
-          onSharedResultConsumed={clearShareResult}
-        />
-      );
-    }
-
-    // 대기함 흐름을 다시 사용할 때 복원합니다.
-    /*
-    if (currentScreen === 'inBox') {
-      return (
-        <InBoxScreen
-          entryType={inBoxEntryType}
-          guestItems={isAuthenticated === false ? EMPTY_GUEST_INBOX : undefined}
-          onOpenHistory={() => openMainScreen('history')}
-          onRequireLogin={handleRequireLogin}
-          onSelectionChange={setIsInBoxSelecting}
-        />
-      );
-    }
-
-    */
-
-    if (currentScreen === 'map') {
-      return (
-        <MapScreen
-          key={
-            isAuthenticated === false
-              ? 'guest-map'
-              : `member-map-${memberDataRevision}`
-          }
-          isGuest={isAuthenticated === false}
-          guestPlaces={isAuthenticated === false ? guestPlaces : undefined}
-          onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
-          }
-          onAuthenticationRequired={handleRequireLogin}
-        />
-      );
-    }
-
-    if (currentScreen === 'detail' && selectedPlace) {
-      return (
-        <PlaceDetailScreen
-          onBack={closeDetail}
-          onAuthenticationRequired={handleRequireLogin}
-          place={selectedPlace}
-          guestReels={
-            isAuthenticated === false
-              ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
-              : undefined
-          }
-          onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
-          }
-          viewContext={selectedPlaceViewContext ?? undefined}
-        />
-      );
-    }
-
-    return (
-      <MyPageScreen
-        currentProfile={currentProfile}
-        isGuest={isAuthenticated === false}
-        isProfileLoading={isProfileLoading}
-        isLogoutPending={isLogoutPending}
-        onOpenContact={openKakaoChannelChat}
-        onOpenGuide={() => setMyPageOverlay('guide')}
-        onLogout={handleLogout}
-        onLogin={handleOpenGuestLogin}
-        onOpenTerms={() => setMyPageOverlay('terms')}
-        onRetryProfile={handleRetryProfile}
-        onWithdraw={handleOpenAccountDeletion}
-        profileError={profileError}
-      />
-    );
+    return null;
   };
 
-  const showTabBar =
-    flowState.kind === 'main' &&
-    flowState.detailSource === null &&
-    myPageOverlay === null &&
-    !isSavedPlacesEditing;
-
   const isMapScreen = currentScreen === 'map';
-  const activeTab = flowState.kind === 'main' ? flowState.activeTab : undefined;
+  const previousTab = flowState.kind === 'main'
+    ? mainTabHistoryRef.current[mainTabHistoryRef.current.length - 1] ??
+      (flowState.activeTab === 'saved' ? null : 'saved')
+    : null;
+  const activeLayerKey = flowState.kind === 'auth'
+    ? `auth-${flowState.stack.length - 1}-${currentScreen}`
+    : myPageOverlay !== null ? `myPage-${myPageOverlay}`
+    : flowState.detailSource !== null ? 'detail' : flowState.activeTab;
+  const backLayerKey = flowState.kind === 'auth'
+    ? flowState.stack.length > 1
+      ? `auth-${flowState.stack.length - 2}-${flowState.stack[flowState.stack.length - 2]}`
+      : null
+    : myPageOverlay !== null ? flowState.activeTab
+    : flowState.detailSource ?? previousTab;
 
-  if (!isAuthReady || isSplashVisible || hasCompletedGuide === null) {
+  const handleSwipeBack = () => {
+    if (myPageOverlay !== null) setMyPageOverlay(null);
+    else if (flowState.kind === 'auth') popAuthScreen();
+    else if (flowState.detailSource !== null) closeDetail();
+    else goBackMainTab();
+  };
+
+  const wrapScreen = (content: React.ReactNode, map = false) => (
+    <SafeAreaView edges={map ? ['left', 'right'] : ['top', 'left', 'right']} style={styles.safeArea}>
+      {content}
+    </SafeAreaView>
+  );
+  const screenLayers: BackScreen[] = flowState.kind === 'auth'
+    ? flowState.stack.map((screen, index) => ({
+        key: `auth-${index}-${screen}`,
+        content: wrapScreen(renderScreen(screen)),
+      }))
+    : [...visitedTabsRef.current].map(tab => ({
+        key: tab,
+        content: wrapScreen(
+          <View style={styles.container}>
+            {renderScreen(tab)}
+            {tab !== 'map' && !(tab === 'saved' && isSavedPlacesEditing) ? (
+              <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+            ) : null}
+          </View>, tab === 'map',
+        ),
+      }));
+  if (flowState.kind === 'main' && flowState.detailSource !== null) {
+    screenLayers.push({key: 'detail', content: wrapScreen(renderScreen('detail'))});
+  }
+  if (flowState.kind === 'main' && myPageOverlay !== null) {
+    screenLayers.push({key: `myPage-${myPageOverlay}`, content: wrapScreen(renderMyPageOverlay())});
+  }
+
+  if (!isAuthReady || isSplashVisible) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
@@ -1421,7 +1532,7 @@ function App() {
     );
   }
 
-  if (!hasCompletedGuide) {
+  if (isOnboardingVisible) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
@@ -1429,34 +1540,35 @@ function App() {
           edges={['top', 'left', 'right', 'bottom']}
           style={styles.safeArea}
         >
-          <AppGuideScreen onComplete={handleCompleteGuide} />
+          <OnboardingScreen onComplete={() => setIsOnboardingVisible(false)} />
         </SafeAreaView>
+        {/* 필수 업데이트는 온보딩 중에도 막는다. 권장 업데이트는 온보딩 뒤에 안내한다. */}
+        <AppUpdateModal
+          mode="required"
+          storeUrl={requiredUpdateStoreUrl ?? ''}
+          visible={requiredUpdateStoreUrl !== null}
+        />
       </SafeAreaProvider>
     );
   }
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView
-        edges={isMapScreen ? ['left', 'right'] : ['top', 'left', 'right']}
-        style={styles.safeArea}
-      >
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
-          translucent={isMapScreen}
-        />
-        <View style={styles.container}>
-          {renderScreen()}
-          {showTabBar && activeTab ? (
-            <BottomNavigationBar
-              active={activeTab}
-              isGuest={isAuthenticated === false}
-              onNavigate={openMainScreen}
-            />
-          ) : null}
-        </View>
-      </SafeAreaView>
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={isMapScreen ? 'transparent' : '#ffffff'}
+        translucent={isMapScreen}
+      />
+      <SwipeBackStack
+        key={`${flowState.kind}-${isAuthenticated}`}
+        screens={screenLayers}
+        activeKey={activeLayerKey}
+        gestureRegion={currentScreen === 'map' ? mapBackGestureRegion : undefined}
+        backKey={backLayerKey}
+        onBack={handleSwipeBack}
+        enabled={!nestedBackStateRef.current || currentScreen === 'detail' || myPageOverlay !== null}
+      />
+      {currentScreen === 'detail' ? <SystemNavigationGradient /> : null}
       <AppUpdateModal
         mode="required"
         storeUrl={requiredUpdateStoreUrl ?? ''}
@@ -1477,7 +1589,7 @@ function App() {
         }}
       />
       <GuestLoginPrompt
-        visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}
+        visible={isGuestLoginPromptVisible && isGuestBrowsing}
         onLogin={handleOpenGuestLogin}
         onContinueBrowsing={() => setIsGuestLoginPromptVisible(false)}
       />

@@ -13,13 +13,6 @@ const UNAVAILABLE_PROFILE: User = {
   description: '',
   avatarUrl: null,
 };
-const GUEST_PROFILE: User = {
-  id: 'guest',
-  nickname: '비회원',
-  description: '',
-  avatarUrl: null,
-};
-
 type MyPageScreenProps = {
   currentProfile: ProfileInfo | null;
   isGuest?: boolean;
@@ -58,7 +51,7 @@ export function MyPageScreen({
     {label: '약관 동의', onPress: onOpenTerms},
     {label: '문의하기', onPress: onOpenContact},
     ...(isGuest
-      ? [{label: '로그인', onPress: onLogin}]
+      ? []
       : [
           {label: '회원탈퇴', onPress: onWithdraw},
           {label: isLogoutPending ? '로그아웃 중...' : '로그아웃', onPress: onLogout},
@@ -76,9 +69,7 @@ export function MyPageScreen({
 
   const showReauthenticateAction = profileError?.errorCode === 'PROFILE404_001';
   const isProfileUnavailable = !isGuest && !user && Boolean(profileError);
-  const displayedUser = isGuest
-    ? GUEST_PROFILE
-    : user ?? (isProfileUnavailable ? UNAVAILABLE_PROFILE : null);
+  const displayedUser = user ?? (isProfileUnavailable ? UNAVAILABLE_PROFILE : null);
   const unavailableNotice = isProfileUnavailable ? (
     <View style={styles.errorBanner}>
       <Text style={styles.errorBannerText}>잠시 후 다시 시도해주세요</Text>
@@ -99,7 +90,25 @@ export function MyPageScreen({
 
   return (
     <View style={styles.container}>
-      {displayedUser ? (
+      {isGuest ? (
+        <>
+          <View style={styles.guestProfileSection}>
+            <Text style={styles.guestLoginMessage}>
+              로그인하고 나만의 장소 보관함을 만들어보세요.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onLogin}
+              style={({pressed}) => [
+                styles.guestLoginButton,
+                pressed && styles.guestLoginButtonPressed,
+              ]}>
+              <Text style={styles.guestLoginButtonText}>로그인하기</Text>
+            </Pressable>
+          </View>
+          <SettingList items={settingItems} />
+        </>
+      ) : displayedUser ? (
         <>
           <ProfileSection
             bottomContent={unavailableNotice}
@@ -139,6 +148,37 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  guestProfileSection: {
+    alignItems: 'center',
+    paddingVertical: 54,
+    borderBottomWidth: 8,
+    borderBottomColor: '#f5f3ee',
+  },
+  guestLoginMessage: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    color: '#8e8e93',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  guestLoginButton: {
+    alignSelf: 'stretch',
+    minHeight: 48,
+    marginHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: '#1f2238',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestLoginButtonPressed: {
+    opacity: 0.85,
+  },
+  guestLoginButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
   },
   stateContainer: {
     flex: 1,

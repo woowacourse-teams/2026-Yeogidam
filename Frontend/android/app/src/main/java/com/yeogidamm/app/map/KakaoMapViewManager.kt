@@ -22,6 +22,11 @@ class KakaoMapViewManager :
 
     override fun getDelegate() = managerDelegate
 
+    override fun onDropViewInstance(view: KakaoMapView) {
+        view.dispose()
+        super.onDropViewInstance(view)
+    }
+
     override fun setLatitude(
         view: KakaoMapView,
         value: Double,

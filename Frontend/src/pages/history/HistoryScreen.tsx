@@ -1,7 +1,9 @@
+import {SwipeBackStack} from '../../components/navigation/SwipeBackStack';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   Linking,
   Platform,
@@ -54,7 +56,9 @@ import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
 
 type HistoryScreenProps = {
+  isActive?: boolean;
   onBack: () => void;
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
   onRequireLogin?: () => void;
@@ -63,8 +67,6 @@ type HistoryScreenProps = {
 const thumbnail =
   'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
 
-const emptyCharacter =
-  'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
 const placeThumbnail =
   'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
 function getHistoryTitle(reel: HistoryReel) {
@@ -569,7 +571,9 @@ function HistoryFailureDetail({
 const LIST_POLL_INTERVAL_MS = 3000;
 
 export function HistoryScreen({
+  isActive = true,
   onBack,
+  onNestedBackStateChange,
   guestReels,
   guestDetails,
   onRequireLogin,
@@ -599,6 +603,40 @@ export function HistoryScreen({
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
 
+  const handleDetailBack = useCallback(() => {
+    shouldRestoreScrollRef.current = true;
+    setSelectedSuccess(false);
+    setSelectedFailure(false);
+    setSelectedReel(null);
+  }, []);
+
+  useEffect(() => {
+    const canGoBack = isActive && (selectedSuccess || selectedFailure);
+    onNestedBackStateChange?.(canGoBack);
+    if (Platform.OS !== 'android' || !canGoBack) {
+      return () => onNestedBackStateChange?.(false);
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        handleDetailBack();
+        return true;
+      },
+    );
+
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [
+    handleDetailBack,
+    isActive,
+    onNestedBackStateChange,
+    selectedFailure,
+    selectedSuccess,
+  ]);
+
   // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
   const hasReelsRef = useRef(false);
   hasReelsRef.current = reels.length > 0;
@@ -616,7 +654,7 @@ export function HistoryScreen({
   }));
 
   const evaluateVisibleCards = useCallback(() => {
-    if (selectedSuccess || selectedFailure) return;
+    if (!isActive || selectedSuccess || selectedFailure) return;
     const top = scrollOffsetRef.current;
     const bottom = top + viewportHeightRef.current;
     for (const [contentId, layout] of cardLayoutsRef.current) {
@@ -648,7 +686,7 @@ export function HistoryScreen({
         visibleTimersRef.current.delete(key);
       }
     }
-  }, [posthog, selectedSuccess, selectedFailure]);
+  }, [isActive, posthog, selectedSuccess, selectedFailure]);
 
   useEffect(() => {
     evaluateVisibleCards();
@@ -660,11 +698,11 @@ export function HistoryScreen({
   }, []);
 
   useEffect(() => {
-    if (selectedSuccess || selectedFailure) {
+    if (!isActive || selectedSuccess || selectedFailure) {
       visibleTimersRef.current.forEach(clearTimeout);
       visibleTimersRef.current.clear();
     }
-  }, [selectedSuccess, selectedFailure]);
+  }, [isActive, selectedSuccess, selectedFailure]);
 
   const sharesSubscriptionRef = useRef<RecentSharesSubscription | null>(null);
 
@@ -828,7 +866,7 @@ export function HistoryScreen({
   }, [load, posthog]);
 
   useEffect(() => {
-    if (guestReels !== undefined) return;
+    if (!isActive || guestReels !== undefined) return;
     const subscription = subscribeRecentShares({
       intervalMs: LIST_POLL_INTERVAL_MS,
       onResult: result => {
@@ -842,7 +880,7 @@ export function HistoryScreen({
       subscription.unsubscribe();
       sharesSubscriptionRef.current = null;
     };
-  }, [applyFirstPage, guestReels, showErrorIfEmpty]);
+  }, [applyFirstPage, guestReels, isActive, showErrorIfEmpty]);
 
   useEffect(() => {
     load().catch(() => undefined);
@@ -882,27 +920,15 @@ export function HistoryScreen({
     ? undefined
     : guestDetails?.[selectedReel?.id ?? ''] ?? null;
 
-  if (selectedSuccess) {
-    return (
+  const detailContent = selectedSuccess ? (
       <HistorySuccessDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          setSelectedSuccess(false);
-          setSelectedReel(null);
-        }}
+        onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
       />
-    );
-  }
-  if (selectedFailure) {
-    return (
+  ) : selectedFailure ? (
       <HistoryFailureDetail
-        onBack={() => {
-          shouldRestoreScrollRef.current = true;
-          setSelectedFailure(false);
-          setSelectedReel(null);
-        }}
+        onBack={handleDetailBack}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
         onRequireLogin={onRequireLogin}
@@ -914,10 +940,9 @@ export function HistoryScreen({
           await retryHistoryReel(selectedReel as HistoryReel);
         }}
       />
-    );
-  }
+  ) : null;
 
-  return (
+  const listContent = (
     <View style={styles.container}>
       <View style={styles.header}>
         <Pressable
@@ -971,15 +996,30 @@ export function HistoryScreen({
         ) : reels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
-              source={{ uri: emptyCharacter }}
+              source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}
               style={styles.emptyCharacter}
             />
             <View style={styles.emptyText}>
               <Text style={styles.emptyTitle}>아직 공유된 콘텐츠가 없어요</Text>
               <Text style={styles.emptyDescription}>
-                인스타그램 릴스나 유튜브 쇼츠에서{'\n'}공유하기를 통해 여기담에
-                저장해보세요.
+                {guestReels !== undefined ? (
+                  <>로그인하고 공유한 콘텐츠의{'\n'}장소 추출 결과를 확인해보세요.</>
+                ) : (
+                  <>인스타그램 릴스를 공유하고 장소 추출 결과를{'\n'}확인해보세요.</>
+                )}
               </Text>
+              {guestReels !== undefined ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="히스토리 로그인"
+                  onPress={onRequireLogin}
+                  style={({pressed}) => [
+                    styles.emptyLoginButton,
+                    pressed && styles.emptyLoginButtonPressed,
+                  ]}>
+                  <Text style={styles.emptyLoginButtonText}>로그인하기</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         ) : (
@@ -1038,6 +1078,19 @@ export function HistoryScreen({
       <View style={styles.homeIndicator} />
     </View>
   );
+  return (
+    <SwipeBackStack
+      activeKey={detailContent ? 'detail' : 'list'}
+      backKey={detailContent ? 'list' : null}
+      onBack={handleDetailBack}
+      enabled={isActive}
+      screens={[
+        {key: 'list', content: listContent},
+        ...(detailContent ? [{key: 'detail', content: detailContent}] : []),
+      ]}
+    />
+  );
+
 }
 
 const styles = StyleSheet.create({
@@ -1083,17 +1136,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 0,
-    paddingBottom: 72,
+    paddingBottom: 112,
     paddingHorizontal: 24,
   },
-  emptyBody: { alignItems: 'center' },
+  emptyBody: { alignItems: 'center', width: '100%' },
   emptyCharacter: {
-    width: 195,
-    height: 195,
-    borderRadius: 30,
+    width: 250,
+    height: 183,
+    transform: [{translateX: -16}],
     marginBottom: 24,
   },
-  emptyText: { alignItems: 'center' },
+  emptyText: { alignItems: 'center', width: '100%' },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -1107,6 +1160,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  emptyLoginButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#1F2238',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  emptyLoginButtonPressed: { opacity: 0.82 },
+  emptyLoginButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   detailContent: { paddingBottom: 60 },
   detailHero: { alignItems: 'center', marginTop: 48 },
   detailThumbnail: {

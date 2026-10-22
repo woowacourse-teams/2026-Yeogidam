@@ -1,11 +1,9 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { SwipeBackStack } from '../../components/navigation/SwipeBackStack';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  BackHandler,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,9 +12,9 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
-import {usePostHog} from 'posthog-react-native';
+import { usePostHog } from 'posthog-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {v4 as uuidv4} from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 
 import {
   captureSavedPlaceSelected,
@@ -44,8 +42,12 @@ import {
   normalizeInstagramContentUrl,
   saveContent,
 } from '../../entities/content/api';
-import {subscribeRecentShares} from '../../entities/content/recent-shares-poller';
-import type {HistoryReel, ReelProcessingStatus, SaveSource} from '../../entities/content/types';
+import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
+import type {
+  HistoryReel,
+  ReelProcessingStatus,
+  SaveSource,
+} from '../../entities/content/types';
 import {
   normalizeReelError,
   ReelApiError,
@@ -83,11 +85,15 @@ type ShareApiDiagnostics = {
 };
 
 type SavedPlacesScreenProps = {
+  isActive?: boolean;
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
   onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
   isGuest?: boolean;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
+  onOpenGuide?: () => void;
+  onShowGuestLoginPrompt?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
@@ -112,10 +118,11 @@ function SavedPlacesEditAction({
         accessibilityRole="button"
         hitSlop={8}
         onPress={onPress}
-        style={({pressed}) => [
+        style={({ pressed }) => [
           styles.editButton,
           pressed && styles.editButtonPressed,
-        ]}>
+        ]}
+      >
         <Text style={styles.editButtonText}>{isEditing ? '취소' : '편집'}</Text>
       </Pressable>
     </View>
@@ -123,11 +130,15 @@ function SavedPlacesEditAction({
 }
 
 export function SavedPlacesScreen({
+  isActive: isScreenActive = true,
+  onNestedBackStateChange,
   onOpenDetail,
   isGuest = false,
   initialScrollOffset = 0,
   onScrollOffsetChange,
   onAuthenticationRequired,
+  onOpenGuide,
+  onShowGuestLoginPrompt,
   onEditModeChange,
   onRequireLogin,
   // onOpenInbox,
@@ -136,6 +147,8 @@ export function SavedPlacesScreen({
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
   const posthog = usePostHog();
+  const initialScrollOffsetRef = useRef(initialScrollOffset);
+  const hasRestoredInitialScrollRef = useRef(false);
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -144,10 +157,14 @@ export function SavedPlacesScreen({
   );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] = useState(false);
+  const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] =
+    useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [places, setPlaces] = useState<Place[]>(
     providedPlaces ?? cachedSavedPlaces ?? [],
+  );
+  const hasLoadedPlacesRef = useRef(
+    providedPlaces !== undefined || cachedSavedPlaces !== null,
   );
   const [error, setError] = useState<SavedPlacesApiError | null>(null);
   const [isLoading, setIsLoading] = useState(
@@ -157,14 +174,15 @@ export function SavedPlacesScreen({
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
+  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
+    null,
+  );
   const [processingReelId, setProcessingReelId] = useState<string | null>(null);
   const [processingReel, setProcessingReel] =
     useState<ReelProcessingStatus | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [_statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(
-    null,
-  );
+  const [_statusQueryError, setStatusQueryError] =
+    useState<ReelApiError | null>(null);
   const [_isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
   const [_shareApiDiagnostics, setShareApiDiagnostics] =
     useState<ShareApiDiagnostics | null>(null);
@@ -191,52 +209,72 @@ export function SavedPlacesScreen({
   }, [error, isLoading, places.length, posthog]);
 
   useEffect(() => {
-    if (isLoading || !hasSavedPlaces || initialScrollOffset <= 0) {
+    if (
+      hasRestoredInitialScrollRef.current ||
+      isLoading ||
+      !hasSavedPlaces ||
+      initialScrollOffsetRef.current <= 0
+    ) {
       return;
     }
 
     const restoreScrollPosition = requestAnimationFrame(() => {
+      hasRestoredInitialScrollRef.current = true;
       scrollViewRef.current?.scrollTo({
-        y: initialScrollOffset,
+        y: initialScrollOffsetRef.current,
         animated: false,
       });
     });
 
     return () => cancelAnimationFrame(restoreScrollPosition);
-  }, [hasSavedPlaces, initialScrollOffset, isLoading]);
+  }, [hasSavedPlaces, isLoading]);
 
   useEffect(() => {
     return () => onEditModeChange?.(false);
   }, [onEditModeChange]);
 
-  const loadSavedPlaces = useCallback(async () => {
-    if (providedPlaces !== undefined) {
-      if (isGuest) {
-        cachedSavedPlaces = null;
+  const fetchSavedPlaces = useCallback(
+    async (showLoading: boolean) => {
+      if (providedPlaces !== undefined) {
+        if (isGuest) {
+          cachedSavedPlaces = null;
+        }
+        setPlaces(providedPlaces);
+        return providedPlaces;
       }
-      setPlaces(providedPlaces);
-      return providedPlaces;
-    }
 
-    setIsLoading(true);
-    setError(null);
-    try {
-      const savedPlaces = await getSavedPlaces();
-      const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
-      cachedSavedPlaces = nextPlaces;
-      setPlaces(nextPlaces);
-      return nextPlaces;
-    } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
-      setError(apiError);
-      if (apiError.errorCode === 'AUTH401_001') {
-        onAuthenticationRequired?.();
+      const showLoadingState = showLoading || !hasLoadedPlacesRef.current;
+      if (showLoadingState) setIsLoading(true);
+      try {
+        const savedPlaces = await getSavedPlaces();
+        const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
+        cachedSavedPlaces = nextPlaces;
+        hasLoadedPlacesRef.current = true;
+        setPlaces(current =>
+          JSON.stringify(current) === JSON.stringify(nextPlaces)
+            ? current
+            : nextPlaces,
+        );
+        setError(null);
+        return nextPlaces;
+      } catch (nextError) {
+        const apiError = nextError as SavedPlacesApiError;
+        if (showLoadingState) setError(apiError);
+        if (apiError.errorCode === 'AUTH401_001') {
+          onAuthenticationRequired?.();
+        }
+        return null;
+      } finally {
+        if (showLoadingState) setIsLoading(false);
       }
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isGuest, onAuthenticationRequired, providedPlaces]);
+    },
+    [isGuest, onAuthenticationRequired, providedPlaces],
+  );
+
+  const loadSavedPlaces = useCallback(
+    () => fetchSavedPlaces(true),
+    [fetchSavedPlaces],
+  );
 
   const refreshSavedPlaces = useCallback(async () => {
     if (isRefreshingRef.current) {
@@ -255,8 +293,10 @@ export function SavedPlacesScreen({
   }, [loadSavedPlaces]);
 
   useEffect(() => {
-    loadSavedPlaces();
-  }, [loadSavedPlaces]);
+    // Keep the already visible content while revalidating on return. Entering
+    // a loading/error branch here changes the layout during the pop transition.
+    if (isScreenActive) fetchSavedPlaces(false);
+  }, [isScreenActive, fetchSavedPlaces]);
 
   useEffect(() => {
     let isMounted = true;
@@ -304,12 +344,16 @@ export function SavedPlacesScreen({
       verificationKey: string,
     ) => {
       verificationInFlight.add(verificationKey);
-      setShareApiDiagnostics(current => current ? {
-        ...current,
-        statusQueryCount: current.statusQueryCount + 1,
-        lastQueriedAt: new Date(),
-        queryFailureReason: null,
-      } : current);
+      setShareApiDiagnostics(current =>
+        current
+          ? {
+              ...current,
+              statusQueryCount: current.statusQueryCount + 1,
+              lastQueriedAt: new Date(),
+              queryFailureReason: null,
+            }
+          : current,
+      );
       try {
         // 토큰 갱신과 401 재시도는 Spring API 클라이언트가 처리합니다.
         let currentStatus: ReelProcessingStatus | null;
@@ -330,11 +374,15 @@ export function SavedPlacesScreen({
               result: null,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: null,
-            queryFailureReason: '조회 결과 없음',
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queriedStatus: null,
+                  queryFailureReason: '조회 결과 없음',
+                }
+              : current,
+          );
           setSharedSaveState(null);
           await onSharedResultConsumed?.(state.shareResultId);
           return;
@@ -350,11 +398,15 @@ export function SavedPlacesScreen({
             failureReason: currentStatus.failure_reason,
           });
         }
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          queriedStatus: currentStatus.processing_status,
-          queryFailureReason: currentStatus.failure_reason,
-        } : current);
+        setShareApiDiagnostics(current =>
+          current
+            ? {
+                ...current,
+                queriedStatus: currentStatus.processing_status,
+                queryFailureReason: currentStatus.failure_reason,
+              }
+            : current,
+        );
         setSharedSaveState({
           ...state,
           status: currentStatus.processing_status,
@@ -370,10 +422,14 @@ export function SavedPlacesScreen({
             message: normalized.message,
           });
         }
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          queryFailureReason: normalized.errorCode ?? normalized.message,
-        } : current);
+        setShareApiDiagnostics(current =>
+          current
+            ? {
+                ...current,
+                queryFailureReason: normalized.errorCode ?? normalized.message,
+              }
+            : current,
+        );
         // 앱 진입 시 상태를 확인하지 못한 경우 추측으로 카드를 표시하지 않습니다.
       } finally {
         verificationInFlight.delete(verificationKey);
@@ -408,8 +464,7 @@ export function SavedPlacesScreen({
 
       const hasRealReelId = !state.reel.id.startsWith('share-');
       setShareApiDiagnostics(current =>
-        current?.reelId === state.reel.id &&
-        current.requestUrl === state.url
+        current?.reelId === state.reel.id && current.requestUrl === state.url
           ? current
           : {
               source:
@@ -457,7 +512,7 @@ export function SavedPlacesScreen({
 
       setProcessingReelId(
         (state.status === 'PROCESSING' || state.status === 'PENDING') &&
-        hasRealReelId
+          hasRealReelId
           ? state.reel.id
           : null,
       );
@@ -468,9 +523,7 @@ export function SavedPlacesScreen({
       );
       if (state.status === 'COMPLETED') {
         if (state.source === 'instagram_share') {
-          refreshAfterExternalShare(state.shareResultId).catch(
-            () => undefined,
-          );
+          refreshAfterExternalShare(state.shareResultId).catch(() => undefined);
         }
         setSharedSaveState(null);
       }
@@ -486,7 +539,7 @@ export function SavedPlacesScreen({
 
   const openDialog = () => {
     if (isGuest) {
-      onRequireLogin?.();
+      (onShowGuestLoginPrompt ?? onRequireLogin)?.();
       return;
     }
     setLinkError(null);
@@ -534,7 +587,11 @@ export function SavedPlacesScreen({
     setIsSubmitting(true);
     setLinkError(null);
     try {
-      const response = await saveContent(linkValue, 'url_input', clientRequestId);
+      const response = await saveContent(
+        linkValue,
+        'url_input',
+        clientRequestId,
+      );
       const nextReel: ReelProcessingStatus = {
         id: response.reelId,
         processing_status: response.status,
@@ -554,8 +611,8 @@ export function SavedPlacesScreen({
       setLinkValue('');
       // v2 대기함 흐름 복원 시:
       // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
-      } catch (submitError) {
-        const normalizedError = normalizeReelError(submitError);
+    } catch (submitError) {
+      const normalizedError = normalizeReelError(submitError);
       setLastRequestId(normalizedError.requestId ?? null);
       const failedReel: ReelProcessingStatus = {
         id: `manual-failed-${Date.now()}`,
@@ -577,7 +634,6 @@ export function SavedPlacesScreen({
         onRequireLogin?.();
         return;
       }
-
 
       setLinkError(normalizedError.message);
     } finally {
@@ -649,7 +705,10 @@ export function SavedPlacesScreen({
       : Date.now();
     const poll = async (recentReels: Promise<HistoryReel[]>) => {
       if (!isActive) return;
-      if (Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >= REEL_POLL_TIMEOUT_MS) {
+      if (
+        Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >=
+        REEL_POLL_TIMEOUT_MS
+      ) {
         if (isActive) {
           const timeoutError = new ReelApiError({
             errorCode: 'CLIENT000_002',
@@ -663,23 +722,31 @@ export function SavedPlacesScreen({
         return;
       }
       try {
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          statusQueryCount: current.statusQueryCount + 1,
-          lastQueriedAt: new Date(),
-          queryFailureReason: null,
-        } : current);
+        setShareApiDiagnostics(current =>
+          current
+            ? {
+                ...current,
+                statusQueryCount: current.statusQueryCount + 1,
+                lastQueriedAt: new Date(),
+                queryFailureReason: null,
+              }
+            : current,
+        );
         let nextStatus: ReelProcessingStatus | null;
         try {
           // 서버에 단건 상태 조회 API가 없어 공유 목록 첫 페이지에서 찾습니다.
-          const reel = (await recentReels).find(item => item.id === processingReelId);
-          nextStatus = reel ? {
-            id: reel.id,
-            processing_status: reel.processing_status,
-            failure_reason: reel.failure_reason,
-            instagram_thumbnail_url: reel.instagram_thumbnail_url,
-            created_at: reel.created_at,
-          } : null;
+          const reel = (await recentReels).find(
+            item => item.id === processingReelId,
+          );
+          nextStatus = reel
+            ? {
+                id: reel.id,
+                processing_status: reel.processing_status,
+                failure_reason: reel.failure_reason,
+                instagram_thumbnail_url: reel.instagram_thumbnail_url,
+                created_at: reel.created_at,
+              }
+            : null;
         } catch (statusError) {
           throw normalizeReelError(statusError);
         }
@@ -691,11 +758,15 @@ export function SavedPlacesScreen({
               result: null,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: null,
-            queryFailureReason: '조회 결과 없음',
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queriedStatus: null,
+                  queryFailureReason: '조회 결과 없음',
+                }
+              : current,
+          );
           reelPollFailureCountRef.current += 1;
           if (reelPollFailureCountRef.current >= REEL_POLL_FAILURE_LIMIT) {
             setStatusQueryError(
@@ -722,11 +793,15 @@ export function SavedPlacesScreen({
               failureReason: nextStatus.failure_reason,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: nextStatus.processing_status,
-            queryFailureReason: nextStatus.failure_reason,
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queriedStatus: nextStatus.processing_status,
+                  queryFailureReason: nextStatus.failure_reason,
+                }
+              : current,
+          );
           const sharedState = getSharedSaveState();
           if (sharedState?.reel.id === nextStatus.id) {
             setSharedSaveState({
@@ -752,11 +827,15 @@ export function SavedPlacesScreen({
               attempt: reelPollFailureCountRef.current,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queryFailureReason:
-              normalizedError.errorCode ?? normalizedError.message,
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queryFailureReason:
+                    normalizedError.errorCode ?? normalizedError.message,
+                }
+              : current,
+          );
           setStatusQueryError(normalizedError);
           if (normalizedError.errorCode === 'AUTH401_001') {
             setProcessingReelId(null);
@@ -777,7 +856,7 @@ export function SavedPlacesScreen({
     // 히스토리 화면·배지와 같은 앱 공용 목록 폴러를 3초 주기로 구독합니다.
     const subscription = subscribeRecentShares({
       intervalMs: REEL_POLL_INTERVAL_MS,
-      onResult: ({reels}) => {
+      onResult: ({ reels }) => {
         poll(Promise.resolve(reels)).catch(() => undefined);
       },
       onError: pollError => {
@@ -845,7 +924,9 @@ export function SavedPlacesScreen({
     }
 
     if (isGuest) {
-      setPlaces(current => current.filter(place => !selectedPlaceIds.has(place.id)));
+      setPlaces(current =>
+        current.filter(place => !selectedPlaceIds.has(place.id)),
+      );
       onDeleteGuestPlaces?.([...selectedPlaceIds]);
       setSelectedPlaceIds(new Set());
       setIsEditing(false);
@@ -886,7 +967,9 @@ export function SavedPlacesScreen({
         const deletedIds = new Set(savedPlaceIds);
         const isDeletionConfirmed =
           refreshedPlaces !== null &&
-          refreshedPlaces.every(place => !deletedIds.has(place.savedPlaceId ?? ''));
+          refreshedPlaces.every(
+            place => !deletedIds.has(place.savedPlaceId ?? ''),
+          );
 
         if (isDeletionConfirmed) {
           setSelectedPlaceIds(new Set());
@@ -897,7 +980,10 @@ export function SavedPlacesScreen({
       }
 
       setDeleteError(apiError);
-      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
+      if (
+        apiError.errorCode === 'AUTH401_001' ||
+        apiError.errorCode === 'AUTH401_002'
+      ) {
         onAuthenticationRequired?.();
       }
     } finally {
@@ -924,7 +1010,7 @@ export function SavedPlacesScreen({
       '선택한 장소를 삭제할까요?',
       `선택한 ${count}곳의 장소가 보관함에서 삭제됩니다.`,
       [
-        {text: '취소', style: 'cancel'},
+        { text: '취소', style: 'cancel' },
         {
           text: '삭제',
           style: 'destructive',
@@ -976,109 +1062,119 @@ export function SavedPlacesScreen({
     [onOpenDetail, posthog],
   );
 
-  return (
+  const closeNestedScreen = useCallback(() => {
+    if (isSearchOpen) setIsSearchOpen(false);
+    else if (isEditing) handlePressEdit();
+  }, [handlePressEdit, isEditing, isSearchOpen]);
+  useEffect(() => {
+    const canGoBack = isScreenActive && (isSearchOpen || isEditing);
+    onNestedBackStateChange?.(canGoBack);
+    if (Platform.OS !== 'android' || !canGoBack) {
+      return () => onNestedBackStateChange?.(false);
+    }
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        closeNestedScreen();
+        return true;
+      },
+    );
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [
+    closeNestedScreen,
+    isScreenActive,
+    isEditing,
+    isSearchOpen,
+    onNestedBackStateChange,
+  ]);
+  const renderListContent = () => (
     <View style={styles.container}>
-      {isSearchOpen ? (
+      <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
+      {error && hasSavedPlaces ? (
+        <View style={styles.errorBanner}>
+          <Text numberOfLines={1} style={styles.errorText}>
+            {error.message}
+          </Text>
+          {error.retryable ? (
+            <Pressable onPress={loadSavedPlaces}>
+              <Text style={styles.errorRetryText}>재시도</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {deleteError ? (
+        <View style={styles.deleteErrorBanner}>
+          <Text numberOfLines={2} style={styles.deleteErrorText}>
+            {deleteError.message}
+          </Text>
+          {deleteError.retryable ? (
+            <Pressable onPress={handleDeleteSelectedPlaces}>
+              <Text style={styles.deleteErrorRetryText}>재시도</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {isLoading && !hasSavedPlaces ? (
+        <SavedPlacesSkeleton />
+      ) : hasSavedPlaces ? (
         <>
-          <SavedPlacesSearchPanel
-            places={places}
-            recentSearches={recentSearches}
-            onCloseSearch={() => setIsSearchOpen(false)}
-            onPressPlace={(place, selection) =>
-              openPlaceDetail(
-                place,
-                'saved_places_search',
-                selection.position,
-                selection.searchId,
-              )
+          <ScrollView
+            ref={scrollViewRef}
+            alwaysBounceVertical
+            onScroll={event =>
+              onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
             }
-            onSaveSearchTerm={saveRecentSearch}
-          />
+            refreshControl={
+              <RefreshControl
+                colors={['#8FA2FF']}
+                onRefresh={refreshSavedPlaces}
+                progressBackgroundColor="#ffffff"
+                refreshing={isRefreshing}
+                tintColor="#8FA2FF"
+              />
+            }
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          >
+            <SavedPlacesEditAction
+              isEditing={isEditing}
+              onPress={handlePressEdit}
+            />
+            <SavedPlaceGrid
+              isEditing={isEditing}
+              places={places}
+              onLongPressPlace={enterEditMode}
+              onPressPlace={(place, position) =>
+                openPlaceDetail(place, 'saved_places_grid', position)
+              }
+              onTogglePlaceSelection={togglePlaceSelection}
+              selectedPlaceIds={selectedPlaceIds}
+            />
+            <View style={styles.scrollFooter}>
+              <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
+                <MaterialIcons color="#8FA2FF" name="upload" size={24} />
+              </Pressable>
+            </View>
+          </ScrollView>
         </>
+      ) : error ? (
+        <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
       ) : (
-        <>
-          <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
-          {error && hasSavedPlaces ? (
-            <View style={styles.errorBanner}>
-              <Text numberOfLines={1} style={styles.errorText}>
-                {error.message}
-              </Text>
-              {error.retryable ? (
-                <Pressable onPress={loadSavedPlaces}>
-                  <Text style={styles.errorRetryText}>재시도</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-          {deleteError ? (
-            <View style={styles.deleteErrorBanner}>
-              <Text numberOfLines={2} style={styles.deleteErrorText}>
-                {deleteError.message}
-              </Text>
-              {deleteError.retryable ? (
-                <Pressable onPress={handleDeleteSelectedPlaces}>
-                  <Text style={styles.deleteErrorRetryText}>재시도</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-          {isLoading && !hasSavedPlaces ? (
-            <SavedPlacesSkeleton />
-          ) : hasSavedPlaces ? (
-            <>
-              <ScrollView
-                ref={scrollViewRef}
-                alwaysBounceVertical
-                onScroll={event =>
-                  onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
-                }
-                refreshControl={
-                  <RefreshControl
-                    colors={['#8FA2FF']}
-                    onRefresh={refreshSavedPlaces}
-                    progressBackgroundColor="#ffffff"
-                    refreshing={isRefreshing}
-                    tintColor="#8FA2FF"
-                  />
-                }
-                scrollEventThrottle={16}
-                showsVerticalScrollIndicator={false}
-              >
-                <SavedPlacesEditAction
-                  isEditing={isEditing}
-                  onPress={handlePressEdit}
-                />
-                <SavedPlaceGrid
-                  isEditing={isEditing}
-                  places={places}
-                  onLongPressPlace={enterEditMode}
-                  onPressPlace={(place, position) =>
-                    openPlaceDetail(place, 'saved_places_grid', position)
-                  }
-                  onTogglePlaceSelection={togglePlaceSelection}
-                  selectedPlaceIds={selectedPlaceIds}
-                />
-                <View style={styles.scrollFooter}>
-                  <Pressable
-                    onPress={scrollToTop}
-                    style={styles.scrollTopButton}
-                  >
-                    <MaterialIcons color="#8FA2FF" name="upload" size={24} />
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </>
-          ) : error ? (
-            <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
-          ) : (
-            <SavedPlacesEmptyState />
-          )}
-        </>
+        <SavedPlacesEmptyState
+          isGuest={isGuest}
+          onLogin={onAuthenticationRequired}
+          onOpenGuide={onOpenGuide}
+        />
       )}
       {isEditing ? (
         <Pressable
           accessibilityLabel={
-            selectedPlaceIds.size > 0 ? '선택한 장소 삭제하기' : '보관함 편집 취소'
+            selectedPlaceIds.size > 0
+              ? '선택한 장소 삭제하기'
+              : '보관함 편집 취소'
           }
           accessibilityRole="button"
           disabled={isDeleting}
@@ -1087,14 +1183,18 @@ export function SavedPlacesScreen({
               ? handlePressEdit
               : confirmDeleteSelectedPlaces
           }
-          style={({pressed}) => [
+          style={({ pressed }) => [
             bottomNavigationBarContainerStyle,
             styles.deleteAction,
-            {bottom: bottomActionOffset},
+            { bottom: bottomActionOffset },
             isDeleting && styles.deleteActionDisabled,
             pressed && styles.deleteActionPressed,
-          ]}>
-          <View key="saved-places-delete-action-content" style={styles.deleteActionContent}>
+          ]}
+        >
+          <View
+            key="saved-places-delete-action-content"
+            style={styles.deleteActionContent}
+          >
             <Text style={styles.deleteActionText}>
               {selectedPlaceIds.size > 0
                 ? isDeleting
@@ -1104,7 +1204,9 @@ export function SavedPlacesScreen({
             </Text>
             {selectedPlaceIds.size > 0 ? (
               <View style={styles.deleteCountBadge}>
-                <Text style={styles.deleteCountText}>{selectedPlaceIds.size}</Text>
+                <Text style={styles.deleteCountText}>
+                  {selectedPlaceIds.size}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -1124,14 +1226,47 @@ export function SavedPlacesScreen({
             },
           ]}
         >
-          <View
-            key="saved-places-fab"
-            style={styles.fab}
-          >
+          <View key="saved-places-fab" style={styles.fab}>
             <Text style={styles.fabText}>＋</Text>
           </View>
         </Pressable>
       )}
+    </View>
+  );
+  return (
+    <View style={styles.container}>
+      <SwipeBackStack
+        activeKey={isSearchOpen ? 'search' : 'list'}
+        backKey={isSearchOpen ? 'list' : null}
+        enabled={isScreenActive}
+        onBack={closeNestedScreen}
+        screens={[
+          { key: 'list', content: renderListContent() },
+          ...(isSearchOpen
+            ? [
+                {
+                  key: 'search',
+                  content: (
+                    <SavedPlacesSearchPanel
+                      places={places}
+                      recentSearches={recentSearches}
+                      onCloseSearch={() => setIsSearchOpen(false)}
+                      onPressPlace={(place, selection) =>
+                        openPlaceDetail(
+                          place,
+                          'saved_places_search',
+                          selection.position,
+                          selection.searchId,
+                        )
+                      }
+                      onSaveSearchTerm={saveRecentSearch}
+                    />
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
         value={linkValue}
