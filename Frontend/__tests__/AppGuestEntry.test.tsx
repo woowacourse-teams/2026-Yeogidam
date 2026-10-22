@@ -11,14 +11,9 @@ import {
   onSpringSessionChange,
 } from '../src/lib/auth/spring-session';
 import {
-  hasSignedInOnThisInstall,
   rememberSignInOnThisInstall,
 } from '../src/lib/app-guide-storage';
 import {getCurrentProfile} from '../src/entities/info/api';
-import {
-  beginGuestOnboardingTransfer,
-  resumeGuestOnboardingTransfer,
-} from '../src/entities/onboarding/transfer';
 import {signInWithGoogle} from '../src/lib/auth/signInWithGoogle';
 import {OnboardingScreen} from '../src/pages/onboarding/OnboardingScreen';
 import {LoginScreen} from '../src/pages/login/LoginScreen';
@@ -29,10 +24,10 @@ import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen'
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
-import {ONBOARDING_HISTORY_REEL} from '../src/entities/onboarding/data';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
+import {GuestLoginPrompt} from '../src/components/GuestLoginPrompt';
 import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
 
 const DISMISSED_RECOMMENDED_VERSION_KEY =
@@ -65,7 +60,6 @@ jest.mock('../src/lib/auth/spring-session', () => ({
 }));
 
 jest.mock('../src/lib/app-guide-storage', () => ({
-  hasSignedInOnThisInstall: jest.fn(),
   rememberSignInOnThisInstall: jest.fn(),
 }));
 
@@ -80,14 +74,6 @@ jest.mock('../src/lib/share-intent', () => ({
 
 jest.mock('../src/entities/info/api', () => ({
   getCurrentProfile: jest.fn(() => Promise.resolve(null)),
-}));
-
-jest.mock('../src/entities/onboarding/transfer', () => ({
-  beginGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
-  cancelGuestOnboardingTransfer: jest.fn(() => Promise.resolve()),
-  resumeGuestOnboardingTransfer: jest.fn(() => Promise.resolve(false)),
-  toOnboardingKakaoPlaceIds: (places: Array<{kakaoPlaceId?: string}>) =>
-    places.flatMap(place => (place.kakaoPlaceId ? [place.kakaoPlaceId] : [])),
 }));
 
 jest.mock('../src/lib/auth/signInWithGoogle', () => ({
@@ -136,7 +122,6 @@ jest.mock('../src/pages/my-page/AccountDeletionScreen', () => ({
 type AuthChangeHandler = (
   event: string,
   memberId: string | null,
-  details?: {isNewMember?: boolean},
 ) => void;
 
 const SPRING_TOKENS = {
@@ -193,11 +178,8 @@ beforeEach(async () => {
       return jest.fn();
     },
   );
-  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(false);
   (rememberSignInOnThisInstall as jest.Mock).mockResolvedValue(undefined);
   (getCurrentProfile as jest.Mock).mockReset().mockResolvedValue(null);
-  (beginGuestOnboardingTransfer as jest.Mock).mockResolvedValue(undefined);
-  (resumeGuestOnboardingTransfer as jest.Mock).mockResolvedValue(false);
   (signInWithGoogle as jest.Mock).mockResolvedValue({member: {id: 1}});
 });
 
@@ -306,24 +288,18 @@ test('온보딩 중에도 필수 업데이트를 표시한다', async () => {
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('온보딩 뒤 둘러보기를 고른 비회원이 회원 API 요청 없이 메인에 진입한다', async () => {
+test('온보딩 뒤 둘러보기를 고른 비회원은 목데이터 없는 보관함에 진입한다', async () => {
   const renderer = await renderGuestMain();
 
   const saved = renderer.root.findByType(SavedPlacesScreen);
   expect(saved.props.isGuest).toBe(true);
-  expect(saved.props.places.map((place: {kakaoPlaceId: string}) => place.kakaoPlaceId)).toEqual([
-    '1775568752',
-    '137070444',
-    '337953507',
-    '98016856',
-    '1107844606',
-  ]);
+  expect(saved.props.places).toEqual([]);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(getCurrentProfile).not.toHaveBeenCalled();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('구버전의 체험 결과가 남아도 예시 데이터가 있는 홈으로 이동한다', async () => {
+test('구버전 체험 결과가 남아도 비회원 보관함에는 목데이터를 표시하지 않는다', async () => {
   (getShareResults as jest.Mock).mockResolvedValueOnce([{
     requestId: 'guest-practice-request',
     url: 'https://www.instagram.com/p/Db4gRWqkuUg/',
@@ -336,7 +312,7 @@ test('구버전의 체험 결과가 남아도 예시 데이터가 있는 홈으�
   const renderer = await renderAfterSplash();
   await completeOnboarding(renderer);
 
-  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toEqual([]);
   expect(renderer.root.findAllByType(BottomNavigationBar)).toHaveLength(1);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(clearShareResult).toHaveBeenCalledWith('guest-practice-request');
@@ -360,7 +336,7 @@ test('구버전의 로그인 유도 결과가 남아도 비회원 홈으로 이�
 
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(clearShareResult).toHaveBeenCalledWith('guest-login-request');
-  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toEqual([]);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -383,13 +359,13 @@ test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이�
   expect(resumeWaitingShares).not.toHaveBeenCalled();
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
+    renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
   });
-  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toHaveLength(5);
+  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toEqual([]);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다', async () => {
+test('비회원 기능에서 연 로그인 화면은 X로 이전 화면에 돌아온다', async () => {
   const renderer = await renderGuestMain();
 
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
@@ -404,14 +380,30 @@ test('비회원은 로그인 화면에서 둘러보기로 돌아올 수 있다',
   expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
 
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
-  });
+  const loginProps = renderer.root.findByType(LoginScreen).props;
+  expect(loginProps.onBrowseAsGuest).toBeUndefined();
+  expect(loginProps.onClose).toEqual(expect.any(Function));
+  await ReactTestRenderer.act(async () => loginProps.onClose());
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 시 새로 표시된다', async () => {
+test('비회원 보관함의 추가 버튼은 로그인 안내 모달을 연다', async () => {
+  const renderer = await renderGuestMain();
+  const prompt = renderer.root.findByType(GuestLoginPrompt);
+
+  expect(prompt.props.visible).toBe(false);
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onShowGuestLoginPrompt();
+  });
+  expect(prompt.props.visible).toBe(true);
+
+  await ReactTestRenderer.act(async () => prompt.props.onContinueBrowsing());
+  expect(prompt.props.visible).toBe(false);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원 지도에서 연 로그인 화면은 X로 지도로 돌아온다', async () => {
   const renderer = await renderGuestMain();
 
   await ReactTestRenderer.act(async () => {
@@ -420,16 +412,16 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
   });
-  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
+  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toBeUndefined();
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(MapScreen).props.onAuthenticationRequired();
   });
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
 
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(LoginScreen).props.onContinueBrowsing();
-  });
+  const loginProps = renderer.root.findByType(LoginScreen).props;
+  expect(loginProps.onBrowseAsGuest).toBeUndefined();
+  await ReactTestRenderer.act(async () => loginProps.onClose());
   expect(renderer.root.findByType(MapScreen).props.isGuest).toBe(true);
 
   await ReactTestRenderer.act(async () => {
@@ -442,9 +434,28 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 재진입 �
   });
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
-    guestPlaces: expect.any(Array),
   });
-  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toHaveLength(5);
+  expect(renderer.root.findByType(MapScreen).props.guestPlaces).toBeUndefined();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('비회원 지도 인터랙션은 공통 로그인 안내 모달을 연다', async () => {
+  const renderer = await renderGuestMain();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(BottomNavigationBar).props.onNavigate('map');
+  });
+
+  const map = renderer.root.findByType(MapScreen);
+  const prompt = renderer.root.findByType(GuestLoginPrompt);
+  expect(prompt.props.visible).toBe(false);
+  expect(map.props.onShowGuestLoginPrompt).toEqual(expect.any(Function));
+
+  await ReactTestRenderer.act(async () =>
+    map.props.onShowGuestLoginPrompt(),
+  );
+  expect(prompt.props.visible).toBe(true);
+
+  await ReactTestRenderer.act(async () => prompt.props.onContinueBrowsing());
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -457,9 +468,8 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(renderer.root.findByType(BottomNavigationBar).props.isGuest).toBe(true);
   const historyProps = renderer.root.findByType(HistoryScreen).props;
-  expect(historyProps.guestReels).toEqual([ONBOARDING_HISTORY_REEL]);
-  expect(historyProps.guestReels[0].processing_status).toBe('COMPLETED');
-  expect(historyProps.guestDetails[ONBOARDING_HISTORY_REEL.id].extraction.extraction_places).toHaveLength(5);
+  expect(historyProps.guestReels).toEqual([]);
+  expect(historyProps.guestDetails).toBeUndefined();
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(HistoryScreen).props.onBack();
@@ -470,6 +480,21 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
   expect(renderer.root.findByType(MyPageScreen).props.isGuest).toBe(true);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   expect(getCurrentProfile).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(MyPageScreen).props.onLogin();
+  });
+  expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
+  expect(renderer.root.findByType(LoginScreen).props).toMatchObject({
+    onBrowseAsGuest: undefined,
+    onClose: expect.any(Function),
+  });
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(LoginScreen).props.onClose();
+  });
+  expect(renderer.root.findByType(MyPageScreen).props.isGuest).toBe(true);
+
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -517,7 +542,6 @@ test('v1 공유 추출이 완료되고 saveMode가 없어도 보관함을 연다
 });
 
 test('같은 설치에서 로그인한 기록이 있어도 세션이 없으면 온보딩 뒤 로그인 화면으로 이동한다', async () => {
-  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
   const renderer = await renderAfterSplash();
 
   expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(1);
@@ -538,82 +562,7 @@ test('비회원이 로그인하면 이번 설치의 로그인 기록을 저장�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('비회원의 신규 계정 로그인에서 군자역 전환을 시작하고 회원 데이터로 다시 읽는다', async () => {
-  (resumeGuestOnboardingTransfer as jest.Mock).mockResolvedValue(true);
-  const renderer = await renderGuestMain();
-
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(SavedPlacesScreen).props.onRequireLogin();
-    await Promise.resolve();
-  });
-  await ReactTestRenderer.act(async () => {
-    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
-  });
-  expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
-
-  await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', 'new-user', {isNewMember: true});
-    await Promise.resolve();
-  });
-
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('new-user', true);
-  expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(false);
-  expect(renderer.root.findByType(SavedPlacesScreen).props.places).toBeUndefined();
-  await ReactTestRenderer.act(async () => renderer.unmount());
-});
-
-test('비회원이 지운 시드 장소는 빼고 남은 장소로 전환을 시작한다', async () => {
-  const renderer = await renderGuestMain();
-
-  await ReactTestRenderer.act(async () => {
-    renderer.root
-      .findByType(SavedPlacesScreen)
-      .props.onDeleteGuestPlaces(['onboarding-1775568752', 'onboarding-137070444']);
-  });
-  expect(
-    renderer.root.findByType(SavedPlacesScreen).props.places.map(
-      (place: {id: string}) => place.id,
-    ),
-  ).not.toContain('onboarding-1775568752');
-
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(SavedPlacesScreen).props.onRequireLogin();
-    await Promise.resolve();
-  });
-  await ReactTestRenderer.act(async () => {
-    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
-  });
-
-  expect(beginGuestOnboardingTransfer).toHaveBeenCalledWith([
-    '337953507',
-    '98016856',
-    '1107844606',
-  ]);
-  await ReactTestRenderer.act(async () => renderer.unmount());
-});
-
-test('이전에 로그인한 기기에서도 새 계정 로그인 시 군자역 전환을 시작한다', async () => {
-  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
-  const renderer = await renderAfterSplash();
-  await completeOnboarding(renderer);
-
-  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
-  await ReactTestRenderer.act(async () => {
-    await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
-  });
-  expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
-
-  await ReactTestRenderer.act(async () => {
-    authChangeHandler('SIGNED_IN', 'another-new-user');
-    await Promise.resolve();
-  });
-  // 신규 여부를 내리기 전 서버 응답이면 전환 모듈이 공유 이력으로 판별한다.
-  expect(resumeGuestOnboardingTransfer).toHaveBeenCalledWith('another-new-user', undefined);
-  await ReactTestRenderer.act(async () => renderer.unmount());
-});
-
-test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다', async () => {
-  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
+test('회원 탈퇴 후에도 로그인하면 비회원 예시 장소를 서버로 보내지 않는다', async () => {
   restoreSpringSession('deleted-user');
   (getCurrentProfile as jest.Mock).mockResolvedValue({
     id: 'deleted-user',
@@ -639,7 +588,6 @@ test('회원 탈퇴 직후 재가입에서도 군자역 전환을 시작한다',
   await ReactTestRenderer.act(async () => {
     await renderer.root.findByType(LoginScreen).props.onContinueWithGoogle();
   });
-  expect(beginGuestOnboardingTransfer).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -670,7 +618,6 @@ test('복원된 세션이 무효화되면 온보딩 뒤 로그인 화면으로 �
 
 test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다시 공유하도록 안내한다', async () => {
   const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
   restoreSpringSession();
   (getShareResults as jest.Mock).mockResolvedValueOnce([{
     requestId: 'expired-share-request',
@@ -697,7 +644,6 @@ test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다�
 });
 
 async function openAccountDeletion() {
-  (hasSignedInOnThisInstall as jest.Mock).mockResolvedValue(true);
   restoreSpringSession('member-7');
   (getCurrentProfile as jest.Mock).mockResolvedValue({id: '7', oauthProvider: 'KAKAO'});
   (getLinkedDeletionProviders as jest.Mock).mockReturnValue(['kakao']);
