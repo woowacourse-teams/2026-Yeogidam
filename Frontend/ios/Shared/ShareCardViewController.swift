@@ -8,6 +8,9 @@ class ShareCardViewController: UIViewController {
     case failure
   }
 
+  /// 카드 안 문구와 버튼 글자의 기준 크기입니다. 문구가 길면 한 줄에 맞게 줄어듭니다.
+  private static let textSize: CGFloat = 16
+
   private enum Palette {
     static let card = UIColor(red: 218 / 255, green: 223 / 255, blue: 250 / 255, alpha: 1)
     static let text = UIColor.black
@@ -112,7 +115,7 @@ class ShareCardViewController: UIViewController {
         if let payload = extractedPayload {
           message = payload.text.contains("/p/") ? "게시물을 전달하지 못했어요" : "릴스를 전달하지 못했어요"
         } else {
-          message = "릴스·게시물 링크만 공유할 수 있어요"
+          message = "릴스·게시물만 공유할 수 있어요"
         }
         self.show(.failure, message: message, buttonTitle: "닫기")
         self.recordFeedback(
@@ -139,7 +142,7 @@ class ShareCardViewController: UIViewController {
   @objc private func handleActionButton() {
     switch cardState {
     case .success:
-      openApp(fallbackMessage: "여기담 앱을 직접 열어 주세요")
+      openApp(fallbackMessage: "앱을 직접 열어 주세요")
     case .loginRequired:
       handleLogin()
     case .failure:
@@ -152,7 +155,7 @@ class ShareCardViewController: UIViewController {
     hasHandledAction = true
     do {
       try ShareIntake.saveLoginHandoff(payload, isGuestLogin: pendingGuestLogin, shareId: shareId)
-      openApp(fallbackMessage: "여기담 앱을 직접 열어 로그인해 주세요")
+      openApp(fallbackMessage: "앱을 직접 열어 로그인하세요")
     } catch {
       hasHandledAction = false
       ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED", stage: "login_handoff")
@@ -208,7 +211,7 @@ class ShareCardViewController: UIViewController {
     messageLabel.text = message
     var configuration = actionButton.configuration ?? UIButton.Configuration.plain()
     var title = AttributedString(buttonTitle)
-    title.font = .systemFont(ofSize: 16, weight: .semibold)
+    title.font = .systemFont(ofSize: Self.textSize, weight: .semibold)
     configuration.attributedTitle = title
     actionButton.configuration = configuration
 
@@ -242,7 +245,7 @@ class ShareCardViewController: UIViewController {
   private func configureCard() {
     cardView.translatesAutoresizingMaskIntoConstraints = false
     cardView.backgroundColor = Palette.card
-    cardView.layer.cornerRadius = 16
+    cardView.layer.cornerRadius = 20
     cardView.layer.cornerCurve = .continuous
     cardView.alpha = 0
     cardView.transform = CGAffineTransform(translationX: 0, y: 24)
@@ -253,22 +256,22 @@ class ShareCardViewController: UIViewController {
     mascotView.image = UIImage(named: "Mascot")
     mascotView.contentMode = .scaleAspectFill
     mascotView.clipsToBounds = true
-    mascotView.layer.cornerRadius = 26
+    mascotView.layer.cornerRadius = 24
     mascotView.isAccessibilityElement = false
 
     messageLabel.translatesAutoresizingMaskIntoConstraints = false
     messageLabel.textColor = Palette.text
-    messageLabel.font = .systemFont(ofSize: 17, weight: .semibold)
-    messageLabel.numberOfLines = 2
+    messageLabel.font = .systemFont(ofSize: Self.textSize, weight: .semibold)
+    messageLabel.numberOfLines = 1
     messageLabel.adjustsFontSizeToFitWidth = true
-    messageLabel.minimumScaleFactor = 0.8
+    messageLabel.minimumScaleFactor = 0.75
     messageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
     var configuration = UIButton.Configuration.plain()
     configuration.baseForegroundColor = Palette.text
     configuration.background.backgroundColor = Palette.buttonBackground
-    configuration.background.cornerRadius = 12
-    configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 18, bottom: 0, trailing: 18)
+    configuration.background.cornerRadius = 10
+    configuration.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14)
     actionButton.configuration = configuration
     actionButton.translatesAutoresizingMaskIntoConstraints = false
     actionButton.layer.shadowColor = UIColor(red: 0.34, green: 0.41, blue: 0.88, alpha: 1).cgColor
@@ -285,25 +288,25 @@ class ShareCardViewController: UIViewController {
 
     let guide = view.safeAreaLayoutGuide
     NSLayoutConstraint.activate([
-      cardView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 24),
-      cardView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -24),
+      cardView.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
+      cardView.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
       // 공유 시트 안쪽 하단에 들어가도록 홈 인디케이터 영역까지 내려 붙입니다.
-      cardView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -24),
-      cardView.heightAnchor.constraint(equalToConstant: 68),
+      cardView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16),
+      cardView.heightAnchor.constraint(equalToConstant: 72),
 
       mascotView.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 12),
       mascotView.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
-      mascotView.widthAnchor.constraint(equalToConstant: 52),
-      mascotView.heightAnchor.constraint(equalToConstant: 52),
+      mascotView.widthAnchor.constraint(equalToConstant: 48),
+      mascotView.heightAnchor.constraint(equalToConstant: 48),
 
-      messageLabel.leadingAnchor.constraint(equalTo: mascotView.trailingAnchor, constant: 12),
+      messageLabel.leadingAnchor.constraint(equalTo: mascotView.trailingAnchor, constant: 10),
       messageLabel.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
       messageLabel.trailingAnchor.constraint(lessThanOrEqualTo: actionButton.leadingAnchor, constant: -12),
 
       actionButton.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -12),
       actionButton.centerYAnchor.constraint(equalTo: cardView.centerYAnchor),
-      actionButton.heightAnchor.constraint(equalToConstant: 44),
-      actionButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
+      actionButton.heightAnchor.constraint(equalToConstant: 40),
+      actionButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 76),
     ])
   }
 }
