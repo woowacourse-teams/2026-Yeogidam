@@ -1,7 +1,6 @@
 import React, {useEffect} from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Image,
   Pressable,
@@ -23,7 +22,6 @@ type LoginScreenProps = {
   onContinueWithGoogle: () => void;
   socialLoginError: NormalizedAuthError | null;
   pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
-  onCancelShareLogin?: () => void | Promise<void>;
   onContinueBrowsing?: () => void;
   /** 로그인 없이 비회원으로 둘러보기. 로그인 화면이 첫 화면일 때(로그아웃 뒤 등) 보여준다. */
   onBrowseAsGuest?: () => void;
@@ -71,27 +69,19 @@ export function LoginScreen({
   onContinueWithGoogle,
   socialLoginError,
   pendingSocialProvider,
-  onCancelShareLogin,
   onContinueBrowsing,
   onBrowseAsGuest,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
   useEffect(() => {
-    if (!onCancelShareLogin && !onContinueBrowsing) return;
+    if (!onContinueBrowsing) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (isSocialLoginPending) return true;
-      if (onContinueBrowsing && !onCancelShareLogin) {
-        onContinueBrowsing();
-        return true;
-      }
-      if (!onCancelShareLogin) return false;
-      Promise.resolve(onCancelShareLogin())
-        .then(() => BackHandler.exitApp())
-        .catch(() => Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'));
+      onContinueBrowsing();
       return true;
     });
     return () => subscription.remove();
-  }, [isSocialLoginPending, onCancelShareLogin, onContinueBrowsing]);
+  }, [isSocialLoginPending, onContinueBrowsing]);
   const visibleSocialButtons = isAppleLoginAvailable
     ? socialButtons
     : socialButtons.filter(button => button.variant !== 'apple');
@@ -110,17 +100,6 @@ export function LoginScreen({
       contentStyle={styles.main}
       onBack={isSocialLoginPending ? undefined : onContinueBrowsing}>
       <View style={styles.buttonList}>
-        {onCancelShareLogin ? (
-          <Pressable
-            onPress={() => {
-              Promise.resolve(onCancelShareLogin()).catch(() =>
-                Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'),
-              );
-            }}
-            style={styles.cancelShareButton}>
-            <Text style={styles.cancelShareText}>공유 취소</Text>
-          </Pressable>
-        ) : null}
         {visibleSocialButtons.map(button => (
           <Pressable
             key={button.label}
@@ -214,15 +193,6 @@ const styles = StyleSheet.create({
     color: '#52525b',
     fontSize: 14,
     textDecorationLine: 'underline',
-  },
-  cancelShareButton: {
-    alignSelf: 'flex-end',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  cancelShareText: {
-    color: '#52525b',
-    fontSize: 14,
   },
   socialButton: {
     height: 54,

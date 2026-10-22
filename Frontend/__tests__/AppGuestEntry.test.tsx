@@ -415,16 +415,24 @@ test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로
     retryable: false,
     updatedAt: Date.now() - 60_000,
   };
+  // 네이티브 저장소처럼 지운 결과는 다시 읽히지 않게 한다.
+  let storedResults: Record<string, unknown>[] = [previousShare];
+  (getShareResults as jest.Mock).mockImplementation(() =>
+    Promise.resolve([...storedResults]),
+  );
+  (clearShareResult as jest.Mock).mockImplementation((requestId?: string) => {
+    storedResults = storedResults.filter(item => item.requestId !== requestId);
+    return Promise.resolve();
+  });
 
   try {
     // 이전 공유가 먼저 처리되어 화면에 열려 있다.
-    (getShareResults as jest.Mock).mockResolvedValue([previousShare]);
     await pollOnce();
     expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
 
     // 새 공유의 로그인 이동 결과가 도착한다.
-    (getShareResults as jest.Mock).mockResolvedValue([
-      previousShare,
+    storedResults = [
+      ...storedResults,
       {
         requestId: 'login-request',
         url: 'https://www.instagram.com/reel/loginRequired/',
@@ -433,18 +441,26 @@ test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로
         retryable: false,
         updatedAt: Date.now(),
       },
-    ]);
+    ];
     await pollOnce();
     expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+    // 로그인해도 이 공유는 추출하지 않으므로 로그인 대기 상태로 남기지 않는다.
+    expect(clearShareResult).toHaveBeenCalledWith('login-request');
 
     // 폴링이 계속 돌아도 이전 결과를 다시 처리해 둘러보기 화면으로 되돌아가지 않는다.
     for (let second = 0; second < 3; second += 1) {
       await pollOnce();
       expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
     }
+
+    // "공유 취소" 없이도 로그인 화면에서 둘러보기로 빠져나올 수 있다.
+    const loginProps = renderer.root.findByType(LoginScreen).props;
+    expect(loginProps.onCancelShareLogin).toBeUndefined();
+    expect(loginProps.onBrowseAsGuest).toBeDefined();
   } finally {
     (AppState as {currentState: string}).currentState = previousAppState;
-    (getShareResults as jest.Mock).mockResolvedValue([]);
+    (getShareResults as jest.Mock).mockImplementation(() => Promise.resolve([]));
+    (clearShareResult as jest.Mock).mockImplementation(() => Promise.resolve());
     setSharedSaveState(null);
     await ReactTestRenderer.act(async () => renderer.unmount());
   }

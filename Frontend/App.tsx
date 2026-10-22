@@ -873,15 +873,22 @@ function App() {
             return;
           }
           if (result.transferStatus === 'LOGIN_HANDOFF') {
+            // 로그인 화면으로 보내는 것으로 이 결과의 역할은 끝난다. 로그인해도 이 공유는 추출하지
+            // 않으므로, 로그인 대기 상태로 남겨 두지 않고 정리한다.
+            const showLoginForHandoff = () => {
+              clearShareResult(result.requestId).catch(() => undefined);
+              setHasPendingShareLogin(false);
+              setFlowState(INITIAL_FLOW_STATE);
+            };
             getSpringTokens().then(tokens => {
               if (tokens) {
                 resumeWaitingShares().catch(() => undefined);
                 return;
               }
-              setFlowState(INITIAL_FLOW_STATE);
+              showLoginForHandoff();
             }).catch(() => {
               captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
-              setFlowState(INITIAL_FLOW_STATE);
+              showLoginForHandoff();
             });
             return;
           }
@@ -1066,14 +1073,6 @@ function App() {
     }
   };
 
-  const handleCancelShareLogin = async () => {
-    const results = await getShareResults();
-    await Promise.all(results
-      .filter(result => result.transferStatus === 'LOGIN_HANDOFF')
-      .map(result => clearShareResult(result.requestId)));
-    setHasPendingShareLogin(false);
-  };
-
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
@@ -1247,7 +1246,6 @@ function App() {
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
-          onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
           onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
           onBrowseAsGuest={
             isAuthenticated === false &&
