@@ -1,8 +1,6 @@
-import React, {useEffect} from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  BackHandler,
   Image,
   Pressable,
   StyleSheet,
@@ -23,7 +21,6 @@ type LoginScreenProps = {
   onContinueWithGoogle: () => void;
   socialLoginError: NormalizedAuthError | null;
   pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
-  onCancelShareLogin?: () => void | Promise<void>;
   onClose?: () => void;
   /** 로그인 없이 비회원으로 둘러보기. */
   onBrowseAsGuest?: () => void;
@@ -71,22 +68,10 @@ export function LoginScreen({
   onContinueWithGoogle,
   socialLoginError,
   pendingSocialProvider,
-  onCancelShareLogin,
   onClose,
   onBrowseAsGuest,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
-  useEffect(() => {
-    if (!onCancelShareLogin) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isSocialLoginPending) return true;
-      Promise.resolve(onCancelShareLogin())
-        .then(() => BackHandler.exitApp())
-        .catch(() => Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'));
-      return true;
-    });
-    return () => subscription.remove();
-  }, [isSocialLoginPending, onCancelShareLogin]);
   const visibleSocialButtons = isAppleLoginAvailable
     ? socialButtons
     : socialButtons.filter(button => button.variant !== 'apple');
@@ -103,17 +88,6 @@ export function LoginScreen({
   return (
     <AuthScaffold onBack={onClose} contentStyle={styles.main}>
       <View style={styles.buttonList}>
-        {onCancelShareLogin ? (
-          <Pressable
-            onPress={() => {
-              Promise.resolve(onCancelShareLogin()).catch(() =>
-                Alert.alert('공유 취소 실패', '잠시 후 다시 시도해 주세요.'),
-              );
-            }}
-            style={styles.cancelShareButton}>
-            <Text style={styles.cancelShareText}>공유 취소</Text>
-          </Pressable>
-        ) : null}
         {visibleSocialButtons.map(button => (
           <Pressable
             key={button.label}
@@ -207,15 +181,6 @@ const styles = StyleSheet.create({
     color: '#52525b',
     fontSize: 14,
     textDecorationLine: 'underline',
-  },
-  cancelShareButton: {
-    alignSelf: 'flex-end',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  cancelShareText: {
-    color: '#52525b',
-    fontSize: 14,
   },
   socialButton: {
     height: 54,

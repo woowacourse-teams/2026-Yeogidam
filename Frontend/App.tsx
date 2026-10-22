@@ -349,7 +349,8 @@ function App() {
   const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
-  const lastHandledShareResultRef = useRef<string | null>(null);
+  // 이미 처리한 공유 결과 키. 서로 다른 결과가 번갈아 선택돼 화면이 오가지 않게 전부 기억한다.
+  const handledShareResultKeysRef = useRef<Set<string>>(new Set());
   const lastLoggedShareResultsRef = useRef<string | null>(null);
   const savedPlacesScrollOffsetRef = useRef(0);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
@@ -507,6 +508,11 @@ function App() {
 
   const openMainScreenRef = useRef(openMainScreen);
   openMainScreenRef.current = openMainScreen;
+  // 공유 결과를 읽는 effect는 isAuthReady에만 의존하므로 현재 화면 흐름과 로그인 여부는 ref로 읽는다.
+  const flowStateRef = useRef(flowState);
+  flowStateRef.current = flowState;
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  isAuthenticatedRef.current = isAuthenticated;
 
   const openDetailFrom = (
     sourceScreen: 'saved' | 'map',
@@ -695,11 +701,23 @@ function App() {
               ? currentShareState.shareResultId
               : undefined;
           const latestResult = results[results.length - 1];
-          const result = latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
-            ? latestResult
-            : activeRequestId
-              ? results.find(item => item.requestId === activeRequestId) ?? latestResult
-              : latestResult;
+          // 공유 화면에서 로그인을 누르고 넘어온 결과는 열려 있던 공유 상태보다 먼저 처리한다.
+          // 둘러보기 중 이전 공유 결과가 남아 있어도 로그인 화면으로 이동해야 한다.
+          const pendingLoginResult = [...results].reverse().find(
+            item =>
+              (item.transferStatus === 'LOGIN_HANDOFF' ||
+                item.transferStatus === 'GUEST_LOGIN_PROMPT') &&
+              !handledShareResultKeysRef.current.has(
+                `${item.requestId ?? item.url}:${item.updatedAt}`,
+              ),
+          );
+          const result = pendingLoginResult
+            ? pendingLoginResult
+            : latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT'
+              ? latestResult
+              : activeRequestId
+                ? results.find(item => item.requestId === activeRequestId) ?? latestResult
+                : latestResult;
           const resultSummary = results.map(item =>
             [
               `requestId=${item.requestId ?? 'none'}`,
@@ -723,7 +741,7 @@ function App() {
             );
           }
           if (!result) {
-            lastHandledShareResultRef.current = null;
+            handledShareResultKeysRef.current.clear();
             if (currentShareState?.source === 'instagram_share') {
               setSharedSaveState(null);
             }
@@ -732,8 +750,8 @@ function App() {
           const resultKey = `${result.requestId ?? result.url}:${
             result.updatedAt
           }`;
-          if (lastHandledShareResultRef.current === resultKey) return;
-          lastHandledShareResultRef.current = resultKey;
+          if (handledShareResultKeysRef.current.has(resultKey)) return;
+          handledShareResultKeysRef.current.add(resultKey);
           if (__DEV__) {
             console.log('[InstagramShare][native-result-selected]', {
               requestId: result.requestId ?? null,
@@ -765,15 +783,28 @@ function App() {
             return;
           }
           if (result.transferStatus === 'LOGIN_HANDOFF') {
+            // 로그인 화면으로 보내는 것으로 이 결과의 역할은 끝난다. 로그인해도 이 공유는 추출하지
+            // 않으므로, 로그인 대기 상태로 남겨 두지 않고 정리한다.
+            const showLoginForHandoff = () => {
+              clearShareResult(result.requestId).catch(() => undefined);
+              setHasPendingShareLogin(false);
+              // 둘러보는 중에 넘어왔다면 앱 안에서 연 로그인 화면과 같게 X로 직전 화면에 돌아간다.
+              const currentFlow = flowStateRef.current;
+              if (isAuthenticatedRef.current === false && currentFlow.kind === 'main') {
+                guestReturnFlowRef.current = currentFlow;
+                setShowLoginCloseButton(true);
+              }
+              setFlowState(INITIAL_FLOW_STATE);
+            };
             getSpringTokens().then(tokens => {
               if (tokens) {
                 resumeWaitingShares().catch(() => undefined);
                 return;
               }
-              setFlowState(INITIAL_FLOW_STATE);
+              showLoginForHandoff();
             }).catch(() => {
               captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
-              setFlowState(INITIAL_FLOW_STATE);
+              showLoginForHandoff();
             });
             return;
           }
@@ -1167,7 +1198,6 @@ function App() {
           onContinueWithKakao={() => handleContinueWithSocial('kakao')}
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
-          onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
           onClose={showLoginCloseButton ? handleCloseGuestLogin : undefined}
           onBrowseAsGuest={
             isAuthenticated === false && !showLoginCloseButton

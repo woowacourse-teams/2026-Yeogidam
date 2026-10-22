@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Alert} from 'react-native';
+import {Alert, AppState} from 'react-native';
 
 import App from '../App';
 import {
@@ -25,6 +25,7 @@ import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
+import {setSharedSaveState} from '../src/lib/reel-save-state';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {GuestLoginPrompt} from '../src/components/GuestLoginPrompt';
@@ -363,6 +364,90 @@ test('비회원이 다른 게시물을 공유하면 로그인 화면으로 이�
   });
   expect(renderer.root.findByType(SavedPlacesScreen).props.places).toEqual([]);
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로그인을 누르고 넘어오면 로그인 화면을 유지하고 X로 둘러보기에 돌아온다', async () => {
+  const renderer = await renderGuestMain();
+  expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+
+  // 앱이 포그라운드일 때만 1초 간격 폴링이 공유 결과를 읽는다.
+  const previousAppState = AppState.currentState;
+  (AppState as {currentState: string}).currentState = 'active';
+  const pollOnce = async () => {
+    await ReactTestRenderer.act(async () => {
+      jest.advanceTimersByTime(1000);
+      // getShareResults → getSpringTokens 비동기 체인이 끝나도록 비웁니다.
+      for (let i = 0; i < 10; i += 1) {
+        await Promise.resolve();
+      }
+    });
+  };
+  const previousShare = {
+    requestId: 'previous-request',
+    url: 'https://www.instagram.com/p/previous/',
+    status: 'COMPLETED',
+    transferStatus: 'API_SUCCEEDED',
+    reelId: 'previous-reel',
+    retryable: false,
+    updatedAt: Date.now() - 60_000,
+  };
+  // 네이티브 저장소처럼 지운 결과는 다시 읽히지 않게 한다.
+  let storedResults: Record<string, unknown>[] = [previousShare];
+  (getShareResults as jest.Mock).mockImplementation(() =>
+    Promise.resolve([...storedResults]),
+  );
+  (clearShareResult as jest.Mock).mockImplementation((requestId?: string) => {
+    storedResults = storedResults.filter(item => item.requestId !== requestId);
+    return Promise.resolve();
+  });
+
+  try {
+    // 이전 공유가 먼저 처리되어 화면에 열려 있다.
+    await pollOnce();
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+
+    // 새 공유의 로그인 이동 결과가 도착한다.
+    storedResults = [
+      ...storedResults,
+      {
+        requestId: 'login-request',
+        url: 'https://www.instagram.com/reel/loginRequired/',
+        status: 'PENDING',
+        transferStatus: 'LOGIN_HANDOFF',
+        retryable: false,
+        updatedAt: Date.now(),
+      },
+    ];
+    await pollOnce();
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+    // 로그인해도 이 공유는 추출하지 않으므로 로그인 대기 상태로 남기지 않는다.
+    expect(clearShareResult).toHaveBeenCalledWith('login-request');
+
+    // 폴링이 계속 돌아도 이전 결과를 다시 처리해 둘러보기 화면으로 되돌아가지 않는다.
+    for (let second = 0; second < 3; second += 1) {
+      await pollOnce();
+      expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+    }
+
+    // 둘러보는 중에 넘어왔으므로 앱 안에서 연 로그인 화면처럼 "공유 취소" 없이 X로 돌아온다.
+    const loginProps = renderer.root.findByType(LoginScreen).props;
+    expect(loginProps.onCancelShareLogin).toBeUndefined();
+    expect(loginProps.onBrowseAsGuest).toBeUndefined();
+    expect(loginProps.onClose).toEqual(expect.any(Function));
+    await ReactTestRenderer.act(async () => loginProps.onClose());
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+    expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
+
+    // 돌아온 뒤 폴링이 계속 돌아도 로그인 화면이 다시 열리지 않는다.
+    await pollOnce();
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
+  } finally {
+    (AppState as {currentState: string}).currentState = previousAppState;
+    (getShareResults as jest.Mock).mockImplementation(() => Promise.resolve([]));
+    (clearShareResult as jest.Mock).mockImplementation(() => Promise.resolve());
+    setSharedSaveState(null);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  }
 });
 
 test('비회원 기능에서 연 로그인 화면은 X로 이전 화면에 돌아온다', async () => {
