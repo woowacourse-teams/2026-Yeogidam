@@ -63,8 +63,6 @@ type HistoryScreenProps = {
 const thumbnail =
   'https://www.figma.com/api/mcp/asset/88501ab5-fdd5-49c7-bda1-e486a502a36c.png';
 
-const emptyCharacter =
-  'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
 const placeThumbnail =
   'https://www.figma.com/api/mcp/asset/9313bcb8-b3f7-43b7-847e-e794cf94e2d9.png';
 function getHistoryTitle(reel: HistoryReel) {
@@ -971,15 +969,30 @@ export function HistoryScreen({
         ) : reels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
-              source={{ uri: emptyCharacter }}
+              source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}
               style={styles.emptyCharacter}
             />
             <View style={styles.emptyText}>
               <Text style={styles.emptyTitle}>아직 공유된 콘텐츠가 없어요</Text>
               <Text style={styles.emptyDescription}>
-                인스타그램 릴스나 유튜브 쇼츠에서{'\n'}공유하기를 통해 여기담에
-                저장해보세요.
+                {guestReels !== undefined ? (
+                  <>로그인하고 공유한 콘텐츠의{'\n'}장소 추출 결과를 확인해보세요.</>
+                ) : (
+                  <>인스타그램 릴스를 공유하고 장소 추출 결과를{'\n'}확인해보세요.</>
+                )}
               </Text>
+              {guestReels !== undefined ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="히스토리 로그인"
+                  onPress={onRequireLogin}
+                  style={({pressed}) => [
+                    styles.emptyLoginButton,
+                    pressed && styles.emptyLoginButtonPressed,
+                  ]}>
+                  <Text style={styles.emptyLoginButtonText}>로그인하기</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         ) : (
@@ -1083,17 +1096,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 0,
-    paddingBottom: 72,
+    paddingBottom: 112,
     paddingHorizontal: 24,
   },
-  emptyBody: { alignItems: 'center' },
+  emptyBody: { alignItems: 'center', width: '100%' },
   emptyCharacter: {
-    width: 195,
-    height: 195,
-    borderRadius: 30,
+    width: 250,
+    height: 183,
+    transform: [{translateX: -16}],
     marginBottom: 24,
   },
-  emptyText: { alignItems: 'center' },
+  emptyText: { alignItems: 'center', width: '100%' },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -1107,6 +1120,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  emptyLoginButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#1F2238',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  emptyLoginButtonPressed: { opacity: 0.82 },
+  emptyLoginButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   detailContent: { paddingBottom: 60 },
   detailHero: { alignItems: 'center', marginTop: 48 },
   detailThumbnail: {

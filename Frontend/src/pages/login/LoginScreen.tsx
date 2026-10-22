@@ -1,7 +1,6 @@
-import React, {useEffect} from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
-  BackHandler,
   Image,
   Pressable,
   StyleSheet,
@@ -22,8 +21,8 @@ type LoginScreenProps = {
   onContinueWithGoogle: () => void;
   socialLoginError: NormalizedAuthError | null;
   pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
-  onContinueBrowsing?: () => void;
-  /** 로그인 없이 비회원으로 둘러보기. 로그인 화면이 첫 화면일 때(로그아웃 뒤 등) 보여준다. */
+  onClose?: () => void;
+  /** 로그인 없이 비회원으로 둘러보기. */
   onBrowseAsGuest?: () => void;
 };
 
@@ -69,19 +68,10 @@ export function LoginScreen({
   onContinueWithGoogle,
   socialLoginError,
   pendingSocialProvider,
-  onContinueBrowsing,
+  onClose,
   onBrowseAsGuest,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
-  useEffect(() => {
-    if (!onContinueBrowsing) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isSocialLoginPending) return true;
-      onContinueBrowsing();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [isSocialLoginPending, onContinueBrowsing]);
   const visibleSocialButtons = isAppleLoginAvailable
     ? socialButtons
     : socialButtons.filter(button => button.variant !== 'apple');
@@ -96,9 +86,7 @@ export function LoginScreen({
   } as const;
 
   return (
-    <AuthScaffold
-      contentStyle={styles.main}
-      onBack={isSocialLoginPending ? undefined : onContinueBrowsing}>
+    <AuthScaffold onBack={onClose} contentStyle={styles.main}>
       <View style={styles.buttonList}>
         {visibleSocialButtons.map(button => (
           <Pressable

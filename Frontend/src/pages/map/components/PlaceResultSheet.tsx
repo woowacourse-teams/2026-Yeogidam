@@ -982,8 +982,9 @@ export function PlaceResultSheet({
               ) : !hasSavedPlaces ? (
                 <>
                   <Image
-                    source={require('../../../assets/illustrations/empty-illustration.png')}
+                    source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
                     style={styles.emptyIllustration}
+                    resizeMode="contain"
                   />
                   <Text style={styles.emptyResultTitle}>
                     아직 저장한 장소가 없어요
@@ -1079,9 +1080,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyIllustration: {
-    width: 96,
+    width: 132,
     height: 96,
     borderRadius: 18,
+    transform: [{translateX: -8}],
     marginBottom: 12,
   },
   emptyResultTitle: {

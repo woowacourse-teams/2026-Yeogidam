@@ -55,30 +55,13 @@ export function trackLoginFinished(
     provider: LoginProvider;
     outcome: LoginOutcome;
     failureType?: LoginFailureType;
-    /** 비회원 체험 데이터를 이어받는 로그인이면 true입니다. 이전 결과는 `guest_transfer_finished`에서 봅니다. */
-    hasGuestTransfer?: boolean;
   },
 ) {
   capture(client, ANALYTICS_EVENTS.loginFinished, {
     provider: params.provider,
     outcome: params.outcome,
-    ...(params.hasGuestTransfer === undefined
-      ? {}
-      : {has_guest_transfer: params.hasGuestTransfer}),
     ...(params.outcome === 'failure' && params.failureType
       ? {failure_type: params.failureType}
       : {}),
   });
-}
-
-/**
- * 비회원 체험 데이터를 회원 계정으로 옮기는 작업이 끝났을 때 기록합니다.
- * 로그인 직후가 아니라 추출 완료까지 이어지고 앱을 다시 열어 재시도할 수 있어,
- * `login_finished`와 따로 기록합니다. 옮길 데이터가 없었던 경우는 기록하지 않습니다.
- */
-export function trackGuestTransferFinished(
-  client: AnalyticsClient | null | undefined,
-  outcome: 'success' | 'failure',
-) {
-  capture(client, ANALYTICS_EVENTS.guestTransferFinished, {outcome});
 }

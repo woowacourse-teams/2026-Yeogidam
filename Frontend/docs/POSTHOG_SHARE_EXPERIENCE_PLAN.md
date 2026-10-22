@@ -50,8 +50,7 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 | --- | --- | --- | --- |
 | 진입 | `app_opened` | 앱을 열고 로그인 상태가 확인됨 | `is_logged_in` |
 | 진입 | `login_started` | 로그인 버튼을 누름 | `provider` |
-| 진입 | `login_finished` | 로그인이 성공·실패로 끝남 | `provider`, `outcome`, `failure_type`, `has_guest_transfer` |
-| 진입 | `guest_transfer_finished` | 비회원 체험 데이터 이전이 끝남 | `outcome` |
+| 진입 | `login_finished` | 로그인이 성공·실패로 끝남 | `provider`, `outcome`, `failure_type` |
 | 활용 | `saved_places_viewed` | 보관함 목록을 확인함 | `place_count`, `has_places`, `entry_type=direct/after_save` |
 | 활용 | `saved_places_search_submitted` | 보관함 검색 결과가 표시됨 | `search_id`, `search_method=keyboard/recent_search`, `result_count`, `has_result` |
 | 활용 | `saved_place_selected` | 목록·검색·지도에서 장소를 선택함 | `place_id`, `saved_place_id`, `place_view_id`, `source`, `search_id`, `position` |
@@ -63,12 +62,11 @@ URL, 공유 텍스트, 토큰, 오류 메시지 원문은 PostHog에 보내지 �
 - 검색어 원문, 장소명, 주소, 좌표는 속성에 넣지 않는다.
 - 비회원 체험용 예시 장소·콘텐츠에 대한 이벤트는 보내지 않는다. 자세한 규칙은 위 `is_guest` 설명을 따른다.
 
-## 로그인과 비회원 데이터 이전
+## 로그인
 
-- `login_started`는 로그인 버튼을 누른 시점에 기록한다. 비회원 데이터 이전 준비 같은 시작 전 단계가 실패해도 `login_finished(outcome=failure)`와 짝이 맞는다.
+- `login_started`는 로그인 버튼을 누른 시점에 기록한다.
 - `login_finished.failure_type`은 `user_cancelled`, `auth_failed`, `network_error`, `app_return_failed`, `unknown` 중 하나다. 인증 후 앱으로 돌아온 응답을 처리하지 못한 경우(`CLIENT000_003`)는 `app_return_failed`, 분류할 수 없는 오류는 `unknown`이다.
-- `login_finished.has_guest_transfer`는 비회원 체험 데이터를 이어받는 로그인이면 `true`다.
-- 이전 결과는 `login_finished`에 담을 수 없다. 이전은 로그인 직후가 아니라 군자역 게시물 추출이 끝날 때까지 이어지고, 앱을 다시 열어 재시도하기도 하기 때문이다. 그래서 `guest_transfer_finished(outcome=success/failure)`를 따로 기록한다. 옮길 데이터가 없던 경우는 기록하지 않으며, 실패 후 재시도하면 시도마다 기록한다.
+- 비회원 보관함의 예시 장소는 로그인 계정으로 이전하지 않는다. `has_guest_transfer`와 `guest_transfer_finished`는 더 이상 기록하지 않는다.
 
 ## 앱에서 직접 시작한 추출 요청
 

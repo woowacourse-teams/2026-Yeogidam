@@ -12,6 +12,7 @@ import {
 import {loginWithSpringAuthorizationCode} from './spring-session';
 
 const OAUTH_CALLBACK_TIMEOUT_MS = 120_000;
+const ANDROID_CALLBACK_GRACE_MS = 1_500;
 
 /** normalizeAuthError가 시간 초과로 분류하도록 이름을 TimeoutError로 둡니다. */
 function oauthTimeoutError(message: string): Error {
@@ -55,11 +56,53 @@ function waitForDeepLink(authUrl: string): Promise<string> {
   });
 }
 
-async function openSpringOAuthCallback(authUrl: string): Promise<string> {
+function listenForAndroidOAuthCallback(provider: 'kakao' | 'google') {
+  let resolveCallback: (url: string) => void = () => undefined;
+  const callback = new Promise<string>(resolve => {
+    resolveCallback = resolve;
+  });
+  const expected = new URL(AUTH_CALLBACK_URL);
+  const subscription = Linking.addEventListener('url', ({url}) => {
+    try {
+      const received = new URL(url);
+      if (
+        received.protocol === expected.protocol &&
+        received.host === expected.host &&
+        received.pathname === expected.pathname &&
+        received.searchParams.get('provider') === provider
+      ) {
+        resolveCallback(url);
+      }
+    } catch {
+      // 로그인과 관계없는 딥링크는 브라우저 인증 결과에 영향을 주지 않습니다.
+    }
+  });
+  return {callback, remove: () => subscription.remove()};
+}
+
+function waitBrieflyForCallback(callback: Promise<string>): Promise<string | null> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(null), ANDROID_CALLBACK_GRACE_MS);
+    callback.then(url => {
+      clearTimeout(timer);
+      resolve(url);
+    });
+  });
+}
+
+async function openSpringOAuthCallback(
+  authUrl: string,
+  provider: 'kakao' | 'google',
+): Promise<string> {
   if (!(await InAppBrowser.isAvailable())) return waitForDeepLink(authUrl);
 
-  const result = await withTimeout(
-    InAppBrowser.openAuth(authUrl, AUTH_CALLBACK_URL, {
+  // Android openAuth는 브라우저 닫힘과 딥링크 중 먼저 온 이벤트를 반환합니다.
+  // 복귀 중 닫힘이 먼저 도착해도 실제 콜백을 놓치지 않도록 별도로 구독합니다.
+  const androidCallback = Platform.OS === 'android'
+    ? listenForAndroidOAuthCallback(provider)
+    : null;
+  try {
+    const browserResult = InAppBrowser.openAuth(authUrl, AUTH_CALLBACK_URL, {
       dismissButtonStyle: 'cancel',
       preferredBarTintColor: '#ffffff',
       preferredControlTintColor: '#121212',
@@ -68,13 +111,32 @@ async function openSpringOAuthCallback(authUrl: string): Promise<string> {
       navigationBarColor: '#ffffff',
       navigationBarDividerColor: '#e4e4e7',
       forceCloseOnRedirection: true,
+      ...(Platform.OS === 'android' ? {showInRecents: true} : {}),
       enableDefaultShare: false,
       ephemeralWebSession: false,
-    }),
-    OAUTH_CALLBACK_TIMEOUT_MS,
-  );
-  if (result.type !== 'success') throw createCancelledAuthError();
-  return result.url;
+    });
+    const result = await withTimeout(
+      androidCallback
+        ? Promise.race([
+            browserResult.then(value => ({type: 'browser' as const, value})),
+            androidCallback.callback.then(url => ({type: 'callback' as const, url})),
+          ])
+        : browserResult.then(value => ({type: 'browser' as const, value})),
+      OAUTH_CALLBACK_TIMEOUT_MS,
+    );
+    if (result.type === 'callback') return result.url;
+    if (result.value.type === 'success') return result.value.url;
+
+    const delayedCallback = androidCallback
+      ? await waitBrieflyForCallback(androidCallback.callback)
+      : null;
+    if (delayedCallback) return delayedCallback;
+    throw createCancelledAuthError(
+      result.value.type === 'cancel' ? 'browser_cancel' : 'browser_dismiss',
+    );
+  } finally {
+    androidCallback?.remove();
+  }
 }
 
 export function getSpringOAuthCode(
@@ -94,7 +156,7 @@ export function getSpringOAuthCode(
     }
 
     if (callback.searchParams.get('error') === 'access_denied') {
-      throw createCancelledAuthError();
+      throw createCancelledAuthError('oauth_access_denied');
     }
     if (callback.searchParams.has('error')) throw createProcessingAuthError();
 
@@ -124,7 +186,7 @@ export async function getSpringOAuthAuthorizationCode(
 
     let callbackUrl: string;
     try {
-      callbackUrl = await openSpringOAuthCallback(authUrl);
+      callbackUrl = await openSpringOAuthCallback(authUrl, provider);
     } catch (error) {
       throw withAuthErrorStage(error, 'provider_authorization');
     }
