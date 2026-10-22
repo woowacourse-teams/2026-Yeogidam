@@ -33,7 +33,6 @@ import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import {
   ONBOARDING_MAP_CENTER,
-  ONBOARDING_PLACE_REELS,
 } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
 import {
@@ -61,11 +60,11 @@ type MapScreenProps = {
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   isActive?: boolean;
   isGuest?: boolean;
-  guestPlaces?: Place[];
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
   onNestedBackStateChange?: (canGoBack: boolean) => void;
   onAuthenticationRequired?: () => void;
+  onShowGuestLoginPrompt?: () => void;
 };
 
 type MapCamera = {
@@ -80,10 +79,10 @@ export function MapScreen({
   onBackGestureRegionChange,
   isActive = true,
   isGuest = false,
-  guestPlaces,
   onDeleteGuestPlaces,
   onNestedBackStateChange,
   onAuthenticationRequired,
+  onShowGuestLoginPrompt,
 }: MapScreenProps) {
   const posthog = usePostHog();
   const [locationGranted, setLocationGranted] = useState(false);
@@ -182,7 +181,7 @@ export function MapScreen({
   } | null>(null);
   useEffect(() => {
     if (isGuest) {
-      setSavedPlaces(guestPlaces ?? []);
+      setSavedPlaces([]);
       setSavedPlacesLoadFailed(false);
       setIsSavedPlacesLoading(false);
       return;
@@ -218,7 +217,7 @@ export function MapScreen({
     return () => {
       isMounted = false;
     };
-  }, [guestPlaces, isGuest]);
+  }, [isGuest]);
   const placesWithCoordinates = useMemo(
     () =>
       savedPlaces.filter(
@@ -544,6 +543,7 @@ export function MapScreen({
             }}
           >
             <SearchBar
+              onPress={isGuest ? onShowGuestLoginPrompt : undefined}
               backButtonPosition={
                 (!page.clearsSearch && hasActiveSearch) ||
                 (!page.isBackPreview && isSearchFocused) ||
@@ -593,7 +593,7 @@ export function MapScreen({
               <Text numberOfLines={1} style={styles.expandedDetailTitle}>
                 {page.place.name}
               </Text>
-              {!isGuest || onDeleteGuestPlaces ? (
+              {!isGuest ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="더보기"
@@ -663,7 +663,7 @@ export function MapScreen({
           collapseSignal={collapseSignal}
           mapPanCollapseSignal={mapPanCollapseSignal}
           onDetailViewChange={setIsPlaceDetailVisible}
-          guestReelsByPlace={isGuest ? ONBOARDING_PLACE_REELS : undefined}
+          guestReelsByPlace={isGuest ? {} : undefined}
           onAuthenticationRequired={onAuthenticationRequired}
           onSavedPlaceDeleted={savedPlaceId => {
             setSavedPlaces(current =>
@@ -671,7 +671,12 @@ export function MapScreen({
             );
           }}
           onDeleteGuestPlaces={onDeleteGuestPlaces}
-          onExpandedChange={setIsSheetExpanded}
+          onExpandedChange={expanded => {
+            setIsSheetExpanded(expanded);
+            if (isGuest && expanded) {
+              onShowGuestLoginPrompt?.();
+            }
+          }}
           isVisibleAreaUpdating={!hasActiveSearch && visibleBounds === null}
         />
       ) : null}

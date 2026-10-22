@@ -99,6 +99,26 @@ test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('비회원 빈 히스토리는 장소 추출 결과 안내와 로그인 버튼을 보여 준다', async () => {
+  const onRequireLogin = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} guestReels={[]} onRequireLogin={onRequireLogin} />,
+    );
+  });
+
+  expect(JSON.stringify(renderer.toJSON())).toContain('로그인하고 공유한 콘텐츠의');
+  expect(JSON.stringify(renderer.toJSON())).toContain('장소 추출 결과를 확인해보세요.');
+  const loginButton = renderer.root.find(
+    node => node.props.accessibilityLabel === '히스토리 로그인' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => loginButton.props.onPress());
+  expect(onRequireLogin).toHaveBeenCalledTimes(1);
+
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('폴링은 첫 페이지만 갱신하고 더 보기로 불러온 항목과 커서를 유지한다', async () => {
   const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
   const secondCursor = {created_at: '2026-10-13T00:00:00Z', id: '1'};

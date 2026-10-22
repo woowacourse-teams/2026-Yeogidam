@@ -92,6 +92,8 @@ type SavedPlacesScreenProps = {
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
+  onOpenGuide?: () => void;
+  onShowGuestLoginPrompt?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
@@ -135,6 +137,8 @@ export function SavedPlacesScreen({
   initialScrollOffset = 0,
   onScrollOffsetChange,
   onAuthenticationRequired,
+  onOpenGuide,
+  onShowGuestLoginPrompt,
   onEditModeChange,
   onRequireLogin,
   // onOpenInbox,
@@ -535,7 +539,7 @@ export function SavedPlacesScreen({
 
   const openDialog = () => {
     if (isGuest) {
-      onRequireLogin?.();
+      (onShowGuestLoginPrompt ?? onRequireLogin)?.();
       return;
     }
     setLinkError(null);
@@ -1159,7 +1163,11 @@ export function SavedPlacesScreen({
       ) : error ? (
         <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
       ) : (
-        <SavedPlacesEmptyState />
+        <SavedPlacesEmptyState
+          isGuest={isGuest}
+          onLogin={onAuthenticationRequired}
+          onOpenGuide={onOpenGuide}
+        />
       )}
       {isEditing ? (
         <Pressable

@@ -25,20 +25,7 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
-import type {HistoryReel} from './src/entities/content/types';
 import type { Place } from './src/entities/place/types';
-import {
-  ONBOARDING_HISTORY_DETAIL,
-  ONBOARDING_HISTORY_REEL,
-  ONBOARDING_PLACES,
-  ONBOARDING_PLACE_REELS,
-} from './src/entities/onboarding/data';
-import {
-  beginGuestOnboardingTransfer,
-  cancelGuestOnboardingTransfer,
-  resumeGuestOnboardingTransfer,
-  toOnboardingKakaoPlaceIds,
-} from './src/entities/onboarding/transfer';
 import {
   withAuthErrorStage,
   type NormalizedAuthError,
@@ -71,11 +58,9 @@ import {
   getDismissedRecommendedVersion,
   rememberDismissedRecommendedVersion,
 } from './src/lib/app-update-policy-storage';
-import { ForegroundElapsedTimer } from './src/lib/foreground-elapsed-timer';
 import {
   toLoginFailureType,
   trackAppOpened,
-  trackGuestTransferFinished,
   trackLoginFinished,
   trackLoginStarted,
 } from './src/analytics/userEntryEvents';
@@ -178,12 +163,7 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   detailSource: null,
 };
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
-const GUEST_HISTORY_REELS: HistoryReel[] = [ONBOARDING_HISTORY_REEL];
-const GUEST_HISTORY_DETAILS = {
-  [ONBOARDING_HISTORY_REEL.id]: ONBOARDING_HISTORY_DETAIL,
-};
 const SPLASH_MIN_DURATION_MS = 2000;
-const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
@@ -250,10 +230,33 @@ function captureSocialLoginError(
   provider: SocialProvider,
   error: NormalizedAuthError,
 ) {
-  // 사용자의 취소와 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
+  if (error.errorCode === 'AUTH000_001') {
+    // 브라우저 종료에는 실제 사용자 취소도 포함될 수 있어 진단용 경고로 기록합니다.
+    const cancelOrigin = error.cancelOrigin;
+    if (
+      Platform.OS === 'android' &&
+      (cancelOrigin === 'browser_cancel' || cancelOrigin === 'browser_dismiss')
+    ) {
+      Sentry.withScope(scope => {
+        scope.setTag('feature', 'social_login');
+        scope.setTag('login.provider', provider);
+        scope.setTag('login.stage', error.stage ?? 'unknown');
+        scope.setTag('login.error_code', error.errorCode);
+        scope.setTag('login.cancel_origin', cancelOrigin);
+        scope.setFingerprint([
+          'social-login-browser-without-callback',
+          provider,
+          cancelOrigin,
+        ]);
+        Sentry.captureMessage('소셜 로그인 브라우저가 콜백 없이 종료됨', 'warning');
+      });
+    }
+    return;
+  }
+
+  // 제공자의 인증 거절은 앱 오류 이벤트로 남기지 않습니다.
   const backendErrorCode = error.backendErrorCode;
   if (
-    error.errorCode === 'AUTH000_001' ||
     error.errorCode === 'AUTH400_001' ||
     backendErrorCode === 'AUTH401_002'
   ) {
@@ -324,17 +327,15 @@ function App() {
     };
   }, []);
   const [flowState, setFlowState] = useState<AppFlowState>(INITIAL_FLOW_STATE);
+  const [showLoginCloseButton, setShowLoginCloseButton] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [guestPlaces, setGuestPlaces] = useState<Place[]>(ONBOARDING_PLACES);
-  const [memberDataRevision, setMemberDataRevision] = useState(0);
   useEffect(() => {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
-  const transferErrorShownRef = useRef(false);
   const activeUserIdRef = useRef<string | null>(null);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
@@ -357,15 +358,6 @@ function App() {
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
-  const [isAppActive, setIsAppActive] = useState(
-    AppState.currentState === 'active',
-  );
-  const [guestLoginPromptTimer] = useState(
-    () =>
-      new ForegroundElapsedTimer(GUEST_LOGIN_PROMPT_DELAY_MS, () => {
-        setIsGuestLoginPromptVisible(true);
-      }),
-  );
   const guestReturnFlowRef = useRef<MainFlowState | null>(null);
   const [socialLoginError, setSocialLoginError] =
     useState<NormalizedAuthError | null>(null);
@@ -487,41 +479,12 @@ function App() {
     recommendedUpdate === null;
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      setIsAppActive(state === 'active');
-    });
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    if (isGuestBrowsing && isAppActive) {
-      guestLoginPromptTimer.start();
-    } else {
-      guestLoginPromptTimer.pause();
-    }
-  }, [guestLoginPromptTimer, isAppActive, isGuestBrowsing]);
-
-  useEffect(() => {
     if (isAuthenticated) {
-      guestLoginPromptTimer.cancel();
       setIsGuestLoginPromptVisible(false);
       guestReturnFlowRef.current = null;
-    }
-  }, [guestLoginPromptTimer, isAuthenticated]);
-
-  useEffect(() => () => guestLoginPromptTimer.cancel(), [guestLoginPromptTimer]);
-
-  // 비회원이 지운 시드 장소는 메모리에만 두고, 다음 비회원 진입 때 시드로 되돌립니다.
-  useEffect(() => {
-    if (isAuthenticated !== false) {
-      setGuestPlaces(ONBOARDING_PLACES);
+      setShowLoginCloseButton(false);
     }
   }, [isAuthenticated]);
-
-  const deleteGuestPlaces = useCallback((placeIds: string[]) => {
-    const deletedIds = new Set(placeIds);
-    setGuestPlaces(current => current.filter(place => !deletedIds.has(place.id)));
-  }, []);
 
   useEffect(() => {
     if (isAuthenticated === true) {
@@ -703,34 +666,6 @@ function App() {
     let isMounted = true;
     let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const resumeOnboardingTransfer = (memberId: string, isNewMember?: boolean) => {
-      resumeGuestOnboardingTransfer(memberId, isNewMember)
-        .then(completed => {
-          if (completed) trackGuestTransferFinished(posthog, 'success');
-          if (
-            !isMounted ||
-            !completed ||
-            activeUserIdRef.current !== memberId
-          ) return;
-          transferErrorShownRef.current = false;
-          setMemberDataRevision(revision => revision + 1);
-        })
-        .catch(error => {
-          trackGuestTransferFinished(posthog, 'failure');
-          console.warn('군자역 게시물 저장 실패', error);
-          if (
-            !isMounted ||
-            activeUserIdRef.current !== memberId ||
-            transferErrorShownRef.current
-          ) return;
-          transferErrorShownRef.current = true;
-          Alert.alert(
-            '군자역 게시물을 저장하지 못했어요',
-            '연결을 확인해 주세요. 앱을 다시 열면 저장을 재시도할게요.',
-          );
-        });
-    };
-
     const syncFlowState = async () => {
       const [tokens, memberId] = await Promise.all([
         getSpringTokens().catch(() => null),
@@ -761,7 +696,6 @@ function App() {
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       resumeWaitingShares().catch(() => undefined);
-      if (memberId) resumeOnboardingTransfer(memberId);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -798,7 +732,7 @@ function App() {
       setIsSplashVisible(false);
     });
 
-    const unsubscribe = onSpringSessionChange((event, memberId, details) => {
+    const unsubscribe = onSpringSessionChange((event, memberId) => {
       if (event === 'SIGNED_IN') {
         resumeWaitingShares().catch(() => undefined);
       }
@@ -809,7 +743,6 @@ function App() {
 
       if (event === 'SIGNED_OUT') {
         activeUserIdRef.current = null;
-        transferErrorShownRef.current = false;
         setIsAuthenticated(false);
         setFlowState(INITIAL_FLOW_STATE);
         setIsOnboardingVisible(true);
@@ -836,7 +769,6 @@ function App() {
         detailSource: null,
       });
       setIsAuthReady(true);
-      if (memberId) resumeOnboardingTransfer(memberId, details?.isNewMember);
     });
 
     return () => {
@@ -847,33 +779,6 @@ function App() {
       unsubscribe();
     };
   }, [posthog, applyUpdatePolicy, getUpdatePolicyWithDismissalLoaded]);
-
-  useEffect(() => {
-    if (isAuthenticated !== true) return;
-
-    let isActive = true;
-    const subscription = AppState.addEventListener('change', state => {
-      if (state !== 'active') return;
-      getSpringMemberId()
-        .then(memberId => {
-          if (!memberId) return;
-          resumeGuestOnboardingTransfer(memberId)
-            .then(completed => {
-              if (
-                isActive &&
-                completed &&
-                activeUserIdRef.current === memberId
-              ) setMemberDataRevision(revision => revision + 1);
-            })
-            .catch(error => console.warn('군자역 게시물 재시도 실패', error));
-        })
-        .catch(() => undefined);
-    });
-    return () => {
-      isActive = false;
-      subscription.remove();
-    };
-  }, [isAuthenticated]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1123,7 +1028,6 @@ function App() {
       return;
     }
     loginAttemptInFlightRef.current = true;
-    const hasGuestTransfer = isAuthenticated === false;
     const signIn = {
       apple: signInWithApple,
       kakao: signInWithKakao,
@@ -1135,9 +1039,6 @@ function App() {
     trackLoginStarted(posthog, provider);
 
     try {
-      if (hasGuestTransfer) {
-        await beginGuestOnboardingTransfer(toOnboardingKakaoPlaceIds(guestPlaces));
-      }
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
       if (!(await getSpringTokens().catch(() => null))) {
         await syncShareSession(null).catch(() => undefined);
@@ -1150,10 +1051,8 @@ function App() {
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
-        hasGuestTransfer,
       });
     } catch (error) {
-      cancelGuestOnboardingTransfer().catch(() => undefined);
       const normalizedError = withAuthErrorStage(
         error,
         signInStarted ? 'provider_authorization' : 'login_setup',
@@ -1163,7 +1062,6 @@ function App() {
         provider,
         outcome: 'failure',
         failureType: toLoginFailureType(normalizedError),
-        hasGuestTransfer,
       });
       if (!signInStarted) {
         Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
@@ -1189,6 +1087,16 @@ function App() {
 
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
+    setShowLoginCloseButton(true);
+    setFlowState(INITIAL_FLOW_STATE);
+  };
+
+  const handleOpenGuestLoginFromMyPage = () => {
+    if (flowState.kind !== 'main' || isAuthenticated !== false) return;
+
+    setIsGuestLoginPromptVisible(false);
+    guestReturnFlowRef.current = flowState;
+    setShowLoginCloseButton(true);
     setFlowState(INITIAL_FLOW_STATE);
   };
 
@@ -1200,9 +1108,16 @@ function App() {
     setFlowState(INITIAL_FLOW_STATE);
   };
 
+  const handleShowGuestLoginPrompt = () => {
+    if (isAuthenticated === false) {
+      setIsGuestLoginPromptVisible(true);
+    }
+  };
+
   // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
   const handleBrowseAsGuest = () => {
     setSocialLoginError(null);
+    setShowLoginCloseButton(false);
     setFlowState(GUEST_MAIN_FLOW_STATE);
   };
 
@@ -1210,9 +1125,28 @@ function App() {
     const previousFlow = guestReturnFlowRef.current;
     if (!previousFlow) return;
 
-    cancelGuestOnboardingTransfer().catch(() => undefined);
     guestReturnFlowRef.current = null;
+    setShowLoginCloseButton(false);
     setFlowState(previousFlow);
+  };
+
+  const handleCloseGuestLogin = () => {
+    const previousFlow = guestReturnFlowRef.current;
+    guestReturnFlowRef.current = null;
+    setShowLoginCloseButton(false);
+    setFlowState(previousFlow ?? GUEST_MAIN_FLOW_STATE);
+  };
+
+  const handleBrowseFromLogin = async () => {
+    if (guestReturnFlowRef.current) {
+      handleContinueBrowsing();
+      return;
+    }
+
+    if (hasPendingShareLogin) {
+      await handleCancelShareLogin();
+    }
+    handleBrowseAsGuest();
   };
 
   const showPreparingAlert = (featureName: string) => {
@@ -1322,8 +1256,7 @@ function App() {
     if (screen === 'history') {
       return (
         <HistoryScreen
-          guestReels={isAuthenticated === false ? GUEST_HISTORY_REELS : undefined}
-          guestDetails={isAuthenticated === false ? GUEST_HISTORY_DETAILS : undefined}
+          guestReels={isAuthenticated === false ? [] : undefined}
           onBack={goBackMainTab}
           isActive={currentScreen === 'history' && myPageOverlay === null}
           onNestedBackStateChange={reportHistoryBackState}
@@ -1344,12 +1277,10 @@ function App() {
           onOpenContact={openKakaoChannelChat}
           onOpenTerms={() => pushAuthScreen('terms')}
           onCancelShareLogin={hasPendingShareLogin ? handleCancelShareLogin : undefined}
-          onContinueBrowsing={guestReturnFlowRef.current ? handleContinueBrowsing : undefined}
+          onClose={showLoginCloseButton ? handleCloseGuestLogin : undefined}
           onBrowseAsGuest={
-            isAuthenticated === false &&
-            !guestReturnFlowRef.current &&
-            !hasPendingShareLogin
-              ? handleBrowseAsGuest
+            isAuthenticated === false && !showLoginCloseButton
+              ? handleBrowseFromLogin
               : undefined
           }
         />
@@ -1395,11 +1326,10 @@ function App() {
           onNestedBackStateChange={reportSavedBackState}
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
-          places={isAuthenticated === false ? guestPlaces : undefined}
-          onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
-          }
+          places={isAuthenticated === false ? [] : undefined}
           onAuthenticationRequired={requestLogin}
+          onOpenGuide={() => setMyPageOverlay('guide')}
+          onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenDetail={(place, context) =>
             openDetailFrom('saved', place, context)
@@ -1442,13 +1372,10 @@ function App() {
               : `member-map-${memberDataRevision}`
           }
           isGuest={isAuthenticated === false}
-          guestPlaces={isAuthenticated === false ? guestPlaces : undefined}
-          onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
-          }
           isActive={currentScreen === 'map' && myPageOverlay === null}
           onNestedBackStateChange={reportMapBackState}
           onAuthenticationRequired={requestLogin}
+          onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
         />
       );
     }
@@ -1468,14 +1395,6 @@ function App() {
           onBack={closeDetail}
           onAuthenticationRequired={requestLogin}
           place={selectedPlace}
-          guestReels={
-            isAuthenticated === false
-              ? ONBOARDING_PLACE_REELS[selectedPlace.id] ?? []
-              : undefined
-          }
-          onDeleteGuestPlaces={
-            isAuthenticated === false ? deleteGuestPlaces : undefined
-          }
           viewContext={selectedPlaceViewContext ?? undefined}
         />
       );
@@ -1490,7 +1409,7 @@ function App() {
         onOpenContact={openKakaoChannelChat}
         onOpenGuide={() => setMyPageOverlay('guide')}
         onLogout={handleLogout}
-        onLogin={handleOpenGuestLogin}
+        onLogin={handleOpenGuestLoginFromMyPage}
         onOpenTerms={() => setMyPageOverlay('terms')}
         onRetryProfile={handleRetryProfile}
         onWithdraw={handleOpenAccountDeletion}
@@ -1640,7 +1559,7 @@ function App() {
         }}
       />
       <GuestLoginPrompt
-        visible={isGuestLoginPromptVisible && isGuestBrowsing && isAppActive}
+        visible={isGuestLoginPromptVisible && isGuestBrowsing}
         onLogin={handleOpenGuestLogin}
         onContinueBrowsing={() => setIsGuestLoginPromptVisible(false)}
       />

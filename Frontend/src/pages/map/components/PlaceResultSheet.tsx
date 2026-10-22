@@ -1312,9 +1312,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyIllustration: {
-    width: 96,
+    width: 132,
     height: 96,
     borderRadius: 18,
+    transform: [{translateX: -8}],
     marginBottom: 12,
   },
   emptyResultTitle: {
