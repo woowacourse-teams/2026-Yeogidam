@@ -24,6 +24,8 @@ import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {TermsAgreementScreen} from '../src/pages/my-page/TermsAgreementScreen';
+import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
+import type {Place} from '../src/entities/place/types';
 import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
@@ -143,6 +145,12 @@ jest.mock('../src/pages/my-page/TermsAgreementScreen', () => ({
   TermsAgreementScreen: () => null,
 }));
 
+jest.mock('../src/pages/place-detail/PlaceDetailScreen', () => ({
+  PlaceDetailScreen: () => null,
+}));
+
+const PLACE = {id: 'place-1', savedPlaceId: 'saved-1', name: '군자역'} as unknown as Place;
+
 type AuthChangeHandler = (
   event: string,
   memberId: string | null,
@@ -187,6 +195,43 @@ async function renderGuestMain() {
     renderer.root.findByType(LoginScreen).props.onBrowseAsGuest();
   });
   return renderer;
+}
+
+/**
+ * Platform.OS를 Android로 바꾸고 App이 BackHandler에 거는 처리기를 가로채, 시스템 뒤로 가기를 누르는 함수를 돌려줍니다.
+ * App을 그리기 전에 불러야 합니다. 이 파일의 afterEach는 clearAllMocks만 하므로 테스트 끝에 restore를 직접 부릅니다.
+ */
+function installAndroidBackPress() {
+  const platform = jest.replaceProperty(Platform, 'OS', 'android');
+  let onHardwareBackPress: (() => boolean) | undefined;
+  const addEventListener = jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_event, handler) => {
+      onHardwareBackPress = handler as () => boolean;
+      return {remove: jest.fn()};
+    });
+
+  /** 시스템 뒤로 가기를 누르고 App이 가로챘는지(true) 돌려줍니다. */
+  const pressBack = async () => {
+    let handled = false;
+    await ReactTestRenderer.act(async () => {
+      handled = onHardwareBackPress!();
+    });
+    return handled;
+  };
+
+  return {
+    pressBack,
+    restore: () => {
+      addEventListener.mockRestore();
+      platform.restore();
+    },
+  };
+}
+
+/** SwipeBackStack이 맨 앞에 둔 층의 키입니다. */
+function activeLayerKey(renderer: ReactTestRenderer.ReactTestRenderer) {
+  return renderer.root.findByType(SwipeBackStack).props.activeKey;
 }
 
 beforeEach(async () => {
@@ -609,25 +654,10 @@ test('히스토리에서 뒤로 가면 하단 메뉴로 오기 전 탭으로 돌
 });
 
 test('Android 시스템 뒤로 가기는 겹침 화면, 탭 이력 순으로 되돌리고 첫 탭에서는 시스템에 맡긴다', async () => {
-  const platform = jest.replaceProperty(Platform, 'OS', 'android');
-  let onHardwareBackPress: (() => boolean) | undefined;
-  const addEventListener = jest
-    .spyOn(BackHandler, 'addEventListener')
-    .mockImplementation((_event, handler) => {
-      onHardwareBackPress = handler as () => boolean;
-      return {remove: jest.fn()};
-    });
+  const {pressBack, restore} = installAndroidBackPress();
 
   try {
     const renderer = await renderGuestMain();
-    expect(onHardwareBackPress).toBeDefined();
-    const pressBack = async () => {
-      let handled = false;
-      await ReactTestRenderer.act(async () => {
-        handled = onHardwareBackPress!();
-      });
-      return handled;
-    };
 
     await ReactTestRenderer.act(async () => {
       activeBar(renderer).props.onNavigate('my');
@@ -639,16 +669,86 @@ test('Android 시스템 뒤로 가기는 겹침 화면, 탭 이력 순으로 되
 
     expect(await pressBack()).toBe(true);
     expect(renderer.root.findAllByType(TermsAgreementScreen)).toHaveLength(0);
-    expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('my');
+    expect(activeLayerKey(renderer)).toBe('my');
 
     expect(await pressBack()).toBe(true);
-    expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('saved');
+    expect(activeLayerKey(renderer)).toBe('saved');
 
     expect(await pressBack()).toBe(false);
-    expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('saved');
+    expect(activeLayerKey(renderer)).toBe('saved');
   } finally {
-    addEventListener.mockRestore();
-    platform.restore();
+    restore();
+  }
+});
+
+test('Android 시스템 뒤로 가기는 열린 상세를 닫고 가로챈다', async () => {
+  const {pressBack, restore} = installAndroidBackPress();
+
+  try {
+    const renderer = await renderGuestMain();
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(SavedPlacesScreen).props.onOpenDetail(PLACE);
+    });
+    expect(renderer.root.findAllByType(PlaceDetailScreen)).toHaveLength(1);
+    expect(activeLayerKey(renderer)).toBe('detail');
+
+    expect(await pressBack()).toBe(true);
+    expect(renderer.root.findAllByType(PlaceDetailScreen)).toHaveLength(0);
+    expect(activeLayerKey(renderer)).toBe('saved');
+    // 상세를 닫은 뒤 보관함은 첫 탭이라 다음 뒤로 가기는 시스템에 맡긴다.
+    expect(await pressBack()).toBe(false);
+  } finally {
+    restore();
+  }
+});
+
+test('Android 시스템 뒤로 가기는 로그인 위에 쌓인 약관을 걷어 로그인 화면으로 돌아간다', async () => {
+  const {pressBack, restore} = installAndroidBackPress();
+
+  try {
+    const renderer = await renderAfterSplash();
+    await completeOnboarding(renderer);
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(LoginScreen).props.onOpenTerms();
+    });
+    expect(renderer.root.findAllByType(TermsAgreementScreen)).toHaveLength(1);
+    expect(activeLayerKey(renderer)).toBe('auth-1-terms');
+
+    expect(await pressBack()).toBe(true);
+    expect(renderer.root.findAllByType(TermsAgreementScreen)).toHaveLength(0);
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+    expect(activeLayerKey(renderer)).toBe('auth-0-login');
+    // 로그인 화면 하나만 남으면 시스템에 맡긴다.
+    expect(await pressBack()).toBe(false);
+    expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
+  } finally {
+    restore();
+  }
+});
+
+test('Android 시스템 뒤로 가기는 탭 화면이 스스로 뒤로 갈 수 있다고 알리면 그 화면에 맡기고, 아니면 탭 이력으로 돌아간다', async () => {
+  const {pressBack, restore} = installAndroidBackPress();
+
+  try {
+    const renderer = await renderGuestMain();
+    await ReactTestRenderer.act(async () => {
+      activeBar(renderer).props.onNavigate('map');
+    });
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(MapScreen).props.onNestedBackStateChange(true);
+    });
+
+    // 지도가 시트나 상세를 열어 둔 동안은 지도가 처리하므로 App은 가로채지 않고 탭도 옮기지 않는다.
+    expect(await pressBack()).toBe(false);
+    expect(activeLayerKey(renderer)).toBe('map');
+
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(MapScreen).props.onNestedBackStateChange(false);
+    });
+    expect(await pressBack()).toBe(true);
+    expect(activeLayerKey(renderer)).toBe('saved');
+  } finally {
+    restore();
   }
 });
 
