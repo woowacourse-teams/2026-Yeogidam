@@ -591,6 +591,30 @@ test('비회원 지도 인터랙션은 공통 로그인 안내 모달을 연다'
   expect(prompt.props.visible).toBe(false);
 });
 
+test('비회원 로그인 안내 콜백은 App이 다시 그려져도 같은 참조라 화면의 제스처 응답자를 다시 만들지 않는다', async () => {
+  const renderer = await renderGuestMain();
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('map');
+  });
+  const {onShowGuestLoginPrompt} = renderer.root.findByType(MapScreen).props;
+  const savedCallback = renderer.root.findByType(SavedPlacesScreen).props.onShowGuestLoginPrompt;
+  expect(onShowGuestLoginPrompt).toBe(savedCallback);
+
+  // 지도가 안쪽 뒤로 가기 상태를 알려 App이 다시 그려진다.
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(MapScreen).props.onNestedBackStateChange(true);
+  });
+  expect(renderer.root.findByType(MapScreen).props.onShowGuestLoginPrompt).toBe(onShowGuestLoginPrompt);
+  expect(renderer.root.findByType(SavedPlacesScreen).props.onShowGuestLoginPrompt).toBe(savedCallback);
+
+  // 참조가 같아도 안내는 그대로 연다.
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(MapScreen).props.onNestedBackStateChange(false);
+  });
+  await ReactTestRenderer.act(async () => onShowGuestLoginPrompt());
+  expect(renderer.root.findByType(GuestLoginPrompt).props.visible).toBe(true);
+});
+
 test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async () => {
   const renderer = await renderGuestMain();
 

@@ -259,11 +259,12 @@ function App() {
   requireLoginHandlerRef.current = handleRequireLogin;
   const requestLogin = useCallback(() => requireLoginHandlerRef.current(), []);
 
-  const handleShowGuestLoginPrompt = () => {
+  // 지도 시트의 PanResponder가 이 콜백을 의존성으로 두므로, 렌더마다 새로 만들지 않고 비회원 여부가 바뀔 때만 바꿉니다.
+  const handleShowGuestLoginPrompt = useCallback(() => {
     if (isGuest) {
       showGuestLoginPrompt();
     }
-  };
+  }, [isGuest, showGuestLoginPrompt]);
 
   // 로그아웃 뒤 등 로그인 화면이 첫 화면일 때 비회원 둘러보기로 들어간다.
   const handleBrowseAsGuest = () => {
