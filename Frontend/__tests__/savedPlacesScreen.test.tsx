@@ -900,6 +900,40 @@ describe('지운 장소와 메모리 캐시', () => {
 });
 
 describe('조회 중에 지운 장소', () => {
+  test('캐시가 빈 첫 조회가 끝나기 전에 지도 시트가 장소를 지우고 돌아오면, 새 조회로 첫 응답을 밀어내 지운 장소 없는 목록을 보인다', async () => {
+    const onOpenDetail = jest.fn();
+    const firstLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(firstLoad.promise);
+    const renderer = await render({onOpenDetail});
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
+
+    // 하단 메뉴로 지도에 가 있는 동안(isActive=false) 지도 시트가 카페를 지운다. 캐시가 비어 있어 세대만 오른다.
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive={false} onOpenDetail={onOpenDetail} />);
+    });
+    await act(async () => {
+      await deleteSavedPlaceAndRemoveFromCache(CAFE.id);
+    });
+
+    // 첫 조회가 끝나기 전에 보관함으로 돌아오면, 첫 조회는 지운 뒤 목록을 가져오지 못하므로 새 조회를 시작한다.
+    const secondLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(secondLoad.promise);
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive onOpenDetail={onOpenDetail} />);
+    });
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+
+    // 지우기 전 목록을 담은 첫 응답은 버리고 새 조회를 기다린다.
+    await act(async () => firstLoad.resolve([CAFE, BAKERY]));
+    await settleAsyncWork();
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
+
+    await act(async () => secondLoad.resolve([BAKERY]));
+    await settleAsyncWork();
+    expect(placeNames(renderer)).toEqual(['빵집']);
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(0);
+  });
+
   test('다시 연 화면의 조회가 끝나기 전에 지운 장소는 늦게 끝난 그 조회로 되살아나지 않고, 목록을 한 번 더 읽어 반영한다', async () => {
     await unmountTracked(await renderLoaded([CAFE, BAKERY]));
 
