@@ -765,7 +765,9 @@ export function PlaceResultSheet({
     setIsActionSheetVisible(false);
     // Commit the retained list's snap in the same render as the route change.
     // A later effect would expose the detail's height, then animate the list.
-    const snapIndex = backSnapIndex;
+    // 지우기 응답을 기다리는 동안 상세를 닫고 다른 높이의 목록에서 같은 장소를 다시 열 수 있으므로,
+    // 상세가 보이면 그린 때가 아니라 부른 때의 상세 진입 높이로 돌아갑니다.
+    const snapIndex = selectedPlaceRef.current ? detailEntrySnapIndex.current : backSnapIndex;
     const offset = snapOffsets[snapIndex];
     translateY.stopAnimation();
     translateY.setValue(offset);

@@ -501,6 +501,27 @@ test.each([
   },
 );
 
+test('지우는 동안 목록으로 돌아가 접은 뒤 지우던 장소를 접힌 목록에서 다시 열면, 지우기가 끝난 뒤 목록은 다시 연 높이(접힘)로 돌아간다', async () => {
+  const request = deferred<void>();
+  jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
+  const sheet = await renderSheet();
+  // 중간 높이 목록에서 카페를 열고 지우기를 시작한다(응답 대기).
+  await openDeleteSheet(sheet.renderer, '카페');
+  await pressLabel(sheet.renderer, DELETE_LABEL);
+  // 삭제 시트를 닫고 목록으로 돌아간 뒤 지도를 움직여 목록을 접고, 접힌 목록에서 지우던 카페를 다시 연다.
+  await closeDeleteSheetAndGoBackToList(sheet);
+  await sheet.rerender({mapPanCollapseSignal: 1});
+  expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.collapsed);
+  await pressLabel(sheet.renderer, '카페 상세 보기');
+  expect(shownView(sheet.renderer)).toBe('상세');
+
+  await act(async () => request.resolve());
+  await settleAsyncWork();
+  expect(shownView(sheet.renderer)).toBe('목록');
+  // 지우기를 시작한 때(중간)가 아니라 다시 연 때(접힘)의 높이다.
+  expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.collapsed);
+});
+
 test('지우는 동안 삭제 시트를 닫고 목록으로 돌아간 뒤 지우기가 끝나면, 목록 높이를 건드리지 않아 그 뒤에 펼친 목록이 다시 접히지 않는다', async () => {
   const request = deferred<void>();
   jest.mocked(deleteSavedPlaces).mockReturnValueOnce(request.promise);
