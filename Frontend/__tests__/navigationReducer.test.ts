@@ -255,13 +255,14 @@ describe('navigationReducer: 하단 메뉴를 거치지 않고 이력 끝의 탭
     const onMap = run(GUEST_MAIN, {type: 'navigateMainTab', screen: 'map'});
     expect(onMap.mainTabHistory).toEqual(['saved']);
 
-    // 공유 로그인 유도로 간 로그인 화면은 돌아갈 흐름이 비회원 메인이다.
+    // App에서 닿는 순서는 openLoginFromGuest(X를 켬) → openLoginFromGuestShare → closeGuestLogin이다.
+    // 여기서는 X를 켜는 전이를 빼고, 공유 로그인 유도로 간 로그인 화면의 돌아갈 흐름이 비회원 메인인 것만 본다.
     const fromShare = run(onMap, {type: 'openLoginFromGuestShare'}, {type: 'closeGuestLogin'});
     expect(fromShare.flow).toBe(GUEST_MAIN_FLOW_STATE);
     expect(fromShare.mainTabHistory).toEqual([]);
     expect(selectBackLayerKey(fromShare.flow, null, selectPreviousTab(fromShare))).toBeNull();
 
-    // 돌아갈 흐름 없이 로그인 화면에 갔다가 X로 나와도 같다.
+    // 돌아갈 흐름 없이 로그인 화면에 갔다가 X로 나오는 순서는 App에서 닿지 않는 리듀서의 대비 경로이고, 결과는 같다.
     const fromLogin = run(onMap, {type: 'openLogin'}, {type: 'closeGuestLogin'});
     expect(fromLogin.flow).toBe(GUEST_MAIN_FLOW_STATE);
     expect(fromLogin.mainTabHistory).toEqual([]);
