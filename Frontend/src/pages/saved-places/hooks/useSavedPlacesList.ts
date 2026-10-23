@@ -53,6 +53,9 @@ export function useSavedPlacesList({
   const loadRequestIdRef = useRef(0);
   // 목록을 한 번이라도 받았는지입니다(넘겨받은 목록과 캐시 포함). 받은 뒤 화면이 다시 보일 때의 읽기는 조용히 합니다.
   const hasLoadedPlacesRef = useRef(providedPlaces !== undefined || readSavedPlacesCache() !== null);
+  // 화면 목록에 마지막으로 반영한 캐시 세대입니다. 화면이 상세나 다른 탭 뒤에 남아 있는 동안(App의 탭 유지) 상세나 지도
+  // 시트가 지운 장소를 캐시에서 빼면 세대가 달라지므로, 다시 보일 때 캐시를 먼저 반영해 지운 장소가 응답 전까지 보이지 않게 합니다.
+  const appliedCacheGenerationRef = useRef(getSavedPlacesCacheGeneration());
   // 진행 중인 보이는 읽기(읽는 중 표시를 켜는 읽기)의 수입니다. 그동안에는 화면이 다시 보여도 조용한 읽기를 시작하지 않습니다.
   // 조용한 읽기가 보이는 읽기를 요청 번호로 밀어내면 보이는 읽기의 실패가 표시되지 않은 채 읽는 중이 끝나지 않고,
   // 외부 공유 뒤 기다리던 읽기가 null을 받아 공유 결과를 소비하지 못합니다. 진행 중인 읽기가 어차피 최신 목록을 가져옵니다.
@@ -98,6 +101,7 @@ export function useSavedPlacesList({
         }
         const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
         writeSavedPlacesCache(nextPlaces, cacheGeneration);
+        appliedCacheGenerationRef.current = cacheGeneration;
         hasLoadedPlacesRef.current = true;
         // 같은 목록이면 들고 있던 배열을 그대로 둬, 돌아오는 전환 중에 격자를 다시 그리지 않는다.
         setPlaces(current =>
@@ -140,6 +144,8 @@ export function useSavedPlacesList({
 
   /**
    * 화면이 보일 때 목록을 읽습니다. 한 번이라도 받은 뒤에는 보이는 목록(빈 화면 포함)을 둔 채 조용히 읽습니다.
+   * 뒤에 남아 있는 동안 다른 화면이 캐시에서 장소를 뺐으면(세대가 바뀜) 캐시를 먼저 반영해, 다시 읽기가 늦거나 실패해도
+   * 지운 장소를 보이지 않습니다. 캐시가 비었으면(세션 끝) 들고 있던 목록을 둡니다.
    * 보이는 읽기(새로고침, 재시도, 저장 뒤 읽기)가 진행 중이면 그 읽기가 최신 목록을 가져오므로 시작하지 않습니다.
    */
   const revalidateSavedPlaces = useCallback(() => {
@@ -148,6 +154,11 @@ export function useSavedPlacesList({
       return;
     }
 
+    if (appliedCacheGenerationRef.current !== getSavedPlacesCacheGeneration()) {
+      appliedCacheGenerationRef.current = getSavedPlacesCacheGeneration();
+      const cachedPlaces = readSavedPlacesCache();
+      if (cachedPlaces !== null) setPlaces(cachedPlaces);
+    }
     if (visibleReadsInFlightRef.current > 0) return;
     readSavedPlaces(true, hasLoadedPlacesRef.current);
   }, [providedPlaces, readSavedPlaces]);
@@ -177,6 +188,7 @@ export function useSavedPlacesList({
   /** 지운 장소를 화면 목록과 메모리 캐시에서 함께 뺍니다. */
   const removePlaces = useCallback((shouldRemove: (place: Place) => boolean) => {
     removeFromSavedPlacesCache(shouldRemove);
+    appliedCacheGenerationRef.current = getSavedPlacesCacheGeneration();
     setPlaces(current => current.filter(place => !shouldRemove(place)));
   }, []);
 

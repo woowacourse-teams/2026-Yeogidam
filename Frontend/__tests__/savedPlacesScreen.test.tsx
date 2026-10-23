@@ -19,6 +19,7 @@ import {SavedPlacesErrorState} from '../src/pages/saved-places/components/SavedP
 import {SavedPlacesSearchPanel} from '../src/pages/saved-places/components/SavedPlacesSearchPanel';
 import {SavedPlacesSkeleton} from '../src/pages/saved-places/components/SavedPlacesSkeleton';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
+import {deleteSavedPlaceAndRemoveFromCache} from '../src/entities/info/saved-place-deletion';
 import {clearSavedPlacesCache} from '../src/entities/info/saved-places-cache';
 import {deferred} from './support/deferred';
 import {
@@ -1032,5 +1033,32 @@ describe('화면이 다시 보일 때의 조용한 읽기', () => {
     await settleAsyncWork();
     expect(onSharedResultConsumed).toHaveBeenCalledWith('request-1');
     expect(placeNames(renderer)).toEqual(['카페', '빵집']);
+  });
+
+  test('뒤에 남아 있는 동안 상세가 지운 장소는 화면이 다시 보일 때 바로 사라지고, 다시 읽기가 실패해도 되살아나지 않는다', async () => {
+    const onOpenDetail = jest.fn();
+    const renderer = await renderLoaded([CAFE, BAKERY], {onOpenDetail});
+    // App이 상세를 열어 보관함 화면을 뒤에 둔다.
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive={false} onOpenDetail={onOpenDetail} />);
+    });
+    // 상세 화면이 카페를 지우고 캐시에서도 뺀다.
+    await act(async () => {
+      await deleteSavedPlaceAndRemoveFromCache(CAFE.id);
+    });
+    expect(placeNames(renderer)).toEqual(['카페', '빵집']);
+
+    // 보관함으로 돌아오면 응답을 기다리지 않고 캐시대로 보인다.
+    const silentLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(silentLoad.promise);
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive onOpenDetail={onOpenDetail} />);
+    });
+    expect(placeNames(renderer)).toEqual(['빵집']);
+
+    await act(async () => silentLoad.reject(SERVER_ERROR));
+    await settleAsyncWork();
+    expect(placeNames(renderer)).toEqual(['빵집']);
+    expect(texts(renderer)).not.toContain(SERVER_ERROR.message);
   });
 });
