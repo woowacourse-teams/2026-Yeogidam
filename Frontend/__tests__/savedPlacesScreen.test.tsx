@@ -1,3 +1,4 @@
+import React from 'react';
 import {Alert, ScrollView} from 'react-native';
 
 import {
@@ -17,6 +18,7 @@ import {SavedPlacesEmptyState} from '../src/pages/saved-places/components/SavedP
 import {SavedPlacesErrorState} from '../src/pages/saved-places/components/SavedPlacesErrorState';
 import {SavedPlacesSearchPanel} from '../src/pages/saved-places/components/SavedPlacesSearchPanel';
 import {SavedPlacesSkeleton} from '../src/pages/saved-places/components/SavedPlacesSkeleton';
+import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 import {clearSavedPlacesCache} from '../src/entities/info/saved-places-cache';
 import {deferred} from './support/deferred';
 import {
@@ -959,5 +961,76 @@ describe('조회 중에 지운 장소', () => {
     await settleAsyncWork();
     expect(placeNames(reopened)).toEqual(['카페', '빵집']);
     expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('화면이 다시 보일 때의 조용한 읽기', () => {
+  test('새로고침이 끝나기 전에 화면이 다시 보여도 조용한 읽기를 시작하지 않고, 새로고침 실패는 오류 배너로 보이며 읽는 중을 끈다', async () => {
+    const onOpenDetail = jest.fn();
+    const renderer = await renderLoaded([CAFE], {onOpenDetail});
+    const refreshLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(refreshLoad.promise);
+    await act(async () => {
+      refreshControl(renderer).props.onRefresh();
+    });
+    const callsWhileRefreshing = jest.mocked(getSavedPlaces).mock.calls.length;
+
+    // 새로고침이 끝나기 전에 상세로 갔다가(isActive=false) 돌아온다(isActive=true).
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive={false} onOpenDetail={onOpenDetail} />);
+    });
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive onOpenDetail={onOpenDetail} />);
+    });
+    // 진행 중인 새로고침이 최신 목록을 가져오므로 조용한 읽기를 따로 보내지 않는다.
+    expect(getSavedPlaces).toHaveBeenCalledTimes(callsWhileRefreshing);
+
+    await act(async () => refreshLoad.reject(SERVER_ERROR));
+    await settleAsyncWork();
+    expect(texts(renderer)).toContain(SERVER_ERROR.message);
+    expect(refreshControl(renderer).props.refreshing).toBe(false);
+
+    // 편집으로 남은 장소를 지워 목록이 비면, 읽는 중이 남아 있었다면 보였을 스켈레톤 대신 오류 화면이 보인다.
+    await selectAndDelete(renderer, 'place-1');
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(0);
+    expect(renderer.root.findAllByType(SavedPlacesErrorState)).toHaveLength(1);
+  });
+
+  test('완료된 공유 뒤 두 번째 읽기가 끝나기 전에 화면이 다시 보여도 그 읽기를 밀어내지 않아, 끝나면 공유 결과를 소비한다', async () => {
+    const onOpenDetail = jest.fn();
+    const onSharedResultConsumed = jest.fn(() => Promise.resolve());
+    const renderer = await renderLoaded([CAFE], {onOpenDetail, onSharedResultConsumed});
+    const secondLoad = deferred<SavedPlaceListItem[]>();
+    jest
+      .mocked(getSavedPlaces)
+      .mockResolvedValueOnce([CAFE, BAKERY])
+      .mockReturnValueOnce(secondLoad.promise);
+
+    await act(async () => setSharedSaveState(sharedShare(reelStatus('8', 'COMPLETED'))));
+    await settleAsyncWork();
+    await tick(700);
+    expect(getSavedPlaces).toHaveBeenCalledTimes(3);
+
+    // 두 번째 읽기가 끝나기 전에 상세로 갔다가 돌아온다.
+    await act(async () => {
+      renderer.update(
+        <SavedPlacesScreen
+          isActive={false}
+          onOpenDetail={onOpenDetail}
+          onSharedResultConsumed={onSharedResultConsumed}
+        />,
+      );
+    });
+    await act(async () => {
+      renderer.update(
+        <SavedPlacesScreen isActive onOpenDetail={onOpenDetail} onSharedResultConsumed={onSharedResultConsumed} />,
+      );
+    });
+    expect(getSavedPlaces).toHaveBeenCalledTimes(3);
+
+    await act(async () => secondLoad.resolve([CAFE, BAKERY]));
+    await settleAsyncWork();
+    expect(onSharedResultConsumed).toHaveBeenCalledWith('request-1');
+    expect(placeNames(renderer)).toEqual(['카페', '빵집']);
   });
 });

@@ -53,6 +53,10 @@ export function useSavedPlacesList({
   const loadRequestIdRef = useRef(0);
   // 목록을 한 번이라도 받았는지입니다(넘겨받은 목록과 캐시 포함). 받은 뒤 화면이 다시 보일 때의 읽기는 조용히 합니다.
   const hasLoadedPlacesRef = useRef(providedPlaces !== undefined || readSavedPlacesCache() !== null);
+  // 진행 중인 보이는 읽기(읽는 중 표시를 켜는 읽기)의 수입니다. 그동안에는 화면이 다시 보여도 조용한 읽기를 시작하지 않습니다.
+  // 조용한 읽기가 보이는 읽기를 요청 번호로 밀어내면 보이는 읽기의 실패가 표시되지 않은 채 읽는 중이 끝나지 않고,
+  // 외부 공유 뒤 기다리던 읽기가 null을 받아 공유 결과를 소비하지 못합니다. 진행 중인 읽기가 어차피 최신 목록을 가져옵니다.
+  const visibleReadsInFlightRef = useRef(0);
 
   /**
    * 목록을 한 번 읽어 반영할 수 있으면 반영하고, 읽는 동안 장소를 지워 응답이 낡았으면 canRetry일 때 한 번 더 읽습니다.
@@ -67,7 +71,10 @@ export function useSavedPlacesList({
       const requestId = loadRequestIdRef.current + 1;
       loadRequestIdRef.current = requestId;
       const cacheGeneration = getSavedPlacesCacheGeneration();
-      if (!silent) setLoadState(LOADING);
+      if (!silent) {
+        visibleReadsInFlightRef.current += 1;
+        setLoadState(LOADING);
+      }
       try {
         const savedPlaces = await getSavedPlaces();
         if (requestId !== loadRequestIdRef.current) {
@@ -109,6 +116,9 @@ export function useSavedPlacesList({
           onAuthenticationRequiredRef.current?.();
         }
         return null;
+      } finally {
+        // 다시 읽기(return readSavedPlaces(...))는 안쪽 호출이 먼저 세므로, 바깥이 빼도 안쪽이 끝날 때까지 0이 되지 않는다.
+        if (!silent) visibleReadsInFlightRef.current -= 1;
       }
     },
     [],
@@ -128,13 +138,17 @@ export function useSavedPlacesList({
     return readSavedPlaces(true);
   }, [providedPlaces, readSavedPlaces]);
 
-  /** 화면이 보일 때 목록을 읽습니다. 한 번이라도 받은 뒤에는 보이는 목록(빈 화면 포함)을 둔 채 조용히 읽습니다. */
+  /**
+   * 화면이 보일 때 목록을 읽습니다. 한 번이라도 받은 뒤에는 보이는 목록(빈 화면 포함)을 둔 채 조용히 읽습니다.
+   * 보이는 읽기(새로고침, 재시도, 저장 뒤 읽기)가 진행 중이면 그 읽기가 최신 목록을 가져오므로 시작하지 않습니다.
+   */
   const revalidateSavedPlaces = useCallback(() => {
     if (providedPlaces !== undefined) {
       setPlaces(providedPlaces);
       return;
     }
 
+    if (visibleReadsInFlightRef.current > 0) return;
     readSavedPlaces(true, hasLoadedPlacesRef.current);
   }, [providedPlaces, readSavedPlaces]);
 
