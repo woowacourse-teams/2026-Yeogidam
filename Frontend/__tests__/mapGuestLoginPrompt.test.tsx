@@ -196,7 +196,7 @@ describe('화면 이력과 뒤로 가기', () => {
     expect(stack(renderer).enabled).toBe(false);
   });
 
-  test('Android에서는 검색어가 있을 때만 시스템 뒤로 가기를 가로채 검색을 지우고, 없으면 처리기를 걸지 않는다', async () => {
+  test('Android에서는 검색어를 넣으면 시스템 뒤로 가기를 가로채 검색을 지우고, 처음 목록에서는 처리기를 걸지 않는다', async () => {
     const {handlers, pressBack} = mockAndroidBackHandler();
     const renderer = await renderMap();
     expect(handlers).toHaveLength(0);
