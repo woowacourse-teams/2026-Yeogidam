@@ -5,6 +5,7 @@ import {SwipeBackStack} from '../src/components/navigation/SwipeBackStack';
 import {getHistoryReels} from '../src/entities/content/history-api';
 import type {HistoryReel} from '../src/entities/content/types';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
+import {mockAndroidBackHandler} from './support/androidBackHandler';
 import {pressLabel} from './support/pressLabel';
 import {renderTracked, settleAsyncWork, type Renderer} from './support/renderers';
 
@@ -85,6 +86,7 @@ beforeEach(() => {
 afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 test('상세를 열면 이력 스택에 상세가 쌓이고 뒤로 갈 수 있다고 알리며, 스와이프 뒤로 가기로 목록에 돌아오면 아니라고 알린다', async () => {
@@ -151,4 +153,21 @@ test('비회원 빈 히스토리의 로그인하기는 onRequireLogin을 부르�
   expect(
     member.root.findAll(node => node.props.accessibilityLabel === '히스토리 로그인'),
   ).toHaveLength(0);
+});
+
+test('Android에서는 상세가 열려 있을 때만 시스템 뒤로 가기를 가로채 목록으로 돌아가고, 목록에서는 처리기를 걸지 않는다', async () => {
+  const {handlers, pressBack} = mockAndroidBackHandler();
+  const renderer = await render();
+  await settleAsyncWork();
+  expect(handlers).toHaveLength(0);
+
+  await openFirstReel(renderer);
+  expect(handlers).toHaveLength(1);
+  let handled!: boolean;
+  await act(async () => {
+    handled = pressBack();
+  });
+  expect(handled).toBe(true);
+  expect(stack(renderer).activeKey).toBe('list');
+  expect(handlers).toHaveLength(0);
 });

@@ -1212,3 +1212,23 @@ test('상세를 열면 기다리던 노출 지표를 취소하고, 목록으로 
     [null, '1', 'success'],
   ]);
 });
+
+test('화면이 보이지 않는 동안에는 기다리던 노출 지표를 취소하고 남기지 않으며, 다시 보이면 기억한 배치로 다시 판단한다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([2, 1]), nextCursor: null});
+  const renderer = await render();
+  await layoutList(renderer, 800);
+
+  await tick(300);
+  await ReactTestRenderer.act(async () =>
+    renderer.update(<HistoryScreen onBack={jest.fn()} isActive={false} />),
+  );
+  await tick(500);
+  expect(trackHistoryContentViewed).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(async () => renderer.update(<HistoryScreen onBack={jest.fn()} isActive />));
+  await tick(500);
+  expect(jest.mocked(trackHistoryContentViewed).mock.calls).toEqual([
+    [null, '2', 'success'],
+    [null, '1', 'success'],
+  ]);
+});

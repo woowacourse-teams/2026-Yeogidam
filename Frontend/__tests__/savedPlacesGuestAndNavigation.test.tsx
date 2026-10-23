@@ -3,6 +3,7 @@ import React from 'react';
 import {SwipeBackStack} from '../src/components/navigation/SwipeBackStack';
 import {SavedPlacesEmptyState} from '../src/pages/saved-places/components/SavedPlacesEmptyState';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
+import {mockAndroidBackHandler} from './support/androidBackHandler';
 import {CAFE} from './support/savedPlacesFixtures';
 import {
   act,
@@ -51,6 +52,10 @@ jest.mock('../src/entities/content/history-api', () => ({
 }));
 
 setUpSavedPlacesScreenTests();
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
 const stack = (renderer: Renderer) => renderer.root.findByType(SwipeBackStack).props;
 const lastBackState = (onNestedBackStateChange: jest.Mock) =>
@@ -142,5 +147,21 @@ describe('화면 이력과 뒤로 가기', () => {
     });
     expect(lastBackState(onNestedBackStateChange)).toBe(false);
     expect(stack(renderer).enabled).toBe(false);
+  });
+
+  test('Android에서는 검색이 열려 있을 때만 시스템 뒤로 가기를 가로채 검색을 닫고, 목록에서는 처리기를 걸지 않는다', async () => {
+    const {handlers, pressBack} = mockAndroidBackHandler();
+    const renderer = await renderLoaded([CAFE]);
+    expect(handlers).toHaveLength(0);
+
+    await act(async () => header(renderer).props.onPressSearch());
+    expect(handlers).toHaveLength(1);
+    let handled!: boolean;
+    await act(async () => {
+      handled = pressBack();
+    });
+    expect(handled).toBe(true);
+    expect(stack(renderer).activeKey).toBe('list');
+    expect(handlers).toHaveLength(0);
   });
 });

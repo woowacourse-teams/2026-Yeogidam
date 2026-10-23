@@ -12,6 +12,7 @@ import {SearchBar} from '../src/components/SearchBar';
 import {getPlaceReels, getSavedPlaces} from '../src/entities/info/api';
 import type {SavedPlaceListItem} from '../src/entities/info/types';
 import {MapScreen} from '../src/pages/map/MapScreen';
+import {mockAndroidBackHandler} from './support/androidBackHandler';
 import {pressLabel} from './support/pressLabel';
 import {renderTracked, settleAsyncWork, type Renderer} from './support/renderers';
 
@@ -72,6 +73,16 @@ const searchBar = (renderer: Renderer) =>
 const stack = (renderer: Renderer) => renderer.root.findByType(SwipeBackStack).props;
 const lastBackState = (onNestedBackStateChange: jest.Mock) =>
   onNestedBackStateChange.mock.calls[onNestedBackStateChange.mock.calls.length - 1][0];
+/** 시트 손잡이(검색 결과 펼치기)를 감싸며 시트의 끌기 응답자를 받은 View입니다. */
+const sheetHandle = (renderer: Renderer) => {
+  let node = renderer.root.find(
+    candidate =>
+      candidate.props.accessibilityLabel === '검색 결과 펼치기' && typeof candidate.props.onPress === 'function',
+  ).parent;
+  while (node && typeof node.props.onResponderGrant !== 'function') node = node.parent;
+  if (!node) throw new Error('시트 손잡이의 끌기 응답자를 찾지 못했습니다.');
+  return node;
+};
 
 beforeEach(() => {
   jest.mocked(getSavedPlaces).mockReset().mockResolvedValue([]);
@@ -109,9 +120,16 @@ describe('비회원 로그인 안내', () => {
   test('시트를 조금 끌어 올리고 손을 떼면 펼쳐지지 않아도 로그인 안내를 띄운다', async () => {
     const create = jest.spyOn(PanResponder, 'create');
     const onShowGuestLoginPrompt = jest.fn();
-    await renderMap({isGuest: true, onShowGuestLoginPrompt});
-    // 시트가 손잡이에 거는 응답자가 먼저 만들어지고, 화면 이력 스택의 응답자는 그 뒤에 만들어진다.
-    const handlers = create.mock.calls[0][0];
+    const renderer = await renderMap({isGuest: true, onShowGuestLoginPrompt});
+    // 화면 이력 스택도 응답자를 만들므로 만든 순서에 기대지 않고, 손잡이 View에 걸린 응답자를 만든 호출의 설정을 찾는다.
+    const handle = sheetHandle(renderer);
+    const sheetCallIndex = create.mock.results.findIndex(
+      result =>
+        result.type === 'return' &&
+        result.value.panHandlers.onResponderGrant === handle.props.onResponderGrant,
+    );
+    expect(sheetCallIndex).toBeGreaterThanOrEqual(0);
+    const handlers = create.mock.calls[sheetCallIndex][0];
     const event = {} as GestureResponderEvent;
     await act(async () =>
       handlers.onPanResponderGrant?.(event, {dx: 0, dy: 0, vy: 0} as PanResponderGestureState),
@@ -176,5 +194,21 @@ describe('화면 이력과 뒤로 가기', () => {
     });
     expect(lastBackState(onNestedBackStateChange)).toBe(false);
     expect(stack(renderer).enabled).toBe(false);
+  });
+
+  test('Android에서는 검색어가 있을 때만 시스템 뒤로 가기를 가로채 검색을 지우고, 없으면 처리기를 걸지 않는다', async () => {
+    const {handlers, pressBack} = mockAndroidBackHandler();
+    const renderer = await renderMap();
+    expect(handlers).toHaveLength(0);
+
+    await act(async () => searchBar(renderer).props.onChangeText('카페'));
+    expect(handlers).toHaveLength(1);
+    let handled!: boolean;
+    await act(async () => {
+      handled = pressBack();
+    });
+    expect(handled).toBe(true);
+    expect(searchBar(renderer).props.value).toBe('');
+    expect(handlers).toHaveLength(0);
   });
 });
