@@ -752,6 +752,90 @@ test('Android 시스템 뒤로 가기는 탭 화면이 스스로 뒤로 갈 수 
   }
 });
 
+test('지도 탭에서만 지도가 알린 뒤로 가기 스와이프 영역을 SwipeBackStack에 넘긴다', async () => {
+  const renderer = await renderGuestMain();
+  const stack = () => renderer.root.findByType(SwipeBackStack).props;
+  expect(stack().gestureRegion).toBeUndefined();
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('map');
+  });
+  // 지도가 영역을 알리기 전에는 어디서도 스와이프를 받지 않는 영역이다.
+  expect(stack().gestureRegion).toEqual({top: Number.MAX_SAFE_INTEGER, bottom: 0});
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(MapScreen).props.onBackGestureRegionChange({top: 120, bottom: 80});
+  });
+  expect(stack().gestureRegion).toEqual({top: 120, bottom: 80});
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('saved');
+  });
+  expect(stack().gestureRegion).toBeUndefined();
+});
+
+test('탭 화면이 스스로 뒤로 갈 수 있으면 스와이프를 끄고, 상세와 겹침 화면에서는 켜며, 스와이프 뒤로 가기가 상세와 겹침 화면을 닫는다', async () => {
+  const renderer = await renderGuestMain();
+  const stack = () => renderer.root.findByType(SwipeBackStack).props;
+  expect(stack().enabled).toBe(true);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onNestedBackStateChange(true);
+  });
+  expect(stack().enabled).toBe(false);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenDetail(PLACE);
+  });
+  expect(stack()).toMatchObject({activeKey: 'detail', backKey: 'saved', enabled: true});
+
+  await ReactTestRenderer.act(async () => stack().onBack());
+  expect(renderer.root.findAllByType(PlaceDetailScreen)).toHaveLength(0);
+  expect(stack()).toMatchObject({activeKey: 'saved', enabled: false});
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenGuide();
+  });
+  expect(stack()).toMatchObject({activeKey: 'myPage-guide', backKey: 'saved', enabled: true});
+
+  await ReactTestRenderer.act(async () => stack().onBack());
+  expect(stack()).toMatchObject({activeKey: 'saved', enabled: false});
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onNestedBackStateChange(false);
+  });
+  expect(stack().enabled).toBe(true);
+});
+
+test('SwipeBackStack은 탭을 옮겨도 그대로 두고, 흐름 종류나 세션이 바뀌면 새로 만든다', async () => {
+  const renderer = await renderGuestMain();
+  const mainStack = renderer.root.findByType(SwipeBackStack);
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('map');
+  });
+  expect(renderer.root.findByType(SwipeBackStack)).toBe(mainStack);
+
+  // 비회원 메인에서 로그인 화면으로 가면 인증 흐름의 스택을 새로 만든다.
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(MapScreen).props.onAuthenticationRequired();
+  });
+  const authStack = renderer.root.findByType(SwipeBackStack);
+  expect(authStack).not.toBe(mainStack);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(LoginScreen).props.onClose();
+  });
+  const returnedStack = renderer.root.findByType(SwipeBackStack);
+  expect(returnedStack).not.toBe(authStack);
+
+  // 로그인하면 회원 세션의 스택을 새로 만든다.
+  await ReactTestRenderer.act(async () => {
+    authChangeHandler('SIGNED_IN', 'user');
+  });
+  expect(renderer.root.findByType(SwipeBackStack)).not.toBe(returnedStack);
+});
+
 test('로그아웃하면 회원 메인에서 온보딩을 다시 보여준 뒤 로그인 화면으로 이동한다', async () => {
   restoreSpringSession();
   const renderer = await renderAfterSplash();
