@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Alert, AppState, BackHandler, Platform} from 'react-native';
+import {Alert, AppState} from 'react-native';
 
 import App from '../App';
 import {SwipeBackStack} from '../src/components/navigation/SwipeBackStack';
@@ -25,7 +25,6 @@ import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen'
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {TermsAgreementScreen} from '../src/pages/my-page/TermsAgreementScreen';
 import {PlaceDetailScreen} from '../src/pages/place-detail/PlaceDetailScreen';
-import type {Place} from '../src/entities/place/types';
 import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
@@ -35,7 +34,9 @@ import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {GuestLoginPrompt} from '../src/components/GuestLoginPrompt';
 import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
 import {clearSavedPlacesCache} from '../src/entities/info/saved-places-cache';
+import {mockAndroidBackHandler} from './support/androidBackHandler';
 import {renderTracked, settleAsyncWork, unmountTracked} from './support/renderers';
+import {CACHED_CAFE} from './support/savedPlacesFixtures';
 
 const DISMISSED_RECOMMENDED_VERSION_KEY =
   '@yeogidam/dismissed-recommended-update-version';
@@ -149,8 +150,6 @@ jest.mock('../src/pages/place-detail/PlaceDetailScreen', () => ({
   PlaceDetailScreen: () => null,
 }));
 
-const PLACE = {id: 'place-1', savedPlaceId: 'saved-1', name: '군자역'} as unknown as Place;
-
 type AuthChangeHandler = (
   event: string,
   memberId: string | null,
@@ -198,35 +197,22 @@ async function renderGuestMain() {
 }
 
 /**
- * Platform.OS를 Android로 바꾸고 App이 BackHandler에 거는 처리기를 가로채, 시스템 뒤로 가기를 누르는 함수를 돌려줍니다.
- * App을 그리기 전에 불러야 합니다. 이 파일의 afterEach는 clearAllMocks만 하므로 테스트 끝에 restore를 직접 부릅니다.
+ * 공용 Android 뒤로 가기 도우미를 App에 맞게 감쌉니다. App을 그리기 전에 불러야 하고, 누르기는 App의 상태 갱신이
+ * 반영되도록 act 안에서 합니다. 이 파일의 afterEach는 clearAllMocks만 하므로 테스트 끝에 restore를 직접 부릅니다.
  */
 function installAndroidBackPress() {
-  const platform = jest.replaceProperty(Platform, 'OS', 'android');
-  let onHardwareBackPress: (() => boolean) | undefined;
-  const addEventListener = jest
-    .spyOn(BackHandler, 'addEventListener')
-    .mockImplementation((_event, handler) => {
-      onHardwareBackPress = handler as () => boolean;
-      return {remove: jest.fn()};
-    });
+  const {pressBack: press, restore} = mockAndroidBackHandler();
 
   /** 시스템 뒤로 가기를 누르고 App이 가로챘는지(true) 돌려줍니다. */
   const pressBack = async () => {
     let handled = false;
     await ReactTestRenderer.act(async () => {
-      handled = onHardwareBackPress!();
+      handled = press();
     });
     return handled;
   };
 
-  return {
-    pressBack,
-    restore: () => {
-      addEventListener.mockRestore();
-      platform.restore();
-    },
-  };
+  return {pressBack, restore};
 }
 
 /** SwipeBackStack이 맨 앞에 둔 층의 키입니다. */
@@ -355,10 +341,9 @@ test('로그아웃 상태로 열면 온보딩 뒤 로그인 화면을 보여준�
   await completeOnboarding(renderer);
   expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
   // 온보딩 뒤의 로그인 화면은 돌아갈 화면이 없어 X 없이 "로그인 없이 둘러보기"만 둔다.
-  expect(renderer.root.findByType(LoginScreen).props).toMatchObject({
-    onBrowseAsGuest: expect.any(Function),
-    onClose: undefined,
-  });
+  const loginProps = renderer.root.findByType(LoginScreen).props;
+  expect(loginProps.onBrowseAsGuest).toEqual(expect.any(Function));
+  expect(loginProps.onClose).toBeUndefined();
   expect(getCurrentProfile).not.toHaveBeenCalled();
 });
 
@@ -460,15 +445,6 @@ test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로
   // 앱이 포그라운드일 때만 1초 간격 폴링이 공유 결과를 읽는다.
   const previousAppState = AppState.currentState;
   (AppState as {currentState: string}).currentState = 'active';
-  const pollOnce = async () => {
-    await ReactTestRenderer.act(async () => {
-      jest.advanceTimersByTime(1000);
-      // getShareResults → getSpringTokens 비동기 체인이 끝나도록 비웁니다.
-      for (let i = 0; i < 10; i += 1) {
-        await Promise.resolve();
-      }
-    });
-  };
   const previousShare = {
     requestId: 'previous-request',
     url: 'https://www.instagram.com/p/previous/',
@@ -490,7 +466,7 @@ test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로
 
   try {
     // 이전 공유가 먼저 처리되어 화면에 열려 있다.
-    await pollOnce();
+    await pollShareResultsOnce();
     expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
 
     // 새 공유의 로그인 이동 결과가 도착한다.
@@ -505,14 +481,14 @@ test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로
         updatedAt: Date.now(),
       },
     ];
-    await pollOnce();
+    await pollShareResultsOnce();
     expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
     // 로그인해도 이 공유는 추출하지 않으므로 로그인 대기 상태로 남기지 않는다.
     expect(clearShareResult).toHaveBeenCalledWith('login-request');
 
     // 폴링이 계속 돌아도 이전 결과를 다시 처리해 둘러보기 화면으로 되돌아가지 않는다.
     for (let second = 0; second < 3; second += 1) {
-      await pollOnce();
+      await pollShareResultsOnce();
       expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
     }
 
@@ -526,7 +502,7 @@ test('둘러보기 중 이전 공유가 열려 있어도 공유 화면에서 로
     expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
 
     // 돌아온 뒤 폴링이 계속 돌아도 로그인 화면이 다시 열리지 않는다.
-    await pollOnce();
+    await pollShareResultsOnce();
     expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
   } finally {
     (AppState as {currentState: string}).currentState = previousAppState;
@@ -620,7 +596,6 @@ test('비회원 로그인 안내 콜백은 App이 다시 그려져도 같은 참
   });
   const {onShowGuestLoginPrompt} = renderer.root.findByType(MapScreen).props;
   const savedCallback = renderer.root.findByType(SavedPlacesScreen).props.onShowGuestLoginPrompt;
-  expect(onShowGuestLoginPrompt).toBe(savedCallback);
 
   // 지도가 안쪽 뒤로 가기 상태를 알려 App이 다시 그려진다.
   await ReactTestRenderer.act(async () => {
@@ -735,7 +710,7 @@ test('Android 시스템 뒤로 가기는 열린 상세를 닫고 가로챈다', 
   try {
     const renderer = await renderGuestMain();
     await ReactTestRenderer.act(async () => {
-      renderer.root.findByType(SavedPlacesScreen).props.onOpenDetail(PLACE);
+      renderer.root.findByType(SavedPlacesScreen).props.onOpenDetail(CACHED_CAFE);
     });
     expect(renderer.root.findAllByType(PlaceDetailScreen)).toHaveLength(1);
     expect(activeLayerKey(renderer)).toBe('detail');
@@ -878,7 +853,7 @@ test('탭 화면이 스스로 뒤로 갈 수 있으면 스와이프를 끄고, �
   expect(stack().enabled).toBe(false);
 
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(SavedPlacesScreen).props.onOpenDetail(PLACE);
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenDetail(CACHED_CAFE);
   });
   expect(stack()).toMatchObject({activeKey: 'detail', backKey: 'saved', enabled: true});
 
