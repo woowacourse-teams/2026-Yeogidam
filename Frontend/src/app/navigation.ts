@@ -29,7 +29,7 @@ export type NavigationState = {
   flow: AppFlowState;
   selectedPlace: Place | null;
   selectedPlaceViewContext: SavedPlaceViewContext | null;
-  /** 하단 메뉴로 옮겨 오기 전에 보던 탭의 이력입니다. 뒤로 가면 마지막 탭으로, 비어 있으면 보관함으로 돌아갑니다. */
+  /** 하단 메뉴로 옮겨 오기 전에 보던 탭의 이력입니다. 뒤로 가면 마지막 탭으로, 비어 있으면 보관함으로 돌아갑니다. 끝은 지금 탭과 다릅니다. */
   mainTabHistory: MainScreen[];
   /** 이번 세션에 한 번이라도 보인 메인 탭입니다. 탭을 옮겨도 화면을 내리지 않고 뒤에 두어 상태를 지킵니다. */
   visitedTabs: MainScreen[];
@@ -81,6 +81,19 @@ function trackVisitedTab(state: NavigationState): NavigationState {
     return state;
   }
   return {...state, visitedTabs: [...state.visitedTabs, state.flow.activeTab]};
+}
+
+/**
+ * 이력 끝이 지금 탭과 같으면 뺍니다. 하단 메뉴를 거치지 않는 이동(공유 결과가 여는 보관함, 둘러보기 복귀)이
+ * 이력에 남은 탭으로 돌아오면 뒤로 가기가 같은 탭으로 가는 제자리걸음이 되고, 스와이프는 같은 층을 앞과 뒤로 잡기 때문입니다.
+ */
+function dropHistoryTailEqualToActiveTab(state: NavigationState): NavigationState {
+  if (state.flow.kind !== 'main') return state;
+  let history = state.mainTabHistory;
+  while (history.length > 0 && history[history.length - 1] === state.flow.activeTab) {
+    history = history.slice(0, -1);
+  }
+  return history === state.mainTabHistory ? state : {...state, mainTabHistory: history};
 }
 
 function reduce(state: NavigationState, action: NavigationAction): NavigationState {
@@ -205,7 +218,7 @@ export function navigationReducer(
   action: NavigationAction,
 ): NavigationState {
   const next = reduce(state, action);
-  return next === state ? state : trackVisitedTab(next);
+  return next === state ? state : dropHistoryTailEqualToActiveTab(trackVisitedTab(next));
 }
 
 /** 흐름 상태에서 지금 그려야 할 화면 하나를 고릅니다. */

@@ -165,7 +165,7 @@ describe('navigationReducer: 상세', () => {
     expect(closed.selectedPlaceViewContext).toBeNull();
   });
 
-  test('공유 결과로 여는 보관함 탭은 상세를 닫고 이력에 남기지 않는다', () => {
+  test('공유 결과로 여는 보관함 탭은 상세를 닫고 이력에 남기지 않으며, 이력 끝이 보관함이면 그 이력을 뺀다', () => {
     const opened = run(MEMBER_MAIN, {type: 'navigateMainTab', screen: 'map'}, {
       type: 'openDetail',
       source: 'map',
@@ -174,7 +174,59 @@ describe('navigationReducer: 상세', () => {
     });
     const moved = run(opened, {type: 'openMainScreen', screen: 'saved'});
     expect(moved.flow).toEqual({kind: 'main', activeTab: 'saved', detailSource: null});
-    expect(moved.mainTabHistory).toEqual(['saved']);
+    expect(moved.mainTabHistory).toEqual([]);
+  });
+});
+
+describe('navigationReducer: 하단 메뉴를 거치지 않고 이력 끝의 탭으로 돌아오는 이동', () => {
+  test('지도에서 공유 결과로 보관함이 열리면 이력 끝의 보관함을 빼, 뒤로 가기가 같은 탭에 머물지 않고 스와이프가 같은 층을 잡지 않는다', () => {
+    const onMap = run(MEMBER_MAIN, {type: 'navigateMainTab', screen: 'map'});
+    expect(onMap.mainTabHistory).toEqual(['saved']);
+
+    const shared = run(onMap, {type: 'openMainScreen', screen: 'saved'});
+    expect(shared.flow).toEqual({kind: 'main', activeTab: 'saved', detailSource: null});
+    expect(shared.mainTabHistory).toEqual([]);
+    expect(selectPreviousTab(shared)).toBeNull();
+    expect(selectCanGoBackMainTab(shared)).toBe(false);
+    expect(selectBackLayerKey(shared.flow, null, selectPreviousTab(shared))).toBeNull();
+    expect(navigationReducer(shared, {type: 'goBackMainTab'})).toBe(shared);
+  });
+
+  test('이력 끝이 다른 탭이면 그대로 두어 뒤로 가기 한 번에 그 탭으로 돌아간다', () => {
+    const onMy = run(
+      MEMBER_MAIN,
+      {type: 'navigateMainTab', screen: 'map'},
+      {type: 'navigateMainTab', screen: 'my'},
+    );
+    const shared = run(onMy, {type: 'openMainScreen', screen: 'saved'});
+    expect(shared.mainTabHistory).toEqual(['saved', 'map']);
+    expect(selectPreviousTab(shared)).toBe('map');
+    expect(selectBackLayerKey(shared.flow, null, selectPreviousTab(shared))).toBe('map');
+
+    const backToMap = run(shared, {type: 'goBackMainTab'});
+    expect(backToMap.flow).toEqual({kind: 'main', activeTab: 'map', detailSource: null});
+    expect(backToMap.mainTabHistory).toEqual(['saved']);
+    const backToSaved = run(backToMap, {type: 'goBackMainTab'});
+    expect(backToSaved.flow).toEqual({kind: 'main', activeTab: 'saved', detailSource: null});
+    expect(selectCanGoBackMainTab(backToSaved)).toBe(false);
+  });
+
+  test('지도를 보던 비회원이 공유 로그인 유도를 거쳐 둘러보기로 비회원 메인에 돌아오면 이력 끝의 보관함을 뺀다', () => {
+    const onMap = run(GUEST_MAIN, {type: 'navigateMainTab', screen: 'map'});
+    const returned = run(onMap, {type: 'openLoginFromGuestShare'}, {type: 'returnToGuestFlow'});
+    expect(returned.flow).toBe(GUEST_MAIN_FLOW_STATE);
+    expect(returned.mainTabHistory).toEqual([]);
+
+    const browsedAgain = run(onMap, {type: 'openLogin'}, {type: 'openGuestMain'});
+    expect(browsedAgain.flow).toBe(GUEST_MAIN_FLOW_STATE);
+    expect(browsedAgain.mainTabHistory).toEqual([]);
+  });
+
+  test('하단 메뉴 이동만 이력에 남기는 규칙은 그대로다', () => {
+    const onMap = run(MEMBER_MAIN, {type: 'openMainScreen', screen: 'map'});
+    expect(onMap.mainTabHistory).toEqual([]);
+    const onHistory = run(onMap, {type: 'navigateMainTab', screen: 'history'});
+    expect(onHistory.mainTabHistory).toEqual(['map']);
   });
 });
 

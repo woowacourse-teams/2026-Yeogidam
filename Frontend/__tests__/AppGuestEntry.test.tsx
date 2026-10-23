@@ -234,6 +234,28 @@ function activeLayerKey(renderer: ReactTestRenderer.ReactTestRenderer) {
   return renderer.root.findByType(SwipeBackStack).props.activeKey;
 }
 
+/** 앱이 포그라운드일 때 1초마다 도는 공유 결과 폴링을 한 번 돌리고, getShareResults 뒤의 비동기 사슬이 끝날 때까지 기다립니다. */
+async function pollShareResultsOnce() {
+  await ReactTestRenderer.act(async () => {
+    jest.advanceTimersByTime(1000);
+    for (let i = 0; i < 10; i += 1) {
+      await Promise.resolve();
+    }
+  });
+}
+
+function acceptedShareResult(requestId: string, updatedAt: number) {
+  return {
+    requestId,
+    url: `https://www.instagram.com/reel/${requestId}/`,
+    status: 'COMPLETED',
+    transferStatus: 'API_SUCCEEDED',
+    reelId: `reel-${requestId}`,
+    retryable: false,
+    updatedAt,
+  };
+}
+
 beforeEach(async () => {
   jest.useFakeTimers();
   // 알림이 실제로 뜨지 않게 모든 테스트에서 가로채고, 안내를 확인하는 테스트는 이 alertSpy로 단언합니다. 되돌리기는 afterEach가 맡습니다.
@@ -774,6 +796,51 @@ test('Android 시스템 뒤로 가기는 탭 화면이 스스로 뒤로 갈 수 
     expect(await pressBack()).toBe(true);
     expect(activeLayerKey(renderer)).toBe('saved');
   } finally {
+    restore();
+  }
+});
+
+test('지도를 보던 회원에게 공유 결과가 보관함을 열면 뒤로 가기가 제자리걸음 없이 이력대로 가고, 이력이 없으면 바로 시스템에 맡긴다', async () => {
+  const {pressBack, restore} = installAndroidBackPress();
+  restoreSpringSession();
+  const previousAppState = AppState.currentState;
+  (AppState as {currentState: string}).currentState = 'active';
+  let storedResults: Record<string, unknown>[] = [];
+  (getShareResults as jest.Mock).mockImplementation(() => Promise.resolve([...storedResults]));
+
+  try {
+    const renderer = await renderAfterSplash();
+    const stack = () => renderer.root.findByType(SwipeBackStack).props;
+
+    // 보관함에서 하단 메뉴로 지도에 간 뒤 공유 결과가 보관함을 연다. 이력 끝의 보관함은 빠져 뒤로 갈 곳이 없다.
+    await ReactTestRenderer.act(async () => {
+      activeBar(renderer).props.onNavigate('map');
+    });
+    storedResults = [acceptedShareResult('share-1', Date.now())];
+    await pollShareResultsOnce();
+    expect(stack()).toMatchObject({activeKey: 'saved', backKey: null});
+    expect(await pressBack()).toBe(false);
+    expect(activeLayerKey(renderer)).toBe('saved');
+
+    // 지도와 내 정보를 거친 뒤 공유 결과가 보관함을 열면 뒤로 가기 한 번에 지도로 돌아간다.
+    await ReactTestRenderer.act(async () => {
+      activeBar(renderer).props.onNavigate('map');
+    });
+    await ReactTestRenderer.act(async () => {
+      activeBar(renderer).props.onNavigate('my');
+    });
+    storedResults = [acceptedShareResult('share-2', Date.now() + 1)];
+    await pollShareResultsOnce();
+    expect(stack()).toMatchObject({activeKey: 'saved', backKey: 'map'});
+    expect(await pressBack()).toBe(true);
+    expect(activeLayerKey(renderer)).toBe('map');
+    expect(await pressBack()).toBe(true);
+    expect(activeLayerKey(renderer)).toBe('saved');
+    expect(await pressBack()).toBe(false);
+  } finally {
+    (AppState as {currentState: string}).currentState = previousAppState;
+    (getShareResults as jest.Mock).mockImplementation(() => Promise.resolve([]));
+    setSharedSaveState(null);
     restore();
   }
 });
