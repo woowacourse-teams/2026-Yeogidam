@@ -149,7 +149,7 @@ test('세션을 읽지 못하면 오류를 기록하고 세션이 없을 때와 
   expect(latest.hasPendingShareLogin).toBe(false);
 });
 
-test('비회원 로그인 유도 결과는 결과와 공유 상태를 지우고 로그인 화면으로 보내며, 결과가 모두 사라지면 처리한 키를 비운다', async () => {
+test('비회원 로그인 유도 결과는 결과와 열려 있던 공유 상태를 지우고 로그인 화면으로 보내며, 결과가 모두 사라지면 처리한 키를 비운다', async () => {
   const guestPrompt: NativeShareResult = {
     requestId: 'guest-request',
     url: 'https://www.instagram.com/p/anotherPost/',
@@ -158,12 +158,17 @@ test('비회원 로그인 유도 결과는 결과와 공유 상태를 지우고 
     retryable: false,
     updatedAt: 3_000,
   };
-  storedResults = [PREVIOUS_SHARE, guestPrompt];
+  // 이전 공유를 먼저 처리해 보관함에 진행 상태로 열어 둔다. 유도 결과가 이 상태를 지우는지 보기 위해서다.
+  storedResults = [PREVIOUS_SHARE];
   await renderTracked(<Harness />);
   await settleAsyncWork();
+  expect(handlers.onOpenSavedPlaces).toHaveBeenCalledTimes(1);
+  expect(getSharedSaveState()?.shareResultId).toBe('previous-request');
 
+  storedResults = [PREVIOUS_SHARE, guestPrompt];
+  await pollOnce();
   expect(handlers.onGuestLoginPrompt).toHaveBeenCalledTimes(1);
-  expect(handlers.onOpenSavedPlaces).not.toHaveBeenCalled();
+  expect(handlers.onOpenSavedPlaces).toHaveBeenCalledTimes(1);
   expect(clearShareResult).toHaveBeenCalledWith('guest-request');
   expect(getSharedSaveState()).toBeNull();
 

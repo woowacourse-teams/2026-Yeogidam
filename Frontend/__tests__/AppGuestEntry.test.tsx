@@ -332,9 +332,11 @@ test('로그아웃 상태로 열면 온보딩 뒤 로그인 화면을 보여준�
 
   await completeOnboarding(renderer);
   expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
-  expect(renderer.root.findByType(LoginScreen).props.onBrowseAsGuest).toEqual(
-    expect.any(Function),
-  );
+  // 온보딩 뒤의 로그인 화면은 돌아갈 화면이 없어 X 없이 "로그인 없이 둘러보기"만 둔다.
+  expect(renderer.root.findByType(LoginScreen).props).toMatchObject({
+    onBrowseAsGuest: expect.any(Function),
+    onClose: undefined,
+  });
   expect(getCurrentProfile).not.toHaveBeenCalled();
 });
 
@@ -852,10 +854,11 @@ test('로그아웃하면 회원 메인에서 온보딩을 다시 보여준 뒤 �
   expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(0);
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
 
-  // 로그인 화면의 "로그인 없이 둘러보기"로 비회원 메인에 들어간다.
-  const onBrowseAsGuest = renderer.root.findByType(LoginScreen).props.onBrowseAsGuest;
-  expect(onBrowseAsGuest).toEqual(expect.any(Function));
-  await ReactTestRenderer.act(async () => onBrowseAsGuest());
+  // 로그아웃 뒤의 로그인 화면은 돌아갈 화면이 없어 X 없이 "로그인 없이 둘러보기"로 비회원 메인에 들어간다.
+  const loginProps = renderer.root.findByType(LoginScreen).props;
+  expect(loginProps.onClose).toBeUndefined();
+  expect(loginProps.onBrowseAsGuest).toEqual(expect.any(Function));
+  await ReactTestRenderer.act(async () => loginProps.onBrowseAsGuest());
   expect(renderer.root.findByType(SavedPlacesScreen).props.isGuest).toBe(true);
 });
 
