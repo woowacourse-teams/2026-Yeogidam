@@ -3,6 +3,7 @@ import {
   getSavedPlacesCacheGeneration,
   readSavedPlacesCache,
   removeFromSavedPlacesCache,
+  wasSavedPlacesCacheClearedSince,
   writeSavedPlacesCache,
 } from '../src/entities/info/saved-places-cache';
 import type {Place} from '../src/entities/place/types';
@@ -73,4 +74,22 @@ test('지우기 전에 보낸 조회가 지운 뒤에 끝나면 지운 장소를
   // 지우기 전에 시작한 조회의 결과에는 지운 장소가 들어 있다.
   writeSavedPlacesCache(CACHED_PLACES, generationBeforeDelete);
   expect(cachedPlaceNames()).toEqual(['카페']);
+});
+
+test('비우면 그 전에 시작한 조회에 비웠다고 알리고, 비운 뒤에 시작한 조회에는 알리지 않는다', () => {
+  const generationBeforeClear = getSavedPlacesCacheGeneration();
+  expect(wasSavedPlacesCacheClearedSince(generationBeforeClear)).toBe(false);
+
+  clearSavedPlacesCache();
+  expect(wasSavedPlacesCacheClearedSince(generationBeforeClear)).toBe(true);
+  expect(wasSavedPlacesCacheClearedSince(getSavedPlacesCacheGeneration())).toBe(false);
+});
+
+test('장소를 빼기만 하면 세대는 올라도 비웠다고 알리지 않는다', () => {
+  writeSavedPlacesCache(CACHED_PLACES, getSavedPlacesCacheGeneration());
+  const generationBeforeRemove = getSavedPlacesCacheGeneration();
+
+  removeFromSavedPlacesCache(isBakery);
+  expect(getSavedPlacesCacheGeneration()).toBe(generationBeforeRemove + 1);
+  expect(wasSavedPlacesCacheClearedSince(generationBeforeRemove)).toBe(false);
 });

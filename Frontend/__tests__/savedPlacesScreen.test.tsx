@@ -900,7 +900,7 @@ describe('지운 장소와 메모리 캐시', () => {
 });
 
 describe('조회 중에 지운 장소', () => {
-  test('캐시가 빈 첫 조회가 끝나기 전에 지도 시트가 장소를 지우고 돌아오면, 새 조회로 첫 응답을 밀어내 지운 장소 없는 목록을 보인다', async () => {
+  test('캐시가 빈 첫 조회가 끝나기 전에 지도 시트가 장소를 지우고 돌아오면, 첫 응답을 버리고 한 번 더 읽어 지운 장소 없는 목록을 보인다', async () => {
     const onOpenDetail = jest.fn();
     const firstLoad = deferred<SavedPlaceListItem[]>();
     jest.mocked(getSavedPlaces).mockReturnValueOnce(firstLoad.promise);
@@ -915,23 +915,88 @@ describe('조회 중에 지운 장소', () => {
       await deleteSavedPlaceAndRemoveFromCache(CAFE.id);
     });
 
-    // 첫 조회가 끝나기 전에 보관함으로 돌아오면, 첫 조회는 지운 뒤 목록을 가져오지 못하므로 새 조회를 시작한다.
-    const secondLoad = deferred<SavedPlaceListItem[]>();
-    jest.mocked(getSavedPlaces).mockReturnValueOnce(secondLoad.promise);
+    // 첫 조회가 끝나기 전에 보관함으로 돌아온다. 진행 중인 첫 조회가 끝날 때 다시 읽으므로 새 조회를 따로 보내지 않는다.
     await act(async () => {
       renderer.update(<SavedPlacesScreen isActive onOpenDetail={onOpenDetail} />);
     });
-    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+    expect(getSavedPlaces).toHaveBeenCalledTimes(1);
 
-    // 지우기 전 목록을 담은 첫 응답은 버리고 새 조회를 기다린다.
+    // 지우기 전 목록을 담은 첫 응답은 버리고 바로 한 번 더 읽는다.
+    const secondLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(secondLoad.promise);
     await act(async () => firstLoad.resolve([CAFE, BAKERY]));
     await settleAsyncWork();
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
     expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
 
     await act(async () => secondLoad.resolve([BAKERY]));
     await settleAsyncWork();
     expect(placeNames(renderer)).toEqual(['빵집']);
     expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(0);
+  });
+
+  test('캐시가 빈 첫 조회 중에 시작한 지도 시트의 지우기가 돌아온 뒤에 끝나도, 첫 응답을 버리고 한 번 더 읽어 지운 장소 없는 목록을 보인다', async () => {
+    const onOpenDetail = jest.fn();
+    const firstLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(firstLoad.promise);
+    const renderer = await render({onOpenDetail});
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive={false} onOpenDetail={onOpenDetail} />);
+    });
+
+    // 지도 시트에서 지우기를 눌렀지만 서버 응답은 아직 오지 않았다.
+    const deletion = deferred<void>();
+    jest.mocked(deleteSavedPlaces).mockReturnValueOnce(deletion.promise);
+    let deleting!: Promise<void>;
+    await act(async () => {
+      deleting = deleteSavedPlaceAndRemoveFromCache(CAFE.id);
+    });
+
+    // 지우기 응답 전에 보관함으로 돌아온다. 세대가 아직 같아 새 조회를 보내지 않는다.
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive onOpenDetail={onOpenDetail} />);
+    });
+    expect(getSavedPlaces).toHaveBeenCalledTimes(1);
+
+    // 지우기가 끝나 캐시가 빈 채 세대가 오른 뒤에, 첫 응답이 지우기 전 목록으로 도착한다.
+    await act(async () => {
+      deletion.resolve();
+      await deleting;
+    });
+    const secondLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(secondLoad.promise);
+    await act(async () => firstLoad.resolve([CAFE, BAKERY]));
+    await settleAsyncWork();
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(1);
+
+    await act(async () => secondLoad.resolve([BAKERY]));
+    await settleAsyncWork();
+    expect(placeNames(renderer)).toEqual(['빵집']);
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(0);
+  });
+
+  test('첫 응답을 버린 뒤의 다시 읽기가 실패하면 스켈레톤에 머물지 않고 오류 화면을 보인다', async () => {
+    const onOpenDetail = jest.fn();
+    const firstLoad = deferred<SavedPlaceListItem[]>();
+    jest.mocked(getSavedPlaces).mockReturnValueOnce(firstLoad.promise).mockRejectedValueOnce(SERVER_ERROR);
+    const renderer = await render({onOpenDetail});
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive={false} onOpenDetail={onOpenDetail} />);
+    });
+    await act(async () => {
+      await deleteSavedPlaceAndRemoveFromCache(CAFE.id);
+    });
+    await act(async () => {
+      renderer.update(<SavedPlacesScreen isActive onOpenDetail={onOpenDetail} />);
+    });
+
+    // 첫 응답을 버리고 보낸 다시 읽기가 실패한다. 첫 읽기가 보이는 읽기였으므로 실패도 보인다.
+    await act(async () => firstLoad.resolve([CAFE, BAKERY]));
+    await settleAsyncWork();
+    expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+    expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(0);
+    expect(renderer.root.findAllByType(SavedPlacesErrorState)).toHaveLength(1);
   });
 
   test('다시 연 화면의 조회가 끝나기 전에 지운 장소는 늦게 끝난 그 조회로 되살아나지 않고, 목록을 한 번 더 읽어 반영한다', async () => {

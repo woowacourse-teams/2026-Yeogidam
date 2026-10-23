@@ -5,6 +5,7 @@ import {
   getSavedPlacesCacheGeneration,
   readSavedPlacesCache,
   removeFromSavedPlacesCache,
+  wasSavedPlacesCacheClearedSince,
   writeSavedPlacesCache,
 } from '../../../entities/info/saved-places-cache';
 import type {SavedPlacesApiError} from '../../../entities/info/types';
@@ -59,8 +60,7 @@ export function useSavedPlacesList({
   // 진행 중인 보이는 읽기(읽는 중 표시를 켜는 읽기)의 수입니다. 그동안에는 화면이 다시 보여도 조용한 읽기를 시작하지 않습니다.
   // 조용한 읽기가 보이는 읽기를 요청 번호로 밀어내면 보이는 읽기의 실패가 표시되지 않은 채 읽는 중이 끝나지 않고,
   // 외부 공유 뒤 기다리던 읽기가 null을 받아 공유 결과를 소비하지 못합니다. 진행 중인 읽기는 끝날 때 캐시 세대가 바뀌었으면
-  // 한 번 더 읽으므로 최신 목록을 가져옵니다. 다만 캐시가 빈 채로 세대가 바뀌면(첫 읽기 중에 지도 시트에서 지움) 진행 중인
-  // 읽기는 다시 읽지 않으므로, 그때만 revalidateSavedPlaces가 진행 중이어도 새 읽기를 시작합니다.
+  // (다른 화면이 장소를 뺌) 한 번 더 읽으므로 최신 목록을 가져옵니다.
   const visibleReadsInFlightRef = useRef(0);
 
   /**
@@ -87,13 +87,13 @@ export function useSavedPlacesList({
           return null;
         }
         if (cacheGeneration !== getSavedPlacesCacheGeneration()) {
-          // 읽는 동안 세대가 바뀌었는데 캐시가 비어 있다. 세션이 끝나 비웠거나(화면이 곧 내려감), 캐시가 채워지기 전에 다른
-          // 화면(지도 시트)이 지운 것인데 여기서는 둘을 가를 수 없으므로 읽기 상태를 둔 채 응답만 버리고 다시 읽지 않는다.
-          // 세션이 끝났으면 다시 읽기가 401을 부르고, 지운 것이면 화면이 다시 보일 때 revalidateSavedPlaces가 새 읽기로 회복한다.
-          if (readSavedPlacesCache() === null) {
+          // 읽는 동안 세션이 끝나 캐시를 비웠다. 화면은 곧 회원 전환으로 새로 그려지고 다시 읽으면 401을 부르므로,
+          // 읽기 상태를 둔 채 응답만 버리고 다시 읽지 않는다.
+          if (wasSavedPlacesCacheClearedSince(cacheGeneration)) {
             return null;
           }
-          // 읽는 동안 지운 장소가 응답에 들어 있으므로 버리고 같은 동기 구간에서 바로 한 번 더 읽는다.
+          // 읽는 동안 다른 화면(상세, 지도 시트, 편집)이 지운 장소가 응답에 들어 있으므로 버리고 같은 동기 구간에서 바로
+          // 한 번 더 읽는다. 캐시가 채워지기 전의 첫 읽기 중에 지운 경우(캐시는 비어 있고 세대만 오름)도 같다.
           // await하지 않아, 다시 읽기의 거부를 바깥 catch가 밀림으로 보아 null로 바꾸지 않게 한다.
           if (canRetry) {
             return readSavedPlaces(false, silent);
@@ -133,8 +133,7 @@ export function useSavedPlacesList({
 
   /**
    * 목록을 읽어 반영하고 반영한 목록을 돌려줍니다. 반영하지 못했으면 null입니다. 조회가 실패했거나, 더 새 요청에 밀렸거나,
-   * 읽는 동안 캐시 세대가 바뀌었는데 캐시가 비어 있거나(세션이 끝나 비웠거나, 캐시가 빈 동안 시작한 읽기 중에 다른 화면에서 지움),
-   * 두 번 읽는 동안 두 번 다 장소를 지웠을 때입니다.
+   * 읽는 동안 세션이 끝나 캐시를 비웠거나, 두 번 읽는 동안 두 번 다 장소를 지웠을 때입니다.
    */
   const loadSavedPlaces = useCallback(async () => {
     if (providedPlaces !== undefined) {
@@ -148,11 +147,9 @@ export function useSavedPlacesList({
   /**
    * 화면이 보일 때 목록을 읽습니다. 한 번이라도 받은 뒤에는 보이는 목록(빈 화면 포함)을 둔 채 조용히 읽습니다.
    * 뒤에 남아 있는 동안 다른 화면이 캐시에서 장소를 뺐으면(세대가 바뀜) 캐시를 먼저 반영해, 다시 읽기가 늦거나 실패해도
-   * 지운 장소를 보이지 않습니다.
-   * 보이는 읽기(첫 읽기, 새로고침, 재시도, 저장 뒤 읽기)가 진행 중이면 그 읽기가 끝날 때 세대 변화를 보고 다시 읽어 최신
-   * 목록을 가져오므로 시작하지 않습니다. 다만 세대가 바뀌었는데 캐시가 비어 있으면(캐시가 채워지기 전의 첫 읽기 중에 지도
-   * 시트에서 지움) 진행 중인 읽기는 응답을 버리기만 하고 다시 읽지 않으므로, 진행 중이어도 새 읽기를 시작해 밀어냅니다.
-   * 세션이 끝나 캐시를 비운 경우에도 같은 조건이 되지만, 그때는 App이 회원 전환으로 화면을 새로 그려 이 읽기를 부르지 않습니다.
+   * 지운 장소를 보이지 않습니다. 캐시가 비었으면(캐시가 채워지기 전에 뺌) 들고 있던 목록을 둡니다.
+   * 보이는 읽기(첫 읽기, 새로고침, 재시도, 저장 뒤 읽기)가 진행 중이면 시작하지 않습니다. 그 읽기가 끝날 때 세대가
+   * 바뀌었으면 한 번 더 읽어 최신 목록을 가져오므로, 돌아온 뒤에야 지우기가 끝나는 순서도 그 읽기가 맡습니다.
    */
   const revalidateSavedPlaces = useCallback(() => {
     if (providedPlaces !== undefined) {
@@ -163,11 +160,7 @@ export function useSavedPlacesList({
     if (appliedCacheGenerationRef.current !== getSavedPlacesCacheGeneration()) {
       appliedCacheGenerationRef.current = getSavedPlacesCacheGeneration();
       const cachedPlaces = readSavedPlacesCache();
-      if (cachedPlaces === null) {
-        readSavedPlaces(true, hasLoadedPlacesRef.current);
-        return;
-      }
-      setPlaces(cachedPlaces);
+      if (cachedPlaces !== null) setPlaces(cachedPlaces);
     }
     if (visibleReadsInFlightRef.current > 0) return;
     readSavedPlaces(true, hasLoadedPlacesRef.current);

@@ -2,7 +2,10 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {getSavedPlaces} from '../src/entities/info/api';
-import {clearSavedPlacesCache} from '../src/entities/info/saved-places-cache';
+import {
+  clearSavedPlacesCache,
+  removeFromSavedPlacesCache,
+} from '../src/entities/info/saved-places-cache';
 import type {SavedPlaceListItem} from '../src/entities/info/types';
 import type {Place} from '../src/entities/place/types';
 import {useSavedPlacesList} from '../src/pages/saved-places/hooks/useSavedPlacesList';
@@ -187,4 +190,34 @@ test('더 새 조회에 밀린 응답은 버리고 null을 돌려주며, 새 조
   expect(await first).toBeNull();
   expect((await second)?.map(place => place.name)).toEqual(['카페', '빵집']);
   expect(names()).toEqual(['카페', '빵집']);
+});
+
+test('첫 조회 중에 세션이 끝나 캐시를 비우면 그 응답을 버리고 다시 읽지 않으며 읽는 중을 둔다', async () => {
+  const firstLoad = deferred<SavedPlaceListItem[]>();
+  jest.mocked(getSavedPlaces).mockReturnValueOnce(firstLoad.promise);
+  await renderTracked(<Harness />);
+  expect(latest.isLoading).toBe(true);
+
+  // App이 비회원 세션으로 바꾸면서 캐시를 비운다. 화면은 곧 새로 그려지고, 다시 읽으면 401이 난다.
+  clearSavedPlacesCache();
+  await act(async () => firstLoad.resolve([CAFE]));
+  await settleAsyncWork();
+  expect(getSavedPlaces).toHaveBeenCalledTimes(1);
+  expect(names()).toEqual([]);
+  expect(latest.isLoading).toBe(true);
+  expect(latest.error).toBeNull();
+});
+
+test('첫 조회 중에 다른 화면이 캐시가 빈 채로 장소를 빼면 그 응답을 버리고 바로 한 번 더 읽어 반영한다', async () => {
+  const firstLoad = deferred<SavedPlaceListItem[]>();
+  jest.mocked(getSavedPlaces).mockReturnValueOnce(firstLoad.promise).mockResolvedValueOnce([BAKERY]);
+  await renderTracked(<Harness />);
+
+  // 지도 시트가 카페를 지운다. 캐시가 아직 비어 있어 세대만 오른다.
+  removeFromSavedPlacesCache(place => place.name === '카페');
+  await act(async () => firstLoad.resolve([CAFE, BAKERY]));
+  await settleAsyncWork();
+  expect(getSavedPlaces).toHaveBeenCalledTimes(2);
+  expect(names()).toEqual(['빵집']);
+  expect(latest.isLoading).toBe(false);
 });
