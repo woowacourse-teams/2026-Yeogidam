@@ -1,0 +1,39 @@
+package com.yeogidam.member.controller;
+
+import com.yeogidam.auth.resolver.LoginMember;
+import com.yeogidam.member.dto.request.DeleteMemberRequest;
+import com.yeogidam.member.dto.response.MemberResponse;
+import com.yeogidam.member.service.MemberService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/v1/members")
+public class MemberController implements MemberApiDocs {
+
+    private final MemberService memberService;
+
+    @Override
+    @GetMapping("/me")
+    public ResponseEntity<MemberResponse> readMe(@LoginMember Long memberId) {
+        MemberResponse response = memberService.readMember(memberId);
+        return ResponseEntity.ok()
+                .body(response);
+    }
+
+    @Override
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteMe(@LoginMember Long memberId,
+                                         @Valid @RequestBody DeleteMemberRequest request) {
+        memberService.deleteMember(memberId, request.authorizationCode());
+        return ResponseEntity.noContent()
+                .build();
+    }
+}

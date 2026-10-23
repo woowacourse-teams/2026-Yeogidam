@@ -27,3 +27,25 @@ bin/
 app.log
 nohup.out
 restart.sh
+
+### Claude ###
+CLAUDE.md
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+### 환경 변수 ###
+.env
+
+### AI 도구 ###
+CLAUDE.md
+AGENTS.md

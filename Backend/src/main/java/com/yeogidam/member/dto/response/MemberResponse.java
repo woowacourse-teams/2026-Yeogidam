@@ -1,0 +1,22 @@
+package com.yeogidam.member.dto.response;
+
+import com.yeogidam.member.domain.Member;
+import com.yeogidam.member.domain.OAuthProvider;
+
+public record MemberResponse(
+        Long id,
+        String nickname,
+        String email,
+        String imageUrl,
+        OAuthProvider oauthProvider
+) {
+    public static MemberResponse from(Member member) {
+        return new MemberResponse(
+                member.id(),
+                member.profile().nickname(),
+                member.profile().email(),
+                member.profile().imageUrl(),
+                member.oauthAccount().provider()
+        );
+    }
+}

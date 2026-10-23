@@ -1,4 +1,4 @@
-name: Enforce develop as main source
+name: Enforce develop sources for main
 
 on:
   pull_request:
@@ -9,15 +9,26 @@ permissions:
   contents: read
 
 jobs:
-  require-develop:
+  require-allowed-source:
+    # Keep this name until the required-status-check rule is updated in GitHub.
+    # The workflow file name and this job name still say "develop" for the same reason.
     name: Require develop source branch
     runs-on: ubuntu-latest
     steps:
-      - name: Allow only develop
+      # main is a snapshot of what is deployed, so only release branches may enter it.
+      # Agreed with the frontend crew on 2026-09-28; fe-release/* dropped on 2026-09-30
+      # because the frontend uses a single fe-release branch. The same file lives on
+      # be-dev, be-release, fe-dev, fe-release and main so every side sees one rule.
+      - name: Allow only be-release and fe-release
         env:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          if [ "$HEAD_BRANCH" != "develop" ]; then
-            echo "::error::Pull requests into main must originate from develop. Current source: $HEAD_BRANCH"
-            exit 1
-          fi
+          case "$HEAD_BRANCH" in
+            be-release|fe-release)
+              exit 0
+              ;;
+            *)
+              echo "::error::Pull requests into main must originate from be-release or fe-release. Current source: $HEAD_BRANCH"
+              exit 1
+              ;;
+          esac

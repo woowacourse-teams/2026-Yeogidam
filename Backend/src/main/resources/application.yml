@@ -1,9 +1,118 @@
+# 프로필: local(개발자 노트북), test(Gradle 테스트), dev(개발 서버), prod(운영). 사용법은 docs/profiles.md.
+# 프로필을 지정하지 않으면 local로 뜬다. 서버는 SPRING_PROFILES_ACTIVE로 명시한다.
 spring:
   config:
     import: optional:file:.env[.properties]
+  profiles:
+    default: local
+
+  # schema.sql이 DROP TABLE로 시작하므로 공통 기본값은 never다. local과 test만 always로 켠다.
+  sql:
+    init:
+      mode: never
 
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+# 서버에서는 nginx 뒤에서 돈다. 이 값이 없으면 앱이 자기를 http://127.0.0.1:8080으로 알아서
+# 리다이렉트와 생성 URL이 http로 나간다. native는 톰캣이 X-Forwarded-*를 읽되 사설 대역과
+# 루프백에서 온 것만 믿으므로, 127.0.0.1의 nginx는 통과하고 그 밖은 무시한다.
+server:
+  forward-headers-strategy: native
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
+oauth:
+  # 서버 콜백(/oauth/{kakao,google}/callback)이 인가 코드를 넘겨 줄 앱 주소. 비밀이 아니고 앱의 스킴과 함께 바뀌므로 환경 변수 대신 리터럴로 둔다.
+  app-callback-uri: com.yeogidamm.app://auth-callback
+  providers:
+    kakao:
+      client-id: ${KAKAO_CLIENT_ID}
+      client-secret: ${KAKAO_CLIENT_SECRET}
+      redirect-uri: ${KAKAO_REDIRECT_URI}
+    google:
+      client-id: ${GOOGLE_CLIENT_ID}
+      client-secret: ${GOOGLE_CLIENT_SECRET}
+      redirect-uri: ${GOOGLE_REDIRECT_URI}
+    apple:
+      client-id: ${APPLE_CLIENT_ID}
+      team-id: ${APPLE_TEAM_ID}
+      key-id: ${APPLE_KEY_ID}
+      private-key: ${APPLE_PRIVATE_KEY}
+
+jwt:
+  secret: ${JWT_SECRET}
+  issuer: yeogidam
+  access-token-ttl: 30m
+  refresh-token-ttl: 30d
+
+# 온보딩에 쓰는 게시물. local은 data-onboarding.sql이 자동으로 넣고, dev와 prod에는 같은 파일을 데이터베이스에 직접 적용한다.
+# 바꿀 때는 이 값, data-onboarding.sql, FE 번들의 kakaoPlaceId를 함께 고치고 dev와 prod에는 파일을 다시 넣는다.
+onboarding:
+  instagram-url: https://www.instagram.com/p/Db4gRWqkuUg/
+
+media:
+  extraction:
+    pipeline-version: 1
+    # prod 프로필도 기본 비활성이다. 명시적으로 켠 테스트에서만 전용 공유를 HTTP Fake에 연결한다.
+    load-test:
+      enabled: ${LOAD_TEST_ENABLED:false}
+      fake-base-url: ${LOAD_TEST_FAKE_BASE_URL:}
+      fake-key: ${LOAD_TEST_FAKE_KEY:}
+      shortcode-prefix: ${LOAD_TEST_SHORTCODE_PREFIX:}
+      member-ids: ${LOAD_TEST_MEMBER_IDS:}
+    gemini:
+      api-key: ${GEMINI_API_KEY}
+      model: ${GEMINI_MODEL}
+      # 앞 key가 한도(429)나 결제, 인증 문제로 막혔을 때 차례로 부르는 key. 쉼표로 여러 개를 적을 수 있고 비워 두면 폴백하지 않는다.
+      fallback-api-keys: ${GEMINI_API_KEY_FALLBACKS:}
+    kakao:
+      api-key: ${KAKAO_CLIENT_ID}
+
+  thumbnail:
+    public-base-url: ${MEDIA_THUMBNAIL_PUBLIC_BASE_URL}
+    bucket: ${S3_THUMBNAIL_BUCKET}
+    region: ${AWS_REGION}
+
+# 앱 업데이트 정책. 최소 버전 아래는 강제, 최신 버전 아래는 권고다.
+# 프로필로 나누지 않고 여기 한 곳에 둔다. 값을 바꿀 때는 커밋하고 배포한다(docs/profiles.md 6절).
+app-update:
+  ios:
+    minimum-supported-version: 2.0.0
+    latest-version: 2.0.0
+    store-url: https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355
+  android:
+    minimum-supported-version: 2.0.0
+    latest-version: 2.0.0
+    store-url: https://play.google.com/store/apps/details?id=com.yeogidamm.app&pcampaignid=web_share
+
+# health는 배포 헬스체크용이라 기동 여부만 보고 세부는 감춘다. metrics는 부하를 걸 때 서버 안에서
+# 커넥션 풀(hikaricp.connections.*)과 힙, 톰캣 스레드를 보기 위한 것이다. 앱이 127.0.0.1에만 열려 있고
+# nginx가 /actuator를 404로 막으므로 둘 다 밖에서는 보이지 않는다. CloudWatch로 보내지는 않는다(지표당 과금).
+management:
+  health:
+    defaults:
+      enabled: false
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      probes:
+        enabled: false
+      group:
+        liveness:
+          include: livenessState
+      show-components: never
+      show-details: never
