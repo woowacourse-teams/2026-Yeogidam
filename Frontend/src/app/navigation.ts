@@ -84,8 +84,9 @@ function trackVisitedTab(state: NavigationState): NavigationState {
 }
 
 /**
- * 이력 끝이 지금 탭과 같으면 뺍니다. 하단 메뉴를 거치지 않는 이동(공유 결과가 여는 보관함, 둘러보기 복귀)이
- * 이력에 남은 탭으로 돌아오면 뒤로 가기가 같은 탭으로 가는 제자리걸음이 되고, 스와이프는 같은 층을 앞과 뒤로 잡기 때문입니다.
+ * 모든 전이 뒤에 이력 끝이 지금 탭과 같으면 뺍니다. 공유 결과가 여는 보관함과 둘러보기 복귀처럼 하단 메뉴를 거치지
+ * 않는 이동뿐 아니라, 상세의 하단 메뉴로 이력 끝의 탭에 가는 이동(이력은 쌓지 않음)도 같은 상태를 만듭니다.
+ * 그대로 두면 뒤로 가기가 같은 탭으로 가는 제자리걸음이 되고, 스와이프는 같은 층을 앞과 뒤로 잡습니다.
  */
 function dropHistoryTailEqualToActiveTab(state: NavigationState): NavigationState {
   if (state.flow.kind !== 'main') return state;

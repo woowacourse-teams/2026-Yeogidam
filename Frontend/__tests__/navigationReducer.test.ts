@@ -228,6 +228,44 @@ describe('navigationReducer: 하단 메뉴를 거치지 않고 이력 끝의 탭
     const onHistory = run(onMap, {type: 'navigateMainTab', screen: 'history'});
     expect(onHistory.mainTabHistory).toEqual(['map']);
   });
+
+  test('상세의 하단 메뉴로 이력 끝의 탭에 가면 이력을 쌓지 않는 대신 끝의 같은 탭을 빼, 뒤 층이 그 전 탭이 된다', () => {
+    // 보관함, 지도, 보관함 순으로 하단 메뉴를 누르면 이력은 [saved, map]이다.
+    const backOnSaved = run(
+      MEMBER_MAIN,
+      {type: 'navigateMainTab', screen: 'map'},
+      {type: 'navigateMainTab', screen: 'saved'},
+    );
+    expect(backOnSaved.mainTabHistory).toEqual(['saved', 'map']);
+
+    // 보관함 상세를 열고 상세의 하단 메뉴로 지도에 간다. 상세를 닫는 이동이라 보관함은 쌓지 않는다.
+    const detail = run(backOnSaved, {type: 'openDetail', source: 'saved', place: PLACE, context: null});
+    const onMap = run(detail, {type: 'navigateMainTab', screen: 'map'});
+    expect(onMap.flow).toEqual({kind: 'main', activeTab: 'map', detailSource: null});
+    expect(onMap.mainTabHistory).toEqual(['saved']);
+    expect(selectPreviousTab(onMap)).toBe('saved');
+    expect(selectBackLayerKey(onMap.flow, null, selectPreviousTab(onMap))).toBe('saved');
+
+    const back = run(onMap, {type: 'goBackMainTab'});
+    expect(back.flow).toEqual({kind: 'main', activeTab: 'saved', detailSource: null});
+    expect(back.mainTabHistory).toEqual([]);
+  });
+
+  test('지도를 보던 비회원이 로그인 화면의 X로 비회원 메인에 돌아오면 이력 끝의 보관함을 뺀다', () => {
+    const onMap = run(GUEST_MAIN, {type: 'navigateMainTab', screen: 'map'});
+    expect(onMap.mainTabHistory).toEqual(['saved']);
+
+    // 공유 로그인 유도로 간 로그인 화면은 돌아갈 흐름이 비회원 메인이다.
+    const fromShare = run(onMap, {type: 'openLoginFromGuestShare'}, {type: 'closeGuestLogin'});
+    expect(fromShare.flow).toBe(GUEST_MAIN_FLOW_STATE);
+    expect(fromShare.mainTabHistory).toEqual([]);
+    expect(selectBackLayerKey(fromShare.flow, null, selectPreviousTab(fromShare))).toBeNull();
+
+    // 돌아갈 흐름 없이 로그인 화면에 갔다가 X로 나와도 같다.
+    const fromLogin = run(onMap, {type: 'openLogin'}, {type: 'closeGuestLogin'});
+    expect(fromLogin.flow).toBe(GUEST_MAIN_FLOW_STATE);
+    expect(fromLogin.mainTabHistory).toEqual([]);
+  });
 });
 
 describe('navigationReducer: 로그인과 비회원 복귀', () => {
