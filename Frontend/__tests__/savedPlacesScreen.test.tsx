@@ -882,7 +882,7 @@ describe('지운 장소와 메모리 캐시', () => {
     expect(placeNames(reopened)).toEqual(['빵집']);
   });
 
-  test('다시 읽기가 실패해도 지운 장소가 오류 배너와 함께 되살아나지 않는다', async () => {
+  test('다시 열 때의 읽기가 실패해도 지운 장소가 되살아나지 않고, 지난 목록을 둔 채 오류 배너도 띄우지 않는다', async () => {
     const renderer = await renderLoaded([CAFE, BAKERY]);
     await selectAndDelete(renderer, 'place-1');
     await unmountTracked(renderer);
@@ -891,7 +891,8 @@ describe('지운 장소와 메모리 캐시', () => {
     const reopened = await render();
     await settleAsyncWork();
     expect(placeNames(reopened)).toEqual(['빵집']);
-    expect(texts(reopened)).toContain(SERVER_ERROR.message);
+    // 지난 목록이 있는 채 다시 열 때의 읽기는 조용히 하므로, 실패해도 보이는 목록을 바꾸지 않는다.
+    expect(texts(reopened)).not.toContain(SERVER_ERROR.message);
   });
 });
 

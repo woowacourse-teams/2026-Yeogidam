@@ -107,6 +107,8 @@ android {
     }
     defaultConfig {
         applicationId "com.yeogidamm.app"
+        // Debug uses .dev, but react-native-config reads this BuildConfig package.
+        resValue "string", "build_config_package", "com.yeogidamm.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Beta Actions 실행에서 배정한 번호를 versionCode에 사용하고, 로컬 빌드는 프로젝트 기본값을 유지한다.

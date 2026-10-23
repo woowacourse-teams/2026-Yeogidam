@@ -1,3 +1,4 @@
+import {Platform} from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 import type {NormalizedAuthError} from '../src/lib/auth/errors';
@@ -21,6 +22,7 @@ jest.mock('@sentry/react-native', () => ({
   wrap: (component: unknown) => component,
   withScope: jest.fn((callback: (scope: typeof mockScope) => void) => callback(mockScope)),
   captureException: jest.fn(),
+  captureMessage: jest.fn(),
 }));
 
 const networkError: NormalizedAuthError = {
@@ -123,6 +125,46 @@ describe('captureSocialLoginError', () => {
     captureSocialLoginError('apple', cancelledError);
 
     expect(Sentry.withScope).not.toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test.each(['browser_cancel', 'browser_dismiss'] as const)(
+    'Android에서 브라우저가 콜백 없이 %s로 닫힌 취소는 진단용 경고로 보낸다',
+    cancelOrigin => {
+      const platform = jest.replaceProperty(Platform, 'OS', 'android');
+      try {
+        captureSocialLoginError('kakao', {...cancelledError, cancelOrigin});
+      } finally {
+        platform.restore();
+      }
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+      expect(Sentry.captureMessage).toHaveBeenCalledWith(
+        '소셜 로그인 브라우저가 콜백 없이 종료됨',
+        'warning',
+      );
+      expect(mockScope.setTag).toHaveBeenCalledWith('login.provider', 'kakao');
+      expect(mockScope.setTag).toHaveBeenCalledWith('login.stage', 'provider_authorization');
+      expect(mockScope.setTag).toHaveBeenCalledWith('login.cancel_origin', cancelOrigin);
+      expect(mockScope.setFingerprint).toHaveBeenCalledWith([
+        'social-login-browser-without-callback',
+        'kakao',
+        cancelOrigin,
+      ]);
+    },
+  );
+
+  test('Android에서도 제공자가 거절한 취소는 보내지 않고, iOS에서는 브라우저 취소도 보내지 않는다', () => {
+    const platform = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      captureSocialLoginError('google', {...cancelledError, cancelOrigin: 'oauth_access_denied'});
+    } finally {
+      platform.restore();
+    }
+    captureSocialLoginError('google', {...cancelledError, cancelOrigin: 'browser_cancel'});
+
+    expect(Sentry.withScope).not.toHaveBeenCalled();
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });

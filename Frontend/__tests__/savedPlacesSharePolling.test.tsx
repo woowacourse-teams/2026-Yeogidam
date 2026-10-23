@@ -1,9 +1,13 @@
+import React from 'react';
+
 import {getReelProcessingStatus, saveContent} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {getHistoryReels} from '../src/entities/content/history-api';
 import {getSavedPlaces} from '../src/entities/info/api';
+import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 import {historyReel, LINK, listing} from './support/savedPlacesFixtures';
 import {
+  act,
   openDialogAndSave,
   render,
   setUpSavedPlacesScreenTests,
@@ -90,4 +94,27 @@ test('목록 조회가 연속으로 실패하면 세 번째에 처리 상태 확
 
   await tick(9000);
   expect(getHistoryReels).toHaveBeenCalledTimes(3);
+});
+
+test('빈 보관함에 복귀할 때 조회가 진행되거나 실패해도 기존 빈 화면을 유지한다', async () => {
+  const {SavedPlacesSkeleton} = require('../src/pages/saved-places/components/SavedPlacesSkeleton');
+  const {SavedPlacesEmptyState} = require('../src/pages/saved-places/components/SavedPlacesEmptyState');
+  const {SavedPlacesErrorState} = require('../src/pages/saved-places/components/SavedPlacesErrorState');
+  const renderer = await render();
+  const onOpenDetail = renderer.root.findByType(SavedPlacesScreen).props.onOpenDetail;
+  await act(async () => {
+    renderer.update(<SavedPlacesScreen isActive={false} onOpenDetail={onOpenDetail} />);
+  });
+  let rejectQuery!: (error: unknown) => void;
+  jest.mocked(getSavedPlaces).mockImplementationOnce(() => new Promise((_, reject) => { rejectQuery = reject; }));
+  await act(async () => {
+    renderer.update(<SavedPlacesScreen isActive onOpenDetail={onOpenDetail} />);
+  });
+  expect(renderer.root.findAllByType(SavedPlacesSkeleton)).toHaveLength(0);
+  expect(renderer.root.findAllByType(SavedPlacesEmptyState)).toHaveLength(1);
+  await act(async () => {
+    rejectQuery({status: 500, errorCode: 'SERVER500_001', message: '일시적인 오류', retryable: true});
+  });
+  expect(renderer.root.findAllByType(SavedPlacesEmptyState)).toHaveLength(1);
+  expect(renderer.root.findAllByType(SavedPlacesErrorState)).toHaveLength(0);
 });

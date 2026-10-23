@@ -1,56 +1,31 @@
 import {useCallback, useEffect, useState} from 'react';
-import {AppState} from 'react-native';
-
-import {ForegroundElapsedTimer} from '../lib/foreground-elapsed-timer';
-
-const GUEST_LOGIN_PROMPT_DELAY_MS = 3 * 60 * 1000;
 
 type Options = {
-  /** 비회원이 메인 화면을 방해 없이 보고 있는 상태입니다. 꺼지면 시간을 멈춥니다. */
+  /** 비회원이 메인 화면을 방해 없이 보고 있는 상태입니다. 꺼지면 유도를 숨깁니다. */
   isGuestBrowsing: boolean;
-  /** 회원이 되면 타이머를 끝내고 남은 유도 요청을 지웁니다. */
+  /** 회원이 되면 남은 유도 요청을 지웁니다. */
   isMember: boolean;
 };
 
 /**
- * 비회원이 메인 화면을 포그라운드에서 3분 동안 보면 로그인 유도를 띄웁니다.
- * 유도를 닫으면 다시 띄우지 않고, 회원이 되면 타이머를 끝내 로그아웃해도 앱을 다시 켜기 전까지는 띄우지 않습니다.
+ * 비회원이 로그인이 필요한 동작(보관함 담기, 지도 검색과 시트 펼치기)을 시도하면 로그인 유도를 띄웁니다.
+ * 유도는 비회원 메인을 방해 없이 보고 있을 때만 보이고, 닫거나 회원이 되면 내립니다.
  */
 export function useGuestLoginPrompt({isGuestBrowsing, isMember}: Options) {
   const [isPromptRequested, setIsPromptRequested] = useState(false);
-  const [isAppActive, setIsAppActive] = useState(AppState.currentState === 'active');
-  const [timer] = useState(
-    () => new ForegroundElapsedTimer(GUEST_LOGIN_PROMPT_DELAY_MS, () => setIsPromptRequested(true)),
-  );
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => {
-      setIsAppActive(state === 'active');
-    });
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => {
-    if (isGuestBrowsing && isAppActive) {
-      timer.start();
-    } else {
-      timer.pause();
-    }
-  }, [timer, isAppActive, isGuestBrowsing]);
 
   useEffect(() => {
     if (isMember) {
-      timer.cancel();
       setIsPromptRequested(false);
     }
-  }, [timer, isMember]);
+  }, [isMember]);
 
-  useEffect(() => () => timer.cancel(), [timer]);
-
+  const showGuestLoginPrompt = useCallback(() => setIsPromptRequested(true), []);
   const dismissGuestLoginPrompt = useCallback(() => setIsPromptRequested(false), []);
 
   return {
-    isGuestLoginPromptVisible: isPromptRequested && isGuestBrowsing && isAppActive,
+    isGuestLoginPromptVisible: isPromptRequested && isGuestBrowsing,
+    showGuestLoginPrompt,
     dismissGuestLoginPrompt,
   };
 }

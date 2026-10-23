@@ -229,7 +229,14 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     position: MapPoint
   ) {
     guard layerID == Self.savedPlaceLayerID else { return }
-    onMarkerPressed?(["id": poiID])
+    let coordinate = cameraTarget(in: kakaoMap)
+    onMarkerPressed?([
+      "id": poiID,
+      "latitude": coordinate.latitude,
+      "longitude": coordinate.longitude,
+      "zoomLevel": kakaoMap.zoomLevel,
+      "cameraBottomInset": kakaoMap.margins.bottom
+    ])
   }
 
   // The direct camera-stopped handler is not called for every user gesture on
@@ -696,6 +703,17 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     savedPlaceSelectionByID = nextSelectionByID
   }
 
+  private func cameraTarget(in kakaoMap: KakaoMap) -> GeoCoordinate {
+    // CameraUpdate.make(target:..., mapView:...) targets the centre AFTER
+    // margins. Use that same centre when cloning a map for a detail scene.
+    let margins = kakaoMap.margins
+    let centre = CGPoint(
+      x: (margins.left + kakaoMap.viewRect.width - margins.right) / 2,
+      y: (margins.top + kakaoMap.viewRect.height - margins.bottom) / 2
+    )
+    return kakaoMap.getPosition(centre).wgsCoord
+  }
+
   private func emitCameraChanged() {
     guard
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
@@ -711,9 +729,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       width: kakaoMap.viewRect.width,
       height: kakaoMap.viewRect.height
     )
-    let coordinate = kakaoMap.getPosition(
-      CGPoint(x: visibleRect.midX, y: visibleRect.midY)
-    ).wgsCoord
+    let coordinate = cameraTarget(in: kakaoMap)
     let corners = [
       CGPoint(x: visibleRect.minX, y: visibleRect.minY),
       CGPoint(x: visibleRect.maxX, y: visibleRect.minY),

@@ -33,7 +33,9 @@ type LinkSaveProgress = {
 
 type Options = {
   isGuest: boolean;
-  /** 비회원이 링크를 추가하려 하거나 저장 API가 AUTH401_001로 실패하면 부릅니다. */
+  /** 비회원이 링크를 추가하려 하면 로그인 안내 모달을 띄우도록 부릅니다. 없으면 onRequireLogin을 부릅니다. */
+  onShowGuestLoginPrompt?: () => void;
+  /** 비회원이 링크를 추가하려 하거나(onShowGuestLoginPrompt가 없을 때) 저장 API가 AUTH401_001로 실패하면 부릅니다. */
   onRequireLogin?: () => void;
   progress: LinkSaveProgress;
 };
@@ -42,9 +44,9 @@ type Options = {
  * 링크 입력 대화상자와 링크 저장 요청을 맡습니다.
  * 서버가 응답한 저장은 공유 상태(reel-save-state)에 적고 progress로 알려, 처리 중이면 useReelProcessing이 이어서 지켜봅니다.
  * 응답 전과 요청 실패 때는 서버 릴스 ID가 없으므로 공유 상태에 지켜볼 릴스를 적지 않습니다.
- * 비회원이 대화상자를 열려고 하면 열지 않고 로그인을 요청합니다.
+ * 비회원이 대화상자를 열려고 하면 열지 않고 로그인 안내(없으면 로그인 요청)를 부릅니다.
  */
-export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
+export function useLinkSave({isGuest, onShowGuestLoginPrompt, onRequireLogin, progress}: Options) {
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [submitState, setSubmitState] = useState<LinkSubmitState>(IDLE);
@@ -52,7 +54,7 @@ export function useLinkSave({isGuest, onRequireLogin, progress}: Options) {
 
   const openDialog = () => {
     if (isGuest) {
-      onRequireLogin?.();
+      (onShowGuestLoginPrompt ?? onRequireLogin)?.();
       return;
     }
     setSubmitState(clearLinkError);

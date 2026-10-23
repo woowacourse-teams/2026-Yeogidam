@@ -7,7 +7,6 @@ export const ANALYTICS_EVENTS = {
   appOpened: 'app_opened',
   loginStarted: 'login_started',
   loginFinished: 'login_finished',
-  guestTransferFinished: 'guest_transfer_finished',
   historyViewed: 'history_viewed',
   historyContentViewed: 'history_content_viewed',
   historyContentDetailViewed: 'history_content_detail_viewed',

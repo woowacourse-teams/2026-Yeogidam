@@ -33,10 +33,12 @@ async function rememberNewestAsSeen(page: RecentSharesSnapshot) {
  *
  * @param guestReels 비회원 체험 목록입니다. 있으면 서버에 묻지 않고 폴링도 하지 않습니다.
  * @param posthog 첫 페이지 결과로 히스토리 조회 지표를 화면마다 한 번 남길 때 씁니다.
+ * @param isActive 화면이 보이는지입니다. 보이지 않는 동안에는 목록 폴링을 구독하지 않고, 다시 보이면 다시 구독합니다.
  */
 export function useHistoryList(
   guestReels: HistoryReel[] | undefined,
   posthog: AnalyticsClient | null | undefined,
+  isActive = true,
 ) {
   const [state, dispatch] = useReducer(historyListReducer, guestReels, createHistoryListState);
   // 상태값은 다음 렌더까지 바뀌지 않으므로 같은 커서의 더 보기가 겹치지 않게 ref로 막는다.
@@ -118,7 +120,7 @@ export function useHistoryList(
   }, []);
 
   useEffect(() => {
-    if (guestReels !== undefined) return;
+    if (!isActive || guestReels !== undefined) return;
     const subscription = subscribeRecentShares({
       intervalMs: LIST_POLL_INTERVAL_MS,
       onResult: page => {
@@ -132,7 +134,7 @@ export function useHistoryList(
       subscription.unsubscribe();
       sharesSubscriptionRef.current = null;
     };
-  }, [applyRefreshedPage, guestReels]);
+  }, [applyRefreshedPage, guestReels, isActive]);
 
   useEffect(() => {
     loadFirstPage();

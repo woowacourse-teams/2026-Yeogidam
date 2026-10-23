@@ -35,6 +35,10 @@ type PlaceDetailContentProps = {
   headerTopInset?: number;
   compactHeader?: boolean;
   viewContext?: SavedPlaceViewContext;
+  activeTab?: PlaceTab;
+  onTabChange?: (tab: PlaceTab) => void;
+  initialScrollOffset?: number;
+  onScrollOffsetChange?: (offset: number) => void;
 };
 
 export function PlaceDetailContent({
@@ -58,11 +62,17 @@ export function PlaceDetailContent({
   headerTopInset = 0,
   compactHeader = false,
   viewContext,
+  activeTab: controlledTab,
+  onTabChange,
+  initialScrollOffset,
+  onScrollOffsetChange,
 }: PlaceDetailContentProps) {
-  const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
+  const [localTab, setActiveTab] = useState<PlaceTab>('게시물');
+  const activeTab = controlledTab ?? localTab;
 
   const handleTabPress = (tab: PlaceTab) => {
     setActiveTab(tab);
+    onTabChange?.(tab);
   };
 
   return (
@@ -72,6 +82,17 @@ export function PlaceDetailContent({
         styles.content,
         { paddingBottom: contentBottomPadding },
       ]}
+      contentOffset={
+        initialScrollOffset === undefined
+          ? undefined
+          : { x: 0, y: initialScrollOffset }
+      }
+      onScroll={
+        onScrollOffsetChange
+          ? event => onScrollOffsetChange(event.nativeEvent.contentOffset.y)
+          : undefined
+      }
+      scrollEventThrottle={16}
       scrollEnabled={scrollEnabled}
       nestedScrollEnabled
       stickyHeaderIndices={stickyHeader && !hideHeader ? [0] : undefined}

@@ -10,7 +10,11 @@ import {
   resumeWaitingShares,
   type NativeShareResult,
 } from '../lib/share-intent';
-import {classifyShareResult, selectShareResult} from '../lib/share-intent/select-share-result';
+import {
+  classifyShareResult,
+  selectShareResult,
+  shareResultKey,
+} from '../lib/share-intent/select-share-result';
 import {toSharedSaveState} from '../pages/saved-places/reelProcessing';
 
 const RESULT_POLL_INTERVAL_MS = 1000;
@@ -26,6 +30,8 @@ export type NativeShareResultHandlers = {
   onGuestLoginPrompt: () => void;
   /** 비회원 체험이나 로그인 안내 뒤, 또는 진행 중인 공유를 보여 주려고 보관함 탭을 엽니다. */
   onOpenSavedPlaces: (reason: 'guest-preview' | 'share-progress') => void;
+  /** 공유 화면에서 로그인을 누르고 넘어왔는데 세션이 없어 로그인 화면으로 보냅니다. 결과는 이미 지웠습니다. */
+  onLoginHandoff: () => void;
   /** 세션이 없어 로그인 화면으로 보냅니다. */
   onLoginRequired: () => void;
   /** 공유 결과가 실패로 끝나 안내가 필요합니다. login-required는 onLoginRequired 뒤에 옵니다. */
@@ -40,7 +46,8 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
-  const lastHandledShareResultRef = useRef<string | null>(null);
+  // 이미 처리한 공유 결과 키. 서로 다른 결과가 번갈아 선택돼 화면이 오가지 않게 전부 기억한다.
+  const handledShareResultKeysRef = useRef<Set<string>>(new Set());
   const lastLoggedShareResultsRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -100,20 +107,28 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
           clearShareResult(result.requestId).catch(() => undefined);
           handlersRef.current.onOpenSavedPlaces('guest-preview');
           return;
-        case 'login-handoff':
+        case 'login-handoff': {
+          // 로그인 화면으로 보내는 것으로 이 결과의 역할은 끝난다. 로그인해도 이 공유는 추출하지
+          // 않으므로, 로그인 대기 상태로 남겨 두지 않고 정리한다.
+          const showLoginForHandoff = () => {
+            clearShareResult(result.requestId).catch(() => undefined);
+            setHasPendingShareLogin(false);
+            handlersRef.current.onLoginHandoff();
+          };
           getSpringTokens()
             .then(tokens => {
               if (tokens) {
                 resumeWaitingShares().catch(() => undefined);
                 return;
               }
-              handlersRef.current.onLoginRequired();
+              showLoginForHandoff();
             })
             .catch(() => {
               captureShareLoginHandoffError('SHARE_LOGIN_STATE_READ_FAILED');
-              handlersRef.current.onLoginRequired();
+              showLoginForHandoff();
             });
           return;
+        }
         case 'auth-failed':
           clearShareResult(result.requestId).catch(() => undefined);
           // 추출 실패가 아니라 로그인 문제이므로 다시 로그인하거나 다시 공유하도록 안내합니다.
@@ -161,19 +176,22 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
               : undefined;
           logResults(results, activeRequestId);
 
-          const result = selectShareResult(results, activeRequestId);
+          const result = selectShareResult(
+            results,
+            activeRequestId,
+            handledShareResultKeysRef.current,
+          );
           if (!result) {
-            lastHandledShareResultRef.current = null;
+            handledShareResultKeysRef.current.clear();
             if (currentShareState?.source === 'instagram_share') {
               setSharedSaveState(null);
             }
             return;
           }
 
-          // 같은 결과를 폴링마다 다시 처리하지 않도록 요청과 갱신 시각으로 구분합니다.
-          const resultKey = `${result.requestId ?? result.url}:${result.updatedAt}`;
-          if (lastHandledShareResultRef.current === resultKey) return;
-          lastHandledShareResultRef.current = resultKey;
+          const resultKey = shareResultKey(result);
+          if (handledShareResultKeysRef.current.has(resultKey)) return;
+          handledShareResultKeysRef.current.add(resultKey);
           handleResult(result);
         })
         .catch(error => {
@@ -203,7 +221,7 @@ export function useNativeShareResults(enabled: boolean, handlers: NativeShareRes
     };
   }, [enabled]);
 
-  /** 로그인 화면에서 "공유 로그인 취소"를 누르면 넘겨받은 공유를 지웁니다. */
+  /** 로그인 화면에서 "로그인 없이 둘러보기"로 나가면 넘겨받은 공유를 지웁니다. */
   const cancelPendingShareLogin = useCallback(async () => {
     const results = await getShareResults();
     await Promise.all(

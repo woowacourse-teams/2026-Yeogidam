@@ -1,9 +1,12 @@
 import React, {
   useCallback,
+  useEffect,
   useState,
 } from 'react';
 import {
   Alert,
+  BackHandler,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -25,6 +28,7 @@ import {
   bottomNavigationBarContainerStyle,
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
+import { SwipeBackStack } from '../../components/navigation/SwipeBackStack';
 import type { Place } from '../../entities/place/types';
 import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
 import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
@@ -42,11 +46,19 @@ import {useSavedPlacesScroll} from './hooks/useSavedPlacesScroll';
 import {useSavedPlacesViewedEvent} from './hooks/useSavedPlacesViewedEvent';
 
 type SavedPlacesScreenProps = {
+  /** 화면이 보이는지입니다. 다시 보이면 보이는 목록을 둔 채 다시 읽고, 보이지 않는 동안에는 뒤로 가기 상태를 알리지 않습니다. */
+  isActive?: boolean;
+  /** 검색이나 편집이 열려 있어 화면 안에서 뒤로 갈 수 있는지를 App에 알립니다. */
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
   onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
   isGuest?: boolean;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   onAuthenticationRequired?: () => void;
+  /** 빈 보관함의 저장 방법 안내 카드를 누르면 부릅니다. */
+  onOpenGuide?: () => void;
+  /** 비회원이 장소 링크 추가 버튼을 누르면 부릅니다. 없으면 onRequireLogin을 부릅니다. */
+  onShowGuestLoginPrompt?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
@@ -81,11 +93,15 @@ function SavedPlacesEditAction({
 }
 
 export function SavedPlacesScreen({
+  isActive: isScreenActive = true,
+  onNestedBackStateChange,
   onOpenDetail,
   isGuest = false,
   initialScrollOffset = 0,
   onScrollOffsetChange,
   onAuthenticationRequired,
+  onOpenGuide,
+  onShowGuestLoginPrompt,
   onEditModeChange,
   onRequireLogin,
   places: providedPlaces,
@@ -103,7 +119,11 @@ export function SavedPlacesScreen({
     loadSavedPlaces,
     refreshSavedPlaces,
     removePlaces,
-  } = useSavedPlacesList({providedPlaces, onAuthenticationRequired});
+  } = useSavedPlacesList({
+    providedPlaces,
+    onAuthenticationRequired,
+    isActive: isScreenActive,
+  });
   const hasSavedPlaces = places.length > 0;
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
   useSavedPlacesViewedEvent(posthog, {isLoading, error, placeCount: places.length});
@@ -153,6 +173,7 @@ export function SavedPlacesScreen({
     saveLink,
   } = useLinkSave({
     isGuest,
+    onShowGuestLoginPrompt,
     onRequireLogin,
     progress: linkSaveProgress,
   });
@@ -207,104 +228,116 @@ export function SavedPlacesScreen({
     [onOpenDetail, posthog],
   );
 
-  return (
+  /** 검색 화면이 열려 있으면 닫고, 아니면 편집 모드를 끕니다. 스와이프 뒤로 가기와 Android 시스템 뒤로 가기가 씁니다. */
+  const closeNestedScreen = useCallback(() => {
+    if (isSearchOpen) setIsSearchOpen(false);
+    else if (isEditing) toggleEditMode();
+  }, [isEditing, isSearchOpen, toggleEditMode]);
+
+  // 검색이나 편집이 열려 있으면 App에 뒤로 갈 수 있다고 알리고, Android에서는 시스템 뒤로 가기로 닫는다.
+  useEffect(() => {
+    const canGoBack = isScreenActive && (isSearchOpen || isEditing);
+    onNestedBackStateChange?.(canGoBack);
+    if (Platform.OS !== 'android' || !canGoBack) {
+      return () => onNestedBackStateChange?.(false);
+    }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeNestedScreen();
+      return true;
+    });
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [
+    closeNestedScreen,
+    isScreenActive,
+    isEditing,
+    isSearchOpen,
+    onNestedBackStateChange,
+  ]);
+
+  const listContent = (
     <View style={styles.container}>
-      {isSearchOpen ? (
+      <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
+      {error && hasSavedPlaces ? (
+        <View style={styles.errorBanner}>
+          <Text numberOfLines={1} style={styles.errorText}>
+            {error.message}
+          </Text>
+          {error.retryable ? (
+            <Pressable onPress={loadSavedPlaces}>
+              <Text style={styles.errorRetryText}>재시도</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {deleteError ? (
+        <View style={styles.deleteErrorBanner}>
+          <Text numberOfLines={2} style={styles.deleteErrorText}>
+            {deleteError.message}
+          </Text>
+          {deleteError.retryable ? (
+            <Pressable onPress={deleteSelectedPlaces}>
+              <Text style={styles.deleteErrorRetryText}>재시도</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {isLoading && !hasSavedPlaces ? (
+        <SavedPlacesSkeleton />
+      ) : hasSavedPlaces ? (
         <>
-          <SavedPlacesSearchPanel
-            places={places}
-            recentSearches={recentSearches}
-            onCloseSearch={() => setIsSearchOpen(false)}
-            onPressPlace={(place, selection) =>
-              openPlaceDetail(
-                place,
-                'saved_places_search',
-                selection.position,
-                selection.searchId,
-              )
+          <ScrollView
+            ref={scrollViewRef}
+            alwaysBounceVertical
+            onScroll={event =>
+              onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
             }
-            onSaveSearchTerm={saveRecentSearch}
-          />
-        </>
-      ) : (
-        <>
-          <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
-          {error && hasSavedPlaces ? (
-            <View style={styles.errorBanner}>
-              <Text numberOfLines={1} style={styles.errorText}>
-                {error.message}
-              </Text>
-              {error.retryable ? (
-                <Pressable onPress={loadSavedPlaces}>
-                  <Text style={styles.errorRetryText}>재시도</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-          {deleteError ? (
-            <View style={styles.deleteErrorBanner}>
-              <Text numberOfLines={2} style={styles.deleteErrorText}>
-                {deleteError.message}
-              </Text>
-              {deleteError.retryable ? (
-                <Pressable onPress={deleteSelectedPlaces}>
-                  <Text style={styles.deleteErrorRetryText}>재시도</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-          {isLoading && !hasSavedPlaces ? (
-            <SavedPlacesSkeleton />
-          ) : hasSavedPlaces ? (
-            <>
-              <ScrollView
-                ref={scrollViewRef}
-                alwaysBounceVertical
-                onScroll={event =>
-                  onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
-                }
-                refreshControl={
-                  <RefreshControl
-                    colors={['#8FA2FF']}
-                    onRefresh={refreshSavedPlaces}
-                    progressBackgroundColor="#ffffff"
-                    refreshing={isRefreshing}
-                    tintColor="#8FA2FF"
-                  />
-                }
-                scrollEventThrottle={16}
-                showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                colors={['#8FA2FF']}
+                onRefresh={refreshSavedPlaces}
+                progressBackgroundColor="#ffffff"
+                refreshing={isRefreshing}
+                tintColor="#8FA2FF"
+              />
+            }
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          >
+            <SavedPlacesEditAction
+              isEditing={isEditing}
+              onPress={toggleEditMode}
+            />
+            <SavedPlaceGrid
+              isEditing={isEditing}
+              places={places}
+              onLongPressPlace={enterEditMode}
+              onPressPlace={(place, position) =>
+                openPlaceDetail(place, 'saved_places_grid', position)
+              }
+              onTogglePlaceSelection={togglePlaceSelection}
+              selectedPlaceIds={selectedPlaceIds}
+            />
+            <View style={styles.scrollFooter}>
+              <Pressable
+                onPress={scrollToTop}
+                style={styles.scrollTopButton}
               >
-                <SavedPlacesEditAction
-                  isEditing={isEditing}
-                  onPress={toggleEditMode}
-                />
-                <SavedPlaceGrid
-                  isEditing={isEditing}
-                  places={places}
-                  onLongPressPlace={enterEditMode}
-                  onPressPlace={(place, position) =>
-                    openPlaceDetail(place, 'saved_places_grid', position)
-                  }
-                  onTogglePlaceSelection={togglePlaceSelection}
-                  selectedPlaceIds={selectedPlaceIds}
-                />
-                <View style={styles.scrollFooter}>
-                  <Pressable
-                    onPress={scrollToTop}
-                    style={styles.scrollTopButton}
-                  >
-                    <MaterialIcons color="#8FA2FF" name="upload" size={24} />
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </>
-          ) : error ? (
-            <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
-          ) : (
-            <SavedPlacesEmptyState />
-          )}
+                <MaterialIcons color="#8FA2FF" name="upload" size={24} />
+              </Pressable>
+            </View>
+          </ScrollView>
         </>
+      ) : error ? (
+        <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
+      ) : (
+        <SavedPlacesEmptyState
+          isGuest={isGuest}
+          onLogin={onAuthenticationRequired}
+          onOpenGuide={onOpenGuide}
+        />
       )}
       {isEditing ? (
         <Pressable
@@ -363,6 +396,44 @@ export function SavedPlacesScreen({
           </View>
         </Pressable>
       )}
+    </View>
+  );
+
+  // 목록과 검색은 화면 이력 스택에 함께 두어, 왼쪽 가장자리 스와이프로도 검색을 닫고 목록으로 돌아갑니다.
+  return (
+    <View style={styles.container}>
+      <SwipeBackStack
+        activeKey={isSearchOpen ? 'search' : 'list'}
+        backKey={isSearchOpen ? 'list' : null}
+        enabled={isScreenActive}
+        onBack={closeNestedScreen}
+        screens={[
+          {key: 'list', content: listContent},
+          ...(isSearchOpen
+            ? [
+                {
+                  key: 'search',
+                  content: (
+                    <SavedPlacesSearchPanel
+                      places={places}
+                      recentSearches={recentSearches}
+                      onCloseSearch={() => setIsSearchOpen(false)}
+                      onPressPlace={(place, selection) =>
+                        openPlaceDetail(
+                          place,
+                          'saved_places_search',
+                          selection.position,
+                          selection.searchId,
+                        )
+                      }
+                      onSaveSearchTerm={saveRecentSearch}
+                    />
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
         value={linkValue}

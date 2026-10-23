@@ -13,7 +13,6 @@ describe('analytics event names', () => {
         "appOpened": "app_opened",
         "extractionRequestFinished": "extraction_request_finished",
         "extractionRequestStarted": "extraction_request_started",
-        "guestTransferFinished": "guest_transfer_finished",
         "historyContentDetailViewed": "history_content_detail_viewed",
         "historyContentViewed": "history_content_viewed",
         "historyViewed": "history_viewed",

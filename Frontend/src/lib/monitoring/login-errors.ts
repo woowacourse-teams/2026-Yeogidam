@@ -1,3 +1,4 @@
+import {Platform} from 'react-native';
 import * as Sentry from '@sentry/react-native';
 
 import type {NormalizedAuthError} from '../auth/errors';
@@ -79,11 +80,40 @@ export function getSocialLoginErrorTitle(error: NormalizedAuthError): string {
   return `소셜 로그인 오류 · ${stageLabel}`;
 }
 
+/** Android에서 브라우저가 인증 콜백 없이 닫혀 취소로 처리된 경우를 진단용 경고로 보냅니다. 실제 사용자 취소도 섞여 있습니다. */
+function captureBrowserClosedWithoutCallback(
+  provider: SocialProvider,
+  error: NormalizedAuthError,
+) {
+  const cancelOrigin = error.cancelOrigin;
+  if (
+    Platform.OS !== 'android' ||
+    (cancelOrigin !== 'browser_cancel' && cancelOrigin !== 'browser_dismiss')
+  ) {
+    return;
+  }
+
+  Sentry.withScope(scope => {
+    scope.setTag('feature', 'social_login');
+    scope.setTag('login.provider', provider);
+    scope.setTag('login.stage', error.stage ?? 'unknown');
+    scope.setTag('login.error_code', error.errorCode);
+    scope.setTag('login.cancel_origin', cancelOrigin);
+    scope.setFingerprint(['social-login-browser-without-callback', provider, cancelOrigin]);
+    Sentry.captureMessage('소셜 로그인 브라우저가 콜백 없이 종료됨', 'warning');
+  });
+}
+
 /** 소셜 로그인 실패를 Sentry에 보냅니다. 메시지에는 토큰이나 개인 정보 없이 환경, 기기, 오류 코드만 적습니다. */
 export function captureSocialLoginError(
   provider: SocialProvider,
   error: NormalizedAuthError,
 ) {
+  if (error.errorCode === 'AUTH000_001') {
+    // 브라우저 종료에는 실제 사용자 취소도 포함될 수 있어 진단용 경고로 기록합니다.
+    captureBrowserClosedWithoutCallback(provider, error);
+    return;
+  }
   if (!isReportableSocialLoginError(error)) return;
   const backendErrorCode = error.backendErrorCode;
 

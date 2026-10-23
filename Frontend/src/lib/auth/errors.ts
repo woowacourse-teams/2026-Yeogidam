@@ -22,6 +22,11 @@ export type AuthErrorStage =
   | 'backend_exchange'
   | 'session_persist';
 
+export type AuthCancellationOrigin =
+  | 'browser_cancel'
+  | 'browser_dismiss'
+  | 'oauth_access_denied';
+
 export type NormalizedAuthError = {
   status: number | null;
   errorCode: AuthErrorCode;
@@ -30,6 +35,7 @@ export type NormalizedAuthError = {
   retryable: boolean;
   requestId?: string;
   stage?: AuthErrorStage;
+  cancelOrigin?: AuthCancellationOrigin;
 };
 
 type HttpLikeError = {
@@ -53,12 +59,15 @@ export function isNormalizedAuthError(
   return 'errorCode' in value && 'message' in value && 'retryable' in value;
 }
 
-export function createCancelledAuthError(): NormalizedAuthError {
+export function createCancelledAuthError(
+  cancelOrigin?: AuthCancellationOrigin,
+): NormalizedAuthError {
   return {
     status: null,
     errorCode: 'AUTH000_001',
     message: '로그인이 취소됐어요.',
     retryable: false,
+    ...(cancelOrigin ? {cancelOrigin} : {}),
   };
 }
 

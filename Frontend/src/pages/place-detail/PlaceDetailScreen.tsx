@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
@@ -34,6 +35,7 @@ type PlaceDetailScreenProps = {
   guestReels?: PlaceReel[];
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
+  bottomNavigationBar?: ReactNode;
 };
 
 export function PlaceDetailScreen({
@@ -43,6 +45,7 @@ export function PlaceDetailScreen({
   onAuthenticationRequired,
   guestReels,
   onDeleteGuestPlaces,
+  bottomNavigationBar,
 }: PlaceDetailScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const posthog = usePostHog();
@@ -223,6 +226,7 @@ export function PlaceDetailScreen({
         isDeleting={isPlaceDeleting}
         deleteError={deleteError}
       />
+      {bottomNavigationBar}
     </CopyToastProvider>
   );
 }

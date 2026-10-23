@@ -68,7 +68,9 @@ async function renderSheet(props: Partial<SheetProps> = {}) {
   // 다시 그릴 때 콜백이 새로 만들어지면 콜백에 걸린 effect가 다시 돌아 같은 알림을 또 적으므로, 처음 만든 props를 이어 씁니다.
   let currentProps: SheetProps = {
     places: CACHED_PLACES,
-    height: 700,
+    pageHeight: 700,
+    // 지도 화면은 시트 둘레에 지도와 검색창을 그리지만, 삭제 흐름에는 시트만 있으면 됩니다.
+    renderPage: sheet => sheet,
     onDetailViewChange: (isDetailView, placeId) => {
       events.push({detailShown: isDetailView, placeId});
     },
@@ -371,8 +373,9 @@ test('중간 높이 목록에서 연 상세를 펼쳐 지도 화면 머리글의
     {detailShown: true, placeId: CAFE.place.id},
     {expanded: true},
     {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
-    {detailShown: false, placeId: null},
+    // 목록 높이는 상세를 닫는 같은 렌더에서 확정하므로 펼침 해제를 먼저 알리고, 상세가 닫힌 것은 그린 뒤 알린다.
     {expanded: false},
+    {detailShown: false, placeId: null},
   ]);
   expect(shownView(sheet.renderer)).toBe('목록');
   expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.middle);
@@ -389,8 +392,8 @@ test('비회원 체험 장소도 펼친 상세에서 지우면 비회원 삭제 
     {detailShown: false, placeId: null},
     {detailShown: true, placeId: 'guest-1'},
     {expanded: true},
-    {detailShown: false, placeId: null},
     {expanded: false},
+    {detailShown: false, placeId: null},
   ]);
   expect(shownView(sheet.renderer)).toBe('목록');
   expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.middle);
@@ -408,8 +411,9 @@ test('지도를 움직여 접은 목록에서 연 상세를 펼쳐 지도 화면
     {detailShown: true, placeId: CAFE.place.id},
     {expanded: true},
     {deletedSavedPlaceId: CAFE.id, cachedNames: ['빵집']},
-    {detailShown: false, placeId: null},
+    // 목록 높이는 상세를 닫는 같은 렌더에서 확정하므로 펼침 해제를 먼저 알리고, 상세가 닫힌 것은 그린 뒤 알린다.
     {expanded: false},
+    {detailShown: false, placeId: null},
   ]);
   expect(shownView(sheet.renderer)).toBe('목록');
   expect(sheet.visibleHeight()).toBe(VISIBLE_HEIGHT.collapsed);

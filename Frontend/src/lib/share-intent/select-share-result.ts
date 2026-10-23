@@ -1,13 +1,32 @@
 import type {NativeShareResult} from './index';
 
+/** 같은 결과를 폴링마다 다시 처리하지 않도록 요청과 갱신 시각으로 만든 키입니다. */
+export function shareResultKey(result: NativeShareResult): string {
+  return `${result.requestId ?? result.url}:${result.updatedAt}`;
+}
+
+/** 공유 화면에서 로그인을 누르고 넘어온 결과인지입니다. 열려 있던 공유 상태보다 먼저 처리합니다. */
+function isLoginMoveResult(result: NativeShareResult): boolean {
+  return (
+    result.transferStatus === 'LOGIN_HANDOFF' || result.transferStatus === 'GUEST_LOGIN_PROMPT'
+  );
+}
+
 /**
  * 네이티브가 남긴 공유 결과 가운데 앱이 지금 처리할 하나를 고릅니다.
- * 가장 최근 결과가 비회원 로그인 유도면 그 결과를, 아니면 화면이 추적 중인 요청의 결과를, 둘 다 아니면 가장 최근 결과를 고릅니다.
+ * 아직 처리하지 않은 로그인 이동 결과가 있으면 그 결과를 먼저 고릅니다. 둘러보기 중 이전 공유 결과가 남아 있어도 로그인 화면으로 가야 합니다.
+ * 그다음은 가장 최근 결과가 비회원 로그인 유도면 그 결과를, 아니면 화면이 추적 중인 요청의 결과를, 둘 다 아니면 가장 최근 결과를 고릅니다.
  */
 export function selectShareResult(
   results: NativeShareResult[],
   activeRequestId: string | undefined,
+  handledKeys: ReadonlySet<string>,
 ): NativeShareResult | undefined {
+  const pendingLoginResult = [...results]
+    .reverse()
+    .find(item => isLoginMoveResult(item) && !handledKeys.has(shareResultKey(item)));
+  if (pendingLoginResult) return pendingLoginResult;
+
   const latestResult = results[results.length - 1];
   if (latestResult?.transferStatus === 'GUEST_LOGIN_PROMPT') return latestResult;
   if (activeRequestId) {

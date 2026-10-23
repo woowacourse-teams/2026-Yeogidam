@@ -148,6 +148,26 @@ test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱�
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
 });
 
+test('비회원 빈 히스토리는 장소 추출 결과 안내와 로그인 버튼을 보여 준다', async () => {
+  const onRequireLogin = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} guestReels={[]} onRequireLogin={onRequireLogin} />,
+    );
+  });
+
+  expect(JSON.stringify(renderer.toJSON())).toContain('로그인하고 공유한 콘텐츠의');
+  expect(JSON.stringify(renderer.toJSON())).toContain('장소 추출 결과를 확인해보세요.');
+  const loginButton = renderer.root.find(
+    node => node.props.accessibilityLabel === '히스토리 로그인' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => loginButton.props.onPress());
+  expect(onRequireLogin).toHaveBeenCalledTimes(1);
+
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('폴링은 첫 페이지만 갱신하고 더 보기로 불러온 항목과 커서를 유지한다', async () => {
   const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
   const secondCursor = {created_at: '2026-10-13T00:00:00Z', id: '1'};
@@ -761,8 +781,10 @@ test('항목을 만든 날짜별로 묶어 날짜 제목 아래에 보인다', a
     .findAll(node => node.type === Text && /^\d{4}\.\d{2}\.\d{2}$/.test(String(node.props.children)))
     .map(node => node.props.children);
   expect(dates).toEqual(['2026.10.15', '2026.10.14']);
+  // 화면 이력 스택의 바깥 View도 onLayout을 받으므로, 목록 ScrollView 안에서 날짜 묶음을 찾는다.
   const idsUnder = (date: string) =>
     renderer.root
+      .findByType(ScrollView)
       .find(
         node =>
           node.type === View &&
@@ -1114,16 +1136,19 @@ test('비회원 실패 상세는 목록 카드처럼 앱에 들어 있는 체험
 
   await press(historyItem(renderer, '10'));
   expect(hasText(renderer, '장소 분석에 실패했어요ㅠ')).toBe(true);
-  expect(renderer.root.findByType(Image).props.source).toBe(bundledImage);
+  // 목록은 상세 뒤에 남아 있으므로 상세 화면 안의 그림만 본다.
+  expect(
+    renderer.root.findByProps({testID: 'back-screen-detail'}).findByType(Image).props.source,
+  ).toBe(bundledImage);
 });
 
 // 목록 높이와 날짜 묶음, 카드 위치를 차례로 알린다. 카드는 위에서부터 94 높이로 쌓인다.
+// 화면 이력 스택의 바깥 View도 onLayout을 받으므로, 날짜 묶음은 목록 ScrollView 안에서 찾는다.
 async function layoutList(renderer: Renderer, viewportHeight: number) {
   await ReactTestRenderer.act(async () => {
-    renderer.root
-      .findByType(ScrollView)
-      .props.onLayout({nativeEvent: {layout: {height: viewportHeight}}});
-    renderer.root
+    const list = renderer.root.findByType(ScrollView);
+    list.props.onLayout({nativeEvent: {layout: {height: viewportHeight}}});
+    list
       .find(
         node =>
           node.type === View &&

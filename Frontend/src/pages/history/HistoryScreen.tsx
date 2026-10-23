@@ -1,7 +1,9 @@
-import React from 'react';
+import React, {useCallback, useEffect} from 'react';
 import {
   Alert,
+  BackHandler,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
+import {SwipeBackStack} from '../../components/navigation/SwipeBackStack';
 import type {HistoryReel, HistoryReelDetail} from '../../entities/content/types';
 import {HistoryFailureDetail} from './components/HistoryFailureDetail';
 import {HistoryItem} from './components/HistoryItem';
@@ -22,22 +25,26 @@ import {useHistoryScrollRestore} from './useHistoryScrollRestore';
 import {useHistorySelection} from './useHistorySelection';
 
 type HistoryScreenProps = {
+  isActive?: boolean;
   onBack: () => void;
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
   onRequireLogin?: () => void;
 };
 
-const emptyCharacter =
-  'https://www.figma.com/api/mcp/asset/446736dd-95ce-4bd1-8e39-fa004e2c8b29.png';
-
 /**
  * 공유한 콘텐츠의 장소 분석 기록을 날짜별로 보이고, 항목을 누르면 성공 또는 실패 상세를 엽니다.
  * 목록 읽기, 상세 선택, 스크롤 복원, 카드 노출 지표, 재시도는 각 훅이 맡고, 이 화면은 훅을 이어
  * 목록이나 상세를 그립니다. 비회원이면 guestReels와 guestDetails만 보이고 서버에 묻지 않습니다.
+ * 목록과 상세는 화면 이력 스택(SwipeBackStack)에 함께 두어, 왼쪽 가장자리 스와이프와 Android 시스템
+ * 뒤로 가기로도 상세에서 목록으로 돌아갑니다. 화면이 보이지 않는 동안(isActive가 false)에는 목록 폴링과
+ * 카드 노출 판단을 멈춥니다.
  */
 export function HistoryScreen({
+  isActive = true,
   onBack,
+  onNestedBackStateChange,
   guestReels,
   guestDetails,
   onRequireLogin,
@@ -52,14 +59,19 @@ export function HistoryScreen({
     loadMore,
     retryLoadMore,
     acceptRetriedReel,
-  } = useHistoryList(guestReels, posthog);
+  } = useHistoryList(guestReels, posthog, isActive);
   const loading = status === 'loading';
   const {selection, openDetail, closeDetail} = useHistorySelection();
   const isDetailOpen = selection.kind !== 'list';
   const {scrollViewRef, scrollOffsetRef, recordScrollOffset, restoreOnReturn, resetToTop} =
     useHistoryScrollRestore({listVisible: !isDetailOpen, loading, reelCount: reels.length});
   const {evaluateVisibleCards, onViewportLayout, onGroupLayout, onCardLayout} =
-    useHistoryCardImpressions({posthog, reels, paused: isDetailOpen, scrollOffsetRef});
+    useHistoryCardImpressions({
+      posthog,
+      reels,
+      paused: !isActive || isDetailOpen,
+      scrollOffsetRef,
+    });
   const {retryReel} = useHistoryRetry(posthog);
 
   /**
@@ -79,11 +91,30 @@ export function HistoryScreen({
     await refreshFirstPage();
   };
 
-  /** 상세를 닫고 목록이 다시 보이면 보던 스크롤 위치로 되돌립니다. */
-  const backToList = () => {
+  /** 상세를 닫고 목록이 다시 보이면 보던 스크롤 위치로 되돌립니다. 상세의 뒤로 가기 버튼, 스와이프, Android 시스템 뒤로 가기가 함께 씁니다. */
+  const backToList = useCallback(() => {
     restoreOnReturn();
     closeDetail();
-  };
+  }, [closeDetail, restoreOnReturn]);
+
+  // 상세가 열려 있으면 App에 뒤로 갈 수 있다고 알리고, Android에서는 시스템 뒤로 가기로 목록에 돌아간다.
+  useEffect(() => {
+    const canGoBack = isActive && isDetailOpen;
+    onNestedBackStateChange?.(canGoBack);
+    if (Platform.OS !== 'android' || !canGoBack) {
+      return () => onNestedBackStateChange?.(false);
+    }
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      backToList();
+      return true;
+    });
+
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [backToList, isActive, isDetailOpen, onNestedBackStateChange]);
 
   const groupedReels = groupHistoryReelsByDate(reels);
   /** 비회원이면 체험 상세(없으면 null)를, 회원이면 undefined를 넘겨 상세가 서버에 묻게 합니다. */
@@ -95,17 +126,14 @@ export function HistoryScreen({
     return detail ? () => openDetail(detail, reel) : undefined;
   };
 
-  if (selection.kind === 'success') {
-    return (
+  const detailContent =
+    selection.kind === 'success' ? (
       <HistorySuccessDetail
         onBack={backToList}
         reel={selection.reel}
         guestDetail={guestDetailOf(selection.reel)}
       />
-    );
-  }
-  if (selection.kind === 'failure') {
-    return (
+    ) : selection.kind === 'failure' ? (
       <HistoryFailureDetail
         onBack={backToList}
         reel={selection.reel}
@@ -113,10 +141,9 @@ export function HistoryScreen({
         onRequireLogin={onRequireLogin}
         onRetry={() => handleRetry(selection.reel)}
       />
-    );
-  }
+    ) : null;
 
-  return (
+  const listContent = (
     <View style={historyStyles.container}>
       <View style={historyStyles.header}>
         <Pressable
@@ -164,15 +191,30 @@ export function HistoryScreen({
         ) : reels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
-              source={{ uri: emptyCharacter }}
+              source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}
               style={styles.emptyCharacter}
             />
             <View style={styles.emptyText}>
               <Text style={styles.emptyTitle}>아직 공유된 콘텐츠가 없어요</Text>
               <Text style={styles.emptyDescription}>
-                인스타그램 릴스나 유튜브 쇼츠에서{'\n'}공유하기를 통해 여기담에
-                저장해보세요.
+                {guestReels !== undefined ? (
+                  <>로그인하고 공유한 콘텐츠의{'\n'}장소 추출 결과를 확인해보세요.</>
+                ) : (
+                  <>인스타그램 릴스를 공유하고 장소 추출 결과를{'\n'}확인해보세요.</>
+                )}
               </Text>
+              {guestReels !== undefined ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="히스토리 로그인"
+                  onPress={onRequireLogin}
+                  style={({pressed}) => [
+                    styles.emptyLoginButton,
+                    pressed && styles.emptyLoginButtonPressed,
+                  ]}>
+                  <Text style={styles.emptyLoginButtonText}>로그인하기</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         ) : (
@@ -217,6 +259,19 @@ export function HistoryScreen({
       <View style={historyStyles.homeIndicator} />
     </View>
   );
+
+  return (
+    <SwipeBackStack
+      activeKey={detailContent ? 'detail' : 'list'}
+      backKey={detailContent ? 'list' : null}
+      onBack={backToList}
+      enabled={isActive}
+      screens={[
+        {key: 'list', content: listContent},
+        ...(detailContent ? [{key: 'detail', content: detailContent}] : []),
+      ]}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
@@ -227,17 +282,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 0,
-    paddingBottom: 72,
+    paddingBottom: 112,
     paddingHorizontal: 24,
   },
-  emptyBody: { alignItems: 'center' },
+  emptyBody: { alignItems: 'center', width: '100%' },
   emptyCharacter: {
-    width: 195,
-    height: 195,
-    borderRadius: 30,
+    width: 250,
+    height: 183,
+    transform: [{translateX: -16}],
     marginBottom: 24,
   },
-  emptyText: { alignItems: 'center' },
+  emptyText: { alignItems: 'center', width: '100%' },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -251,6 +306,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  emptyLoginButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#1F2238',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+  },
+  emptyLoginButtonPressed: { opacity: 0.82 },
+  emptyLoginButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   group: { marginBottom: 16 },
   stateBody: {
     alignItems: 'center',

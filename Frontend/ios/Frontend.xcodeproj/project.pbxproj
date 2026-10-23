@@ -7,21 +7,32 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04AC182D86238216FE297D42 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DF549D028D4769F95BF6CF66 /* Images.xcassets */; };
+		0700BD6EA032EB733735A95D /* ActionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CEEEBFDBCFF2CB93027E9FC /* ActionViewController.swift */; };
 		0C80B921A6F3F58F76C31292 /* libPods-Frontend.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */; };
 		19FBFE81302C722200049FC4 /* RCTKakaoMapView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */; };
 		19FBFE82302C722200049FC4 /* KakaoMapContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */; };
+		206664E6301F1735F55CE7EE /* ShareIntentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */; };
 		2093165182064A13401C5F29 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F6D98302FFD7E95E67CBD2 /* ShareViewController.swift */; };
+		35F76C2D56B09627B2D4CD58 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B5E745A560574BF73823F3D1 /* Images.xcassets */; };
+		3C66DD4E242863DA07B7B435 /* ShareCardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7B09B364F3ED4A957E74D0 /* ShareCardViewController.swift */; };
 		61D730BB77CEB9174B449446 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		72CB5C8FEE5142A36E5FC8C4 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B5E745A560574BF73823F3D1 /* Images.xcassets */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		775ECDE24DBDFF754959223F /* ShareIntentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */; };
+		80F8B9980E078EFD3BAF5657 /* ShareCardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7B09B364F3ED4A957E74D0 /* ShareCardViewController.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		8ADF704D968BA7FADBACB601 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34D8C133FE00FB78A589F46E /* Foundation.framework */; };
+		97B7AF33195B6FE26548D0E8 /* ShareIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46CB4B5BD3C7233A755620FE /* ShareIntake.swift */; };
+		999FFCEFCD9E71AF07CA79D1 /* ShareIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46CB4B5BD3C7233A755620FE /* ShareIntake.swift */; };
 		9B9D58B5EA4CF49C77B325E3 /* FrontendShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */; };
 		9D091FF6CF961902FEB30DF5 /* ShareIntentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */; };
+		A71E808DB7469B920210B9DB /* FrontendActionExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 80881034BC2B6A339E55367C /* FrontendActionExtension.appex */; };
 		ABCDEF0123456789ABCDEF02 /* LocationPermissionModule.m in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */; };
 		B4285DA2BB719CBECE7B841F /* ShareIntentModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = C962E32A69AAB6305A26757E /* ShareIntentModule.swift */; };
+		D020ABAE5D15922DAA41B6E7 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34D8C133FE00FB78A589F46E /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,6 +42,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 11ACC1827BCB8179C54CF17B;
 			remoteInfo = FrontendShareExtension;
+		};
+		57AA9B46BB8074F0E7030C8E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 83779A67F103E2234DEF2B11;
+			remoteInfo = FrontendActionExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -42,6 +60,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				9B9D58B5EA4CF49C77B325E3 /* FrontendShareExtension.appex in Embed App Extensions */,
+				A71E808DB7469B920210B9DB /* FrontendActionExtension.appex in Embed App Extensions */,
 			);
 			name = "Embed App Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -55,25 +74,34 @@
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = Frontend/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		19FBFE7B302C5D8E00049FC4 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		19FBFE7C302C5D9800049FC4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
-		934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ShareExtension.xcconfig; sourceTree = "<group>"; };
 		19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KakaoMapContainerView.swift; sourceTree = "<group>"; };
 		19FBFE7E302C722200049FC4 /* RCTKakaoMapView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RCTKakaoMapView.h; sourceTree = "<group>"; };
 		19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RCTKakaoMapView.mm; sourceTree = "<group>"; };
+		2D7B09B364F3ED4A957E74D0 /* ShareCardViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareCardViewController.swift; path = Shared/ShareCardViewController.swift; sourceTree = "<group>"; };
 		34D8C133FE00FB78A589F46E /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		3B4392A12AC88292D35C810B /* Pods-Frontend.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Frontend.debug.xcconfig"; path = "Target Support Files/Pods-Frontend/Pods-Frontend.debug.xcconfig"; sourceTree = "<group>"; };
+		46CB4B5BD3C7233A755620FE /* ShareIntake.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Shared/ShareIntake.swift; sourceTree = "<group>"; };
 		48F6D98302FFD7E95E67CBD2 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareViewController.swift; path = ShareExtension/ShareViewController.swift; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-Frontend.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Frontend.release.xcconfig"; path = "Target Support Files/Pods-Frontend/Pods-Frontend.release.xcconfig"; sourceTree = "<group>"; };
+		5C75745C9AA995F14A3A1F5F /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Frontend.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareIntentStorage.swift; path = Shared/ShareIntentStorage.swift; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Frontend/AppDelegate.swift; sourceTree = "<group>"; };
 		770DAA3EB3DBA3A90C73CA68 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = Info.plist; path = ShareExtension/Info.plist; sourceTree = "<group>"; };
+		7CEEEBFDBCFF2CB93027E9FC /* ActionViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActionViewController.swift; sourceTree = "<group>"; };
+		80881034BC2B6A339E55367C /* FrontendActionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; name = FrontendActionExtension.appex; path = FrontendActionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = Frontend/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		8B0476C55C1E90BEEDD45D4F /* ActionExtension.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = ActionExtension.xcconfig; sourceTree = "<group>"; };
+		934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ShareExtension.xcconfig; sourceTree = "<group>"; };
 		A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FrontendShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ABCDEF0123456789ABCDEF01 /* LocationPermissionModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LocationPermissionModule.m; path = Frontend/LocationPermissionModule.m; sourceTree = "<group>"; };
 		AE3216032EEEE0A7AB1BE1B6 /* ShareExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = ShareExtension.entitlements; path = ShareExtension/ShareExtension.entitlements; sourceTree = "<group>"; };
+		B5E745A560574BF73823F3D1 /* Images.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Shared/Images.xcassets; sourceTree = "<group>"; };
 		C962E32A69AAB6305A26757E /* ShareIntentModule.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ShareIntentModule.swift; path = Frontend/ShareIntentModule.swift; sourceTree = "<group>"; };
 		DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = ShareIntentModuleBridge.m; path = Frontend/ShareIntentModuleBridge.m; sourceTree = "<group>"; };
+		DF549D028D4769F95BF6CF66 /* Images.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EF259BE6A3029171DAB8C925 /* ActionExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = ActionExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,6 +110,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-Frontend.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E585A9AE5165E3474D306995 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D020ABAE5D15922DAA41B6E7 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -141,6 +177,18 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		42082203BC1EE52539F28D14 /* ActionExtension */ = {
+			isa = PBXGroup;
+			children = (
+				7CEEEBFDBCFF2CB93027E9FC /* ActionViewController.swift */,
+				5C75745C9AA995F14A3A1F5F /* Info.plist */,
+				EF259BE6A3029171DAB8C925 /* ActionExtension.entitlements */,
+				DF549D028D4769F95BF6CF66 /* Images.xcassets */,
+			);
+			name = ActionExtension;
+			path = ActionExtension;
+			sourceTree = "<group>";
+		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
@@ -162,6 +210,8 @@
 				934ADFE53D514E5088E3AD11 /* ShareExtension.xcconfig */,
 				AB471D19E93EEE1EA06B71D1 /* Shared */,
 				0FCEC6FE205E0D07D1A9A89A /* ShareExtension */,
+				8B0476C55C1E90BEEDD45D4F /* ActionExtension.xcconfig */,
+				42082203BC1EE52539F28D14 /* ActionExtension */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -173,6 +223,7 @@
 			children = (
 				13B07F961A680F5B00A75B9A /* Frontend.app */,
 				A480F2A4F042921169B12F7B /* FrontendShareExtension.appex */,
+				80881034BC2B6A339E55367C /* FrontendActionExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -181,6 +232,9 @@
 			isa = PBXGroup;
 			children = (
 				705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */,
+				46CB4B5BD3C7233A755620FE /* ShareIntake.swift */,
+				2D7B09B364F3ED4A957E74D0 /* ShareCardViewController.swift */,
+				B5E745A560574BF73823F3D1 /* Images.xcassets */,
 			);
 			name = Shared;
 			sourceTree = "<group>";
@@ -240,11 +294,29 @@
 			);
 			dependencies = (
 				D78EB4FEDB49BF843A015FED /* FrontendShareExtension */,
+				D37BBC89DD33AAEFE2C2DE83 /* PBXTargetDependency */,
 			);
 			name = Frontend;
 			productName = Frontend;
 			productReference = 13B07F961A680F5B00A75B9A /* Frontend.app */;
 			productType = "com.apple.product-type.application";
+		};
+		83779A67F103E2234DEF2B11 /* FrontendActionExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A258AF44E1FE74CAF86017B8 /* Build configuration list for PBXNativeTarget "FrontendActionExtension" */;
+			buildPhases = (
+				4D135C95FC04571AC2192584 /* Sources */,
+				E585A9AE5165E3474D306995 /* Frameworks */,
+				5EDD1167B56ED599490F00BD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FrontendActionExtension;
+			productName = FrontendActionExtension;
+			productReference = 80881034BC2B6A339E55367C /* FrontendActionExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -274,6 +346,7 @@
 			targets = (
 				13B07F861A680F5B00A75B9A /* Frontend */,
 				11ACC1827BCB8179C54CF17B /* FrontendShareExtension */,
+				83779A67F103E2234DEF2B11 /* FrontendActionExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -289,10 +362,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5EDD1167B56ED599490F00BD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04AC182D86238216FE297D42 /* Images.xcassets in Resources */,
+				72CB5C8FEE5142A36E5FC8C4 /* Images.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		7D310CB7FA3CBEA3A065CAFE /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				35F76C2D56B09627B2D4CD58 /* Images.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -331,6 +414,20 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Frontend/Pods-Frontend-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		2439564DD42C43EB94BE3F40 /* Upload Debug Symbols to Sentry */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Upload Debug Symbols to Sentry";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh ../node_modules/@sentry/react-native/scripts/sentry-xcode-debug-files.sh";
 		};
 		C38B50BA6285516D6DCD4F65 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -371,20 +468,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Frontend/Pods-Frontend-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		2439564DD42C43EB94BE3F40 /* Upload Debug Symbols to Sentry */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			name = "Upload Debug Symbols to Sentry";
-			inputPaths = (
-			);
-			outputPaths = (
-			);
-			shellPath = /bin/sh;
-			shellScript = "/bin/sh ../node_modules/@sentry/react-native/scripts/sentry-xcode-debug-files.sh";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -402,18 +485,37 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4D135C95FC04571AC2192584 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0700BD6EA032EB733735A95D /* ActionViewController.swift in Sources */,
+				206664E6301F1735F55CE7EE /* ShareIntentStorage.swift in Sources */,
+				97B7AF33195B6FE26548D0E8 /* ShareIntake.swift in Sources */,
+				3C66DD4E242863DA07B7B435 /* ShareCardViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		59242002C7C38D8635092CCC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				9D091FF6CF961902FEB30DF5 /* ShareIntentStorage.swift in Sources */,
 				2093165182064A13401C5F29 /* ShareViewController.swift in Sources */,
+				999FFCEFCD9E71AF07CA79D1 /* ShareIntake.swift in Sources */,
+				80F8B9980E078EFD3BAF5657 /* ShareCardViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		D37BBC89DD33AAEFE2C2DE83 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = FrontendActionExtension;
+			target = 83779A67F103E2234DEF2B11 /* FrontendActionExtension */;
+			targetProxy = 57AA9B46BB8074F0E7030C8E /* PBXContainerItemProxy */;
+		};
 		D78EB4FEDB49BF843A015FED /* FrontendShareExtension */ = {
 			isa = PBXTargetDependency;
 			name = FrontendShareExtension;
@@ -487,6 +589,35 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
+		};
+		2161C1DD5C8553988F475841 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B0476C55C1E90BEEDD45D4F /* ActionExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ActionExtension/ActionExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 8QNP67WLL6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ActionExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app.dev.Action;
+				PRODUCT_NAME = FrontendActionExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		3AAB5092E2FFEC36B82BE3DE /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -708,6 +839,36 @@
 			};
 			name = Release;
 		};
+		DC9CF1106A1FA7E4F647C5A9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8B0476C55C1E90BEEDD45D4F /* ActionExtension.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = ActionExtension/ActionExtension.entitlements;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 8QNP67WLL6;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ActionExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeogidamm.app.Action;
+				PRODUCT_NAME = FrontendActionExtension;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -734,6 +895,15 @@
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A258AF44E1FE74CAF86017B8 /* Build configuration list for PBXNativeTarget "FrontendActionExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DC9CF1106A1FA7E4F647C5A9 /* Release */,
+				2161C1DD5C8553988F475841 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

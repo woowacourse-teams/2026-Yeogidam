@@ -1,7 +1,6 @@
 import type {AnalyticsClient} from '../src/analytics/analytics';
 import {
   toLoginFailureType,
-  trackGuestTransferFinished,
   trackLoginFinished,
 } from '../src/analytics/userEntryEvents';
 
@@ -29,7 +28,7 @@ describe('login failure types', () => {
 });
 
 describe('login_finished', () => {
-  test('includes whether the login carried a guest transfer only when known', () => {
+  test('records provider and outcome, with failure details when relevant', () => {
     const client = createClient();
 
     trackLoginFinished(client, {provider: 'kakao', outcome: 'success'});
@@ -37,28 +36,12 @@ describe('login_finished', () => {
       provider: 'kakao',
       outcome: 'failure',
       failureType: 'app_return_failed',
-      hasGuestTransfer: true,
     });
 
     const calls = (client.capture as jest.Mock).mock.calls;
-    expect(calls[0][1]).not.toHaveProperty('has_guest_transfer');
     expect(calls[1][1]).toMatchObject({
       outcome: 'failure',
       failure_type: 'app_return_failed',
-      has_guest_transfer: true,
     });
-  });
-});
-
-describe('guest_transfer_finished', () => {
-  test.each(['success', 'failure'] as const)('records the %s outcome', outcome => {
-    const client = createClient();
-
-    trackGuestTransferFinished(client, outcome);
-
-    expect(client.capture).toHaveBeenCalledWith(
-      'guest_transfer_finished',
-      expect.objectContaining({outcome}),
-    );
   });
 });
