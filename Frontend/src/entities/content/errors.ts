@@ -9,7 +9,12 @@ export type ReelErrorCode =
   | 'COMMON500_001'
   | 'CLIENT000_001'
   | 'CLIENT000_002'
-  | 'CLIENT000_003';
+  | 'CLIENT000_003'
+  | 'MEDIA400_001'
+  | 'MEDIA400_010'
+  | 'MEDIA400_011'
+  // Spring 서버가 새 오류 코드를 추가해도 그대로 전달합니다.
+  | (string & {});
 
 export class ReelApiError extends Error {
   readonly errorCode: ReelErrorCode | null;

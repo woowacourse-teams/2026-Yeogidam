@@ -1,3 +1,5 @@
+import {ApiError} from '../api/errors';
+
 export type AuthErrorCode =
   | 'AUTH000_001'
   | 'AUTH400_001'
@@ -6,32 +8,39 @@ export type AuthErrorCode =
   | 'CLIENT000_002'
   | 'CLIENT000_003';
 
+export type AuthErrorStage =
+  | 'login_setup'
+  | 'authorization_url'
+  | 'provider_authorization'
+  | 'callback'
+  | 'backend_exchange'
+  | 'session_persist';
+
+export type AuthCancellationOrigin =
+  | 'browser_cancel'
+  | 'browser_dismiss'
+  | 'oauth_access_denied';
+
 export type NormalizedAuthError = {
   status: number | null;
   errorCode: AuthErrorCode;
+  backendErrorCode?: string;
   message: string;
   retryable: boolean;
   requestId?: string;
+  stage?: AuthErrorStage;
+  cancelOrigin?: AuthCancellationOrigin;
 };
 
-type SupabaseLikeError = {
+type HttpLikeError = {
   message?: string;
   status?: number;
   code?: string;
   name?: string;
 };
 
-function createRequestId() {
-  const globalWithCrypto = globalThis as typeof globalThis & {
-    crypto?: {randomUUID?: () => string};
-  };
-  const cryptoObject = globalWithCrypto.crypto;
-
-  if (typeof cryptoObject?.randomUUID === 'function') {
-    return cryptoObject.randomUUID();
-  }
-
-  return `req-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`;
+function getSafeBackendAuthErrorCode(value: string | null): string | undefined {
+  return value && /^AUTH\d{3}_\d{3}$/.test(value) ? value : undefined;
 }
 
 export function isNormalizedAuthError(
@@ -44,12 +53,15 @@ export function isNormalizedAuthError(
   return 'errorCode' in value && 'message' in value && 'retryable' in value;
 }
 
-export function createCancelledAuthError(): NormalizedAuthError {
+export function createCancelledAuthError(
+  cancelOrigin?: AuthCancellationOrigin,
+): NormalizedAuthError {
   return {
     status: null,
     errorCode: 'AUTH000_001',
     message: '로그인이 취소됐어요.',
     retryable: false,
+    ...(cancelOrigin ? {cancelOrigin} : {}),
   };
 }
 
@@ -80,33 +92,80 @@ function createNetworkAuthError(): NormalizedAuthError {
   };
 }
 
-function createHttpAuthError(status: number): NormalizedAuthError {
+function createHttpAuthError(
+  status: number,
+  backendErrorCode: string | null,
+  requestId: string | null,
+): NormalizedAuthError {
+  const safeBackendErrorCode = getSafeBackendAuthErrorCode(backendErrorCode);
+  const backendDetails = {
+    ...(safeBackendErrorCode ? {backendErrorCode: safeBackendErrorCode} : {}),
+    ...(requestId ? {requestId} : {}),
+  };
+
+  if (status === 401) {
+    // Keep the existing UI classification while preserving the server's precise code for diagnostics.
+    return {...createHttpAuthError(400, null, requestId), status, ...backendDetails};
+  }
+
   if (status === 400) {
     return {
       status,
       errorCode: 'AUTH400_001',
       message: '로그인을 완료하지 못했어요. 다시 시도해주세요.',
       retryable: true,
-      requestId: createRequestId(),
+      ...backendDetails,
     };
   }
 
-  if (status === 502) {
+  if (status === 502 || status === 503) {
     return {
       status,
       errorCode: 'AUTH502_001',
       message: '로그인 제공자 연결이 원활하지 않아요.',
       retryable: true,
-      requestId: createRequestId(),
+      ...backendDetails,
     };
   }
 
+  return {
+    ...createProcessingAuthError(),
+    status,
+    ...backendDetails,
+  };
+}
+
+function normalizeApiAuthError(error: ApiError): NormalizedAuthError {
+  if (error.kind === 'timeout') return createTimeoutAuthError();
+  if (error.kind === 'network') return createNetworkAuthError();
+  if (error.kind === 'http' && error.status != null) {
+    return createHttpAuthError(error.status, error.errorCode, error.requestId);
+  }
+  if (error.kind === 'invalid_response') {
+    return {
+      ...createProcessingAuthError(),
+      status: error.status,
+      ...(error.requestId ? {requestId: error.requestId} : {}),
+    };
+  }
   return createProcessingAuthError();
+}
+
+export function withAuthErrorStage(
+  error: unknown,
+  stage: AuthErrorStage,
+): NormalizedAuthError {
+  const normalized = normalizeAuthError(error);
+  return {...normalized, stage: normalized.stage ?? stage};
 }
 
 export function normalizeAuthError(error: unknown): NormalizedAuthError {
   if (isNormalizedAuthError(error)) {
     return error;
+  }
+
+  if (error instanceof ApiError) {
+    return normalizeApiAuthError(error);
   }
 
   if (error instanceof Error && error.name === 'TimeoutError') {
@@ -117,17 +176,17 @@ export function normalizeAuthError(error: unknown): NormalizedAuthError {
     return createNetworkAuthError();
   }
 
-  const supabaseError = error as SupabaseLikeError | null;
+  const httpError = error as HttpLikeError | null;
 
   if (
-    typeof supabaseError?.message === 'string' &&
-    supabaseError.message.toLowerCase().includes('network')
+    typeof httpError?.message === 'string' &&
+    httpError.message.toLowerCase().includes('network')
   ) {
     return createNetworkAuthError();
   }
 
-  if (typeof supabaseError?.status === 'number') {
-    return createHttpAuthError(supabaseError.status);
+  if (typeof httpError?.status === 'number') {
+    return createHttpAuthError(httpError.status, null, null);
   }
 
   return createProcessingAuthError();

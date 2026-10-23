@@ -2,6 +2,7 @@ import {Alert, Linking} from 'react-native';
 import Config from 'react-native-config';
 
 const KAKAO_CHANNEL_HOST = 'pf.kakao.com';
+const DEFAULT_KAKAO_CHANNEL_PUBLIC_ID = '_AxoriX';
 
 function firstNonEmptyString(...values: Array<string | undefined>) {
   for (const value of values) {
@@ -22,16 +23,28 @@ function ensureHttpsUrl(value: string) {
 }
 
 function normalizeChannelPath(pathname: string) {
-  const normalizedPath = pathname.replace(/\/+$/, '');
+  const normalizedPath = pathname
+    .replace(/\/+$/, '')
+    .replace(/\/(?:friend|chat)$/i, '');
 
   if (!normalizedPath || normalizedPath === '/') {
     return null;
   }
 
-  return normalizedPath.replace(/\/chat$/i, '');
+  return `${normalizedPath}/chat`;
 }
 
 function createKakaoChannelChatUrl() {
+  const channelPublicId = firstNonEmptyString(Config.KAKAO_CHANNEL_PUBLIC_ID);
+  if (channelPublicId) {
+    const publicId = channelPublicId.replace(/\/(?:friend|chat)\/?$/i, '');
+    const normalizedPublicId = publicId.startsWith('_')
+      ? publicId
+      : `_${publicId}`;
+
+    return `https://${KAKAO_CHANNEL_HOST}/${normalizedPublicId}/chat`;
+  }
+
   const configuredUrl = firstNonEmptyString(
     Config.KAKAO_CHANNEL_CHAT_URL,
     Config.KAKAO_CHANNEL_URL,
@@ -48,28 +61,16 @@ function createKakaoChannelChatUrl() {
           return null;
         }
 
-        url.pathname = pathname;
+        return `${url.origin}${pathname}`;
       }
 
-      url.search = '';
-      url.hash = '';
-
-      return url.toString();
+      return `${url.origin}${url.pathname}`;
     } catch {
       return null;
     }
   }
 
-  const channelPublicId = firstNonEmptyString(Config.KAKAO_CHANNEL_PUBLIC_ID);
-  if (!channelPublicId) {
-    return null;
-  }
-
-  const normalizedPublicId = channelPublicId.startsWith('_')
-    ? channelPublicId
-    : `_${channelPublicId}`;
-
-  return `https://${KAKAO_CHANNEL_HOST}/${normalizedPublicId}`;
+  return `https://${KAKAO_CHANNEL_HOST}/${DEFAULT_KAKAO_CHANNEL_PUBLIC_ID}/chat`;
 }
 
 export async function openKakaoChannelChat() {

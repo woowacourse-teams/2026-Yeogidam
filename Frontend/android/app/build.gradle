@@ -58,7 +58,7 @@ react {
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -73,31 +73,24 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
-// Load the Kakao native app key without an additional React Native package.
-// Frontend/.env must contain: KAKAO_NATIVE_APP_KEY=your_native_app_key
-def envFile = rootProject.file("../.env")
-def envProperties = new Properties()
-
-if (envFile.exists()) {
-    envFile.withInputStream { envProperties.load(it) }
-}
-
-def kakaoNativeAppKey = envProperties.getProperty("KAKAO_NATIVE_APP_KEY", "").trim()
-def supabaseUrl = envProperties.getProperty("SUPABASE_URL", "").trim()
-def supabasePublishableKey = envProperties.getProperty("SUPABASE_PUBLISHABLE_KEY", "").trim()
+// Use the same build configuration that react-native-config loads from ENVFILE.
+def kakaoNativeAppKey = project.env.get("KAKAO_NATIVE_APP_KEY", "").trim()
+def apiBaseUrl = project.env.get("API_BASE_URL", "").trim().replaceAll(/\/+$/, "")
+def appEnvironment = project.env.get("APP_ENV", "development").trim() ?: "development"
 if (kakaoNativeAppKey.isEmpty()) {
-    throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from Frontend/.env")
+    throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from the build configuration")
 }
-if (supabaseUrl.isEmpty() || supabasePublishableKey.isEmpty()) {
-    throw new GradleException("SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is missing from Frontend/.env")
+if (apiBaseUrl.isEmpty()) {
+    throw new GradleException("API_BASE_URL is missing from the build configuration")
 }
 
 def escapedKakaoNativeAppKey = kakaoNativeAppKey
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
-def escapedSupabaseUrl = supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
-def escapedSupabasePublishableKey = supabasePublishableKey.replace("\\", "\\\\").replace("\"", "\\\"")
+def escapedApiBaseUrl = apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
+def escapedAppEnvironment = appEnvironment.replace("\\", "\\\\").replace("\"", "\\\"")
 
+apply from: new File(new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim()).parentFile, "sentry.gradle")
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -109,13 +102,26 @@ android {
     }
     defaultConfig {
         applicationId "com.yeogidamm.app"
+        // Debug uses .dev, but react-native-config reads this BuildConfig package.
+        resValue "string", "build_config_package", "com.yeogidamm.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Beta Actions 실행에서 배정한 번호를 versionCode에 사용하고, 로컬 빌드는 프로젝트 기본값을 유지한다.
+        versionCode = System.getenv("APP_BUILD_NUMBER") ? Integer.parseInt(System.getenv("APP_BUILD_NUMBER")) : 2
+        // Beta builds receive the manually entered app version; local builds keep their default.
+        versionName = System.getenv("APP_VERSION") ?: "1.1.0"
         buildConfigField "String", "KAKAO_NATIVE_APP_KEY", "\"${escapedKakaoNativeAppKey}\""
-        buildConfigField "String", "SUPABASE_URL", "\"${escapedSupabaseUrl}\""
-        buildConfigField "String", "SUPABASE_PUBLISHABLE_KEY", "\"${escapedSupabasePublishableKey}\""
+        // 공유 익스텐션(ShareAuth/ShareSaveWorker)이 Spring API를 직접 호출합니다.
+        buildConfigField "String", "API_BASE_URL", "\"${escapedApiBaseUrl}\""
+        buildConfigField "String", "APP_ENV", "\"${escapedAppEnvironment}\""
+        // react-native-config creates these resources when the values exist.
+        // Keep stable empty resources for CI builds that omit PostHog.
+        if (!project.env.containsKey("POSTHOG_PROJECT_TOKEN")) {
+            resValue "string", "POSTHOG_PROJECT_TOKEN", "\"\""
+        }
+        if (!project.env.containsKey("POSTHOG_HOST")) {
+            resValue "string", "POSTHOG_HOST", "\"\""
+        }
     }
     signingConfigs {
         debug {
@@ -124,17 +130,29 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // The beta workflow creates this keystore in the runner from a GitHub Secret.
+            def uploadKeystore = System.getenv("ANDROID_UPLOAD_KEYSTORE_PATH")
+            if (uploadKeystore) {
+                storeFile file(uploadKeystore)
+                storePassword System.getenv("ANDROID_UPLOAD_STORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_UPLOAD_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_UPLOAD_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug {
+            // Keep the store-installed production app and the local development app installable together.
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             minifyEnabled enableProguardInReleaseBuilds
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
 }

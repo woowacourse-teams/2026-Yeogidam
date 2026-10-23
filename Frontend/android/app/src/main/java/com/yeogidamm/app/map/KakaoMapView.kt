@@ -8,6 +8,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -16,9 +18,8 @@ import android.util.Log
 import android.widget.FrameLayout
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Arguments
-import com.facebook.react.bridge.ReactContext
 import com.facebook.react.common.LifecycleState
-import com.facebook.react.modules.core.PermissionAwareActivity
+import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
@@ -28,34 +29,47 @@ import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.Label
 import com.kakao.vectormap.label.LabelOptions
+import com.kakao.vectormap.label.LabelStyle
+import com.kakao.vectormap.label.LabelStyles
+import com.kakao.vectormap.label.LabelTransition
+import com.kakao.vectormap.label.Transition
 import com.yeogidamm.app.R
 import org.json.JSONArray
 import kotlin.math.roundToInt
 
 class KakaoMapView(
-    context: Context,
+    context: ThemedReactContext,
 ) : FrameLayout(context), LifecycleEventListener {
 
     private val nativeMapView = MapView(context)
-    private val reactContext = context as ReactContext
+    private val reactContext = context
+    private val applicationReactContext = context.reactApplicationContext
+    private var isDisposed = false
     private val locationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     private var kakaoMap: KakaoMap? = null
     private var currentLocationLabel: Label? = null
     private var savedPlacesJson = "[]"
+    private val savedPlaceSelectionById = mutableMapOf<String, Boolean>()
     private var lastKnownLocation: Location? = null
+
+    private val savedPlaceStyles: Map<Boolean, LabelStyles> by lazy {
+        mapOf(
+            false to createSavedPlaceStyles(selected = false),
+            true to createSavedPlaceStyles(selected = true),
+        )
+    }
 
     private var latitude = 37.5445
     private var longitude = 127.0557
     private var zoomLevel = 15
     private var cameraMoveRequestId = 0
+    private var cameraFitPointsJson = "[]"
+    private var cameraFitRequestId = 0
     private var showsCurrentLocation = false
     private var currentLocationRequestId = 0
     private var cameraBottomInset = 0
     private var locationUpdatesStarted = false
-    private var locationPermissionRequestInFlight = false
-    private var locationPermissionDenied = false
-    private var hasCenteredOnCurrentLocation = false
     private var pendingCurrentLocationCameraMove = false
 
     private val locationListener =
@@ -78,6 +92,45 @@ class KakaoMapView(
         )
     }
 
+    private val fitSearchResultPoints = Runnable {
+        val map = kakaoMap ?: return@Runnable
+
+        if (!isAttachedToWindow) {
+            return@Runnable
+        }
+
+        try {
+            val points = JSONArray(cameraFitPointsJson).let { places ->
+                (0 until places.length()).mapNotNull { index ->
+                    places.optJSONObject(index)?.let { place ->
+                        if (place.has("latitude") && place.has("longitude")) {
+                            LatLng.from(
+                                place.getDouble("latitude"),
+                                place.getDouble("longitude"),
+                            )
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }
+
+            if (points.size < 2) {
+                return@Runnable
+            }
+
+            map.moveCamera(
+                CameraUpdateFactory.fitMapPoints(
+                    points.toTypedArray(),
+                    SEARCH_RESULT_CAMERA_PADDING,
+                    SEARCH_RESULT_MAX_ZOOM_LEVEL,
+                ),
+            )
+        } catch (error: Exception) {
+            Log.e("YeogidamKakaoMap", "검색 결과 범위에 카메라를 맞추지 못했습니다.", error)
+        }
+    }
+
     init {
         addView(
             nativeMapView,
@@ -92,6 +145,7 @@ class KakaoMapView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        if (isDisposed) return
 
         if (!nativeMapView.isStarted) {
             startMap()
@@ -114,21 +168,57 @@ class KakaoMapView(
             },
             object : KakaoMapReadyCallback() {
                 override fun onMapReady(map: KakaoMap) {
+                    if (isDisposed) return
+                    // SDK 2.14.1 ignores this setting before the renderer is
+                    // initialized. Retain the engine during Fabric reorders
+                    // and finish it explicitly when this view is dropped.
+                    nativeMapView.setFinishManually(true)
                     kakaoMap = map
                     applyCameraPadding()
                     map.setOnLabelClickListener { _, _, label ->
                         val placeId = label.tag as? String ?: return@setOnLabelClickListener false
+                        val cameraPosition = map.cameraPosition ?: return@setOnLabelClickListener false
                         reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
                             id,
                             "onMarkerPressed",
-                            Arguments.createMap().apply { putString("id", placeId) },
+                            Arguments.createMap().apply {
+                                putString("id", placeId)
+                                putDouble("latitude", cameraPosition.position.latitude)
+                                putDouble("longitude", cameraPosition.position.longitude)
+                                putInt("zoomLevel", cameraPosition.zoomLevel)
+                                putDouble(
+                                    "cameraBottomInset",
+                                    cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0)) /
+                                        resources.displayMetrics.density.toDouble(),
+                                )
+                            },
                         )
                         true
                     }
                     map.setOnCameraMoveEndListener { _, position, _ ->
                         emitVisibleBounds(position.position, position.zoomLevel)
                     }
+                    map.setOnCameraMoveStartListener { _, gestureType ->
+                        if (
+                            gestureType == com.kakao.vectormap.GestureType.Pan ||
+                            gestureType == com.kakao.vectormap.GestureType.LongTapAndDrag ||
+                            gestureType == com.kakao.vectormap.GestureType.Zoom ||
+                            gestureType == com.kakao.vectormap.GestureType.OneFingerZoom ||
+                            gestureType == com.kakao.vectormap.GestureType.RotateZoom ||
+                            gestureType == com.kakao.vectormap.GestureType.OneFingerDoubleTap ||
+                            gestureType == com.kakao.vectormap.GestureType.TwoFingerSingleTap
+                        ) {
+                            reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                                id,
+                                "onMapPanStarted",
+                                Arguments.createMap().apply { putBoolean("started", true) },
+                            )
+                        }
+                    }
                     renderSavedPlaceMarkers()
+                    if (cameraFitRequestId > 0) {
+                        moveCameraToFitSearchResults()
+                    }
                     Log.d("YeogidamKakaoMap", "지도 준비 완료")
                     post(::resumeMapIfNeeded)
                     startCurrentLocationIfNeeded()
@@ -171,16 +261,26 @@ class KakaoMapView(
         moveCamera()
     }
 
+    fun setCameraFitPointsJson(value: String) {
+        cameraFitPointsJson = value
+    }
+
+    fun setCameraFitRequestId(value: Int) {
+        if (cameraFitRequestId == value) {
+            return
+        }
+
+        cameraFitRequestId = value
+        moveCameraToFitSearchResults()
+    }
+
     fun setShowsCurrentLocation(value: Boolean) {
         if (showsCurrentLocation == value) {
             return
         }
 
         showsCurrentLocation = value
-        hasCenteredOnCurrentLocation = false
-
         if (value) {
-            locationPermissionDenied = false
             startCurrentLocationIfNeeded()
         } else {
             stopLocationUpdates()
@@ -225,28 +325,76 @@ class KakaoMapView(
         post(moveToDefaultPosition)
     }
 
+    private fun moveCameraToFitSearchResults() {
+        removeCallbacks(fitSearchResultPoints)
+        post(fitSearchResultPoints)
+    }
+
     private fun renderSavedPlaceMarkers() {
         val layer = kakaoMap?.labelManager?.layer ?: return
-        layer.removeAll()
 
         try {
             val places = JSONArray(savedPlacesJson)
+            val placesById = linkedMapOf<String, org.json.JSONObject>()
+
             for (index in 0 until places.length()) {
                 val place = places.getJSONObject(index)
-                layer.addLabel(
-                    LabelOptions.from(
-                        place.getString("id"),
-                        LatLng.from(place.getDouble("latitude"), place.getDouble("longitude")),
-                    ).setStyles(createSavedPlaceMarker()),
-                ).apply {
-                    tag = place.getString("id")
-                    isClickable = true
+                placesById[place.getString("id")] = place
+            }
+
+            (savedPlaceSelectionById.keys - placesById.keys).forEach { removedId ->
+                layer.getLabel(removedId)?.remove()
+            }
+
+            placesById.forEach { (id, place) ->
+                val selected = place.optBoolean("selected", false)
+                val position =
+                    LatLng.from(place.getDouble("latitude"), place.getDouble("longitude"))
+                val style = savedPlaceStyles.getValue(selected)
+                val label = layer.getLabel(id)
+
+                if (label == null) {
+                    layer.addLabel(
+                        LabelOptions
+                            .from(id, position)
+                            .setRank(if (selected) Int.MAX_VALUE.toLong() - 1 else 1L)
+                            .setStyles(style),
+                    ).apply {
+                        tag = id
+                        isClickable = true
+                    }
+                } else {
+                    label.moveTo(position)
+                    label.rank = if (selected) Int.MAX_VALUE.toLong() - 1 else 1L
+                    label.tag = id
+                    label.isClickable = true
+
+                    if (savedPlaceSelectionById[id] != selected) {
+                        label.changeStyles(style, true)
+                    }
                 }
             }
+
+            savedPlaceSelectionById.clear()
+            savedPlaceSelectionById.putAll(
+                placesById.mapValues { (_, place) -> place.optBoolean("selected", false) },
+            )
         } catch (error: Exception) {
             Log.e("YeogidamKakaoMap", "저장 장소 핀을 표시하지 못했습니다.", error)
         }
     }
+
+    private fun createSavedPlaceStyles(selected: Boolean): LabelStyles =
+        LabelStyles.from(
+            LabelStyle
+                .from(createSavedPlaceMarker(selected))
+                .setAnchorPoint(0.5f, 1.0f)
+                .setIconTransition(
+                    LabelTransition
+                        .from(Transition.Scale, Transition.Scale)
+                        .enableTransitionWhenChange(true, true),
+                ),
+        )
 
     override fun onSizeChanged(
         width: Int,
@@ -270,7 +418,11 @@ class KakaoMapView(
         val map = kakaoMap ?: return
         if (id == NO_ID || width <= 0 || height <= 0 || center == null) return
 
-        val visibleBottom = (height - map.padding.bottom).coerceAtLeast(1)
+        // The list should include every pin visible on the map, including
+        // pins covered by a partially expanded bottom sheet. Keep map padding
+        // for camera positioning, but calculate list bounds from the full map
+        // viewport.
+        val visibleBottom = height.coerceAtLeast(1)
 
         val corners = listOfNotNull(
             map.fromScreenPoint(0, 0),
@@ -301,15 +453,12 @@ class KakaoMapView(
     }
 
     private fun startCurrentLocationIfNeeded() {
-        if (!showsCurrentLocation || !isAttachedToWindow || kakaoMap == null) {
+        if (isDisposed || !showsCurrentLocation || !isAttachedToWindow || kakaoMap == null) {
             return
         }
 
         if (hasLocationPermission()) {
-            locationPermissionDenied = false
             startLocationUpdates()
-        } else if (!locationPermissionDenied) {
-            requestLocationPermission()
         }
     }
 
@@ -318,44 +467,6 @@ class KakaoMapView(
             PackageManager.PERMISSION_GRANTED ||
             context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
-
-    private fun requestLocationPermission() {
-        if (locationPermissionRequestInFlight) {
-            return
-        }
-
-        val activity = reactContext.currentActivity as? PermissionAwareActivity
-
-        if (activity == null) {
-            Log.e("YeogidamKakaoMap", "위치 권한을 요청할 Activity가 없습니다.")
-            return
-        }
-
-        locationPermissionRequestInFlight = true
-        activity.requestPermissions(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-            ),
-            LOCATION_PERMISSION_REQUEST_CODE,
-        ) { requestCode, _, grantResults ->
-            if (requestCode != LOCATION_PERMISSION_REQUEST_CODE) {
-                return@requestPermissions false
-            }
-
-            locationPermissionRequestInFlight = false
-
-            if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
-                locationPermissionDenied = false
-                startCurrentLocationIfNeeded()
-            } else {
-                locationPermissionDenied = true
-                Log.w("YeogidamKakaoMap", "사용자가 위치 권한을 허용하지 않았습니다.")
-            }
-
-            true
-        }
-    }
 
     private fun startLocationUpdates() {
         if (locationUpdatesStarted || !hasLocationPermission()) {
@@ -427,6 +538,7 @@ class KakaoMapView(
                 map.labelManager?.layer?.addLabel(
                     LabelOptions
                         .from(CURRENT_LOCATION_LABEL_ID, position)
+                        .setRank(Int.MAX_VALUE.toLong())
                         .setStyles(createCurrentLocationMarker()),
                 )
             currentLocationLabel = newLabel
@@ -454,7 +566,6 @@ class KakaoMapView(
         val location = lastKnownLocation
 
         if (map == null || location == null) {
-            hasCenteredOnCurrentLocation = false
             startCurrentLocationIfNeeded()
             return
         }
@@ -469,11 +580,9 @@ class KakaoMapView(
         }
 
         pendingCurrentLocationCameraMove = false
-        hasCenteredOnCurrentLocation = true
         removeCallbacks(moveToDefaultPosition)
         post {
             if (!isAttachedToWindow || kakaoMap !== map) {
-                hasCenteredOnCurrentLocation = false
                 return@post
             }
 
@@ -506,9 +615,12 @@ class KakaoMapView(
 
     private fun resumeMapIfNeeded() {
         if (
+            !isDisposed &&
             isAttachedToWindow &&
             nativeMapView.isStarted &&
-            reactContext.lifecycleState == LifecycleState.RESUMED
+            // ThemedReactContext forwards listeners but keeps its own initial
+            // lifecycle state. Read the actual host state from the app context.
+            applicationReactContext.lifecycleState == LifecycleState.RESUMED
         ) {
             nativeMapView.resume()
         }
@@ -522,22 +634,40 @@ class KakaoMapView(
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        paint.color = Color.argb(55, 92, 117, 255)
+        paint.shader = RadialGradient(
+            center,
+            center,
+            center,
+            intArrayOf(
+                Color.argb(87, 92, 117, 255),
+                Color.argb(77, 92, 117, 255),
+                Color.argb(51, 92, 117, 255),
+                Color.argb(20, 92, 117, 255),
+                Color.TRANSPARENT,
+            ),
+            floatArrayOf(0f, 0.35f, 0.6f, 0.82f, 1f),
+            Shader.TileMode.CLAMP,
+        )
         canvas.drawCircle(center, center, center, paint)
 
+        paint.shader = null
         paint.color = Color.WHITE
-        canvas.drawCircle(center, center, center * 0.7f, paint)
+        canvas.drawCircle(center, center, 6.6f * density, paint)
 
         paint.color = Color.rgb(92, 117, 255)
-        canvas.drawCircle(center, center, center * 0.5f, paint)
+        canvas.drawCircle(center, center, 5 * density, paint)
 
         return bitmap
     }
 
-    private fun createSavedPlaceMarker(): Bitmap {
+    private fun createSavedPlaceMarker(selected: Boolean): Bitmap {
         val density = resources.displayMetrics.density
-        val size = (SAVED_PLACE_MARKER_SIZE_DP * density).roundToInt()
-        BitmapFactory.decodeResource(resources, R.drawable.map_marker)?.let { markerBitmap ->
+        val markerSizeDp =
+            if (selected) SAVED_PLACE_SELECTED_MARKER_SIZE_DP
+            else SAVED_PLACE_MARKER_SIZE_DP
+        val size = (markerSizeDp * density).roundToInt()
+        val resourceId = if (selected) R.drawable.map_marker_selected else R.drawable.map_marker
+        BitmapFactory.decodeResource(resources, resourceId)?.let { markerBitmap ->
             return Bitmap.createScaledBitmap(markerBitmap, size, size, true)
         }
 
@@ -567,23 +697,33 @@ class KakaoMapView(
     override fun onHostPause() {
         stopLocationUpdates()
 
-        if (nativeMapView.isStarted) {
+        if (!isDisposed && nativeMapView.isStarted) {
             nativeMapView.pause()
         }
     }
 
     override fun onHostDestroy() {
+        dispose()
+    }
+
+    fun dispose() {
+        if (isDisposed) return
+        isDisposed = true
         stopLocationUpdates()
         removeCallbacks(moveToDefaultPosition)
-        nativeMapView.finish()
+        removeCallbacks(fitSearchResultPoints)
         reactContext.removeLifecycleEventListener(this)
+        nativeMapView.finish()
+        kakaoMap = null
+        currentLocationLabel = null
     }
 
     override fun onDetachedFromWindow() {
         stopLocationUpdates()
         removeCallbacks(moveToDefaultPosition)
+        removeCallbacks(fitSearchResultPoints)
 
-        if (nativeMapView.isStarted) {
+        if (!isDisposed && nativeMapView.isStarted) {
             nativeMapView.pause()
         }
 
@@ -592,9 +732,11 @@ class KakaoMapView(
 
     private companion object {
         const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
-        const val CURRENT_LOCATION_MARKER_SIZE_DP = 28
-        const val SAVED_PLACE_MARKER_SIZE_DP = 36
-        const val LOCATION_PERMISSION_REQUEST_CODE = 9417
+        const val CURRENT_LOCATION_MARKER_SIZE_DP = 44
+        const val SAVED_PLACE_MARKER_SIZE_DP = 26
+        const val SAVED_PLACE_SELECTED_MARKER_SIZE_DP = 32
+        const val SEARCH_RESULT_CAMERA_PADDING = 48
+        const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f
         const val KAKAO_MAP_MIN_LATITUDE = 32.0

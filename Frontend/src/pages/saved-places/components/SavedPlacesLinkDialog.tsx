@@ -43,7 +43,7 @@ export function SavedPlacesLinkDialog({
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
-              onChangeText={value => onChangeValue(value)}
+              onChangeText={inputValue => onChangeValue(inputValue)}
               placeholder="URL을 붙여넣으세요"
               placeholderTextColor="#b7b7bd"
               style={styles.input}

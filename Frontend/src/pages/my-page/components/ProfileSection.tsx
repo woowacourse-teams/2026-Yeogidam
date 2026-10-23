@@ -5,10 +5,17 @@ import type {User} from '../../../entities/user/types';
 
 type ProfileSectionProps = {
   user: User;
+  isProfileUnavailable?: boolean;
   onPressEditProfile?: () => void;
+  bottomContent?: React.ReactNode;
 };
 
-export function ProfileSection({user, onPressEditProfile}: ProfileSectionProps) {
+export function ProfileSection({
+  user,
+  isProfileUnavailable = false,
+  onPressEditProfile,
+  bottomContent,
+}: ProfileSectionProps) {
   const [hasAvatarLoadError, setHasAvatarLoadError] = useState(false);
 
   useEffect(() => {
@@ -19,20 +26,35 @@ export function ProfileSection({user, onPressEditProfile}: ProfileSectionProps) 
   const shouldShowAvatarImage = Boolean(user.avatarUrl) && !hasAvatarLoadError;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.avatar}>
-        {shouldShowAvatarImage ? (
-          <Image
-            source={{uri: user.avatarUrl!}}
-            style={styles.avatarImage}
-            onError={() => setHasAvatarLoadError(true)}
-          />
-        ) : (
-          <Text style={styles.avatarText}>{avatarInitial}</Text>
-        )}
+    <View
+      style={[
+        styles.container,
+        isProfileUnavailable && styles.unavailableContainer,
+      ]}>
+      <View style={styles.avatarContainer}>
+        <View style={styles.avatar}>
+          {shouldShowAvatarImage ? (
+            <Image
+              source={{uri: user.avatarUrl!}}
+              style={styles.avatarImage}
+              onError={() => setHasAvatarLoadError(true)}
+            />
+          ) : (
+            <Text style={styles.avatarText}>{avatarInitial}</Text>
+          )}
+        </View>
+        {isProfileUnavailable ? (
+          <View style={styles.unavailableBadge}>
+            <Text style={styles.unavailableBadgeText}>!</Text>
+          </View>
+        ) : null}
       </View>
-      <Text style={styles.name}>{user.nickname}</Text>
-      <Text style={styles.description}>{user.description}</Text>
+      <Text style={styles.name}>
+        {isProfileUnavailable ? '프로필을 불러오지 못했습니다.' : user.nickname}
+      </Text>
+      {!isProfileUnavailable && user.description ? (
+        <Text style={styles.description}>{user.description}</Text>
+      ) : null}
       {onPressEditProfile ? (
         <Pressable
           onPress={onPressEditProfile}
@@ -43,6 +65,7 @@ export function ProfileSection({user, onPressEditProfile}: ProfileSectionProps) 
           <Text style={styles.editButtonText}>프로필 수정하기</Text>
         </Pressable>
       ) : null}
+      {bottomContent}
     </View>
   );
 }
@@ -50,9 +73,16 @@ export function ProfileSection({user, onPressEditProfile}: ProfileSectionProps) 
 const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
-    paddingVertical: 42,
+    paddingVertical: 54,
     borderBottomWidth: 8,
     borderBottomColor: '#f5f3ee',
+  },
+  unavailableContainer: {
+    paddingTop: 56,
+    paddingBottom: 0,
+  },
+  avatarContainer: {
+    position: 'relative',
   },
   avatar: {
     width: 72,
@@ -62,6 +92,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+  },
+  unavailableBadge: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#8e8e93',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unavailableBadgeText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    lineHeight: 18,
   },
   avatarImage: {
     width: '100%',

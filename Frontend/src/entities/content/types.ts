@@ -1,3 +1,5 @@
+import type {ImageSourcePropType} from 'react-native';
+
 export type SaveSource = 'url_input' | 'instagram_share';
 
 export type ContentType = 'instagram_reel' | 'unsupported';
@@ -17,4 +19,47 @@ export type ReelProcessingStatus = {
   failure_reason: string | null;
   instagram_thumbnail_url: string | null;
   created_at: string;
+};
+
+export type HistoryReel = {
+  id: string;
+  instagram_url: string | null;
+  instagram_title: string | null;
+  instagram_description: string | null;
+  instagram_author_username: string | null;
+  instagram_thumbnail_url: string | null;
+  processing_status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  failure_reason: string | null;
+  save_mode: string | null;
+  created_at: string;
+  local_thumbnail_source?: ImageSourcePropType;
+};
+
+export type HistoryCursor = Pick<HistoryReel, 'created_at' | 'id'>;
+
+export type HistoryPlace = {
+  id: string;
+  name: string;
+  category: string | null;
+  source_address: string | null;
+  road_address: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  kakao_place_url: string | null;
+  thumbnail_url: string | null;
+  photo_attribution: string | null;
+  local_thumbnail_source?: ImageSourcePropType;
+};
+
+export type HistoryReelPlace = {
+  id: string;
+  position: number;
+  place: HistoryPlace | null;
+};
+
+export type HistoryReelDetail = HistoryReel & {
+  extraction: {
+    extraction_places: HistoryReelPlace[];
+  } | null;
 };

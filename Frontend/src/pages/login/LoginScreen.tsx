@@ -21,6 +21,9 @@ type LoginScreenProps = {
   onContinueWithGoogle: () => void;
   socialLoginError: NormalizedAuthError | null;
   pendingSocialProvider: 'apple' | 'kakao' | 'google' | null;
+  onClose?: () => void;
+  /** 로그인 없이 비회원으로 둘러보기. */
+  onBrowseAsGuest?: () => void;
 };
 
 type SocialButton =
@@ -65,6 +68,8 @@ export function LoginScreen({
   onContinueWithGoogle,
   socialLoginError,
   pendingSocialProvider,
+  onClose,
+  onBrowseAsGuest,
 }: LoginScreenProps) {
   const isSocialLoginPending = pendingSocialProvider !== null;
   const visibleSocialButtons = isAppleLoginAvailable
@@ -81,7 +86,7 @@ export function LoginScreen({
   } as const;
 
   return (
-    <AuthScaffold contentStyle={styles.main}>
+    <AuthScaffold onBack={onClose} contentStyle={styles.main}>
       <View style={styles.buttonList}>
         {visibleSocialButtons.map(button => (
           <Pressable
@@ -123,6 +128,17 @@ export function LoginScreen({
         ))}
       </View>
 
+      {onBrowseAsGuest ? (
+        <Pressable
+          accessibilityRole="button"
+          disabled={isSocialLoginPending}
+          hitSlop={8}
+          onPress={onBrowseAsGuest}
+          style={({pressed}) => [styles.browseButton, pressed && styles.pressed]}>
+          <Text style={styles.browseText}>로그인 없이 둘러보기</Text>
+        </Pressable>
+      ) : null}
+
       {socialLoginError ? (
         <View style={styles.errorBox}>
           <Text style={styles.errorMessage}>{socialLoginError.message}</Text>
@@ -154,6 +170,17 @@ const styles = StyleSheet.create({
   },
   buttonList: {
     gap: 14,
+  },
+  browseButton: {
+    alignSelf: 'center',
+    marginTop: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  browseText: {
+    color: '#52525b',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   socialButton: {
     height: 54,

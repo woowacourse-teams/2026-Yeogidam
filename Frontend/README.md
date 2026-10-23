@@ -1,5 +1,35 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+## Environment variables
+
+Copy `Frontend/.env.example` to `Frontend/.env` and fill in the values required
+by the app.
+Set `API_BASE_URL` to the Spring Boot server origin without `/api/v1`:
+`https://yeogidam-dev.duckdns.org` for development or
+`https://yeogidam.duckdns.org` for production builds.
+
+For a local server, use `http://localhost:8080` in the iOS Simulator and
+`http://10.0.2.2:8080` in the Android Emulator. A physical device needs a
+server address reachable from that device. Rebuild the native app after
+changing `.env`. The beta build workflow sets `API_BASE_URL` to the production
+server separately from the local `.env`.
+
+```dotenv
+API_BASE_URL=https://yeogidam-dev.duckdns.org
+POSTHOG_PROJECT_TOKEN=<PostHog project token>
+POSTHOG_HOST=<PostHog ingestion host>
+APP_ENV=development
+```
+
+PostHog is disabled when either value is missing. The app collects lifecycle,
+entry, and login events; the native share flow and history screen record the
+events in [the share experience contract](docs/POSTHOG_SHARE_EXPERIENCE_PLAN.md). Screen
+and touch autocapture, surveys, and session replay are disabled.
+The Android share component and iOS Share Extension use PostHog values included
+in their build so share events can be sent before the containing app opens.
+Set `APP_ENV` for each build to label both app and share events. Internal store distribution uses the production environment, so its builds use `production`.
+App and share events also include an `installation_id` generated for that app installation. It can be used to exclude an internal tester's events before login. After login, PostHog uses the account's user ID as `distinct_id`. Reinstalling the app creates a new installation ID.
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.

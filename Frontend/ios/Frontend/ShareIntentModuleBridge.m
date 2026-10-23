@@ -9,7 +9,18 @@ RCT_EXTERN_METHOD(getPendingShare:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(clearPendingShare:(NSString * _Nullable)shareId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
-RCT_EXTERN_METHOD(setAccessToken:(NSString * _Nullable)token
+RCT_EXTERN_METHOD(setShareSession:(NSDictionary * _Nullable)session
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getShareSession:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(resumeWaitingShares:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(setApiConfiguration:(NSString *)url
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(setPostHogConfiguration:(NSString *)projectToken
+                  host:(NSString *)host
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(getShareResult:(RCTPromiseResolveBlock)resolve
@@ -17,6 +28,11 @@ RCT_EXTERN_METHOD(getShareResult:(RCTPromiseResolveBlock)resolve
 RCT_EXTERN_METHOD(getShareResults:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(clearShareResult:(NSString * _Nullable)requestId
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getPendingShareAnalyticsEvents:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(acknowledgeShareAnalyticsEvent:(NSString *)eventId
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
