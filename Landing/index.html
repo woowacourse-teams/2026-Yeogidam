@@ -1510,11 +1510,22 @@ p{margin:0}
     // 움직임 줄이기 설정이거나 IntersectionObserver가 없으면 마크업에 둔 마지막 장면(찾은 결과)에 멈춘다
     var tStart = function(){ if (tRunning || reduce) return; tRunning = true; tIndex = 0; tTick(); };
     var tStop = function(){ tRunning = false; clearTimeout(tTimer); tLater.forEach(clearTimeout); tLater = []; };
+    var tSeen = false;
     if ('IntersectionObserver' in window){
       new IntersectionObserver(function(es){
-        es.forEach(function(e){ if (e.isIntersecting) tStart(); else tStop(); });
+        es.forEach(function(e){
+          if (e.isIntersecting){
+            // 기술 섹션까지 내려온 방문자를 세려고, 페이지를 한 번 열 때 한 번만 보낸다
+            if (!tSeen){ tSeen = true; track('tech_view'); }
+            tStart();
+          } else tStop();
+        });
       }, {threshold:.3}).observe(techStage);
     }
+    var tHow = document.querySelector('.tx-how'), tHowSent = false;
+    if (tHow) tHow.addEventListener('toggle', function(){
+      if (tHow.open && !tHowSent){ tHowSent = true; track('tech_method_open'); }
+    });
   }
 })();
 </script>

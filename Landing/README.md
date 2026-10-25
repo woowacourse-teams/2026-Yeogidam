@@ -48,7 +48,7 @@ python3 -m http.server 8000
 
 - 예시 릴스는 실제 게시물이 아니라 사용법 데모의 윤숲 후르츠산도점 사진(`assets/place-1775568752.jpg`)과 공식 계정 군자역 디저트 릴스의 구성을 빌려 만든 그림이다. 가게 이름은 캡션에서 빼고 자막의 지역 단서와 컵 글자에만 남겼고, 화면 아래에 "예시 화면이에요"를 둔다.
 - 단계별 상태 문구와 렌즈 꼬리표는 스크립트의 `T_STEPS`에 있고, 렌즈가 멈추는 자리는 CSS의 `.tx-lens.at-cap`, `.at-sub`, `.at-cup`이 정한다. 사진을 바꾸면 컵 글자 위치가 달라지므로 `.at-cup` 값도 같이 맞춘다.
-- 섹션이 화면에 30% 이상 보일 때만 움직이고, 움직임 줄이기 설정을 켠 방문자에게는 마지막 장면(찾은 결과 카드)만 보여 준다.
+- 예시 화면이 화면에 30% 이상 보일 때만 움직이고, 움직임 줄이기 설정을 켠 방문자에게는 마지막 장면(찾은 결과 카드)만 보여 준다. 섹션까지 내려온 방문자와 측정 방법을 펼친 방문자는 GA4 이벤트 `tech_view`, `tech_method_open`으로 센다(방문 통계 절).
 - 숫자(85%, 장소 133곳 중 113곳, 영상에만 나온 장소에서 놓친 곳 9곳 → 1곳)는 2026-10-13에 골든셋(공개 인스타그램 게시물 40건, 음식점과 카페 정답 133곳)을 gemini-3.5-flash-lite로 채점한 결과다. 캡션만 읽던 때 값은 2026-10-09 운영 코드의 예측을 같은 정답으로 다시 센 것이다.
 - be-dev의 골든셋(`Backend/eval`)은 #411에서 음식점 밖 장소까지 넣어 다시 정의되어서, 133곳 기준 채점 결과는 아직 저장소에 없다. 숫자를 다시 재면 섹션의 숫자 두 개와 "측정 방법 보기" 목록을 같이 고친다.
 
@@ -86,15 +86,17 @@ python3 -m http.server 8000
 
 ## 방문 통계(GA4)
 
-랜딩 방문과 데모 진행, 스토어 버튼 클릭은 Google 애널리틱스 4(GA4) 속성 "Yeogidam Landing"으로 센다. 측정 ID `G-V0G6SC57DV`(둘째 자리는 숫자 0)는 페이지 소스에 공개되는 값이라 저장소에 그대로 둔다.
+랜딩 방문과 데모 진행, 스토어 버튼 클릭, 기술 섹션 도달은 Google 애널리틱스 4(GA4) 속성 "Yeogidam Landing"으로 센다. 측정 ID `G-V0G6SC57DV`(둘째 자리는 숫자 0)는 페이지 소스에 공개되는 값이라 저장소에 그대로 둔다.
 
 - head의 Google 태그(gtag.js)가 페이지 조회와 향상된 측정 이벤트(스크롤, 외부 링크 클릭 등)를 보낸다. 외부 링크 클릭 이벤트(`click`)에는 스토어 말고도 GitHub, 카카오맵, 인스타그램 링크가 섞이므로 스토어 클릭은 아래 `store_click`으로 센다.
-- 데모 스크립트는 아래 두 이벤트를 직접 보내고, 보내는 코드는 스크립트의 `track()`, `mark()`, `placementOf()`와 스토어 링크 클릭 리스너에 있다.
+- 스크립트는 아래 네 이벤트를 직접 보낸다. 데모와 스토어 이벤트를 보내는 코드는 `track()`, `mark()`, `placementOf()`와 스토어 링크 클릭 리스너에 있고, 기술 섹션 이벤트는 기술 섹션 스크립트에 있다.
 
 | 이벤트 | 보내는 때 | 매개변수 |
 |---|---|---|
 | `demo_step` | 데모가 다음 단계로 넘어갈 때. 페이지를 한 번 열면 같은 단계는 한 번만 보낸다 | `step`(share, send, open_app, result, library, map, detail, end), `mode`(tap 또는 auto) |
 | `store_click` | App Store나 Google Play 링크를 누를 때 | `store`(app_store 또는 google_play), `placement`(hero, demo_end, start, footer), `demo_progress`(누른 시점까지 간 가장 먼 데모 단계, 시작 전이면 none) |
+| `tech_view` | 기술 섹션의 예시 화면이 화면에 30% 이상 처음 보일 때. 페이지를 한 번 열면 한 번만 보낸다 | 없음 |
+| `tech_method_open` | 기술 섹션의 "측정 방법 보기"를 처음 펼칠 때. 페이지를 한 번 열면 한 번만 보낸다 | 없음 |
 
 - 매개변수로 나눠 보려면 GA4의 관리, 데이터 표시, 맞춤 정의 순서로 들어가 이벤트 범위 맞춤 측정기준으로 등록해야 한다. 위 다섯 매개변수는 2026-10-21에 등록했고, 맞춤 측정기준은 등록한 뒤에 들어온 데이터에만 붙으므로 매개변수를 더하면 바로 등록한다.
 - 유입 경로는 링크 끝에 붙이는 UTM 파라미터(유입 꼬리표)로 나누고, 어느 채널에서 왔는지는 `utm_source`에 채널 이름을 그대로 적는다. GA4에서는 첫 사용자 소스로 보면 채널별로 나뉜다. `utm_medium`은 모두 `social`로 맞춰 기본 채널 그룹에서 소셜 유입으로 잡히게 하고, `utm_campaign`은 같은 채널 안에서 홍보를 구분할 때만 쓴다.
@@ -117,7 +119,7 @@ python3 -m http.server 8000
 | 에브리타임 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=everytime_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Deverytime%26utm_medium%3Dsocial%26utm_campaign%3Deverytime_store` |
 | 랜딩페이지 버튼 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=landing_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dlanding%26utm_medium%3Dweb%26utm_campaign%3Dlanding_store` (방문 주소에 꼬리표가 있으면 `utm_source`와 `utm_medium`이 바뀐다) |
 
-- 배포 뒤에는 GA4 보고서의 실시간 개요에서 이벤트 이름별 이벤트 수 카드에 `demo_step`과 `store_click`이 보이는지 확인한다. 표준 보고서는 하루 이틀 늦게 채워진다.
+- 배포 뒤에는 GA4 보고서의 실시간 개요에서 이벤트 이름별 이벤트 수 카드에 `demo_step`, `store_click`, `tech_view`가 보이는지 확인한다. 표준 보고서는 하루 이틀 늦게 채워진다.
 - 로컬 서버로 열어도 같은 속성으로 이벤트가 가므로, 보고서를 볼 때 호스트 이름이 localhost인 방문은 빼고 본다.
 - 데스크톱 QR 코드로 스토어에 간 방문과 광고 차단기를 쓰는 브라우저의 방문은 GA4에 잡히지 않는다. QR에도 스토어 버튼과 같은 꼬리표를 넣어서 설치는 스토어 통계에서 볼 수 있다.
 - 푸터에 Google 애널리틱스 쿠키 안내 문장이 있다. 앱 개인정보 처리방침(`Frontend/docs/terms-and-privacy.md`)은 아직 앱의 PostHog만 다룬다.
