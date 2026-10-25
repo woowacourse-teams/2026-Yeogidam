@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 용도 | 개발자 노트북 | Gradle 테스트 | 개발 서버 | 운영 |
 | DB | 로컬 MySQL(`.env`) | Testcontainers MySQL 8.4 | `yeogidam-dev-db`의 Docker MySQL 8.4 | RDS MySQL 8.4 `yeogidam-prod-db` (2026-10-02) |
-| 앱 업데이트 정책(`app-update.*`) | `application.yml` 값(최소 2.0.0, 최신 2.0.0) | `application-test.yml`(E2E용 구간) | 공통값 | 공통값 |
+| 앱 업데이트 정책(`app-update.*`) | `application.yml` 값(최소 2.1.0, 최신 2.1.0) | `application-test.yml`(E2E용 구간) | 공통값 | 공통값 |
 | `schema.sql` 실행 | 기동마다 (DROP 뒤 CREATE) | 컨텍스트마다 | 안 함 | 안 함 |
 | 로컬 시나리오 데이터 (`data-local.sql`) | 자동 실행 | 안 함 | DB를 지우고 다시 넣을 때 수동 적용 | 안 함 |
 | 온보딩 시드 (`data-onboarding.sql`) | 자동 실행 | 안 함 | `data-local.sql` 다음에 수동 적용 | 수동 적용 |
