@@ -67,7 +67,7 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 h1,h2,h3{margin:0;line-height:1.25;letter-spacing:-.02em;text-wrap:balance}
 p{margin:0}
 .wrap{max-width:1120px;margin-inline:auto;padding-inline:max(clamp(16px,4vw,32px),env(safe-area-inset-left,0px)) max(clamp(16px,4vw,32px),env(safe-area-inset-right,0px))}
-#demo,#how,#features,#faq,#start{scroll-margin-top:72px}
+#demo,#how,#features,#tech,#faq,#start{scroll-margin-top:72px}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--brand-ink);background:var(--bg-soft);border-radius:999px;padding:6px 12px}
 .sec{padding-block:clamp(56px,9vw,112px)}
 .sec-head{max-width:640px;margin-bottom:clamp(28px,4vw,48px)}
@@ -435,6 +435,92 @@ p{margin:0}
 @media (min-width:720px){.feat-grid{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:1000px){.feat-grid{grid-template-columns:repeat(4,1fr)}}
 
+/* ---------- 기술 ---------- */
+.tech{--photo:url(assets/place-1775568752.jpg);--tx-ease:cubic-bezier(.2,.7,.2,1);overflow:clip}
+.tx-grid{display:grid;gap:clamp(40px,6vw,96px);align-items:center}
+.tech h2{font-size:clamp(26px,4vw,40px);font-weight:800;margin-top:14px}
+.tech h2 em{font-style:normal;background:linear-gradient(transparent 62%,var(--brand) 62%)}
+.tx-lead{margin-top:14px;color:var(--ink-2);max-width:30em}
+.tx-stats{display:flex;flex-wrap:wrap;gap:24px 0;margin-top:36px}
+.tx-stat{padding-right:clamp(20px,3vw,36px);margin-right:clamp(20px,3vw,36px);border-right:1px solid var(--line)}
+.tx-stat:last-child{border:0;margin:0;padding:0}
+.tx-stat b{display:flex;align-items:baseline;gap:.22em;font-size:clamp(34px,3.6vw,46px);font-weight:800;letter-spacing:-.035em;line-height:1.05;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tx-stat .tx-was,.tx-stat .tx-arr{color:#b6bac7}
+.tx-stat .tx-arr{font-size:.56em}
+.tx-stat > span{display:block;font-size:14px;color:var(--ink-2);margin-top:12px;line-height:1.5}
+.tx-how{margin-top:28px;font-size:13px;color:var(--muted);line-height:1.6;max-width:34em}
+.tx-how summary{list-style:none;cursor:pointer}
+.tx-how summary::-webkit-details-marker{display:none}
+.tx-how summary b{color:var(--brand-ink);font-weight:700;white-space:nowrap;margin-left:6px}
+.tx-how summary b::after{content:"›";display:inline-block;margin-left:4px;transition:transform .2s}
+.tx-how[open] summary b::after{transform:rotate(90deg)}
+.tx-how ul{margin:12px 0 0;padding-left:18px;display:grid;gap:6px;color:var(--ink-2)}
+.tx-stage{position:relative;isolation:isolate;border-radius:clamp(28px,3vw,40px);background:#0e0f1a;overflow:hidden;padding:28px 24px 112px;display:flex;flex-direction:column;align-items:center;gap:24px;min-width:0}
+.tx-stage::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(70% 42% at 50% 108%,rgba(102,122,255,.62),transparent 72%),radial-gradient(38% 30% at 88% 0%,rgba(193,203,254,.16),transparent 70%),radial-gradient(30% 26% at 6% 30%,rgba(193,203,254,.07),transparent 70%)}
+.tx-status{display:inline-flex;align-items:center;gap:10px;height:40px;padding:0 18px 0 12px;border-radius:999px;background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.13);color:#fff;font-size:14.5px;font-weight:700;letter-spacing:-.01em;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.tx-spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(193,203,254,.28);border-top-color:#c1cbfe;animation:spin .9s linear infinite;flex:none}
+.tx-status.done .tx-spin{animation:none;border:0;background:var(--success)}
+.tx-status.done .tx-spin::after{content:"";display:block;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:translate(5.5px,2.5px) rotate(45deg)}
+.tx-txt{transition:opacity .2s}
+.tx-txt.swap{opacity:0}
+.tx-frame{position:relative}
+.tx-reel{--rw:clamp(220px,24vw,272px);position:relative;width:var(--rw);aspect-ratio:9/16;border-radius:22px;overflow:hidden;background:#0c0c12;container-type:inline-size;box-shadow:0 34px 70px rgba(0,0,0,.5)}
+.tx-blur{position:absolute;inset:-14%;background:var(--photo) center/cover;filter:blur(18px) brightness(.42) saturate(1.25)}
+.tx-top{position:absolute;top:3.6%;left:6%;right:6%;display:flex;justify-content:space-between;align-items:center;color:#fff;font-size:5.4cqi;font-weight:700;letter-spacing:-.01em}
+.tx-top svg{width:6.4cqi;height:6.4cqi}
+.tx-title{position:absolute;top:11.5%;left:0;right:0;text-align:center;color:#fff;font-weight:800;font-size:9.4cqi;line-height:1.2;letter-spacing:-.03em;text-shadow:0 2px 12px rgba(0,0,0,.35)}
+.tx-video{position:absolute;top:30%;left:0;width:100%;aspect-ratio:4/3;background:var(--photo) 100% 0/150% auto no-repeat}
+.tx-sub{position:absolute;top:75.6%;left:0;right:0;text-align:center;color:#fff;font-weight:800;font-size:5.6cqi;letter-spacing:-.02em;text-shadow:0 0 2px #000,0 0 3px #000,0 1px 3px rgba(0,0,0,.8)}
+.tx-side{position:absolute;right:4.2%;bottom:12.5%;display:grid;gap:4.6cqi;justify-items:center}
+.tx-side svg{width:7.2cqi;height:7.2cqi;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+.tx-meta{position:absolute;left:4.6%;right:19%;bottom:3.4%;color:#fff}
+.tx-user{display:flex;align-items:center;gap:2.2cqi;font-size:max(9px,4.4cqi);font-weight:700;line-height:1.4}
+.tx-av{width:7cqi;height:7cqi;border-radius:50%;background:var(--brand);color:var(--ink);display:grid;place-items:center;font-size:3.6cqi;font-weight:800}
+.tx-cap{font-size:max(9px,4.1cqi);line-height:1.38;margin-top:1.8cqi;opacity:.92}
+.tx-lens{position:absolute;left:3%;top:84.6%;width:80%;height:12.6%;border-radius:2.4cqi;opacity:0;z-index:4;pointer-events:none;box-shadow:0 0 0 999px rgba(8,8,16,0);transition:left .75s var(--tx-ease),top .75s var(--tx-ease),width .75s var(--tx-ease),height .75s var(--tx-ease),opacity .35s,box-shadow .5s}
+.tx-lens.on{opacity:1;box-shadow:0 0 0 999px rgba(8,8,16,.52)}
+.tx-lens i{position:absolute;width:5.6cqi;height:5.6cqi;border:max(2px,.95cqi) solid #fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+.tx-lens i:nth-child(1){left:-1.3cqi;top:-1.3cqi;border-right:0;border-bottom:0;border-top-left-radius:2.8cqi}
+.tx-lens i:nth-child(2){right:-1.3cqi;top:-1.3cqi;border-left:0;border-bottom:0;border-top-right-radius:2.8cqi}
+.tx-lens i:nth-child(3){left:-1.3cqi;bottom:-1.3cqi;border-right:0;border-top:0;border-bottom-left-radius:2.8cqi}
+.tx-lens i:nth-child(4){right:-1.3cqi;bottom:-1.3cqi;border-left:0;border-top:0;border-bottom-right-radius:2.8cqi}
+.tx-tag{position:absolute;left:50%;bottom:calc(100% + 3.6cqi);transform:translateX(-50%) translateY(4px) scale(.94);opacity:0;background:#fff;color:var(--ink);border-radius:2.6cqi;padding:1.4cqi 3.2cqi;font-size:max(11px,4.8cqi);font-weight:800;line-height:1.4;white-space:nowrap;letter-spacing:-.01em;box-shadow:0 6px 18px rgba(0,0,0,.28);transition:opacity .3s .45s,transform .3s .45s}
+.tx-lens.on:not(.moving) .tx-tag{opacity:1;transform:translateX(-50%)}
+.tx-lens.moving .tx-tag,.tx-lens.moving .tx-dots b{transition-delay:0s!important}
+.tx-tag.miss{color:#d14b4b}
+.tx-dots{position:absolute;inset:0}
+.tx-dots b{position:absolute;width:1.5cqi;height:1.5cqi;border-radius:50%;background:#fff;opacity:0;transform:scale(.3);transition:.25s}
+.tx-lens.on:not(.moving) .tx-dots b{opacity:.95;transform:none}
+.tx-lens.on:not(.moving) .tx-dots b:nth-child(1){transition-delay:.55s}
+.tx-lens.on:not(.moving) .tx-dots b:nth-child(2){transition-delay:.62s}
+.tx-lens.on:not(.moving) .tx-dots b:nth-child(3){transition-delay:.69s}
+.tx-dots b:nth-child(1){left:22%;top:46%}
+.tx-dots b:nth-child(2){left:50%;top:38%}
+.tx-dots b:nth-child(3){left:76%;top:52%}
+.tx-lens.at-cap{left:3%;top:84.6%;width:80%;height:12.6%}
+.tx-lens.at-sub{left:18%;top:74.4%;width:64%;height:6.4%}
+.tx-lens.at-cup{left:53.5%;top:59%;width:31%;height:13.6%}
+.tx-lens.at-cap .tx-tag{bottom:calc(100% + 3cqi)}
+.tx-found{position:absolute;left:50%;bottom:-58px;width:300px;max-width:calc(100vw - 64px);z-index:6;display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px;align-items:center;padding:12px 16px 12px 12px;border-radius:20px;background:#fff;color:var(--ink);box-shadow:0 24px 48px rgba(0,0,0,.38);opacity:0;transform:translate(-50%,22px) scale(.97);transition:opacity .45s var(--tx-ease),transform .45s var(--tx-ease)}
+.tx-stage[data-found] .tx-found{opacity:1;transform:translate(-50%,0)}
+.tx-found-img{width:52px;height:52px;border-radius:12px;background:var(--photo) 72% 50%/auto 140% no-repeat}
+.tx-found b{display:block;font-size:16px;font-weight:800;letter-spacing:-.02em;line-height:1.3}
+.tx-found span{display:block;font-size:13px;color:var(--ink-2);line-height:1.4}
+.tx-found em{display:inline-flex;align-items:center;gap:5px;font-style:normal;font-size:12px;font-weight:700;color:var(--ink-2);margin-top:4px;line-height:1.4}
+.tx-found em::before{content:"";width:9px;height:9px;border-radius:3px;background:var(--kakao)}
+.tx-sk{position:absolute;inset:0;border-radius:inherit;background:#fff;padding:14px;display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:center;transition:opacity .3s}
+.tx-sk i{display:block;border-radius:8px;background:linear-gradient(90deg,#eef0f5 0%,#f7f8fb 50%,#eef0f5 100%);background-size:200% 100%;animation:tx-sh 1.1s linear infinite}
+.tx-sk > i{height:52px;border-radius:12px}
+.tx-sk div{display:grid;gap:8px}
+.tx-sk div i{height:12px}
+.tx-sk div i:last-child{width:70%}
+.tx-stage[data-found="done"] .tx-sk{opacity:0}
+@keyframes tx-sh{to{background-position:-200% 0}}
+.tx-note{position:absolute;left:0;right:0;bottom:18px;text-align:center;font-size:12px;color:rgba(255,255,255,.5)}
+@media (min-width:860px){.tx-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.04fr)}}
+@media (max-width:859px){.tx-stage{padding:24px 16px 112px}}
+@media (max-width:520px){.tx-stats{flex-direction:column} .tx-stat{border:0;margin-right:0;padding-right:0}}
+
 /* ---------- FAQ ---------- */
 .faq{max-width:760px}
 .faq details{border-bottom:1px solid var(--line)}
@@ -581,6 +667,7 @@ p{margin:0}
       <a href="#demo">직접 해 보기</a>
       <a href="#how">사용법</a>
       <a href="#features">기능</a>
+      <a href="#tech">기술</a>
       <a href="#faq">질문</a>
     </nav>
     <a class="btn btn-dark btn-sm" href="#start">앱 받기</a>
@@ -844,6 +931,48 @@ p{margin:0}
       <div class="fcard"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01" stroke-width="3"/></svg></div><h3>주소 복사와 카카오맵 바로가기</h3><p>도로명과 지번 주소를 각각 복사하고, 카카오맵으로 넘어가 길찾기를 이어서 해요.</p></div>
       <div class="fcard"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg></div><h3>어느 릴스에서 왔는지 기억</h3><p>장소마다 출처 릴스가 함께 남아요. 원본 영상으로 돌아가 다시 볼 수 있어요.</p></div>
       <div class="fcard"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div><h3>검색과 정리</h3><p>보관함에서 이름으로 찾고, 편집 모드에서 여러 장소를 한 번에 지워요. 링크를 직접 붙여 넣어 추가할 수도 있어요.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 기술 ========== -->
+<section class="sec tech" id="tech">
+  <div class="wrap tx-grid">
+    <div>
+      <span class="eyebrow">여기담의 기술</span>
+      <h2>캡션에 없으면<br><em>영상 속 글자</em>까지 읽어요</h2>
+      <p class="tx-lead">캡션에서 가게 이름을 못 찾으면 AI가 영상과 사진을 다시 보며 자막, 화면 속 글자, 음성까지 살피고, 찾은 이름이 카카오 지도에 실제로 있는 장소인지 확인한 뒤에 담아요.</p>
+      <div class="tx-stats">
+        <div class="tx-stat"><b>85%</b><span>게시물 40건에 나온 장소<br>133곳 중 113곳을 찾았어요</span></div>
+        <div class="tx-stat"><b><span class="tx-was">9곳</span><span class="tx-arr" aria-hidden="true">→</span>1곳</b><span>영상에만 나온 장소 12곳 중 놓친 곳<br>캡션만 읽던 때 → 지금</span></div>
+      </div>
+      <details class="tx-how">
+        <summary>팀이 고른 공개 인스타그램 게시물 40건으로 2026년 10월 13일에 쟀어요.<b>측정 방법 보기</b></summary>
+        <ul>
+          <li>게시물마다 소개한 음식점과 카페를 팀이 원본과 카카오 지도로 하나씩 확인해 정답 133곳을 정했어요.</li>
+          <li>여기담이 찾은 카카오 장소가 정답과 같을 때만 찾은 것으로 셌어요.</li>
+          <li>캡션에 가게 이름이 없고 자막이나 말소리에만 나오는 릴스 11건의 장소 12곳으로 영상에만 나온 장소를 셌어요.</li>
+          <li>캡션만 읽던 때 숫자는 10월 9일 운영 코드가 낸 결과를 같은 정답으로 다시 셌어요.</li>
+          <li>측정에는 AI 모델 gemini-3.5-flash-lite를 썼고, 같은 게시물도 실행할 때마다 찾은 장소가 두세 곳 안팎 달라질 수 있어요.</li>
+        </ul>
+      </details>
+    </div>
+    <div class="tx-stage" id="techStage" data-found="done" role="img" aria-label="예시 화면. 캡션에 가게 이름이 없는 릴스에서 AI가 자막과 컵에 적힌 글자를 읽고, 카카오 지도에서 윤숲 후르츠산도점을 찾아요.">
+      <div class="tx-status done"><span class="tx-spin"></span><span class="tx-txt">1곳을 찾았어요</span></div>
+      <div class="tx-frame">
+        <div class="tx-reel">
+          <div class="tx-blur"></div>
+          <div class="tx-top"><span>릴스</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6.5" width="18" height="13.5" rx="4"/><circle cx="12" cy="13.2" r="3.4"/><path d="M8.5 6.5 10 4h4l1.5 2.5"/></svg></div>
+          <div class="tx-title">줄 서서 먹은<br>과일 산도</div>
+          <div class="tx-video"></div>
+          <div class="tx-sub">군자역 근처 산도 맛집</div>
+          <div class="tx-side"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z"/></svg><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-3.6-6.95A8.5 8.5 0 0 1 20.5 12z"/><path d="M20.5 20.5 17.4 18"/></svg><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/></svg></div>
+          <div class="tx-meta"><div class="tx-user"><span class="tx-av">담</span>yeogidamm</div><p class="tx-cap">줄 서서 먹은 과일 산도, 다음엔 오픈런 해야겠어요</p></div>
+          <div class="tx-lens on at-cup"><i></i><i></i><i></i><i></i><span class="tx-dots"><b></b><b></b><b></b></span><span class="tx-tag">윤숲</span></div>
+        </div>
+        <div class="tx-found"><div class="tx-found-img"></div><div><b>윤숲 후르츠산도점</b><span>서울 광진구 면목로7길 8</span><em>카카오 지도에서 확인했어요</em></div><div class="tx-sk"><i></i><div><i></i><i></i></div></div></div>
+      </div>
+      <p class="tx-note">예시 화면이에요</p>
     </div>
   </div>
 </section>
@@ -1344,6 +1473,48 @@ p{margin:0}
     qs.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
     qs.async=true; qs.onload=makeQR;
     document.head.appendChild(qs);
+  }
+  /* ---------- 기술 섹션: 예시 릴스에서 캡션, 자막, 컵 글자를 차례로 읽고 카카오 지도 결과를 띄운다 ---------- */
+  var techStage = $('techStage');
+  if (techStage){
+    var T_STEPS = [
+      {s:'캡션 읽는 중', lens:'at-cap', tag:'가게 이름 없음', miss:true, ms:2400},
+      {s:'자막 읽는 중', lens:'at-sub', tag:'군자역', ms:2200},
+      {s:'화면 속 글자 읽는 중', lens:'at-cup', tag:'윤숲', ms:2400},
+      {s:'카카오 지도에서 확인 중', found:'load', ms:1300},
+      {s:'1곳을 찾았어요', found:'done', done:true, ms:3800}
+    ];
+    var tStatus = techStage.querySelector('.tx-status'), tText = tStatus.querySelector('.tx-txt');
+    var tLens = techStage.querySelector('.tx-lens'), tTag = tLens.querySelector('.tx-tag');
+    var tIndex = 0, tTimer = null, tLater = [], tRunning = false, tPos = 'at-cup';
+    var tAfter = function(fn, ms){ tLater.push(setTimeout(fn, ms)); };
+    var tApply = function(k){
+      var st = T_STEPS[k];
+      if (st.lens){
+        tPos = st.lens;
+        tLens.className = 'tx-lens on moving ' + tPos;
+        tAfter(function(){ tTag.textContent = st.tag; tTag.classList.toggle('miss', !!st.miss); }, 260);
+        tAfter(function(){ tLens.classList.remove('moving'); }, 720);
+      } else {
+        tLens.className = 'tx-lens ' + tPos;
+      }
+      if (st.found) techStage.setAttribute('data-found', st.found); else techStage.removeAttribute('data-found');
+      tStatus.classList.toggle('done', !!st.done);
+      tText.classList.add('swap');
+      tAfter(function(){ tText.textContent = st.s; tText.classList.remove('swap'); }, 200);
+    };
+    var tTick = function(){
+      tApply(tIndex);
+      tTimer = setTimeout(function(){ tIndex = (tIndex + 1) % T_STEPS.length; tTick(); }, T_STEPS[tIndex].ms);
+    };
+    // 움직임 줄이기 설정이거나 IntersectionObserver가 없으면 마크업에 둔 마지막 장면(찾은 결과)에 멈춘다
+    var tStart = function(){ if (tRunning || reduce) return; tRunning = true; tIndex = 0; tTick(); };
+    var tStop = function(){ tRunning = false; clearTimeout(tTimer); tLater.forEach(clearTimeout); tLater = []; };
+    if ('IntersectionObserver' in window){
+      new IntersectionObserver(function(es){
+        es.forEach(function(e){ if (e.isIntersecting) tStart(); else tStop(); });
+      }, {threshold:.3}).observe(techStage);
+    }
   }
 })();
 </script>
