@@ -8,7 +8,10 @@ import com.yeogidam.global.seed.LocalDataSeeder;
 import com.yeogidam.global.seed.LocalMemberSeeder;
 import com.yeogidam.support.MySqlContainerSupport;
 import java.sql.Connection;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,14 +29,21 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 
 class FlywayV1IntegrationTest extends MySqlContainerSupport {
 
-    @Test
-    void 빈_DB로_서버를_시작하면_기존_구조의_V1만_자동_적용한다() {
+    @ParameterizedTest
+    @ValueSource(strings = {"dev", "prod"})
+    void 앱은_DML_계정으로_접속하고_Flyway는_전용_계정으로_V1을_적용한다(String profile) {
         // given
         try (IsolatedDatabase database = new IsolatedDatabase("")) {
             // when
-            try (ConfigurableApplicationContext ignored = database.boot("prod")) {
+            try (ConfigurableApplicationContext context = database.boot(profile)) {
                 // then
                 assertAll(
+                        () -> assertThat(new JdbcTemplate(context.getBean(DataSource.class))
+                                .queryForObject("SELECT CURRENT_USER()", String.class))
+                                .isEqualTo(database.appUsername + "@%"),
+                        () -> assertThat(database.jdbc.queryForObject(
+                                "SELECT installed_by FROM flyway_schema_history WHERE version = '1'", String.class))
+                                .startsWith(database.migratorUsername),
                         () -> assertThat(database.count("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1"))
                                 .isEqualTo(1),
                         () -> assertThat(database.jdbc.queryForObject(
@@ -50,8 +60,9 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
         }
     }
 
-    @Test
-    void 기존_DB로_서버를_시작하면_baseline_1을_자동_등록하고_재시작해도_원본_데이터를_보존한다() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"dev", "prod"})
+    void 전용_계정으로_baseline_1을_등록하고_재시작해도_원본_데이터를_보존한다(String profile) throws Exception {
         // given: Flyway 이력 없이 기존 운영과 같은 V1 구조를 준비한다.
         try (IsolatedDatabase database = new IsolatedDatabase("")) {
             try (Connection connection = database.source.getConnection()) {
@@ -64,7 +75,7 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
 
             // when
             for (int run = 0; run < 2; run++) {
-                try (ConfigurableApplicationContext ignored = database.boot("prod")) {
+                try (ConfigurableApplicationContext ignored = database.boot(profile)) {
                     // then
                     assertAll(
                             () -> assertThat(database.jdbc.queryForObject("SELECT nickname FROM members WHERE id = 41",
@@ -72,7 +83,9 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
                             () -> assertThat(database.count("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1"))
                                     .isEqualTo(1),
                             () -> assertThat(database.jdbc.queryForObject("SELECT type FROM flyway_schema_history "
-                                    + "WHERE version = '1'", String.class)).isEqualTo("BASELINE")
+                                    + "WHERE version = '1'", String.class)).isEqualTo("BASELINE"),
+                            () -> assertThat(database.jdbc.queryForObject("SELECT installed_by FROM flyway_schema_history "
+                                    + "WHERE version = '1'", String.class)).startsWith(database.migratorUsername)
                     );
                 }
             }
@@ -174,28 +187,64 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
         private final DriverManagerDataSource source;
         private final JdbcTemplate jdbc;
         private final JdbcTemplate administrator;
+        private final String appUsername;
+        private final String migratorUsername;
 
         private IsolatedDatabase(String suffix) {
             schema = "flyway_v1_" + UUID.randomUUID().toString().replace("-", "") + suffix;
             String baseUrl = "jdbc:mysql://" + MYSQL_CONTAINER.getHost() + ":" + MYSQL_CONTAINER.getMappedPort(3306);
             administrator = new JdbcTemplate(new DriverManagerDataSource(
                     baseUrl + "/mysql", "root", MYSQL_CONTAINER.getPassword()));
-            administrator.execute("CREATE DATABASE " + schema);
             source = new DriverManagerDataSource(baseUrl + "/" + schema + "?connectionTimeZone=UTC",
                     "root", MYSQL_CONTAINER.getPassword());
             jdbc = new JdbcTemplate(source);
+            String accountSuffix = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+            appUsername = "flyway_app_" + accountSuffix;
+            migratorUsername = "flyway_migrator_" + accountSuffix;
+            try {
+                createDatabaseAndAccounts();
+            } catch (RuntimeException exception) {
+                try {
+                    close();
+                } catch (RuntimeException cleanupException) {
+                    exception.addSuppressed(cleanupException);
+                }
+                throw exception;
+            }
+        }
+
+        private void createDatabaseAndAccounts() {
+            administrator.execute("CREATE DATABASE " + schema);
+            administrator.execute("CREATE USER '" + appUsername + "'@'%' IDENTIFIED BY 'test-app'");
+            administrator.execute("CREATE USER '" + migratorUsername + "'@'%' IDENTIFIED BY 'test-migrator'");
+            administrator.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON " + schema + ".* TO '" + appUsername + "'@'%'");
+            administrator.execute("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES ON "
+                    + schema + ".* TO '" + migratorUsername + "'@'%'");
         }
 
         private ConfigurableApplicationContext boot(String profiles) {
-            return new SpringApplicationBuilder(DatabaseBoot.class).web(WebApplicationType.NONE).run(
-                    "--spring.config.location=optional:classpath:/isolated-flyway-test.yml",
+            List<String> arguments = new ArrayList<>(List.of(
+                    "--spring.config.location=classpath:/application.yml",
                     "--spring.profiles.active=" + profiles,
-                    "--spring.datasource.url=" + source.getUrl(),
-                    "--spring.datasource.username=root",
-                    "--spring.datasource.password=" + MYSQL_CONTAINER.getPassword(),
-                    "--spring.sql.init.mode=never",
-                    "--spring.flyway.baseline-on-migrate=true",
-                    "--spring.flyway.clean-disabled=true");
+                    "--DB_URL=" + source.getUrl()));
+            if (profiles.contains("dev") || profiles.contains("prod")) {
+                arguments.addAll(List.of("--DB_USERNAME=" + appUsername, "--DB_PASSWORD=test-app",
+                        "--FLYWAY_USERNAME=" + migratorUsername, "--FLYWAY_PASSWORD=test-migrator"));
+            }
+            if (!profiles.contains("dev") && !profiles.contains("prod")) {
+                arguments.addAll(List.of("--DB_USERNAME=root", "--DB_PASSWORD=" + MYSQL_CONTAINER.getPassword()));
+            }
+            return new SpringApplicationBuilder(DatabaseBoot.class)
+                    .web(WebApplicationType.NONE)
+                    .initializers(context -> {
+                        // 실제 설정을 읽되, 개발자 환경변수 때문에 컨테이너 밖으로 접속하지 않게 먼저 막는다.
+                        String datasourceUrl = context.getEnvironment().getProperty("spring.datasource.url");
+                        String flywayUrl = context.getEnvironment().getProperty("spring.flyway.url", datasourceUrl);
+                        if (!source.getUrl().equals(datasourceUrl) || !source.getUrl().equals(flywayUrl)) {
+                            throw new IllegalStateException("Flyway 테스트는 격리된 Testcontainers DB만 사용할 수 있습니다.");
+                        }
+                    })
+                    .run(arguments.toArray(String[]::new));
         }
 
         private int count(String sql) {
@@ -204,7 +253,11 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
 
         @Override
         public void close() {
-            administrator.execute("DROP DATABASE " + schema);
+            try {
+                administrator.execute("DROP DATABASE IF EXISTS " + schema);
+            } finally {
+                administrator.execute("DROP USER IF EXISTS '" + appUsername + "'@'%', '" + migratorUsername + "'@'%'");
+            }
         }
     }
 }
