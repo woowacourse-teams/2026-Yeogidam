@@ -39,6 +39,18 @@ require_value() {
   fi
 }
 
+require_env_file_value() {
+  local name="$1"
+  local assignment value
+
+  # Docker --env-file과 같이 마지막 중복 키를 쓴다. 값을 실행하거나 변환하지 않는다.
+  assignment="$(grep -E "^${name}=" "$BACKEND_ENV_FILE" | tail -n 1 || true)"
+  value="${assignment#*=}"
+  if [[ -z "${value//[[:space:]]/}" ]]; then
+    fail "${BACKEND_ENV_FILE}에 ${name}이 없거나 비어 있습니다."
+  fi
+}
+
 container_health() {
   docker container inspect \
     --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
@@ -346,6 +358,10 @@ ACTIVE_PROFILE_LINE="$(grep -E '^SPRING_PROFILES_ACTIVE=' "$BACKEND_ENV_FILE" | 
 if [[ "$ACTIVE_PROFILE_LINE" != "SPRING_PROFILES_ACTIVE=${EXPECTED_SPRING_PROFILE}" ]]; then
   fail "${BACKEND_ENV_FILE}의 SPRING_PROFILES_ACTIVE가 ${EXPECTED_SPRING_PROFILE}가 아닙니다. 따옴표와 공백 없이 SPRING_PROFILES_ACTIVE=${EXPECTED_SPRING_PROFILE} 한 줄로 적어 주세요."
 fi
+
+# 앱 계정은 DML만 허용하고 Flyway는 별도 계정을 쓴다. 기존 앱을 중지하기 전에 누락을 잡는다.
+require_env_file_value "FLYWAY_USERNAME"
+require_env_file_value "FLYWAY_PASSWORD"
 
 # CloudWatch 로그 그룹은 /yeogidam/dev/backend, /yeogidam/prod/backend처럼 환경 이름을 품는데,
 # 그 환경 이름이 스프링 프로필 이름(dev, prod)과 같다. 그래서 환경용 변수를 따로 받지 않고
