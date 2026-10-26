@@ -13,6 +13,7 @@ import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
+import com.yeogidam.media.instagram.repository.MediaSaveResult;
 import com.yeogidam.media.share.config.OnboardingProperties;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,22 +71,14 @@ public class ShareService {
     }
 
     private Long getOrCreateMediaId(MediaShortcode shortcode, InstagramUrl instagramUrl) {
-        Optional<Long> existingMediaId = instagramMediaDao.findIdByShortcodeForUpdate(shortcode);
-        if (existingMediaId.isPresent()) {
-            Long mediaId = existingMediaId.get();
-            retryExistingMediaIfEligible(mediaId, instagramUrl);
+        MediaSaveResult result = instagramMediaDao.saveIfAbsent(
+                new InstagramMedia(shortcode), extractionProperties.pipelineVersion());
+        Long mediaId = result.mediaId();
+        if (result.isCreated()) {
+            mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
             return mediaId;
         }
-
-        InstagramMedia instagramMedia = new InstagramMedia(shortcode);
-        Long mediaId;
-        try {
-            mediaId = instagramMediaDao.save(instagramMedia, extractionProperties.pipelineVersion());
-        } catch (DuplicateKeyException exception) {
-            return instagramMediaDao.findIdByShortcodeForUpdate(shortcode)
-                    .orElseThrow(() -> new IllegalStateException("게시물을 찾을 수 없습니다.", exception));
-        }
-        mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
+        retryExistingMediaIfEligible(mediaId, instagramUrl);
         return mediaId;
     }
 
