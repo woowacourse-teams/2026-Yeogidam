@@ -110,6 +110,11 @@ p{margin:0}
 .hero-note{margin-top:14px;font-size:14px;color:var(--muted)}
 .hero-note a{color:var(--brand-ink);font-weight:600}
 .hero-char{position:relative;display:none}
+@media (max-width:959px){
+  .hero-copy{text-align:center}
+  .hero .lead{margin-inline:auto}
+  .hero .badges{justify-content:center}
+}
 @media (min-width:960px){
   .hero .wrap{grid-template-columns:1.05fr .95fr}
 }
@@ -325,6 +330,7 @@ p{margin:0}
 .chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;min-height:44px;font-size:13px;font-weight:600;color:var(--ink-2)}
 .chip.on{border-color:var(--ink);color:var(--ink);background:#fff}
 .demo-foot{text-align:center;font-size:12px;line-height:1.8;color:var(--muted);margin-top:14px;max-width:44em;margin-inline:auto}
+.demo-foot span{display:block;text-wrap:balance}
 
 /* ---------- 문제 공감 ---------- */
 .pain{background:var(--ink);color:#fff;padding-block:clamp(44px,7vw,80px)}
@@ -665,10 +671,10 @@ p{margin:0}
     <a class="brand" href="#top"><img src="assets/app-icon.png" alt="" width="34" height="34">여기담</a>
     <nav class="nav-links" aria-label="페이지 안 이동">
       <a href="#demo">직접 해 보기</a>
-      <a href="#how">사용법</a>
       <a href="#features">기능</a>
       <a href="#tech">기술</a>
       <a href="#faq">질문</a>
+      <a href="#how">사용법</a>
     </nav>
     <a class="btn btn-dark btn-sm" href="#start">앱 받기</a>
   </div>
@@ -839,7 +845,7 @@ p{margin:0}
         <button type="button" class="btn btn-dark btn-sm" id="btnFinish" hidden>마치기</button>
       </div>
       <div class="chips" id="chips"><span class="lbl">다른 릴스로 해 보기</span></div>
-      <p class="demo-foot">데모 속 릴스 두 개는 여기담 계정의 실제 게시물이고, 장소 정보와 사진은 카카오 지도의 실제 값이에요.<br>릴스 화면과 분석 과정은 설명을 위해 직접 그린 예시이고 인스타그램의 실제 화면이 아니에요.<br>실제 분석은 영상 길이에 따라 더 걸릴 수 있어요.</p>
+      <p class="demo-foot"><span>데모 속 릴스 두 개는 여기담 계정의 실제 게시물이고, 장소 정보와 사진은 카카오 지도의 실제 값이에요.</span><span>릴스 화면과 분석 과정은 설명을 위해 직접 그린 예시이고 인스타그램의 실제 화면이 아니에요.</span><span>실제 분석은 영상 길이에 따라 더 걸릴 수 있어요.</span></p>
     </div>
   </div>
 </section>
@@ -854,67 +860,6 @@ p{margin:0}
       <div class="pain-card"><div class="n">📍</div><p>근처까지 왔는데도 바로 옆 동네 카페였다는 걸 집에 가서야 알아요.</p></div>
     </div>
     <p class="pain-foot">여기담은 공유 한 번으로 이런 번거로움을 대신해요. 영상 속 장소를 찾아서 지도에 꽂아 두니까요.</p>
-  </div>
-</section>
-
-<!-- ========== 사용법 ========== -->
-<section class="sec" id="how">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="eyebrow">사용법</span>
-      <h2>공유하고, 기다리고, 꺼내 보면 끝이에요</h2>
-      <p>링크를 복사하거나 주소를 검색할 필요 없이 세 단계면 돼요.</p>
-    </div>
-    <div class="how-grid">
-      <article class="how">
-        <span class="num">1</span>
-        <h3>릴스에서 공유를 누르고 여기담을 골라요</h3>
-        <p>인스타그램 공유 목록에서 여기담을 고르면 링크가 바로 넘어가요. 링크나 주소를 복사할 필요가 없어요. 결과는 여기담 앱의 보관함에서 확인해요.</p>
-        <div class="vis">
-          <span class="tag">앱 가이드 화면</span>
-          <div class="shots one"><img src="assets/guide-share-sheet.jpg" alt="iPhone 공유 시트에서 여기담을 고르는 화면이에요." loading="lazy" width="354" height="520"></div>
-        </div>
-      </article>
-      <article class="how">
-        <span class="num">2</span>
-        <h3>여기담이 영상 속 장소를 찾아요</h3>
-        <p>AI가 영상과 캡션을 읽어 장소 이름을 뽑고, 카카오 지도에서 실제 장소와 맞춰요. 잠시 뒤 처리중 표시가 성공으로 바뀌어요.</p>
-        <div class="vis">
-          <span class="tag">실제 앱 화면</span>
-          <div class="hist">
-            <div class="hist-head"><span class="chev">&#8249;</span>히스토리</div>
-            <div class="hist-hero"><img class="hist-thumb" src="assets/reel-gunja.jpg" alt="" loading="lazy"><b>장소 분석이 완료되었어요!</b><small>총 5개의 장소를 찾았어요</small></div>
-            <div class="hist-orig"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#8a3ab9"/></linearGradient></defs><path fill="url(#ig)" d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path fill="url(#ig)" d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg><span class="lbl">원본 릴스로 이동</span><span class="chev2">&#8250;</span></div>
-            <div class="hist-label">발견한 장소</div>
-            <div class="hist-row">
-              <div class="hpc"><img src="assets/place-1775568752.jpg" alt="" loading="lazy"><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div>
-              <div class="hpc"><img src="assets/place-137070444.jpg" alt="" loading="lazy"><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div>
-              <div class="hpc"><img src="assets/place-337953507.jpg" alt="" loading="lazy"><b>책방고즈넉</b><small>서울 광진구 동일로60길 41-13</small></div>
-              <div class="hpc"><img src="assets/place-98016856.jpg" alt="" loading="lazy"><b>윤키</b><small>서울 광진구 능동로38길 27</small></div>
-              <div class="hpc"><img src="assets/place-1107844606.jpg" alt="" loading="lazy"><b>연필</b><small>서울 광진구 면목로 12</small></div>
-            </div>
-          </div>
-        </div>
-      </article>
-      <article class="how">
-        <span class="num">3</span>
-        <h3>보관함과 지도에서 꺼내 봐요</h3>
-        <p>찾은 장소는 보관함에 카드로, 지도에는 핀으로 쌓여요. 장소를 누르면 주소를 복사하고 카카오맵으로 바로 넘어갈 수 있어요.</p>
-        <div class="vis">
-          <span class="tag">실제 앱 화면</span>
-          <div class="shots">
-            <img src="assets/screen-library.jpg" alt="여기담 보관함 화면. 저장한 카페가 사진 카드로 보여요." loading="lazy" width="413" height="720">
-            <img src="assets/screen-map.jpg" alt="여기담 지도 화면. 저장한 장소가 캐릭터 핀으로 보여요." loading="lazy" width="444" height="960">
-          </div>
-        </div>
-      </article>
-    </div>
-    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b><br>iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.
-      <div class="tip-shots">
-        <figure><div class="mini"><div class="mini-title">앱 편집</div><div class="mini-row on"><span class="plus">+</span><img src="assets/app-icon.png" alt=""><span>여기담</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div></div><figcaption>iPhone은 편집 목록에서 여기담 옆 +</figcaption></figure>
-        <figure><div class="mini center"><div class="app-ic me"><img src="assets/app-icon.png" alt="">여기담</div><span class="pop">📌 고정</span></div><figcaption>Android는 아이콘을 길게 눌러 고정</figcaption></figure>
-      </div>
-      <span class="tag soft small">예시 화면</span></div></div>
   </div>
 </section>
 
@@ -990,6 +935,67 @@ p{margin:0}
       <details><summary>영상이 저장되나요?</summary><p>영상 자체는 저장하지 않아요. 릴스 링크와 썸네일, 찾아낸 장소 정보만 보관해요.</p></details>
       <details><summary>어떤 기기에서 쓸 수 있나요?</summary><p>iPhone과 Android 모두 돼요. 공유 목록에 여기담이 안 보이면 앱 안의 사용 가이드를 따라 한 번만 추가하면 돼요.</p></details>
     </div>
+  </div>
+</section>
+
+<!-- ========== 사용법 ========== -->
+<section class="sec" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">사용법</span>
+      <h2>공유하고, 기다리고, 꺼내 보면 끝이에요</h2>
+      <p>링크를 복사하거나 주소를 검색할 필요 없이 세 단계면 돼요.</p>
+    </div>
+    <div class="how-grid">
+      <article class="how">
+        <span class="num">1</span>
+        <h3>릴스에서 공유를 누르고 여기담을 골라요</h3>
+        <p>인스타그램 공유 목록에서 여기담을 고르면 링크가 바로 넘어가요. 링크나 주소를 복사할 필요가 없어요. 결과는 여기담 앱의 보관함에서 확인해요.</p>
+        <div class="vis">
+          <span class="tag">앱 가이드 화면</span>
+          <div class="shots one"><img src="assets/guide-share-sheet.jpg" alt="iPhone 공유 시트에서 여기담을 고르는 화면이에요." loading="lazy" width="354" height="520"></div>
+        </div>
+      </article>
+      <article class="how">
+        <span class="num">2</span>
+        <h3>여기담이 영상 속 장소를 찾아요</h3>
+        <p>AI가 영상과 캡션을 읽어 장소 이름을 뽑고, 카카오 지도에서 실제 장소와 맞춰요. 잠시 뒤 처리중 표시가 성공으로 바뀌어요.</p>
+        <div class="vis">
+          <span class="tag">실제 앱 화면</span>
+          <div class="hist">
+            <div class="hist-head"><span class="chev">&#8249;</span>히스토리</div>
+            <div class="hist-hero"><img class="hist-thumb" src="assets/reel-gunja.jpg" alt="" loading="lazy"><b>장소 분석이 완료되었어요!</b><small>총 5개의 장소를 찾았어요</small></div>
+            <div class="hist-orig"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#8a3ab9"/></linearGradient></defs><path fill="url(#ig)" d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path fill="url(#ig)" d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg><span class="lbl">원본 릴스로 이동</span><span class="chev2">&#8250;</span></div>
+            <div class="hist-label">발견한 장소</div>
+            <div class="hist-row">
+              <div class="hpc"><img src="assets/place-1775568752.jpg" alt="" loading="lazy"><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div>
+              <div class="hpc"><img src="assets/place-137070444.jpg" alt="" loading="lazy"><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div>
+              <div class="hpc"><img src="assets/place-337953507.jpg" alt="" loading="lazy"><b>책방고즈넉</b><small>서울 광진구 동일로60길 41-13</small></div>
+              <div class="hpc"><img src="assets/place-98016856.jpg" alt="" loading="lazy"><b>윤키</b><small>서울 광진구 능동로38길 27</small></div>
+              <div class="hpc"><img src="assets/place-1107844606.jpg" alt="" loading="lazy"><b>연필</b><small>서울 광진구 면목로 12</small></div>
+            </div>
+          </div>
+        </div>
+      </article>
+      <article class="how">
+        <span class="num">3</span>
+        <h3>보관함과 지도에서 꺼내 봐요</h3>
+        <p>찾은 장소는 보관함에 카드로, 지도에는 핀으로 쌓여요. 장소를 누르면 주소를 복사하고 카카오맵으로 바로 넘어갈 수 있어요.</p>
+        <div class="vis">
+          <span class="tag">실제 앱 화면</span>
+          <div class="shots">
+            <img src="assets/screen-library.jpg" alt="여기담 보관함 화면. 저장한 카페가 사진 카드로 보여요." loading="lazy" width="413" height="720">
+            <img src="assets/screen-map.jpg" alt="여기담 지도 화면. 저장한 장소가 캐릭터 핀으로 보여요." loading="lazy" width="444" height="960">
+          </div>
+        </div>
+      </article>
+    </div>
+    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b><br>iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.
+      <div class="tip-shots">
+        <figure><div class="mini"><div class="mini-title">앱 편집</div><div class="mini-row on"><span class="plus">+</span><img src="assets/app-icon.png" alt=""><span>여기담</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div></div><figcaption>iPhone은 편집 목록에서 여기담 옆 +</figcaption></figure>
+        <figure><div class="mini center"><div class="app-ic me"><img src="assets/app-icon.png" alt="">여기담</div><span class="pop">📌 고정</span></div><figcaption>Android는 아이콘을 길게 눌러 고정</figcaption></figure>
+      </div>
+      <span class="tag soft small">예시 화면</span></div></div>
   </div>
 </section>
 
