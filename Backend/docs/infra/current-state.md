@@ -2,7 +2,7 @@
 
 지금 실제로 돌아가는 것과 ADR이 정했는데 아직 못 한 것을 적는다. **ADR은 결정 기록이라 함부로 고치지 않지만 현재 상태 문서는 바뀔 때마다 고친다.** 인프라를 건드리는 PR은 현재 상태 문서도 같이 고친다.
 
-마지막 갱신 2026-10-25. Flyway 관련 내용은 로컬 코드 변경을 반영한 것이며, 이번 작업에서 개발 서버와 운영 DB에 접속하거나 마이그레이션을 적용하지 않았다.
+마지막 갱신 2026-10-27. Flyway 관련 내용은 로컬 코드 변경을 반영한 것이며, 개발 서버와 운영 DB에 마이그레이션을 적용하지 않았다.
 
 ## 배포 경로
 
@@ -33,17 +33,19 @@ feat/#번호  ──PR──▶  be-dev  ──머지──▶  개발 서버 �
 
 ## 환경 설정
 
-각 서버의 `/opt/yeogidam/backend.env`에 다섯 키가 있으며 소유는 `github-runner`, 권한은 600이다.
+각 서버의 `/opt/yeogidam/backend.env`는 `github-runner` 소유, 권한 600이다. DB와 프로필 관련 주요 키는 다음과 같다.
 
 ```
 SPRING_PROFILES_ACTIVE
 DB_URL
 DB_USERNAME
 DB_PASSWORD
+FLYWAY_USERNAME
+FLYWAY_PASSWORD
 JWT_SECRET
 ```
 
-비밀값은 각 서버에서 `openssl`로 만들어 넣었다. `DB_URL`은 시간대 파라미터(`connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true`)까지 갖춘 값이다. 개발은 `yeogidam-dev-db`의 사설 IP이고 운영은 2026-10-02에 RDS를 만들어 엔드포인트와 앱 사용자(`yeogidam_app`) 비밀번호로 갈아끼웠다. 두 DB의 관리자(마스터) 비밀번호는 env에 없고 팀이 비밀값을 두는 곳에만 있다.
+기존 비밀값은 각 서버에서 `openssl`로 만들어 넣었다. Flyway 비밀번호는 사용자가 개발과 운영에서 서로 다르게 준비해 직접 입력했다. `DB_URL`은 시간대 파라미터(`connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true`)까지 갖춘 값이다. 개발은 `yeogidam-dev-db`의 사설 IP이고 운영은 2026-10-02에 RDS를 만들어 엔드포인트와 앱 사용자(`yeogidam_app`) 비밀번호로 갈아끼웠다. 두 DB의 관리자(마스터) 비밀번호는 env에 없고 팀이 비밀값을 두는 곳에만 있다.
 
 `--env-file`은 컨테이너를 만들 때만 읽히고 `deploy.sh`는 같은 이미지면 컨테이너를 교체하지 않으므로, 값만 고치고 배포를 다시 돌려도 반영되지 않는다. 그래서 env를 고친 뒤에는 손배포하는데, `Infra/scripts/restart-backend.sh`를 서버에 복사해 `sudo bash`로 돌리면 `deploy.sh`와 같은 옵션으로 `current` 이미지를 다시 띄우고 healthy까지 기다린다. 롤백은 없으니 healthy가 안 되면 env를 되돌리고 다시 돌린다. 배포 워크플로가 도는 중에는 돌리지 않는다(#267). 2026-10-02 운영 RDS 전환 때는 재시작 스크립트가 머지되기 전이라 `docker rm -f` 뒤 `be-release` 마지막 실행의 Re-run으로 했고, 마지막 실행 이후 `be-release`에 커밋이 없어 Re-run이 통했다. 다시 돌리려는 실행 이후에 커밋이 하나라도 들어가면 「Validate Deployment Target」이 Re-run을 거부한다. 코드 변경 없이 지금 HEAD로 다시 배포할 때는 `gh workflow run backend-cd.yml --ref be-dev`로 부르는데, 수동 실행 트리거는 워크플로 파일이 `main`에 올라간 뒤부터 부를 수 있고 env 변경을 반영하지는 않는다.
 
@@ -126,7 +128,24 @@ ARM64(Graviton)를 쓴다는 결정은 맞고 구현도 따라왔다. CI 러너�
 
 **개발 서버 앞단은 2026-09-30에 올렸다.** nginx 1.30이 호스트에 systemd 서비스로 돌고 443에서 Let's Encrypt 인증서(2026-12-29 만료)로 요청을 받아 `127.0.0.1:8080`으로 넘긴다. 80은 인증서 검증 경로만 열고 나머지는 443으로 보내며, 이름 없이 IP로 오는 요청은 거절하고 `/actuator`는 밖에서 404다. certbot은 dnf에 없어 `/opt/certbot` venv에 깔았고 `certbot-renew.timer`가 하루 두 번 확인해 갱신되면 nginx만 reload한다. 설정 원본은 `Infra/nginx/nginx.conf.template`이고 도메인은 `${SERVER_NAME}` 자리표라 저장소에 남지 않는다. 설치 절차는 `Infra/scripts/bootstrap-host.sh` 한 파일이라 서버가 늘면 스크립트 하나만 다시 돌린다. 앱 쪽은 `application.yml`에 `server.forward-headers-strategy: native`를 더해 톰캣이 루프백에서 온 `X-Forwarded-*`만 믿게 했다. 910Mi에서 컨테이너를 더 늘릴 여유가 없고 인증서 갱신이 앱과 분리되기 때문에 nginx를 컨테이너로 두지 않았다. 운영 서버에도 같은 날 같은 스크립트로 올렸고 밖에서 같은 다섯 가지(502, 인증서, http→https, `/actuator` 404, IP 직접 접속 거절)를 확인했다. 2026-10-01에는 요청 제한을 더해(#251) IP당 초당 10회(순간 30회), 로그인과 재발급 경로(`/api/v1/auth/`)는 분당 10회(순간 20회), 동시 연결 20개, 본문 16KB, 헤더와 본문 타임아웃 10초로 두었고 넘치면 429를 돌려준다. 거절된 요청은 앱까지 가지 않아 제공자 호출과 톰캣 스레드와 앱 로그가 생기지 않으며, 429는 access 로그에도 남기지 않아 폭주가 CloudWatch 요금으로 이어지지 않는다. 템플릿을 바꾼 것이라 서버에서 `bootstrap-host.sh`를 다시 돌려야 반영된다.
 
-**운영 DB는 2026-10-02에 RDS로 올렸다(#272).** 식별자 `yeogidam-prod-db`, MySQL 8.4.11, `db.t4g.micro`(2 vCPU, 1GiB), gp3 20GiB다. 저장 공간 자동 확장은 껐다. 켜 두면 차오를 때 AWS가 저장 공간을 늘리고 그만큼 요금이 붙는데 삭제 권한이 없는 계정이라 되돌리지도 못하므로, 대신 남은 공간 알람(`yeogidam-prod-rds-storage`, 2GiB 미만)을 둔다. 앱 서버와 같은 단일 AZ `ap-northeast-2a`에 두어 둘 사이 전송 요금이 없다. 공개 접근은 없고 보안 그룹은 `project-db`다. 서브넷 그룹은 팀이 만들면 `techcourse-project-rds` 정책이 명시적으로 거부하므로 우테코가 준비한 것을 썼다. 파라미터 그룹 `yeogidam-prod-mysql84`에 `slow_query_log=1`, `long_query_time=0.5`를 주어 개발 DB의 `observability.cnf`와 같은 기준으로 두었다. `time_zone`은 기본값 UTC라 `DB_URL`의 `connectionTimeZone=UTC`와 맞는다. 로그 내보내기는 error와 slowquery만 켰다. 백업은 자동 7일에 스냅샷으로 태그 복사, 암호화는 기본 키 `aws/rds`, 삭제 방지 켬, 유지보수 창은 일요일 18:00 UTC(월요일 새벽 3시 KST) 30분이다. Performance Insights는 micro 클래스가 지원하지 않고 Enhanced Monitoring은 IAM 역할(`rds-monitoring-role`)을 만들 수 없어 둘 다 껐다. 마스터 사용자는 `yeogidam_admin`(스키마 적용용)이고 앱은 `yeogidam.*`에 SELECT, INSERT, UPDATE, DELETE만 가진 `yeogidam_app`으로 붙는다. RDS는 사설 서브넷에만 있어 운영 앱 서버에서만 닿으므로, 스키마는 운영 앱 서버에 `dnf install mariadb105`로 클라이언트를 깔고 `be-release`의 `schema.sql`을 넣어 테이블 10개를 만들었다. `caching_sha2_password` 때문에 접속할 때 `--ssl`이 필요하다. env를 바꾸고 컨테이너를 다시 만든 뒤 `/actuator/health`가 DB 포함 `UP`인 것과 `SELECT SLEEP(1)`이 slowquery 로그 그룹에 도착하는 것을 확인했다. 월 비용은 약 20달러(인스턴스 약 18, 저장 약 2.6, 백업은 20GB까지 무료)로 전체 약 60달러가 되어 한도 70달러 안이다. 개발 DB를 EC2 Docker로 둔 이유는 아래 「확인이 필요한 것」 4번에 있다.
+**운영 DB는 2026-10-02에 RDS로 올렸다(#272).** 식별자 `yeogidam-prod-db`, MySQL 8.4.11, `db.t4g.micro`(2 vCPU, 1GiB), gp3 20GiB다. 저장 공간 자동 확장은 껐다. 켜 두면 차오를 때 AWS가 저장 공간을 늘리고 그만큼 요금이 붙는데 삭제 권한이 없는 계정이라 되돌리지도 못하므로, 대신 남은 공간 알람(`yeogidam-prod-rds-storage`, 2GiB 미만)을 둔다. 앱 서버와 같은 단일 AZ `ap-northeast-2a`에 두어 둘 사이 전송 요금이 없다. 공개 접근은 없고 보안 그룹은 `project-db`다. 서브넷 그룹은 팀이 만들면 `techcourse-project-rds` 정책이 명시적으로 거부하므로 우테코가 준비한 것을 썼다. 파라미터 그룹 `yeogidam-prod-mysql84`에 `slow_query_log=1`, `long_query_time=0.5`를 주어 개발 DB의 `observability.cnf`와 같은 기준으로 두었다. `time_zone`은 기본값 UTC라 `DB_URL`의 `connectionTimeZone=UTC`와 맞는다. 로그 내보내기는 error와 slowquery만 켰다. 백업은 자동 7일에 스냅샷으로 태그 복사, 암호화는 기본 키 `aws/rds`, 삭제 방지 켬, 유지보수 창은 일요일 18:00 UTC(월요일 새벽 3시 KST) 30분이다. Performance Insights는 micro 클래스가 지원하지 않고 Enhanced Monitoring은 IAM 역할(`rds-monitoring-role`)을 만들 수 없어 둘 다 껐다. 마스터 사용자는 `yeogidam_admin`(스키마 적용용)이고 앱은 `yeogidam.*`에 SELECT, INSERT, UPDATE, DELETE만 가진 `yeogidam_app`으로 붙는다. 초기 스키마는 운영 앱 서버에 `dnf install mariadb105`로 클라이언트를 깔고 `be-release`의 `schema.sql`을 넣어 테이블 10개를 만들었다. `caching_sha2_password` 때문에 접속할 때 `--ssl`이 필요하다. env를 바꾸고 컨테이너를 다시 만든 뒤 `/actuator/health`가 DB 포함 `UP`인 것과 `SELECT SLEEP(1)`이 slowquery 로그 그룹에 도착하는 것을 확인했다. 월 비용은 약 20달러(인스턴스 약 18, 저장 약 2.6, 백업은 20GB까지 무료)로 전체 약 60달러가 되어 한도 70달러 안이다. 개발 DB를 EC2 Docker로 둔 이유는 아래 「확인이 필요한 것」 4번에 있다.
+
+**DB 계정 접속 범위(2026-10-26 확인).** 개발 DB EC2와 운영 RDS는 공용 `project-db` 보안 그룹을 사용한다. 이 그룹은 `project-public`과 `project-app` 소속 서버의 TCP 3306, `project-db` 소속 서버의 모든 TCP 포트를 허용한다. 같은 허용 그룹에 속한 다른 팀 서버도 보안 그룹 규칙상 접속 허용 대상이다. 실제 통신에는 라우팅과 다른 네트워크 설정도 관여하며, DB 로그인에는 계정 인증이 필요하다. RDS가 사설망에 있다는 사실만으로 우리 팀 서버만 접근할 수 있는 것은 아니다.
+
+개발 앱 계정 `yeogidam`은 개발 앱 서버의 사설 IP만 허용한다. 운영 앱 계정 `yeogidam_app`도 2026-10-26에 `RENAME USER`로 Host를 `%`에서 운영 앱 서버의 사설 IP로 변경했다. 비밀번호와 `yeogidam.*`의 SELECT, INSERT, UPDATE, DELETE 권한은 유지했다. 운영 앱 서버에서 새 연결을 만들어 제한된 계정으로 인증되는 것과 실제 테이블 조회를 확인했고, `/actuator/health`는 `UP`이었다.
+
+운영 Flyway 전용 계정 `yeogidam_migrator`는 운영 앱 서버의 사설 IP만 허용하도록 생성하고, `yeogidam.*`에 SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES를 부여했다. 운영 `backend.env`에 `FLYWAY_USERNAME`, `FLYWAY_PASSWORD`를 등록했으며, 저장된 값으로 새 연결과 조회를 확인했다. 소유자와 그룹 `github-runner`, 권한 600을 유지했다.
+
+개발 DB에도 2026-10-27에 `yeogidam_migrator`를 개발 앱 서버의 사설 IP만 허용하도록 생성하고 같은 권한을 부여했다. 개발 앱 서버의 `backend.env`에 두 환경변수를 등록하고, 저장된 값으로 새 연결과 실제 테이블 조회, `/actuator/health`의 `UP`을 확인했다. 파일 소유자와 그룹 `github-runner`, 권한 600을 유지했다. 기존 개발 앱 계정의 권한 축소는 Flyway 연결 코드 배포와 정상 동작 검증 이후에 진행한다.
+
+운영 마스터 계정 `yeogidam_admin`의 Host는 아직 `%`이며, 사용자 선택에 따라 RDS 비밀번호 복구 동작을 검토한 뒤 처리 방법을 정한다. Flyway 연결 코드는 작업 브랜치에 준비했으나 서버 배포는 남아 있으며, 앱 재시작이나 마이그레이션 실행은 하지 않았다. IP와 비밀번호는 공개 저장소에 기록하지 않는다.
+
+2026-10-27에 개발·운영의 테이블 구조를 V1과 읽기 전용으로 비교했다. 테이블 9개, 컬럼 58개,
+인덱스 23개, 외래키 10개와 제약조건 이름·적용 여부가 일치했다. 운영은 수집한 구조 메타데이터가
+모두 같고, 개발은 `media`의 CHECK 5개에 ASCII 리터럴 문자셋 표기 차이만 있었다.
+현재 컬럼 정의에서 제약조건의 판정 의미는 같으며 구조 수정은 하지 않았다.
+트리거·루틴·이벤트 등 권한상 확인하지 못한 범위와 비교 기준은
+[Flyway 구조 비교 결과](../flyway.md#41-기존-서버와-v1의-구조-비교-결과)에 기록했다.
 
 ### 인프라 ADR-04 모노레포 브랜치 전략
 
@@ -236,7 +255,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고 같은 날 
 4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔고(2026-09-29) verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
 5. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
 6. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 GitHub 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
-7. **Flyway 서버 적용이 남았다.** 개발 DB(2026-09-29, `yeogidam-dev-db`의 Docker MySQL)와 운영 DB(2026-10-02, RDS `yeogidam-prod-db`)의 기존 테이블 구조를 V1과 비교한 뒤 최초 서버 시작 시 baseline 1을 자동 등록한다. 로컬 코드에서는 `schema.sql`을 삭제하고 `db/migration`의 버전 파일로 구조를 관리하도록 바꿨다. 이후 구조 변경은 새 버전 SQL로 작성한다. 운영 앱 계정의 기존 권한 기록은 업무 데이터 조회와 변경만 허용하므로, 서버 적용 전에 Flyway 이력 테이블 생성과 마이그레이션 실행에 필요한 권한도 확인한다. [Flyway 적용 구조](../flyway.md)을 따른다.
+7. **Flyway 서버 적용이 남았다.** 개발 DB(2026-09-29, `yeogidam-dev-db`의 Docker MySQL)와 운영 DB(2026-10-02, RDS `yeogidam-prod-db`)의 테이블 구조 비교는 2026-10-27에 완료했다. 로컬 코드에서는 `schema.sql`을 삭제하고 `db/migration`의 버전 파일로 구조를 관리하도록 바꿨다. 이후 구조 변경은 새 버전 SQL로 작성한다. 전용 계정과 서버 환경변수 등록도 완료했으며, 백업을 준비하고 연결 코드를 개발 서버부터 배포해 baseline 1 기록과 전용 계정의 이력 작성, 기존 데이터 보존을 확인해야 한다. [Flyway 적용 구조](../flyway.md)를 따른다.
 8. **디스크가 다시 차지 않게 하는 장치가 없다.** 운영은 2026-10-24 18:26(KST)에 사용률이 85% 알람을 넘었다. 10-19 data migration 때 서버에 남긴 SQL 백업 8개가 79.7%를 82.9%로 올렸고, 10-24 러너 자동 업데이트(2.337.0에서 2.338.0)가 남긴 옛 버전이 83.5%를 89.1%로 올렸다. 2026-10-25에 journal을 100MB로 줄여 388MB를 비우고 dnf 캐시(169MB), 러너 옛 버전과 설치 파일(582MB), data migration 백업, `/opt/yeogidam/loadtest`(370MB)를 지워 사용률을 90%에서 68%로 낮췄다. 같은 날 루트 볼륨을 ADR-03의 값인 20GB로 늘리고 `growpart`와 `xfs_growfs`로 파티션과 파일 시스템까지 넓혀 사용률이 28%(20GB 중 5.5GB)로 내려갔다. 그래도 러너는 자동 업데이트 때마다 옛 버전을 남겨 2026-09-29와 10-25에 손으로 지웠는데 자동으로 지우는 장치가 없고, journal에는 상한(`SystemMaxUse`)이 없으며, 배포 작업이 저장소 전체를 받아 `_work`가 481MB를 쓴다(checkout을 `Backend/scripts`로 좁히면 줄어든다). 개발 앱 서버도 같은 날 대시보드 기준 83% 근처라 같은 정리가 필요하다.
 9. **린터와 커버리지가 없다.** Gradle에는 checkstyle도 spotless도 jacoco도 없고, checkstyle은 IDEA 설정에만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
 10. **CODEOWNERS와 dependabot이 없다.**

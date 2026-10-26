@@ -1,6 +1,6 @@
 # 실행 프로필과 로컬 환경
 
-작성일 2026-09-19, 갱신 2026-10-20.
+작성일 2026-09-19, 갱신 2026-10-27.
 
 ## 1. 프로필
 
@@ -10,6 +10,7 @@
 | DB | 로컬 MySQL(`.env`) | Testcontainers MySQL 8.4 | `yeogidam-dev-db`의 Docker MySQL 8.4 | RDS MySQL 8.4 `yeogidam-prod-db` (2026-10-02) |
 | 앱 업데이트 정책(`app-update.*`) | `application.yml` 값(최소 2.1.0, 최신 2.1.0) | `application-test.yml`(E2E용 구간) | 공통값 | 공통값 |
 | Spring Boot의 Flyway 자동 실행 | 기본값 `true` | `false`. 공통 지원 코드에서 직접 실행 | 기본값 `true` | 기본값 `true` |
+| Flyway 접속 계정 | `DB_*`와 동일 | 테스트 컨테이너 계정 | `FLYWAY_*` 전용 계정 | `FLYWAY_*` 전용 계정 |
 | 구조 준비 | 매 기동 미적용 버전만 실행 | 공용 컨테이너 최초 준비 시 V1부터 모든 버전 실행 | 서버 시작 시 미적용 버전 실행 | 서버 시작 시 미적용 버전 실행 |
 | 데이터 정리 | 매 기동 업무 데이터와 ID만 TRUNCATE. 구조와 Flyway 기록은 유지 | 각 테스트 전에 업무 데이터와 ID만 TRUNCATE. 구조와 Flyway 기록은 유지 | 전체 초기화 없음 | 전체 초기화 없음 |
 | 로컬 시나리오 데이터 (`db/seed/data-local.sql`) | 자동 실행 | 안 함 | 필요하면 회원 1, 2를 준비한 뒤 수동 적용 | 안 함 |
@@ -143,6 +144,7 @@ JDBC 테스트의 정리 SQL은 `ISOLATED`로 별도 트랜잭션에서 실행�
 - 배포 산출물은 태그가 아니라 Docker digest(`yeogidam/backend@sha256:...`)로 고정한다. digest로만 pull하면 로컬에서 태그가 없어 dangling으로 분류되므로, `deploy.sh`가 pull 직후 커밋 SHA 태그와 역할 태그(`candidate`)를 붙인다. 배포가 성공하면 같은 스크립트가 역할 태그를 `current`로 옮기며 기존 `current`를 `previous`로 내린다. 롤백 대상은 `previous` 태그로 찾는다(인프라 ADR-01).
 - 이미지를 정리할 때는 `current`, `previous`, `candidate`가 가리키는 digest와 실행 중인 컨테이너의 이미지를 먼저 삭제 금지 목록으로 만든 뒤, `yeogidam/backend` 저장소의 나머지 이미지만 지운다. 서버 전체를 대상으로 하는 `docker image prune`은 쓰지 않으며, 보존 대상을 찾지 못하면 정리를 건너뛴다.
 - 배포는 GitHub Actions self-hosted 러너가 EC2에서 직접 하고 러너 계정 `github-runner`는 `docker` 그룹에 속한다. 환경변수는 저장소에 두지 않고 각 서버의 `/opt/yeogidam/backend.env`에 넣어 두며 `deploy.sh`가 `--env-file`로 넘긴다.
+- dev/prod는 `FLYWAY_USERNAME`, `FLYWAY_PASSWORD`를 별도로 등록한다. 앱은 `DB_*` 계정으로 업무 데이터를 다루고 Flyway는 전용 계정으로 이력과 구조를 관리한다. 배포 스크립트는 두 값의 누락과 공백을 기존 앱 중지 전에 검사한다. 계정 권한과 최초 적용 순서는 [Flyway 문서](flyway.md#21-서버의-앱-계정과-flyway-계정)를 따른다.
 - 앱 업데이트 정책은 프로필로 나누지 않고 `application.yml` 한 곳에 리터럴로 둔다. 값을 바꿀 때는 커밋하고 배포하며 스토어 점진적 출시가 100%가 된 뒤에만 최소 지원 버전을 올린다. 설정 파일에 두면 값 변경이 PR로 남고 잘못된 값은 `PlatformPolicy` 생성자 검증이 CI에서 잡는다. 환경변수로 뺐을 때의 이득도 지금 배포 구조에서는 생기지 않는다. `--env-file`은 컨테이너를 만들 때만 읽히고 `deploy.sh`는 같은 이미지면 컨테이너를 교체하지 않아서, 서버의 값만 고치면 `Infra/scripts/restart-backend.sh`로 손배포해야 반영된다.
 - **`APP_UPDATE_*` 환경변수는 yml에 리터럴로 적은 값도 덮는다.** Spring Boot의 relaxed binding이 `APP_UPDATE_ANDROID_MINIMUM_SUPPORTED_VERSION`을 `app-update.android.minimum-supported-version`으로 매핑하고, 환경변수가 설정 파일보다 우선순위가 높기 때문이다. 그래서 값을 급히 바꿔야 하면 서버 env에 넣어 덮을 수는 있지만, 이력이 남지 않으므로 비상용으로만 쓴다. 반대로 로컬 셸에 `APP_UPDATE_*`를 설정해 두면 `application-test.yml`의 E2E 픽스처가 덮여 앱 정책 테스트가 깨진다. 최소 지원 버전이 최신 버전보다 높아지면 생성자 검증이 예외를 던져 컨텍스트가 뜨지 못해 해당 테스트 클래스 전부가 실패하므로, 원인이 값 하나라는 것이 드러나지 않는다. 앱 정책 테스트가 이유 없이 깨지면 셸 환경변수를 먼저 본다.
 - dev에서만 다른 버전으로 강제 업데이트 동작을 시험하려면 `application-dev.yml`에 `app-update` 블록을 넣어 커밋하고, 어떤 값으로 시험했는지는 이력에 남는다. 프로필 파일은 적어 둔 키만 덮으므로 `store-url`처럼 그대로 둘 값은 다시 적지 않는다. **최소 지원 버전만 올리면 안 된다.** 최신 버전이 `application.yml` 기본값으로 남아 최소보다 낮아지고 `PlatformPolicy` 생성자 검증이 예외를 던져 컨텍스트가 뜨지 못한다. 최소를 올릴 때는 최신도 같이 올린다. 평소에는 블록을 두지 않아 dev가 공통값을 그대로 따라가게 한다. 값을 복사해 두면 나중에 공통값을 올렸을 때 dev만 옛 값에 묶여, 정작 새 값을 먼저 확인해야 할 곳에서 확인하지 못한다.
