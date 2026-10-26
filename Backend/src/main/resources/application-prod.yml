@@ -1,5 +1,10 @@
 # 운영 전용. 서버 시작 시 Flyway가 미적용 버전 SQL을 실행한다(docs/profiles.md 6절).
-# DB, JWT, OAuth 값은 /opt/yeogidam/backend.env가 환경변수로 넣는다.
+# DB, Flyway, JWT, OAuth 값은 /opt/yeogidam/backend.env가 환경변수로 넣는다.
+spring:
+  flyway:
+    user: ${FLYWAY_USERNAME}
+    password: ${FLYWAY_PASSWORD}
+
 media:
   thumbnail:
     instagram-key-prefix: yeogidam/prod/instagram-thumbnails
