@@ -44,14 +44,14 @@ public class InstagramMediaDao {
 
     private final JdbcTemplate jdbcTemplate;
 
-    public MediaSaveProjection saveIfAbsent(InstagramMedia instagramMedia, int pipelineVersion) {
+    public MediaSaveResult saveIfAbsent(InstagramMedia instagramMedia, int pipelineVersion) {
         Optional<Long> createdMediaId = insertIfAbsent(instagramMedia, pipelineVersion);
         if (createdMediaId.isPresent()) {
-            return new MediaSaveProjection(createdMediaId.orElseThrow(), true);
+            return new MediaSaveResult(createdMediaId.orElseThrow(), true);
         }
         Long mediaId = findIdByShortcodeForUpdate(new MediaShortcode(instagramMedia.getShortcode()))
                 .orElseThrow(() -> new IllegalStateException("저장된 게시물을 찾을 수 없습니다."));
-        return new MediaSaveProjection(mediaId, false);
+        return new MediaSaveResult(mediaId, false);
     }
 
     private Optional<Long> insertIfAbsent(InstagramMedia instagramMedia, int pipelineVersion) {

@@ -47,12 +47,12 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
                 metadata, new InProgressExtraction());
 
         // when
-        MediaSaveProjection projection = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
-        Long mediaId = projection.mediaId();
+        MediaSaveResult result = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+        Long mediaId = result.mediaId();
 
         // then
         assertAll(
-                () -> assertThat(projection.isCreated()).isTrue(),
+                () -> assertThat(result.isCreated()).isTrue(),
                 () -> assertThat(mediaId).isPositive(),
                 () -> assertThat(jdbcTemplate.queryForObject(
                         "SELECT media_shortcode FROM media WHERE id = ?", String.class, mediaId))
@@ -83,11 +83,11 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
         InstagramMedia media = new InstagramMedia(new MediaShortcode("fixture-media-1"));
 
         // when
-        MediaSaveProjection projection = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+        MediaSaveResult result = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
 
         // then
         assertAll(
-                () -> assertThat(projection).isEqualTo(new MediaSaveProjection(1L, false)),
+                () -> assertThat(result).isEqualTo(new MediaSaveResult(1L, false)),
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media", Integer.class))
                         .isEqualTo(1),
                 () -> assertThat(readMetadata(1L))
@@ -101,15 +101,15 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
     void 새로_저장한_미디어를_같은_연결에서_다시_저장하면_최초_생성으로_판단하지_않는다() {
         // given
         InstagramMedia media = new InstagramMedia(new MediaShortcode("repeated-media"));
-        MediaSaveProjection first = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+        MediaSaveResult first = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
 
         // when
-        MediaSaveProjection repeated = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+        MediaSaveResult repeated = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
 
         // then
         assertAll(
                 () -> assertThat(first.isCreated()).isTrue(),
-                () -> assertThat(repeated).isEqualTo(new MediaSaveProjection(first.mediaId(), false)),
+                () -> assertThat(repeated).isEqualTo(new MediaSaveResult(first.mediaId(), false)),
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media", Integer.class))
                         .isEqualTo(1)
         );
@@ -129,14 +129,14 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
         try {
             transaction.executeWithoutResult(status -> {
                 assertThat(instagramMediaDao.findIdByShortcode(shortcode)).isEmpty();
-                MediaSaveProjection created = otherTransaction.execute(otherStatus ->
+                MediaSaveResult created = otherTransaction.execute(otherStatus ->
                         instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION));
 
                 // when
-                MediaSaveProjection existing = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+                MediaSaveResult existing = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
 
                 // then
-                assertThat(existing).isEqualTo(new MediaSaveProjection(created.mediaId(), false));
+                assertThat(existing).isEqualTo(new MediaSaveResult(created.mediaId(), false));
             });
         } finally {
             jdbcTemplate.update("DELETE FROM media WHERE media_shortcode = ?", shortcode.value());

@@ -13,7 +13,7 @@ import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaShortcode;
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
-import com.yeogidam.media.instagram.repository.MediaSaveProjection;
+import com.yeogidam.media.instagram.repository.MediaSaveResult;
 import com.yeogidam.media.share.config.OnboardingProperties;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
@@ -71,10 +71,10 @@ public class ShareService {
     }
 
     private Long getOrCreateMediaId(MediaShortcode shortcode, InstagramUrl instagramUrl) {
-        MediaSaveProjection projection = instagramMediaDao.saveIfAbsent(
+        MediaSaveResult result = instagramMediaDao.saveIfAbsent(
                 new InstagramMedia(shortcode), extractionProperties.pipelineVersion());
-        Long mediaId = projection.mediaId();
-        if (projection.isCreated()) {
+        Long mediaId = result.mediaId();
+        if (result.isCreated()) {
             mediaExtractionDispatcher.dispatchAfterCommit(mediaId, instagramUrl);
             return mediaId;
         }
