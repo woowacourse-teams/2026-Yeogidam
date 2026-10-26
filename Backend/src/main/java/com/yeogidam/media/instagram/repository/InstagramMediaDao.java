@@ -49,7 +49,7 @@ public class InstagramMediaDao {
         if (createdMediaId.isPresent()) {
             return new MediaSaveProjection(createdMediaId.orElseThrow(), true);
         }
-        Long mediaId = findIdByShortcode(new MediaShortcode(instagramMedia.getShortcode()))
+        Long mediaId = findIdByShortcodeForUpdate(new MediaShortcode(instagramMedia.getShortcode()))
                 .orElseThrow(() -> new IllegalStateException("저장된 게시물을 찾을 수 없습니다."));
         return new MediaSaveProjection(mediaId, false);
     }
@@ -86,6 +86,18 @@ public class InstagramMediaDao {
         statement.setString(5, instagramMedia.extraction().status().name());
         statement.setInt(6, pipelineVersion);
         statement.setString(7, MediaSourceType.EXTRACTED.name());
+    }
+
+    private Optional<Long> findIdByShortcodeForUpdate(MediaShortcode shortcode) {
+        String sql = """
+                SELECT id
+                FROM media
+                WHERE media_shortcode = ?
+                FOR UPDATE
+                """;
+        return jdbcTemplate.query(sql, ID_ROW_MAPPER, shortcode.value())
+                .stream()
+                .findFirst();
     }
 
     public void updateMetadata(Long mediaId, MediaMetadata metadata) {

@@ -19,6 +19,11 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Import(InstagramMediaDao.class)
 class InstagramMediaDaoTest extends JdbcTestSupport {
@@ -30,6 +35,9 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void 인스타그램_미디어를_저장하고_생성된_ID를_반환한다() {
@@ -105,6 +113,34 @@ class InstagramMediaDaoTest extends JdbcTestSupport {
                 () -> assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM media", Integer.class))
                         .isEqualTo(1)
         );
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 선행_일반_조회가_있어도_다른_트랜잭션이_저장한_게시물_ID를_반환한다() {
+        // given
+        MediaShortcode shortcode = new MediaShortcode("snapshot-media");
+        InstagramMedia media = new InstagramMedia(shortcode);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        TransactionTemplate otherTransaction = new TransactionTemplate(transactionManager);
+        otherTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        try {
+            transaction.executeWithoutResult(status -> {
+                assertThat(instagramMediaDao.findIdByShortcode(shortcode)).isEmpty();
+                MediaSaveProjection created = otherTransaction.execute(otherStatus ->
+                        instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION));
+
+                // when
+                MediaSaveProjection existing = instagramMediaDao.saveIfAbsent(media, PIPELINE_VERSION);
+
+                // then
+                assertThat(existing).isEqualTo(new MediaSaveProjection(created.mediaId(), false));
+            });
+        } finally {
+            jdbcTemplate.update("DELETE FROM media WHERE media_shortcode = ?", shortcode.value());
+        }
     }
 
     @Test
