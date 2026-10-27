@@ -35,7 +35,7 @@ python3 -m http.server 8000
 
 데모에 쓰는 릴스와 장소는 스크립트 맨 위 `REELS` 배열에 있다.
 
-- `gunja`: 군자역 디저트 5곳이다. 실제 장소, 주소, 카카오 장소 URL과 작성자 `@yeogidamm`은 `Backend/src/main/resources/data-onboarding.sql`의 온보딩 시드와 같고 사진은 운영 S3 썸네일을 쓴다.
+- `gunja`: 군자역 디저트 5곳이다. 실제 장소, 주소, 카카오 장소 URL과 작성자 `@yeogidamm`은 `Backend/src/main/resources/db/seed/data-onboarding.sql`의 온보딩 시드와 같고 사진은 운영 S3 썸네일을 쓴다.
 - `chabap`: 여기담 계정의 게시물 `instagram.com/p/DebnmRckoy1`(강민경 차밥열끼 시즌8, 장소 8곳)이다. 장소는 캡션의 장소 이름을 카카오 로컬 검색으로 맞췄고 사진은 서버의 `KakaoPlaceMetaReader`와 같은 방법으로 각 카카오 장소 페이지의 미리보기 이미지를 받았다. 이름이 같은 가게가 여럿인 곳(홍춘, 보영만두, 김빠)은 가장 그럴듯한 지점을 골랐으므로 앱의 실제 분석 결과와 다를 수 있다.
 
 장소를 바꾸려면 배열의 `name`, `cat`, `road`, `lot`, `url`, 사진 `img`와 지도 위 위치 `x`, `y`(지도 영역 기준 백분율)를 고치면 되고 `img`가 없는 장소는 스크립트가 이모지 타일로 그린다. 지도 배경은 `map` 값(`gunja` 또는 `metro`)으로 고르고 `mapSVG()`가 그리는 추상 지도라 실제 지형과 맞지 않는다.
