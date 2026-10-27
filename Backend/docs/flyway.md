@@ -4,7 +4,7 @@ DB 구조는 `db/migration`의 버전 SQL로 관리한다. 앱을 시작하면 F
 
 현재 앱에 적용할 버전 파일은 기존 운영 구조를 담은 `V1__initial_schema.sql` 하나다. `schema.sql`은 삭제했으며, #412에서 개발 서버와 운영 서버에 Flyway를 처음 적용하고 기존 DB에 baseline 1을 등록한다. `extraction_attempts`의 V2부터 필요한 구조 변경, 기존 데이터 이관과 해당 변경의 서버 배포는 #297에서 진행한다. 개발과 운영의 전용 계정 및 서버 환경변수 준비는 끝났으며, 서버 배포와 baseline 등록은 아직 하지 않았다.
 
-이 문서는 적용 구조와 SQL 변경 방법을 다룬다. local, test, dev, prod의 실행 차이와 로컬 DB 준비 방법은 [실행 프로필과 로컬 환경](profiles.md)을 참고한다.
+적용 구조, SQL 변경 방법, 서버 적용 순서와 실패 복구를 차례로 다룬다. local, test, dev, prod의 실행 차이와 로컬 DB 준비 방법은 [실행 프로필과 로컬 환경](profiles.md)을 참고한다.
 
 ## 1. SQL 파일과 실행 담당
 
@@ -113,6 +113,40 @@ V3__add_member_bio_index.sql
 
 로컬은 마이그레이션 후 업무 데이터를 TRUNCATE한다. 버전 SQL에서 넣은 업무 데이터도 이때 지워지므로, 매번 필요한 로컬 샘플은 시드에서 준비한다. 데이터 정리 중 오류가 나면 일부 테이블은 이미 비워졌을 수 있으며, 오류를 해결한 뒤 다시 실행한다.
 
+### 3.3 머지 전 확인
+
+`be-dev`에 머지하면 개발 서버 배포가 바로 시작되므로(6절) PR을 머지하기 전에 아래 항목을 확인한다. 3.1절의 번호 규칙과 적용한 파일을 고치지 않는 규칙도 함께 지킨다.
+
+**번호**
+
+- 작업을 시작할 때와 머지 직전에 `origin/be-dev`의 버전 파일 목록을 본다.
+- 내 파일의 번호는 목록에서 가장 큰 번호보다 커야 하며 작으면 7절의 오류가 난다.
+- `be-dev`는 머지 전에 PR 브랜치를 최신 base로 갱신하도록 요구하므로, 갱신한 뒤에도 번호를 다시 본다.
+
+```bash
+git fetch origin be-dev
+git ls-tree --name-only origin/be-dev Backend/src/main/resources/db/migration/
+```
+
+**CI가 잡는 것과 놓치는 것**
+
+- 테스트의 `MySqlContainerSupport`가 모든 버전 파일을 읽어 실행하므로, 같은 번호의 파일이 두 개면 Flyway가 `Found more than one migration with version 2`로 멈춰 CI가 실패한다.
+- 테스트 DB는 매번 빈 DB라서 V1부터 번호 순서대로 모두 실행하므로, 내 번호가 이미 머지된 번호보다 작아도 CI는 통과한다.
+- 서버 데이터에서만 실패하는 SQL도 CI는 통과한다. `members.nickname`에 UNIQUE를 거는 V2는 빈 DB에서 성공했고 닉네임이 겹치는 회원이 있는 DB에서는 `Duplicate entry`로 실패했다.
+
+**서버 데이터**
+
+- UNIQUE 추가처럼 기존 행이 조건을 어길 수 있는 변경은 머지 전에 개발 DB와 운영 DB에서 어기는 행을 조회한다.
+- 조회는 앱 서버에서 관리자 계정이나 `yeogidam_migrator`로 접속해 실행한다.
+
+```sql
+SELECT nickname, COUNT(*) FROM members GROUP BY nickname HAVING COUNT(*) > 1;
+```
+
+**파일 작성**
+
+- 한 파일에 DDL 문장을 하나만 두고 데이터 변경은 구조 변경과 다른 파일에 둔다. 실패했을 때 남는 상태가 줄어드는 근거와 예시는 8.6절에 적었다.
+
 ## 4. 기존 DB에 처음 도입할 때
 
 baseline은 Flyway에 "이 DB는 이미 V1 상태"라고 기록하는 일이다. 기존 운영 DB는 V1과 같은 구조를 기준으로 하므로 테이블 생성 SQL을 다시 실행하지 않는다.
@@ -201,3 +235,269 @@ Docker를 켠 뒤 `Backend` 폴더에서 관련 통합 테스트를 실행할 �
 ```
 
 통합 테스트는 실제 프로필 설정을 읽고, dev/prod에서 DML 앱 계정과 전용 Flyway 계정으로 빈 DB의 V1 적용 및 기존 DB의 baseline과 데이터 보존을 확인한다. 앱 접속 계정과 이력 작성자도 각각 확인한다. 로컬 재시작 시 구조와 기록 보존, 데이터와 ID 초기화도 검증한다.
+
+## 6. 서버에 새 버전을 적용하는 순서
+
+#412로 서버에 baseline 1을 등록한 뒤부터 V2 이상의 버전 SQL은 개발 서버를 먼저 거쳐 운영 서버에 적용된다. 별도 마이그레이션 명령은 없으며 배포가 새 앱 컨테이너를 시작할 때 Spring Boot가 Flyway를 실행한다.
+
+6절부터 9절에 적은 오류 문구와 DB 상태는 2026-10-27에 확인했다. PR #430 head(`6a44f9d`)로 만든 bootJar에 예시 버전 파일을 넣고, dev 프로필과 DML 앱 계정, 2.1절과 같은 권한의 `yeogidam_migrator`로 일회용 로컬 MySQL 8.0.46에 띄웠다. bootJar에는 Flyway 12.4.0이 들어 있다. 서버와 같은 MySQL 8.4.11에서는 다시 실행하지 않았고 Docker 컨테이너와 `deploy.sh`도 실행하지 않았다. `deploy.sh`의 동작은 스크립트 코드를 기준으로 적었다.
+
+### 6.1 개발 서버 배포
+
+1. 작업 브랜치의 PR을 `be-dev`에 머지한다. 버전 SQL은 `Backend/src/main/resources`에 있으므로 Backend CD의 push 경로 조건(`Backend/**`에서 문서 제외)에 걸린다.
+2. Backend CD가 `./gradlew check`, 이미지 빌드와 Docker Hub 발행, 개발 러너의 `Backend/scripts/deploy.sh`를 차례로 실행한다.
+3. `deploy.sh`는 기존 컨테이너의 이름을 `yeogidam-backend-rollback`으로 바꿔 멈춘 뒤 새 컨테이너를 시작한다.
+4. 새 컨테이너의 Spring Boot가 `yeogidam_migrator`로 Flyway를 실행하고 미적용 버전을 모두 실행한 뒤에 앱 시작을 이어 간다.
+5. `deploy.sh`는 `/actuator/health/liveness`가 healthy가 될 때까지 기다린다. healthy가 되면 `yeogidam-backend-rollback`을 지우고 `current` 태그를 새 이미지로 옮기며, healthy가 되지 않으면 8.2절의 자동 롤백을 실행한다.
+
+**배포 중 동작**
+
+- 기존 앱은 Flyway가 실행되는 동안 멈춰 있으므로, 배포 때마다 생기는 502 시간에 마이그레이션 실행 시간이 더해진다.
+- liveness 확인은 `livenessState`만 보므로 앱이 시작됐는지만 알려 준다. 바뀐 구조를 앱이 제대로 쓰는지는 6.2절에서 따로 확인한다.
+- 새 컨테이너가 `BACKEND_HEALTH_TIMEOUT_SECONDS`(기본 150초) 안에 healthy가 되지 않으면 `deploy.sh`가 컨테이너를 강제로 지운다. Flyway가 제한 시간 안에 끝나지 않을 때 DB에 무엇이 남는지는 확인하지 않았으므로, 큰 테이블을 바꾸는 버전은 머지 전에 실행 시간을 따로 잰다.
+- 앱 계정의 권한은 `yeogidam.*`에 걸려 있어서 `yeogidam_migrator`가 새로 만든 테이블도 앱 계정으로 읽고 쓸 수 있었다. 테이블을 추가할 때 권한을 따로 주지 않는다.
+
+### 6.2 개발 서버에서 확인
+
+1. GitHub Actions의 Backend CD 요약에서 `결과`가 `성공`인지 본다.
+2. CloudWatch 로그 그룹 `/yeogidam/dev/backend`에서 Flyway 메시지를 찾는다. dev와 prod 로그는 JSON 한 줄이므로 `message` 값으로 찾으며, 성공하면 아래 메시지가 남는다.
+
+   ```text
+   Migrating schema `yeogidam` to version "2 - add member bio"
+   Successfully applied 1 migration to schema `yeogidam`, now at version v2 (execution time 00:00.012s)
+   ```
+
+3. 앱 서버에서 관리자 계정이나 `yeogidam_migrator`로 DB에 접속하고 5절의 SQL로 이력을 본다. 새 버전 행의 `success`가 `1`이고 `installed_by`가 `yeogidam_migrator`인지 확인한다.
+4. `SHOW CREATE TABLE members;`처럼 바꾼 테이블을 조회해 의도한 구조인지 확인한다.
+5. 바뀐 구조를 쓰는 API를 개발 서버에서 호출한다.
+
+### 6.3 운영 서버 배포
+
+1. 승격 PR에 들어갈 버전 파일을 본다. 아래 명령은 `be-release`에 없고 `be-dev`에만 있는 버전 파일을 `A`로 보여 준다.
+
+   ```bash
+   git fetch origin be-dev be-release
+   git diff --name-status origin/be-release origin/be-dev -- Backend/src/main/resources/db/migration
+   ```
+
+2. 운영 DB의 덤프를 받는다. `be-release`에 머지하면 운영 배포가 바로 시작되므로 승격 PR을 머지하기 전에 받는다. RDS 자동 백업(7일 보존)도 켜져 있지만 배포 직전 상태로 되돌릴 수 있도록 덤프를 따로 남긴다.
+
+   ```bash
+   mysqldump --defaults-extra-file=<접속 파일> --ssl --single-transaction --no-tablespaces --hex-blob \
+     --default-character-set=utf8mb4 yeogidam > yeogidam-before-v2.sql
+   ```
+
+3. `be-dev`에서 `be-release`로 PR을 만들어 Merge Commit으로 머지한다. Backend CD는 개발 서버에서 돌린 이미지를 다시 빌드하지 않고 운영에 배포하며 운영 DB에 미적용 버전을 번호 순서대로 실행한다.
+4. 6.2절과 같은 방법으로 운영을 확인한다. 로그는 `/yeogidam/prod/backend` 그룹에서 본다.
+5. 확인을 마치면 서버에 남긴 덤프 파일을 지운다. 2026-10-19 data migration 때 서버에 남긴 SQL 백업이 운영 디스크 사용률을 올린 일이 [인프라 현재 상태](infra/current-state.md)의 「안 한 것」 8번에 있다.
+
+**백업 계정과 접속**
+
+- 백업과 복원은 관리자 계정으로 한다. `yeogidam_migrator`에는 `LOCK TABLES` 권한이 없어서 덤프를 다시 넣을 때 덤프 안의 `LOCK TABLES` 문장이 거부됐다.
+- 접속 정보는 앱 서버의 권한 600 접속 파일(`[client]` 형식)에 두고 `--defaults-extra-file`로만 쓰며, 명령줄에 비밀번호를 적지 않는다. 작업이 끝나면 접속 파일을 지운다.
+- 운영 RDS에 접속할 때는 `--ssl`이 필요하다([인프라 현재 상태](infra/current-state.md)).
+- `--default-character-set=utf8mb4`를 빼면 한글과 이모지가 오류 없이 깨진 채 저장된다.
+- 데이터를 바꾸는 버전은 `be-dev`에 머지하기 전에 같은 방법으로 개발 DB도 백업한다.
+
+## 7. 번호가 늦게 머지된 경우
+
+두 PR이 함께 진행되면 작은 번호가 나중에 머지될 수 있다. `V3__add_place_memo.sql`이 먼저 머지되어 개발 DB에 적용된 뒤 `V2__add_member_bio.sql`이 머지되면, 개발 서버의 새 컨테이너가 아래 오류로 시작하지 못한다.
+
+```text
+Validate failed: Migrations have failed validation
+Detected resolved migration not applied to database: 2.
+To ignore this migration, set -ignoreMigrationPatterns='*:ignored'. To allow executing this migration, set -outOfOrder=true.
+```
+
+**서버 상태**
+
+- Flyway가 실행 전 검증에서 멈추므로 V2는 실행되지 않고 `flyway_schema_history`도 바뀌지 않는다.
+- `deploy.sh`가 직전 컨테이너로 되돌리며 V3까지 든 직전 이미지는 경고 없이 정상으로 시작했다.
+
+**고치는 순서**
+
+1. 개발 DB와 운영 DB에서 아래 SQL을 실행해 V2가 어느 서버에도 기록되지 않았는지 확인한다. 결과가 없어야 한다.
+
+   ```sql
+   SELECT version, script, success FROM flyway_schema_history WHERE version = '2';
+   ```
+
+2. 새 PR에서 파일 내용은 두고 번호만 `be-dev`의 가장 큰 번호 다음으로 바꾼다. 위 예에서는 `V2__add_member_bio.sql`을 `V4__add_member_bio.sql`로 바꾼다.
+3. PR을 머지하면 개발 서버는 V4만 실행한다. V1만 있는 DB에 같은 이미지를 띄우면 V3, V4를 차례로 실행했으므로, 운영도 다음 승격 때 같은 순서로 실행한다.
+4. 바꾸기 전의 V2를 로컬 DB에서 실행한 개발자는 로컬 앱이 `Detected applied migration not resolved locally: 2.`로 시작하지 못한다. 로컬 DB를 지우고 다시 만들면 V1부터 다시 실행한다.
+
+**쓰지 않는 방법**
+
+- 오류 문구가 안내하는 `outOfOrder`는 켜지 않는다. V3가 적용된 DB에서 `spring.flyway.out-of-order`를 켜자 V2가 V3 뒤에 실행됐고 Flyway가 `outOfOrder mode is active. Migration of schema `yeogidam` may not be reproducible.` 경고를 남겼다. V1만 있는 운영 DB는 V2, V3 순서로 실행하므로 두 DB의 적용 순서가 달라진다.
+- 서버에 이미 적용된 버전의 번호는 바꾸지 않는다. 개발 DB에 V2가 성공으로 기록된 상태에서 파일을 V4로 바꾸면 `Detected applied migration not resolved locally: 2.`로 시작하지 못했다.
+
+## 8. 마이그레이션이 실패했을 때
+
+### 8.1 서버에 남는 상태
+
+아래 V2를 닉네임이 겹치는 회원이 있는 DB에서 실행하면 두 번째 문장이 실패한다.
+
+```sql
+ALTER TABLE members ADD COLUMN bio VARCHAR(200) NULL;
+ALTER TABLE members ADD CONSTRAINT uk_members_nickname UNIQUE (nickname);
+```
+
+**DB**
+
+- 첫 문장이 만든 `bio` 컬럼은 남는다. MySQL은 DDL 문장마다 바로 커밋하므로 Flyway가 되돌리지 못한다.
+- 두 번째 문장의 UNIQUE 제약은 생기지 않는다.
+- `flyway_schema_history`에 버전 2 행이 `success = 0`으로 남는다.
+
+**로그**
+
+```text
+Migration of schema `yeogidam` to version "2 - add member bio" failed! Please restore backups and roll back database and code!
+Message    : Duplicate entry '기존 회원' for key 'members.uk_members_nickname'
+Location   : db/migration/V2__add_member_bio.sql (...)
+Line       : 2
+```
+
+- `Line`이 실패한 문장의 줄 번호를 알려 주며 해당 줄보다 앞에 있는 문장은 적용된 채로 남는다.
+
+**앱**
+
+- 앱 시작이 실패한다.
+- 새 컨테이너는 `--restart unless-stopped`로 실행되어 다시 시작된다. 두 번째 시작부터는 Flyway가 실행 전 검증에서 아래 오류로 멈추므로 SQL을 다시 실행하지 않는다.
+
+```text
+Detected failed migration to version 2 (add member bio).
+Please remove any half-completed changes then run repair to fix the schema history.
+```
+
+파일 내용에 따라 실패 뒤 DB에 남는 것이 다르다. 네 경우 모두 `success = 0` 행은 남았다.
+
+| 버전 파일의 내용 | 실패 뒤 DB |
+|---|---|
+| DDL 여러 문장 중 뒤 문장이 실패 | 앞 문장의 구조 변경이 남는다. |
+| `ALTER TABLE` 한 문장에 절 여러 개, 절 하나가 실패 | 구조가 바뀌지 않는다. |
+| `UPDATE` 뒤의 DDL이 실패 | `UPDATE`로 바꾼 데이터가 남는다. |
+| `UPDATE`와 `INSERT`만 있고 뒤 문장이 실패 | 데이터가 모두 되돌아간다. |
+
+### 8.2 자동 롤백
+
+- `deploy.sh`는 새 컨테이너가 healthy가 되지 않으면 새 컨테이너를 지운다. unhealthy나 exited 상태가 되거나 `BACKEND_HEALTH_TIMEOUT_SECONDS`가 지난 경우가 해당한다.
+- 새 컨테이너를 지운 뒤 `yeogidam-backend-rollback`을 원래 이름으로 되돌려 다시 시작하고 healthy가 될 때까지 최소 60초를 기다린다.
+- 다시 시작한 직전 앱도 Flyway를 실행한다. 직전 이미지에는 V2 파일이 없으므로 아래 경고만 남기고 정상으로 시작했으며 서비스는 직전 코드로 돌아온다.
+
+  ```text
+  Schema `yeogidam` has a version (2) that is newer than the latest available migration (1) !
+  Schema `yeogidam` contains a failed future migration to version 2 !
+  ```
+
+- Backend CD 요약에는 `결과`가 `실패`로, `롤백`이 `직전 컨테이너 복구 성공`으로 남는다.
+- 자동 롤백은 앱만 되돌리며 8.1절의 `bio` 컬럼과 `success = 0` 행은 DB에 남는다.
+- 남은 구조가 직전 코드와 맞지 않으면 앱이 떠도 요청이 실패한다. 기본값이 없는 `NOT NULL` 컬럼 `bio`가 남으면 `bio`를 모르는 INSERT가 `Field 'bio' doesn't have a default value`로 실패했다.
+- 실패한 컨테이너는 지워지므로 `docker logs`로 볼 수 없고 로그는 CloudWatch의 `/yeogidam/dev/backend`나 `/yeogidam/prod/backend`에서 본다.
+- `current` 태그가 직전 이미지에 남아 있어서 `Infra/scripts/restart-backend.sh`를 실행해도 직전 이미지가 다시 뜨므로, 새 버전을 다시 시도하는 데 쓸 수 없다.
+- `success = 0` 행이 남아 있는 동안에는 다음 배포가 모두 실패한다. V2 파일을 고친 이미지도, V2를 지우고 V3로 낸 이미지도 `Detected failed migration to version 2`로 시작하지 못했다.
+
+### 8.3 복구 순서
+
+복구를 마칠 때까지 `be-dev`에 다른 PR을 머지하지 않는다. 머지하면 실패한 V2가 든 이미지로 다시 배포되고 같은 검증 오류로 다시 롤백된다.
+
+1. CloudWatch 로그에서 `failed!`가 든 메시지를 찾고 `Message`, `Location`, `Line`으로 실패한 문장을 확인한다.
+2. 앱 서버에서 `yeogidam_migrator`나 관리자 계정으로 DB에 접속해 이력과 바뀐 테이블을 본다.
+
+   ```sql
+   SELECT installed_rank, version, script, success FROM flyway_schema_history ORDER BY installed_rank;
+   SHOW CREATE TABLE members;
+   ```
+
+3. 실패한 줄보다 앞의 문장이 남긴 변경을 되돌리며, 8.1절의 예에서는 `bio` 컬럼을 지운다. 데이터 변경이 남아 손으로 되돌리기 어려우면 8.4절의 덤프 복원을 쓴다.
+
+   ```sql
+   ALTER TABLE members DROP COLUMN bio;
+   ```
+
+4. `success = 0` 행을 지운다.
+
+   ```sql
+   DELETE FROM flyway_schema_history WHERE version = '2' AND success = 0;
+   ```
+
+5. 원인을 고쳐 다시 배포하고 6.2절의 확인을 한다. 고치는 곳은 실패한 버전이 다른 서버에서 성공했는지에 따라 다르며 아래 두 경우로 나눈다.
+
+**3번과 4번을 실행할 때**
+
+- 3번을 건너뛰고 4번만 하면 다음 배포에서 첫 문장이 `Duplicate column name 'bio'`로 실패하고 `success = 0` 행이 다시 생겼다.
+- `yeogidam_migrator`에는 ALTER, DROP, DELETE 권한이 있어 3번과 4번을 실행할 수 있다.
+
+**개발 서버에서 처음 실패한 경우**
+
+- 어느 서버 DB에도 V2가 성공으로 기록되지 않았으므로 V2 파일의 내용을 고친다.
+- 고친 PR을 `be-dev`에 머지하면 개발 서버가 고친 V2를 실행하며 확인에서는 성공으로 기록됐다.
+- 고치기 전의 V2를 로컬에서 성공시킨 개발자는 8.5절의 체크섬 오류가 나므로 로컬 DB를 다시 만든다.
+
+**개발 서버에서 성공하고 운영에서 실패한 경우**
+
+- 개발 DB에는 V2가 성공으로 기록되어 있으므로, V2 파일을 고치면 개발 서버가 8.5절의 체크섬 오류로 시작하지 못한다.
+- V2 파일은 두고 운영 데이터를 고친다. 8.1절의 예에서는 겹치는 닉네임을 정리한다.
+- 3번과 4번을 마친 뒤 같은 이미지를 다시 배포한다. 실패한 Backend CD 실행을 Re-run하거나 `gh workflow run backend-cd.yml --ref be-release`로 실행하며, Re-run은 실패한 실행 뒤에 `be-release`에 새 커밋이 없을 때만 통과한다.
+- 데이터를 고친 DB에서 같은 V2 파일이 성공했고 체크섬도 처음 기록과 같았으므로, 개발과 운영의 이력이 같게 유지된다.
+
+### 8.4 덤프로 되돌리기
+
+데이터를 바꾼 버전이 중간에 실패해 손으로 되돌리기 어려우면, 6.3절에서 받은 덤프를 관리자 계정으로 다시 넣는다.
+
+```bash
+mysql --defaults-extra-file=<접속 파일> --ssl --default-character-set=utf8mb4 yeogidam < yeogidam-before-v2.sql
+```
+
+- 덤프에 든 테이블과 `flyway_schema_history`가 덤프를 받은 시점으로 돌아가므로 `success = 0` 행을 따로 지우지 않아도 된다.
+- 실패한 버전이 새로 만든 테이블은 덤프에 없어서 남으므로 직접 지운다.
+- 덤프를 받은 뒤에 쌓인 데이터는 자동 롤백 뒤 직전 앱이 받은 요청의 데이터까지 모두 사라진다.
+
+### 8.5 적용한 파일을 고친 경우
+
+성공으로 기록된 파일은 주석 한 줄만 더해도 체크섬이 달라져 앱이 시작하지 못한다.
+
+```text
+Migration checksum mismatch for migration version 2
+-> Applied to database : -1061568834
+-> Resolved locally    : 1380865877
+Either revert the changes to the migration, or run repair to update the schema history.
+```
+
+- 파일을 적용했던 내용으로 되돌리면 다시 정상으로 시작했다.
+- 구조를 더 바꿔야 하면 파일을 되돌린 뒤 다음 번호의 파일을 추가한다.
+- 자동 롤백한 직전 이미지에는 원래 파일이 들어 있어서 정상으로 시작한다.
+
+### 8.6 실패를 줄이는 작성법
+
+- 한 파일에는 DDL 문장을 하나만 둔다. 같은 테이블을 여러 번 바꿀 때는 `ALTER TABLE` 한 문장에 절로 묶으면, 실패해도 구조가 바뀌지 않아 `success = 0` 행만 지우면 된다.
+
+  ```sql
+  ALTER TABLE members
+      ADD COLUMN bio VARCHAR(200) NULL,
+      ADD CONSTRAINT uk_members_nickname UNIQUE (nickname);
+  ```
+
+- 데이터 변경은 구조 변경과 다른 버전 파일에 둔다. 데이터 변경만 있는 파일은 실패하면 모두 되돌아가지만 DDL 앞에 둔 데이터 변경은 DDL이 실패해도 남는다.
+- 자동 롤백한 직전 앱이 새 구조에서도 돌게 만든다. 새 컬럼에 NULL을 허용하거나 기본값을 두면 새 컬럼을 모르는 INSERT도 성공했다.
+- 서버 데이터가 어길 수 있는 제약은 머지 전에 어기는 행을 조회한다(3.3절).
+
+## 9. hotfix와 버전 SQL
+
+hotfix는 `be-release`에서 분기해 `be-release`로 머지하며 개발 서버를 거치지 않고 새로 빌드한 이미지를 운영에 바로 배포한다([인프라 ADR-05](infra/adr-05-branch-strategy.md), `Backend/scripts/resolve-source-commit.sh`). hotfix에 넣은 버전 SQL은 운영 DB에서 처음 실행된다.
+
+`be-dev`에 운영에 아직 나가지 않은 버전 파일이 있을 때 hotfix에 버전 SQL을 넣으면 어느 번호를 써도 배포가 막힌다. 아래 표는 `be-dev`에 V2가 있고 개발 DB에 적용된 상태를 기준으로 한다.
+
+| hotfix 번호와 이후 조치 | 결과 |
+|---|---|
+| hotfix도 V2를 쓴다. | hotfix를 `be-dev`에 반영하면 V2 파일이 두 개가 되어 앱이 `Found more than one migration with version 2`로 시작하지 못한다. CI도 같은 이유로 실패한다. |
+| hotfix가 V3를 쓴다. | 운영에 V3가 먼저 적용되어 다음 승격 때 운영 서버가 `Detected resolved migration not applied to database: 2.`로 시작하지 못한다. |
+| hotfix가 V3를 쓰고 `be-dev`의 V2를 V4로 바꾼다. | 개발 DB에 기록된 V2의 파일이 사라져 개발 서버가 `Detected applied migration not resolved locally: 2.`로 시작하지 못한다. |
+
+**규칙**
+
+1. hotfix에는 되도록 버전 SQL을 넣지 않는다.
+2. 넣어야 한다면 먼저 6.3절 1번의 `git diff` 명령으로 `be-release`와 `be-dev`의 버전 파일을 비교한다. 결과가 비어 있으면 두 브랜치의 버전 파일이 같다.
+3. 결과가 비어 있지 않으면 hotfix로 버전 SQL을 내보내지 않고 구조 변경을 `be-dev`에 넣어 6절의 순서로 승격한다.
+4. 결과가 비어 있으면 `be-release`의 가장 큰 번호 다음 번호를 쓴다. 운영 배포 뒤 바로 같은 파일을 `be-dev`에 반영하고, 반영할 때까지 `be-dev`에 다른 버전 SQL을 머지하지 않는다.
+5. `be-dev`에 반영할 때 파일 내용을 한 글자도 바꾸지 않는다. 내용이 다르면 다음 승격 때 운영 서버가 8.5절의 체크섬 오류로 시작하지 못한다.
+6. hotfix를 `be-release`에 머지하기 전에 6.3절 2번처럼 운영 DB의 덤프를 받는다.
