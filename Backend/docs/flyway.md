@@ -2,7 +2,14 @@
 
 DB 구조는 `db/migration`의 버전 SQL로 관리한다. 앱을 시작하면 Flyway가 실행 기록을 확인하고 아직 적용하지 않은 버전을 순서대로 실행한다.
 
-현재 앱에 적용할 버전 파일은 기존 운영 구조를 담은 `V1__initial_schema.sql` 하나다. `schema.sql`은 삭제했으며, #412에서 개발 서버와 운영 서버에 Flyway를 처음 적용하고 기존 DB에 baseline 1을 등록한다. `extraction_attempts`의 V2부터 필요한 구조 변경, 기존 데이터 이관과 해당 변경의 서버 배포는 #297에서 진행한다. 개발과 운영의 전용 계정 및 서버 환경변수 준비는 끝났으며, 서버 배포와 baseline 등록은 아직 하지 않았다.
+버전 SQL은 기존 운영 구조를 담은 `V1__initial_schema.sql`과 #469의 커스텀 폴더 구조를 추가하는
+`V2__create_folders.sql`, `V3__create_folder_saved_places.sql`이다. V1은 수정하지 않는다.
+V2는 `folders`, V3는 `folder_saved_places`를 생성하며 기존 장소와 공유 데이터는 변경하지 않는다.
+
+2026-10-27 사용자 확인 기준 개발 서버에는 Flyway가 적용됐고 운영에는 아직 적용되지 않았다.
+이번 작업은 V2, V3 작성과 로컬 검증이며 서버 배포는 수행하지 않는다. 운영에 추후 처음 적용할 때는
+기존 구조가 V1과 같은지 확인한 뒤 baseline 1을 등록하고 배포본에 포함된 V2 이상의 미적용 SQL을 실행한다.
+#297의 분석 시도 구조 변경은 실제 병합 순서에 맞춰 다음 버전 번호를 사용한다.
 
 적용 구조, SQL 변경 방법, 서버 적용 순서와 실패 복구를 차례로 다룬다. local, test, dev, prod의 실행 차이와 로컬 DB 준비 방법은 [실행 프로필과 로컬 환경](profiles.md)을 참고한다.
 
@@ -13,6 +20,8 @@ SQL 경로는 `src/main/resources`를 기준으로 한다.
 | 파일 | 역할과 실행 담당 |
 |---|---|
 | `db/migration/V1__initial_schema.sql` | 빈 DB에 기존 운영과 같은 테이블을 만든다. Flyway가 버전과 실행 결과를 기록한다. |
+| `db/migration/V2__create_folders.sql` | 회원별 폴더 테이블을 추가한다. Flyway가 실행한다. |
+| `db/migration/V3__create_folder_saved_places.sql` | 폴더와 저장 장소 소속 테이블을 추가한다. Flyway가 실행한다. |
 | `cleanup.sql` | 로컬과 테스트가 함께 쓰는 업무 데이터와 자동 증가 ID 초기화 SQL이다. 로컬은 `LocalDatabaseResetConfiguration`이 마이그레이션 후 실행하고, 테스트는 각 메서드 전에 `@Sql("/cleanup.sql")`로 실행한다. 테이블과 Flyway 기록은 유지한다. |
 | `db/seed/data-local.sql` | 로컬 개발용 공유와 장소 등의 샘플 데이터다. `LocalDataSeeder`가 실행한다. |
 | `db/seed/data-onboarding.sql` | 온보딩 게시물과 장소 데이터다. 로컬은 `LocalDataSeeder`가 실행하고, 서버에는 필요할 때 직접 적용한다. |
@@ -109,7 +118,7 @@ V3__add_member_bio_index.sql
 
 1. 위 규칙에 맞게 다음 버전 파일을 추가하고 변경 SQL을 작성한다. 자기소개 컬럼을 추가하는 SQL 예시는 `ALTER TABLE members ADD COLUMN bio VARCHAR(200);`이다. 현재 앱에 이 컬럼이 추가된 것은 아니다.
 2. 새 구조에 맞게 코드와 시드 SQL을 수정한다. 새 업무 테이블을 추가하면 로컬과 테스트가 함께 쓰는 `src/main/resources/cleanup.sql`에도 정리 대상을 추가한다.
-3. 앱과 관련 테스트를 실행한다. 로컬 DB에 V1 기록이 남아 있으면 V2만 적용하고, 새 테스트 DB에서는 V1과 V2를 모두 적용한다.
+3. 앱과 관련 테스트를 실행한다. 기존 실행 이력이 있는 DB에는 미적용 버전만 적용하고, 빈 테스트 DB에는 V1부터 모든 버전을 적용한다.
 
 로컬은 마이그레이션 후 업무 데이터를 TRUNCATE한다. 버전 SQL에서 넣은 업무 데이터도 이때 지워지므로, 매번 필요한 로컬 샘플은 시드에서 준비한다. 데이터 정리 중 오류가 나면 일부 테이블은 이미 비워졌을 수 있으며, 오류를 해결한 뒤 다시 실행한다.
 
@@ -155,12 +164,15 @@ baseline은 Flyway에 "이 DB는 이미 V1 상태"라고 기록하는 일이다.
 2. 담당자가 실제 테이블 구조와 V1을 비교한다. baseline 등록은 두 구조를 자동으로 비교하지 않는다.
 3. 전용 계정의 접속 범위와 위 권한을 확인하고 서버의 `FLYWAY_*`를 등록한다. 저장된 값으로 새 연결과 실제 테이블 조회를 확인한다.
 4. 배포할 앱을 시작한다. 기존 테이블에 실행 기록이 없으면 baseline 1을 자동 등록하고 V1 SQL은 건너뛴다. V2 이상이 있으면 이어서 적용한다.
-5. `flyway_schema_history`에서 버전 1의 `BASELINE` 기록과 `installed_by`가 전용 계정인지 확인한다. 현재 V1만 포함된 상태에서는 업무 테이블과 기존 데이터를 변경하지 않는다.
+5. `flyway_schema_history`에서 버전 1의 `BASELINE` 기록과 `installed_by`가 전용 계정인지 확인한다. V1만 포함한 배포는 업무 구조를 유지하고, V2 이상의 SQL이 포함된 배포는 baseline 등록 후 해당 변경도 실행한다.
 6. 기존 데이터 보존과 앱의 조회 및 쓰기 동작을 확인한다. 개발 앱 계정에 남아 있는 구조 변경 권한은 이 검증 뒤 DML 네 권한으로 축소한다. 운영 앱 계정은 이미 DML만 허용한다.
 
 별도 baseline 명령은 필요 없으며 `baseline-on-migrate`는 계속 `true`로 유지한다. 이력이 있는 DB는 미적용 버전만 실행하고, 빈 DB는 baseline 등록 없이 V1부터 실행한다. `validate-on-migrate`도 실제 테이블 구조와 V1의 일치 여부를 확인해 주는 설정은 아니다.
 
-`be-dev`와 `be-release`는 코드가 들어오면 자동 배포된다. 위 준비를 마친 뒤 #412를 개발 서버에 먼저 배포해 baseline 1 기록과 기존 데이터 보존, 앱 동작을 확인한다. 개발 서버에서 검증한 이미지를 운영 서버에 배포해 같은 항목을 확인한다. 이후 #297을 배포할 때는 미적용 V2부터 실행한다. #297의 구조 변경과 데이터 이관은 요청과 분석 작업을 잠시 멈춘 뒤 진행한다.
+`be-dev`와 `be-release`는 코드가 들어오면 자동 배포된다. 개발 서버에서 검증한 이미지를 운영으로
+승격하기 전에 위 준비를 확인한다. 운영 첫 Flyway 배포에 V2가 포함되어 있다면 baseline 1 등록 후
+V2부터 미적용 버전을 실행한다. baseline 버전을 2로 올리지 않는다. #297의 구조 변경과 데이터 이관은
+해당 작업에서 정한 배포 절차를 따른다.
 
 ### 4.1 기존 서버와 V1의 구조 비교 결과
 
@@ -231,14 +243,16 @@ ORDER BY installed_rank;
 Docker를 켠 뒤 `Backend` 폴더에서 관련 통합 테스트를 실행할 수 있다.
 
 ```bash
-./gradlew test --tests com.yeogidam.global.migration.FlywayV1IntegrationTest
+./gradlew test --tests com.yeogidam.global.migration.FlywayIntegrationTest
 ```
 
 통합 테스트는 실제 프로필 설정을 읽고, dev/prod에서 DML 앱 계정과 전용 Flyway 계정으로 빈 DB의 V1 적용 및 기존 DB의 baseline과 데이터 보존을 확인한다. 앱 접속 계정과 이력 작성자도 각각 확인한다. 로컬 재시작 시 구조와 기록 보존, 데이터와 ID 초기화도 검증한다.
 
 ## 6. 서버에 새 버전을 적용하는 순서
 
-#412로 서버에 baseline 1을 등록한 뒤부터 V2 이상의 버전 SQL은 개발 서버를 먼저 거쳐 운영 서버에 적용된다. 별도 마이그레이션 명령은 없으며 배포가 새 앱 컨테이너를 시작할 때 Spring Boot가 Flyway를 실행한다.
+V2 이상의 버전 SQL은 개발 서버를 먼저 거쳐 운영 서버에 적용된다. 개발 DB에 baseline 1이 있으면
+미적용 버전만 실행한다. 아직 Flyway 이력이 없는 운영 DB는 최초 배포 시 baseline 1 등록 후
+미적용 버전을 실행한다. 별도 마이그레이션 명령은 없으며 새 앱 컨테이너를 시작할 때 Spring Boot가 Flyway를 실행한다.
 
 6절부터 9절에 적은 오류 문구와 DB 상태는 2026-10-27에 확인했다. PR #430 head(`6a44f9d`)로 만든 bootJar에 예시 버전 파일을 넣고, dev 프로필과 DML 앱 계정, 2.1절과 같은 권한의 `yeogidam_migrator`로 일회용 로컬 MySQL 8.0.46에 띄웠다. bootJar에는 Flyway 12.4.0이 들어 있다. 서버와 같은 MySQL 8.4.11에서는 다시 실행하지 않았고 Docker 컨테이너와 `deploy.sh`도 실행하지 않았다. `deploy.sh`의 동작은 스크립트 코드를 기준으로 적었다.
 

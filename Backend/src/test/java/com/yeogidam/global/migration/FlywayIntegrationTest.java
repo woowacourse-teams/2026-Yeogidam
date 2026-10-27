@@ -1,5 +1,8 @@
 package com.yeogidam.global.migration;
 
+import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -7,9 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.yeogidam.global.seed.LocalDataSeeder;
 import com.yeogidam.global.seed.LocalMemberSeeder;
 import com.yeogidam.support.MySqlContainerSupport;
+import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.flywaydb.core.Flyway;
@@ -27,11 +34,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 
-class FlywayV1IntegrationTest extends MySqlContainerSupport {
+class FlywayIntegrationTest extends MySqlContainerSupport {
 
     @ParameterizedTest
     @ValueSource(strings = {"dev", "prod"})
-    void 앱은_DML_계정으로_접속하고_Flyway는_전용_계정으로_V1을_적용한다(String profile) {
+    void 앱은_DML_계정으로_접속하고_Flyway는_전용_계정으로_미적용_마이그레이션을_적용한다(String profile) {
         // given
         try (IsolatedDatabase database = new IsolatedDatabase("")) {
             // when
@@ -44,17 +51,11 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
                         () -> assertThat(database.jdbc.queryForObject(
                                 "SELECT installed_by FROM flyway_schema_history WHERE version = '1'", String.class))
                                 .startsWith(database.migratorUsername),
-                        () -> assertThat(database.count("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1"))
-                                .isEqualTo(1),
-                        () -> assertThat(database.jdbc.queryForObject(
-                                "SELECT version FROM flyway_schema_history WHERE success = 1", String.class))
-                                .isEqualTo("1"),
+                        () -> assertThat(context.getBean(Flyway.class).info().pending()).isEmpty(),
                         () -> assertThat(database.count("SELECT COUNT(*) FROM media")).isZero(),
                         () -> assertThat(database.count("SELECT COUNT(*) FROM members")).isZero(),
-                        () -> assertThat(database.count("""
-                                SELECT COUNT(*) FROM information_schema.tables
-                                WHERE table_schema = DATABASE() AND table_name = 'extraction_attempts'
-                                """)).isZero()
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folders")).isZero(),
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folder_saved_places")).isZero()
                 );
             }
         }
@@ -74,20 +75,63 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
                     """);
 
             // when
-            for (int run = 0; run < 2; run++) {
-                try (ConfigurableApplicationContext ignored = database.boot(profile)) {
-                    // then
-                    assertAll(
-                            () -> assertThat(database.jdbc.queryForObject("SELECT nickname FROM members WHERE id = 41",
-                                    String.class)).isEqualTo("기존 회원"),
-                            () -> assertThat(database.count("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1"))
-                                    .isEqualTo(1),
-                            () -> assertThat(database.jdbc.queryForObject("SELECT type FROM flyway_schema_history "
-                                    + "WHERE version = '1'", String.class)).isEqualTo("BASELINE"),
-                            () -> assertThat(database.jdbc.queryForObject("SELECT installed_by FROM flyway_schema_history "
-                                    + "WHERE version = '1'", String.class)).startsWith(database.migratorUsername)
-                    );
-                }
+            try (ConfigurableApplicationContext context = database.boot(profile)) {
+                // then
+                assertAll(
+                        () -> assertThat(database.jdbc.queryForObject("SELECT nickname FROM members WHERE id = 41",
+                                String.class)).isEqualTo("기존 회원"),
+                        () -> assertThat(database.jdbc.queryForObject("SELECT type FROM flyway_schema_history "
+                                + "WHERE version = '1'", String.class)).isEqualTo("BASELINE"),
+                        () -> assertThat(database.jdbc.queryForObject("SELECT installed_by FROM flyway_schema_history "
+                                + "WHERE version = '1'", String.class)).startsWith(database.migratorUsername),
+                        () -> assertThat(context.getBean(Flyway.class).info().pending()).isEmpty(),
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folders")).isZero(),
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folder_saved_places")).isZero()
+                );
+            }
+            List<Map<String, Object>> history = database.migrationHistory();
+
+            // when
+            try (ConfigurableApplicationContext context = database.boot(profile)) {
+                // then
+                assertAll(
+                        () -> assertThat(database.migrationHistory()).isEqualTo(history),
+                        () -> assertThat(database.jdbc.queryForObject("SELECT nickname FROM members WHERE id = 41",
+                                String.class)).isEqualTo("기존 회원"),
+                        () -> assertThat(context.getBean(Flyway.class).info().pending()).isEmpty()
+                );
+            }
+        }
+    }
+
+    @Test
+    void V1_이력이_있는_개발_DB에_마이그레이션을_적용해도_기존_보관함을_보존한다() {
+        // given
+        try (IsolatedDatabase database = new IsolatedDatabase("")) {
+            Flyway.configure().dataSource(database.source).target("1").load().migrate();
+            List<Map<String, Object>> history = database.migrationHistory();
+            Instant savedAt = Instant.parse("2026-10-27T00:00:00.123456Z");
+            insertKakaoMember(database.jdbc, 41L, "keep-saved-place", "기존 회원", null, null);
+            insertPlaceWithRequiredColumnsOnly(database.jdbc, 71L, "keep-place", "기존 장소", "서울 성동구",
+                    new BigDecimal("37.5"), new BigDecimal("127.0"));
+            insertSavedPlace(database.jdbc, 91L, 41L, 71L, savedAt);
+
+            // when
+            try (ConfigurableApplicationContext context = database.boot("dev")) {
+                // then
+                assertAll(
+                        () -> assertThat(database.migrationHistory()).containsAll(history),
+                        () -> assertThat(context.getBean(Flyway.class).info().pending()).isEmpty(),
+                        () -> assertThat(database.jdbc.queryForObject("SELECT place_id FROM saved_places WHERE id = 91",
+                                Long.class)).isEqualTo(71L),
+                        () -> assertThat(database.jdbc.queryForObject(
+                                "SELECT last_saved_at FROM saved_places WHERE id = 91", Timestamp.class).toInstant())
+                                .isEqualTo(savedAt),
+                        () -> assertThat(database.jdbc.queryForObject("SELECT name FROM places WHERE id = 71",
+                                String.class)).isEqualTo("기존 장소"),
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folders")).isZero(),
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folder_saved_places")).isZero()
+                );
             }
         }
     }
@@ -102,7 +146,18 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
                 database.jdbc.update("""
                         UPDATE flyway_schema_history SET installed_by = 'first-local-start' WHERE version = '1'
                         """);
+                database.jdbc.update("""
+                        INSERT INTO folders (id, member_id, name, color)
+                        VALUES (51, 1, '로컬 폴더', 'BLUE')
+                        """);
+                Long savedPlaceId = database.jdbc.queryForObject(
+                        "SELECT id FROM saved_places WHERE member_id = 1 ORDER BY id LIMIT 1", Long.class);
+                database.jdbc.update("""
+                        INSERT INTO folder_saved_places (id, folder_id, saved_place_id)
+                        VALUES (61, 51, ?)
+                        """, savedPlaceId);
             }
+            List<Map<String, Object>> history = database.migrationHistory();
 
             // when
             try (ConfigurableApplicationContext ignored = database.boot("local")) {
@@ -111,8 +166,9 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
                         () -> assertThat(database.count("SELECT COUNT(*) FROM members")).isEqualTo(2),
                         () -> assertThat(database.count("SELECT COUNT(*) FROM media")).isEqualTo(8),
                         () -> assertThat(database.count("SELECT COUNT(*) FROM shared_media")).isEqualTo(9),
-                        () -> assertThat(database.count("SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1"))
-                                .isEqualTo(1),
+                        () -> assertThat(database.migrationHistory()).isEqualTo(history),
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folders")).isZero(),
+                        () -> assertThat(database.count("SELECT COUNT(*) FROM folder_saved_places")).isZero(),
                         () -> assertThat(database.jdbc.queryForObject("SELECT installed_by FROM flyway_schema_history "
                                 + "WHERE version = '1'", String.class)).isEqualTo("first-local-start"),
                         () -> assertThat(database.count("""
@@ -123,6 +179,10 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
                 database.jdbc.update("INSERT INTO members (oauth_provider, provider_user_id) VALUES ('KAKAO', 'extra')");
                 assertThat(database.jdbc.queryForObject("SELECT id FROM members WHERE provider_user_id = 'extra'",
                         Long.class)).isEqualTo(3L);
+                database.jdbc.update("""
+                        INSERT INTO folders (member_id, name, color) VALUES (1, '다시 만든 폴더', 'BLUE')
+                        """);
+                assertThat(database.jdbc.queryForObject("SELECT id FROM folders", Long.class)).isEqualTo(1L);
             }
         }
     }
@@ -191,7 +251,7 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
         private final String migratorUsername;
 
         private IsolatedDatabase(String suffix) {
-            schema = "flyway_v1_" + UUID.randomUUID().toString().replace("-", "") + suffix;
+            schema = "flyway_test_" + UUID.randomUUID().toString().replace("-", "") + suffix;
             String baseUrl = "jdbc:mysql://" + MYSQL_CONTAINER.getHost() + ":" + MYSQL_CONTAINER.getMappedPort(3306);
             administrator = new JdbcTemplate(new DriverManagerDataSource(
                     baseUrl + "/mysql", "root", MYSQL_CONTAINER.getPassword()));
@@ -249,6 +309,10 @@ class FlywayV1IntegrationTest extends MySqlContainerSupport {
 
         private int count(String sql) {
             return jdbc.queryForObject(sql, Integer.class);
+        }
+
+        private List<Map<String, Object>> migrationHistory() {
+            return jdbc.queryForList("SELECT * FROM flyway_schema_history ORDER BY installed_rank");
         }
 
         @Override
