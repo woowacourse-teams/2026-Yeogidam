@@ -123,6 +123,7 @@ JDBC 테스트의 정리 SQL은 `ISOLATED`로 별도 트랜잭션에서 실행�
 | `Unknown database 'yeogidam'` | `DB_URL`에 적은 DB가 없음 | URL에 적은 이름으로 DB 생성. 예: `CREATE DATABASE yeogidam;` |
 | 로컬 주소의 DB가 아니라는 초기화 오류 | `DB_URL`이 원격 주소를 가리킴 | `DB_URL`이 `localhost` 등 로컬 주소인지 확인 |
 | Flyway 대상 DB가 다르다는 초기화 오류 | Flyway 스키마 설정이 접속 DB와 다름 | Flyway의 `schemas`, `default-schema`를 따로 지정했다면 `DB_URL`의 DB와 일치시키거나 해당 설정을 제거 |
+| 브랜치를 바꾼 뒤 `Migration checksum mismatch`, `Unknown column`, `Detected applied migration not resolved locally` | 다른 브랜치에서 실행한 버전 SQL이 로컬 DB의 구조와 실행 기록에 남음 | 로컬 DB를 지우고 다시 만든 뒤 실행. 예: `DROP DATABASE yeogidam; CREATE DATABASE yeogidam;` |
 | 테이블은 있는데 데이터가 없음 | local이 아닌 프로필로 뜸 | 기동 로그의 프로필 확인 |
 | 로그인은 되는데 보관함이 빈 배열 | `.env`의 `SEED_KAKAO_USER_ID_*`가 비었거나 내 회원번호가 아님 | 2.2절 |
 | 로그인이 401 `INVALID_CREDENTIAL` | 인가 코드를 두 번 씀, 또는 리다이렉트 URI 불일치 | 인가 코드 새로 받기 |
