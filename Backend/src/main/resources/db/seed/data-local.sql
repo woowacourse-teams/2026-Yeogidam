@@ -1,6 +1,6 @@
--- 로컬 실행용 데이터. 기동마다 schema.sql이 테이블을 새로 만든 뒤 실행된다.
+-- 로컬 실행용 데이터. 새 Flyway 마이그레이션을 적용하고 업무 데이터를 TRUNCATE한 뒤 실행한다.
 -- 회원 행은 여기 없다. 카카오 회원번호는 환경변수라 LocalMemberSeeder가 .env의 SEED_KAKAO_USER_ID_BEAN(회원 1 정콩), SEED_KAKAO_USER_ID_LUCKY(회원 2 러키)로 넣는다.
--- 이 파일이 먼저 실행되고 회원은 그 뒤에 들어가므로 FK 검사를 잠시 끄고 넣는다.
+-- LocalMemberSeeder가 먼저 회원을 넣으므로 FK 검사를 켠 상태로 실행한다.
 
 -- 시각 리터럴은 UTC 기준이다. 애플리케이션은 connectionTimeZone=UTC와 forceConnectionTimeZoneToSession=true로 연결된다.
 -- 화면에 KST 기준 시각을 보여주려면, sql에 값 작성 시 KST 시간에서 9시간을 빼서 작성한다. (예: 12:00 KST -> 03:00 UTC)
@@ -14,7 +14,6 @@
 --   보관함: 정콩 카페 온월, 블루보틀 성수 카페 / 러키 카페 온월, 성수 베이커리, 망원한강공원
 --   추출은 성공했는데 보관함에 없는 장소(정콩의 경복궁, 성수 베이커리, 을지로 노가리골목 / 러키의 블루보틀 성수 카페, 광장시장, 북촌 한옥마을)는 자동 저장 뒤 보관함에서 지운 것으로 본다.
 
-SET FOREIGN_KEY_CHECKS = 0;
 
 -- 장소 사전 (공용)
 INSERT INTO places (id, kakao_place_id, name, category, land_lot_address, road_address, latitude, longitude,
@@ -108,5 +107,3 @@ VALUES (1, 1, 102, '2026-09-12 12:00:00'),
 -- 제보 (분석이 실패한 공유를 사용자가 제보)
 INSERT INTO shared_media_reports (id, shared_media_id, created_at)
 VALUES (1, 104, '2026-09-14 10:05:00');
-
-SET FOREIGN_KEY_CHECKS = 1;

@@ -6,10 +6,17 @@ spring:
   profiles:
     default: local
 
-  # schema.sql이 DROP TABLE로 시작하므로 공통 기본값은 never다. local과 test만 always로 켠다.
+  # 서버 시작 시 Flyway가 아직 적용하지 않은 버전 파일을 실행한다.
   sql:
     init:
       mode: never
+
+  flyway:
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: true
+    clean-disabled: true
 
   datasource:
     url: ${DB_URL}
@@ -50,8 +57,8 @@ jwt:
   access-token-ttl: 30m
   refresh-token-ttl: 30d
 
-# 온보딩에 쓰는 게시물. local은 data-onboarding.sql이 자동으로 넣고, dev와 prod에는 같은 파일을 데이터베이스에 직접 적용한다.
-# 바꿀 때는 이 값, data-onboarding.sql, FE 번들의 kakaoPlaceId를 함께 고치고 dev와 prod에는 파일을 다시 넣는다.
+# 온보딩에 쓰는 게시물. local은 db/seed/data-onboarding.sql이 자동으로 넣고, dev와 prod에는 같은 파일을 데이터베이스에 직접 적용한다.
+# 바꿀 때는 이 값, db/seed/data-onboarding.sql, FE 번들의 kakaoPlaceId를 함께 고치고 dev와 prod에는 파일을 다시 넣는다.
 onboarding:
   instagram-url: https://www.instagram.com/p/Db4gRWqkuUg/
 

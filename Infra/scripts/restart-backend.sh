@@ -32,6 +32,13 @@ fail() { printf '[restart-backend] 오류: %s\n' "$*" >&2; exit 1; }
 # awslogs 드라이버가 컨테이너를 못 띄우므로 먼저 거른다.
 PROFILE="$(grep -E '^SPRING_PROFILES_ACTIVE=' "$ENV_FILE" | tail -n 1 | cut -d= -f2 || true)"
 [[ "$PROFILE" =~ ^(dev|prod)$ ]] || fail "SPRING_PROFILES_ACTIVE가 dev나 prod가 아닙니다: '$PROFILE'"
+
+# current 이미지는 Flyway 전용 계정으로 시작하므로(#412) 두 값이 비어 있으면 앱이 뜨지 못한다. 이 스크립트에는
+# 롤백이 없으니 기존 컨테이너를 지우기 전에 deploy.sh와 같은 기준(마지막 중복 키, 공백만 있으면 빈 값)으로 확인한다.
+for key in FLYWAY_USERNAME FLYWAY_PASSWORD; do
+  value="$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- || true)"
+  [[ -n "${value//[[:space:]]/}" ]] || fail "${ENV_FILE}에 ${key}이 없거나 비어 있습니다."
+done
 docker image inspect "$IMAGE" >/dev/null 2>&1 || fail "이미지 $IMAGE 가 없습니다. 배포가 한 번은 돌았어야 합니다."
 
 log "프로필 $PROFILE, 이미지 $(docker image inspect "$IMAGE" --format '{{.Id}}' | cut -c8-19)"
