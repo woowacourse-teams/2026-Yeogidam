@@ -109,11 +109,11 @@ cd Backend
 3. 각 테스트 메서드 실행 전에 `JdbcTestSupport`, `IntegrationTestSupport`, `E2eTestSupport`의 `@Sql("/cleanup.sql")`이 로컬과 같은 `src/main/resources/cleanup.sql`을 실행한다. TRUNCATE로 업무 데이터와 자동 증가 ID를 초기화하며, 테이블 구조와 `flyway_schema_history`는 유지한다.
 4. 테스트가 필요한 데이터를 넣고 검증한다. 다음 테스트에서는 3번부터 반복한다.
 
-`application-test.yml`의 `spring.flyway.enabled: false`는 Spring Boot의 자동 실행만 끈다. 공통 지원 코드가 이미 직접 실행했으므로, 스프링 테스트 환경을 여러 번 만들어도 같은 DB에 마이그레이션을 다시 요청하지 않도록 한다. V2가 추가되면 다음 테스트 실행의 새 컨테이너에서 V1, V2를 순서대로 실행한다.
+`application-test.yml`의 `spring.flyway.enabled: false`는 Spring Boot의 자동 실행만 끈다. 공통 지원 코드가 이미 직접 실행했으므로, 스프링 테스트 환경을 여러 번 만들어도 같은 DB에 마이그레이션을 다시 요청하지 않도록 한다. 새 컨테이너에서는 V1부터 V3까지 순서대로 실행하고, 이후 버전이 추가되면 다음 실행에 함께 적용한다.
 
 JDBC 테스트의 정리 SQL은 `ISOLATED`로 별도 트랜잭션에서 실행하고, 테스트 본문에서 변경한 데이터는 종료 시 롤백한다. E2E는 서버 요청이 데이터를 실제 저장하므로 각 테스트 전 TRUNCATE로 정리한다. 테스트 실행 프로세스가 끝나면 컨테이너도 정리한다.
 
-테스트 데이터는 `support/fixture/sql`의 `MemberSqlFixture` 같은 클래스나 테스트 코드의 INSERT로 준비한다. local의 회원 시드와 두 시드 SQL 파일은 자동 실행하지 않는다. DB를 사용하지 않는 단위 테스트에는 이 과정이 없다. Flyway 동작 자체를 검증하는 `FlywayV1IntegrationTest`는 별도의 격리 DB를 만들어 local, dev, prod 시작 동작도 확인한다.
+테스트 데이터는 `support/fixture/sql`의 `MemberSqlFixture` 같은 클래스나 테스트 코드의 INSERT로 준비한다. local의 회원 시드와 두 시드 SQL 파일은 자동 실행하지 않는다. DB를 사용하지 않는 단위 테스트에는 이 과정이 없다. Flyway 동작 자체를 검증하는 `FlywayIntegrationTest`는 별도의 격리 DB를 만들어 local, dev, prod 시작 동작도 확인한다.
 
 ## 5. 자주 발생하는 오류
 
