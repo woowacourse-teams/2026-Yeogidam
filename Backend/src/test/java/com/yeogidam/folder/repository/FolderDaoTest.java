@@ -6,8 +6,12 @@ import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMembe
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.folder.domain.Folder;
+import com.yeogidam.folder.domain.FolderColor;
+import com.yeogidam.folder.domain.FolderName;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -15,10 +19,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 폴더 목록 조회와 삭제가 실제 MySQL에서 회원 조건, 정렬, 읽은 값, 연결 삭제까지 맞게 동작하는지 검증한다.
+ * 폴더 조회, 수정, 삭제가 실제 MySQL에서 회원 조건, 정렬, 읽은 값, 이름 중복, 연결 삭제까지 맞게 동작하는지 검증한다.
  * 행은 SQL fixture로 given에서 직접 넣는다.
  */
 @Import(FolderDao.class)
@@ -76,6 +81,68 @@ class FolderDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 내_폴더를_식별자로_읽는다() {
+        // given
+        insertMember(1L, "user-1");
+        insertFolder(jdbcTemplate, 1L, 1L, "데이트 장소", "RED");
+
+        // when
+        Folder folder = folderDao.findByMemberAndId(1L, 1L)
+                .orElseThrow();
+
+        // then
+        assertAll(
+                () -> assertThat(folder.getId()).isEqualTo(1L),
+                () -> assertThat(folder.getName()).isEqualTo(new FolderName("데이트 장소")),
+                () -> assertThat(folder.getColor()).isEqualTo(FolderColor.RED)
+        );
+    }
+
+    @Test
+    void 없는_폴더나_남의_폴더는_읽지_않는다() {
+        // given: 회원 1은 폴더 1을, 회원 2는 폴더 2를 가졌다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertFolder(jdbcTemplate, 1L, 1L, "데이트 장소", "RED");
+        insertFolder(jdbcTemplate, 2L, 2L, "남의 폴더", "PINK");
+
+        // when & then
+        assertAll(
+                () -> assertThat(folderDao.findByMemberAndId(1L, 999L)).isEmpty(),
+                () -> assertThat(folderDao.findByMemberAndId(1L, 2L)).isEmpty()
+        );
+    }
+
+    @Test
+    void 폴더_이름과_색을_바꾼다() {
+        // given: 회원 1이 폴더 1(데이트 장소, RED)을 가졌다
+        insertMember(1L, "user-1");
+        insertFolder(jdbcTemplate, 1L, 1L, "데이트 장소", "RED");
+
+        // when
+        folderDao.update(1L, new Folder(1L, new FolderName("데이트 코스"), FolderColor.PINK));
+
+        // then
+        assertAll(
+                () -> assertThat(readName(1L)).isEqualTo("데이트 코스"),
+                () -> assertThat(readColor(1L)).isEqualTo("PINK")
+        );
+    }
+
+    @Test
+    void 같은_회원의_다른_폴더와_이름이_겹치면_예외가_발생한다() {
+        // given: 회원 1은 폴더 1(데이트 장소)과 폴더 2(성수 카페)를 가졌고, 폴더 2의 이름을 데이트 장소로 바꾸려 한다
+        insertMember(1L, "user-1");
+        insertFolder(jdbcTemplate, 1L, 1L, "데이트 장소", "RED");
+        insertFolder(jdbcTemplate, 2L, 1L, "성수 카페", "TEAL");
+        Folder renamed = new Folder(2L, new FolderName("데이트 장소"), FolderColor.TEAL);
+
+        // when & then
+        assertThatThrownBy(() -> folderDao.update(1L, renamed))
+                .isInstanceOf(DuplicateKeyException.class);
+    }
+
+    @Test
     void 폴더를_지우면_담긴_연결만_지워지고_보관함_장소는_남는다() {
         // given: 회원 1이 장소 1을 보관함 11로 저장하고 폴더 1에 담았다
         insertMember(1L, "user-1");
@@ -115,6 +182,14 @@ class FolderDaoTest extends JdbcTestSupport {
                 () -> assertThat(deletedOthers).isZero(),
                 () -> assertThat(count("folders")).isEqualTo(2)
         );
+    }
+
+    private String readName(Long folderId) {
+        return jdbcTemplate.queryForObject("SELECT name FROM folders WHERE id = ?", String.class, folderId);
+    }
+
+    private String readColor(Long folderId) {
+        return jdbcTemplate.queryForObject("SELECT color FROM folders WHERE id = ?", String.class, folderId);
     }
 
     private int count(String fromWhere) {

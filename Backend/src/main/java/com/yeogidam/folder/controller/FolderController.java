@@ -1,13 +1,17 @@
 package com.yeogidam.folder.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
+import com.yeogidam.folder.dto.request.FolderUpdateRequest;
 import com.yeogidam.folder.dto.response.FolderResponses;
 import com.yeogidam.folder.service.FolderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -24,6 +28,16 @@ public class FolderController implements FolderApiDocs {
         FolderResponses response = folderService.readFolders(memberId);
         return ResponseEntity.ok()
                 .body(response);
+    }
+
+    @Override
+    @PatchMapping("/{folderId}")
+    public ResponseEntity<Void> updateFolder(@LoginMember Long memberId,
+                                             @PathVariable Long folderId,
+                                             @Valid @RequestBody FolderUpdateRequest request) {
+        folderService.updateFolder(memberId, folderId, request);
+        return ResponseEntity.noContent()
+                .build();
     }
 
     @Override

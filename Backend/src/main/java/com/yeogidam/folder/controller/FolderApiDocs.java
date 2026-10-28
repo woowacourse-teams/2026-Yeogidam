@@ -1,5 +1,6 @@
 package com.yeogidam.folder.controller;
 
+import com.yeogidam.folder.dto.request.FolderUpdateRequest;
 import com.yeogidam.folder.dto.response.FolderResponses;
 import com.yeogidam.global.dto.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,6 +57,58 @@ public interface FolderApiDocs {
                                     }))
             })
     ResponseEntity<FolderResponses> readFolders(Long memberId);
+
+    @Operation(summary = "폴더 수정",
+            description = """
+                    폴더 수정 창에서 폴더 이름과 색을 함께 바꿉니다.
+
+                    - `name`과 `color`를 모두 보내야 합니다.
+                    - 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하이고, 같은 회원의 다른 폴더와 겹칠 수 없습니다.
+                    - 이름은 그대로 두고 색만 바꿔도 됩니다.
+                    - `color`는 `RED`, `ORANGE`, `YELLOW`, `GREEN`, `TEAL`, `PURPLE`, `PINK` 중 하나이고, 대소문자를 구분합니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "수정을 완료했습니다."),
+                    @ApiResponse(responseCode = "400", description = "요청 값이 규칙에 맞지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "FOLDER400_002", description = "이름이 공백뿐이거나 15자를 넘을 때 돌려줍니다.",
+                                                    value = """
+                                                    {"message": "폴더 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다.", "errorCode": "FOLDER400_002"}
+                                                    """),
+                                            @ExampleObject(name = "COMMON400_001", description = "`name`이나 `color`가 없을 때 돌려줍니다.",
+                                                    value = """
+                                                    {"message": "유효하지 않은 요청 필드입니다.", "errorCode": "COMMON400_001"}
+                                                    """),
+                                            @ExampleObject(name = "FOLDER400_003", description = "`color`가 정해진 7가지가 아니거나 소문자가 섞였을 때 돌려줍니다.",
+                                                    value = """
+                                                    {"message": "color는 RED, ORANGE, YELLOW, GREEN, TEAL, PURPLE, PINK 중 하나여야 합니다.", "errorCode": "FOLDER400_003"}
+                                                    """)
+                                    })),
+                    @ApiResponse(responseCode = "404", description = "없는 폴더이거나 남의 폴더입니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "FOLDER404_001",
+                                            value = """
+                                            {"message": "폴더를 찾을 수 없습니다.", "errorCode": "FOLDER404_001"}
+                                            """))),
+                    @ApiResponse(responseCode = "409", description = "같은 회원의 다른 폴더와 이름이 겹칩니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "FOLDER409_001",
+                                            value = """
+                                            {"message": "같은 이름의 폴더가 이미 있습니다.", "errorCode": "FOLDER409_001"}
+                                            """))),
+                    @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<Void> updateFolder(Long memberId,
+                                      @Parameter(description = "폴더 id(folders.id)", example = "1")
+                                      Long folderId,
+                                      FolderUpdateRequest request);
 
     @Operation(summary = "폴더 삭제",
             description = """

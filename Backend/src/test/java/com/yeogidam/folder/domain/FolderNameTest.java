@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.yeogidam.folder.exception.FolderErrorCode;
+import com.yeogidam.folder.exception.FolderException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullSource;
@@ -32,8 +34,9 @@ class FolderNameTest {
     void 이름이_15자를_넘으면_예외가_발생한다() {
         // when & then
         assertThatThrownBy(() -> new FolderName("가나다라마바사아자차카타파하가나"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("폴더 이름은 15자를 넘을 수 없습니다: 가나다라마바사아자차카타파하가나");
+                .isInstanceOf(FolderException.class)
+                .extracting("errorCode")
+                .isEqualTo(FolderErrorCode.INVALID_FOLDER_NAME);
     }
 
     @ParameterizedTest
@@ -41,7 +44,8 @@ class FolderNameTest {
     @ValueSource(strings = {"", " ", "　"})
     void 이름이_없거나_공백뿐이면_예외가_발생한다(String value) {
         assertThatThrownBy(() -> new FolderName(value))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("폴더 이름이 비어 있습니다.");
+                .isInstanceOf(FolderException.class)
+                .extracting("errorCode")
+                .isEqualTo(FolderErrorCode.INVALID_FOLDER_NAME);
     }
 }

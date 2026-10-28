@@ -1,6 +1,10 @@
 package com.yeogidam.folder.repository;
 
+import com.yeogidam.folder.domain.Folder;
+import com.yeogidam.folder.domain.FolderColor;
+import com.yeogidam.folder.domain.FolderName;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -15,6 +19,13 @@ public class FolderDao {
                     resultSet.getLong("folder_id"),
                     resultSet.getString("name"),
                     resultSet.getString("color")
+            );
+
+    private static final RowMapper<Folder> FOLDER_ROW_MAPPER = (resultSet, rowNumber) ->
+            new Folder(
+                    resultSet.getLong("id"),
+                    new FolderName(resultSet.getString("name")),
+                    FolderColor.valueOf(resultSet.getString("color"))
             );
 
     private final JdbcTemplate jdbcTemplate;
@@ -32,6 +43,37 @@ public class FolderDao {
                 ORDER BY id
                 """;
         return jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, memberId);
+    }
+
+    /**
+     * 회원의 폴더 하나를 도메인 객체로 읽고, 없는 폴더나 남의 폴더면 빈 값을 돌려준다.
+     */
+    public Optional<Folder> findByMemberAndId(Long memberId, Long folderId) {
+        String sql = """
+                SELECT id,
+                       name,
+                       color
+                FROM folders
+                WHERE member_id = ?
+                  AND id = ?
+                """;
+        return jdbcTemplate.query(sql, FOLDER_ROW_MAPPER, memberId, folderId)
+                .stream()
+                .findFirst();
+    }
+
+    /**
+     * 회원의 폴더 이름과 색을 바꾸며, 같은 회원의 다른 폴더와 이름이 겹치면 UNIQUE 제약(uk_folders_member_name)에 걸려 DuplicateKeyException이 난다.
+     */
+    public void update(Long memberId, Folder folder) {
+        String sql = """
+                UPDATE folders
+                SET name = ?,
+                    color = ?
+                WHERE member_id = ?
+                  AND id = ?
+                """;
+        jdbcTemplate.update(sql, folder.getName().value(), folder.getColor().name(), memberId, folder.getId());
     }
 
     /**
