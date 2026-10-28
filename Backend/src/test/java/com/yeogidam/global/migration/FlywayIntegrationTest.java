@@ -30,6 +30,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
@@ -148,7 +149,7 @@ class FlywayIntegrationTest extends MySqlContainerSupport {
                         """);
                 database.jdbc.update("""
                         INSERT INTO folders (id, member_id, name, color)
-                        VALUES (51, 1, '로컬 폴더', 'BLUE')
+                        VALUES (51, 1, '로컬 폴더', 'RED')
                         """);
                 Long savedPlaceId = database.jdbc.queryForObject(
                         "SELECT id FROM saved_places WHERE member_id = 1 ORDER BY id LIMIT 1", Long.class);
@@ -180,10 +181,26 @@ class FlywayIntegrationTest extends MySqlContainerSupport {
                 assertThat(database.jdbc.queryForObject("SELECT id FROM members WHERE provider_user_id = 'extra'",
                         Long.class)).isEqualTo(3L);
                 database.jdbc.update("""
-                        INSERT INTO folders (member_id, name, color) VALUES (1, '다시 만든 폴더', 'BLUE')
+                        INSERT INTO folders (member_id, name, color) VALUES (1, '다시 만든 폴더', 'RED')
                         """);
                 assertThat(database.jdbc.queryForObject("SELECT id FROM folders", Long.class)).isEqualTo(1L);
             }
+        }
+    }
+
+    @Test
+    void V4를_적용한_뒤_폴더_색에_BLUE를_넣으면_예외가_발생한다() {
+        // given: 2.2.0 화면의 폴더 색은 RED, ORANGE, YELLOW, GREEN, TEAL, PURPLE, PINK 7가지이고 BLUE는 없다.
+        try (IsolatedDatabase database = new IsolatedDatabase("")) {
+            Flyway.configure().dataSource(database.source).load().migrate();
+            database.jdbc.update("INSERT INTO members (id, oauth_provider, provider_user_id) VALUES (41, 'KAKAO', 'keep')");
+
+            // when & then
+            assertThatThrownBy(() -> database.jdbc.update("""
+                    INSERT INTO folders (member_id, name, color) VALUES (41, '파랑 폴더', 'BLUE')
+                    """))
+                    .isInstanceOf(DataAccessException.class)
+                    .hasMessageContaining("chk_folders_color");
         }
     }
 
