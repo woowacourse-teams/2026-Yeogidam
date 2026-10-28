@@ -28,6 +28,7 @@ import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
 import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.MapView
+import com.kakao.vectormap.PoiCategory
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.Label
 import com.kakao.vectormap.label.LabelOptions
@@ -180,6 +181,15 @@ class KakaoMapView(
                     // and finish it explicitly when this view is dropped.
                     nativeMapView.setFinishManually(true)
                     kakaoMap = map
+                    // 기본 지도의 가게 정보만 숨깁니다. 지하철역·지명·도로 같은 길 찾기 정보는 남깁니다.
+                    listOf(
+                        PoiCategory.PLACE,
+                        PoiCategory.BRAND,
+                        PoiCategory.FACILITIES,
+                        PoiCategory.INDOOR_PLACE,
+                        PoiCategory.DETAIL_CATEGORY,
+                    ).forEach { map.setVisiblePoiCategory(it, false) }
+                    map.setPoiClickable(false)
                     applyCameraPadding()
                     map.setOnLabelClickListener { _, _, label ->
                         val placeId = label.tag as? String ?: return@setOnLabelClickListener false

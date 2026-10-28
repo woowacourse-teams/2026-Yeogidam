@@ -200,7 +200,15 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     viewInfoName: String
   ) {
     mapAdded = true
-    (mapController?.getView("mapview") as? KakaoMap)?.eventDelegate = self
+    if let kakaoMap = mapController?.getView("mapview") as? KakaoMap {
+      kakaoMap.eventDelegate = self
+      // 기본 지도의 가게 정보만 숨깁니다. 지하철역·지명·도로 같은 길 찾기 정보는 남깁니다.
+      let shopCategories: [LabelCategory] = [
+        .place, .brand, .facilities, .indoor_Place, .detail_Category,
+      ]
+      shopCategories.forEach { kakaoMap.setLabelCategoryVisible(category: $0, visible: false) }
+      kakaoMap.poiClickable = false
+    }
     containerDidResized(mapContainer.bounds.size)
     moveCameraIfPossible()
     requestCurrentLocationIfNeeded()
