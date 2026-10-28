@@ -11,6 +11,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  Alert,
   Animated,
   FlatList,
   LayoutAnimation,
@@ -47,7 +48,6 @@ import {
   SEARCH_BAR_TOP_GAP,
 } from '../../../components/SearchBar';
 import { CopyToastProvider } from '../../place-detail/components/CopyToast';
-import { PlaceDetailActionSheet } from '../../place-detail/components/PlaceDetailActionSheet';
 import type { PlaceTab } from '../../place-detail/components/PlaceTabs';
 import {
   CATEGORY_CHIPS_HEIGHT,
@@ -103,7 +103,6 @@ type PlaceResultSheetProps = {
   openPlaceId?: string;
   openPlaceSignal?: number;
   backToPlaceListSignal?: number;
-  detailMoreSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
   onAuthenticationRequired?: () => void;
   onGuestExpandInteraction?: () => void;
@@ -171,7 +170,6 @@ export function PlaceResultSheet({
   openPlaceId,
   openPlaceSignal = 0,
   backToPlaceListSignal = 0,
-  detailMoreSignal = 0,
   onDetailViewChange,
   onAuthenticationRequired,
   onGuestExpandInteraction,
@@ -192,7 +190,6 @@ export function PlaceResultSheet({
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(false);
-  const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
     null,
@@ -262,7 +259,6 @@ export function PlaceResultSheet({
   const handledExpandSignal = useRef(expandSignal);
   const handledOpenPlaceSignal = useRef(openPlaceSignal);
   const handledBackToPlaceListSignal = useRef(backToPlaceListSignal);
-  const handledDetailMoreSignal = useRef(detailMoreSignal);
   const capturedPlaceViewIdRef = useRef<string | null>(null);
   const isPageModeRef = useRef(false);
   const resultsScrollOffsetRef = useRef(0);
@@ -774,8 +770,6 @@ export function PlaceResultSheet({
   };
 
   const backToPlaceList = useCallback(() => {
-    setIsActionSheetVisible(false);
-
     // If the detail was expanded after it opened from a shorter list sheet,
     // the first back action only restores the detail to that prior height.
     if (activeSnapIndex === 0 && detailEntrySnapIndex.current !== 0) {
@@ -815,27 +809,12 @@ export function PlaceResultSheet({
     backToPlaceList();
   }, [backToPlaceList, backToPlaceListSignal]);
 
-  useEffect(() => {
-    if (
-      detailMoreSignal === handledDetailMoreSignal.current ||
-      !selectedPlace ||
-      !canOpenDetailMore
-    ) {
-      return;
-    }
-
-    handledDetailMoreSignal.current = detailMoreSignal;
-    setDeleteError(null);
-    setIsActionSheetVisible(true);
-  }, [canOpenDetailMore, detailMoreSignal, selectedPlace]);
-
   const handleDelete = useCallback(async () => {
     if (isDeleting || !selectedPlace) {
       return;
     }
     if (onDeleteGuestPlaces) {
       onDeleteGuestPlaces([selectedPlace.id]);
-      setIsActionSheetVisible(false);
       backToPlaceList();
       return;
     }
@@ -892,6 +871,36 @@ export function PlaceResultSheet({
     selectedPlace,
   ]);
 
+  // 삭제 전에 보관함과 같은 문구로 한 번 더 확인합니다.
+  const confirmDelete = useCallback(() => {
+    if (isDeleting || !selectedPlace) {
+      return;
+    }
+    Alert.alert(
+      '선택한 장소를 삭제할까요?',
+      '선택한 1곳의 장소가 보관함에서 삭제됩니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: () => {
+            handleDelete().catch(() => undefined);
+          },
+        },
+      ],
+    );
+  }, [handleDelete, isDeleting, selectedPlace]);
+
+  // 삭제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
+  useEffect(() => {
+    if (!deleteError) {
+      return;
+    }
+    Alert.alert('삭제하지 못했어요', deleteError.message);
+    setDeleteError(null);
+  }, [deleteError]);
+
   const swipeCollapsesDetail =
     selectedPlace !== null &&
     activeSnapIndex === 0 &&
@@ -944,14 +953,14 @@ export function PlaceResultSheet({
             actionsUnderTitle={snapIndex === 2}
             titleInHeader
             onInteractivePressIn={ignoreCollapsedBodyTapOnPressIn}
-            onPressMore={
-              canOpenDetailMore
-                ? () => {
-                    setDeleteError(null);
-                    setIsActionSheetVisible(true);
-                  }
+            onPressFolder={
+              onEditPlaceFolders
+                ? () => onEditPlaceFolders(selectedPlace)
                 : undefined
             }
+            onPressDelete={canOpenDetailMore ? confirmDelete : undefined}
+            isInFolder={getPlaceFoldersLabel?.(selectedPlace) === '폴더 수정'}
+            isDeleting={isDeleting}
             headerTopInset={0}
             compactHeader
             scrollEnabled={snapIndex !== 2}
@@ -960,27 +969,6 @@ export function PlaceResultSheet({
                 ? Math.max(DETAIL_PAGE_BOTTOM_PADDING, bottomTabOffset + 12)
                 : DETAIL_ACTION_BOTTOM_PADDING
             }
-          />
-          <PlaceDetailActionSheet
-            visible={!preview && isActionSheetVisible && canOpenDetailMore}
-            onClose={() => {
-              setDeleteError(null);
-              setIsActionSheetVisible(false);
-            }}
-            onDelete={handleDelete}
-            onEditFolders={
-              onEditPlaceFolders && selectedPlace
-                ? () => {
-                    setIsActionSheetVisible(false);
-                    onEditPlaceFolders(selectedPlace);
-                  }
-                : undefined
-            }
-            editFoldersLabel={
-              selectedPlace ? getPlaceFoldersLabel?.(selectedPlace) : undefined
-            }
-            isDeleting={isDeleting}
-            deleteError={deleteError}
           />
         </CopyToastProvider>
       </View>
@@ -1258,7 +1246,7 @@ export function PlaceResultSheet({
           else onPageBack?.();
           completingPageSwipe.current = false;
         }}
-        enabled={isActive && !isActionSheetVisible}
+        enabled={isActive}
         screens={[
           ...(hasStateBack
             ? [
