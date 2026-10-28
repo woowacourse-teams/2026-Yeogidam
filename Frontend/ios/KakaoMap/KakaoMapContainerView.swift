@@ -767,7 +767,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
 
     let iconStyle = PoiIconStyle(
       symbol: makeColoredPlaceMarker(color: color, selected: selected, icon: icon),
-      anchorPoint: CGPoint(x: 0.5, y: 1.0),
+      anchorPoint: CGPoint(x: 0.5, y: 0.5),
       transition: PoiTransition(entrance: .scale, exit: .scale)
     )
     labelManager.addPoiStyle(
@@ -776,28 +776,40 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     coloredPlaceStyleIDs.insert(styleID)
   }
 
-  // 색 핀: 색 원 + 아래쪽 뾰족한 꼬리 + 흰 중심점.
-  // 카테고리 아이콘(흰색)이 있으면 흰 중심점 대신 색 원 위에 아이콘을 비율 그대로 얹습니다.
+  // 색 핀: 흰 테두리와 옅은 그림자가 있는 색 원. 기준점은 원 중심입니다.
+  // 카테고리 아이콘(흰색)이 있으면 원 안에 비율 그대로 얹고, 없으면 흰 점을 찍습니다.
   private func makeColoredPlaceMarker(color: UIColor, selected: Bool, icon: UIImage?) -> UIImage {
-    let size = selected ? CGSize(width: 34, height: 42) : CGSize(width: 28, height: 36)
-    return UIGraphicsImageRenderer(size: size).image { _ in
-      let radius = size.width / 2 - 1.5
-      let center = CGPoint(x: size.width / 2, y: radius + 1.5)
-      let path = UIBezierPath(arcCenter: center, radius: radius, startAngle: .pi * 0.8, endAngle: .pi * 0.2, clockwise: true)
-      path.addLine(to: CGPoint(x: size.width / 2, y: size.height - 1))
-      path.close()
+    let diameter: CGFloat = selected ? 26 : 20
+    let border: CGFloat = 2
+    let shadowBlur: CGFloat = 2
+    let padding = shadowBlur + 1
+    let size = CGSize(width: diameter + padding * 2, height: diameter + padding * 2)
+    return UIGraphicsImageRenderer(size: size).image { context in
+      let center = CGPoint(x: size.width / 2, y: size.height / 2)
+      func circle(_ radius: CGFloat) -> UIBezierPath {
+        UIBezierPath(ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+      }
+
+      context.cgContext.saveGState()
+      context.cgContext.setShadow(
+        offset: CGSize(width: 0, height: 0.5),
+        blur: shadowBlur,
+        color: UIColor.black.withAlphaComponent(0.25).cgColor
+      )
+      UIColor.white.setFill()
+      circle(diameter / 2).fill()
+      context.cgContext.restoreGState()
+
+      let radius = diameter / 2 - border
       color.setFill()
-      path.fill()
-      UIColor.white.setStroke()
-      path.lineWidth = 2
-      path.stroke()
+      circle(radius).fill()
+
       UIColor.white.setFill()
       guard let icon, icon.size.width > 0, icon.size.height > 0 else {
-        let dot = radius * 0.42
-        UIBezierPath(ovalIn: CGRect(x: center.x - dot, y: center.y - dot, width: dot * 2, height: dot * 2)).fill()
+        circle(radius * 0.42).fill()
         return
       }
-      let box = radius * 1.2
+      let box = radius * 1.25
       let scale = box / max(icon.size.width, icon.size.height)
       let iconSize = CGSize(width: icon.size.width * scale, height: icon.size.height * scale)
       icon.draw(in: CGRect(

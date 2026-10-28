@@ -447,7 +447,7 @@ class KakaoMapView(
                             iconResource?.let { ContextCompat.getDrawable(context, it) },
                         ),
                     )
-                    .setAnchorPoint(0.5f, 1.0f)
+                    .setAnchorPoint(0.5f, 0.5f)
                     .setIconTransition(
                         LabelTransition
                             .from(Transition.Scale, Transition.Scale)
@@ -457,48 +457,43 @@ class KakaoMapView(
         }
     }
 
-    // 색 원 + 아래쪽 뾰족한 꼬리 + 흰 중심점으로 그린 핀입니다.
-    // 카테고리 아이콘(흰색)이 있으면 흰 중심점 대신 색 원 위에 아이콘을 비율 그대로 얹습니다.
+    // 흰 테두리와 옅은 그림자가 있는 색 원 핀입니다. 기준점은 원 중심입니다.
+    // 카테고리 아이콘(흰색)이 있으면 원 안에 비율 그대로 얹고, 없으면 흰 점을 찍습니다.
     private fun createColoredPlaceMarker(color: Int, selected: Boolean, icon: Drawable?): Bitmap {
         val density = resources.displayMetrics.density
-        val width = ((if (selected) 34 else 28) * density).roundToInt()
-        val height = ((if (selected) 42 else 36) * density).roundToInt()
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val diameter = (if (selected) 26 else 20) * density
+        val border = 2 * density
+        val shadowBlur = 2 * density
+        val padding = shadowBlur + density
+        val size = (diameter + padding * 2).roundToInt()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val strokeWidth = 2 * density
-        val radius = width / 2f - strokeWidth
-        val centerX = width / 2f
-        val centerY = radius + strokeWidth
-        val path = android.graphics.Path().apply {
-            addCircle(centerX, centerY, radius, android.graphics.Path.Direction.CW)
-            moveTo(centerX - radius * 0.62f, centerY + radius * 0.78f)
-            lineTo(centerX, height - strokeWidth)
-            lineTo(centerX + radius * 0.62f, centerY + radius * 0.78f)
-            close()
-        }
-        paint.style = Paint.Style.FILL
-        paint.color = color
-        canvas.drawPath(path, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = strokeWidth
-        paint.strokeJoin = Paint.Join.ROUND
+        val center = size / 2f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
         paint.color = Color.WHITE
-        canvas.drawPath(path, paint)
-        paint.style = Paint.Style.FILL
+        paint.setShadowLayer(shadowBlur, 0f, 0.5f * density, Color.argb(64, 0, 0, 0))
+        canvas.drawCircle(center, center, diameter / 2, paint)
+        paint.clearShadowLayer()
+
+        val radius = diameter / 2 - border
+        paint.color = color
+        canvas.drawCircle(center, center, radius, paint)
+
+        paint.color = Color.WHITE
         if (icon == null || icon.intrinsicWidth <= 0 || icon.intrinsicHeight <= 0) {
-            canvas.drawCircle(centerX, centerY, radius * 0.42f, paint)
+            canvas.drawCircle(center, center, radius * 0.42f, paint)
             return bitmap
         }
-        val box = radius * 1.2f
+        val box = radius * 1.25f
         val scale = box / maxOf(icon.intrinsicWidth, icon.intrinsicHeight)
         val iconWidth = icon.intrinsicWidth * scale
         val iconHeight = icon.intrinsicHeight * scale
         icon.setBounds(
-            (centerX - iconWidth / 2).roundToInt(),
-            (centerY - iconHeight / 2).roundToInt(),
-            (centerX + iconWidth / 2).roundToInt(),
-            (centerY + iconHeight / 2).roundToInt(),
+            (center - iconWidth / 2).roundToInt(),
+            (center - iconHeight / 2).roundToInt(),
+            (center + iconWidth / 2).roundToInt(),
+            (center + iconHeight / 2).roundToInt(),
         )
         icon.draw(canvas)
         return bitmap
