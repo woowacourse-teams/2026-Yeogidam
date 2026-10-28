@@ -1,19 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import {
-  DEFAULT_PIN_COLOR,
-  FOLDER_COLOR_CODES,
-  FOLDER_COLOR_HEX,
-} from '../entities/folder/color';
+import { FOLDER_COLOR_CODES, FOLDER_COLOR_HEX } from '../entities/folder/color';
 
 // 폴더 API가 준비되기 전까지 기기에 저장하는 임시 저장소입니다.
 const PLACE_FOLDERS_STORAGE_KEY = '@yeogidam/place-folders';
 
-// 폴더 색상은 지도 핀 색으로도 쓰입니다. 첫 번째 색이 기본값입니다.
-export const FOLDER_COLORS = [
-  DEFAULT_PIN_COLOR,
-  ...FOLDER_COLOR_CODES.map(code => FOLDER_COLOR_HEX[code]),
-];
+// 폴더 색상은 지도 핀 색으로도 쓰입니다. 서버 색 코드 7종만 쓰고, 첫 번째 색이 기본값입니다.
+// 지도 기본 핀 색(DEFAULT_PIN_COLOR)은 폴더 색으로 고를 수 없습니다.
+export const FOLDER_COLORS = FOLDER_COLOR_CODES.map(code => FOLDER_COLOR_HEX[code]);
 export const DEFAULT_FOLDER_COLOR = FOLDER_COLORS[0];
 
 // 새 폴더가 기존 폴더와 다른 색으로 시작하도록, 아직 쓰지 않은 색을 먼저 고릅니다.
@@ -91,8 +85,10 @@ export async function getPlaceFolders(): Promise<PlaceFolder[]> {
           .filter(isPlaceFolder)
           .map(folder => ({
             ...folder,
+            // 목록에 없는 색(예: 예전에 고를 수 있던 기본 파란색)은 기본 폴더 색으로 바꿔 읽습니다.
             color:
-              typeof folder.color === 'string'
+              typeof folder.color === 'string' &&
+              FOLDER_COLORS.includes(folder.color)
                 ? folder.color
                 : DEFAULT_FOLDER_COLOR,
           }))
