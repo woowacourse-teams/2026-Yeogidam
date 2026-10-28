@@ -63,6 +63,7 @@ function isPlaceCategoryCode(value: unknown): value is PlaceCategoryCode {
  * 카카오 원문 카테고리를 서버 대응표와 같은 규칙으로 칩 코드로 바꿉니다.
  * 부분 문자열이 아니라 마디를 통째로 비교합니다(`바나프레소`가 술집이 되지 않도록).
  * 서버가 `categoryCode`를 내려 주기 전까지 쓰는 임시 계산입니다.
+ * TODO(범주 API): 운영 서버 배포가 확인되면 이 함수와 대응표, 테스트를 지웁니다.
  */
 export function toPlaceCategoryCode(category?: string | null): PlaceCategoryCode {
   const segments = (category ?? '')

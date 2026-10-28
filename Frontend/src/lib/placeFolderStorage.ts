@@ -21,8 +21,41 @@ export type PlaceFolder = {
   name: string;
   color: string;
   placeIds: string[];
+  // 장소 id별로 이 폴더에 담은 시각입니다. 기록 도입 전에 담은 장소는 없을 수 있습니다.
+  // TODO(폴더 API): 서버가 folderIds를 담은 순서로 내려 주면 지웁니다.
+  placeAddedAt?: Record<string, string>;
   createdAt: string;
 };
+
+/**
+ * 장소마다 담긴 폴더 id를 서버 `folderIds`와 같은 순서(담은 시각 오름차순, 최신이 마지막)로 모읍니다.
+ * 담은 시각이 같으면(한 번에 여러 폴더에 담으면) 먼저 만든 폴더가 앞에 옵니다.
+ * TODO(폴더 API): 서버 응답의 folderIds를 쓰게 되면 이 함수와 테스트를 지웁니다.
+ */
+export function getFolderIdsByPlaceId(
+  folders: PlaceFolder[],
+): Map<string, string[]> {
+  const entries = new Map<string, { folderId: string; addedAt: string }[]>();
+  for (const folder of folders) {
+    for (const placeId of folder.placeIds) {
+      const addedAt = folder.placeAddedAt?.[placeId] ?? folder.createdAt;
+      const placeEntries = entries.get(placeId) ?? [];
+      placeEntries.push({ folderId: folder.id, addedAt });
+      entries.set(placeId, placeEntries);
+    }
+  }
+  // 정렬은 안정적이므로 시각이 같으면 폴더 순서(만든 순서)가 유지됩니다.
+  return new Map(
+    [...entries].map(([placeId, placeEntries]) => [
+      placeId,
+      placeEntries
+        .sort((a, b) =>
+          a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : 0,
+        )
+        .map(entry => entry.folderId),
+    ]),
+  );
+}
 
 function isPlaceFolder(value: unknown): value is PlaceFolder {
   if (!value || typeof value !== 'object') return false;
