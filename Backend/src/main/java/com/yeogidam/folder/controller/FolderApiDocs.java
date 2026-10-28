@@ -29,6 +29,7 @@ public interface FolderApiDocs {
 
                     - 폴더 탭의 목록과 폴더 선택 시트가 같은 응답을 씁니다.
                     - `folderId` 오름차순(만든 순서)으로 정렬합니다.
+                    - 앱은 받은 순서대로 위에서부터 그리고, 새 폴더는 맨 아래에 붙습니다.
                     - `color`는 `RED`, `ORANGE`, `YELLOW`, `GREEN`, `TEAL`, `PURPLE`, `PINK` 중 하나이고, 실제 색 값은 앱이 정합니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
