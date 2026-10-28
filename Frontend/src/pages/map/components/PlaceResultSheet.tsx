@@ -1091,7 +1091,12 @@ export function PlaceResultSheet({
             </View>
           )}
           ListEmptyComponent={
-            <View style={styles.emptyResult}>
+            <View
+              style={[
+                styles.emptyResult,
+                emptyContent ? styles.customEmptyResult : null,
+              ]}
+            >
               {emptyContent ? (
                 emptyContent
               ) : isVisibleAreaUpdating ? (
@@ -1380,6 +1385,10 @@ const styles = StyleSheet.create({
     paddingTop: 34,
     paddingHorizontal: 16,
     alignItems: 'center',
+  },
+  // 화면이 넘긴 빈 상태(예: 빈 폴더)는 위 헤더에 붙여 보여줍니다.
+  customEmptyResult: {
+    paddingTop: 12,
   },
   emptyIllustration: {
     width: 132,

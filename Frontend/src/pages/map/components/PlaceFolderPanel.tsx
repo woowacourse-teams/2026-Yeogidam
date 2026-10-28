@@ -322,8 +322,8 @@ export function PlaceFolderAssignPicker({
             <Text style={styles.dialogConfirm}>저장</Text>
           </Pressable>
         </View>
-        <Text numberOfLines={1} style={styles.assignPlaceName}>
-          {placeName}
+        <Text numberOfLines={2} style={styles.assignPlaceName}>
+          '{placeName}'을(를) 담을 폴더를 선택하세요.
         </Text>
         <FlatList
           data={folders}
@@ -340,22 +340,28 @@ export function PlaceFolderAssignPicker({
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked }}
                 onPress={() => toggle(item.id)}
-                style={styles.row}
+                style={[styles.row, styles.assignRow]}
               >
                 <View
-                  style={[styles.assignDot, { backgroundColor: item.color }]}
-                />
-                <View style={styles.rowText}>
-                  <Text numberOfLines={1} style={styles.rowName}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.rowCount}>장소 {item.count}개</Text>
+                  style={[
+                    styles.assignCheckbox,
+                    checked && styles.assignCheckboxChecked,
+                  ]}
+                >
+                  {checked ? (
+                    <MaterialIcons color="#ffffff" name="check" size={18} />
+                  ) : null}
                 </View>
-                <MaterialIcons
-                  color={checked ? '#8FA2FF' : '#C9CEE8'}
-                  name={checked ? 'check-circle' : 'radio-button-unchecked'}
-                  size={26}
+                <View
+                  style={[styles.assignRowDot, { backgroundColor: item.color }]}
                 />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.rowName, styles.assignName]}
+                >
+                  {item.name}
+                </Text>
+                <Text style={styles.assignCount}>장소 {item.count}개</Text>
               </Pressable>
             );
           }}
@@ -495,6 +501,38 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
   },
+  assignRow: {
+    gap: 12,
+    paddingVertical: 14,
+  },
+  assignCheckbox: {
+    width: 26,
+    height: 26,
+    marginRight: 2,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#C9CEE8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignCheckboxChecked: {
+    borderColor: '#8FA2FF',
+    backgroundColor: '#8FA2FF',
+  },
+  assignRowDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  assignName: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  assignCount: {
+    fontSize: 14,
+    color: '#8A8FA8',
+  },
   segment: {
     flexDirection: 'row',
     marginHorizontal: 24,
@@ -524,11 +562,11 @@ const styles = StyleSheet.create({
   detailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
-    // 왼쪽 40pt는 스와이프 뒤로가기 영역이 터치를 먼저 가져가므로 비워둡니다.
-    paddingLeft: 40,
-    paddingRight: 12,
-    marginBottom: 4,
+    height: 30,
+    // 아래 장소 목록(paddingHorizontal 13)과 왼쪽 라인을 맞춥니다.
+    // 왼쪽 가장자리는 스와이프 뒤로가기 영역이지만 제목은 누르는 요소가 아니라 겹쳐도 됩니다.
+    paddingHorizontal: 17,
+    marginBottom: 8,
   },
   iconButton: {
     width: 36,

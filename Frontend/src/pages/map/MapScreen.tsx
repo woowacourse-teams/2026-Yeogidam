@@ -859,7 +859,7 @@ export function MapScreen({
           }
           emptyContent={
             openedFolder && folderScopedPlaces.length === 0 ? (
-              <View style={styles.folderEmpty}>
+              <View style={[styles.folderEmpty, styles.folderEmptyInList]}>
                 <Text style={styles.folderEmptyTitle}>폴더가 비어 있어요</Text>
                 <Text style={styles.folderEmptyHint}>
                   장소 상세의 더보기에서 이 폴더에 담을 수 있어요.
@@ -982,6 +982,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     paddingTop: 34,
+  },
+  // 장소 목록의 빈 상태 영역이 이미 위 여백을 주므로 겹치지 않게 뺍니다.
+  folderEmptyInList: {
+    paddingTop: 0,
   },
   folderEmptyTitle: {
     fontSize: 16,
