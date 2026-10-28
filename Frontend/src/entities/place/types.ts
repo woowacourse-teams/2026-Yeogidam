@@ -7,6 +7,8 @@ export type Place = {
   kakaoPlaceId?: string;
   name: string;
   category?: string;
+  categoryCode?: string;
+  categoryName?: string;
   address: string;
   fullAddress: string;
   latitude?: number;

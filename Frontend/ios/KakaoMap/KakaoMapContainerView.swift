@@ -720,19 +720,19 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     savedPlaceStyleIDByID = nextStyleIDByID
   }
 
-  // 서버 카테고리 이름별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
+  // 서버 범주 코드(categoryCode)별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
   private static let categoryEmojis: [String: String] = [
-    "카페": "☕️",
-    "디저트": "🍰",
-    "한식": "🍚",
-    "양식": "🍝",
-    "일식": "🍣",
-    "중식": "🥟",
-    "분식": "🍢",
-    "술집": "🍺",
-    "별미": "✨",
-    "문화/여가": "🎭",
-    "기타": "📍",
+    "CAFE": "☕️",
+    "DESSERT": "🍰",
+    "KOREAN": "🍚",
+    "WESTERN": "🍝",
+    "JAPANESE": "🍣",
+    "CHINESE": "🥟",
+    "BUNSIK": "🍢",
+    "BAR": "🍺",
+    "SPECIALTY": "✨",
+    "CULTURE_LEISURE": "🎭",
+    "ETC": "📍",
   ]
   private static let defaultPinColorHex = "#8FA2FF"
 

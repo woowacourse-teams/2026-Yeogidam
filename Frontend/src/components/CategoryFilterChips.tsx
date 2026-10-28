@@ -2,39 +2,22 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
+import {
+  PLACE_CATEGORY_CODES,
+  PLACE_CATEGORY_NAMES,
+  resolvePlaceCategoryCode,
+} from '../entities/place/category';
 import type { Place } from '../entities/place/types';
 
 export const ALL_CATEGORY = '전체';
 export const CATEGORY_CHIPS_HEIGHT = 34;
 export const CATEGORY_CHIPS_TOP_GAP = 8;
 
-export function getPlaceCategory(category?: string | null) {
-  if (!category) return undefined;
-
-  const categories = category
-    .split('>')
-    .map(item => item.trim())
-    .filter(Boolean);
-  return categories[1] ?? categories[0];
-}
-
-// 서버가 정의하는 카테고리 enum 값 전체입니다. 저장된 장소에 해당 카테고리가 없어도
-// 항상 모두 노출하며, 장소 데이터에서 칩을 만들지 않습니다.
-// 서버 enum 연동 전까지는 임시로 고정한 목록이며, 연동되면 API 응답으로 교체합니다.
-// 값은 장소의 카테고리(getPlaceCategory)와 같은 이름으로 매칭합니다.
-export const PLACE_CATEGORIES = [
-  '카페',
-  '디저트',
-  '한식',
-  '양식',
-  '일식',
-  '중식',
-  '분식',
-  '술집',
-  '별미',
-  '문화/여가',
-  '기타',
-];
+// 칩은 서버 범주 이름으로 그리고, 장소는 범주 코드의 이름과 맞춰 거릅니다.
+// 서버 칩 목록 API 연동 전까지는 앱에 고정한 목록을 씁니다.
+export const PLACE_CATEGORIES = PLACE_CATEGORY_CODES.map(
+  code => PLACE_CATEGORY_NAMES[code],
+);
 
 export function filterPlacesByCategory(
   places: Place[],
@@ -42,7 +25,9 @@ export function filterPlacesByCategory(
 ) {
   if (selectedCategory === ALL_CATEGORY) return places;
   return places.filter(
-    place => getPlaceCategory(place.category) === selectedCategory,
+    place =>
+      PLACE_CATEGORY_NAMES[resolvePlaceCategoryCode(place)] ===
+      selectedCategory,
   );
 }
 

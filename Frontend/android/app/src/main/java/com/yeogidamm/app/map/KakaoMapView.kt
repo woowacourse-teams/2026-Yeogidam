@@ -403,19 +403,19 @@ class KakaoMapView(
             }
         }
 
-    // 서버 카테고리 이름별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
+    // 서버 범주 코드(categoryCode)별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
     private val categoryEmojis = mapOf(
-        "카페" to "☕",
-        "디저트" to "🍰",
-        "한식" to "🍚",
-        "양식" to "🍝",
-        "일식" to "🍣",
-        "중식" to "🥟",
-        "분식" to "🍢",
-        "술집" to "🍺",
-        "별미" to "✨",
-        "문화/여가" to "🎭",
-        "기타" to "📍",
+        "CAFE" to "☕",
+        "DESSERT" to "🍰",
+        "KOREAN" to "🍚",
+        "WESTERN" to "🍝",
+        "JAPANESE" to "🍣",
+        "CHINESE" to "🥟",
+        "BUNSIK" to "🍢",
+        "BAR" to "🍺",
+        "SPECIALTY" to "✨",
+        "CULTURE_LEISURE" to "🎭",
+        "ETC" to "📍",
     )
     private val defaultPinColor = Color.parseColor("#8FA2FF")
 

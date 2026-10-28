@@ -22,7 +22,6 @@ import {
   CATEGORY_CHIPS_TOP_GAP,
   CategoryFilterChips,
   filterPlacesByCategory,
-  getPlaceCategory,
   PLACE_CATEGORIES,
 } from '../../components/CategoryFilterChips';
 import {
@@ -52,6 +51,7 @@ import {
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
+import { resolvePlaceCategoryCode } from '../../entities/place/category';
 import type { Place } from '../../entities/place/types';
 import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
@@ -577,15 +577,22 @@ export function MapScreen({
             cameraBottomInset={cameraBottomInset}
             savedPlacesJson={JSON.stringify(
               (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
-                ({ id, name, latitude, longitude, category }) => ({
+                ({
+                  id,
+                  name,
+                  latitude,
+                  longitude,
+                  category,
+                  categoryCode,
+                }) => ({
                   id,
                   name,
                   selected: id === page.place?.id,
                   latitude,
                   longitude,
                   color: pinColorByPlaceId.get(id),
-                  // 핀 안에 넣을 카테고리 아이콘을 네이티브가 고릅니다.
-                  category: getPlaceCategory(category),
+                  // 핀 안에 넣을 카테고리 아이콘을 네이티브가 범주 코드로 고릅니다.
+                  category: resolvePlaceCategoryCode({ category, categoryCode }),
                 }),
               ),
             )}
