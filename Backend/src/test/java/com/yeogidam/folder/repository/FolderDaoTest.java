@@ -1,11 +1,16 @@
 package com.yeogidam.folder.repository;
 
+import static com.yeogidam.support.fixture.sql.FolderSavedPlaceSqlFixture.insertFolderSavedPlace;
 import static com.yeogidam.support.fixture.sql.FolderSqlFixture.insertFolder;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.support.JdbcTestSupport;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 폴더 목록 조회가 실제 MySQL에서 회원 조건, 정렬, 읽은 값까지 맞게 동작하는지 검증한다.
+ * 폴더 목록 조회와 삭제가 실제 MySQL에서 회원 조건, 정렬, 읽은 값, 연결 삭제까지 맞게 동작하는지 검증한다.
  * 행은 SQL fixture로 given에서 직접 넣는다.
  */
 @Import(FolderDao.class)
@@ -68,6 +73,52 @@ class FolderDaoTest extends JdbcTestSupport {
                 () -> assertThat(folder.name()).isEqualTo("데이트 장소"),
                 () -> assertThat(folder.color()).isEqualTo("RED")
         );
+    }
+
+    @Test
+    void 폴더를_지우면_담긴_연결만_지워지고_보관함_장소는_남는다() {
+        // given: 회원 1이 장소 1을 보관함 11로 저장하고 폴더 1에 담았다
+        insertMember(1L, "user-1");
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 1L, "kakao-1", "카페 온월", "서울 성동구 성수동1가 1-1",
+                new BigDecimal("37.5445"), new BigDecimal("127.0560"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-10-28T00:00:00Z"));
+        insertFolder(jdbcTemplate, 1L, 1L, "데이트 장소", "RED");
+        insertFolderSavedPlace(jdbcTemplate, 1L, 1L, 11L);
+
+        // when
+        int deleted = folderDao.deleteByMemberAndId(1L, 1L);
+
+        // then: 폴더 1과 연결 행은 사라지고 보관함 11은 남는다
+        assertAll(
+                () -> assertThat(deleted).isEqualTo(1),
+                () -> assertThat(count("folders WHERE id = 1")).isZero(),
+                () -> assertThat(count("folder_saved_places WHERE folder_id = 1")).isZero(),
+                () -> assertThat(count("saved_places WHERE id = 11")).isEqualTo(1)
+        );
+    }
+
+    @Test
+    void 없는_폴더나_남의_폴더는_지우지_않는다() {
+        // given: 회원 1은 폴더 1을, 회원 2는 폴더 2를 가졌다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertFolder(jdbcTemplate, 1L, 1L, "데이트 장소", "RED");
+        insertFolder(jdbcTemplate, 2L, 2L, "남의 폴더", "PINK");
+
+        // when: 회원 1이 없는 폴더 999와 남의 폴더 2를 지우려 한다
+        int deletedMissing = folderDao.deleteByMemberAndId(1L, 999L);
+        int deletedOthers = folderDao.deleteByMemberAndId(1L, 2L);
+
+        // then: 아무것도 지워지지 않는다
+        assertAll(
+                () -> assertThat(deletedMissing).isZero(),
+                () -> assertThat(deletedOthers).isZero(),
+                () -> assertThat(count("folders")).isEqualTo(2)
+        );
+    }
+
+    private int count(String fromWhere) {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + fromWhere, Integer.class);
     }
 
     private void insertMember(Long memberId, String providerUserId) {

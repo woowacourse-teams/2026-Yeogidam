@@ -3,6 +3,7 @@ package com.yeogidam.folder.controller;
 import com.yeogidam.folder.dto.response.FolderResponses;
 import com.yeogidam.global.dto.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -55,4 +56,22 @@ public interface FolderApiDocs {
                                     }))
             })
     ResponseEntity<FolderResponses> readFolders(Long memberId);
+
+    @Operation(summary = "폴더 삭제",
+            description = """
+                    폴더 더보기의 삭제 확인에서 폴더 하나를 지웁니다.
+
+                    - 폴더와 폴더에 담긴 연결만 지우고, 보관함의 장소는 남습니다.
+                    - 이미 지웠거나 없는 폴더, 남의 폴더여도 "그 폴더가 내 목록에 없다"는 결과가 같아 204를 돌려주므로 멱등합니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "삭제를 완료했습니다."),
+                    @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<Void> deleteFolder(Long memberId,
+                                      @Parameter(description = "폴더 id(folders.id)", example = "1")
+                                      Long folderId);
 }

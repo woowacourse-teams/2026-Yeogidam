@@ -19,4 +19,12 @@ public class FolderService {
         List<FolderProjection> folders = folderDao.findAllByMember(memberId);
         return FolderResponses.from(folders);
     }
+
+    /**
+     * 폴더 하나를 지우며, 이미 지웠거나 없는 폴더, 남의 폴더여도 "그 폴더가 내 목록에 없다"는 결과가 같아서 멱등하게 204를 돌려준다.
+     */
+    @Transactional
+    public void deleteFolder(Long memberId, Long folderId) {
+        folderDao.deleteByMemberAndId(memberId, folderId);
+    }
 }

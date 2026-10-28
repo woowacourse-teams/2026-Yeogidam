@@ -13,7 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 폴더 목록 조회를 실제 HTTP로 검증하되 정렬과 읽은 값의 세부는 FolderDaoTest에 맡기고, 응답 모양(감싸는 키, 필드 이름)과
+ * 폴더 목록 조회와 삭제를 실제 HTTP로 검증하되 정렬과 읽은 값의 세부는 FolderDaoTest에 맡기고, 응답 모양(감싸는 키, 필드 이름)과
  * 인가가 응답에 드러나는지만 확인한다. 회원은 로그인으로 만들고 폴더 행은 SQL fixture로 given에서 넣는다.
  */
 class FolderE2eTest extends E2eTestSupport {
@@ -57,6 +57,54 @@ class FolderE2eTest extends E2eTestSupport {
     @Test
     void 토큰_없이_폴더_목록을_조회하면_401_예외를_던진다() {
         given().when().get(FOLDERS_PATH)
+                .then().statusCode(401)
+                .body("errorCode", equalTo("AUTH401_004"));
+    }
+
+    @Test
+    void 내_폴더를_지우면_목록에서_사라진다() {
+        // given: user-1은 폴더 1, 2를 만들었다
+        LoginResult login = loginAsKakao("user-1");
+        insertFolder(jdbcTemplate, 1L, login.memberId(), "데이트 장소", "RED");
+        insertFolder(jdbcTemplate, 2L, login.memberId(), "성수 카페", "TEAL");
+
+        // when
+        givenBearer(login.accessToken())
+                .when().delete(FOLDERS_PATH + "/1")
+                .then().statusCode(204);
+
+        // then
+        givenBearer(login.accessToken())
+                .when().get(FOLDERS_PATH)
+                .then().statusCode(200)
+                .body("folders.folderId", contains(2));
+    }
+
+    @Test
+    void 없거나_남의_폴더를_지워도_멱등하게_처리한다() {
+        // given: user-2가 폴더 3을 만들었고, user-1이 남의 폴더 3과 없는 폴더 999를 지우려 한다
+        LoginResult login = loginAsKakao("user-1");
+        LoginResult other = loginAsKakao("user-2");
+        insertFolder(jdbcTemplate, 3L, other.memberId(), "남의 폴더", "PINK");
+
+        // when
+        givenBearer(login.accessToken())
+                .when().delete(FOLDERS_PATH + "/3")
+                .then().statusCode(204);
+        givenBearer(login.accessToken())
+                .when().delete(FOLDERS_PATH + "/999")
+                .then().statusCode(204);
+
+        // then: 남의 폴더 3은 그대로 남는다
+        givenBearer(other.accessToken())
+                .when().get(FOLDERS_PATH)
+                .then().statusCode(200)
+                .body("folders.folderId", contains(3));
+    }
+
+    @Test
+    void 토큰_없이_폴더를_지우면_401_예외를_던진다() {
+        given().when().delete(FOLDERS_PATH + "/1")
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));
     }
