@@ -720,35 +720,35 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     savedPlaceStyleIDByID = nextStyleIDByID
   }
 
-  // 서버 범주 코드(categoryCode)별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
-  private static let categoryEmojis: [String: String] = [
-    "CAFE": "☕️",
-    "DESSERT": "🍰",
-    "KOREAN": "🍚",
-    "WESTERN": "🍝",
-    "JAPANESE": "🍣",
-    "CHINESE": "🥟",
-    "BUNSIK": "🍢",
-    "BAR": "🍺",
-    "SPECIALTY": "✨",
-    "CULTURE_LEISURE": "🎭",
-    "ETC": "📍",
+  // 서버 범주 코드(categoryCode)별 핀 아이콘 에셋(벡터 SVG)입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
+  private static let categoryIconAssetNames: [String: String] = [
+    "CAFE": "pin-category-cafe",
+    "DESSERT": "pin-category-dessert",
+    "KOREAN": "pin-category-korean",
+    "WESTERN": "pin-category-western",
+    "JAPANESE": "pin-category-japanese",
+    "CHINESE": "pin-category-chinese",
+    "BUNSIK": "pin-category-bunsik",
+    "BAR": "pin-category-bar",
+    "SPECIALTY": "pin-category-specialty",
+    "CULTURE_LEISURE": "pin-category-culture_leisure",
+    "ETC": "pin-category-etc",
   ]
   private static let defaultPinColorHex = "#8FA2FF"
 
-  private static func categoryEmoji(_ category: String?) -> String? {
+  private static func categoryIconAssetName(_ category: String?) -> String? {
     guard let category else { return nil }
-    return categoryEmojis[category]
+    return categoryIconAssetNames[category]
   }
 
   private static func placeStyleID(selected: Bool, colorHex: String?, category: String?) -> String {
     let hasColor = colorHex.flatMap { UIColor(hex: $0) } != nil
-    let emoji = categoryEmoji(category)
-    guard hasColor || emoji != nil else {
+    let iconName = categoryIconAssetName(category)
+    guard hasColor || iconName != nil else {
       return selected ? selectedPlaceStyleID : savedPlaceStyleID
     }
     let color = (hasColor ? colorHex : nil) ?? defaultPinColorHex
-    return "yeogidam-place-style-\(color.lowercased())-\(emoji ?? "none")-\(selected ? "selected" : "normal")"
+    return "yeogidam-place-style-\(color.lowercased())-\(iconName ?? "none")-\(selected ? "selected" : "normal")"
   }
 
   private func ensureColoredPlaceStyle(
@@ -758,15 +758,15 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     colorHex: String?,
     category: String?
   ) {
-    let emoji = Self.categoryEmoji(category)
+    let icon = Self.categoryIconAssetName(category).flatMap { UIImage(named: $0) }
     guard
       let color = colorHex.flatMap({ UIColor(hex: $0) })
-        ?? (emoji != nil ? UIColor(hex: Self.defaultPinColorHex) : nil),
+        ?? (icon != nil ? UIColor(hex: Self.defaultPinColorHex) : nil),
       !coloredPlaceStyleIDs.contains(styleID)
     else { return }
 
     let iconStyle = PoiIconStyle(
-      symbol: makeColoredPlaceMarker(color: color, selected: selected, emoji: emoji),
+      symbol: makeColoredPlaceMarker(color: color, selected: selected, icon: icon),
       anchorPoint: CGPoint(x: 0.5, y: 1.0),
       transition: PoiTransition(entrance: .scale, exit: .scale)
     )
@@ -777,8 +777,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   // 색 핀: 색 원 + 아래쪽 뾰족한 꼬리 + 흰 중심점.
-  // 카테고리 아이콘이 있으면 흰 중심점 대신 흰 원 위에 아이콘을 얹습니다.
-  private func makeColoredPlaceMarker(color: UIColor, selected: Bool, emoji: String?) -> UIImage {
+  // 카테고리 아이콘(흰색)이 있으면 흰 중심점 대신 색 원 위에 아이콘을 비율 그대로 얹습니다.
+  private func makeColoredPlaceMarker(color: UIColor, selected: Bool, icon: UIImage?) -> UIImage {
     let size = selected ? CGSize(width: 34, height: 42) : CGSize(width: 28, height: 36)
     return UIGraphicsImageRenderer(size: size).image { _ in
       let radius = size.width / 2 - 1.5
@@ -792,20 +792,20 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       path.lineWidth = 2
       path.stroke()
       UIColor.white.setFill()
-      guard let emoji else {
+      guard let icon, icon.size.width > 0, icon.size.height > 0 else {
         let dot = radius * 0.42
         UIBezierPath(ovalIn: CGRect(x: center.x - dot, y: center.y - dot, width: dot * 2, height: dot * 2)).fill()
         return
       }
-      let disc = radius * 0.74
-      UIBezierPath(ovalIn: CGRect(x: center.x - disc, y: center.y - disc, width: disc * 2, height: disc * 2)).fill()
-      let text = emoji as NSString
-      let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: disc * 1.25)]
-      let textSize = text.size(withAttributes: attributes)
-      text.draw(
-        at: CGPoint(x: center.x - textSize.width / 2, y: center.y - textSize.height / 2),
-        withAttributes: attributes
-      )
+      let box = radius * 1.2
+      let scale = box / max(icon.size.width, icon.size.height)
+      let iconSize = CGSize(width: icon.size.width * scale, height: icon.size.height * scale)
+      icon.draw(in: CGRect(
+        x: center.x - iconSize.width / 2,
+        y: center.y - iconSize.height / 2,
+        width: iconSize.width,
+        height: iconSize.height
+      ))
     }
   }
 

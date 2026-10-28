@@ -10,12 +10,14 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
 import android.util.Log
 import android.widget.FrameLayout
+import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.common.LifecycleState
@@ -403,42 +405,48 @@ class KakaoMapView(
             }
         }
 
-    // 서버 범주 코드(categoryCode)별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
-    private val categoryEmojis = mapOf(
-        "CAFE" to "☕",
-        "DESSERT" to "🍰",
-        "KOREAN" to "🍚",
-        "WESTERN" to "🍝",
-        "JAPANESE" to "🍣",
-        "CHINESE" to "🥟",
-        "BUNSIK" to "🍢",
-        "BAR" to "🍺",
-        "SPECIALTY" to "✨",
-        "CULTURE_LEISURE" to "🎭",
-        "ETC" to "📍",
+    // 서버 범주 코드(categoryCode)별 핀 아이콘(VectorDrawable)입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
+    private val categoryIconResources = mapOf(
+        "CAFE" to R.drawable.pin_category_cafe,
+        "DESSERT" to R.drawable.pin_category_dessert,
+        "KOREAN" to R.drawable.pin_category_korean,
+        "WESTERN" to R.drawable.pin_category_western,
+        "JAPANESE" to R.drawable.pin_category_japanese,
+        "CHINESE" to R.drawable.pin_category_chinese,
+        "BUNSIK" to R.drawable.pin_category_bunsik,
+        "BAR" to R.drawable.pin_category_bar,
+        "SPECIALTY" to R.drawable.pin_category_specialty,
+        "CULTURE_LEISURE" to R.drawable.pin_category_culture_leisure,
+        "ETC" to R.drawable.pin_category_etc,
     )
     private val defaultPinColor = Color.parseColor("#8FA2FF")
 
     private fun placeStyleKey(selected: Boolean, colorHex: String?, category: String?): String {
         val color = parseColor(colorHex)
-        val emoji = categoryEmojis[category]
-        if (color == null && emoji == null) {
+        val hasIcon = categoryIconResources.containsKey(category)
+        if (color == null && !hasIcon) {
             return if (selected) "default-selected" else "default"
         }
         val colorKey = (if (color != null) colorHex!!.lowercase() else "default")
-        return "$colorKey-${emoji ?: "none"}-${if (selected) "selected" else "normal"}"
+        return "$colorKey-${if (hasIcon) category else "none"}-${if (selected) "selected" else "normal"}"
     }
 
     // 폴더 색이나 카테고리 아이콘이 있는 핀은 조합별 스타일을 한 번만 만들어 재사용합니다.
     private fun placeStyles(selected: Boolean, colorHex: String?, category: String?): LabelStyles {
-        val emoji = categoryEmojis[category]
+        val iconResource = categoryIconResources[category]
         val color = parseColor(colorHex)
-            ?: (if (emoji != null) defaultPinColor else null)
+            ?: (if (iconResource != null) defaultPinColor else null)
             ?: return savedPlaceStyles.getValue(selected)
         return coloredPlaceStyles.getOrPut(placeStyleKey(selected, colorHex, category)) {
             LabelStyles.from(
                 LabelStyle
-                    .from(createColoredPlaceMarker(color, selected, emoji))
+                    .from(
+                        createColoredPlaceMarker(
+                            color,
+                            selected,
+                            iconResource?.let { ContextCompat.getDrawable(context, it) },
+                        ),
+                    )
                     .setAnchorPoint(0.5f, 1.0f)
                     .setIconTransition(
                         LabelTransition
@@ -450,8 +458,8 @@ class KakaoMapView(
     }
 
     // 색 원 + 아래쪽 뾰족한 꼬리 + 흰 중심점으로 그린 핀입니다.
-    // 카테고리 아이콘이 있으면 흰 중심점 대신 흰 원 위에 아이콘을 얹습니다.
-    private fun createColoredPlaceMarker(color: Int, selected: Boolean, emoji: String?): Bitmap {
+    // 카테고리 아이콘(흰색)이 있으면 흰 중심점 대신 색 원 위에 아이콘을 비율 그대로 얹습니다.
+    private fun createColoredPlaceMarker(color: Int, selected: Boolean, icon: Drawable?): Bitmap {
         val density = resources.displayMetrics.density
         val width = ((if (selected) 34 else 28) * density).roundToInt()
         val height = ((if (selected) 42 else 36) * density).roundToInt()
@@ -478,18 +486,21 @@ class KakaoMapView(
         paint.color = Color.WHITE
         canvas.drawPath(path, paint)
         paint.style = Paint.Style.FILL
-        if (emoji == null) {
+        if (icon == null || icon.intrinsicWidth <= 0 || icon.intrinsicHeight <= 0) {
             canvas.drawCircle(centerX, centerY, radius * 0.42f, paint)
             return bitmap
         }
-        val disc = radius * 0.74f
-        canvas.drawCircle(centerX, centerY, disc, paint)
-        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = disc * 1.25f
-            textAlign = Paint.Align.CENTER
-        }
-        val baseline = centerY - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText(emoji, centerX, baseline, textPaint)
+        val box = radius * 1.2f
+        val scale = box / maxOf(icon.intrinsicWidth, icon.intrinsicHeight)
+        val iconWidth = icon.intrinsicWidth * scale
+        val iconHeight = icon.intrinsicHeight * scale
+        icon.setBounds(
+            (centerX - iconWidth / 2).roundToInt(),
+            (centerY - iconHeight / 2).roundToInt(),
+            (centerX + iconWidth / 2).roundToInt(),
+            (centerY + iconHeight / 2).roundToInt(),
+        )
+        icon.draw(canvas)
         return bitmap
     }
 
