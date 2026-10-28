@@ -28,6 +28,9 @@ public interface SavedPlaceApiDocs {
 
                     - 보관함 화면, 지도 핀, 보관함 검색이 같은 응답을 씁니다.
                     - `lastSavedAt` 내림차순으로 정렬합니다.
+                    - `category`는 기존 앱을 위해 카카오 원문 그대로 유지하며 null일 수 있습니다.
+                    - `categoryCode`와 `categoryName`은 `/api/v1/place-categories`의 코드와 이름에 대응합니다.
+                    - 원문이 없거나 분류 규칙에 맞지 않으면 `ETC`, `기타`를 돌려줍니다.
                     - 관련 릴스 조회는 보관함 목록 응답의 `savedPlaceId`(보관함 항목 ID)를 경로 변수로 쓰고 삭제는 같은 값을 `savedPlaceIds` 쿼리 파라미터로 보냅니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),

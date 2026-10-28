@@ -1,6 +1,8 @@
 package com.yeogidam.place.service;
 
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
+import com.yeogidam.place.domain.PlaceCategory;
+import com.yeogidam.place.domain.PlaceCategoryClassifier;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponse;
@@ -25,8 +27,9 @@ public class SavedPlaceService {
     public SavedPlaceResponses readSavedPlaces(Long memberId) {
         List<SavedPlaceResponse> responses = savedPlaceDao.findAllByMember(memberId).stream()
                 .map(projection -> {
+                    PlaceCategory category = PlaceCategoryClassifier.classify(projection.category());
                     String placeThumbnailUrl = mediaThumbnailUrlResolver.resolve(projection.thumbnailKey());
-                    return SavedPlaceResponse.from(projection, placeThumbnailUrl);
+                    return SavedPlaceResponse.from(projection, placeThumbnailUrl, category);
                 })
                 .toList();
         return SavedPlaceResponses.fromResponses(responses);
