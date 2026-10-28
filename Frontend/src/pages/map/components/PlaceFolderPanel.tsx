@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   FlatList,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,8 +12,8 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
+import Svg, { Path, Rect } from 'react-native-svg';
 
-import type { Place } from '../../../entities/place/types';
 import { FOLDER_COLORS } from '../../../lib/placeFolderStorage';
 import { MAX_FOLDER_NAME_LENGTH } from '../../../lib/usePlaceFolders';
 
@@ -25,7 +24,6 @@ export type FolderListItem = {
   name: string;
   color: string;
   count: number;
-  thumbnail?: Place['image'];
 };
 
 export function FolderSegmentHeader({
@@ -96,6 +94,19 @@ export function FolderDetailHeader({
   );
 }
 
+// 폴더 대표 이미지입니다. 배경과 폴더 아이콘을 폴더 색으로 칠합니다.
+function FolderThumbnail({ color }: { color: string }) {
+  return (
+    <Svg width={56} height={56} viewBox="0 0 56 56" fill="none">
+      <Rect width={56} height={56} rx={14} fill={color} fillOpacity={0.3} />
+      <Path
+        d="M25.6663 18.666H18.6663C17.383 18.666 16.3447 19.716 16.3447 20.9993L16.333 34.9993C16.333 36.2827 17.383 37.3327 18.6663 37.3327H37.333C38.6163 37.3327 39.6663 36.2827 39.6663 34.9993V23.3327C39.6663 22.0493 38.6163 20.9993 37.333 20.9993H27.9997L25.6663 18.666Z"
+        fill={color}
+      />
+    </Svg>
+  );
+}
+
 export function FolderList({
   folders,
   bottomPadding,
@@ -134,17 +145,13 @@ export function FolderList({
           onLongPress={() => onLongPressFolder(folder.id)}
           style={styles.row}
         >
-          {folder.thumbnail ? (
-            <Image source={folder.thumbnail} style={styles.thumb} />
-          ) : (
-            <View style={[styles.thumb, styles.emptyThumb]}>
-              <MaterialIcons color="#B8BFE8" name="folder" size={28} />
-            </View>
-          )}
+          <FolderThumbnail color={folder.color} />
           <View style={styles.rowText}>
             <View style={styles.rowNameLine}>
-              <View style={[styles.colorDot, { backgroundColor: folder.color }]} />
-              <Text numberOfLines={1} style={[styles.rowName, styles.rowNameText]}>
+              <Text
+                numberOfLines={1}
+                style={[styles.rowName, styles.rowNameText]}
+              >
                 {folder.name}
               </Text>
             </View>
@@ -319,7 +326,9 @@ export function PlaceFolderAssignPicker({
                 onPress={() => toggle(item.id)}
                 style={styles.row}
               >
-                <View style={[styles.assignDot, { backgroundColor: item.color }]} />
+                <View
+                  style={[styles.assignDot, { backgroundColor: item.color }]}
+                />
                 <View style={styles.rowText}>
                   <Text numberOfLines={1} style={styles.rowName}>
                     {item.name}
@@ -367,7 +376,9 @@ export function FolderActionSheet({
           <View style={styles.actionHandle} />
           {folder ? (
             <View style={styles.actionInfo}>
-              <View style={[styles.assignDot, { backgroundColor: folder.color }]} />
+              <View
+                style={[styles.assignDot, { backgroundColor: folder.color }]}
+              />
               <Text numberOfLines={1} style={styles.actionName}>
                 {folder.name}
               </Text>
@@ -546,11 +557,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 14,
-  },
-  emptyThumb: {
-    backgroundColor: '#F1F3FC',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   createThumb: {
     borderWidth: 1.5,

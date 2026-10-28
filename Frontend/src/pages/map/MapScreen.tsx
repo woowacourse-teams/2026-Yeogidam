@@ -38,7 +38,7 @@ import {
   MAX_FOLDER_COUNT,
   usePlaceFolders,
 } from '../../lib/usePlaceFolders';
-import { DEFAULT_FOLDER_COLOR } from '../../lib/placeFolderStorage';
+import { getNextFolderColor } from '../../lib/placeFolderStorage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -281,7 +281,6 @@ export function MapScreen({
           name: folder.name,
           color: folder.color,
           count: folderPlaces.length,
-          thumbnail: folderPlaces.find(place => place.image)?.image,
         };
       }),
     [allPlacesWithCoordinates, folders],
@@ -917,7 +916,7 @@ export function MapScreen({
               folderDialog?.kind === 'rename'
                 ? folders.find(folder => folder.id === folderDialog.folderId)
                     ?.color
-                : DEFAULT_FOLDER_COLOR
+                : getNextFolderColor(folders)
             }
             initialName={
               folderDialog?.kind === 'rename'

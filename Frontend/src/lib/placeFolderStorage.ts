@@ -16,6 +16,15 @@ export const FOLDER_COLORS = [
 ];
 export const DEFAULT_FOLDER_COLOR = FOLDER_COLORS[0];
 
+// 새 폴더가 기존 폴더와 다른 색으로 시작하도록, 아직 쓰지 않은 색을 먼저 고릅니다.
+export function getNextFolderColor(folders: Pick<PlaceFolder, 'color'>[]) {
+  const usedColors = new Set(folders.map(folder => folder.color));
+  return (
+    FOLDER_COLORS.find(color => !usedColors.has(color)) ??
+    FOLDER_COLORS[folders.length % FOLDER_COLORS.length]
+  );
+}
+
 export type PlaceFolder = {
   id: string;
   name: string;
