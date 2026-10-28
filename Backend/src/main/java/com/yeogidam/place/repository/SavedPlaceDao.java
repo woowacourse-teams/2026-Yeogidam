@@ -4,7 +4,9 @@ import com.yeogidam.place.domain.SavedPlace;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,23 +16,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 public class SavedPlaceDao {
-
-    private static final RowMapper<SavedPlaceProjection> PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
-            new SavedPlaceProjection(
-                    resultSet.getLong("saved_place_id"),
-                    resultSet.getLong("place_id"),
-                    resultSet.getString("name"),
-                    resultSet.getString("category"),
-                    resultSet.getString("land_lot_address"),
-                    resultSet.getString("road_address"),
-                    resultSet.getBigDecimal("latitude"),
-                    resultSet.getBigDecimal("longitude"),
-                    resultSet.getString("kakao_place_url"),
-                    resultSet.getString("telephone"),
-                    resultSet.getString("thumbnail_key"),
-                    resultSet.getString("thumbnail_source"),
-                    resultSet.getTimestamp("last_saved_at").toInstant()
-            );
 
     private static final RowMapper<SavedPlaceMediaProjection> MEDIA_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
             new SavedPlaceMediaProjection(
@@ -44,6 +29,25 @@ public class SavedPlaceDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
+
+    private static RowMapper<SavedPlaceProjection> createProjectionRowMapper(Map<Long, List<Long>> folderIdsBySavedPlace) {
+        return (resultSet, rowNumber) -> new SavedPlaceProjection(
+                resultSet.getLong("saved_place_id"),
+                resultSet.getLong("place_id"),
+                resultSet.getString("name"),
+                resultSet.getString("category"),
+                resultSet.getString("land_lot_address"),
+                resultSet.getString("road_address"),
+                resultSet.getBigDecimal("latitude"),
+                resultSet.getBigDecimal("longitude"),
+                resultSet.getString("kakao_place_url"),
+                resultSet.getString("telephone"),
+                resultSet.getString("thumbnail_key"),
+                resultSet.getString("thumbnail_source"),
+                resultSet.getTimestamp("last_saved_at").toInstant(),
+                folderIdsBySavedPlace.getOrDefault(resultSet.getLong("saved_place_id"), List.of())
+        );
+    }
 
     public void saveOrUpdate(SavedPlace savedPlace) {
         String sql = """
@@ -86,6 +90,7 @@ public class SavedPlaceDao {
      * 회원의 보관함 전량을 최근 저장 순으로 읽는다.
      */
     public List<SavedPlaceProjection> findAllByMember(Long memberId) {
+        Map<Long, List<Long>> folderIdsBySavedPlace = findFolderIdsByMember(memberId);
         String sql = """
                 SELECT sp.id AS saved_place_id,
                        p.id AS place_id,
@@ -105,7 +110,26 @@ public class SavedPlaceDao {
                 WHERE sp.member_id = ?
                 ORDER BY sp.last_saved_at DESC
                 """;
-        return jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, memberId);
+        return jdbcTemplate.query(sql, createProjectionRowMapper(folderIdsBySavedPlace), memberId);
+    }
+
+    private Map<Long, List<Long>> findFolderIdsByMember(Long memberId) {
+        String sql = """
+                SELECT fsp.saved_place_id, fsp.folder_id
+                FROM folder_saved_places fsp
+                JOIN folders f ON f.id = fsp.folder_id
+                JOIN saved_places sp ON sp.id = fsp.saved_place_id
+                WHERE f.member_id = ?
+                  AND sp.member_id = ?
+                ORDER BY f.created_at ASC, f.id ASC
+                """;
+        Map<Long, List<Long>> folderIdsBySavedPlace = new HashMap<>();
+        jdbcTemplate.query(sql, resultSet -> {
+            Long savedPlaceId = resultSet.getLong("saved_place_id");
+            Long folderId = resultSet.getLong("folder_id");
+            folderIdsBySavedPlace.computeIfAbsent(savedPlaceId, ignored -> new ArrayList<>()).add(folderId);
+        }, memberId, memberId);
+        return folderIdsBySavedPlace;
     }
 
     /**
