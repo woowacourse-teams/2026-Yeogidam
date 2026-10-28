@@ -126,16 +126,7 @@ export function FolderList({
       contentContainerStyle={{ paddingBottom: bottomPadding }}
       showsVerticalScrollIndicator={false}
     >
-      <Pressable
-        accessibilityRole="button"
-        onPress={onCreateFolder}
-        style={styles.row}
-      >
-        <View style={[styles.thumb, styles.createThumb]}>
-          <MaterialIcons color="#8FA2FF" name="create-new-folder" size={26} />
-        </View>
-        <Text style={styles.createText}>새 폴더 만들기</Text>
-      </Pressable>
+     
       {folders.map(folder => (
         <Pressable
           key={folder.id}
@@ -160,6 +151,16 @@ export function FolderList({
           <MaterialIcons color="#B8BFE8" name="chevron-right" size={24} />
         </Pressable>
       ))}
+       <Pressable
+        accessibilityRole="button"
+        onPress={onCreateFolder}
+        style={styles.row}
+      >
+        <View style={[styles.thumb, styles.createThumb]}>
+          <MaterialIcons color="#8FA2FF" name="create-new-folder" size={26} />
+        </View>
+        <Text style={styles.createText}>새 폴더 만들기</Text>
+      </Pressable>
       {folders.length === 0 ? (
         <Text style={styles.hint}>
           폴더를 만들어 장소를 나만의 기준으로 모아보세요.
