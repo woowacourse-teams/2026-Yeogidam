@@ -1,5 +1,21 @@
+import {
+  SEARCH_BAR_TOP_GAP,
+} from '../../components/SearchBar';
+import {
+  ALL_CATEGORY,
+  CATEGORY_CHIPS_TOP_GAP,
+  CategoryFilterChips,
+  filterPlacesByCategory,
+  PLACE_CATEGORIES,
+} from '../../components/CategoryFilterChips';
 import { SwipeBackStack } from '../../components/navigation/SwipeBackStack';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   BackHandler,
@@ -194,6 +210,12 @@ export function SavedPlacesScreen({
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
+  const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
+  const activeCategory = selectedCategory;
+  const filteredPlaces = useMemo(
+    () => filterPlacesByCategory(places, activeCategory),
+    [places, activeCategory],
+  );
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
 
   useEffect(() => {
@@ -1121,6 +1143,13 @@ export function SavedPlacesScreen({
         <SavedPlacesSkeleton />
       ) : hasSavedPlaces ? (
         <>
+          {/* 칩은 스크롤되지 않고 고정되며, 지도 화면의 칩과 같은 높이에 놓입니다. */}
+          <CategoryFilterChips
+            categories={PLACE_CATEGORIES}
+            selectedCategory={activeCategory}
+            onSelectCategory={setSelectedCategory}
+            style={styles.categoryChips}
+          />
           <ScrollView
             ref={scrollViewRef}
             alwaysBounceVertical
@@ -1145,7 +1174,7 @@ export function SavedPlacesScreen({
             />
             <SavedPlaceGrid
               isEditing={isEditing}
-              places={places}
+              places={filteredPlaces}
               onLongPressPlace={enterEditMode}
               onPressPlace={(place, position) =>
                 openPlaceDetail(place, 'saved_places_grid', position)
@@ -1153,6 +1182,11 @@ export function SavedPlacesScreen({
               onTogglePlaceSelection={togglePlaceSelection}
               selectedPlaceIds={selectedPlaceIds}
             />
+            {filteredPlaces.length === 0 ? (
+              <Text style={styles.categoryEmptyText}>
+                {activeCategory} 카테고리에 저장한 장소가 없어요
+              </Text>
+            ) : null}
             <View style={styles.scrollFooter}>
               <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
                 <MaterialIcons color="#8FA2FF" name="upload" size={24} />
@@ -1340,6 +1374,17 @@ const styles = StyleSheet.create({
     color: '#5c6fc8',
     fontSize: 13,
     fontWeight: '700',
+  },
+  categoryEmptyText: {
+    textAlign: 'center',
+    marginTop: 80,
+    fontSize: 15,
+    color: '#8A8FA8',
+  },
+  // 헤더 아래 여백(SEARCH_BAR_TOP_GAP)이 이미 있으므로 지도와 같은 위치가 되도록 당깁니다.
+  categoryChips: {
+    marginTop: CATEGORY_CHIPS_TOP_GAP - SEARCH_BAR_TOP_GAP,
+    marginBottom: 4,
   },
   editActionRow: {
     alignItems: 'flex-end',
