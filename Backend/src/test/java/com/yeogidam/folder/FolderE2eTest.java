@@ -150,7 +150,7 @@ class FolderE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "PINK"))
-                .when().patch(FOLDERS_PATH + "/1")
+                .when().put(FOLDERS_PATH + "/1")
                 .then().statusCode(204);
 
         // then
@@ -171,7 +171,7 @@ class FolderE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "GREEN"))
-                .when().patch(FOLDERS_PATH + "/1")
+                .when().put(FOLDERS_PATH + "/1")
                 .then().statusCode(204);
 
         // then
@@ -193,7 +193,7 @@ class FolderE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "TEAL"))
-                .when().patch(FOLDERS_PATH + "/2")
+                .when().put(FOLDERS_PATH + "/2")
                 .then().statusCode(409)
                 .body("errorCode", equalTo("FOLDER409_001"));
     }
@@ -208,7 +208,7 @@ class FolderE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "가나다라마바사아자차카타파하가나", "color", "RED"))
-                .when().patch(FOLDERS_PATH + "/1")
+                .when().put(FOLDERS_PATH + "/1")
                 .then().statusCode(400)
                 .body("errorCode", equalTo("FOLDER400_002"));
     }
@@ -223,7 +223,7 @@ class FolderE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "BLUE"))
-                .when().patch(FOLDERS_PATH + "/1")
+                .when().put(FOLDERS_PATH + "/1")
                 .then().statusCode(400)
                 .body("errorCode", equalTo("FOLDER400_003"));
     }
@@ -238,7 +238,7 @@ class FolderE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스"))
-                .when().patch(FOLDERS_PATH + "/1")
+                .when().put(FOLDERS_PATH + "/1")
                 .then().statusCode(400)
                 .body("errorCode", equalTo("COMMON400_001"));
     }
@@ -254,13 +254,13 @@ class FolderE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "RED"))
-                .when().patch(FOLDERS_PATH + "/3")
+                .when().put(FOLDERS_PATH + "/3")
                 .then().statusCode(404)
                 .body("errorCode", equalTo("FOLDER404_001"));
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "RED"))
-                .when().patch(FOLDERS_PATH + "/999")
+                .when().put(FOLDERS_PATH + "/999")
                 .then().statusCode(404)
                 .body("errorCode", equalTo("FOLDER404_001"));
     }
@@ -269,7 +269,7 @@ class FolderE2eTest extends E2eTestSupport {
     void 토큰_없이_폴더를_바꾸면_401_예외를_던진다() {
         given().contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "RED"))
-                .when().patch(FOLDERS_PATH + "/1")
+                .when().put(FOLDERS_PATH + "/1")
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));
     }
