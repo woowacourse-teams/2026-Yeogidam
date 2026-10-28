@@ -37,7 +37,7 @@ class FoldersTest {
     }
 
     @Test
-    void 폴더_목록이_없으면_예외가_발생한다() {
+    void 폴더_목록이_null이면_예외가_발생한다() {
         // when & then
         assertThatThrownBy(() -> new Folders(null))
                 .isInstanceOf(IllegalArgumentException.class);

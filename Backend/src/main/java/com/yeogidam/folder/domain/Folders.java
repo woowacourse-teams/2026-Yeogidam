@@ -20,7 +20,7 @@ public class Folders {
 
     private void validateNotNull(List<Folder> folders) {
         if (folders == null) {
-            throw new IllegalArgumentException("폴더 목록이 없습니다.");
+            throw new IllegalArgumentException("폴더 목록은 null일 수 없습니다.");
         }
     }
 
