@@ -301,8 +301,8 @@ export function PlaceFolderAssignPicker({
   selectedFolderIds: string[];
   onSave: (folderIds: string[]) => void;
   onCancel: () => void;
-  // 새 폴더를 만들고 그 id를 돌려줍니다. 만든 폴더는 바로 체크됩니다.
-  onCreateFolder?: (name: string, color: string) => string;
+  // 새 폴더를 만들고 그 id를 돌려줍니다. 만든 폴더는 바로 체크됩니다. 실패하면 null이고 입력 창이 열려 있습니다.
+  onCreateFolder?: (name: string, color: string) => Promise<string | null>;
 }) {
   const [selected, setSelected] = useState<string[]>(selectedFolderIds);
   const [isCreating, setIsCreating] = useState(false);
@@ -417,8 +417,9 @@ export function PlaceFolderAssignPicker({
           initialColor={getNextFolderColor(folders)}
           existingNames={folders.map(folder => folder.name)}
           confirmLabel="만들기"
-          onSubmit={(name, color) => {
-            const folderId = onCreateFolder(name, color);
+          onSubmit={async (name, color) => {
+            const folderId = await onCreateFolder(name, color);
+            if (!folderId) return;
             setSelected(current => [...current, folderId]);
             setIsCreating(false);
           }}

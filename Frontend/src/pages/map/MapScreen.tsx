@@ -37,10 +37,7 @@ import {
   MAX_FOLDER_COUNT,
   usePlaceFolders,
 } from '../../lib/usePlaceFolders';
-import {
-  getFolderIdsByPlaceId,
-  getNextFolderColor,
-} from '../../lib/placeFolderStorage';
+import { getNextFolderColor } from '../../lib/placeFolderStorage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -147,11 +144,13 @@ export function MapScreen({
     { kind: 'create' } | { kind: 'rename'; folderId: string } | null
   >(null);
   const [folderActionId, setFolderActionId] = useState<string | null>(null);
+  const isSubmittingFolderRef = useRef(false);
   const [folderAssignPlace, setFolderAssignPlace] = useState<Place | null>(
     null,
   );
   const {
     folders,
+    folderIdsByPlaceId,
     createFolder,
     updateFolder,
     deleteFolder,
@@ -294,12 +293,7 @@ export function MapScreen({
       isMounted = false;
     };
   }, [isGuest, isActive, savedPlacesRefreshSignal]);
-  // 서버 폴더 API 연동 전까지는 로컬 폴더로 장소의 folderIds를 채웁니다.
-  // TODO(폴더 API): 서버 응답의 folderIds를 쓰게 되면 이 계산과 아래 map을 지웁니다.
-  const folderIdsByPlaceId = useMemo(
-    () => getFolderIdsByPlaceId(folders),
-    [folders],
-  );
+  // TODO(#474): saved-places 응답의 folderIds를 쓰게 되면 훅의 folderIdsByPlaceId와 이 map을 지웁니다.
   const allPlacesWithCoordinates = useMemo(
     () =>
       savedPlaces
@@ -489,13 +483,20 @@ export function MapScreen({
     setFolderDialog({ kind: 'create' });
   };
 
-  const handleSubmitFolderName = (name: string, color: string) => {
-    if (folderDialog?.kind === 'rename') {
-      updateFolder(folderDialog.folderId, name, color);
-    } else {
-      createFolder(name, color);
+  const handleSubmitFolderName = async (name: string, color: string) => {
+    // 만들기를 연달아 누르면 두 번째 요청이 이름 중복(409)이 되므로 응답 전에는 막습니다.
+    if (isSubmittingFolderRef.current) return;
+    isSubmittingFolderRef.current = true;
+    try {
+      const succeeded =
+        folderDialog?.kind === 'rename'
+          ? await updateFolder(folderDialog.folderId, name, color)
+          : (await createFolder(name, color)) !== null;
+      // 실패하면 안내를 띄우고 입력 창을 열어 둬 이름을 고쳐 다시 시도할 수 있게 합니다.
+      if (succeeded) setFolderDialog(null);
+    } finally {
+      isSubmittingFolderRef.current = false;
     }
-    setFolderDialog(null);
   };
 
   const confirmDeleteFolder = (folderId: string) => {
@@ -511,8 +512,9 @@ export function MapScreen({
           text: '삭제',
           style: 'destructive',
           onPress: () => {
-            deleteFolder(folderId);
-            if (openedFolderId === folderId) handleCloseFolder();
+            deleteFolder(folderId).then(deleted => {
+              if (deleted && openedFolderId === folderId) handleCloseFolder();
+            });
           },
         },
       ],
@@ -1043,12 +1045,14 @@ export function MapScreen({
               .map(folder => folder.id)}
             onSave={folderIds => {
               if (folderAssignPlace) {
-                setPlaceFolderIds(folderAssignPlace.id, folderIds);
+                setPlaceFolderIds(folderAssignPlace, folderIds);
               }
               setFolderAssignPlace(null);
             }}
             onCancel={() => setFolderAssignPlace(null)}
-            onCreateFolder={(name, color) => createFolder(name, color).id}
+            onCreateFolder={async (name, color) =>
+              (await createFolder(name, color))?.id ?? null
+            }
           />
         </>
       ) : null}

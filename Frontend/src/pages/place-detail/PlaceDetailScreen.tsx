@@ -225,11 +225,13 @@ export function PlaceDetailScreen({
           folders={folderListItems}
           selectedFolderIds={placeFolderIds}
           onSave={folderIds => {
-            setPlaceFolderIds(place.id, folderIds);
+            setPlaceFolderIds(place, folderIds);
             setIsFolderPickerVisible(false);
           }}
           onCancel={() => setIsFolderPickerVisible(false)}
-          onCreateFolder={(name, color) => createFolder(name, color).id}
+          onCreateFolder={async (name, color) =>
+            (await createFolder(name, color))?.id ?? null
+          }
         />
       )}
       {bottomNavigationBar}

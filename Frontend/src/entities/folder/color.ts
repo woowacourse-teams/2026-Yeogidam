@@ -32,3 +32,11 @@ function isFolderColorCode(value: unknown): value is FolderColorCode {
 export function toFolderColorHex(color?: string | null): string {
   return isFolderColorCode(color) ? FOLDER_COLOR_HEX[color] : DEFAULT_PIN_COLOR;
 }
+
+/** 화면에서 고른 hex를 서버로 보낼 색 코드로 바꿉니다. 목록에 없는 색은 첫 번째 코드로 보냅니다. */
+export function toFolderColorCode(hex?: string | null): FolderColorCode {
+  return (
+    FOLDER_COLOR_CODES.find(code => FOLDER_COLOR_HEX[code] === hex) ??
+    FOLDER_COLOR_CODES[0]
+  );
+}
