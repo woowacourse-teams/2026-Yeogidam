@@ -50,7 +50,8 @@ class KakaoMapView(
     private var kakaoMap: KakaoMap? = null
     private var currentLocationLabel: Label? = null
     private var savedPlacesJson = "[]"
-    private val savedPlaceSelectionById = mutableMapOf<String, Boolean>()
+    private val savedPlaceStyleKeyById = mutableMapOf<String, String>()
+    private val coloredPlaceStyles = mutableMapOf<String, LabelStyles>()
     private var lastKnownLocation: Location? = null
 
     private val savedPlaceStyles: Map<Boolean, LabelStyles> by lazy {
@@ -342,7 +343,7 @@ class KakaoMapView(
                 placesById[place.getString("id")] = place
             }
 
-            (savedPlaceSelectionById.keys - placesById.keys).forEach { removedId ->
+            (savedPlaceStyleKeyById.keys - placesById.keys).forEach { removedId ->
                 layer.getLabel(removedId)?.remove()
             }
 
@@ -350,7 +351,10 @@ class KakaoMapView(
                 val selected = place.optBoolean("selected", false)
                 val position =
                     LatLng.from(place.getDouble("latitude"), place.getDouble("longitude"))
-                val style = savedPlaceStyles.getValue(selected)
+                val colorHex = place.optString("color", "").takeIf { it.isNotEmpty() }
+                val category = place.optString("category", "").takeIf { it.isNotEmpty() }
+                val styleKey = placeStyleKey(selected, colorHex, category)
+                val style = placeStyles(selected, colorHex, category)
                 val label = layer.getLabel(id)
 
                 if (label == null) {
@@ -369,19 +373,124 @@ class KakaoMapView(
                     label.tag = id
                     label.isClickable = true
 
-                    if (savedPlaceSelectionById[id] != selected) {
+                    if (savedPlaceStyleKeyById[id] != styleKey) {
                         label.changeStyles(style, true)
                     }
                 }
             }
 
-            savedPlaceSelectionById.clear()
-            savedPlaceSelectionById.putAll(
-                placesById.mapValues { (_, place) -> place.optBoolean("selected", false) },
+            savedPlaceStyleKeyById.clear()
+            savedPlaceStyleKeyById.putAll(
+                placesById.mapValues { (_, place) ->
+                    placeStyleKey(
+                        place.optBoolean("selected", false),
+                        place.optString("color", "").takeIf { it.isNotEmpty() },
+                        place.optString("category", "").takeIf { it.isNotEmpty() },
+                    )
+                },
             )
         } catch (error: Exception) {
             Log.e("YeogidamKakaoMap", "저장 장소 핀을 표시하지 못했습니다.", error)
         }
+    }
+
+    private fun parseColor(colorHex: String?): Int? =
+        colorHex?.let {
+            try {
+                Color.parseColor(it)
+            } catch (error: IllegalArgumentException) {
+                null
+            }
+        }
+
+    // 서버 카테고리 이름별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
+    private val categoryEmojis = mapOf(
+        "카페" to "☕",
+        "디저트" to "🍰",
+        "한식" to "🍚",
+        "양식" to "🍝",
+        "일식" to "🍣",
+        "중식" to "🥟",
+        "분식" to "🍢",
+        "술집" to "🍺",
+        "별미" to "✨",
+        "문화/여가" to "🎭",
+        "기타" to "📍",
+    )
+    private val defaultPinColor = Color.parseColor("#8FA2FF")
+
+    private fun placeStyleKey(selected: Boolean, colorHex: String?, category: String?): String {
+        val color = parseColor(colorHex)
+        val emoji = categoryEmojis[category]
+        if (color == null && emoji == null) {
+            return if (selected) "default-selected" else "default"
+        }
+        val colorKey = (if (color != null) colorHex!!.lowercase() else "default")
+        return "$colorKey-${emoji ?: "none"}-${if (selected) "selected" else "normal"}"
+    }
+
+    // 폴더 색이나 카테고리 아이콘이 있는 핀은 조합별 스타일을 한 번만 만들어 재사용합니다.
+    private fun placeStyles(selected: Boolean, colorHex: String?, category: String?): LabelStyles {
+        val emoji = categoryEmojis[category]
+        val color = parseColor(colorHex)
+            ?: (if (emoji != null) defaultPinColor else null)
+            ?: return savedPlaceStyles.getValue(selected)
+        return coloredPlaceStyles.getOrPut(placeStyleKey(selected, colorHex, category)) {
+            LabelStyles.from(
+                LabelStyle
+                    .from(createColoredPlaceMarker(color, selected, emoji))
+                    .setAnchorPoint(0.5f, 1.0f)
+                    .setIconTransition(
+                        LabelTransition
+                            .from(Transition.Scale, Transition.Scale)
+                            .enableTransitionWhenChange(true, true),
+                    ),
+            )
+        }
+    }
+
+    // 색 원 + 아래쪽 뾰족한 꼬리 + 흰 중심점으로 그린 핀입니다.
+    // 카테고리 아이콘이 있으면 흰 중심점 대신 흰 원 위에 아이콘을 얹습니다.
+    private fun createColoredPlaceMarker(color: Int, selected: Boolean, emoji: String?): Bitmap {
+        val density = resources.displayMetrics.density
+        val width = ((if (selected) 34 else 28) * density).roundToInt()
+        val height = ((if (selected) 42 else 36) * density).roundToInt()
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val strokeWidth = 2 * density
+        val radius = width / 2f - strokeWidth
+        val centerX = width / 2f
+        val centerY = radius + strokeWidth
+        val path = android.graphics.Path().apply {
+            addCircle(centerX, centerY, radius, android.graphics.Path.Direction.CW)
+            moveTo(centerX - radius * 0.62f, centerY + radius * 0.78f)
+            lineTo(centerX, height - strokeWidth)
+            lineTo(centerX + radius * 0.62f, centerY + radius * 0.78f)
+            close()
+        }
+        paint.style = Paint.Style.FILL
+        paint.color = color
+        canvas.drawPath(path, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = strokeWidth
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.color = Color.WHITE
+        canvas.drawPath(path, paint)
+        paint.style = Paint.Style.FILL
+        if (emoji == null) {
+            canvas.drawCircle(centerX, centerY, radius * 0.42f, paint)
+            return bitmap
+        }
+        val disc = radius * 0.74f
+        canvas.drawCircle(centerX, centerY, disc, paint)
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = disc * 1.25f
+            textAlign = Paint.Align.CENTER
+        }
+        val baseline = centerY - (textPaint.descent() + textPaint.ascent()) / 2f
+        canvas.drawText(emoji, centerX, baseline, textPaint)
+        return bitmap
     }
 
     private fun createSavedPlaceStyles(selected: Boolean): LabelStyles =
