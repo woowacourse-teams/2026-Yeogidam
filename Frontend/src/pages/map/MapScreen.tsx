@@ -55,6 +55,7 @@ import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
 import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
+import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
 import {
   SEARCH_BAR_HEIGHT,
   SEARCH_BAR_TOP_GAP,
@@ -96,6 +97,7 @@ type MapCamera = {
 };
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
+const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
 
 export function MapScreen({
   bottomNavigationBar,
@@ -205,6 +207,39 @@ export function MapScreen({
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const [isSavedPlacesLoading, setIsSavedPlacesLoading] = useState(true);
   const [savedPlacesLoadFailed, setSavedPlacesLoadFailed] = useState(false);
+  const [savedPlacesRefreshSignal, setSavedPlacesRefreshSignal] = useState(0);
+  const completedReelIdsRef = useRef<Set<string> | null>(null);
+
+  // 지도가 보이는 중에 릴스 저장이 끝나면 새 장소를 읽는다. 첫 결과는 기준값으로만 쓴다.
+  useEffect(() => {
+    if (isGuest) {
+      completedReelIdsRef.current = null;
+      return;
+    }
+    const subscription = subscribeRecentShares({
+      intervalMs: SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS,
+      onResult: ({ reels }) => {
+        const completedIds = new Set(
+          reels
+            .filter(reel => reel.processing_status === 'COMPLETED')
+            .map(reel => String(reel.id)),
+        );
+        const previousIds = completedReelIdsRef.current;
+        completedReelIdsRef.current = completedIds;
+        if (!previousIds) return;
+        for (const id of completedIds) {
+          if (!previousIds.has(id)) {
+            setSavedPlacesRefreshSignal(signal => signal + 1);
+            return;
+          }
+        }
+      },
+    });
+    return () => {
+      subscription.unsubscribe();
+      completedReelIdsRef.current = null;
+    };
+  }, [isGuest]);
   const bottomNavigationOffset =
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
 
@@ -221,12 +256,15 @@ export function MapScreen({
       setIsSavedPlacesLoading(false);
       return;
     }
+    // 탭이 숨겨진 채 마운트돼 있으므로, 다시 보일 때마다 목록을 새로 읽는다.
+    if (!isActive) return;
     let isMounted = true;
 
     getSavedPlaces()
       .then(savedPlaceItems => {
         if (!isMounted) return;
 
+        setSavedPlacesLoadFailed(false);
         setSavedPlaces(
           Array.from(
             new Map(
@@ -252,7 +290,7 @@ export function MapScreen({
     return () => {
       isMounted = false;
     };
-  }, [isGuest]);
+  }, [isGuest, isActive, savedPlacesRefreshSignal]);
   const allPlacesWithCoordinates = useMemo(
     () =>
       savedPlaces.filter(
