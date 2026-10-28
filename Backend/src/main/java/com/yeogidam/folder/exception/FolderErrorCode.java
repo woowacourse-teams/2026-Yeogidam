@@ -9,6 +9,7 @@ public enum FolderErrorCode implements ErrorCode {
     INVALID_FOLDER_NAME(HttpStatus.BAD_REQUEST, "FOLDER400_002", "폴더 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다."),
     INVALID_FOLDER_COLOR(HttpStatus.BAD_REQUEST, "FOLDER400_003", "color는 RED, ORANGE, YELLOW, GREEN, TEAL, PURPLE, PINK 중 하나여야 합니다."),
     FOLDER_NOT_FOUND(HttpStatus.NOT_FOUND, "FOLDER404_001", "폴더를 찾을 수 없습니다."),
+    SAVED_PLACE_OR_FOLDER_NOT_FOUND(HttpStatus.NOT_FOUND, "FOLDER404_002", "보관함 장소나 폴더를 찾을 수 없습니다."),
     DUPLICATE_FOLDER_NAME(HttpStatus.CONFLICT, "FOLDER409_001", "같은 이름의 폴더가 이미 있습니다.");
 
     private final HttpStatus httpStatus;
