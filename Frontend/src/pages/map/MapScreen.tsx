@@ -38,8 +38,8 @@ import {
   usePlaceFolders,
 } from '../../lib/usePlaceFolders';
 import {
-  DEFAULT_FOLDER_COLOR,
   getFolderIdsByPlaceId,
+  getNextFolderColor,
 } from '../../lib/placeFolderStorage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
@@ -58,6 +58,7 @@ import { resolvePlaceCategoryCode } from '../../entities/place/category';
 import type { Place } from '../../entities/place/types';
 import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
+import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
 import {
   SEARCH_BAR_HEIGHT,
   SEARCH_BAR_TOP_GAP,
@@ -99,6 +100,7 @@ type MapCamera = {
 };
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
+const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
 
 export function MapScreen({
   bottomNavigationBar,
@@ -208,6 +210,39 @@ export function MapScreen({
   const [savedPlaces, setSavedPlaces] = useState<Place[]>([]);
   const [isSavedPlacesLoading, setIsSavedPlacesLoading] = useState(true);
   const [savedPlacesLoadFailed, setSavedPlacesLoadFailed] = useState(false);
+  const [savedPlacesRefreshSignal, setSavedPlacesRefreshSignal] = useState(0);
+  const completedReelIdsRef = useRef<Set<string> | null>(null);
+
+  // 지도가 보이는 중에 릴스 저장이 끝나면 새 장소를 읽는다. 첫 결과는 기준값으로만 쓴다.
+  useEffect(() => {
+    if (isGuest) {
+      completedReelIdsRef.current = null;
+      return;
+    }
+    const subscription = subscribeRecentShares({
+      intervalMs: SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS,
+      onResult: ({ reels }) => {
+        const completedIds = new Set(
+          reels
+            .filter(reel => reel.processing_status === 'COMPLETED')
+            .map(reel => String(reel.id)),
+        );
+        const previousIds = completedReelIdsRef.current;
+        completedReelIdsRef.current = completedIds;
+        if (!previousIds) return;
+        for (const id of completedIds) {
+          if (!previousIds.has(id)) {
+            setSavedPlacesRefreshSignal(signal => signal + 1);
+            return;
+          }
+        }
+      },
+    });
+    return () => {
+      subscription.unsubscribe();
+      completedReelIdsRef.current = null;
+    };
+  }, [isGuest]);
   const bottomNavigationOffset =
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
 
@@ -224,12 +259,15 @@ export function MapScreen({
       setIsSavedPlacesLoading(false);
       return;
     }
+    // 탭이 숨겨진 채 마운트돼 있으므로, 다시 보일 때마다 목록을 새로 읽는다.
+    if (!isActive) return;
     let isMounted = true;
 
     getSavedPlaces()
       .then(savedPlaceItems => {
         if (!isMounted) return;
 
+        setSavedPlacesLoadFailed(false);
         setSavedPlaces(
           Array.from(
             new Map(
@@ -255,7 +293,7 @@ export function MapScreen({
     return () => {
       isMounted = false;
     };
-  }, [isGuest]);
+  }, [isGuest, isActive, savedPlacesRefreshSignal]);
   // 서버 폴더 API 연동 전까지는 로컬 폴더로 장소의 folderIds를 채웁니다.
   // TODO(폴더 API): 서버 응답의 folderIds를 쓰게 되면 이 계산과 아래 map을 지웁니다.
   const folderIdsByPlaceId = useMemo(
@@ -307,7 +345,6 @@ export function MapScreen({
           name: folder.name,
           color: folder.color,
           count: folderPlaces.length,
-          thumbnail: folderPlaces.find(place => place.image)?.image,
         };
       }),
     [allPlacesWithCoordinates, folders],
@@ -900,7 +937,7 @@ export function MapScreen({
           }
           emptyContent={
             openedFolder && folderScopedPlaces.length === 0 ? (
-              <View style={styles.folderEmpty}>
+              <View style={[styles.folderEmpty, styles.folderEmptyInList]}>
                 <Text style={styles.folderEmptyTitle}>폴더가 비어 있어요</Text>
                 <Text style={styles.folderEmptyHint}>
                   장소 상세의 더보기에서 이 폴더에 담을 수 있어요.
@@ -957,7 +994,7 @@ export function MapScreen({
               folderDialog?.kind === 'rename'
                 ? folders.find(folder => folder.id === folderDialog.folderId)
                     ?.color
-                : DEFAULT_FOLDER_COLOR
+                : getNextFolderColor(folders)
             }
             initialName={
               folderDialog?.kind === 'rename'
@@ -965,6 +1002,13 @@ export function MapScreen({
                     ?.name
                 : ''
             }
+            existingNames={folders
+              .filter(
+                folder =>
+                  folderDialog?.kind !== 'rename' ||
+                  folder.id !== folderDialog.folderId,
+              )
+              .map(folder => folder.name)}
             onSubmit={handleSubmitFolderName}
             onCancel={() => setFolderDialog(null)}
           />
@@ -1016,6 +1060,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     paddingTop: 34,
+  },
+  // 장소 목록의 빈 상태 영역이 이미 위 여백을 주므로 겹치지 않게 뺍니다.
+  folderEmptyInList: {
+    paddingTop: 0,
   },
   folderEmptyTitle: {
     fontSize: 16,
