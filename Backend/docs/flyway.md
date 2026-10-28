@@ -5,6 +5,7 @@ DB 구조는 `db/migration`의 버전 SQL로 관리한다. 앱을 시작하면 F
 버전 SQL은 기존 운영 구조를 담은 `V1__initial_schema.sql`과 #469의 커스텀 폴더 구조를 추가하는
 `V2__create_folders.sql`, `V3__create_folder_saved_places.sql`이다. V1은 수정하지 않는다.
 V2는 `folders`, V3는 `folder_saved_places`를 생성하며 기존 장소와 공유 데이터는 변경하지 않는다.
+`V4__remove_blue_from_folder_colors.sql`은 #476에서 2.2.0 화면에 맞춰 `folders`의 색 CHECK에서 `BLUE`를 빼고 7가지만 남긴다.
 
 2026-10-27 사용자 확인 기준 개발 서버에는 Flyway가 적용됐고 운영에는 아직 적용되지 않았다.
 이번 작업은 V2, V3 작성과 로컬 검증이며 서버 배포는 수행하지 않는다. 운영에 추후 처음 적용할 때는
@@ -22,6 +23,7 @@ SQL 경로는 `src/main/resources`를 기준으로 한다.
 | `db/migration/V1__initial_schema.sql` | 빈 DB에 기존 운영과 같은 테이블을 만든다. Flyway가 버전과 실행 결과를 기록한다. |
 | `db/migration/V2__create_folders.sql` | 회원별 폴더 테이블을 추가한다. Flyway가 실행한다. |
 | `db/migration/V3__create_folder_saved_places.sql` | 폴더와 저장 장소 소속 테이블을 추가한다. Flyway가 실행한다. |
+| `db/migration/V4__remove_blue_from_folder_colors.sql` | 폴더 색 CHECK에서 `BLUE`를 빼고 7가지만 남긴다. Flyway가 실행한다. |
 | `cleanup.sql` | 로컬과 테스트가 함께 쓰는 업무 데이터와 자동 증가 ID 초기화 SQL이다. 로컬은 `LocalDatabaseResetConfiguration`이 마이그레이션 후 실행하고, 테스트는 각 메서드 전에 `@Sql("/cleanup.sql")`로 실행한다. 테이블과 Flyway 기록은 유지한다. |
 | `db/seed/data-local.sql` | 로컬 개발용 공유와 장소 등의 샘플 데이터다. `LocalDataSeeder`가 실행한다. |
 | `db/seed/data-onboarding.sql` | 온보딩 게시물과 장소 데이터다. 로컬은 `LocalDataSeeder`가 실행하고, 서버에는 필요할 때 직접 적용한다. |
