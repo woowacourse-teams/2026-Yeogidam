@@ -5,7 +5,6 @@ const PLACE_FOLDERS_STORAGE_KEY = '@yeogidam/place-folders';
 
 // 폴더 색상은 지도 핀 색으로도 쓰입니다. 첫 번째 색이 기본값입니다.
 export const FOLDER_COLORS = [
-  '#8FA2FF',
   '#FF8A80',
   '#FFB74D',
   '#F2C94C',
@@ -15,6 +14,15 @@ export const FOLDER_COLORS = [
   '#F06292',
 ];
 export const DEFAULT_FOLDER_COLOR = FOLDER_COLORS[0];
+
+// 새 폴더가 기존 폴더와 다른 색으로 시작하도록, 아직 쓰지 않은 색을 먼저 고릅니다.
+export function getNextFolderColor(folders: Pick<PlaceFolder, 'color'>[]) {
+  const usedColors = new Set(folders.map(folder => folder.color));
+  return (
+    FOLDER_COLORS.find(color => !usedColors.has(color)) ??
+    FOLDER_COLORS[folders.length % FOLDER_COLORS.length]
+  );
+}
 
 export type PlaceFolder = {
   id: string;

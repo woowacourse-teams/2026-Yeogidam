@@ -38,7 +38,7 @@ import {
   MAX_FOLDER_COUNT,
   usePlaceFolders,
 } from '../../lib/usePlaceFolders';
-import { DEFAULT_FOLDER_COLOR } from '../../lib/placeFolderStorage';
+import { getNextFolderColor } from '../../lib/placeFolderStorage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -281,7 +281,6 @@ export function MapScreen({
           name: folder.name,
           color: folder.color,
           count: folderPlaces.length,
-          thumbnail: folderPlaces.find(place => place.image)?.image,
         };
       }),
     [allPlacesWithCoordinates, folders],
@@ -860,7 +859,7 @@ export function MapScreen({
           }
           emptyContent={
             openedFolder && folderScopedPlaces.length === 0 ? (
-              <View style={styles.folderEmpty}>
+              <View style={[styles.folderEmpty, styles.folderEmptyInList]}>
                 <Text style={styles.folderEmptyTitle}>폴더가 비어 있어요</Text>
                 <Text style={styles.folderEmptyHint}>
                   장소 상세의 더보기에서 이 폴더에 담을 수 있어요.
@@ -917,7 +916,7 @@ export function MapScreen({
               folderDialog?.kind === 'rename'
                 ? folders.find(folder => folder.id === folderDialog.folderId)
                     ?.color
-                : DEFAULT_FOLDER_COLOR
+                : getNextFolderColor(folders)
             }
             initialName={
               folderDialog?.kind === 'rename'
@@ -925,6 +924,13 @@ export function MapScreen({
                     ?.name
                 : ''
             }
+            existingNames={folders
+              .filter(
+                folder =>
+                  folderDialog?.kind !== 'rename' ||
+                  folder.id !== folderDialog.folderId,
+              )
+              .map(folder => folder.name)}
             onSubmit={handleSubmitFolderName}
             onCancel={() => setFolderDialog(null)}
           />
@@ -976,6 +982,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 14,
     paddingTop: 34,
+  },
+  // 장소 목록의 빈 상태 영역이 이미 위 여백을 주므로 겹치지 않게 뺍니다.
+  folderEmptyInList: {
+    paddingTop: 0,
   },
   folderEmptyTitle: {
     fontSize: 16,

@@ -26,9 +26,6 @@ type NativeShareIntentModule = {
   getShareResult?(): Promise<NativeShareResult | null>;
   getShareResults?(): Promise<NativeShareResult[]>;
   clearShareResult?(requestId: string | null): Promise<void>;
-  setShareFolders?(folders: ShareFolder[]): Promise<void>;
-  takeShareFolderDrafts?(): Promise<ShareFolder[]>;
-  getShareFolderSelections?(): Promise<Record<string, string[]>>;
   getPendingShareAnalyticsEvents?(): Promise<NativeShareAnalyticsEvent[]>;
   acknowledgeShareAnalyticsEvent?(id: string): Promise<void>;
 };
@@ -46,9 +43,6 @@ export type NativeShareAnalyticsEvent = {
 export type NativeShareSession = {accessToken: string; refreshToken: string; expiresAt: number; userId: string};
 export type ShareTransferStatus = 'SAVED' | 'WAITING_FOR_AUTH' | 'WAITING_FOR_NETWORK' | 'LOGIN_REQUIRED' | 'LOGIN_HANDOFF' | 'GUEST_LOGIN_PROMPT' | 'GUEST_PREVIEW' | 'QUEUED' | 'REQUESTING' | 'API_SUCCEEDED' | 'API_FAILED';
 export type NativeShareResult = {requestId?: string; requestSentAt?: number; url: string; rawSharedText?: string; status: 'PENDING'|'PROCESSING'|'COMPLETED'|'FAILED'; transferStatus?: ShareTransferStatus; authReason?: string; reelId?: string; failureReason?: string; responseStatus?: number; retryable?: boolean; updatedAt: number; receivedAt?: number; queuedAt?: number; apiAcceptedAt?: number; transferFinishedAt?: number; reused?: boolean; saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE'};
-
-/** 공유 확장의 "폴더 선택" 화면이 쓰는 폴더 정보입니다. */
-export type ShareFolder = {id: string; name: string; color: string};
 
 export type SharedContentSubscription = {
   remove: () => void;
@@ -153,33 +147,6 @@ export async function getShareResults(): Promise<NativeShareResult[]> {
 }
 export async function clearShareResult(requestId?: string) {
   await nativeShareIntentModule?.clearShareResult?.(requestId ?? null);
-}
-
-/** 앱의 폴더 목록을 공유 확장이 읽을 수 있게 네이티브 공유 저장소에 복사합니다. */
-export async function syncShareFolders(folders: ShareFolder[]): Promise<void> {
-  try {
-    await nativeShareIntentModule?.setShareFolders?.(folders);
-  } catch {
-    // 확장의 폴더 목록 갱신 실패가 앱 동작을 막지 않도록 무시합니다.
-  }
-}
-
-/** 공유 확장에서 새로 만든 폴더를 가져오고 네이티브 쪽은 비웁니다. */
-export async function takeShareFolderDrafts(): Promise<ShareFolder[]> {
-  try {
-    return (await nativeShareIntentModule?.takeShareFolderDrafts?.()) ?? [];
-  } catch {
-    return [];
-  }
-}
-
-/** 공유(requestId)별로 확장에서 고른 폴더 id입니다. 장소 저장 시점에 적용할 때 씁니다. */
-export async function getShareFolderSelections(): Promise<Record<string, string[]>> {
-  try {
-    return (await nativeShareIntentModule?.getShareFolderSelections?.()) ?? {};
-  } catch {
-    return {};
-  }
 }
 
 export function addSharedContentListener(
