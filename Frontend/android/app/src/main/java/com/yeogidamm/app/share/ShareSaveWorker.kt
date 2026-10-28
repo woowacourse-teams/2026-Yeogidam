@@ -1,11 +1,8 @@
 package com.yeogidamm.app.share
 
 import android.content.Context
-import androidx.work.BackoffPolicy
-import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -14,7 +11,6 @@ import com.yeogidamm.app.BuildConfig
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.concurrent.TimeUnit
 
 internal class ShareSaveWorker(
     appContext: Context,
@@ -23,129 +19,216 @@ internal class ShareSaveWorker(
 
     override fun doWork(): Result {
         val requestId = inputData.getString(KEY_REQUEST_ID) ?: return Result.failure()
-        val instagramUrl = inputData.getString(KEY_INSTAGRAM_URL) ?: return Result.failure()
-        val rawSharedText = inputData.getString(KEY_RAW_SHARED_TEXT)
-        val token = ShareResultStore.accessToken(applicationContext)
-
-        if (token.isNullOrBlank()) {
-            saveFailure(
-                requestId = requestId,
-                instagramUrl = instagramUrl,
-                rawSharedText = rawSharedText,
-                reason = "AUTH401_001",
-                retryable = false,
-            )
+        val pending = ShareResultStore.loadResult(applicationContext, requestId) ?: return Result.failure()
+        val instagramUrl = pending.url.takeIf { it.isNotBlank() } ?: run {
+            if (pending.transferStatus == "REQUESTING" && pending.reelId == null) {
+                saveFailure(requestId, "REQUEST_INTERRUPTED", requestSentAt = pending.requestSentAt)
+                recordFinished(requestId, "request_failed", null, "interrupted")
+            }
             return Result.success()
         }
-
-        val requestSentAt = System.currentTimeMillis()
-        ShareResultStore.saveResult(
-            applicationContext,
-            ShareReelResult(
-                requestId = requestId,
-                requestSentAt = requestSentAt,
-                url = instagramUrl,
-                rawSharedText = rawSharedText,
-                status = "PENDING",
-                retryable = true,
-                updatedAt = requestSentAt,
-            ),
-        )
+        val rawSharedText = pending.rawSharedText
+        val auth = ShareAuth.ensureAccessToken(applicationContext)
+        val token = when (auth) {
+            is ShareAuthResult.Ready -> auth.token
+            is ShareAuthResult.LoginRequired -> {
+                ShareResultStore.saveResult(
+                    applicationContext,
+                    ShareReelResult(
+                        requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
+                        status = "PENDING", transferStatus = "LOGIN_HANDOFF",
+                        authReason = auth.reason, retryable = false,
+                    ),
+                )
+                ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred", "login_required")
+                recordFinished(requestId, "blocked_before_request", null, "auth_failed")
+                return Result.success()
+            }
+            ShareAuthResult.WaitingForNetwork, ShareAuthResult.WaitingForAuth -> {
+                ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred",
+                    if (auth is ShareAuthResult.WaitingForNetwork) "network_unavailable" else "auth_pending")
+                ShareResultStore.saveResult(
+                    applicationContext,
+                    ShareReelResult(
+                        requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
+                        status = "PENDING",
+                        transferStatus = if (auth is ShareAuthResult.WaitingForNetwork) "WAITING_FOR_NETWORK" else "WAITING_FOR_AUTH",
+                        retryable = true,
+                    ),
+                )
+                return Result.success()
+            }
+        }
 
         var connection: HttpURLConnection? = null
+        var requestSentAt: Long? = null
+        var outputStreamAcquired = false
         return try {
-            connection = URL("${BuildConfig.SUPABASE_URL}/functions/v1/save-instagram-reel")
+            connection = URL("${BuildConfig.API_BASE_URL}/api/v1/shares")
                 .openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_PUBLISHABLE_KEY)
+            connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Authorization", "Bearer $token")
-            val body = JSONObject().apply {
-                put("instagramUrl", instagramUrl)
-                put("source", "instagram_share")
-                put("forceReprocess", false)
-            }.toString()
-            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            // 서버에는 멱등키가 없어 instagramUrl만 보낸다.
+            val body = JSONObject().put("instagramUrl", instagramUrl).toString()
+            connection.connect()
+            connection.outputStream.use { stream ->
+                outputStreamAcquired = true
+                requestSentAt = System.currentTimeMillis()
+                ShareResultStore.saveResult(
+                    applicationContext,
+                    ShareReelResult(
+                        requestId = requestId, requestSentAt = requestSentAt,
+                        url = "", rawSharedText = null,
+                        status = "PENDING", transferStatus = "REQUESTING",
+                        retryable = false, updatedAt = requestSentAt!!,
+                    ),
+                )
+                ShareAnalyticsStore.record(
+                    applicationContext, "extraction_request_started", requestId,
+                    release = ShareResultStore.loadResult(applicationContext, requestId)?.release
+                        ?: BuildConfig.VERSION_NAME,
+                )
+                stream.write(body.toByteArray(Charsets.UTF_8))
+            }
 
             val responseCode = connection.responseCode
             val stream = if (responseCode in 200..299) connection.inputStream else connection.errorStream
             val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
             val response = runCatching { JSONObject(responseBody) }.getOrDefault(JSONObject())
-            val nestedError = response.optJSONObject("error")
 
             if (responseCode !in 200..299) {
-                val retryable = response.optBoolean(
-                    "retryable",
-                    nestedError?.optBoolean("retryable", responseCode >= 500) ?: (responseCode >= 500),
-                )
-                if (retryable && runAttemptCount < MAX_RETRY_COUNT) {
-                    return Result.retry()
-                }
-
-                val errorCode = response.optNullableString("errorCode")
-                    ?: nestedError?.optNullableString("errorCode")
+                // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
+                val errorCode = if (responseCode == 401) "AUTH401_001" else response.optNullableString("errorCode")
                 val message = response.optNullableString("message")
-                    ?: nestedError?.optNullableString("message")
+                if (responseCode == 408 || responseCode == 429 || responseCode == 504 || responseCode >= 500) {
+                    ShareSentryReporter.capture(
+                        applicationContext,
+                        "SHARE_EXTRACTION_REQUEST_FAILED",
+                        "place_extraction_request",
+                        responseCode,
+                        errorCode,
+                    )
+                }
                 saveFailure(
                     requestId = requestId,
                     requestSentAt = requestSentAt,
-                    instagramUrl = instagramUrl,
-                    rawSharedText = rawSharedText,
                     reason = listOfNotNull(errorCode, message, "HTTP_$responseCode").joinToString(" | "),
-                    retryable = retryable,
-                    reelId = response.optNullableString("reelId")
-                        ?: nestedError?.optNullableString("reelId"),
+                    responseStatus = responseCode,
                 )
+                recordFinished(requestId, "request_failed", responseCode, when {
+                    responseCode == 401 || responseCode == 403 -> "auth_failed"
+                    responseCode == 408 || responseCode == 504 -> "timeout"
+                    responseCode >= 500 -> "server_error"
+                    else -> "invalid_request"
+                })
                 return Result.success()
             }
 
+            // Spring 응답(202): {sharedMediaId, extractionStatus}
+            val reelId = if (response.isNull("sharedMediaId")) null
+                else response.optLong("sharedMediaId", -1L).takeIf { it >= 0 }?.toString()
+            val extractionStatus = response.optNullableString("extractionStatus")
+            if (reelId == null || extractionStatus == null) {
+                ShareSentryReporter.capture(
+                    applicationContext,
+                    "SHARE_EXTRACTION_RESPONSE_INVALID",
+                    "place_extraction_request",
+                    responseCode,
+                )
+            }
             ShareResultStore.saveResult(
                 applicationContext,
                 ShareReelResult(
                     requestId = requestId,
                     requestSentAt = requestSentAt,
-                    url = instagramUrl,
-                    rawSharedText = rawSharedText,
-                    status = response.optString("status", "FAILED"),
-                    reelId = response.optNullableString("reelId"),
-                    failureReason = response.optNullableString("failureReason"),
-                    retryable = response.optBoolean("retryable", false),
-                    reused = if (response.has("reused") && !response.isNull("reused")) {
-                        response.getBoolean("reused")
-                    } else {
-                        null
-                    },
+                    url = "",
+                    rawSharedText = null,
+                    status = if (reelId == null) "FAILED" else toReelStatus(extractionStatus),
+                    transferStatus = if (reelId == null) "API_FAILED" else "API_SUCCEEDED",
+                    reelId = reelId,
+                    failureReason = if (reelId == null) "MISSING_REEL_ID" else null,
+                    responseStatus = responseCode,
+                    retryable = false,
+                    reused = reelId?.let { extractionStatus == "SUCCEEDED" },
+                    saveMode = "AUTO_SAVE",
                 ),
             )
+            recordFinished(requestId, if (reelId == null) "request_failed" else "response_received",
+                responseCode, if (reelId == null) "invalid_response" else null, reelId)
             Result.success()
         } catch (error: Exception) {
-            if (runAttemptCount < MAX_RETRY_COUNT) {
-                Result.retry()
-            } else {
-                saveFailure(
-                    requestId = requestId,
-                    requestSentAt = requestSentAt,
-                    instagramUrl = instagramUrl,
-                    rawSharedText = rawSharedText,
-                    reason = "CLIENT000_002 | ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
-                    retryable = true,
+            if (!outputStreamAcquired) {
+                val networkFailure = isConnectionFailure(error)
+                val savedLocally = ShareResultStore.saveResult(
+                    applicationContext,
+                    ShareReelResult(
+                        requestId = requestId, url = instagramUrl, rawSharedText = rawSharedText,
+                        status = "PENDING", transferStatus = if (networkFailure) "WAITING_FOR_NETWORK" else "SAVED",
+                        retryable = true,
+                    ),
                 )
-                Result.success()
+                if (networkFailure && savedLocally) {
+                    ShareSentryReporter.capture(
+                        applicationContext,
+                        "SHARE_EXTRACTION_NETWORK_DEFERRED",
+                        "place_extraction_request",
+                        exceptionType = error.javaClass.simpleName,
+                    )
+                }
+                ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred",
+                    if (networkFailure) "network_unavailable" else "pre_request_error")
+                return Result.success()
             }
+            saveFailure(
+                requestId = requestId,
+                requestSentAt = requestSentAt,
+                reason = "CLIENT000_002 | ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
+            )
+            ShareSentryReporter.capture(
+                applicationContext,
+                "SHARE_EXTRACTION_REQUEST_FAILED",
+                "place_extraction_request",
+                exceptionType = error.javaClass.simpleName,
+            )
+            recordFinished(requestId, "request_failed", null,
+                if (error is java.net.SocketTimeoutException) "timeout" else "network_error")
+            Result.success()
         } finally {
             connection?.disconnect()
         }
     }
 
+    private fun isConnectionFailure(error: Exception): Boolean =
+        error is java.net.UnknownHostException ||
+            error is java.net.ConnectException ||
+            error is java.net.NoRouteToHostException ||
+            error is java.net.SocketTimeoutException ||
+            error is java.net.SocketException
+
+    private fun recordFinished(
+        requestId: String, outcome: String, responseStatus: Int?, failureType: String?, contentId: String? = null,
+    ) {
+        ShareAnalyticsStore.record(
+            applicationContext, "extraction_request_finished", requestId,
+            JSONObject().put("outcome", outcome).apply {
+                responseStatus?.let { put("response_status", it) }
+                failureType?.let { put("failure_type", it) }
+                contentId?.let { put("content_id", it) }
+            },
+            release = ShareResultStore.loadResult(applicationContext, requestId)?.release
+                ?: BuildConfig.VERSION_NAME,
+        )
+    }
+
     private fun saveFailure(
         requestId: String,
-        instagramUrl: String,
-        rawSharedText: String?,
         reason: String,
-        retryable: Boolean,
+        responseStatus: Int? = null,
         requestSentAt: Long? = null,
         reelId: String? = null,
     ) {
@@ -154,48 +237,48 @@ internal class ShareSaveWorker(
             ShareReelResult(
                 requestId = requestId,
                 requestSentAt = requestSentAt,
-                url = instagramUrl,
-                rawSharedText = rawSharedText,
+                url = "",
+                rawSharedText = null,
                 status = "FAILED",
+                transferStatus = "API_FAILED",
                 reelId = reelId,
                 failureReason = reason,
-                retryable = retryable,
+                responseStatus = responseStatus,
+                retryable = false,
             ),
         )
     }
 
     companion object {
         private const val KEY_REQUEST_ID = "request_id"
-        private const val KEY_INSTAGRAM_URL = "instagram_url"
-        private const val KEY_RAW_SHARED_TEXT = "raw_shared_text"
-        private const val MAX_RETRY_COUNT = 2
+
+        /** Spring ExtractionStatus를 앱 처리 상태로 바꾼다. */
+        fun toReelStatus(extractionStatus: String?): String = when (extractionStatus) {
+            "SUCCEEDED" -> "COMPLETED"
+            "FAILED" -> "FAILED"
+            else -> "PROCESSING"
+        }
 
         fun enqueue(
             context: Context,
             requestId: String,
-            instagramUrl: String,
-            rawSharedText: String,
-        ) {
+        ): Boolean {
+            val queuedAt = System.currentTimeMillis()
             val input = Data.Builder()
                 .putString(KEY_REQUEST_ID, requestId)
-                .putString(KEY_INSTAGRAM_URL, instagramUrl)
-                .putString(KEY_RAW_SHARED_TEXT, rawSharedText)
                 .build()
             val request = OneTimeWorkRequestBuilder<ShareSaveWorker>()
                 .setInputData(input)
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build(),
-                )
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 "share-save-$requestId",
                 ExistingWorkPolicy.KEEP,
                 request,
-            )
+            ).result.get()
+            ShareResultStore.markQueued(context, requestId, queuedAt)
+            ShareAnalyticsStore.recordDeliveryStatus(context, requestId, "queued", occurredAt = queuedAt)
+            return true
         }
     }
 }

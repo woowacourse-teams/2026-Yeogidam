@@ -9,6 +9,7 @@ export type SharedSaveState = {
   source: SaveSource;
   rawSharedText?: string;
   reused?: boolean;
+  saveMode?: 'REVIEW_QUEUE' | 'AUTO_SAVE';
 };
 
 let currentState: SharedSaveState | null = null;

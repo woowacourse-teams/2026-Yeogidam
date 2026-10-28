@@ -1,12 +1,152 @@
 import Foundation
+import Security
+import Darwin
+import Network
+import Sentry
+
+enum ShareSentryReporter {
+  private static let dsn = "https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256"
+  private static var isStarted = false
+
+  private static let titles = [
+    "SHARE_PAYLOAD_READ_FAILED": "장소 공유 오류 · 공유 내용 확인",
+    "SHARE_PAYLOAD_STORE_FAILED": "장소 공유 오류 · 기기 저장",
+    "SHARE_LOGIN_APP_OPEN_FAILED": "장소 공유 오류 · 로그인 앱 전환",
+    "SHARE_LOGIN_STATE_READ_FAILED": "장소 공유 오류 · 로그인 상태 확인",
+    "SHARE_TOKEN_REFRESH_FAILED": "장소 공유 오류 · 토큰 갱신",
+    "SHARE_EXTRACTION_REQUEST_FAILED": "장소 공유 오류 · 장소 추출 요청",
+    "SHARE_EXTRACTION_NETWORK_DEFERRED": "장소 공유 오류 · 네트워크",
+    "SHARE_EXTRACTION_RESPONSE_INVALID": "장소 공유 오류 · 응답 확인",
+  ]
+
+  private static let descriptions = [
+    "SHARE_PAYLOAD_READ_FAILED": "인스타그램에서 공유한 링크를 읽거나 형식을 확인하지 못했습니다.",
+    "SHARE_PAYLOAD_STORE_FAILED": "공유한 링크를 기기에 저장하지 못했습니다.",
+    "SHARE_LOGIN_APP_OPEN_FAILED": "공유한 링크를 이어서 처리하기 위해 여기담 앱을 열지 못했습니다.",
+    "SHARE_TOKEN_REFRESH_FAILED": "공유한 장소를 추출하기 위한 로그인 토큰을 갱신하지 못했습니다.",
+    "SHARE_EXTRACTION_REQUEST_FAILED": "장소 추출 요청을 서버로 보내거나 처리하지 못했습니다.",
+    "SHARE_EXTRACTION_NETWORK_DEFERRED": "장소 추출 요청 전에 네트워크 연결에 실패했습니다.",
+    "SHARE_EXTRACTION_RESPONSE_INVALID": "장소 추출 요청 후 서버 응답의 필수 정보를 확인하지 못했습니다.",
+  ]
+
+  static func capture(
+    _ errorCode: String,
+    stage: String = "share_intake",
+    httpStatus: Int? = nil,
+    backendErrorCode: String? = nil,
+    exceptionType: String? = nil
+  ) {
+    guard let title = titles[errorCode], let description = descriptions[errorCode] else { return }
+    let environment = (Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let normalizedEnvironment = (environment?.isEmpty == false ? environment : nil) ?? "development"
+    let deferredHandling = errorCode == "SHARE_EXTRACTION_NETWORK_DEFERRED"
+      ? "\n처리: 공유 링크를 기기에 저장했으며, 앱을 다시 열면 재시도합니다."
+      : ""
+    let message = "\(description)\n" +
+      "환경·기기: \(Self.environmentLabel(normalizedEnvironment)) · iOS\n" +
+      "원인: \(Self.cause(errorCode, httpStatus, backendErrorCode, exceptionType))" +
+      deferredHandling
+    if !isStarted {
+      isStarted = true
+      SentrySDK.start { options in
+        options.dsn = dsn
+        options.environment = normalizedEnvironment
+        options.sendDefaultPii = false
+        options.enableAutoSessionTracking = false
+      }
+    }
+    // NSError's localized description is stored as context by the SDK. Set the
+    // exception fields explicitly so chat alerts display the title and details.
+    let event = Event(level: .error)
+    let exception = Exception(value: message, type: title)
+    let mechanism = Mechanism(type: "generic")
+    mechanism.handled = true
+    exception.mechanism = mechanism
+    event.exceptions = [exception]
+    SentrySDK.capture(event: event) { scope in
+      scope.setLevel(.error)
+      scope.setTag(value: "instagram_share", key: "feature")
+      scope.setTag(value: stage, key: "share.stage")
+      scope.setTag(value: "instagram", key: "share.source")
+      scope.setTag(value: "ios", key: "share.platform")
+      scope.setTag(value: errorCode, key: "share.error_code")
+      if let httpStatus { scope.setTag(value: String(httpStatus), key: "http.status_code") }
+      if let backendErrorCode, backendErrorCode.range(of: #"^[A-Z0-9_]{3,64}$"#, options: .regularExpression) != nil {
+        scope.setTag(value: backendErrorCode, key: "share.backend_error_code")
+      }
+      if let exceptionType, exceptionType.range(of: #"^[A-Za-z0-9_.$-]{1,100}$"#, options: .regularExpression) != nil {
+        scope.setTag(value: exceptionType, key: "share.exception_type")
+      }
+      scope.setFingerprint(["instagram-share", stage, "ios", errorCode])
+    }
+  }
+
+  private static func environmentLabel(_ environment: String) -> String {
+    switch environment.lowercased() {
+    case "development": return "개발"
+    case "production": return "운영"
+    default: return environment
+    }
+  }
+
+  private static func cause(
+    _ errorCode: String,
+    _ httpStatus: Int?,
+    _ backendErrorCode: String?,
+    _ exceptionType: String?
+  ) -> String {
+    if let exceptionType {
+      if errorCode == "SHARE_EXTRACTION_NETWORK_DEFERRED" { return networkCause(exceptionType) }
+      return "요청 처리 예외 (\(exceptionType))"
+    }
+    if let backendErrorCode {
+      let details = [httpStatus.map { "HTTP \($0)" }, backendErrorCode].compactMap { $0 }.joined(separator: ", ")
+      return "서버 오류 (\(details))"
+    }
+    if let httpStatus {
+      switch errorCode {
+      case "SHARE_EXTRACTION_RESPONSE_INVALID": return "필수 응답값 누락 (HTTP \(httpStatus))"
+      case "SHARE_TOKEN_REFRESH_FAILED": return "토큰 응답 확인 실패 (HTTP \(httpStatus))"
+      default: return "HTTP \(httpStatus) 응답"
+      }
+    }
+    switch errorCode {
+    case "SHARE_PAYLOAD_READ_FAILED": return "공유 링크 읽기 또는 형식 확인 실패"
+    case "SHARE_PAYLOAD_STORE_FAILED": return "기기 저장 실패"
+    case "SHARE_LOGIN_APP_OPEN_FAILED": return "앱 열기 실패"
+    case "SHARE_TOKEN_REFRESH_FAILED": return "토큰 갱신 네트워크 또는 응답 처리 실패"
+    case "SHARE_EXTRACTION_REQUEST_FAILED", "SHARE_EXTRACTION_NETWORK_DEFERRED":
+      return "네트워크 연결 오류"
+    case "SHARE_EXTRACTION_RESPONSE_INVALID": return "필수 응답값 누락"
+    default: return "원인 분류 필요"
+    }
+  }
+
+  private static func networkCause(_ errorCode: String?) -> String {
+    switch errorCode {
+    case "-1009": return "인터넷 연결 없음"
+    case "-1001": return "요청 시간 초과"
+    case "-1003", "-804": return "DNS 조회 실패"
+    case "-1004": return "서버 연결 실패"
+    case "-1005": return "네트워크 연결 끊김"
+    case "-1020": return "네트워크 데이터 사용 불가"
+    default: return "네트워크 연결 오류\(errorCode.map { " (코드 \($0))" } ?? "")"
+    }
+  }
+}
 
 enum ShareIntentConstants {
   static let appGroupIdentifier = "group.com.yeogidamm.app.shared"
+  static let guestPracticePostURL = "https://www.instagram.com/p/Db4gRWqkuUg/"
   static let userDefaultsKey = "share_intent_payload"
   static let shareExtensionHost = "share-extension"
   static let shareExtensionOpenURL = URL(string: "com.yeogidamm.app://share-extension")!
   static let eventName = "shareIntentReceived"
   static let authTokenKey = "auth_access_token"
+  static let authSessionKey = "share_auth_session_v1"
+  static let hadSessionKey = "share_had_session"
+  static let apiBaseURLKey = "api_base_url"
   // Legacy single-result key. Kept only so existing installed builds can migrate
   // an unconsumed result after updating.
   static let shareResultKey = "share_reel_result"
@@ -16,14 +156,30 @@ enum ShareIntentConstants {
 struct ShareReelResult: Codable {
   var requestId: String? = nil
   var requestSentAt: Double? = nil
-  let url: String
+  var url: String
   var rawSharedText: String?
   var status: String
+  var transferStatus: String? = nil
+  var authReason: String? = nil
   var reelId: String?
   var failureReason: String?
+  var responseStatus: Int? = nil
   var retryable: Bool
   var updatedAt: Double
   var reused: Bool? = nil
+  var saveMode: String? = nil
+  var receivedAt: Double? = nil
+  var queuedAt: Double? = nil
+  var apiAcceptedAt: Double? = nil
+  var transferFinishedAt: Double? = nil
+  var release: String? = nil
+}
+
+struct ShareAuthSession: Codable {
+  let accessToken: String
+  let refreshToken: String
+  let expiresAt: Double
+  let userId: String
 }
 
 struct ShareIntentPayload: Codable {
@@ -73,6 +229,9 @@ struct ShareIntentPayload: Codable {
 enum ShareIntentStorageError: LocalizedError {
   case appGroupUnavailable
   case unsupportedContent
+  case missingConfiguration
+  case secureStoreFailure(OSStatus)
+  case resultStoreFailure
 
   var errorDescription: String? {
     switch self {
@@ -80,33 +239,150 @@ enum ShareIntentStorageError: LocalizedError {
       return "App Group container could not be resolved."
     case .unsupportedContent:
       return "No supported shared content was found."
+    case .missingConfiguration:
+      return "Missing API configuration."
+    case .secureStoreFailure(let code):
+      return "Share credential store failed: \(code)."
+    case .resultStoreFailure:
+      return "Share result could not be saved."
     }
   }
 }
 
 enum ShareIntentStorage {
+  private static let loginHandoffTTL: Double = 30 * 60 * 1000
   private static var defaults: UserDefaults? {
     UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier)
   }
 
-  static func saveAccessToken(_ token: String?) {
-    guard let defaults else { return }
-    if let token, !token.isEmpty { defaults.set(token, forKey: ShareIntentConstants.authTokenKey) }
-    else { defaults.removeObject(forKey: ShareIntentConstants.authTokenKey) }
+  private static var sessionQuery: [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: ShareIntentConstants.authSessionKey,
+      kSecAttrAccount as String: "supabase",
+      kSecAttrAccessGroup as String: ShareIntentConstants.appGroupIdentifier,
+    ]
   }
 
-  static func accessToken() -> String? { defaults?.string(forKey: ShareIntentConstants.authTokenKey) }
+  static func loadSession() throws -> ShareAuthSession? {
+    var query = sessionQuery
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var result: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    if status == errSecItemNotFound { return nil }
+    guard status == errSecSuccess, let data = result as? Data else {
+      throw ShareIntentStorageError.secureStoreFailure(status)
+    }
+    return try JSONDecoder().decode(ShareAuthSession.self, from: data)
+  }
+
+  static func saveSession(_ session: ShareAuthSession?) throws {
+    if let session,
+       let current = try loadSession(),
+       current.userId == session.userId,
+       current.expiresAt >= session.expiresAt,
+       (!current.accessToken.isEmpty || session.accessToken.isEmpty),
+       !(session.accessToken.isEmpty && current.refreshToken != session.refreshToken &&
+         current.expiresAt <= Date().timeIntervalSince1970 + 60) {
+      return
+    }
+    guard let session else {
+      let deletion = SecItemDelete(sessionQuery as CFDictionary)
+      guard deletion == errSecSuccess || deletion == errSecItemNotFound else {
+        throw ShareIntentStorageError.secureStoreFailure(deletion)
+      }
+      return
+    }
+    let data = try JSONEncoder().encode(session)
+    let status = SecItemUpdate(
+      sessionQuery as CFDictionary,
+      [kSecValueData as String: data] as CFDictionary
+    )
+    if status == errSecItemNotFound {
+      var attributes = sessionQuery
+      attributes[kSecValueData as String] = data
+      attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+      let added = SecItemAdd(attributes as CFDictionary, nil)
+      guard added == errSecSuccess else {
+        throw ShareIntentStorageError.secureStoreFailure(added)
+      }
+    } else {
+      guard status == errSecSuccess else {
+        throw ShareIntentStorageError.secureStoreFailure(status)
+      }
+    }
+    defaults?.set(true, forKey: ShareIntentConstants.hadSessionKey)
+    defaults?.removeObject(forKey: ShareIntentConstants.authTokenKey)
+  }
+
+  static func hadSession() -> Bool {
+    defaults?.bool(forKey: ShareIntentConstants.hadSessionKey) ?? false
+  }
+
+  /// 앱이 Spring API origin을 넘겨주면 공유 익스텐션이 같은 서버를 호출한다.
+  static func saveApiConfiguration(url: String) {
+    guard let defaults else { return }
+    var trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+    while trimmed.hasSuffix("/") { trimmed.removeLast() }
+    defaults.set(trimmed, forKey: ShareIntentConstants.apiBaseURLKey)
+    defaults.synchronize()
+  }
+
+  static func apiBaseURL() -> String? {
+    guard let url = defaults?.string(forKey: ShareIntentConstants.apiBaseURLKey), !url.isEmpty else {
+      return nil
+    }
+    return url
+  }
+
+  /// Spring Instant(ISO-8601) 문자열을 epoch초로 바꾼다. 소수 초는 잘라 표준 포맷터로 읽는다.
+  static func epochSeconds(fromISO8601 value: String) -> Double? {
+    var text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let dot = text.firstIndex(of: ".") {
+      let suffixStart = text[dot...].firstIndex(where: { $0 == "Z" || $0 == "+" || $0 == "-" }) ?? text.endIndex
+      text.removeSubrange(dot..<suffixStart)
+    }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: text)?.timeIntervalSince1970
+  }
+
+  /// Spring ExtractionStatus를 앱 처리 상태로 바꾼다.
+  static func reelStatus(fromExtractionStatus status: String?) -> String {
+    switch status {
+    case "SUCCEEDED": return "COMPLETED"
+    case "FAILED": return "FAILED"
+    default: return "PROCESSING"
+    }
+  }
 
   static func saveResult(_ result: ShareReelResult) throws {
     guard let defaults else {
       throw ShareIntentStorageError.appGroupUnavailable
     }
-    let encoded = try JSONEncoder().encode(result)
     let storageKey = result.requestId.flatMap { requestId in
       requestId.isEmpty ? nil : "\(ShareIntentConstants.shareResultKeyPrefix)\(requestId)"
     } ?? ShareIntentConstants.shareResultKey
+    let previous = defaults.data(forKey: storageKey).flatMap {
+      try? JSONDecoder().decode(ShareReelResult.self, from: $0)
+    }
+    var stored = result
+    stored.receivedAt = previous?.receivedAt ?? result.receivedAt
+      ?? (previous == nil ? result.updatedAt : nil)
+    stored.queuedAt = previous?.queuedAt ?? result.queuedAt
+      ?? (result.transferStatus == "QUEUED" ? result.updatedAt : nil)
+    stored.apiAcceptedAt = previous?.apiAcceptedAt ?? result.apiAcceptedAt
+      ?? (result.transferStatus == "API_SUCCEEDED" ? result.updatedAt : nil)
+    stored.transferFinishedAt = previous?.transferFinishedAt ?? result.transferFinishedAt
+      ?? (["API_SUCCEEDED", "API_FAILED"].contains(result.transferStatus ?? "") ? result.updatedAt : nil)
+    stored.release = previous?.release ?? result.release
+    let encoded = try JSONEncoder().encode(stored)
     defaults.set(encoded, forKey: storageKey)
     defaults.synchronize()
+    guard defaults.data(forKey: storageKey) == encoded else {
+      throw ShareIntentStorageError.resultStoreFailure
+    }
   }
 
   static func loadResult() -> ShareReelResult? {
@@ -138,6 +414,14 @@ enum ShareIntentStorage {
       results.append(legacyResult)
     }
 
+    results = results.filter { result in
+      let expired = result.transferStatus == "LOGIN_HANDOFF" &&
+        Date().timeIntervalSince1970 * 1000 - result.updatedAt > loginHandoffTTL
+      if expired, let requestId = result.requestId {
+        clearResult(expectedRequestId: requestId)
+      }
+      return !expired
+    }
     return results.sorted {
       ($0.requestSentAt ?? $0.updatedAt) < ($1.requestSentAt ?? $1.updatedAt)
     }
@@ -167,7 +451,7 @@ enum ShareIntentStorage {
     defaults.synchronize()
   }
 
-  static func makePayload(text: String, subject: String?, mimeType: String) -> ShareIntentPayload {
+  static func makePayload(text: String, subject: String?, mimeType: String, id: String) -> ShareIntentPayload {
     let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
     let extractedText = firstURLString(in: trimmedText) ?? trimmedText
 
@@ -177,7 +461,8 @@ enum ShareIntentStorage {
       text: normalizeInstagramURL(extractedText),
       rawText: trimmedText,
       subject: subject,
-      kind: inferKind(from: extractedText)
+      kind: inferKind(from: extractedText),
+      id: id
     )
   }
 
@@ -290,5 +575,651 @@ enum ShareIntentStorage {
     }
 
     return match.url == nil ? "text" : "url"
+  }
+}
+
+enum ShareNetwork {
+  static func isAvailable() async -> Bool {
+    await withCheckedContinuation { continuation in
+      let monitor = NWPathMonitor()
+      let queue = DispatchQueue(label: "com.yeogidamm.app.share-network")
+      let lock = NSLock()
+      var resolved = false
+      let complete: (Bool) -> Void = { available in
+        lock.lock()
+        defer { lock.unlock() }
+        guard !resolved else { return }
+        resolved = true
+        monitor.cancel()
+        continuation.resume(returning: available)
+      }
+      monitor.pathUpdateHandler = { path in complete(path.status == .satisfied) }
+      monitor.start(queue: queue)
+      queue.asyncAfter(deadline: .now() + 2) { complete(false) }
+    }
+  }
+}
+
+enum ShareAnalyticsInstallationIdentity {
+  static func id() -> String? {
+    guard let directory = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: ShareIntentConstants.appGroupIdentifier
+    ) else { return nil }
+
+    let lockURL = directory.appendingPathComponent("posthog_installation_id.lock")
+    let descriptor = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
+    guard descriptor >= 0 else { return nil }
+    defer { close(descriptor) }
+    guard flock(descriptor, LOCK_EX) == 0 else { return nil }
+    defer { flock(descriptor, LOCK_UN) }
+
+    let fileURL = directory.appendingPathComponent("posthog_installation_id")
+    if let stored = try? String(contentsOf: fileURL, encoding: .utf8) {
+      let normalized = stored.trimmingCharacters(in: .whitespacesAndNewlines)
+      if UUID(uuidString: normalized) != nil { return normalized }
+    }
+
+    let created = UUID().uuidString.lowercased()
+    do {
+      try created.write(to: fileURL, atomically: true, encoding: .utf8)
+      var values = URLResourceValues()
+      values.isExcludedFromBackup = true
+      var mutableURL = fileURL
+      try mutableURL.setResourceValues(values)
+      return created
+    } catch {
+      try? FileManager.default.removeItem(at: fileURL)
+      return nil
+    }
+  }
+}
+
+enum ShareAnalyticsStore {
+  private static let prefix = "share_analytics_event."
+  private static let seenPrefix = "share_analytics_seen."
+  private static let identityPrefix = "share_analytics_identity."
+  private static let statusPrefix = "share_analytics_delivery_status."
+  private static let statusSequencePrefix = "share_analytics_delivery_sequence."
+  private static let tokenKey = "posthog_project_token"
+  private static let hostKey = "posthog_host"
+  private static let allowedProperties: [String: Set<String>] = [
+    "reel_share_received": [],
+    "reel_share_feedback_viewed": ["feedback_type"],
+    "reel_share_outcome_viewed": ["outcome", "reason"],
+    "share_local_save_resolved": ["outcome"],
+    "share_delivery_status_changed": ["delivery_status", "reason"],
+    "extraction_request_started": [],
+    "extraction_request_finished": ["outcome", "response_status", "failure_type", "content_id"],
+  ]
+
+  private static func eventEnvironment() -> String {
+    let value = (Bundle.main.object(forInfoDictionaryKey: "APP_ENV") as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.flatMap { !$0.isEmpty && !$0.contains("$(") ? $0 : nil } ?? "development"
+  }
+
+  static func setConfiguration(projectToken: String, host: String) {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return }
+    let normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+      .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    let token = projectToken.trimmingCharacters(in: .whitespacesAndNewlines)
+    let previous = configuration()
+    let valid = !token.isEmpty && validHost(normalizedHost)
+    defaults.set(valid ? token : "", forKey: tokenKey)
+    defaults.set(valid ? normalizedHost : "", forKey: hostKey)
+    defaults.synchronize()
+    if valid && (previous?.token != token || previous?.host != normalizedHost) {
+      ShareAnalyticsTransfer.shared.enqueuePending()
+    }
+  }
+
+  static func configuration() -> (token: String, host: String)? {
+    let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier)
+    defaults?.synchronize()
+    if let token = defaults?.string(forKey: tokenKey), !token.isEmpty,
+       let host = defaults?.string(forKey: hostKey), validHost(host) {
+      return (token, host)
+    }
+    guard let token = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_PROJECT_TOKEN") as? String,
+          !token.isEmpty, !token.contains("$("),
+          let host = Bundle.main.object(forInfoDictionaryKey: "POSTHOG_HOST") as? String,
+          validHost(host) else { return nil }
+    return (token, host)
+  }
+
+  private static func validHost(_ host: String) -> Bool {
+    guard let parts = URLComponents(string: host) else { return false }
+    return parts.scheme == "https" && parts.host != nil && parts.user == nil &&
+      parts.password == nil && (parts.path.isEmpty || parts.path == "/") &&
+      parts.query == nil && parts.fragment == nil
+  }
+
+  @discardableResult
+  static func record(_ name: String, shareId: String, properties: [String: Any] = [:], occurredAt: Double = Date().timeIntervalSince1970 * 1000, release: String? = nil, eventKey: String? = nil) -> Bool {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return false }
+    defaults.synchronize()
+    let id = eventKey ?? "\(name).\(shareId)"
+    let key = "\(prefix)\(id)"
+    let identityKey = "\(identityPrefix)\(shareId)"
+    if defaults.data(forKey: key) != nil || defaults.bool(forKey: "\(seenPrefix)\(id)") { return true }
+    var safeProperties = properties
+    safeProperties["platform"] = "ios"
+    safeProperties["release"] = release ?? Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+    safeProperties["environment"] = eventEnvironment()
+    if let installationId = ShareAnalyticsInstallationIdentity.id() {
+      safeProperties["installation_id"] = installationId
+    }
+    let storedUserId = (try? ShareIntentStorage.loadSession())?.userId
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let distinctId = defaults.string(forKey: identityKey).flatMap { $0.isEmpty ? nil : $0 }
+      ?? storedUserId.flatMap { $0.isEmpty ? nil : $0 }
+      ?? shareId
+    let event: [String: Any] = [
+      "id": id, "uuid": UUID().uuidString.lowercased(), "name": name, "share_id": shareId,
+      "distinct_id": distinctId, "occurred_at": occurredAt, "properties": safeProperties,
+    ]
+    guard let data = try? JSONSerialization.data(withJSONObject: event) else { return false }
+    defaults.set(data, forKey: key)
+    defaults.set(true, forKey: "\(seenPrefix)\(id)")
+    defaults.set(distinctId, forKey: identityKey)
+    defaults.synchronize()
+    let saved = defaults.data(forKey: key) == data
+    if saved { ShareAnalyticsTransfer.shared.enqueue(event: event) }
+    return saved
+  }
+
+  @discardableResult
+  static func recordDeliveryStatus(_ shareId: String, status: String, reason: String? = nil, release: String? = nil) -> Bool {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return false }
+    defaults.synchronize()
+    let state = "\(status).\(reason ?? "")"
+    if defaults.string(forKey: "\(statusPrefix)\(shareId)") == state { return true }
+    let sequence = defaults.integer(forKey: "\(statusSequencePrefix)\(shareId)") + 1
+    var properties: [String: Any] = ["delivery_status": status]
+    if let reason { properties["reason"] = reason }
+    let saved = record("share_delivery_status_changed", shareId: shareId, properties: properties,
+      release: release, eventKey: "share_delivery_status_changed.\(shareId).\(sequence)")
+    if saved {
+      defaults.set(state, forKey: "\(statusPrefix)\(shareId)")
+      defaults.set(sequence, forKey: "\(statusSequencePrefix)\(shareId)")
+      defaults.synchronize()
+    }
+    return saved
+  }
+
+  static func pending() -> [[String: Any]] {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return [] }
+    defaults.synchronize()
+    return defaults.dictionaryRepresentation().compactMap { key, value in
+      guard key.hasPrefix(prefix), let data = value as? Data else { return nil }
+      return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }.sorted {
+      ($0["occurred_at"] as? Double ?? 0) < ($1["occurred_at"] as? Double ?? 0)
+    }
+  }
+
+  static func acknowledge(_ id: String) {
+    guard let defaults = UserDefaults(suiteName: ShareIntentConstants.appGroupIdentifier) else { return }
+    defaults.removeObject(forKey: "\(prefix)\(id)")
+    defaults.synchronize()
+  }
+
+  static func captureBody(event: [String: Any], projectToken: String) -> Data? {
+    guard let name = event["name"] as? String,
+          let allowed = allowedProperties[name],
+          let shareId = event["share_id"] as? String, !shareId.isEmpty,
+          let occurredAt = event["occurred_at"] as? Double, occurredAt > 0 else { return nil }
+    let storedDistinctId = (event["distinct_id"] as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let distinctId = storedDistinctId.flatMap { $0.isEmpty ? nil : $0 } ?? shareId
+    let source = event["properties"] as? [String: Any] ?? [:]
+    var properties: [String: Any] = [:]
+    for key in allowed.union(["platform", "release", "environment", "installation_id"]) {
+      properties[key] = source[key]
+    }
+    if let recordedEnvironment = (properties["environment"] as? String)?
+      .trimmingCharacters(in: .whitespacesAndNewlines), !recordedEnvironment.isEmpty {
+      properties["environment"] = recordedEnvironment
+    } else {
+      properties["environment"] = eventEnvironment()
+    }
+    properties["share_id"] = shareId
+    if distinctId == shareId { properties["$process_person_profile"] = false }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    var body: [String: Any] = [
+      "api_key": projectToken, "event": name, "distinct_id": distinctId,
+      "timestamp": formatter.string(from: Date(timeIntervalSince1970: occurredAt / 1000)),
+      "properties": properties,
+    ]
+    if let uuid = event["uuid"] as? String, !uuid.isEmpty { body["uuid"] = uuid }
+    return try? JSONSerialization.data(withJSONObject: body)
+  }
+}
+
+/** Background uploads from the share extension and containing app use separate sessions. */
+final class ShareAnalyticsTransfer: NSObject, URLSessionTaskDelegate {
+  static let shared = ShareAnalyticsTransfer()
+  static let extensionIdentifier = "com.yeogidamm.app.share-analytics-extension"
+  static let appIdentifier = "com.yeogidamm.app.share-analytics-app"
+  private var sessions: [String: URLSession] = [:]
+  private let sessionLock = NSLock()
+  private var eventsCompletion: [String: () -> Void] = [:]
+
+  private var ownIdentifier: String {
+    Bundle.main.bundleURL.pathExtension == "appex" ? Self.extensionIdentifier : Self.appIdentifier
+  }
+
+  private var uploadDirectory: URL? {
+    FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: ShareIntentConstants.appGroupIdentifier)?
+      .appendingPathComponent("share-analytics-uploads", isDirectory: true)
+  }
+
+  private func session(for identifier: String) -> URLSession {
+    sessionLock.lock()
+    defer { sessionLock.unlock() }
+    if let existing = sessions[identifier] { return existing }
+    let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
+    configuration.sharedContainerIdentifier = ShareIntentConstants.appGroupIdentifier
+    configuration.sessionSendsLaunchEvents = true
+    let created = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    sessions[identifier] = created
+    return created
+  }
+
+  func enqueue(event: [String: Any]) {
+    guard let config = ShareAnalyticsStore.configuration(),
+          let endpoint = URL(string: "\(config.host)/i/v0/e/"),
+          let data = ShareAnalyticsStore.captureBody(event: event, projectToken: config.token),
+          let id = event["id"] as? String,
+          let directory = uploadDirectory else { return }
+    var bodyFile: URL?
+    do {
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let filename = "\(UUID().uuidString).json"
+      let file = directory.appendingPathComponent(filename)
+      bodyFile = file
+      try data.write(to: file, options: .atomic)
+      var request = URLRequest(url: endpoint)
+      request.httpMethod = "POST"
+      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      let task = session(for: ownIdentifier).uploadTask(with: request, fromFile: file)
+      task.taskDescription = "\(id)|\(filename)"
+      task.resume()
+    } catch {
+      if let bodyFile { try? FileManager.default.removeItem(at: bodyFile) }
+      // The event remains in the app group outbox for the next app launch.
+    }
+  }
+
+  func enqueuePending() {
+    for event in ShareAnalyticsStore.pending() { enqueue(event: event) }
+  }
+
+  func handleEvents(identifier: String, completion: @escaping () -> Void) {
+    eventsCompletion[identifier] = completion
+    _ = session(for: identifier)
+  }
+
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    guard let description = task.taskDescription,
+          let separator = description.firstIndex(of: "|") else { return }
+    let id = String(description[..<separator])
+    let filename = String(description[description.index(after: separator)...])
+    if error == nil, let response = task.response as? HTTPURLResponse,
+       (200..<300).contains(response.statusCode) {
+      ShareAnalyticsStore.acknowledge(id)
+    }
+    if let directory = uploadDirectory {
+      try? FileManager.default.removeItem(at: directory.appendingPathComponent(filename))
+    }
+  }
+
+  func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    guard let identifier = session.configuration.identifier else { return }
+    DispatchQueue.main.async {
+      self.eventsCompletion.removeValue(forKey: identifier)?()
+    }
+  }
+}
+
+enum ShareAuthOutcome {
+  case ready(String)
+  case loginRequired(String)
+  case waitingForNetwork
+  case waitingForAuth
+}
+
+enum ShareAuth {
+  static func ensureAccessToken(forceRefresh: Bool = false) async -> ShareAuthOutcome {
+    let session: ShareAuthSession
+    do {
+      guard let stored = try ShareIntentStorage.loadSession() else {
+        return .loginRequired(ShareIntentStorage.hadSession() ? "refresh_token_missing" : "never_logged_in")
+      }
+      session = stored
+    } catch {
+      return .waitingForAuth
+    }
+    if session.refreshToken.isEmpty {
+      return .loginRequired("refresh_token_missing")
+    }
+    if !forceRefresh && !session.accessToken.isEmpty &&
+       session.expiresAt > Date().timeIntervalSince1970 + 60 {
+      return .ready(session.accessToken)
+    }
+    guard let baseURL = ShareIntentStorage.apiBaseURL(),
+          let endpoint = URL(string: "\(baseURL)/api/v1/auth/token-refreshes") else {
+      return .waitingForAuth
+    }
+    var request = URLRequest(url: endpoint, timeoutInterval: 12)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.httpBody = try? JSONSerialization.data(withJSONObject: ["refreshToken": session.refreshToken])
+    do {
+      let (data, response) = try await URLSession.shared.data(for: request)
+      guard let http = response as? HTTPURLResponse else {
+        ShareSentryReporter.capture("SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh")
+        return .waitingForAuth
+      }
+      let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
+      if (200..<300).contains(http.statusCode) {
+        // 갱신 중 로그아웃으로 세션이 지워졌다면 새 토큰을 다시 저장하지 않는다.
+        guard let latest = try? ShareIntentStorage.loadSession() else {
+          return .loginRequired("refresh_token_missing")
+        }
+        if latest.refreshToken != session.refreshToken {
+          return latest.accessToken.isEmpty ? .waitingForAuth : .ready(latest.accessToken)
+        }
+        guard let access = json["accessToken"] as? String, !access.isEmpty,
+              let refresh = json["refreshToken"] as? String, !refresh.isEmpty,
+              let expiresAtText = json["expiresAt"] as? String,
+              let expiresAt = ShareIntentStorage.epochSeconds(fromISO8601: expiresAtText) else {
+          ShareSentryReporter.capture("SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh", httpStatus: http.statusCode)
+          return .waitingForAuth
+        }
+        do {
+          try ShareIntentStorage.saveSession(ShareAuthSession(
+            accessToken: access, refreshToken: refresh, expiresAt: expiresAt, userId: session.userId
+          ))
+          return .ready(access)
+        } catch {
+          ShareSentryReporter.capture("SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh", httpStatus: http.statusCode)
+          return .waitingForAuth
+        }
+      }
+      guard (400...401).contains(http.statusCode) else {
+        if http.statusCode == 408 || http.statusCode == 429 || http.statusCode == 504 || http.statusCode >= 500 {
+          ShareSentryReporter.capture(
+            "SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh", httpStatus: http.statusCode,
+            backendErrorCode: json["errorCode"] as? String
+          )
+        }
+        return .waitingForAuth
+      }
+      // 다른 프로세스(앱)가 같은 토큰을 먼저 회전했다면 저장소에 새 토큰이 있다.
+      if let latest = try? ShareIntentStorage.loadSession(),
+         latest.refreshToken != session.refreshToken {
+        return latest.accessToken.isEmpty ? .waitingForAuth : .ready(latest.accessToken)
+      }
+      // AUTH401_005: 직전 토큰 재사용(10초 이내). 앱이 새 토큰을 공유할 때까지 기다린다.
+      if json["errorCode"] as? String == "AUTH401_005" {
+        return .waitingForAuth
+      }
+      try? ShareIntentStorage.saveSession(nil)
+      return .loginRequired("refresh_token_invalid")
+    } catch {
+      ShareSentryReporter.capture(
+        "SHARE_TOKEN_REFRESH_FAILED", stage: "token_refresh",
+        exceptionType: String(describing: type(of: error))
+      )
+      return .waitingForNetwork
+    }
+  }
+}
+
+final class ShareBackgroundTransfer: NSObject, URLSessionDataDelegate, URLSessionTaskDelegate {
+  static let shared = ShareBackgroundTransfer()
+  static let identifier = "com.yeogidamm.app.instagram-share-upload"
+  @MainActor private var isResuming = false
+  private var responseData: [Int: Data] = [:]
+  private var eventsCompletion: (() -> Void)?
+
+  private lazy var session: URLSession = {
+    let configuration = URLSessionConfiguration.background(withIdentifier: Self.identifier)
+    configuration.sharedContainerIdentifier = ShareIntentConstants.appGroupIdentifier
+    configuration.sessionSendsLaunchEvents = true
+    return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+  }()
+
+  private var uploadDirectory: URL? {
+    FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: ShareIntentConstants.appGroupIdentifier)?
+      .appendingPathComponent("share-uploads", isDirectory: true)
+  }
+
+  func enqueue(requestId: String, url: String, rawText: String?, token: String) throws {
+    guard let baseURL = ShareIntentStorage.apiBaseURL(),
+          let endpoint = URL(string: "\(baseURL)/api/v1/shares") else {
+      throw ShareIntentStorageError.missingConfiguration
+    }
+    guard let directory = uploadDirectory else { throw ShareIntentStorageError.appGroupUnavailable }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let bodyFile = directory.appendingPathComponent("\(requestId).json")
+    // 서버에는 멱등키가 없어 instagramUrl만 보낸다.
+    let body = try JSONSerialization.data(withJSONObject: ["instagramUrl": url])
+    try body.write(to: bodyFile, options: .atomic)
+    var request = URLRequest(url: endpoint)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    let task = session.uploadTask(with: request, fromFile: bodyFile)
+    task.taskDescription = requestId
+    do {
+      try ShareIntentStorage.saveResult(ShareReelResult(
+        requestId: requestId, url: url, rawSharedText: rawText,
+        status: "PENDING", transferStatus: "QUEUED", reelId: nil,
+        failureReason: nil, retryable: true, updatedAt: Date().timeIntervalSince1970 * 1000
+      ))
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "queued")
+      task.resume()
+    } catch {
+      task.cancel()
+      try? FileManager.default.removeItem(at: bodyFile)
+      throw error
+    }
+  }
+
+  func handleEvents(completion: @escaping () -> Void) {
+    eventsCompletion = completion
+    _ = session
+  }
+
+  @MainActor func resumeWaitingShares() async {
+    guard !isResuming else { return }
+    isResuming = true
+    defer { isResuming = false }
+    let hasSession = (try? ShareIntentStorage.loadSession()) != nil
+    if hasSession {
+      for var result in ShareIntentStorage.loadResults() where result.transferStatus == "LOGIN_HANDOFF" {
+        result.transferStatus = "WAITING_FOR_NETWORK"
+        result.retryable = true
+        try? ShareIntentStorage.saveResult(result)
+      }
+    }
+    guard await ShareNetwork.isAvailable() else { return }
+    let waiting = ShareIntentStorage.loadResults().filter {
+      ["SAVED", "WAITING_FOR_NETWORK", "WAITING_FOR_AUTH", "LOGIN_HANDOFF"].contains($0.transferStatus ?? "")
+    }
+    for result in waiting {
+      if !hasSession && result.transferStatus == "LOGIN_HANDOFF" { continue }
+      guard let requestId = result.requestId, !result.url.isEmpty else { continue }
+      let auth = await ShareAuth.ensureAccessToken(
+        forceRefresh: result.failureReason == "AUTH401_001"
+      )
+      switch auth {
+      case .ready(let token):
+        do {
+          try enqueue(requestId: requestId, url: result.url, rawText: result.rawSharedText, token: token)
+        } catch {
+          ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "queue_registration_failed", release: result.release)
+        }
+      case .loginRequired(let reason):
+        var updated = result
+        updated.transferStatus = "LOGIN_HANDOFF"
+        updated.authReason = reason
+        updated.updatedAt = Date().timeIntervalSince1970 * 1000
+        try? ShareIntentStorage.saveResult(updated)
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "login_required", release: result.release)
+      case .waitingForNetwork:
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "network_unavailable", release: result.release)
+      case .waitingForAuth:
+        ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "auth_pending", release: result.release)
+      }
+    }
+  }
+
+  func urlSession(_ session: URLSession, task: URLSessionTask,
+                  didSendBodyData bytesSent: Int64, totalBytesSent: Int64,
+                  totalBytesExpectedToSend: Int64) {
+    guard bytesSent > 0,
+          let requestId = task.taskDescription,
+          var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == requestId }),
+          result.requestSentAt == nil else { return }
+    result.requestSentAt = Date().timeIntervalSince1970 * 1000
+    result.transferStatus = "REQUESTING"
+    result.url = ""
+    result.rawSharedText = nil
+    result.updatedAt = result.requestSentAt ?? result.updatedAt
+    try? ShareIntentStorage.saveResult(result)
+    ShareAnalyticsStore.record(
+      "extraction_request_started", shareId: requestId,
+      occurredAt: result.requestSentAt ?? result.updatedAt, release: result.release
+    )
+  }
+
+  func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+    responseData[dataTask.taskIdentifier, default: Data()].append(data)
+  }
+
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    defer {
+      responseData.removeValue(forKey: task.taskIdentifier)
+      if let requestId = task.taskDescription, let directory = uploadDirectory {
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent("\(requestId).json"))
+      }
+    }
+    guard let requestId = task.taskDescription,
+          var result = ShareIntentStorage.loadResults().first(where: { $0.requestId == requestId }) else { return }
+    if result.requestSentAt == nil && task.response is HTTPURLResponse {
+      ShareAnalyticsStore.record("extraction_request_started", shareId: requestId, release: result.release)
+    }
+    result.updatedAt = Date().timeIntervalSince1970 * 1000
+    var analyticsOutcome: String?
+    var analyticsProperties: [String: Any] = [:]
+    if error != nil, result.requestSentAt == nil, task.response == nil {
+      result.status = "PENDING"
+      result.transferStatus = "WAITING_FOR_NETWORK"
+      result.failureReason = nil
+      result.retryable = true
+      do {
+        try ShareIntentStorage.saveResult(result)
+        if let error = error as? URLError, error.code != .cancelled {
+          ShareSentryReporter.capture(
+            "SHARE_EXTRACTION_NETWORK_DEFERRED", stage: "place_extraction_request",
+            exceptionType: String(error.code.rawValue)
+          )
+        }
+      } catch {
+        ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED", stage: "place_extraction_request")
+      }
+      ShareAnalyticsStore.recordDeliveryStatus(requestId, status: "deferred", reason: "network_unavailable", release: result.release)
+      return
+    } else if let error {
+      result.status = "FAILED"
+      result.transferStatus = "API_FAILED"
+      result.failureReason = "CLIENT000_002 | \((error as NSError).code)"
+      result.retryable = true
+      analyticsOutcome = "request_failed"
+      analyticsProperties["failure_type"] = (error as NSError).code == NSURLErrorTimedOut ? "timeout" : "network_error"
+      ShareSentryReporter.capture(
+        "SHARE_EXTRACTION_REQUEST_FAILED", stage: "place_extraction_request",
+        exceptionType: String((error as NSError).code)
+      )
+    } else if let http = task.response as? HTTPURLResponse {
+      result.responseStatus = http.statusCode
+      let json = (try? JSONSerialization.jsonObject(with: responseData[task.taskIdentifier] ?? Data())) as? [String: Any] ?? [:]
+      if (200..<300).contains(http.statusCode) {
+        // Spring 응답(202): {sharedMediaId, extractionStatus}
+        let extractionStatus = json["extractionStatus"] as? String
+        analyticsOutcome = "response_received"
+        analyticsProperties["response_status"] = http.statusCode
+        result.status = ShareIntentStorage.reelStatus(fromExtractionStatus: extractionStatus)
+        result.transferStatus = "API_SUCCEEDED"
+        result.reelId = (json["sharedMediaId"] as? NSNumber)?.stringValue
+        result.failureReason = nil
+        result.retryable = false
+        result.reused = extractionStatus == "SUCCEEDED"
+        result.saveMode = "AUTO_SAVE"
+        if result.reelId?.isEmpty != false || extractionStatus == nil {
+          result.status = "FAILED"
+          result.transferStatus = "API_FAILED"
+          result.failureReason = "MISSING_REEL_ID"
+          analyticsOutcome = "request_failed"
+          analyticsProperties["failure_type"] = "invalid_response"
+          ShareSentryReporter.capture(
+            "SHARE_EXTRACTION_RESPONSE_INVALID", stage: "place_extraction_request", httpStatus: http.statusCode
+          )
+        }
+      } else {
+        // Spring 오류 응답: {message, errorCode}. 401은 앱 화면 계약에 맞춰 AUTH401_001로 남긴다.
+        let code = http.statusCode == 401
+          ? "AUTH401_001"
+          : json["errorCode"] as? String ?? "HTTP_\(http.statusCode)"
+        result.status = "FAILED"
+        result.transferStatus = "API_FAILED"
+        result.failureReason = code
+        result.reelId = nil
+        result.retryable = false
+        analyticsOutcome = "request_failed"
+        analyticsProperties["response_status"] = http.statusCode
+        analyticsProperties["failure_type"] = [401, 403].contains(http.statusCode) ? "auth_failed" :
+          [408, 504].contains(http.statusCode) ? "timeout" :
+          http.statusCode >= 500 ? "server_error" : "invalid_request"
+        if http.statusCode == 408 || http.statusCode == 429 || http.statusCode == 504 || http.statusCode >= 500 {
+          ShareSentryReporter.capture(
+            "SHARE_EXTRACTION_REQUEST_FAILED", stage: "place_extraction_request", httpStatus: http.statusCode,
+            backendErrorCode: json["errorCode"] as? String
+          )
+        }
+      }
+    } else {
+      result.status = "FAILED"
+      result.transferStatus = "API_FAILED"
+      result.failureReason = "CLIENT000_003"
+      result.retryable = true
+      analyticsOutcome = "request_failed"
+      analyticsProperties["failure_type"] = "network_error"
+    }
+    result.url = ""
+    result.rawSharedText = nil
+    result.retryable = false
+    try? ShareIntentStorage.saveResult(result)
+    if let analyticsOutcome {
+      analyticsProperties["outcome"] = analyticsOutcome
+      if let contentId = result.reelId { analyticsProperties["content_id"] = contentId }
+      ShareAnalyticsStore.record(
+        "extraction_request_finished", shareId: requestId,
+        properties: analyticsProperties, release: result.release
+      )
+    }
+  }
+
+  func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    DispatchQueue.main.async {
+      self.eventsCompletion?()
+      self.eventsCompletion = nil
+    }
   }
 }

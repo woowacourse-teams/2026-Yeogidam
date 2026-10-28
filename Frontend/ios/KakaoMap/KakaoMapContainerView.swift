@@ -8,6 +8,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   @objc var onMapError: ((NSDictionary) -> Void)?
   @objc var onCameraChanged: ((NSDictionary) -> Void)?
   @objc var onMarkerPressed: ((NSDictionary) -> Void)?
+  @objc var onMapPanStarted: ((NSDictionary) -> Void)?
 
   private let mapContainer = KMViewContainer()
   private var mapController: KMController?
@@ -23,20 +24,23 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var viewResizedHandler: (any DisposableEventHandler)?
   private var savedPlaceStyleAdded = false
   private var savedPlacesJson = "[]"
+  private var savedPlaceSelectionByID: [String: Bool] = [:]
   private var lastKnownLocation: CLLocation?
 
   private var latitude: Double = 37.5665
   private var longitude: Double = 126.9780
   private var zoomLevel: Int = 15
   private var cameraMoveRequestId = 0
+  private var cameraFitPointsJson = "[]"
+  private var cameraFitRequestId = 0
   private var showsCurrentLocation = false
   private var currentLocationRequestId = 0
   private var cameraBottomInset: CGFloat = 0
   private var enginePrepared = false
   private var mapAdded = false
   private var currentLocationStyleAdded = false
-  private var hasCenteredOnCurrentLocation = false
   private var needsDefaultCameraMove = false
+  private var needsFitSearchResultsCameraMove = false
   private var needsCurrentLocationCameraMove = false
   private var cameraMoveScheduled = false
 
@@ -112,6 +116,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     longitude: Double,
     zoomLevel: Int,
     cameraMoveRequestId: Int,
+    cameraFitPointsJson: String,
+    cameraFitRequestId: Int,
     showsCurrentLocation: Bool,
     currentLocationRequestId: Int,
     cameraBottomInset: Double,
@@ -125,6 +131,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     self.latitude = latitude
     self.longitude = longitude
     self.zoomLevel = zoomLevel
+    self.cameraFitPointsJson = cameraFitPointsJson
 
     let nextCameraBottomInset = max(0, CGFloat(cameraBottomInset))
     if self.cameraBottomInset != nextCameraBottomInset {
@@ -134,10 +141,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
 
     if self.showsCurrentLocation != showsCurrentLocation {
       self.showsCurrentLocation = showsCurrentLocation
-      hasCenteredOnCurrentLocation = false
-
       if showsCurrentLocation {
         requestCurrentLocationIfNeeded()
+        if needsCurrentLocationCameraMove, lastKnownLocation != nil {
+          scheduleCameraMove()
+        }
       } else {
         locationManager.stopUpdatingLocation()
         removeCurrentLocationMarker()
@@ -147,6 +155,11 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     if defaultCameraChanged || self.cameraMoveRequestId != cameraMoveRequestId {
       self.cameraMoveRequestId = cameraMoveRequestId
       moveCameraIfPossible()
+    }
+
+    if self.cameraFitRequestId != cameraFitRequestId {
+      self.cameraFitRequestId = cameraFitRequestId
+      moveCameraToFitSearchResultsIfPossible()
     }
 
     if self.currentLocationRequestId != currentLocationRequestId {
@@ -216,7 +229,14 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     position: MapPoint
   ) {
     guard layerID == Self.savedPlaceLayerID else { return }
-    onMarkerPressed?(["id": poiID])
+    let coordinate = cameraTarget(in: kakaoMap)
+    onMarkerPressed?([
+      "id": poiID,
+      "latitude": coordinate.latitude,
+      "longitude": coordinate.longitude,
+      "zoomLevel": kakaoMap.zoomLevel,
+      "cameraBottomInset": kakaoMap.margins.bottom
+    ])
   }
 
   // The direct camera-stopped handler is not called for every user gesture on
@@ -227,6 +247,17 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   func cameraWillMove(kakaoMap: KakaoMap, by: MoveBy) {
+    if by == .pan ||
+      by == .longTapAndDrag ||
+      by == .zoom ||
+      by == .oneFingerZoom ||
+      by == .rotateZoom ||
+      by == .doubleTapZoomIn ||
+      by == .twoFingerTapZoomOut
+    {
+      onMapPanStarted?(["started": true])
+    }
+
     // An inverted range is a lightweight signal over the existing Fabric
     // event: JS clears the previous list while the user is moving the map.
     // `cameraDidStopped` immediately replaces it with the final real bounds.
@@ -300,22 +331,35 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       mapContainer.bounds.height > 0
     else { return }
 
-    // The SDK's `viewRect` is the actual map viewport. Resize that viewport to
-    // the exposed area above the bottom sheet so marker rendering and the
-    // bounds sent to JS always use the identical coordinate system.
-    let viewportHeight = max(1, mapContainer.bounds.height - cameraBottomInset)
+    // Keep the map view itself full-screen and use the SDK's camera margins for
+    // the part covered by the bottom sheet. `viewRect` alone only clips the
+    // rendered map; it does not change the camera's target-point calculation.
+    // A bottom margin makes a target coordinate land at the centre of the
+    // exposed area above the sheet.
     kakaoMap.viewRect = CGRect(
       x: 0,
       y: 0,
       width: mapContainer.bounds.width,
-      height: viewportHeight
+      height: mapContainer.bounds.height
     )
-    kakaoMap.setMargins(.zero)
+    kakaoMap.setMargins(
+      UIEdgeInsets(
+        top: 0,
+        left: 0,
+        bottom: cameraBottomInset,
+        right: 0
+      )
+    )
     DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
   }
 
   private func moveCameraIfPossible() {
     needsDefaultCameraMove = true
+    scheduleCameraMove()
+  }
+
+  private func moveCameraToFitSearchResultsIfPossible() {
+    needsFitSearchResultsCameraMove = true
     scheduleCameraMove()
   }
 
@@ -367,7 +411,22 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
         mapView: kakaoMap
       )
 
-      hasCenteredOnCurrentLocation = true
+      kakaoMap.moveCamera(cameraUpdate)
+      return
+    }
+
+    if needsFitSearchResultsCameraMove {
+      needsFitSearchResultsCameraMove = false
+      needsDefaultCameraMove = false
+
+      guard let points = searchResultPoints(), points.count >= 2 else {
+        return
+      }
+
+      let cameraUpdate = CameraUpdate.make(
+        area: AreaRect(points: points),
+        levelLimit: Self.searchResultMaxZoomLevel
+      )
       kakaoMap.moveCamera(cameraUpdate)
       return
     }
@@ -389,6 +448,26 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     kakaoMap.moveCamera(cameraUpdate)
   }
 
+  private func searchResultPoints() -> [MapPoint]? {
+    guard
+      let data = cameraFitPointsJson.data(using: .utf8),
+      let places = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+    else {
+      return nil
+    }
+
+    return places.compactMap { place in
+      guard
+        let latitude = place["latitude"] as? Double,
+        let longitude = place["longitude"] as? Double
+      else {
+        return nil
+      }
+
+      return MapPoint(longitude: longitude, latitude: latitude)
+    }
+  }
+
   private func requestCurrentLocationIfNeeded() {
     guard showsCurrentLocation, mapAdded, window != nil else { return }
 
@@ -401,7 +480,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
 
     switch locationManager.authorizationStatus {
     case .notDetermined:
-      locationManager.requestWhenInUseAuthorization()
+      break
     case .authorizedAlways, .authorizedWhenInUse:
       locationManager.startUpdatingLocation()
     case .denied, .restricted:
@@ -481,9 +560,8 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func centerMapOnCurrentLocation() {
-    guard showsCurrentLocation else { return }
-
     needsCurrentLocationCameraMove = true
+    guard showsCurrentLocation else { return }
     guard lastKnownLocation != nil else {
       requestCurrentLocationIfNeeded()
       return
@@ -529,7 +607,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           competitionType: .none,
           competitionUnit: .symbolFirst,
           orderType: .rank,
-          zOrder: 1_000
+          zOrder: 10_000
         )
       )
 
@@ -537,7 +615,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       styleID: Self.currentLocationStyleID,
       poiID: Self.currentLocationPoiID
     )
-    options.rank = 1
+    options.rank = Int.max
 
     currentLocationPoi = layer?.addPoi(option: options, at: position)
     currentLocationPoi?.show()
@@ -561,42 +639,79 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
           competitionType: .none,
           competitionUnit: .symbolFirst,
           orderType: .rank,
-          zOrder: 900
+          zOrder: 9_000
         )
       )
     // Kakao Maps disables POI interaction by default. Both the layer and its
     // POIs must be made clickable for `poiDidTapped` to fire.
     layer?.setClickable(true)
-    layer?.clearAllItems()
 
     if !savedPlaceStyleAdded {
-      let iconStyle = PoiIconStyle(
-        symbol: makeSavedPlaceMarker(),
-        anchorPoint: CGPoint(x: 0.5, y: 0.5)
-      )
-      labelManager.addPoiStyle(
-        PoiStyle(
-          styleID: Self.savedPlaceStyleID,
-          styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)]
+      for selected in [false, true] {
+        let iconStyle = PoiIconStyle(
+          symbol: makeSavedPlaceMarker(selected: selected),
+          anchorPoint: CGPoint(x: 0.5, y: 1.0),
+          transition: PoiTransition(entrance: .scale, exit: .scale)
         )
-      )
+        labelManager.addPoiStyle(
+          PoiStyle(
+            styleID: selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID,
+            styles: [PerLevelPoiStyle(iconStyle: iconStyle, level: 0)]
+          )
+        )
+      }
       savedPlaceStyleAdded = true
     }
 
-    places.forEach { place in
+    let markers = places.compactMap { place -> (String, Double, Double, Bool)? in
       guard
         let id = place["id"] as? String,
         let latitude = place["latitude"] as? Double,
         let longitude = place["longitude"] as? Double
-      else { return }
-      let options = PoiOptions(styleID: Self.savedPlaceStyleID, poiID: id)
-      options.rank = 1
-      options.clickable = true
-      layer?.addPoi(
-        option: options,
-        at: MapPoint(longitude: longitude, latitude: latitude)
-      )?.show()
+      else { return nil }
+
+      return (id, latitude, longitude, place["selected"] as? Bool ?? false)
     }
+    let nextSelectionByID = markers.reduce(into: [String: Bool]()) { result, marker in
+      result[marker.0] = marker.3
+    }
+
+    for removedID in savedPlaceSelectionByID.keys where nextSelectionByID[removedID] == nil {
+      layer?.removePoi(poiID: removedID)
+    }
+
+    markers.forEach { id, latitude, longitude, selected in
+      let position = MapPoint(longitude: longitude, latitude: latitude)
+      let styleID = selected ? Self.selectedPlaceStyleID : Self.savedPlaceStyleID
+
+      if let poi = layer?.getPoi(poiID: id) {
+        poi.position = position
+        poi.clickable = true
+        poi.rank = selected ? Int.max - 1 : 1
+
+        if savedPlaceSelectionByID[id] != selected {
+          poi.changeStyle(styleID: styleID, enableTransition: true)
+        }
+      } else {
+        let options = PoiOptions(styleID: styleID, poiID: id)
+        options.rank = selected ? Int.max - 1 : 1
+        options.clickable = true
+        layer?.addPoi(option: options, at: position)?.show()
+      }
+    }
+
+    savedPlaceSelectionByID = nextSelectionByID
+  }
+
+  private func cameraTarget(in kakaoMap: KakaoMap) -> GeoCoordinate {
+    // CameraUpdate.make(target:..., mapView:...) targets the centre AFTER
+    // margins. Use that same centre when cloning a map for a detail scene.
+    let margins = kakaoMap.margins
+    let centre = CGPoint(
+      x: (margins.left + kakaoMap.viewRect.width - margins.right) / 2,
+      y: (margins.top + kakaoMap.viewRect.height - margins.bottom) / 2
+    )
+    return kakaoMap.getPosition(centre).wgsCoord
   }
 
   private func emitCameraChanged() {
@@ -604,10 +719,17 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       let kakaoMap = mapController?.getView("mapview") as? KakaoMap
     else { return }
 
-    let visibleRect = kakaoMap.viewRect
-    let coordinate = kakaoMap.getPosition(
-      CGPoint(x: visibleRect.midX, y: visibleRect.midY)
-    ).wgsCoord
+    // The list should include every pin visible on the map, including pins
+    // currently covered by a partially expanded bottom sheet. Camera margins
+    // still keep programmatic camera moves centred in the exposed area, but
+    // bounds for list filtering must cover the full map viewport.
+    let visibleRect = CGRect(
+      x: 0,
+      y: 0,
+      width: kakaoMap.viewRect.width,
+      height: kakaoMap.viewRect.height
+    )
+    let coordinate = cameraTarget(in: kakaoMap)
     let corners = [
       CGPoint(x: visibleRect.minX, y: visibleRect.minY),
       CGPoint(x: visibleRect.maxX, y: visibleRect.minY),
@@ -649,52 +771,70 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   }
 
   private func makeCurrentLocationMarker() -> UIImage {
-    let size = CGSize(width: 28, height: 28)
+    let size = CGSize(width: 40, height: 40)
+    let center = CGPoint(x: size.width / 2, y: size.height / 2)
 
     return UIGraphicsImageRenderer(size: size).image { context in
-      let bounds = CGRect(origin: .zero, size: size)
-      let outerCircle = UIBezierPath(ovalIn: bounds)
-      UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 0.22)
-        .setFill()
-      outerCircle.fill()
+      let cgContext = context.cgContext
+      cgContext.setAllowsAntialiasing(true)
+
+      let blueColor = UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 1)
+      if let gradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        colors: [
+          blueColor.withAlphaComponent(0.34).cgColor,
+          blueColor.withAlphaComponent(0.3).cgColor,
+          blueColor.withAlphaComponent(0.2).cgColor,
+          blueColor.withAlphaComponent(0.08).cgColor,
+          blueColor.withAlphaComponent(0).cgColor
+        ] as CFArray,
+        locations: [0, 0.35, 0.6, 0.82, 1]
+      ) {
+        cgContext.drawRadialGradient(
+          gradient,
+          startCenter: center,
+          startRadius: 0,
+          endCenter: center,
+          endRadius: size.width / 2,
+          options: []
+        )
+      }
 
       let whiteCircle = UIBezierPath(
-        ovalIn: bounds.insetBy(dx: 4, dy: 4)
+        ovalIn: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12)
       )
       UIColor.white.setFill()
       whiteCircle.fill()
 
       let blueCircle = UIBezierPath(
-        ovalIn: bounds.insetBy(dx: 7, dy: 7)
+        ovalIn: CGRect(x: center.x - 4.5, y: center.y - 4.5, width: 9, height: 9)
       )
-      UIColor(red: 92 / 255, green: 117 / 255, blue: 1, alpha: 1)
-        .setFill()
+      blueColor.setFill()
       blueCircle.fill()
-
-      context.cgContext.setAllowsAntialiasing(true)
     }
   }
 
-  private func makeSavedPlaceMarker() -> UIImage {
-    let size = CGSize(width: 36, height: 36)
+  private func makeSavedPlaceMarker(selected: Bool) -> UIImage {
+    let size = selected ? CGSize(width: 32, height: 32) : CGSize(width: 26, height: 26)
 
-    if let markerImage = UIImage(named: Self.savedPlaceMarkerAssetName) {
+    let assetName = selected ? Self.selectedPlaceMarkerAssetName : Self.savedPlaceMarkerAssetName
+    if let markerImage = UIImage(named: assetName) {
       return UIGraphicsImageRenderer(size: size).image { _ in
         markerImage.draw(in: CGRect(origin: .zero, size: size))
       }
     }
 
     return UIGraphicsImageRenderer(size: size).image { _ in
-      let center = CGPoint(x: 18, y: 18)
-      let radius: CGFloat = 13
+      let center = CGPoint(x: size.width / 2, y: size.height / 2)
+      let radius = size.width * 0.36
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: 2, y: 2, width: 32, height: 32)).fill()
+      UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).fill()
       UIColor(red: 122 / 255, green: 199 / 255, blue: 223 / 255, alpha: 1).setFill()
       UIBezierPath(
-        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: 26, height: 26)
+        ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
       ).fill()
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: 13, y: 13, width: 10, height: 10)).fill()
+      UIBezierPath(ovalIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)).fill()
     }
   }
 
@@ -723,6 +863,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private static let currentLocationStyleID = "yeogidam-current-location-style"
   private static let currentLocationPoiID = "yeogidam-current-location-poi"
   private static let savedPlaceLayerID = "yeogidam-saved-place-layer"
+  private static let searchResultMaxZoomLevel = 16
   private static let savedPlaceStyleID = "yeogidam-saved-place-style"
   private static let savedPlaceMarkerAssetName = "MapMarker"
+  private static let selectedPlaceStyleID = "yeogidam-selected-place-style"
+  private static let selectedPlaceMarkerAssetName = "MapMarkerSelected"
 }

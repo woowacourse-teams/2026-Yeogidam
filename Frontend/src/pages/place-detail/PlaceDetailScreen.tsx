@@ -1,28 +1,79 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {usePostHog} from 'posthog-react-native';
 
-import { getPlaceReels } from '../../entities/info/api';
-import type { PlaceReel, PlaceReelsApiError } from '../../entities/info/types';
+import {
+  captureSavedPlaceOpened,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
+import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
+import type {
+  PlaceReel,
+  PlaceReelsApiError,
+  SavedPlacesApiError,
+} from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
+import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
+import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { CopyToastProvider } from './components/CopyToast';
+import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
-import { PlaceMapButton } from './components/PlaceMapButton';
 
 type PlaceDetailScreenProps = {
   onBack: () => void;
   place: Place;
+  viewContext?: SavedPlaceViewContext;
   onAuthenticationRequired?: () => void;
+  guestReels?: PlaceReel[];
+  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
+  onDeleteGuestPlaces?: (placeIds: string[]) => void;
+  bottomNavigationBar?: ReactNode;
 };
 
 export function PlaceDetailScreen({
   onBack,
   place,
+  viewContext,
   onAuthenticationRequired,
+  guestReels,
+  onDeleteGuestPlaces,
+  bottomNavigationBar,
 }: PlaceDetailScreenProps) {
+  const { bottom: bottomInset } = useSafeAreaInsets();
+  const posthog = usePostHog();
+  const capturedPlaceViewIdRef = useRef<string | null>(null);
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
+  const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
+
+  useEffect(() => {
+    if (
+      !viewContext ||
+      !place.savedAt ||
+      capturedPlaceViewIdRef.current === viewContext.placeViewId
+    ) {
+      return;
+    }
+
+    capturedPlaceViewIdRef.current = viewContext.placeViewId;
+    captureSavedPlaceOpened(posthog, {
+      ...viewContext,
+      savedAt: place.savedAt,
+    });
+  }, [place.savedAt, posthog, viewContext]);
 
   const loadPosts = useCallback(async () => {
+    if (guestReels !== undefined) {
+      setReels(guestReels);
+      setError(null);
+      setIsReelsLoading(false);
+      return;
+    }
     setIsReelsLoading(true);
     setError(null);
     try {
@@ -36,23 +87,117 @@ export function PlaceDetailScreen({
     } finally {
       setIsReelsLoading(false);
     }
-  }, [onAuthenticationRequired, place.id]);
+  }, [guestReels, onAuthenticationRequired, place.id]);
 
   useEffect(() => {
     loadPosts();
   }, [loadPosts]);
 
+  const handleDelete = useCallback(async () => {
+    if (isDeleting) {
+      return;
+    }
+    if (onDeleteGuestPlaces) {
+      onDeleteGuestPlaces([place.id]);
+      setIsActionSheetVisible(false);
+      onBack();
+      return;
+    }
+    if (!place.savedPlaceId) {
+      setDeleteError({
+        status: 400,
+        errorCode: 'COMMON400_001',
+        message: '요청 내용을 확인해주세요.',
+        retryable: false,
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteSavedPlaces([place.savedPlaceId]);
+      setIsActionSheetVisible(false);
+      onBack();
+    } catch (nextError) {
+      const apiError = nextError as SavedPlacesApiError;
+      if (apiError.errorCode === 'CLIENT000_002') {
+        try {
+          const savedPlaces = await getSavedPlaces();
+          if (!savedPlaces.some(savedPlace => savedPlace.id === place.savedPlaceId)) {
+            setIsActionSheetVisible(false);
+            onBack();
+            return;
+          }
+        } catch {
+          // Keep the original timeout error and allow the user to retry.
+        }
+      }
+
+      setDeleteError(apiError);
+      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
+        onAuthenticationRequired?.();
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [
+    isDeleting,
+    onAuthenticationRequired,
+    onBack,
+    onDeleteGuestPlaces,
+    place.id,
+    place.savedPlaceId,
+  ]);
+
+  const confirmDelete = useCallback(() => {
+    if (isDeleting) {
+      return;
+    }
+
+    Alert.alert('선택한 장소를 삭제할까요?', '선택한 장소가 보관함에서 삭제됩니다.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제',
+        style: 'destructive',
+        onPress: () => {
+          handleDelete().catch(() => undefined);
+        },
+      },
+    ]);
+  }, [handleDelete, isDeleting]);
+
   return (
-    <CopyToastProvider>
+    <CopyToastProvider bottomOffset={BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 16}>
       <PlaceDetailContent
         onBack={onBack}
         place={place}
+        viewContext={viewContext}
+        showTitle={false}
+        stickyHeader
+        titleInHeader
+        compactHeader
+        headerTopInset={SEARCH_BAR_TOP_GAP}
         reels={reels}
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
+        onPressMore={guestReels === undefined || onDeleteGuestPlaces ? () => {
+          setDeleteError(null);
+          setIsActionSheetVisible(true);
+        } : undefined}
       />
-      {place.placeUrl ? <PlaceMapButton url={place.placeUrl} /> : null}
+      <PlaceDetailActionSheet
+        visible={isActionSheetVisible && (guestReels === undefined || onDeleteGuestPlaces !== undefined)}
+        onClose={() => {
+          setDeleteError(null);
+          setIsActionSheetVisible(false);
+        }}
+        onDelete={confirmDelete}
+        isDeleting={isDeleting}
+        deleteError={deleteError}
+      />
+      {bottomNavigationBar}
     </CopyToastProvider>
   );
 }

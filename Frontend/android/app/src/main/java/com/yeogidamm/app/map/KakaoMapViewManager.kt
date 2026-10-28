@@ -22,6 +22,11 @@ class KakaoMapViewManager :
 
     override fun getDelegate() = managerDelegate
 
+    override fun onDropViewInstance(view: KakaoMapView) {
+        view.dispose()
+        super.onDropViewInstance(view)
+    }
+
     override fun setLatitude(
         view: KakaoMapView,
         value: Double,
@@ -48,6 +53,20 @@ class KakaoMapViewManager :
         value: Int,
     ) {
         view.setCameraMoveRequestId(value)
+    }
+
+    override fun setCameraFitPointsJson(
+        view: KakaoMapView,
+        value: String?,
+    ) {
+        view.setCameraFitPointsJson(value ?: "[]")
+    }
+
+    override fun setCameraFitRequestId(
+        view: KakaoMapView,
+        value: Int,
+    ) {
+        view.setCameraFitRequestId(value)
     }
 
     override fun setShowsCurrentLocation(

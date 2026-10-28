@@ -1,26 +1,34 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { SwipeBackStack } from '../../components/navigation/SwipeBackStack';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Animated,
+  BackHandler,
+  Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
+import { usePostHog } from 'posthog-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/auth/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
-import { BOTTOM_TAB_BAR_HEIGHT } from '../../components/BottomTabBar';
+import {
+  captureSavedPlaceSelected,
+  captureSavedPlacesViewed,
+  type SavedPlaceViewContext,
+} from '../../analytics/savedPlaceEvents';
+import {
+  BOTTOM_NAVIGATION_BAR_HEIGHT,
+  bottomNavigationBarContainerStyle,
+  getBottomNavigationBarOffset,
+} from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import type { Place } from '../../entities/place/types';
-import { getSavedPlaces } from '../../entities/info/api';
+import { deleteSavedPlaces, getSavedPlaces } from '../../entities/info/api';
 import type { SavedPlacesApiError } from '../../entities/info/types';
 import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
 import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
@@ -34,7 +42,12 @@ import {
   normalizeInstagramContentUrl,
   saveContent,
 } from '../../entities/content/api';
-import type {ReelProcessingStatus, SaveSource} from '../../entities/content/types';
+import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
+import type {
+  HistoryReel,
+  ReelProcessingStatus,
+  SaveSource,
+} from '../../entities/content/types';
 import {
   normalizeReelError,
   ReelApiError,
@@ -49,11 +62,14 @@ import {
   setRecentSearches as persistRecentSearches,
 } from '../../lib/searchHistoryStorage';
 
-// 실제 저장 상태 카드만 표시합니다. 정적 디자인 미리보기는 제거했습니다.
-const SHOW_CARD_PREVIEW = false;
+const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
 const MAX_RECENT_SEARCHES = 10;
+
+// 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
+// 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
+let cachedSavedPlaces: Place[] | null = null;
 
 type ShareApiDiagnostics = {
   source: SaveSource;
@@ -68,240 +84,219 @@ type ShareApiDiagnostics = {
   queryFailureReason: string | null;
 };
 
-function ReelStatusCard({
-  status,
-  message,
-  description,
-  onCancel,
-  onRetry,
+type SavedPlacesScreenProps = {
+  isActive?: boolean;
+  onNestedBackStateChange?: (canGoBack: boolean) => void;
+  onOpenDetail: (place: Place, context?: SavedPlaceViewContext) => void;
+  isGuest?: boolean;
+  initialScrollOffset?: number;
+  onScrollOffsetChange?: (offset: number) => void;
+  onAuthenticationRequired?: () => void;
+  onOpenGuide?: () => void;
+  onShowGuestLoginPrompt?: () => void;
+  onEditModeChange?: (isEditing: boolean) => void;
+  /** Allows previews/tests to provide a fixed list instead of calling the API. */
+  onRequireLogin?: () => void;
+  // onOpenInbox?: () => void;
+  places?: Place[];
+  /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
+  onDeleteGuestPlaces?: (placeIds: string[]) => void;
+  onSharedResultConsumed?: (requestId?: string) => Promise<void>;
+};
+
+function SavedPlacesEditAction({
+  isEditing,
+  onPress,
 }: {
-  status: 'PROCESSING' | 'FAILED' | 'COMPLETED';
-  message: string;
-  description: string;
-  onCancel?: () => void;
-  onRetry?: () => void;
+  isEditing: boolean;
+  onPress: () => void;
 }) {
-  const failed = status === 'FAILED';
-  const completed = status === 'COMPLETED';
-  const progress = useRef(new Animated.Value(-1)).current;
-
-  useEffect(() => {
-    if (failed || completed) {
-      return;
-    }
-
-    const animation = Animated.loop(
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: 1200,
-        useNativeDriver: true,
-      }),
-    );
-    animation.start();
-
-    return () => animation.stop();
-  }, [completed, failed, progress]);
-
   return (
-    <View style={styles.processingCard}>
-      <Text style={styles.processingTitle}>{message}</Text>
-      <Text style={styles.processingMessage}>{description}</Text>
-      {!failed && !completed ? (
-        <View style={styles.progressTrack}>
-          <Animated.View
-            style={[
-              styles.progressIndicator,
-              {
-                transform: [
-                  {
-                    translateX: progress.interpolate({
-                      inputRange: [-1, 1],
-                      outputRange: [-80, 180],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        </View>
-      ) : null}
-      {failed ? (
-        <View style={styles.processingActions}>
-          {failed && onRetry ? (
-            <Pressable onPress={onRetry} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>다시 시도</Text>
-            </Pressable>
-          ) : null}
-          <Pressable onPress={onCancel} style={styles.dismissButton}>
-            <Text style={styles.dismissButtonText}>
-              {failed ? '닫기' : '취소'}
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
+    <View style={styles.editActionRow}>
+      <Pressable
+        accessibilityLabel={isEditing ? '보관함 편집 취소' : '보관함 편집'}
+        accessibilityRole="button"
+        hitSlop={8}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.editButton,
+          pressed && styles.editButtonPressed,
+        ]}
+      >
+        <Text style={styles.editButtonText}>{isEditing ? '취소' : '편집'}</Text>
+      </Pressable>
     </View>
   );
 }
 
-function getFailureCode(reason: string | null): string | null {
-  return reason?.split(' | ', 1)[0]?.trim() || null;
-}
-
-function getFailureMessage(reason: string | null): string {
-  switch (getFailureCode(reason)) {
-    case 'CLIENT000_001':
-      return '인터넷 연결이 불안정해요.';
-    case 'CLIENT000_002':
-      return '응답이 늦어져 저장하지 못했어요.';
-    case 'CLIENT000_003':
-      return '저장 결과를 확인하지 못했어요.';
-    case 'AUTH401_001':
-      return '로그인 정보가 없어 릴스를 저장하지 못했어요.';
-    case 'AUTH401_002':
-      return '로그인이 만료되어 릴스를 저장하지 못했어요.';
-    case 'AUTH403_001':
-      return '릴스를 저장할 권한이 없어요.';
-    case 'REEL400_001':
-      return '지원하지 않는 링크예요.';
-    case 'IG_CAPTION_NOT_FOUND':
-      return '릴스 캡션을 읽지 못했어요.';
-    case 'GEMINI_PLACE_NOT_FOUND':
-      return '캡션에서 장소 후보를 찾지 못했어요.';
-    case 'KAKAO_PLACE_NOT_FOUND':
-      return '지도에서 일치하는 장소를 찾지 못했어요.';
-    case 'PLACE_NOT_FOUND':
-      return '장소를 찾지 못했어요.';
-    case 'DATA500_001':
-    case 'COMMON500_001':
-      return '서버에서 저장 요청을 처리하지 못했어요.';
-    default:
-      return '릴스를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
-  }
-}
-
-function getFailureDescription(reason: string | null): string {
-  switch (getFailureCode(reason)) {
-    case 'CLIENT000_001':
-      return '인터넷 연결을 확인한 뒤 다시 시도해주세요.';
-    case 'CLIENT000_002':
-      return '잠시 후 다시 시도해주세요.';
-    case 'CLIENT000_003':
-      return '보관함을 다시 열어 저장 결과를 확인해주세요.';
-    case 'AUTH401_001':
-    case 'AUTH401_002':
-      return '여기담에 다시 로그인한 뒤 공유해주세요.';
-    case 'AUTH403_001':
-      return '현재 계정의 권한을 확인해주세요.';
-    case 'REEL400_001':
-      return 'Instagram 릴스 링크를 공유해주세요.';
-    case 'KAKAO_PLACE_NOT_FOUND':
-      return '릴스의 장소 정보와 주소를 확인해주세요.';
-    case 'IG_CAPTION_NOT_FOUND':
-      return '릴스에 장소 정보가 포함되어 있는지 확인해주세요.';
-    case 'GEMINI_PLACE_NOT_FOUND':
-      return '릴스 캡션에 장소명이 포함되어 있는지 확인해주세요.';
-    case 'PLACE_NOT_FOUND':
-      return '릴스에 장소 정보가 포함되어 있는지 확인해주세요.';
-    case 'DATA500_001':
-    case 'COMMON500_001':
-      return '잠시 후 다시 시도해주세요.';
-    default:
-      return '잠시 후 다시 시도하거나 다른 릴스 링크를 사용해주세요.';
-  }
-}
-
-function canRetryFailure(reason: string | null): boolean {
-  return [
-    'CLIENT000_001',
-    'CLIENT000_002',
-    'CLIENT000_003',
-    'DATA500_001',
-  ].includes(getFailureCode(reason) ?? '');
-}
-
-function getStatusQueryMessage(error: ReelApiError): string {
-  if (error.errorCode === 'CLIENT000_001') {
-    return '인터넷 연결을 확인해주세요.';
-  }
-  if (error.errorCode === 'CLIENT000_002') {
-    return '응답이 늦어지고 있어요. 잠시 후 다시 시도해주세요.';
-  }
-  return error.message;
-}
-
-type SavedPlacesScreenProps = {
-  onOpenDetail: (place: Place) => void;
-  onAuthenticationRequired?: () => void;
-  /** Allows previews/tests to provide a fixed list instead of calling the API. */
-  onRequireLogin?: () => void;
-  places?: Place[];
-  onSharedResultConsumed?: (requestId?: string) => Promise<void>;
-  onSharedResultDismissed?: (requestId?: string) => Promise<void>;
-};
-
 export function SavedPlacesScreen({
+  isActive: isScreenActive = true,
+  onNestedBackStateChange,
   onOpenDetail,
+  isGuest = false,
+  initialScrollOffset = 0,
+  onScrollOffsetChange,
   onAuthenticationRequired,
+  onOpenGuide,
+  onShowGuestLoginPrompt,
+  onEditModeChange,
   onRequireLogin,
+  // onOpenInbox,
   places: providedPlaces,
+  onDeleteGuestPlaces,
   onSharedResultConsumed,
-  onSharedResultDismissed,
 }: SavedPlacesScreenProps) {
+  const posthog = usePostHog();
+  const initialScrollOffsetRef = useRef(initialScrollOffset);
+  const hasRestoredInitialScrollRef = useRef(false);
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedPlaceIds, setSelectedPlaceIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] = useState(false);
+  const [isRecentSearchesHydrated, setIsRecentSearchesHydrated] =
+    useState(false);
   const [linkValue, setLinkValue] = useState('');
-  const [places, setPlaces] = useState<Place[]>(providedPlaces ?? []);
+  const [places, setPlaces] = useState<Place[]>(
+    providedPlaces ?? cachedSavedPlaces ?? [],
+  );
+  const hasLoadedPlacesRef = useRef(
+    providedPlaces !== undefined || cachedSavedPlaces !== null,
+  );
   const [error, setError] = useState<SavedPlacesApiError | null>(null);
-  const [isLoading, setIsLoading] = useState(providedPlaces === undefined);
+  const [isLoading, setIsLoading] = useState(
+    providedPlaces === undefined && cachedSavedPlaces === null,
+  );
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
+    null,
+  );
   const [processingReelId, setProcessingReelId] = useState<string | null>(null);
   const [processingReel, setProcessingReel] =
     useState<ReelProcessingStatus | null>(null);
-  const [processingUrl, setProcessingUrl] = useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [statusQueryError, setStatusQueryError] = useState<ReelApiError | null>(
-    null,
-  );
-  const [isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
-  const [shareApiDiagnostics, setShareApiDiagnostics] =
+  const [_statusQueryError, setStatusQueryError] =
+    useState<ReelApiError | null>(null);
+  const [_isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
+  const [_shareApiDiagnostics, setShareApiDiagnostics] =
     useState<ShareApiDiagnostics | null>(null);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const hasCapturedViewRef = useRef(false);
+  const isRefreshingRef = useRef(false);
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
+  const saveRequestIdRef = useRef<string | null>(null);
   const hasSavedPlaces = places.length > 0;
-
-  const loadSavedPlaces = useCallback(async () => {
-    if (providedPlaces !== undefined) {
-      setPlaces(providedPlaces);
-      return true;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    try {
-      const savedPlaces = await getSavedPlaces();
-      setPlaces(savedPlaces.map(toSavedPlaceDisplayPlace));
-      return true;
-    } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
-      setError(apiError);
-      if (apiError.errorCode === 'AUTH401_001') {
-        onAuthenticationRequired?.();
-      }
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [onAuthenticationRequired, providedPlaces]);
+  const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
 
   useEffect(() => {
-    loadSavedPlaces();
+    if (isLoading || error || hasCapturedViewRef.current) {
+      return;
+    }
+
+    hasCapturedViewRef.current = true;
+    captureSavedPlacesViewed(posthog, {
+      placeCount: places.length,
+      entryType: 'direct',
+    });
+  }, [error, isLoading, places.length, posthog]);
+
+  useEffect(() => {
+    if (
+      hasRestoredInitialScrollRef.current ||
+      isLoading ||
+      !hasSavedPlaces ||
+      initialScrollOffsetRef.current <= 0
+    ) {
+      return;
+    }
+
+    const restoreScrollPosition = requestAnimationFrame(() => {
+      hasRestoredInitialScrollRef.current = true;
+      scrollViewRef.current?.scrollTo({
+        y: initialScrollOffsetRef.current,
+        animated: false,
+      });
+    });
+
+    return () => cancelAnimationFrame(restoreScrollPosition);
+  }, [hasSavedPlaces, isLoading]);
+
+  useEffect(() => {
+    return () => onEditModeChange?.(false);
+  }, [onEditModeChange]);
+
+  const fetchSavedPlaces = useCallback(
+    async (showLoading: boolean) => {
+      if (providedPlaces !== undefined) {
+        if (isGuest) {
+          cachedSavedPlaces = null;
+        }
+        setPlaces(providedPlaces);
+        return providedPlaces;
+      }
+
+      const showLoadingState = showLoading || !hasLoadedPlacesRef.current;
+      if (showLoadingState) setIsLoading(true);
+      try {
+        const savedPlaces = await getSavedPlaces();
+        const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
+        cachedSavedPlaces = nextPlaces;
+        hasLoadedPlacesRef.current = true;
+        setPlaces(current =>
+          JSON.stringify(current) === JSON.stringify(nextPlaces)
+            ? current
+            : nextPlaces,
+        );
+        setError(null);
+        return nextPlaces;
+      } catch (nextError) {
+        const apiError = nextError as SavedPlacesApiError;
+        if (showLoadingState) setError(apiError);
+        if (apiError.errorCode === 'AUTH401_001') {
+          onAuthenticationRequired?.();
+        }
+        return null;
+      } finally {
+        if (showLoadingState) setIsLoading(false);
+      }
+    },
+    [isGuest, onAuthenticationRequired, providedPlaces],
+  );
+
+  const loadSavedPlaces = useCallback(
+    () => fetchSavedPlaces(true),
+    [fetchSavedPlaces],
+  );
+
+  const refreshSavedPlaces = useCallback(async () => {
+    if (isRefreshingRef.current) {
+      return;
+    }
+
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
+
+    try {
+      await loadSavedPlaces();
+    } finally {
+      isRefreshingRef.current = false;
+      setIsRefreshing(false);
+    }
   }, [loadSavedPlaces]);
+
+  useEffect(() => {
+    // Keep the already visible content while revalidating on return. Entering
+    // a loading/error branch here changes the layout during the pop transition.
+    if (isScreenActive) fetchSavedPlaces(false);
+  }, [isScreenActive, fetchSavedPlaces]);
 
   useEffect(() => {
     let isMounted = true;
@@ -337,6 +332,9 @@ export function SavedPlacesScreen({
   }, [isRecentSearchesHydrated, recentSearches]);
 
   useEffect(() => {
+    if (isGuest) {
+      return;
+    }
     let isActive = true;
     const verifiedKeys = new Set<string>();
     const verificationInFlight = new Set<string>();
@@ -346,23 +344,23 @@ export function SavedPlacesScreen({
       verificationKey: string,
     ) => {
       verificationInFlight.add(verificationKey);
-      setShareApiDiagnostics(current => current ? {
-        ...current,
-        statusQueryCount: current.statusQueryCount + 1,
-        lastQueriedAt: new Date(),
-        queryFailureReason: null,
-      } : current);
+      setShareApiDiagnostics(current =>
+        current
+          ? {
+              ...current,
+              statusQueryCount: current.statusQueryCount + 1,
+              lastQueriedAt: new Date(),
+              queryFailureReason: null,
+            }
+          : current,
+      );
       try {
+        // 토큰 갱신과 401 재시도는 Spring API 클라이언트가 처리합니다.
         let currentStatus: ReelProcessingStatus | null;
         try {
           currentStatus = await getReelProcessingStatus(state.reel.id);
-        } catch (error) {
-          const normalized = normalizeReelError(error);
-          if (normalized.errorCode !== 'AUTH401_002') throw normalized;
-
-          const {error: refreshError} = await supabase.auth.refreshSession();
-          if (refreshError) throw normalized;
-          currentStatus = await getReelProcessingStatus(state.reel.id);
+        } catch (statusError) {
+          throw normalizeReelError(statusError);
         }
 
         if (!isActive) {
@@ -376,11 +374,15 @@ export function SavedPlacesScreen({
               result: null,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: null,
-            queryFailureReason: '조회 결과 없음',
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queriedStatus: null,
+                  queryFailureReason: '조회 결과 없음',
+                }
+              : current,
+          );
           setSharedSaveState(null);
           await onSharedResultConsumed?.(state.shareResultId);
           return;
@@ -396,18 +398,22 @@ export function SavedPlacesScreen({
             failureReason: currentStatus.failure_reason,
           });
         }
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          queriedStatus: currentStatus.processing_status,
-          queryFailureReason: currentStatus.failure_reason,
-        } : current);
+        setShareApiDiagnostics(current =>
+          current
+            ? {
+                ...current,
+                queriedStatus: currentStatus.processing_status,
+                queryFailureReason: currentStatus.failure_reason,
+              }
+            : current,
+        );
         setSharedSaveState({
           ...state,
           status: currentStatus.processing_status,
           reel: currentStatus,
         });
-      } catch (error) {
-        const normalized = normalizeReelError(error);
+      } catch (pollError) {
+        const normalized = normalizeReelError(pollError);
         if (__DEV__) {
           console.warn('[InstagramShare][status-error]', {
             requestId: state.shareResultId ?? null,
@@ -416,10 +422,14 @@ export function SavedPlacesScreen({
             message: normalized.message,
           });
         }
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          queryFailureReason: normalized.errorCode ?? normalized.message,
-        } : current);
+        setShareApiDiagnostics(current =>
+          current
+            ? {
+                ...current,
+                queryFailureReason: normalized.errorCode ?? normalized.message,
+              }
+            : current,
+        );
         // 앱 진입 시 상태를 확인하지 못한 경우 추측으로 카드를 표시하지 않습니다.
       } finally {
         verificationInFlight.delete(verificationKey);
@@ -448,15 +458,13 @@ export function SavedPlacesScreen({
         setShareApiDiagnostics(null);
         setProcessingReelId(null);
         setProcessingReel(null);
-        setProcessingUrl(null);
         setStatusQueryError(null);
         return;
       }
 
       const hasRealReelId = !state.reel.id.startsWith('share-');
       setShareApiDiagnostics(current =>
-        current?.reelId === state.reel.id &&
-        current.requestUrl === state.url
+        current?.reelId === state.reel.id && current.requestUrl === state.url
           ? current
           : {
               source:
@@ -480,7 +488,6 @@ export function SavedPlacesScreen({
         // reelId가 오기 전에는 상태 API를 호출하지 않고 응답 대기 카드만 표시합니다.
         setProcessingReelId(null);
         setProcessingReel(state.reel);
-        setProcessingUrl(state.url);
         setStatusQueryError(null);
         setIsSaveResponseFailure(false);
         return;
@@ -494,18 +501,18 @@ export function SavedPlacesScreen({
       ) {
         setProcessingReelId(null);
         setProcessingReel(null);
-        setProcessingUrl(null);
         setStatusQueryError(null);
         if (!verificationInFlight.has(verificationKey)) {
-          void verifySharedReelBeforeShowing(state, verificationKey);
+          verifySharedReelBeforeShowing(state, verificationKey).catch(
+            () => undefined,
+          );
         }
         return;
       }
 
-      setProcessingUrl(state.url);
       setProcessingReelId(
         (state.status === 'PROCESSING' || state.status === 'PENDING') &&
-        hasRealReelId
+          hasRealReelId
           ? state.reel.id
           : null,
       );
@@ -516,7 +523,7 @@ export function SavedPlacesScreen({
       );
       if (state.status === 'COMPLETED') {
         if (state.source === 'instagram_share') {
-          void refreshAfterExternalShare(state.shareResultId);
+          refreshAfterExternalShare(state.shareResultId).catch(() => undefined);
         }
         setSharedSaveState(null);
       }
@@ -528,9 +535,13 @@ export function SavedPlacesScreen({
       isActive = false;
       unsubscribe();
     };
-  }, [loadSavedPlaces, onSharedResultConsumed]);
+  }, [isGuest, loadSavedPlaces, onSharedResultConsumed]);
 
   const openDialog = () => {
+    if (isGuest) {
+      (onShowGuestLoginPrompt ?? onRequireLogin)?.();
+      return;
+    }
     setLinkError(null);
     setIsDialogVisible(true);
   };
@@ -544,13 +555,15 @@ export function SavedPlacesScreen({
     setLinkError(null);
   };
 
-  const handleSaveLink = async (isSessionRetry = false) => {
+  const handleSaveLink = async () => {
     if (isSubmitting) {
       return;
     }
 
     const normalizedUrl =
       normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
+    saveRequestIdRef.current = uuidv4();
+    const clientRequestId = saveRequestIdRef.current;
     const initialReel: ReelProcessingStatus = {
       id: `manual-${Date.now()}`,
       processing_status: 'PROCESSING',
@@ -562,7 +575,6 @@ export function SavedPlacesScreen({
     // 새 링크 요청은 이전 릴스의 카드/폴링 상태를 이어받지 않습니다.
     setProcessingReelId(null);
     setProcessingReel(initialReel);
-    setProcessingUrl(normalizedUrl);
     setStatusQueryError(null);
     setIsSaveResponseFailure(false);
     setShowSaveSuccess(false);
@@ -575,7 +587,11 @@ export function SavedPlacesScreen({
     setIsSubmitting(true);
     setLinkError(null);
     try {
-      const response = await saveContent(linkValue, 'url_input');
+      const response = await saveContent(
+        linkValue,
+        'url_input',
+        clientRequestId,
+      );
       const nextReel: ReelProcessingStatus = {
         id: response.reelId,
         processing_status: response.status,
@@ -593,8 +609,10 @@ export function SavedPlacesScreen({
       handleSaveResponse(response, normalizedUrl, 'url_input');
       setIsDialogVisible(false);
       setLinkValue('');
-    } catch (error) {
-      const normalizedError = normalizeReelError(error);
+      // v2 대기함 흐름 복원 시:
+      // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
+    } catch (submitError) {
+      const normalizedError = normalizeReelError(submitError);
       setLastRequestId(normalizedError.requestId ?? null);
       const failedReel: ReelProcessingStatus = {
         id: `manual-failed-${Date.now()}`,
@@ -617,18 +635,6 @@ export function SavedPlacesScreen({
         return;
       }
 
-      if (normalizedError.errorCode === 'AUTH401_002' && !isSessionRetry) {
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        if (!refreshError) {
-          setIsSubmitting(false);
-          await handleSaveLink(true);
-          return;
-        }
-        setIsDialogVisible(false);
-        onRequireLogin?.();
-        return;
-      }
-
       setLinkError(normalizedError.message);
     } finally {
       setIsSubmitting(false);
@@ -644,7 +650,6 @@ export function SavedPlacesScreen({
       setIsSaveResponseFailure(false);
       setProcessingReelId(null);
       setProcessingReel(null);
-      setProcessingUrl(null);
       setShowSaveSuccess(source === 'url_input');
       return;
     }
@@ -652,7 +657,6 @@ export function SavedPlacesScreen({
     // REEL-01의 200 FAILED 결과는 reused 값과 관계없이 재시도 UI를 표시합니다.
     setIsSaveResponseFailure(response.status === 'FAILED');
     setProcessingReelId(response.reelId);
-    setProcessingUrl(url);
     setProcessingReel({
       id: response.reelId,
       processing_status: response.status,
@@ -660,62 +664,6 @@ export function SavedPlacesScreen({
       instagram_thumbnail_url: null,
       created_at: new Date().toISOString(),
     });
-  };
-
-  const dismissProcessingCard = async () => {
-    const currentState = getSharedSaveState();
-    const isExternalShare = currentState?.source === 'instagram_share';
-    const requestId = currentState?.shareResultId;
-    setSharedSaveState(null);
-    setIsSaveResponseFailure(false);
-    setProcessingReelId(null);
-    setProcessingReel(null);
-    setProcessingUrl(null);
-    setStatusQueryError(null);
-    if (isExternalShare) {
-      try {
-        await onSharedResultDismissed?.(requestId);
-      } catch {
-        // 카드는 즉시 닫되 다음 실행에서 삭제를 다시 시도할 수 있습니다.
-      }
-    }
-  };
-
-  const retryProcessing = async () => {
-    if (!processingUrl || isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    const source = getSharedSaveState()?.source ?? 'url_input';
-    const requestSource: SaveSource =
-      source === 'instagram_share' ? 'url_input' : source;
-    try {
-      const response = await saveContent(processingUrl, requestSource);
-      handleSaveResponse(response, processingUrl, source);
-    } catch (error) {
-      const normalized = normalizeReelError(error);
-      if (normalized.errorCode === 'AUTH401_002') {
-        const {error: refreshError} = await supabase.auth.refreshSession();
-        if (!refreshError) {
-          try {
-            const response = await saveContent(processingUrl, requestSource);
-            handleSaveResponse(response, processingUrl, source);
-            return;
-          } catch (retryError) {
-            error = retryError;
-          }
-        } else {
-          onRequireLogin?.();
-          return;
-        }
-      }
-      const finalError = normalizeReelError(error);
-      setStatusQueryError(finalError);
-      setIsSaveResponseFailure(true);
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   useEffect(() => {
@@ -755,8 +703,12 @@ export function SavedPlacesScreen({
     reelPollStartedAtRef.current ??= Number.isFinite(persistedStartedAt)
       ? Math.min(persistedStartedAt, Date.now())
       : Date.now();
-    const poll = async () => {
-      if (Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >= REEL_POLL_TIMEOUT_MS) {
+    const poll = async (recentReels: Promise<HistoryReel[]>) => {
+      if (!isActive) return;
+      if (
+        Date.now() - (reelPollStartedAtRef.current ?? Date.now()) >=
+        REEL_POLL_TIMEOUT_MS
+      ) {
         if (isActive) {
           const timeoutError = new ReelApiError({
             errorCode: 'CLIENT000_002',
@@ -770,27 +722,33 @@ export function SavedPlacesScreen({
         return;
       }
       try {
-        setShareApiDiagnostics(current => current ? {
-          ...current,
-          statusQueryCount: current.statusQueryCount + 1,
-          lastQueriedAt: new Date(),
-          queryFailureReason: null,
-        } : current);
+        setShareApiDiagnostics(current =>
+          current
+            ? {
+                ...current,
+                statusQueryCount: current.statusQueryCount + 1,
+                lastQueriedAt: new Date(),
+                queryFailureReason: null,
+              }
+            : current,
+        );
         let nextStatus: ReelProcessingStatus | null;
         try {
-          nextStatus = await getReelProcessingStatus(processingReelId);
-        } catch (error) {
-          const firstError = normalizeReelError(error);
-          if (firstError.errorCode !== 'AUTH401_002') {
-            throw firstError;
-          }
-
-          const { error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError) {
-            throw firstError;
-          }
-
-          nextStatus = await getReelProcessingStatus(processingReelId);
+          // 서버에 단건 상태 조회 API가 없어 공유 목록 첫 페이지에서 찾습니다.
+          const reel = (await recentReels).find(
+            item => item.id === processingReelId,
+          );
+          nextStatus = reel
+            ? {
+                id: reel.id,
+                processing_status: reel.processing_status,
+                failure_reason: reel.failure_reason,
+                instagram_thumbnail_url: reel.instagram_thumbnail_url,
+                created_at: reel.created_at,
+              }
+            : null;
+        } catch (statusError) {
+          throw normalizeReelError(statusError);
         }
 
         if (isActive && !nextStatus) {
@@ -800,11 +758,15 @@ export function SavedPlacesScreen({
               result: null,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: null,
-            queryFailureReason: '조회 결과 없음',
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queriedStatus: null,
+                  queryFailureReason: '조회 결과 없음',
+                }
+              : current,
+          );
           reelPollFailureCountRef.current += 1;
           if (reelPollFailureCountRef.current >= REEL_POLL_FAILURE_LIMIT) {
             setStatusQueryError(
@@ -831,11 +793,15 @@ export function SavedPlacesScreen({
               failureReason: nextStatus.failure_reason,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queriedStatus: nextStatus.processing_status,
-            queryFailureReason: nextStatus.failure_reason,
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queriedStatus: nextStatus.processing_status,
+                  queryFailureReason: nextStatus.failure_reason,
+                }
+              : current,
+          );
           const sharedState = getSharedSaveState();
           if (sharedState?.reel.id === nextStatus.id) {
             setSharedSaveState({
@@ -849,10 +815,10 @@ export function SavedPlacesScreen({
             setShowSaveSuccess(sharedState?.source === 'url_input');
           }
         }
-      } catch (error) {
+      } catch (pollError) {
         if (isActive) {
           reelPollFailureCountRef.current += 1;
-          const normalizedError = normalizeReelError(error);
+          const normalizedError = normalizeReelError(pollError);
           if (__DEV__) {
             console.warn('[InstagramShare][status-error]', {
               reelId: processingReelId,
@@ -861,11 +827,15 @@ export function SavedPlacesScreen({
               attempt: reelPollFailureCountRef.current,
             });
           }
-          setShareApiDiagnostics(current => current ? {
-            ...current,
-            queryFailureReason:
-              normalizedError.errorCode ?? normalizedError.message,
-          } : current);
+          setShareApiDiagnostics(current =>
+            current
+              ? {
+                  ...current,
+                  queryFailureReason:
+                    normalizedError.errorCode ?? normalizedError.message,
+                }
+              : current,
+          );
           setStatusQueryError(normalizedError);
           if (normalizedError.errorCode === 'AUTH401_001') {
             setProcessingReelId(null);
@@ -883,12 +853,28 @@ export function SavedPlacesScreen({
       }
     };
 
-    const intervalId = setInterval(poll, 3000);
+    // 히스토리 화면·배지와 같은 앱 공용 목록 폴러를 3초 주기로 구독합니다.
+    const subscription = subscribeRecentShares({
+      intervalMs: REEL_POLL_INTERVAL_MS,
+      onResult: ({ reels }) => {
+        poll(Promise.resolve(reels)).catch(() => undefined);
+      },
+      onError: pollError => {
+        poll(Promise.reject(pollError)).catch(() => undefined);
+      },
+    });
     return () => {
       isActive = false;
-      clearInterval(intervalId);
+      subscription.unsubscribe();
     };
-  }, [processingReelId, processingReel?.processing_status, onRequireLogin]);
+  }, [
+    onRequireLogin,
+    processingReel?.created_at,
+    processingReel?.id,
+    processingReel?.processing_status,
+    processingReelId,
+    error,
+  ]);
 
   useEffect(() => {
     if (!showSaveSuccess) {
@@ -897,7 +883,7 @@ export function SavedPlacesScreen({
 
     // 저장 API의 즉시 완료 응답, 상태 폴링 완료, 공유 상태 복원 중 어느
     // 경로로 완료되더라도 최신 저장 장소를 보관함에 바로 반영합니다.
-    void loadSavedPlaces();
+    loadSavedPlaces().catch(() => undefined);
 
     const timeoutId = setTimeout(() => setShowSaveSuccess(false), 1800);
     return () => clearTimeout(timeoutId);
@@ -906,6 +892,135 @@ export function SavedPlacesScreen({
   const scrollToTop = () => {
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
+
+  const handlePressEdit = useCallback(() => {
+    const next = !isEditing;
+    setIsEditing(next);
+    setSelectedPlaceIds(new Set());
+    onEditModeChange?.(next);
+  }, [isEditing, onEditModeChange]);
+
+  const enterEditMode = useCallback(() => {
+    setIsEditing(true);
+    setSelectedPlaceIds(new Set());
+    onEditModeChange?.(true);
+  }, [onEditModeChange]);
+
+  const togglePlaceSelection = useCallback((placeId: string) => {
+    setSelectedPlaceIds(current => {
+      const next = new Set(current);
+      if (next.has(placeId)) {
+        next.delete(placeId);
+      } else {
+        next.add(placeId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleDeleteSelectedPlaces = useCallback(async () => {
+    if (isDeleting || selectedPlaceIds.size === 0) {
+      return;
+    }
+
+    if (isGuest) {
+      setPlaces(current =>
+        current.filter(place => !selectedPlaceIds.has(place.id)),
+      );
+      onDeleteGuestPlaces?.([...selectedPlaceIds]);
+      setSelectedPlaceIds(new Set());
+      setIsEditing(false);
+      onEditModeChange?.(false);
+      return;
+    }
+
+    const savedPlaceIds = places.flatMap(place =>
+      selectedPlaceIds.has(place.id) && place.savedPlaceId
+        ? [place.savedPlaceId]
+        : [],
+    );
+    if (savedPlaceIds.length !== selectedPlaceIds.size) {
+      setDeleteError({
+        status: 400,
+        errorCode: 'COMMON400_001',
+        message: '요청 내용을 확인해주세요.',
+        retryable: false,
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteSavedPlaces(savedPlaceIds);
+      const deletedIds = new Set(savedPlaceIds);
+      setPlaces(current =>
+        current.filter(place => !deletedIds.has(place.savedPlaceId ?? '')),
+      );
+      setSelectedPlaceIds(new Set());
+      setIsEditing(false);
+      onEditModeChange?.(false);
+    } catch (nextError) {
+      const apiError = nextError as SavedPlacesApiError;
+      if (apiError.errorCode === 'CLIENT000_002') {
+        const refreshedPlaces = await loadSavedPlaces();
+        const deletedIds = new Set(savedPlaceIds);
+        const isDeletionConfirmed =
+          refreshedPlaces !== null &&
+          refreshedPlaces.every(
+            place => !deletedIds.has(place.savedPlaceId ?? ''),
+          );
+
+        if (isDeletionConfirmed) {
+          setSelectedPlaceIds(new Set());
+          setIsEditing(false);
+          onEditModeChange?.(false);
+          return;
+        }
+      }
+
+      setDeleteError(apiError);
+      if (
+        apiError.errorCode === 'AUTH401_001' ||
+        apiError.errorCode === 'AUTH401_002'
+      ) {
+        onAuthenticationRequired?.();
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [
+    isDeleting,
+    isGuest,
+    loadSavedPlaces,
+    onAuthenticationRequired,
+    onDeleteGuestPlaces,
+    onEditModeChange,
+    places,
+    selectedPlaceIds,
+  ]);
+
+  const confirmDeleteSelectedPlaces = useCallback(() => {
+    if (isDeleting || selectedPlaceIds.size === 0) {
+      return;
+    }
+
+    const count = selectedPlaceIds.size;
+    Alert.alert(
+      '선택한 장소를 삭제할까요?',
+      `선택한 ${count}곳의 장소가 보관함에서 삭제됩니다.`,
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: () => {
+            handleDeleteSelectedPlaces().catch(() => undefined);
+          },
+        },
+      ],
+    );
+  }, [handleDeleteSelectedPlaces, isDeleting, selectedPlaceIds.size]);
 
   const saveRecentSearch = useCallback((value: string) => {
     const normalizedValue = value.trim();
@@ -919,160 +1034,239 @@ export function SavedPlacesScreen({
     });
   }, []);
 
+  const openPlaceDetail = useCallback(
+    (
+      place: Place,
+      source: SavedPlaceViewContext['source'],
+      position: number,
+      searchId?: string,
+    ) => {
+      if (!place.savedPlaceId) {
+        onOpenDetail(place);
+        return;
+      }
+
+      const context: SavedPlaceViewContext = {
+        placeId: place.id,
+        savedPlaceId: place.savedPlaceId,
+        placeViewId: uuidv4(),
+        source,
+      };
+      captureSavedPlaceSelected(posthog, {
+        ...context,
+        searchId,
+        position,
+      });
+      onOpenDetail(place, context);
+    },
+    [onOpenDetail, posthog],
+  );
+
+  const closeNestedScreen = useCallback(() => {
+    if (isSearchOpen) setIsSearchOpen(false);
+    else if (isEditing) handlePressEdit();
+  }, [handlePressEdit, isEditing, isSearchOpen]);
+  useEffect(() => {
+    const canGoBack = isScreenActive && (isSearchOpen || isEditing);
+    onNestedBackStateChange?.(canGoBack);
+    if (Platform.OS !== 'android' || !canGoBack) {
+      return () => onNestedBackStateChange?.(false);
+    }
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        closeNestedScreen();
+        return true;
+      },
+    );
+    return () => {
+      subscription.remove();
+      onNestedBackStateChange?.(false);
+    };
+  }, [
+    closeNestedScreen,
+    isScreenActive,
+    isEditing,
+    isSearchOpen,
+    onNestedBackStateChange,
+  ]);
+  const renderListContent = () => (
+    <View style={styles.container}>
+      <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
+      {error && hasSavedPlaces ? (
+        <View style={styles.errorBanner}>
+          <Text numberOfLines={1} style={styles.errorText}>
+            {error.message}
+          </Text>
+          {error.retryable ? (
+            <Pressable onPress={loadSavedPlaces}>
+              <Text style={styles.errorRetryText}>재시도</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {deleteError ? (
+        <View style={styles.deleteErrorBanner}>
+          <Text numberOfLines={2} style={styles.deleteErrorText}>
+            {deleteError.message}
+          </Text>
+          {deleteError.retryable ? (
+            <Pressable onPress={handleDeleteSelectedPlaces}>
+              <Text style={styles.deleteErrorRetryText}>재시도</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {isLoading && !hasSavedPlaces ? (
+        <SavedPlacesSkeleton />
+      ) : hasSavedPlaces ? (
+        <>
+          <ScrollView
+            ref={scrollViewRef}
+            alwaysBounceVertical
+            onScroll={event =>
+              onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
+            }
+            refreshControl={
+              <RefreshControl
+                colors={['#8FA2FF']}
+                onRefresh={refreshSavedPlaces}
+                progressBackgroundColor="#ffffff"
+                refreshing={isRefreshing}
+                tintColor="#8FA2FF"
+              />
+            }
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          >
+            <SavedPlacesEditAction
+              isEditing={isEditing}
+              onPress={handlePressEdit}
+            />
+            <SavedPlaceGrid
+              isEditing={isEditing}
+              places={places}
+              onLongPressPlace={enterEditMode}
+              onPressPlace={(place, position) =>
+                openPlaceDetail(place, 'saved_places_grid', position)
+              }
+              onTogglePlaceSelection={togglePlaceSelection}
+              selectedPlaceIds={selectedPlaceIds}
+            />
+            <View style={styles.scrollFooter}>
+              <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
+                <MaterialIcons color="#8FA2FF" name="upload" size={24} />
+              </Pressable>
+            </View>
+          </ScrollView>
+        </>
+      ) : error ? (
+        <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
+      ) : (
+        <SavedPlacesEmptyState
+          isGuest={isGuest}
+          onLogin={onAuthenticationRequired}
+          onOpenGuide={onOpenGuide}
+        />
+      )}
+      {isEditing ? (
+        <Pressable
+          accessibilityLabel={
+            selectedPlaceIds.size > 0
+              ? '선택한 장소 삭제하기'
+              : '보관함 편집 취소'
+          }
+          accessibilityRole="button"
+          disabled={isDeleting}
+          onPress={
+            selectedPlaceIds.size === 0
+              ? handlePressEdit
+              : confirmDeleteSelectedPlaces
+          }
+          style={({ pressed }) => [
+            bottomNavigationBarContainerStyle,
+            styles.deleteAction,
+            { bottom: bottomActionOffset },
+            isDeleting && styles.deleteActionDisabled,
+            pressed && styles.deleteActionPressed,
+          ]}
+        >
+          <View
+            key="saved-places-delete-action-content"
+            style={styles.deleteActionContent}
+          >
+            <Text style={styles.deleteActionText}>
+              {selectedPlaceIds.size > 0
+                ? isDeleting
+                  ? '삭제 중...'
+                  : '삭제하기'
+                : '취소'}
+            </Text>
+            {selectedPlaceIds.size > 0 ? (
+              <View style={styles.deleteCountBadge}>
+                <Text style={styles.deleteCountText}>
+                  {selectedPlaceIds.size}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </Pressable>
+      ) : (
+        <Pressable
+          accessibilityLabel="장소 링크 추가"
+          accessibilityRole="button"
+          onPress={openDialog}
+          style={[
+            styles.fabShadow,
+            {
+              bottom:
+                BOTTOM_NAVIGATION_BAR_HEIGHT +
+                getBottomNavigationBarOffset(bottomInset) +
+                12,
+            },
+          ]}
+        >
+          <View key="saved-places-fab" style={styles.fab}>
+            <Text style={styles.fabText}>＋</Text>
+          </View>
+        </Pressable>
+      )}
+    </View>
+  );
   return (
     <View style={styles.container}>
-      {isSearchOpen ? (
-        <>
-          <SavedPlacesSearchPanel
-            places={places}
-            recentSearches={recentSearches}
-            onCloseSearch={() => setIsSearchOpen(false)}
-            onPressPlace={onOpenDetail}
-            onSaveSearchTerm={saveRecentSearch}
-          />
-        </>
-      ) : (
-        <>
-          <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
-          {SHOW_CARD_PREVIEW ? (
-            <ScrollView
-              contentContainerStyle={styles.previewContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <ReelStatusCard
-                status="PROCESSING"
-                message="릴스에서 장소를 찾고 있어요."
-                description="처리가 완료되면 보관함에 반영됩니다."
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="인터넷 연결을 확인해주세요."
-                description="연결을 확인한 뒤 다시 시도해주세요."
-                onCancel={() => {}}
-                onRetry={() => {}}
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="데이터를 처리하지 못했어요."
-                description="잠시 후 다시 시도해주세요."
-                onCancel={() => {}}
-                onRetry={() => {}}
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="지도에서 일치하는 장소를 찾지 못했어요."
-                description="릴스의 장소 정보를 확인한 뒤 다시 시도해주세요."
-                onCancel={() => {}}
-              />
-              <ReelStatusCard
-                status="FAILED"
-                message="릴스 캡션을 읽지 못했어요."
-                description="릴스에 장소 정보가 포함되어 있는지 확인해주세요."
-                onCancel={() => {}}
-              />
-              <ReelStatusCard
-                status="COMPLETED"
-                message="장소를 저장했어요."
-                description="보관함에 반영되었습니다."
-              />
-            </ScrollView>
-          ) : showSaveSuccess ? (
-            <ReelStatusCard
-              status="COMPLETED"
-              message="장소를 저장했어요."
-              description="보관함에 반영되었습니다."
-            />
-          ) : processingReel &&
-            processingReel.processing_status === 'FAILED' ? (
-            <ReelStatusCard
-              status="FAILED"
-              message={getFailureMessage(processingReel.failure_reason)}
-              description={getFailureDescription(processingReel.failure_reason)}
-              onCancel={dismissProcessingCard}
-              // REEL-01이 200 FAILED를 반환한 경우
-              // reused 값과 관계없이 동일 URL로 저장 요청을 다시 보냅니다.
-              onRetry={
-                isSaveResponseFailure && canRetryFailure(processingReel.failure_reason)
-                  ? retryProcessing
-                  : undefined
-              }
-            />
-          ) : processingReel &&
-            processingReel.processing_status !== 'COMPLETED' &&
-            (processingReelId !== null ||
-              processingReel.processing_status === 'PENDING' ||
-              statusQueryError !== null) ? (
-            <ReelStatusCard
-              status={statusQueryError ? 'FAILED' : 'PROCESSING'}
-              message={
-                statusQueryError
-                  ? getStatusQueryMessage(statusQueryError)
-                  : '릴스에서 장소를 찾고 있어요.'
-              }
-              description={
-                statusQueryError
-                  ? '잠시 후 다시 시도하거나 카드를 닫아주세요.'
-                  : '처리가 완료되면 보관함에 반영됩니다.'
-              }
-              onCancel={dismissProcessingCard}
-              onRetry={
-                statusQueryError?.retryable
-                  ? retryProcessing
-                  : undefined
-              }
-            />
-          ) : null}
-          {error && hasSavedPlaces ? (
-            <View style={styles.errorBanner}>
-              <Text numberOfLines={1} style={styles.errorText}>
-                {error.message}
-              </Text>
-              {error.retryable ? (
-                <Pressable onPress={loadSavedPlaces}>
-                  <Text style={styles.errorRetryText}>재시도</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-          {isLoading && !hasSavedPlaces ? (
-            <SavedPlacesSkeleton />
-          ) : hasSavedPlaces ? (
-            <>
-              <ScrollView
-                ref={scrollViewRef}
-                showsVerticalScrollIndicator={false}
-              >
-                <SavedPlaceGrid places={places} onPressPlace={onOpenDetail} />
-                <View style={styles.scrollFooter}>
-                  <Pressable
-                    onPress={scrollToTop}
-                    style={styles.scrollTopButton}
-                  >
-                    <MaterialIcons color="#8FA2FF" name="upload" size={24} />
-                  </Pressable>
-                </View>
-              </ScrollView>
-            </>
-          ) : error ? (
-            <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
-          ) : (
-            <SavedPlacesEmptyState />
-          )}
-        </>
-      )}
-      <Pressable
-        accessibilityLabel="장소 링크 추가"
-        accessibilityRole="button"
-        onPress={openDialog}
-        style={[
-          styles.fabShadow,
-          { bottom: BOTTOM_TAB_BAR_HEIGHT + bottomInset + 12 },
+      <SwipeBackStack
+        activeKey={isSearchOpen ? 'search' : 'list'}
+        backKey={isSearchOpen ? 'list' : null}
+        enabled={isScreenActive}
+        onBack={closeNestedScreen}
+        screens={[
+          { key: 'list', content: renderListContent() },
+          ...(isSearchOpen
+            ? [
+                {
+                  key: 'search',
+                  content: (
+                    <SavedPlacesSearchPanel
+                      places={places}
+                      recentSearches={recentSearches}
+                      onCloseSearch={() => setIsSearchOpen(false)}
+                      onPressPlace={(place, selection) =>
+                        openPlaceDetail(
+                          place,
+                          'saved_places_search',
+                          selection.position,
+                          selection.searchId,
+                        )
+                      }
+                      onSaveSearchTerm={saveRecentSearch}
+                    />
+                  ),
+                },
+              ]
+            : []),
         ]}
-      >
-        <View style={styles.fab}>
-          <Text style={styles.fabText}>＋</Text>
-        </View>
-      </Pressable>
+      />
       <SavedPlacesLinkDialog
         visible={isDialogVisible}
         value={linkValue}
@@ -1094,121 +1288,76 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  processingCard: {
-    marginHorizontal: 24,
-    marginTop: 10,
-    marginBottom: 16,
-    borderRadius: 20,
-    backgroundColor: '#e9edff',
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    flexDirection: 'column',
-    shadowColor: '#4b4e5d',
-    shadowOpacity: 0.22,
-    shadowOffset: { width: 0, height: 5 },
-    shadowRadius: 10,
-    elevation: 6,
+  deleteAction: {
+    backgroundColor: '#000000',
+    justifyContent: 'center',
   },
-  previewContent: {
-    paddingBottom: 32,
+  deleteActionPressed: {
+    opacity: 0.82,
   },
-  floatingStatus: {
-    marginHorizontal: 24,
-    marginTop: 12,
-    minHeight: 48,
-    borderRadius: 24,
-    backgroundColor: '#e9edff',
-    paddingHorizontal: 18,
+  deleteActionDisabled: {
+    opacity: 0.5,
+  },
+  deleteActionText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  deleteActionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deleteCountBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  deleteCountText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 16,
+  },
+  deleteErrorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    shadowColor: '#4b4e5d',
-    shadowOpacity: 0.18,
-    shadowOffset: { width: 0, height: 5 },
-    shadowRadius: 12,
-    elevation: 4,
+    gap: 12,
+    backgroundColor: '#fff5f5',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
   },
-  floatingStatusText: {
-    color: '#24243a',
+  deleteErrorText: {
+    flex: 1,
+    color: '#7c2d2d',
+    fontSize: 13,
+  },
+  deleteErrorRetryText: {
+    color: '#5c6fc8',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  editActionRow: {
+    alignItems: 'flex-end',
+    marginHorizontal: 24,
+    marginBottom: 2,
+  },
+  editButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  editButtonPressed: {
+    opacity: 0.6,
+  },
+  editButtonText: {
+    color: '#7b7d8b',
     fontSize: 14,
     fontWeight: '700',
-  },
-  floatingStatusChevron: {
-    color: '#7186ed',
-    fontSize: 28,
-    lineHeight: 28,
-  },
-  successCard: {
-    backgroundColor: '#e9edff',
-  },
-  processingTextBlock: {
-    flex: 0,
-    minWidth: 0,
-    width: '100%',
-  },
-  processingTitle: {
-    color: '#24243a',
-    fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-  },
-  processingMessage: {
-    marginTop: 4,
-    color: '#70758d',
-    fontSize: 12,
-    lineHeight: 17,
-    letterSpacing: -0.1,
-  },
-  progressTrack: {
-    height: 4,
-    marginTop: 12,
-    borderRadius: 2,
-    overflow: 'hidden',
-    backgroundColor: '#dce2ff',
-  },
-  progressIndicator: {
-    width: 80,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#8fa2ff',
-  },
-  processingActions: {
-    alignSelf: 'flex-end',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 10,
-  },
-  retryButton: {
-    minWidth: 70,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#8fa2ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  retryButtonText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  dismissButton: {
-    minWidth: 64,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#e0e5ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-  },
-  dismissButtonText: {
-    color: '#4f5d9b',
-    fontSize: 13,
-    fontWeight: '800',
-    textAlign: 'center',
+    lineHeight: 18,
   },
   errorBanner: {
     flexDirection: 'row',

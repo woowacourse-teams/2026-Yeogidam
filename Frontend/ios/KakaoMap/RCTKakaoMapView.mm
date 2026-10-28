@@ -45,6 +45,9 @@ using namespace facebook::react;
     _mapView.onMarkerPressed = ^(NSDictionary *event) {
       [weakSelf emitMarkerPressed:event];
     };
+    _mapView.onMapPanStarted = ^(NSDictionary *event) {
+      [weakSelf emitMapPanStarted:event];
+    };
 
     [self addSubview:_mapView];
   }
@@ -70,6 +73,8 @@ using namespace facebook::react;
                      longitude:newProps.longitude
                      zoomLevel:newProps.zoomLevel
        cameraMoveRequestId:newProps.cameraMoveRequestId
+       cameraFitPointsJson:[NSString stringWithUTF8String:newProps.cameraFitPointsJson.c_str()]
+        cameraFitRequestId:newProps.cameraFitRequestId
           showsCurrentLocation:newProps.showsCurrentLocation
       currentLocationRequestId:newProps.currentLocationRequestId
           cameraBottomInset:newProps.cameraBottomInset
@@ -117,7 +122,24 @@ using namespace facebook::react;
   const auto &eventEmitter =
     static_cast<const YeogidamKakaoMapViewEventEmitter &>(*_eventEmitter);
   eventEmitter.onMarkerPressed({
-    .id = std::string(markerID.UTF8String ?: "")
+    .id = std::string(markerID.UTF8String ?: ""),
+    .latitude = [event[@"latitude"] doubleValue],
+    .longitude = [event[@"longitude"] doubleValue],
+    .zoomLevel = [event[@"zoomLevel"] intValue],
+    .cameraBottomInset = [event[@"cameraBottomInset"] doubleValue]
+  });
+}
+
+- (void)emitMapPanStarted:(NSDictionary *)event
+{
+  if (!_eventEmitter) {
+    return;
+  }
+
+  const auto &eventEmitter =
+    static_cast<const YeogidamKakaoMapViewEventEmitter &>(*_eventEmitter);
+  eventEmitter.onMapPanStarted({
+    .started = [event[@"started"] boolValue]
   });
 }
 
