@@ -489,10 +489,7 @@ export function MapScreen({
   };
 
   const handleSelectCategory = (category: string) => {
-    // 폴더 목록에서는 장소를 거르는 필터이므로 장소 탭으로 바로 이동합니다.
-    if (sheetMode === 'folders' && openedFolderId === null) {
-      setSheetMode('places');
-    }
+    // 폴더 목록에서는 시트를 그대로 두고 지도 핀만 거릅니다.
     if (isPlaceDetailVisible) {
       setBackToPlaceListSignal(signal => signal + 1);
     }
