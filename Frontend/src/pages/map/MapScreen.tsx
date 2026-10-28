@@ -924,6 +924,13 @@ export function MapScreen({
                     ?.name
                 : ''
             }
+            existingNames={folders
+              .filter(
+                folder =>
+                  folderDialog?.kind !== 'rename' ||
+                  folder.id !== folderDialog.folderId,
+              )
+              .map(folder => folder.name)}
             onSubmit={handleSubmitFolderName}
             onCancel={() => setFolderDialog(null)}
           />

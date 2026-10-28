@@ -175,6 +175,7 @@ export function FolderNameDialog({
   title,
   initialName = '',
   initialColor = FOLDER_COLORS[0],
+  existingNames = [],
   confirmLabel,
   onSubmit,
   onCancel,
@@ -183,6 +184,8 @@ export function FolderNameDialog({
   title: string;
   initialName?: string;
   initialColor?: string;
+  // 이름이 겹치면 안 되는 다른 폴더들의 이름입니다.
+  existingNames?: string[];
   confirmLabel: string;
   onSubmit: (name: string, color: string) => void;
   onCancel: () => void;
@@ -195,7 +198,12 @@ export function FolderNameDialog({
       setColor(initialColor);
     }
   }, [initialColor, initialName, visible]);
-  const canSubmit = name.trim().length > 0;
+  const trimmedName = name.trim();
+  // 저장 직후 닫히는 동안에는 방금 저장한 이름이 목록에 들어와 중복으로 보이므로 검사하지 않습니다.
+  const isDuplicate =
+    visible &&
+    existingNames.some(existingName => existingName.trim() === trimmedName);
+  const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
   return (
     <Modal transparent animationType="fade" visible={visible}>
@@ -205,17 +213,24 @@ export function FolderNameDialog({
       >
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
-          <TextInput
-            autoFocus
-            maxLength={MAX_FOLDER_NAME_LENGTH}
-            onChangeText={setName}
-            onSubmitEditing={() => canSubmit && onSubmit(name, color)}
-            placeholder="폴더 이름"
-            placeholderTextColor="#A0A5BD"
-            returnKeyType="done"
-            style={styles.input}
-            value={name}
-          />
+          <View style={styles.inputField}>
+            <TextInput
+              autoFocus
+              maxLength={MAX_FOLDER_NAME_LENGTH}
+              onChangeText={setName}
+              onSubmitEditing={() => canSubmit && onSubmit(name, color)}
+              placeholder="폴더 이름"
+              placeholderTextColor="#A0A5BD"
+              returnKeyType="done"
+              style={[styles.input, isDuplicate && styles.inputError]}
+              value={name}
+            />
+            {isDuplicate ? (
+              <Text accessibilityLiveRegion="polite" style={styles.inputErrorText}>
+                이미 같은 이름의 폴더가 있어요.
+              </Text>
+            ) : null}
+          </View>
           <View style={styles.colorRow}>
             {FOLDER_COLORS.map(candidate => {
               const selected = candidate === color;
@@ -617,13 +632,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1a1a2e',
   },
+  inputField: {
+    gap: 6,
+  },
   input: {
     height: 46,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
     paddingHorizontal: 14,
     backgroundColor: '#F4F5FB',
     fontSize: 16,
     color: '#1a1a2e',
+  },
+  inputError: {
+    borderColor: '#E5484D',
+  },
+  inputErrorText: {
+    paddingHorizontal: 4,
+    fontSize: 13,
+    color: '#E5484D',
   },
   colorRow: {
     flexDirection: 'row',
