@@ -56,7 +56,11 @@ public class FolderService {
      * 폴더 이름과 색을 함께 바꾸며, 없는 폴더나 남의 폴더면 404를, 같은 회원의 다른 폴더와 이름이 겹치면 409를 돌려준다.
      */
     @Transactional
-    public void updateFolder(Long memberId, Long folderId, FolderUpdateRequest request) {
+    public void updateFolder(
+            Long memberId,
+            Long folderId,
+            FolderUpdateRequest request
+    ) {
         FolderName name = new FolderName(request.name());
         FolderColor color = FolderColor.from(request.color());
         Folder folder = folderDao.findByMemberAndId(memberId, folderId)
