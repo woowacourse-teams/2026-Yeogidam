@@ -10,12 +10,13 @@ import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import io.restassured.http.ContentType;
 import java.util.Map;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 폴더 목록 조회, 수정, 삭제를 실제 HTTP로 검증하되 정렬과 읽은 값의 세부는 FolderDaoTest에 맡기고, 응답 모양(감싸는 키, 필드 이름)과
+ * 폴더 목록 조회, 만들기, 수정, 삭제를 실제 HTTP로 검증하되 정렬과 읽은 값의 세부는 FolderDaoTest에 맡기고, 응답 모양(감싸는 키, 필드 이름)과
  * 상태 코드와 인가가 응답에 드러나는지만 확인한다. 회원은 로그인으로 만들고 폴더 행은 SQL fixture로 given에서 넣는다.
  */
 class FolderE2eTest extends E2eTestSupport {
@@ -59,6 +60,82 @@ class FolderE2eTest extends E2eTestSupport {
     @Test
     void 토큰_없이_폴더_목록을_조회하면_401_예외를_던진다() {
         given().when().get(FOLDERS_PATH)
+                .then().statusCode(401)
+                .body("errorCode", equalTo("AUTH401_004"));
+    }
+
+    @Test
+    void 폴더를_만들면_만든_폴더를_돌려주고_목록에_보인다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+
+        // when
+        int folderId = givenBearer(login.accessToken())
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", "가보고 싶은 곳", "color", "GREEN"))
+                .when().post(FOLDERS_PATH)
+                .then().statusCode(201)
+                .body("name", equalTo("가보고 싶은 곳"))
+                .body("color", equalTo("GREEN"))
+                .extract().jsonPath().getInt("folderId");
+
+        // then
+        givenBearer(login.accessToken())
+                .when().get(FOLDERS_PATH)
+                .then().statusCode(200)
+                .body("folders.folderId", contains(folderId));
+    }
+
+    @Test
+    void 폴더가_이미_10개면_400_예외를_던진다() {
+        // given: user-1은 폴더 1부터 10까지 이미 만들었다
+        LoginResult login = loginAsKakao("user-1");
+        LongStream.rangeClosed(1, 10)
+                .forEach(folderId -> insertFolder(jdbcTemplate, folderId, login.memberId(), "폴더 " + folderId, "RED"));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", "열한 번째 폴더", "color", "RED"))
+                .when().post(FOLDERS_PATH)
+                .then().statusCode(400)
+                .body("errorCode", equalTo("FOLDER400_001"));
+    }
+
+    @Test
+    void 같은_이름으로_만들면_409_예외를_던진다() {
+        // given: user-1은 폴더 1(데이트 장소)을 만들었다
+        LoginResult login = loginAsKakao("user-1");
+        insertFolder(jdbcTemplate, 1L, login.memberId(), "데이트 장소", "RED");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", "데이트 장소", "color", "PINK"))
+                .when().post(FOLDERS_PATH)
+                .then().statusCode(409)
+                .body("errorCode", equalTo("FOLDER409_001"));
+    }
+
+    @Test
+    void 이름이나_색_없이_만들면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", "데이트 장소"))
+                .when().post(FOLDERS_PATH)
+                .then().statusCode(400)
+                .body("errorCode", equalTo("COMMON400_001"));
+    }
+
+    @Test
+    void 토큰_없이_폴더를_만들면_401_예외를_던진다() {
+        given().contentType(ContentType.JSON)
+                .body(Map.of("name", "데이트 장소", "color", "RED"))
+                .when().post(FOLDERS_PATH)
                 .then().statusCode(401)
                 .body("errorCode", equalTo("AUTH401_004"));
     }

@@ -3,7 +3,10 @@ package com.yeogidam.folder.service;
 import com.yeogidam.folder.domain.Folder;
 import com.yeogidam.folder.domain.FolderColor;
 import com.yeogidam.folder.domain.FolderName;
+import com.yeogidam.folder.domain.Folders;
+import com.yeogidam.folder.dto.request.FolderCreateRequest;
 import com.yeogidam.folder.dto.request.FolderUpdateRequest;
+import com.yeogidam.folder.dto.response.FolderCreateResponse;
 import com.yeogidam.folder.dto.response.FolderResponses;
 import com.yeogidam.folder.exception.FolderErrorCode;
 import com.yeogidam.folder.exception.FolderException;
@@ -25,6 +28,28 @@ public class FolderService {
     public FolderResponses readFolders(Long memberId) {
         List<FolderProjection> folders = folderDao.findAllByMember(memberId);
         return FolderResponses.from(folders);
+    }
+
+    /**
+     * 폴더를 만들고, 폴더가 이미 10개면 400을, 같은 이름의 폴더가 있으면 409를 돌려준다.
+     * 이름이 다른 만들기 요청이 동시에 들어오면 10개를 넘을 수 있지만, 앱으로는 생기기 어렵고 피해가 요청한 회원 자신의 폴더 수에 그쳐서 회원 행을 잠그지 않는다.
+     */
+    @Transactional
+    public FolderCreateResponse createFolder(Long memberId, FolderCreateRequest request) {
+        FolderName name = new FolderName(request.name());
+        FolderColor color = FolderColor.from(request.color());
+        Folders folders = new Folders(folderDao.findFoldersByMember(memberId));
+        folders.validateAddable();
+        Folder folder = insertFolder(memberId, new Folder(name, color));
+        return FolderCreateResponse.from(folder);
+    }
+
+    private Folder insertFolder(Long memberId, Folder folder) {
+        try {
+            return folderDao.save(memberId, folder);
+        } catch (DuplicateKeyException exception) {
+            throw new FolderException(FolderErrorCode.DUPLICATE_FOLDER_NAME);
+        }
     }
 
     /**

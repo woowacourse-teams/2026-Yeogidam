@@ -23,7 +23,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 폴더 조회, 수정, 삭제가 실제 MySQL에서 회원 조건, 정렬, 읽은 값, 이름 중복, 연결 삭제까지 맞게 동작하는지 검증한다.
+ * 폴더 조회, 저장, 수정, 삭제가 실제 MySQL에서 회원 조건, 정렬, 읽은 값, 생성된 식별자, 이름 중복, 연결 삭제까지 맞게 동작하는지 검증한다.
  * 행은 SQL fixture로 given에서 직접 넣는다.
  */
 @Import(FolderDao.class)
@@ -110,6 +110,40 @@ class FolderDaoTest extends JdbcTestSupport {
         assertAll(
                 () -> assertThat(folderDao.findByMemberAndId(1L, 999L)).isEmpty(),
                 () -> assertThat(folderDao.findByMemberAndId(1L, 2L)).isEmpty()
+        );
+    }
+
+    @Test
+    void 내_폴더를_모두_도메인_객체로_읽는다() {
+        // given: 회원 1은 폴더 1, 2를, 회원 2는 폴더 3을 가졌다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertFolder(jdbcTemplate, 1L, 1L, "데이트 장소", "RED");
+        insertFolder(jdbcTemplate, 2L, 1L, "성수 카페", "TEAL");
+        insertFolder(jdbcTemplate, 3L, 2L, "남의 폴더", "PINK");
+
+        // when
+        List<Folder> folders = folderDao.findFoldersByMember(1L);
+
+        // then
+        assertThat(folders).extracting(Folder::getId)
+                .containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    @Test
+    void 폴더를_저장하면_생성된_식별자를_담아_돌려준다() {
+        // given
+        insertMember(1L, "user-1");
+
+        // when
+        Folder saved = folderDao.save(1L, new Folder(new FolderName("데이트 장소"), FolderColor.RED));
+
+        // then
+        assertAll(
+                () -> assertThat(saved.getId()).isNotNull(),
+                () -> assertThat(readName(saved.getId())).isEqualTo("데이트 장소"),
+                () -> assertThat(readColor(saved.getId())).isEqualTo("RED"),
+                () -> assertThat(count("folders WHERE member_id = 1")).isEqualTo(1)
         );
     }
 
