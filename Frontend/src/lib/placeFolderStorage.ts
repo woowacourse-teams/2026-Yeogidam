@@ -1,18 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import {
+  DEFAULT_PIN_COLOR,
+  FOLDER_COLOR_CODES,
+  FOLDER_COLOR_HEX,
+} from '../entities/folder/color';
+
 // 폴더 API가 준비되기 전까지 기기에 저장하는 임시 저장소입니다.
 const PLACE_FOLDERS_STORAGE_KEY = '@yeogidam/place-folders';
 
 // 폴더 색상은 지도 핀 색으로도 쓰입니다. 첫 번째 색이 기본값입니다.
 export const FOLDER_COLORS = [
-  '#8FA2FF',
-  '#FF8A80',
-  '#FFB74D',
-  '#F2C94C',
-  '#81C784',
-  '#4DB6AC',
-  '#BA68C8',
-  '#F06292',
+  DEFAULT_PIN_COLOR,
+  ...FOLDER_COLOR_CODES.map(code => FOLDER_COLOR_HEX[code]),
 ];
 export const DEFAULT_FOLDER_COLOR = FOLDER_COLORS[0];
 
