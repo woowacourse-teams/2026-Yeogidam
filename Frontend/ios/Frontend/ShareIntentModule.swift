@@ -130,6 +130,35 @@ final class ShareIntentModule: RCTEventEmitter {
     resolve(object)
   }
 
+  /// 앱의 폴더 목록을 공유 확장이 읽을 수 있도록 App Group에 복사합니다.
+  @objc(setShareFolders:resolver:rejecter:)
+  func setShareFolders(
+    _ raw: [[String: Any]],
+    resolver resolve: RCTPromiseResolveBlock,
+    rejecter reject: RCTPromiseRejectBlock
+  ) {
+    let folders = raw.compactMap { item -> ShareFolder? in
+      guard let id = item["id"] as? String,
+            let name = item["name"] as? String,
+            let color = item["color"] as? String else { return nil }
+      return ShareFolder(id: id, name: name, color: color)
+    }
+    ShareFolderStorage.setAppFolders(folders)
+    resolve(nil)
+  }
+
+  /// 확장에서 새로 만든 폴더를 가져가고 비웁니다.
+  @objc(takeShareFolderDrafts:rejecter:)
+  func takeShareFolderDrafts(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    resolve(ShareFolderStorage.takeDrafts().map { ["id": $0.id, "name": $0.name, "color": $0.color] })
+  }
+
+  /// 공유(requestId)별로 확장에서 고른 폴더 id입니다.
+  @objc(getShareFolderSelections:rejecter:)
+  func getShareFolderSelections(_ resolve: RCTPromiseResolveBlock, rejecter reject: RCTPromiseRejectBlock) {
+    resolve(ShareFolderStorage.allSelections())
+  }
+
   @objc(clearShareResult:resolver:rejecter:)
   func clearShareResult(
     _ requestId: String?,
