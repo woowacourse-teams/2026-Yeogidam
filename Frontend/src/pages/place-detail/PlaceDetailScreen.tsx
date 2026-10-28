@@ -52,7 +52,7 @@ export function PlaceDetailScreen({
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
   const [isFolderPickerVisible, setIsFolderPickerVisible] = useState(false);
-  const { folders, setPlaceFolderIds } = usePlaceFolders(!isGuest);
+  const { folders, createFolder, setPlaceFolderIds } = usePlaceFolders(!isGuest);
   const folderListItems = useMemo(
     () =>
       folders.map(folder => ({
@@ -229,6 +229,7 @@ export function PlaceDetailScreen({
             setIsFolderPickerVisible(false);
           }}
           onCancel={() => setIsFolderPickerVisible(false)}
+          onCreateFolder={(name, color) => createFolder(name, color).id}
         />
       )}
       {bottomNavigationBar}

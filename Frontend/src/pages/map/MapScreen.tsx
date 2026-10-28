@@ -1048,6 +1048,7 @@ export function MapScreen({
               setFolderAssignPlace(null);
             }}
             onCancel={() => setFolderAssignPlace(null)}
+            onCreateFolder={(name, color) => createFolder(name, color).id}
           />
         </>
       ) : null}

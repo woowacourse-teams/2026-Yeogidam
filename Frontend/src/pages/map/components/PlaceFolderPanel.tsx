@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -14,8 +15,14 @@ import {
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import Svg, { Path, Rect } from 'react-native-svg';
 
-import { FOLDER_COLORS } from '../../../lib/placeFolderStorage';
-import { MAX_FOLDER_NAME_LENGTH } from '../../../lib/usePlaceFolders';
+import {
+  FOLDER_COLORS,
+  getNextFolderColor,
+} from '../../../lib/placeFolderStorage';
+import {
+  MAX_FOLDER_COUNT,
+  MAX_FOLDER_NAME_LENGTH,
+} from '../../../lib/usePlaceFolders';
 
 export type SheetMode = 'places' | 'folders';
 
@@ -277,7 +284,8 @@ export function FolderNameDialog({
   );
 }
 
-// 장소 상세의 더보기에서 여는 시트입니다. 한 장소를 여러 폴더에 중복해서 담을 수 있습니다.
+// 장소 상세의 폴더 버튼에서 여는 시트입니다. 한 장소를 여러 폴더에 중복해서 담을 수 있고,
+// onCreateFolder를 넘기면 시트 안에서 새 폴더를 만들 수 있습니다.
 export function PlaceFolderAssignPicker({
   visible,
   placeName,
@@ -285,6 +293,7 @@ export function PlaceFolderAssignPicker({
   selectedFolderIds,
   onSave,
   onCancel,
+  onCreateFolder,
 }: {
   visible: boolean;
   placeName: string;
@@ -292,11 +301,26 @@ export function PlaceFolderAssignPicker({
   selectedFolderIds: string[];
   onSave: (folderIds: string[]) => void;
   onCancel: () => void;
+  // 새 폴더를 만들고 그 id를 돌려줍니다. 만든 폴더는 바로 체크됩니다.
+  onCreateFolder?: (name: string, color: string) => string;
 }) {
   const [selected, setSelected] = useState<string[]>(selectedFolderIds);
+  const [isCreating, setIsCreating] = useState(false);
+  // 시트가 열릴 때만 체크 상태를 맞춥니다. 시트 안에서 폴더를 만들면 부모가 다시 그려지며
+  // selectedFolderIds가 새 배열로 들어오는데, 그때 사용자가 고른 체크가 지워지면 안 됩니다.
+  const wasVisible = useRef(false);
   useEffect(() => {
-    if (visible) setSelected(selectedFolderIds);
+    if (visible && !wasVisible.current) setSelected(selectedFolderIds);
+    wasVisible.current = visible;
   }, [selectedFolderIds, visible]);
+
+  const startCreating = () => {
+    if (folders.length >= MAX_FOLDER_COUNT) {
+      Alert.alert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
+      return;
+    }
+    setIsCreating(true);
+  };
 
   const toggle = (folderId: string) =>
     setSelected(current =>
@@ -328,10 +352,29 @@ export function PlaceFolderAssignPicker({
         <FlatList
           data={folders}
           keyExtractor={folder => folder.id}
+          ListFooterComponent={
+            onCreateFolder ? (
+              // 폴더 목록의 새 폴더 만들기(점선 상자 + 파란 글씨)를 이 시트의 행 크기에 맞춘 모양입니다.
+              <Pressable
+                accessibilityRole="button"
+                onPress={startCreating}
+                style={[styles.row, styles.assignRow]}
+              >
+                <View style={[styles.assignCheckbox, styles.createThumb]}>
+                  <MaterialIcons color="#8FA2FF" name="add" size={18} />
+                </View>
+                <Text style={[styles.createText, styles.assignName]}>
+                  새 폴더 만들기
+                </Text>
+              </Pressable>
+            ) : null
+          }
           ListEmptyComponent={
-            <Text style={styles.hint}>
-              지도의 폴더 탭에서 폴더를 먼저 만들어 주세요.
-            </Text>
+            onCreateFolder ? null : (
+              <Text style={styles.hint}>
+                지도의 폴더 탭에서 폴더를 먼저 만들어 주세요.
+              </Text>
+            )
           }
           renderItem={({ item }) => {
             const checked = selected.includes(item.id);
@@ -367,6 +410,21 @@ export function PlaceFolderAssignPicker({
           }}
         />
       </View>
+      {onCreateFolder ? (
+        <FolderNameDialog
+          visible={isCreating}
+          title="새 폴더"
+          initialColor={getNextFolderColor(folders)}
+          existingNames={folders.map(folder => folder.name)}
+          confirmLabel="만들기"
+          onSubmit={(name, color) => {
+            const folderId = onCreateFolder(name, color);
+            setSelected(current => [...current, folderId]);
+            setIsCreating(false);
+          }}
+          onCancel={() => setIsCreating(false)}
+        />
+      ) : null}
     </Modal>
   );
 }
