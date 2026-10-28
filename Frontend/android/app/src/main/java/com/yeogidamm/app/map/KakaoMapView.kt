@@ -1018,7 +1018,7 @@ class KakaoMapView(
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
         // 이 줌 레벨부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
         const val PLACE_NAME_MIN_ZOOM_LEVEL = 13
-        const val PLACE_NAME_TEXT_SIZE_DP = 10f
+        const val PLACE_NAME_TEXT_SIZE_DP = 8f
         const val PLACE_NAME_HALO_DP = 1f
         const val PLACE_NAME_MAX_WIDTH_DP = 120f
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L

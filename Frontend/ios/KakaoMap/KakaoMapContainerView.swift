@@ -862,7 +862,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private static let defaultPinColorHex = "#8FA2FF"
   // 이 줌 레벨부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
   private static let placeNameMinZoomLevel = 13
-  private static let placeNameFont = UIFont.systemFont(ofSize: 10, weight: .semibold)
+  private static let placeNameFont = UIFont.systemFont(ofSize: 8, weight: .semibold)
   private static let placeNameHalo: CGFloat = 1
   private static let placeNameMaxWidth: CGFloat = 120
 
