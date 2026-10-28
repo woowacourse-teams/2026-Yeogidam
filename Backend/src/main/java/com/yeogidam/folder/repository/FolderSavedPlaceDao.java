@@ -1,12 +1,13 @@
 package com.yeogidam.folder.repository;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Repository;
 public class FolderSavedPlaceDao {
 
     private final JdbcTemplate jdbcTemplate;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     /**
      * 보관함 장소와 폴더가 모두 회원의 것인지 쿼리 한 번으로 보고, 폴더 목록이 비면 보관함 장소만 본다.
@@ -31,15 +33,15 @@ public class FolderSavedPlaceDao {
                 SELECT COUNT(*)
                 FROM saved_places sp
                 JOIN folders f ON f.member_id = sp.member_id
-                WHERE sp.id = ?
-                  AND sp.member_id = ?
-                  AND f.id IN (%s)
-                """.formatted(placeholders(folderIds));
-        List<Object> arguments = new ArrayList<>();
-        arguments.add(savedPlaceId);
-        arguments.add(memberId);
-        arguments.addAll(folderIds);
-        int ownedFolderCount = jdbcTemplate.queryForObject(sql, Integer.class, arguments.toArray());
+                WHERE sp.id = :savedPlaceId
+                  AND sp.member_id = :memberId
+                  AND f.id IN (:folderIds)
+                """;
+        int ownedFolderCount = namedParameterJdbcTemplate.queryForObject(sql, Map.of(
+                "savedPlaceId", savedPlaceId,
+                "memberId", memberId,
+                "folderIds", folderIds
+        ), Integer.class);
         return ownedFolderCount == folderIds.size();
     }
 
@@ -98,18 +100,12 @@ public class FolderSavedPlaceDao {
         }
         String sql = """
                 DELETE FROM folder_saved_places
-                WHERE saved_place_id = ?
-                  AND folder_id IN (%s)
-                """.formatted(placeholders(folderIds));
-        List<Object> arguments = new ArrayList<>();
-        arguments.add(savedPlaceId);
-        arguments.addAll(folderIds);
-        jdbcTemplate.update(sql, arguments.toArray());
-    }
-
-    private String placeholders(Collection<Long> ids) {
-        return ids.stream()
-                .map(id -> "?")
-                .collect(Collectors.joining(", "));
+                WHERE saved_place_id = :savedPlaceId
+                  AND folder_id IN (:folderIds)
+                """;
+        namedParameterJdbcTemplate.update(sql, Map.of(
+                "savedPlaceId", savedPlaceId,
+                "folderIds", folderIds
+        ));
     }
 }
