@@ -5,7 +5,6 @@ const PLACE_FOLDERS_STORAGE_KEY = '@yeogidam/place-folders';
 
 // 폴더 색상은 지도 핀 색으로도 쓰입니다. 첫 번째 색이 기본값입니다.
 export const FOLDER_COLORS = [
-  '#8FA2FF',
   '#FF8A80',
   '#FFB74D',
   '#F2C94C',
