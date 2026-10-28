@@ -25,6 +25,9 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   private var savedPlaceStyleAdded = false
   private var savedPlacesJson = "[]"
   private var savedPlaceStyleIDByID: [String: String] = [:]
+  private var savedPlaceMarkers: [SavedPlaceMarker] = []
+  private var placeNameShownIDs = Set<String>()
+  private var placeNameTextSizes: [String: CGSize] = [:]
   private var coloredPlaceStyleIDs = Set<String>()
   private var lastKnownLocation: CLLocation?
 
@@ -206,13 +209,19 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
       cameraStoppedHandler = kakaoMap.addCameraStoppedEventHandler(
         target: self,
         handler: { owner in
-          { _ in owner.emitCameraChanged() }
+          { _ in
+            owner.emitCameraChanged()
+            owner.refreshPlaceNames()
+          }
         }
       )
       viewResizedHandler = kakaoMap.addViewResizedEventHandler(
         target: self,
         handler: { owner in
-          { _ in owner.emitCameraChanged() }
+          { _ in
+            owner.emitCameraChanged()
+            owner.refreshPlaceNames()
+          }
         }
       )
     }
@@ -245,6 +254,7 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
   // always recalculated from the camera the user is actually looking at.
   func cameraDidStopped(kakaoMap: KakaoMap, by: MoveBy) {
     emitCameraChanged()
+    refreshPlaceNames()
   }
 
   func cameraWillMove(kakaoMap: KakaoMap, by: MoveBy) {
@@ -622,14 +632,54 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     currentLocationPoi?.show()
   }
 
+  private struct SavedPlaceMarker {
+    let id: String
+    let latitude: Double
+    let longitude: Double
+    let selected: Bool
+    let colorHex: String?
+    let category: String?
+    let name: String
+  }
+
   private func renderSavedPlaceMarkers() {
     guard
-      let kakaoMap = mapController?.getView("mapview") as? KakaoMap,
       let data = savedPlacesJson.data(using: .utf8),
       let places = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
     else {
       return
     }
+
+    savedPlaceMarkers = places.compactMap { place in
+      guard
+        let id = place["id"] as? String,
+        let latitude = place["latitude"] as? Double,
+        let longitude = place["longitude"] as? Double
+      else { return nil }
+
+      return SavedPlaceMarker(
+        id: id,
+        latitude: latitude,
+        longitude: longitude,
+        selected: place["selected"] as? Bool ?? false,
+        colorHex: place["color"] as? String,
+        category: place["category"] as? String,
+        name: (place["name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+      )
+    }
+    applySavedPlaceMarkers()
+  }
+
+  // 카메라가 멈출 때 이름을 보여 줄 핀이 달라졌으면 핀 스타일을 다시 적용합니다.
+  private func refreshPlaceNames() {
+    guard let kakaoMap = mapController?.getView("mapview") as? KakaoMap else { return }
+    if placeIDsShowingName(in: kakaoMap) != placeNameShownIDs {
+      applySavedPlaceMarkers()
+    }
+  }
+
+  private func applySavedPlaceMarkers() {
+    guard let kakaoMap = mapController?.getView("mapview") as? KakaoMap else { return }
 
     let labelManager = kakaoMap.getLabelManager()
     let layer =
@@ -665,53 +715,39 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     }
 
     // 폴더 색이나 카테고리 아이콘이 있는 핀은 조합별 스타일을 만들어 쓰고,
-    // 둘 다 없으면 기본 핀 이미지를 씁니다.
-    let markers = places.compactMap { place -> (String, Double, Double, Bool, String?, String?)? in
-      guard
-        let id = place["id"] as? String,
-        let latitude = place["latitude"] as? Double,
-        let longitude = place["longitude"] as? Double
-      else { return nil }
-
-      return (
-        id,
-        latitude,
-        longitude,
-        place["selected"] as? Bool ?? false,
-        place["color"] as? String,
-        place["category"] as? String
-      )
-    }
-    let nextStyleIDByID = markers.reduce(into: [String: String]()) { result, marker in
-      result[marker.0] = Self.placeStyleID(selected: marker.3, colorHex: marker.4, category: marker.5)
+    // 둘 다 없으면 기본 핀 이미지를 씁니다. 이름은 겹치지 않는 핀에만 붙입니다.
+    placeNameShownIDs = placeIDsShowingName(in: kakaoMap)
+    let nextStyleIDByID = savedPlaceMarkers.reduce(into: [String: String]()) { result, marker in
+      result[marker.id] = placeStyleID(for: marker)
     }
 
     for removedID in savedPlaceStyleIDByID.keys where nextStyleIDByID[removedID] == nil {
       layer?.removePoi(poiID: removedID)
     }
 
-    markers.forEach { id, latitude, longitude, selected, colorHex, category in
-      let position = MapPoint(longitude: longitude, latitude: latitude)
-      let styleID = Self.placeStyleID(selected: selected, colorHex: colorHex, category: category)
+    for marker in savedPlaceMarkers {
+      let position = MapPoint(longitude: marker.longitude, latitude: marker.latitude)
+      let styleID = placeStyleID(for: marker)
       ensureColoredPlaceStyle(
         labelManager: labelManager,
         styleID: styleID,
-        selected: selected,
-        colorHex: colorHex,
-        category: category
+        selected: marker.selected,
+        colorHex: marker.colorHex,
+        category: marker.category,
+        name: placeNameShownIDs.contains(marker.id) ? marker.name : nil
       )
 
-      if let poi = layer?.getPoi(poiID: id) {
+      if let poi = layer?.getPoi(poiID: marker.id) {
         poi.position = position
         poi.clickable = true
-        poi.rank = selected ? Int.max - 1 : 1
+        poi.rank = marker.selected ? Int.max - 1 : 1
 
-        if savedPlaceStyleIDByID[id] != styleID {
-          poi.changeStyle(styleID: styleID, enableTransition: true)
+        if savedPlaceStyleIDByID[marker.id] != styleID {
+          poi.changeStyle(styleID: styleID, enableTransition: false)
         }
       } else {
-        let options = PoiOptions(styleID: styleID, poiID: id)
-        options.rank = selected ? Int.max - 1 : 1
+        let options = PoiOptions(styleID: styleID, poiID: marker.id)
+        options.rank = marker.selected ? Int.max - 1 : 1
         options.clickable = true
         layer?.addPoi(option: options, at: position)?.show()
       }
@@ -720,35 +756,132 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     savedPlaceStyleIDByID = nextStyleIDByID
   }
 
-  // 서버 카테고리 이름별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
-  private static let categoryEmojis: [String: String] = [
-    "카페": "☕️",
-    "디저트": "🍰",
-    "한식": "🍚",
-    "양식": "🍝",
-    "일식": "🍣",
-    "중식": "🥟",
-    "분식": "🍢",
-    "술집": "🍺",
-    "별미": "✨",
-    "문화/여가": "🎭",
-    "기타": "📍",
-  ]
-  private static let defaultPinColorHex = "#8FA2FF"
-
-  private static func categoryEmoji(_ category: String?) -> String? {
-    guard let category else { return nil }
-    return categoryEmojis[category]
+  private func placeStyleID(for marker: SavedPlaceMarker) -> String {
+    Self.placeStyleID(
+      selected: marker.selected,
+      colorHex: marker.colorHex,
+      category: marker.category,
+      name: placeNameShownIDs.contains(marker.id) ? marker.name : nil
+    )
   }
 
-  private static func placeStyleID(selected: Bool, colorHex: String?, category: String?) -> String {
+  // 이름을 보여 줄 핀을 고릅니다. 선택된 핀은 항상 보여 주고, 나머지는 충분히 확대했을 때
+  // 이름이 다른 핀이나 먼저 자리 잡은 이름과 겹치지 않을 때만 보여 줍니다.
+  private func placeIDsShowingName(in kakaoMap: KakaoMap) -> Set<String> {
+    var shown = Set(savedPlaceMarkers.filter { $0.selected && !$0.name.isEmpty }.map(\.id))
+    guard let toScreen = geoToScreen(in: kakaoMap) else { return shown }
+
+    let viewBounds = CGRect(origin: .zero, size: kakaoMap.viewRect.size).insetBy(dx: -40, dy: -40)
+    let onScreen = savedPlaceMarkers
+      .map { (marker: $0, center: toScreen($0.latitude, $0.longitude)) }
+      .filter { viewBounds.contains($0.center) }
+    func pinRect(_ item: (marker: SavedPlaceMarker, center: CGPoint)) -> CGRect {
+      let radius = Self.placeMarkerDiameter(selected: item.marker.selected) / 2
+      return CGRect(x: item.center.x - radius, y: item.center.y - radius, width: radius * 2, height: radius * 2)
+    }
+
+    var takenNameRects: [CGRect] = []
+    let candidates = onScreen.sorted { $0.marker.selected && !$1.marker.selected }
+    for item in candidates where !item.marker.name.isEmpty {
+      let nameRect = placeNameRect(item.marker, center: item.center)
+      if item.marker.selected {
+        takenNameRects.append(nameRect)
+        continue
+      }
+      guard kakaoMap.zoomLevel >= Self.placeNameMinZoomLevel else { continue }
+      let hitsPin = onScreen.contains { $0.marker.id != item.marker.id && pinRect($0).intersects(nameRect) }
+      let hitsName = takenNameRects.contains { $0.intersects(nameRect) }
+      if !hitsPin && !hitsName {
+        shown.insert(item.marker.id)
+        takenNameRects.append(nameRect)
+      }
+    }
+    return shown
+  }
+
+  // addPlaceName이 그리는 이름 영역을 원 중심 기준 화면 좌표로 돌려줍니다.
+  private func placeNameRect(_ marker: SavedPlaceMarker, center: CGPoint) -> CGRect {
+    let textSize = placeNameTextSizes[marker.name] ?? {
+      let size = Self.placeNameTextSize(marker.name)
+      placeNameTextSizes[marker.name] = size
+      return size
+    }()
+    let halo = Self.placeNameHalo
+    let width = textSize.width + halo * 2
+    return CGRect(
+      x: center.x - width / 2,
+      y: center.y + Self.placeMarkerDiameter(selected: marker.selected) / 2 + 1,
+      width: width,
+      height: textSize.height + halo
+    )
+  }
+
+  // SDK에는 지도 좌표를 화면 좌표로 바꾸는 API가 없어서, 화면 세 꼭짓점의 지도 좌표로 변환식을 만듭니다.
+  // 지도가 회전해 있어도 맞습니다. 화면 범위 안에서는 메르카토르 왜곡이 작아 선형 근사로 충분합니다.
+  private func geoToScreen(in kakaoMap: KakaoMap) -> ((Double, Double) -> CGPoint)? {
+    let width = kakaoMap.viewRect.width
+    let height = kakaoMap.viewRect.height
+    guard width > 0, height > 0 else { return nil }
+    let origin = kakaoMap.getPosition(CGPoint(x: 0, y: 0)).wgsCoord
+    let right = kakaoMap.getPosition(CGPoint(x: width, y: 0)).wgsCoord
+    let bottom = kakaoMap.getPosition(CGPoint(x: 0, y: height)).wgsCoord
+    let ux = right.longitude - origin.longitude, uy = right.latitude - origin.latitude
+    let vx = bottom.longitude - origin.longitude, vy = bottom.latitude - origin.latitude
+    let determinant = ux * vy - uy * vx
+    guard abs(determinant) > .ulpOfOne else { return nil }
+    return { latitude, longitude in
+      let dx = longitude - origin.longitude, dy = latitude - origin.latitude
+      let a = (dx * vy - dy * vx) / determinant
+      let b = (ux * dy - uy * dx) / determinant
+      return CGPoint(x: a * width, y: b * height)
+    }
+  }
+
+  // 서버 범주 코드(categoryCode)별 핀 아이콘 에셋(벡터 SVG)입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
+  private static let categoryIconAssetNames: [String: String] = [
+    "CAFE": "pin-category-cafe",
+    "DESSERT": "pin-category-dessert",
+    "KOREAN": "pin-category-korean",
+    "WESTERN": "pin-category-western",
+    "JAPANESE": "pin-category-japanese",
+    "CHINESE": "pin-category-chinese",
+    "BUNSIK": "pin-category-bunsik",
+    "BAR": "pin-category-bar",
+    "SPECIALTY": "pin-category-specialty",
+    "CULTURE_LEISURE": "pin-category-culture_leisure",
+    "ETC": "pin-category-etc",
+  ]
+  private static let defaultPinColorHex = "#8FA2FF"
+  // 이 줌 레벨부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
+  private static let placeNameMinZoomLevel = 13
+  private static let placeNameFont = UIFont.systemFont(ofSize: 10, weight: .semibold)
+  private static let placeNameHalo: CGFloat = 1
+  private static let placeNameMaxWidth: CGFloat = 120
+
+  private static func placeMarkerDiameter(selected: Bool) -> CGFloat {
+    selected ? 26 : 20
+  }
+
+  private static func placeNameTextSize(_ name: String) -> CGSize {
+    let size = (name as NSString).size(withAttributes: [.font: placeNameFont])
+    return CGSize(width: min(ceil(size.width), placeNameMaxWidth), height: ceil(size.height))
+  }
+
+  private static func categoryIconAssetName(_ category: String?) -> String? {
+    guard let category else { return nil }
+    return categoryIconAssetNames[category]
+  }
+
+  // 이름을 붙인 핀은 이미지에 이름까지 그리므로 이름도 스타일 ID에 넣습니다.
+  private static func placeStyleID(selected: Bool, colorHex: String?, category: String?, name: String?) -> String {
     let hasColor = colorHex.flatMap { UIColor(hex: $0) } != nil
-    let emoji = categoryEmoji(category)
-    guard hasColor || emoji != nil else {
+    let iconName = categoryIconAssetName(category)
+    guard hasColor || iconName != nil else {
       return selected ? selectedPlaceStyleID : savedPlaceStyleID
     }
     let color = (hasColor ? colorHex : nil) ?? defaultPinColorHex
-    return "yeogidam-place-style-\(color.lowercased())-\(emoji ?? "none")-\(selected ? "selected" : "normal")"
+    let nameKey = name.map { "-name-\($0)" } ?? ""
+    return "yeogidam-place-style-\(color.lowercased())-\(iconName ?? "none")-\(selected ? "selected" : "normal")\(nameKey)"
   }
 
   private func ensureColoredPlaceStyle(
@@ -756,18 +889,23 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     styleID: String,
     selected: Bool,
     colorHex: String?,
-    category: String?
+    category: String?,
+    name: String?
   ) {
-    let emoji = Self.categoryEmoji(category)
+    let icon = Self.categoryIconAssetName(category).flatMap { UIImage(named: $0) }
     guard
       let color = colorHex.flatMap({ UIColor(hex: $0) })
-        ?? (emoji != nil ? UIColor(hex: Self.defaultPinColorHex) : nil),
+        ?? (icon != nil ? UIColor(hex: Self.defaultPinColorHex) : nil),
       !coloredPlaceStyleIDs.contains(styleID)
     else { return }
 
+    let marker = makeColoredPlaceMarker(color: color, selected: selected, icon: icon)
+    // 이름을 보여 줄 핀은 핀 이미지 아래에 이름을 직접 그립니다(placeIDsShowingName 참고).
+    // 레벨 구성 개수가 다른 스타일로 바꾸면 SDK가 죽으므로, 모든 핀 스타일은 레벨 하나만 씁니다.
+    let symbol = name.map { Self.addPlaceName($0, below: marker) } ?? (marker, 0.5)
     let iconStyle = PoiIconStyle(
-      symbol: makeColoredPlaceMarker(color: color, selected: selected, emoji: emoji),
-      anchorPoint: CGPoint(x: 0.5, y: 1.0),
+      symbol: symbol.image,
+      anchorPoint: CGPoint(x: 0.5, y: symbol.anchorY),
       transition: PoiTransition(entrance: .scale, exit: .scale)
     )
     labelManager.addPoiStyle(
@@ -776,36 +914,90 @@ final class KakaoMapContainerView: UIView, MapControllerDelegate, CLLocationMana
     coloredPlaceStyleIDs.insert(styleID)
   }
 
-  // 색 핀: 색 원 + 아래쪽 뾰족한 꼬리 + 흰 중심점.
-  // 카테고리 아이콘이 있으면 흰 중심점 대신 흰 원 위에 아이콘을 얹습니다.
-  private func makeColoredPlaceMarker(color: UIColor, selected: Bool, emoji: String?) -> UIImage {
-    let size = selected ? CGSize(width: 34, height: 42) : CGSize(width: 28, height: 36)
-    return UIGraphicsImageRenderer(size: size).image { _ in
-      let radius = size.width / 2 - 1.5
-      let center = CGPoint(x: size.width / 2, y: radius + 1.5)
-      let path = UIBezierPath(arcCenter: center, radius: radius, startAngle: .pi * 0.8, endAngle: .pi * 0.2, clockwise: true)
-      path.addLine(to: CGPoint(x: size.width / 2, y: size.height - 1))
-      path.close()
-      color.setFill()
-      path.fill()
-      UIColor.white.setStroke()
-      path.lineWidth = 2
-      path.stroke()
+  // 원 핀 아래에 흰 외곽선이 있는 장소 이름을 붙인 이미지와, 원 중심을 가리키는 세로 기준점을 돌려줍니다.
+  private static func addPlaceName(_ name: String, below marker: UIImage) -> (image: UIImage, anchorY: CGFloat) {
+    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return (marker, 0.5) }
+
+    let font = placeNameFont
+    let halo = placeNameHalo
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    paragraph.lineBreakMode = .byTruncatingTail
+    let fill: [NSAttributedString.Key: Any] = [
+      .font: font,
+      .foregroundColor: UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1),
+      .paragraphStyle: paragraph,
+    ]
+    // strokeWidth는 글자 크기 대비 백분율이고 선의 가운데를 기준으로 그려지므로, 바깥쪽 halo만큼 두 배로 잡습니다.
+    var outline = fill
+    outline[.foregroundColor] = UIColor.white
+    outline[.strokeColor] = UIColor.white
+    outline[.strokeWidth] = halo * 2 / font.pointSize * 100
+
+    let text = trimmed as NSString
+    let textSize = placeNameTextSize(trimmed)
+    let textWidth = textSize.width
+    let textHeight = textSize.height
+    // 마커 이미지에는 그림자 여백(3pt)이 있으므로 원 바로 아래에서 1pt 띄웁니다.
+    let textTop = marker.size.height - 2
+    let size = CGSize(
+      width: max(marker.size.width, textWidth + halo * 2),
+      height: textTop + textHeight + halo
+    )
+    let image = UIGraphicsImageRenderer(size: size).image { context in
+      marker.draw(at: CGPoint(x: (size.width - marker.size.width) / 2, y: 0))
+      let textRect = CGRect(x: (size.width - textWidth) / 2, y: textTop, width: textWidth, height: textHeight)
+      // 외곽선 모서리가 뾰족하게 튀어나오지 않도록 둥글게 잇습니다.
+      context.cgContext.setLineJoin(.round)
+      text.draw(in: textRect, withAttributes: outline)
+      text.draw(in: textRect, withAttributes: fill)
+    }
+    return (image, (marker.size.height / 2) / size.height)
+  }
+
+  // 색 핀: 흰 테두리와 옅은 그림자가 있는 색 원. 기준점은 원 중심입니다.
+  // 카테고리 아이콘(흰색)이 있으면 원 안에 비율 그대로 얹고, 없으면 흰 점을 찍습니다.
+  private func makeColoredPlaceMarker(color: UIColor, selected: Bool, icon: UIImage?) -> UIImage {
+    let diameter = Self.placeMarkerDiameter(selected: selected)
+    let border: CGFloat = 2
+    let shadowBlur: CGFloat = 2
+    let padding = shadowBlur + 1
+    let size = CGSize(width: diameter + padding * 2, height: diameter + padding * 2)
+    return UIGraphicsImageRenderer(size: size).image { context in
+      let center = CGPoint(x: size.width / 2, y: size.height / 2)
+      func circle(_ radius: CGFloat) -> UIBezierPath {
+        UIBezierPath(ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+      }
+
+      context.cgContext.saveGState()
+      context.cgContext.setShadow(
+        offset: CGSize(width: 0, height: 0.5),
+        blur: shadowBlur,
+        color: UIColor.black.withAlphaComponent(0.25).cgColor
+      )
       UIColor.white.setFill()
-      guard let emoji else {
-        let dot = radius * 0.42
-        UIBezierPath(ovalIn: CGRect(x: center.x - dot, y: center.y - dot, width: dot * 2, height: dot * 2)).fill()
+      circle(diameter / 2).fill()
+      context.cgContext.restoreGState()
+
+      let radius = diameter / 2 - border
+      color.setFill()
+      circle(radius).fill()
+
+      UIColor.white.setFill()
+      guard let icon, icon.size.width > 0, icon.size.height > 0 else {
+        circle(radius * 0.42).fill()
         return
       }
-      let disc = radius * 0.74
-      UIBezierPath(ovalIn: CGRect(x: center.x - disc, y: center.y - disc, width: disc * 2, height: disc * 2)).fill()
-      let text = emoji as NSString
-      let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: disc * 1.25)]
-      let textSize = text.size(withAttributes: attributes)
-      text.draw(
-        at: CGPoint(x: center.x - textSize.width / 2, y: center.y - textSize.height / 2),
-        withAttributes: attributes
-      )
+      let box = radius * 1.25
+      let scale = box / max(icon.size.width, icon.size.height)
+      let iconSize = CGSize(width: icon.size.width * scale, height: icon.size.height * scale)
+      icon.draw(in: CGRect(
+        x: center.x - iconSize.width / 2,
+        y: center.y - iconSize.height / 2,
+        width: iconSize.width,
+        height: iconSize.height
+      ))
     }
   }
 

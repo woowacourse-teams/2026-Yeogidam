@@ -13,6 +13,8 @@ export function toSavedPlaceDisplayPlace(savedPlace: SavedPlaceListItem): Place 
     savedAt: savedPlace.lastSavedAt ?? savedPlace.createdAt,
     name: place.name,
     category: place.category ?? undefined,
+    categoryCode: place.categoryCode ?? undefined,
+    categoryName: place.categoryName ?? undefined,
     address,
     fullAddress: address,
     latitude: place.latitude ?? undefined,

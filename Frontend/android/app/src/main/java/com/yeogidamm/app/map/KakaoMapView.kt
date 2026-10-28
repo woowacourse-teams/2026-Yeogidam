@@ -10,12 +10,14 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
 import android.util.Log
 import android.widget.FrameLayout
+import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.common.LifecycleState
@@ -52,6 +54,9 @@ class KakaoMapView(
     private var savedPlacesJson = "[]"
     private val savedPlaceStyleKeyById = mutableMapOf<String, String>()
     private val coloredPlaceStyles = mutableMapOf<String, LabelStyles>()
+    private var savedPlaceMarkers = listOf<SavedPlaceMarker>()
+    private var placeNameShownIds = setOf<String>()
+    private val placeNameTextSizes = mutableMapOf<String, Pair<Float, Float>>()
     private var lastKnownLocation: Location? = null
 
     private val savedPlaceStyles: Map<Boolean, LabelStyles> by lazy {
@@ -198,6 +203,7 @@ class KakaoMapView(
                     }
                     map.setOnCameraMoveEndListener { _, position, _ ->
                         emitVisibleBounds(position.position, position.zoomLevel)
+                        refreshPlaceNames()
                     }
                     map.setOnCameraMoveStartListener { _, gestureType ->
                         if (
@@ -331,68 +337,182 @@ class KakaoMapView(
         post(fitSearchResultPoints)
     }
 
-    private fun renderSavedPlaceMarkers() {
-        val layer = kakaoMap?.labelManager?.layer ?: return
+    private data class SavedPlaceMarker(
+        val id: String,
+        val latitude: Double,
+        val longitude: Double,
+        val selected: Boolean,
+        val colorHex: String?,
+        val category: String?,
+        val name: String,
+    )
 
+    private fun renderSavedPlaceMarkers() {
         try {
             val places = JSONArray(savedPlacesJson)
-            val placesById = linkedMapOf<String, org.json.JSONObject>()
-
+            val markersById = linkedMapOf<String, SavedPlaceMarker>()
             for (index in 0 until places.length()) {
                 val place = places.getJSONObject(index)
-                placesById[place.getString("id")] = place
+                val id = place.getString("id")
+                markersById[id] = SavedPlaceMarker(
+                    id = id,
+                    latitude = place.getDouble("latitude"),
+                    longitude = place.getDouble("longitude"),
+                    selected = place.optBoolean("selected", false),
+                    colorHex = place.optString("color", "").takeIf { it.isNotEmpty() },
+                    category = place.optString("category", "").takeIf { it.isNotEmpty() },
+                    name = place.optString("name", "").trim(),
+                )
             }
-
-            (savedPlaceStyleKeyById.keys - placesById.keys).forEach { removedId ->
-                layer.getLabel(removedId)?.remove()
-            }
-
-            placesById.forEach { (id, place) ->
-                val selected = place.optBoolean("selected", false)
-                val position =
-                    LatLng.from(place.getDouble("latitude"), place.getDouble("longitude"))
-                val colorHex = place.optString("color", "").takeIf { it.isNotEmpty() }
-                val category = place.optString("category", "").takeIf { it.isNotEmpty() }
-                val styleKey = placeStyleKey(selected, colorHex, category)
-                val style = placeStyles(selected, colorHex, category)
-                val label = layer.getLabel(id)
-
-                if (label == null) {
-                    layer.addLabel(
-                        LabelOptions
-                            .from(id, position)
-                            .setRank(if (selected) Int.MAX_VALUE.toLong() - 1 else 1L)
-                            .setStyles(style),
-                    ).apply {
-                        tag = id
-                        isClickable = true
-                    }
-                } else {
-                    label.moveTo(position)
-                    label.rank = if (selected) Int.MAX_VALUE.toLong() - 1 else 1L
-                    label.tag = id
-                    label.isClickable = true
-
-                    if (savedPlaceStyleKeyById[id] != styleKey) {
-                        label.changeStyles(style, true)
-                    }
-                }
-            }
-
-            savedPlaceStyleKeyById.clear()
-            savedPlaceStyleKeyById.putAll(
-                placesById.mapValues { (_, place) ->
-                    placeStyleKey(
-                        place.optBoolean("selected", false),
-                        place.optString("color", "").takeIf { it.isNotEmpty() },
-                        place.optString("category", "").takeIf { it.isNotEmpty() },
-                    )
-                },
-            )
+            savedPlaceMarkers = markersById.values.toList()
+            applySavedPlaceMarkers()
         } catch (error: Exception) {
             Log.e("YeogidamKakaoMap", "저장 장소 핀을 표시하지 못했습니다.", error)
         }
     }
+
+    // 카메라가 멈출 때 이름을 보여 줄 핀이 달라졌으면 핀 스타일을 다시 적용합니다.
+    private fun refreshPlaceNames() {
+        val map = kakaoMap ?: return
+        if (placeIdsShowingName(map) != placeNameShownIds) {
+            applySavedPlaceMarkers()
+        }
+    }
+
+    private fun applySavedPlaceMarkers() {
+        val map = kakaoMap ?: return
+        val layer = map.labelManager?.layer ?: return
+
+        // 이름은 겹치지 않는 핀에만 붙입니다.
+        placeNameShownIds = placeIdsShowingName(map)
+        val nextStyleKeyById = savedPlaceMarkers.associate { it.id to placeStyleKey(it) }
+
+        (savedPlaceStyleKeyById.keys - nextStyleKeyById.keys).forEach { removedId ->
+            layer.getLabel(removedId)?.remove()
+        }
+
+        savedPlaceMarkers.forEach { marker ->
+            val position = LatLng.from(marker.latitude, marker.longitude)
+            val styleKey = nextStyleKeyById.getValue(marker.id)
+            val style = placeStyles(
+                marker.selected,
+                marker.colorHex,
+                marker.category,
+                marker.name.takeIf { marker.id in placeNameShownIds },
+            )
+            val label = layer.getLabel(marker.id)
+            val rank = if (marker.selected) Int.MAX_VALUE.toLong() - 1 else 1L
+
+            if (label == null) {
+                layer.addLabel(
+                    LabelOptions
+                        .from(marker.id, position)
+                        .setRank(rank)
+                        .setStyles(style),
+                ).apply {
+                    tag = marker.id
+                    isClickable = true
+                }
+            } else {
+                label.moveTo(position)
+                label.rank = rank
+                label.tag = marker.id
+                label.isClickable = true
+
+                if (savedPlaceStyleKeyById[marker.id] != styleKey) {
+                    label.changeStyles(style, false)
+                }
+            }
+        }
+
+        savedPlaceStyleKeyById.clear()
+        savedPlaceStyleKeyById.putAll(nextStyleKeyById)
+    }
+
+    private fun placeStyleKey(marker: SavedPlaceMarker): String =
+        placeStyleKey(
+            marker.selected,
+            marker.colorHex,
+            marker.category,
+            marker.name.takeIf { marker.id in placeNameShownIds },
+        )
+
+    // 이름을 보여 줄 핀을 고릅니다. 선택된 핀은 항상 보여 주고, 나머지는 충분히 확대했을 때
+    // 이름이 다른 핀이나 먼저 자리 잡은 이름과 겹치지 않을 때만 보여 줍니다.
+    private fun placeIdsShowingName(map: KakaoMap): Set<String> {
+        val shown = savedPlaceMarkers.filter { it.selected && it.name.isNotEmpty() }.map { it.id }.toMutableSet()
+        if (width <= 0 || height <= 0) return shown
+
+        val margin = 40 * resources.displayMetrics.density
+        val viewBounds = android.graphics.RectF(-margin, -margin, width + margin, height + margin)
+        val onScreen = savedPlaceMarkers
+            .mapNotNull { marker ->
+                val point = map.toScreenPoint(LatLng.from(marker.latitude, marker.longitude))
+                    ?: return@mapNotNull null
+                marker to android.graphics.PointF(point.x.toFloat(), point.y.toFloat())
+            }
+            .filter { (_, center) -> viewBounds.contains(center.x, center.y) }
+        fun pinRect(marker: SavedPlaceMarker, center: android.graphics.PointF): android.graphics.RectF {
+            val radius = placeMarkerDiameter(marker.selected) / 2
+            return android.graphics.RectF(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
+        }
+
+        val takenNameRects = mutableListOf<android.graphics.RectF>()
+        val candidates = onScreen.sortedByDescending { (marker, _) -> marker.selected }
+        for ((marker, center) in candidates) {
+            if (marker.name.isEmpty()) continue
+            val nameRect = placeNameRect(marker, center)
+            if (marker.selected) {
+                takenNameRects += nameRect
+                continue
+            }
+            if (map.zoomLevel < PLACE_NAME_MIN_ZOOM_LEVEL) continue
+            val hitsPin = onScreen.any { (other, otherCenter) ->
+                other.id != marker.id && android.graphics.RectF.intersects(pinRect(other, otherCenter), nameRect)
+            }
+            val hitsName = takenNameRects.any { android.graphics.RectF.intersects(it, nameRect) }
+            if (!hitsPin && !hitsName) {
+                shown += marker.id
+                takenNameRects += nameRect
+            }
+        }
+        return shown
+    }
+
+    // addPlaceName이 그리는 이름 영역을 원 중심 기준 화면 좌표로 돌려줍니다.
+    private fun placeNameRect(marker: SavedPlaceMarker, center: android.graphics.PointF): android.graphics.RectF {
+        val (textWidth, textHeight) = placeNameTextSizes.getOrPut(marker.name) {
+            val paint = placeNamePaint()
+            val metrics = paint.fontMetrics
+            fittedPlaceName(marker.name, paint).let(paint::measureText) to (metrics.descent - metrics.ascent)
+        }
+        val density = resources.displayMetrics.density
+        val halo = PLACE_NAME_HALO_DP * density
+        val top = center.y + placeMarkerDiameter(marker.selected) / 2 + density
+        val halfWidth = textWidth / 2 + halo
+        return android.graphics.RectF(center.x - halfWidth, top, center.x + halfWidth, top + textHeight + halo)
+    }
+
+    private fun placeMarkerDiameter(selected: Boolean): Float =
+        (if (selected) 26 else 20) * resources.displayMetrics.density
+
+    private fun placeNamePaint(): Paint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = PLACE_NAME_TEXT_SIZE_DP * resources.displayMetrics.density
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            color = Color.rgb(33, 33, 38)
+            textAlign = Paint.Align.CENTER
+        }
+
+    private fun fittedPlaceName(name: String, paint: Paint): String =
+        android.text.TextUtils
+            .ellipsize(
+                name,
+                android.text.TextPaint(paint),
+                PLACE_NAME_MAX_WIDTH_DP * resources.displayMetrics.density,
+                android.text.TextUtils.TruncateAt.END,
+            )
+            .toString()
 
     private fun parseColor(colorHex: String?): Int? =
         colorHex?.let {
@@ -403,43 +523,53 @@ class KakaoMapView(
             }
         }
 
-    // 서버 카테고리 이름별 핀 아이콘입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
-    private val categoryEmojis = mapOf(
-        "카페" to "☕",
-        "디저트" to "🍰",
-        "한식" to "🍚",
-        "양식" to "🍝",
-        "일식" to "🍣",
-        "중식" to "🥟",
-        "분식" to "🍢",
-        "술집" to "🍺",
-        "별미" to "✨",
-        "문화/여가" to "🎭",
-        "기타" to "📍",
+    // 서버 범주 코드(categoryCode)별 핀 아이콘(VectorDrawable)입니다. 목록에 없는 카테고리는 아이콘 없이 점을 씁니다.
+    private val categoryIconResources = mapOf(
+        "CAFE" to R.drawable.pin_category_cafe,
+        "DESSERT" to R.drawable.pin_category_dessert,
+        "KOREAN" to R.drawable.pin_category_korean,
+        "WESTERN" to R.drawable.pin_category_western,
+        "JAPANESE" to R.drawable.pin_category_japanese,
+        "CHINESE" to R.drawable.pin_category_chinese,
+        "BUNSIK" to R.drawable.pin_category_bunsik,
+        "BAR" to R.drawable.pin_category_bar,
+        "SPECIALTY" to R.drawable.pin_category_specialty,
+        "CULTURE_LEISURE" to R.drawable.pin_category_culture_leisure,
+        "ETC" to R.drawable.pin_category_etc,
     )
     private val defaultPinColor = Color.parseColor("#8FA2FF")
 
-    private fun placeStyleKey(selected: Boolean, colorHex: String?, category: String?): String {
+    // 이름을 붙인 핀은 이미지에 이름까지 그리므로 이름도 스타일 키에 넣습니다.
+    private fun placeStyleKey(selected: Boolean, colorHex: String?, category: String?, name: String?): String {
         val color = parseColor(colorHex)
-        val emoji = categoryEmojis[category]
-        if (color == null && emoji == null) {
+        val hasIcon = categoryIconResources.containsKey(category)
+        if (color == null && !hasIcon) {
             return if (selected) "default-selected" else "default"
         }
         val colorKey = (if (color != null) colorHex!!.lowercase() else "default")
-        return "$colorKey-${emoji ?: "none"}-${if (selected) "selected" else "normal"}"
+        val nameKey = name?.let { "-name-$it" } ?: ""
+        return "$colorKey-${if (hasIcon) category else "none"}-${if (selected) "selected" else "normal"}$nameKey"
     }
 
     // 폴더 색이나 카테고리 아이콘이 있는 핀은 조합별 스타일을 한 번만 만들어 재사용합니다.
-    private fun placeStyles(selected: Boolean, colorHex: String?, category: String?): LabelStyles {
-        val emoji = categoryEmojis[category]
+    private fun placeStyles(selected: Boolean, colorHex: String?, category: String?, name: String?): LabelStyles {
+        val iconResource = categoryIconResources[category]
         val color = parseColor(colorHex)
-            ?: (if (emoji != null) defaultPinColor else null)
+            ?: (if (iconResource != null) defaultPinColor else null)
             ?: return savedPlaceStyles.getValue(selected)
-        return coloredPlaceStyles.getOrPut(placeStyleKey(selected, colorHex, category)) {
+        return coloredPlaceStyles.getOrPut(placeStyleKey(selected, colorHex, category, name)) {
+            val marker = createColoredPlaceMarker(
+                color,
+                selected,
+                iconResource?.let { ContextCompat.getDrawable(context, it) },
+            )
+            // 이름을 보여 줄 핀은 핀 이미지 아래에 이름을 직접 그립니다(placeIdsShowingName 참고).
+            // 레벨 구성 개수가 다른 스타일로 바꾸면 SDK가 죽으므로, 모든 핀 스타일은 레벨 하나만 씁니다.
+            val (bitmap, anchorY) = name?.let { addPlaceName(it, marker) } ?: (marker to 0.5f)
             LabelStyles.from(
                 LabelStyle
-                    .from(createColoredPlaceMarker(color, selected, emoji))
-                    .setAnchorPoint(0.5f, 1.0f)
+                    .from(bitmap)
+                    .setAnchorPoint(0.5f, anchorY)
                     .setIconTransition(
                         LabelTransition
                             .from(Transition.Scale, Transition.Scale)
@@ -449,47 +579,76 @@ class KakaoMapView(
         }
     }
 
-    // 색 원 + 아래쪽 뾰족한 꼬리 + 흰 중심점으로 그린 핀입니다.
-    // 카테고리 아이콘이 있으면 흰 중심점 대신 흰 원 위에 아이콘을 얹습니다.
-    private fun createColoredPlaceMarker(color: Int, selected: Boolean, emoji: String?): Bitmap {
+    // 원 핀 아래에 흰 외곽선이 있는 장소 이름을 붙인 비트맵과, 원 중심을 가리키는 세로 기준점을 돌려줍니다.
+    private fun addPlaceName(name: String, marker: Bitmap): Pair<Bitmap, Float> {
+        val text = name.trim()
+        if (text.isEmpty()) return marker to 0.5f
+
         val density = resources.displayMetrics.density
-        val width = ((if (selected) 34 else 28) * density).roundToInt()
-        val height = ((if (selected) 42 else 36) * density).roundToInt()
+        val halo = PLACE_NAME_HALO_DP * density
+        val fill = placeNamePaint()
+        val outline = Paint(fill).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = halo * 2
+            strokeJoin = Paint.Join.ROUND
+            color = Color.WHITE
+        }
+        val label = fittedPlaceName(text, fill)
+        val textWidth = fill.measureText(label)
+        val metrics = fill.fontMetrics
+        val textHeight = metrics.descent - metrics.ascent
+        // 마커 비트맵에는 그림자 여백(3dp)이 있으므로 원 바로 아래에서 1dp 띄웁니다.
+        val textTop = marker.height - 2 * density
+        val width = maxOf(marker.width.toFloat(), textWidth + halo * 2).roundToInt()
+        val height = (textTop + textHeight + halo).roundToInt()
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val strokeWidth = 2 * density
-        val radius = width / 2f - strokeWidth
-        val centerX = width / 2f
-        val centerY = radius + strokeWidth
-        val path = android.graphics.Path().apply {
-            addCircle(centerX, centerY, radius, android.graphics.Path.Direction.CW)
-            moveTo(centerX - radius * 0.62f, centerY + radius * 0.78f)
-            lineTo(centerX, height - strokeWidth)
-            lineTo(centerX + radius * 0.62f, centerY + radius * 0.78f)
-            close()
-        }
-        paint.style = Paint.Style.FILL
-        paint.color = color
-        canvas.drawPath(path, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = strokeWidth
-        paint.strokeJoin = Paint.Join.ROUND
+        canvas.drawBitmap(marker, (width - marker.width) / 2f, 0f, null)
+        val baseline = textTop - metrics.ascent
+        canvas.drawText(label, width / 2f, baseline, outline)
+        canvas.drawText(label, width / 2f, baseline, fill)
+        return bitmap to (marker.height / 2f) / height
+    }
+
+    // 흰 테두리와 옅은 그림자가 있는 색 원 핀입니다. 기준점은 원 중심입니다.
+    // 카테고리 아이콘(흰색)이 있으면 원 안에 비율 그대로 얹고, 없으면 흰 점을 찍습니다.
+    private fun createColoredPlaceMarker(color: Int, selected: Boolean, icon: Drawable?): Bitmap {
+        val density = resources.displayMetrics.density
+        val diameter = placeMarkerDiameter(selected)
+        val border = 2 * density
+        val shadowBlur = 2 * density
+        val padding = shadowBlur + density
+        val size = (diameter + padding * 2).roundToInt()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val center = size / 2f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
         paint.color = Color.WHITE
-        canvas.drawPath(path, paint)
-        paint.style = Paint.Style.FILL
-        if (emoji == null) {
-            canvas.drawCircle(centerX, centerY, radius * 0.42f, paint)
+        paint.setShadowLayer(shadowBlur, 0f, 0.5f * density, Color.argb(64, 0, 0, 0))
+        canvas.drawCircle(center, center, diameter / 2, paint)
+        paint.clearShadowLayer()
+
+        val radius = diameter / 2 - border
+        paint.color = color
+        canvas.drawCircle(center, center, radius, paint)
+
+        paint.color = Color.WHITE
+        if (icon == null || icon.intrinsicWidth <= 0 || icon.intrinsicHeight <= 0) {
+            canvas.drawCircle(center, center, radius * 0.42f, paint)
             return bitmap
         }
-        val disc = radius * 0.74f
-        canvas.drawCircle(centerX, centerY, disc, paint)
-        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = disc * 1.25f
-            textAlign = Paint.Align.CENTER
-        }
-        val baseline = centerY - (textPaint.descent() + textPaint.ascent()) / 2f
-        canvas.drawText(emoji, centerX, baseline, textPaint)
+        val box = radius * 1.25f
+        val scale = box / maxOf(icon.intrinsicWidth, icon.intrinsicHeight)
+        val iconWidth = icon.intrinsicWidth * scale
+        val iconHeight = icon.intrinsicHeight * scale
+        icon.setBounds(
+            (center - iconWidth / 2).roundToInt(),
+            (center - iconHeight / 2).roundToInt(),
+            (center + iconWidth / 2).roundToInt(),
+            (center + iconHeight / 2).roundToInt(),
+        )
+        icon.draw(canvas)
         return bitmap
     }
 
@@ -516,6 +675,7 @@ class KakaoMapView(
             post {
                 applyCameraPadding()
                 emitVisibleBounds()
+                refreshPlaceNames()
             }
         }
     }
@@ -846,6 +1006,11 @@ class KakaoMapView(
         const val SAVED_PLACE_SELECTED_MARKER_SIZE_DP = 32
         const val SEARCH_RESULT_CAMERA_PADDING = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
+        // 이 줌 레벨부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
+        const val PLACE_NAME_MIN_ZOOM_LEVEL = 13
+        const val PLACE_NAME_TEXT_SIZE_DP = 10f
+        const val PLACE_NAME_HALO_DP = 1f
+        const val PLACE_NAME_MAX_WIDTH_DP = 120f
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f
         const val KAKAO_MAP_MIN_LATITUDE = 32.0

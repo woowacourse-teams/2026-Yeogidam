@@ -79,6 +79,8 @@ export type InfoPlace = {
   googlePlaceId?: string | null;
   name: string;
   category?: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
   roadAddress?: string | null;
   address?: string | null;
   latitude?: number | null;
@@ -152,6 +154,8 @@ export type SavedPlaceListItem = Pick<
     | 'id'
     | 'name'
     | 'category'
+    | 'categoryCode'
+    | 'categoryName'
     | 'sourceAddress'
     | 'roadAddress'
     | 'address'

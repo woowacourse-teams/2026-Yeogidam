@@ -22,7 +22,6 @@ import {
   CATEGORY_CHIPS_TOP_GAP,
   CategoryFilterChips,
   filterPlacesByCategory,
-  getPlaceCategory,
   PLACE_CATEGORIES,
 } from '../../components/CategoryFilterChips';
 import {
@@ -38,7 +37,10 @@ import {
   MAX_FOLDER_COUNT,
   usePlaceFolders,
 } from '../../lib/usePlaceFolders';
-import { getNextFolderColor } from '../../lib/placeFolderStorage';
+import {
+  getFolderIdsByPlaceId,
+  getNextFolderColor,
+} from '../../lib/placeFolderStorage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -52,6 +54,7 @@ import {
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
+import { resolvePlaceCategoryCode } from '../../entities/place/category';
 import type { Place } from '../../entities/place/types';
 import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
 import { getSavedPlaces } from '../../entities/info/api';
@@ -291,22 +294,45 @@ export function MapScreen({
       isMounted = false;
     };
   }, [isGuest, isActive, savedPlacesRefreshSignal]);
+  // 서버 폴더 API 연동 전까지는 로컬 폴더로 장소의 folderIds를 채웁니다.
+  // TODO(폴더 API): 서버 응답의 folderIds를 쓰게 되면 이 계산과 아래 map을 지웁니다.
+  const folderIdsByPlaceId = useMemo(
+    () => getFolderIdsByPlaceId(folders),
+    [folders],
+  );
   const allPlacesWithCoordinates = useMemo(
     () =>
-      savedPlaces.filter(
-        place => place.latitude !== undefined && place.longitude !== undefined,
-      ),
-    [savedPlaces],
+      savedPlaces
+        .filter(
+          place =>
+            place.latitude !== undefined && place.longitude !== undefined,
+        )
+        .map(place => ({
+          ...place,
+          folderIds: folderIdsByPlaceId.get(place.id) ?? [],
+        })),
+    [folderIdsByPlaceId, savedPlaces],
   );
   const openedFolder = useMemo(
     () => folders.find(folder => folder.id === openedFolderId) ?? null,
     [folders, openedFolderId],
   );
+  const isFolderListVisible =
+    !isGuest && sheetMode === 'folders' && !openedFolder;
   const folderScopedPlaces = useMemo(() => {
-    if (!openedFolder) return allPlacesWithCoordinates;
-    const placeIds = new Set(openedFolder.placeIds);
-    return allPlacesWithCoordinates.filter(place => placeIds.has(place.id));
-  }, [allPlacesWithCoordinates, openedFolder]);
+    if (openedFolder) {
+      return allPlacesWithCoordinates.filter(place =>
+        place.folderIds.includes(openedFolder.id),
+      );
+    }
+    // 폴더 목록에서는 어느 폴더에든 담긴 장소만 지도에 보여줍니다.
+    if (isFolderListVisible) {
+      return allPlacesWithCoordinates.filter(
+        place => place.folderIds.length > 0,
+      );
+    }
+    return allPlacesWithCoordinates;
+  }, [allPlacesWithCoordinates, isFolderListVisible, openedFolder]);
   const folderListItems = useMemo(
     () =>
       folders.map(folder => {
@@ -323,16 +349,26 @@ export function MapScreen({
       }),
     [allPlacesWithCoordinates, folders],
   );
-  // 장소 탭과 폴더 탭에서는 모든 핀이 기본 색이고,
-  // 폴더를 열어 둔 동안에만 그 폴더에 담긴 장소의 핀이 폴더 색이 됩니다.
+  // 장소 탭에서는 모든 핀이 기본 색입니다. 폴더 목록에서는 장소를 가장 최근에 담은
+  // 폴더(folderIds의 마지막)의 색, 폴더를 열어 둔 동안에는 그 폴더의 색으로 핀을 그립니다.
   const pinColorByPlaceId = useMemo(() => {
     const colors = new Map<string, string>();
-    if (!openedFolder) return colors;
-    for (const placeId of openedFolder.placeIds) {
-      colors.set(placeId, openedFolder.color);
+    if (!openedFolder && !isFolderListVisible) return colors;
+
+    const folderColorById = new Map(
+      folders.map(folder => [folder.id, folder.color]),
+    );
+    for (const place of allPlacesWithCoordinates) {
+      const folderId = openedFolder
+        ? place.folderIds.includes(openedFolder.id)
+          ? openedFolder.id
+          : undefined
+        : place.folderIds[place.folderIds.length - 1];
+      const color = folderId && folderColorById.get(folderId);
+      if (color) colors.set(place.id, color);
     }
     return colors;
-  }, [openedFolder]);
+  }, [allPlacesWithCoordinates, folders, isFolderListVisible, openedFolder]);
   const activeCategory = selectedCategory;
   const placesWithCoordinates = useMemo(
     () => filterPlacesByCategory(folderScopedPlaces, activeCategory),
@@ -490,10 +526,7 @@ export function MapScreen({
   };
 
   const handleSelectCategory = (category: string) => {
-    // 폴더 목록에서는 장소를 거르는 필터이므로 장소 탭으로 바로 이동합니다.
-    if (sheetMode === 'folders' && openedFolderId === null) {
-      setSheetMode('places');
-    }
+    // 폴더 목록에서는 시트를 그대로 두고 지도 핀만 거릅니다.
     if (isPlaceDetailVisible) {
       setBackToPlaceListSignal(signal => signal + 1);
     }
@@ -614,15 +647,22 @@ export function MapScreen({
             cameraBottomInset={cameraBottomInset}
             savedPlacesJson={JSON.stringify(
               (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
-                ({ id, name, latitude, longitude, category }) => ({
+                ({
+                  id,
+                  name,
+                  latitude,
+                  longitude,
+                  category,
+                  categoryCode,
+                }) => ({
                   id,
                   name,
                   selected: id === page.place?.id,
                   latitude,
                   longitude,
                   color: pinColorByPlaceId.get(id),
-                  // 핀 안에 넣을 카테고리 아이콘을 네이티브가 고릅니다.
-                  category: getPlaceCategory(category),
+                  // 핀 안에 넣을 카테고리 아이콘을 네이티브가 범주 코드로 고릅니다.
+                  category: resolvePlaceCategoryCode({ category, categoryCode }),
                 }),
               ),
             )}
@@ -878,7 +918,7 @@ export function MapScreen({
             )
           }
           folderContent={
-            !isGuest && sheetMode === 'folders' && !openedFolder ? (
+            isFolderListVisible ? (
               <FolderList
                 folders={folderListItems}
                 bottomPadding={FOLDER_LIST_BOTTOM_PADDING}
