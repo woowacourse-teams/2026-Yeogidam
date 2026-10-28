@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
-import { syncShareFolders, takeShareFolderDrafts } from './share-intent';
-
 import {
   DEFAULT_FOLDER_COLOR,
   getPlaceFolders,
@@ -23,25 +21,9 @@ export function usePlaceFolders(enabled = true) {
     let isMounted = true;
     (async () => {
       const storedFolders = await getPlaceFolders();
-      // 공유 확장에서 만든 폴더를 합칩니다(최대 개수 초과분은 버립니다).
-      const drafts = await takeShareFolderDrafts();
-      const known = new Set(storedFolders.map(folder => folder.id));
-      const merged = [...storedFolders];
-      for (const draft of drafts) {
-        if (known.has(draft.id) || merged.length >= MAX_FOLDER_COUNT) continue;
-        merged.push({
-          id: draft.id,
-          name: draft.name.trim().slice(0, MAX_FOLDER_NAME_LENGTH),
-          color: draft.color,
-          placeIds: [],
-          createdAt: new Date().toISOString(),
-        });
-      }
       if (!isMounted) return;
-      foldersRef.current = merged;
-      setFolders(merged);
-      if (merged.length !== storedFolders.length) setPlaceFolders(merged);
-      syncShareFolders(merged);
+      foldersRef.current = storedFolders;
+      setFolders(storedFolders);
     })();
     return () => {
       isMounted = false;
@@ -52,7 +34,6 @@ export function usePlaceFolders(enabled = true) {
     foldersRef.current = nextFolders;
     setFolders(nextFolders);
     setPlaceFolders(nextFolders);
-    syncShareFolders(nextFolders);
   }, []);
 
   const createFolder = useCallback(

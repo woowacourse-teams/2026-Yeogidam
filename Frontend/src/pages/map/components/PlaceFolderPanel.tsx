@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   FlatList,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,8 +12,8 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
+import Svg, { Path, Rect } from 'react-native-svg';
 
-import type { Place } from '../../../entities/place/types';
 import { FOLDER_COLORS } from '../../../lib/placeFolderStorage';
 import { MAX_FOLDER_NAME_LENGTH } from '../../../lib/usePlaceFolders';
 
@@ -25,7 +24,6 @@ export type FolderListItem = {
   name: string;
   color: string;
   count: number;
-  thumbnail?: Place['image'];
 };
 
 export function FolderSegmentHeader({
@@ -96,6 +94,19 @@ export function FolderDetailHeader({
   );
 }
 
+// 폴더 대표 이미지입니다. 배경과 폴더 아이콘을 폴더 색으로 칠합니다.
+function FolderThumbnail({ color }: { color: string }) {
+  return (
+    <Svg width={56} height={56} viewBox="0 0 56 56" fill="none">
+      <Rect width={56} height={56} rx={14} fill={color} fillOpacity={0.3} />
+      <Path
+        d="M25.6663 18.666H18.6663C17.383 18.666 16.3447 19.716 16.3447 20.9993L16.333 34.9993C16.333 36.2827 17.383 37.3327 18.6663 37.3327H37.333C38.6163 37.3327 39.6663 36.2827 39.6663 34.9993V23.3327C39.6663 22.0493 38.6163 20.9993 37.333 20.9993H27.9997L25.6663 18.666Z"
+        fill={color}
+      />
+    </Svg>
+  );
+}
+
 export function FolderList({
   folders,
   bottomPadding,
@@ -115,16 +126,7 @@ export function FolderList({
       contentContainerStyle={{ paddingBottom: bottomPadding }}
       showsVerticalScrollIndicator={false}
     >
-      <Pressable
-        accessibilityRole="button"
-        onPress={onCreateFolder}
-        style={styles.row}
-      >
-        <View style={[styles.thumb, styles.createThumb]}>
-          <MaterialIcons color="#8FA2FF" name="create-new-folder" size={26} />
-        </View>
-        <Text style={styles.createText}>새 폴더 만들기</Text>
-      </Pressable>
+     
       {folders.map(folder => (
         <Pressable
           key={folder.id}
@@ -134,17 +136,13 @@ export function FolderList({
           onLongPress={() => onLongPressFolder(folder.id)}
           style={styles.row}
         >
-          {folder.thumbnail ? (
-            <Image source={folder.thumbnail} style={styles.thumb} />
-          ) : (
-            <View style={[styles.thumb, styles.emptyThumb]}>
-              <MaterialIcons color="#B8BFE8" name="folder" size={28} />
-            </View>
-          )}
+          <FolderThumbnail color={folder.color} />
           <View style={styles.rowText}>
             <View style={styles.rowNameLine}>
-              <View style={[styles.colorDot, { backgroundColor: folder.color }]} />
-              <Text numberOfLines={1} style={[styles.rowName, styles.rowNameText]}>
+              <Text
+                numberOfLines={1}
+                style={[styles.rowName, styles.rowNameText]}
+              >
                 {folder.name}
               </Text>
             </View>
@@ -153,6 +151,16 @@ export function FolderList({
           <MaterialIcons color="#B8BFE8" name="chevron-right" size={24} />
         </Pressable>
       ))}
+       <Pressable
+        accessibilityRole="button"
+        onPress={onCreateFolder}
+        style={styles.row}
+      >
+        <View style={[styles.thumb, styles.createThumb]}>
+          <MaterialIcons color="#8FA2FF" name="create-new-folder" size={26} />
+        </View>
+        <Text style={styles.createText}>새 폴더 만들기</Text>
+      </Pressable>
       {folders.length === 0 ? (
         <Text style={styles.hint}>
           폴더를 만들어 장소를 나만의 기준으로 모아보세요.
@@ -167,6 +175,7 @@ export function FolderNameDialog({
   title,
   initialName = '',
   initialColor = FOLDER_COLORS[0],
+  existingNames = [],
   confirmLabel,
   onSubmit,
   onCancel,
@@ -175,6 +184,8 @@ export function FolderNameDialog({
   title: string;
   initialName?: string;
   initialColor?: string;
+  // 이름이 겹치면 안 되는 다른 폴더들의 이름입니다.
+  existingNames?: string[];
   confirmLabel: string;
   onSubmit: (name: string, color: string) => void;
   onCancel: () => void;
@@ -187,7 +198,12 @@ export function FolderNameDialog({
       setColor(initialColor);
     }
   }, [initialColor, initialName, visible]);
-  const canSubmit = name.trim().length > 0;
+  const trimmedName = name.trim();
+  // 저장 직후 닫히는 동안에는 방금 저장한 이름이 목록에 들어와 중복으로 보이므로 검사하지 않습니다.
+  const isDuplicate =
+    visible &&
+    existingNames.some(existingName => existingName.trim() === trimmedName);
+  const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
   return (
     <Modal transparent animationType="fade" visible={visible}>
@@ -197,17 +213,24 @@ export function FolderNameDialog({
       >
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
-          <TextInput
-            autoFocus
-            maxLength={MAX_FOLDER_NAME_LENGTH}
-            onChangeText={setName}
-            onSubmitEditing={() => canSubmit && onSubmit(name, color)}
-            placeholder="폴더 이름"
-            placeholderTextColor="#A0A5BD"
-            returnKeyType="done"
-            style={styles.input}
-            value={name}
-          />
+          <View style={styles.inputField}>
+            <TextInput
+              autoFocus
+              maxLength={MAX_FOLDER_NAME_LENGTH}
+              onChangeText={setName}
+              onSubmitEditing={() => canSubmit && onSubmit(name, color)}
+              placeholder="폴더 이름"
+              placeholderTextColor="#A0A5BD"
+              returnKeyType="done"
+              style={[styles.input, isDuplicate && styles.inputError]}
+              value={name}
+            />
+            {isDuplicate ? (
+              <Text accessibilityLiveRegion="polite" style={styles.inputErrorText}>
+                이미 같은 이름의 폴더가 있어요.
+              </Text>
+            ) : null}
+          </View>
           <View style={styles.colorRow}>
             {FOLDER_COLORS.map(candidate => {
               const selected = candidate === color;
@@ -299,8 +322,8 @@ export function PlaceFolderAssignPicker({
             <Text style={styles.dialogConfirm}>저장</Text>
           </Pressable>
         </View>
-        <Text numberOfLines={1} style={styles.assignPlaceName}>
-          {placeName}
+        <Text numberOfLines={2} style={styles.assignPlaceName}>
+          '{placeName}'을(를) 담을 폴더를 선택하세요.
         </Text>
         <FlatList
           data={folders}
@@ -317,20 +340,28 @@ export function PlaceFolderAssignPicker({
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked }}
                 onPress={() => toggle(item.id)}
-                style={styles.row}
+                style={[styles.row, styles.assignRow]}
               >
-                <View style={[styles.assignDot, { backgroundColor: item.color }]} />
-                <View style={styles.rowText}>
-                  <Text numberOfLines={1} style={styles.rowName}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.rowCount}>장소 {item.count}개</Text>
+                <View
+                  style={[
+                    styles.assignCheckbox,
+                    checked && styles.assignCheckboxChecked,
+                  ]}
+                >
+                  {checked ? (
+                    <MaterialIcons color="#ffffff" name="check" size={18} />
+                  ) : null}
                 </View>
-                <MaterialIcons
-                  color={checked ? '#8FA2FF' : '#C9CEE8'}
-                  name={checked ? 'check-circle' : 'radio-button-unchecked'}
-                  size={26}
+                <View
+                  style={[styles.assignRowDot, { backgroundColor: item.color }]}
                 />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.rowName, styles.assignName]}
+                >
+                  {item.name}
+                </Text>
+                <Text style={styles.assignCount}>장소 {item.count}개</Text>
               </Pressable>
             );
           }}
@@ -367,7 +398,9 @@ export function FolderActionSheet({
           <View style={styles.actionHandle} />
           {folder ? (
             <View style={styles.actionInfo}>
-              <View style={[styles.assignDot, { backgroundColor: folder.color }]} />
+              <View
+                style={[styles.assignDot, { backgroundColor: folder.color }]}
+              />
               <Text numberOfLines={1} style={styles.actionName}>
                 {folder.name}
               </Text>
@@ -468,6 +501,38 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
   },
+  assignRow: {
+    gap: 12,
+    paddingVertical: 14,
+  },
+  assignCheckbox: {
+    width: 26,
+    height: 26,
+    marginRight: 2,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: '#C9CEE8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignCheckboxChecked: {
+    borderColor: '#8FA2FF',
+    backgroundColor: '#8FA2FF',
+  },
+  assignRowDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  assignName: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  assignCount: {
+    fontSize: 14,
+    color: '#8A8FA8',
+  },
   segment: {
     flexDirection: 'row',
     marginHorizontal: 24,
@@ -497,11 +562,11 @@ const styles = StyleSheet.create({
   detailHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
-    // 왼쪽 40pt는 스와이프 뒤로가기 영역이 터치를 먼저 가져가므로 비워둡니다.
-    paddingLeft: 40,
-    paddingRight: 12,
-    marginBottom: 4,
+    height: 30,
+    // 아래 장소 목록(paddingHorizontal 13)과 왼쪽 라인을 맞춥니다.
+    // 왼쪽 가장자리는 스와이프 뒤로가기 영역이지만 제목은 누르는 요소가 아니라 겹쳐도 됩니다.
+    paddingHorizontal: 17,
+    marginBottom: 8,
   },
   iconButton: {
     width: 36,
@@ -546,11 +611,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 14,
-  },
-  emptyThumb: {
-    backgroundColor: '#F1F3FC',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   createThumb: {
     borderWidth: 1.5,
@@ -610,13 +670,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1a1a2e',
   },
+  inputField: {
+    gap: 6,
+  },
   input: {
     height: 46,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
     paddingHorizontal: 14,
     backgroundColor: '#F4F5FB',
     fontSize: 16,
     color: '#1a1a2e',
+  },
+  inputError: {
+    borderColor: '#E5484D',
+  },
+  inputErrorText: {
+    paddingHorizontal: 4,
+    fontSize: 13,
+    color: '#E5484D',
   },
   colorRow: {
     flexDirection: 'row',
