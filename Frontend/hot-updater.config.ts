@@ -25,6 +25,15 @@ export default defineConfig({
   }),
   plugins: [apiKeys(), insights(), remoteConfig()],
   updateStrategy: 'fingerprint', // or "appVersion",
+  fingerprint: {
+    extraSources: ['ios/**', 'android/**'],
+    ignorePaths: [
+      '**/sentry.properties',
+      'android/local.properties',
+      'ios/.xcode.env.local',
+      '**/xcuserdata/**',
+    ],
+  },
   signing: {
     enabled: true,
     privateKeyPath: './keys/private-key.pem',
