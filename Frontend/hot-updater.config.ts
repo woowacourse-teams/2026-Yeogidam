@@ -26,12 +26,18 @@ export default defineConfig({
   plugins: [apiKeys(), insights(), remoteConfig()],
   updateStrategy: 'fingerprint', // or "appVersion",
   fingerprint: {
-    extraSources: ['ios/**', 'android/**'],
+    extraSources: {
+      ios: ['ios/**'],
+      android: ['android/**'],
+    },
     ignorePaths: [
       '**/sentry.properties',
       'android/local.properties',
       'ios/.xcode.env.local',
       '**/xcuserdata/**',
+      '**/.idea/**',
+      '**/.DS_Store',
+      '**/.env',
     ],
   },
   signing: {
