@@ -4,6 +4,7 @@ import com.yeogidam.place.domain.PlaceCategory;
 import com.yeogidam.place.repository.SavedPlaceProjection;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 public record SavedPlaceResponse(
         Long savedPlaceId,
@@ -20,13 +21,15 @@ public record SavedPlaceResponse(
         String telephone,
         String thumbnailUrl,
         String thumbnailSource,
-        Instant lastSavedAt
+        Instant lastSavedAt,
+        List<Long> folderIds
 ) {
 
     public static SavedPlaceResponse from(
             SavedPlaceProjection projection,
             String placeThumbnailUrl,
-            PlaceCategory category
+            PlaceCategory category,
+            List<Long> folderIds
     ) {
         return new SavedPlaceResponse(
                 projection.savedPlaceId(),
@@ -43,7 +46,8 @@ public record SavedPlaceResponse(
                 projection.telephone(),
                 placeThumbnailUrl,
                 projection.thumbnailSource(),
-                projection.lastSavedAt()
+                projection.lastSavedAt(),
+                folderIds
         );
     }
 }

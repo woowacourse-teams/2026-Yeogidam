@@ -1,5 +1,7 @@
 package com.yeogidam.place.repository;
 
+import static com.yeogidam.support.fixture.sql.FolderSavedPlaceSqlFixture.insertFolderSavedPlace;
+import static com.yeogidam.support.fixture.sql.FolderSqlFixture.insertFolder;
 import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
@@ -156,6 +158,86 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                         .containsExactly(13L, 12L, 11L),
                 () -> assertThat(savedPlaces).extracting(SavedPlaceProjection::placeId)
                         .containsExactly(3L, 2L, 1L)
+        );
+    }
+
+    @Test
+    void 보관함_항목마다_폴더_ID를_담은_시각_순서대로_조회한다() {
+        // given
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        Instant savedAt = Instant.parse("2026-09-15T00:00:00Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, savedAt);
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, savedAt);
+        Instant createdAt = Instant.parse("2026-09-14T00:00:00.123456Z");
+        insertFolder(jdbcTemplate, 51L, 1L, "성수 카페", "RED", createdAt);
+        insertFolder(jdbcTemplate, 52L, 1L, "가고 싶은 곳", "GREEN", createdAt.plusNanos(1_000));
+        Instant addedAt = Instant.parse("2026-09-16T00:00:00Z");
+        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L, addedAt.plusNanos(1_000));
+        insertFolderSavedPlace(jdbcTemplate, 2L, 52L, 11L, addedAt);
+        insertFolderSavedPlace(jdbcTemplate, 3L, 52L, 12L, addedAt);
+
+        // when
+        SavedPlaceFolderProjections folders = savedPlaceDao.findFolderLinksByMember(1L);
+
+        // then
+        assertAll(
+                () -> assertThat(folders.folderIdsOf(11L))
+                        .containsExactly(52L, 51L),
+                () -> assertThat(folders.folderIdsOf(12L))
+                        .containsExactly(52L)
+        );
+    }
+
+    @Test
+    void 폴더에_담은_시각이_같으면_연결_ID_순서대로_조회한다() {
+        // given
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertFolder(jdbcTemplate, 51L, 1L, "성수 카페", "RED");
+        insertFolder(jdbcTemplate, 52L, 1L, "가고 싶은 곳", "GREEN");
+        Instant addedAt = Instant.parse("2026-09-16T00:00:00Z");
+        insertFolderSavedPlace(jdbcTemplate, 2L, 51L, 11L, addedAt);
+        insertFolderSavedPlace(jdbcTemplate, 1L, 52L, 11L, addedAt);
+
+        // when
+        SavedPlaceFolderProjections folders = savedPlaceDao.findFolderLinksByMember(1L);
+
+        // then
+        assertThat(folders.folderIdsOf(11L))
+                .containsExactly(52L, 51L);
+    }
+
+    @Test
+    void 회원의_폴더와_보관함_항목이_연결된_것만_조회한다() {
+        // given
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        Instant savedAt = Instant.parse("2026-09-15T00:00:00Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, savedAt);
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, savedAt);
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, savedAt);
+        insertFolder(jdbcTemplate, 51L, 1L, "내 폴더", "RED");
+        insertFolder(jdbcTemplate, 61L, 2L, "다른 회원 폴더", "GREEN");
+        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L);
+        insertFolderSavedPlace(jdbcTemplate, 2L, 61L, 21L);
+        insertFolderSavedPlace(jdbcTemplate, 3L, 61L, 11L);
+        insertFolderSavedPlace(jdbcTemplate, 4L, 61L, 12L);
+        insertFolderSavedPlace(jdbcTemplate, 5L, 51L, 21L);
+
+        // when
+        SavedPlaceFolderProjections folders = savedPlaceDao.findFolderLinksByMember(1L);
+
+        // then
+        assertAll(
+                () -> assertThat(folders.folderIdsOf(11L))
+                        .containsExactly(51L),
+                () -> assertThat(folders.folderIdsOf(12L))
+                        .isEmpty(),
+                () -> assertThat(folders.folderIdsOf(21L))
+                        .isEmpty()
         );
     }
 

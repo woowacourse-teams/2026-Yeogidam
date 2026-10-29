@@ -1,5 +1,7 @@
 package com.yeogidam.support.fixture.sql;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -22,6 +24,22 @@ public final class FolderSqlFixture {
                 VALUES (?, ?, ?, ?)
                 """,
                 folderId, memberId, name, color
+        );
+    }
+
+    public static void insertFolder(
+            JdbcTemplate jdbcTemplate,
+            Long folderId,
+            Long memberId,
+            String name,
+            String color,
+            Instant createdAt
+    ) {
+        jdbcTemplate.update("""
+                INSERT INTO folders (id, member_id, name, color, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                folderId, memberId, name, color, Timestamp.from(createdAt)
         );
     }
 }

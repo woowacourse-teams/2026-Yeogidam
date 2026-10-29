@@ -1,5 +1,7 @@
 package com.yeogidam.place;
 
+import static com.yeogidam.support.fixture.sql.FolderSavedPlaceSqlFixture.insertFolderSavedPlace;
+import static com.yeogidam.support.fixture.sql.FolderSqlFixture.insertFolder;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
@@ -64,6 +66,41 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces[0].thumbnailSource", equalTo("KAKAO"))
                 .body("savedPlaces[0].lastSavedAt", equalTo("2026-09-15T00:00:10Z"))
                 .body("savedPlaces[1].roadAddress", nullValue());
+    }
+
+    @Test
+    void 담긴_폴더의_ID를_배열로_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertFolder(jdbcTemplate, 51L, login.memberId(), "성수 카페", "RED");
+        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(SAVED_PLACES_PATH)
+                .then()
+                .statusCode(200)
+                .body("savedPlaces", hasSize(1))
+                .body("savedPlaces[0].folderIds", contains(51));
+    }
+
+    @Test
+    void 담긴_폴더가_없으면_빈_배열을_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(SAVED_PLACES_PATH)
+                .then()
+                .statusCode(200)
+                .body("savedPlaces[0].folderIds", hasSize(0));
     }
 
     @Test
