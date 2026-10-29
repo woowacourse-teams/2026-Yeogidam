@@ -62,6 +62,7 @@ class FolderE2eTest extends E2eTestSupport {
 
     @Test
     void 토큰_없이_폴더_목록을_조회하면_401_예외를_던진다() {
+        // when & then
         given().when().get(FOLDERS_PATH)
                 .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
                 .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))
@@ -140,6 +141,7 @@ class FolderE2eTest extends E2eTestSupport {
 
     @Test
     void 토큰_없이_폴더를_만들면_401_예외를_던진다() {
+        // when & then
         given().contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "RED"))
                 .when().post(FOLDERS_PATH)
@@ -281,6 +283,7 @@ class FolderE2eTest extends E2eTestSupport {
 
     @Test
     void 토큰_없이_폴더를_바꾸면_401_예외를_던진다() {
+        // when & then
         given().contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "RED"))
                 .when().put(FOLDERS_PATH + "/1")
@@ -332,6 +335,7 @@ class FolderE2eTest extends E2eTestSupport {
 
     @Test
     void 토큰_없이_폴더를_지우면_401_예외를_던진다() {
+        // when & then
         given().when().delete(FOLDERS_PATH + "/1")
                 .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
                 .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))

@@ -26,6 +26,7 @@ class FolderNameTest {
     @ParameterizedTest
     @ValueSource(strings = {"가", "가나다라마바사아자차카타파하가", "  가나다라마바사아자차카타파하가  "})
     void 앞뒤_공백을_지운_뒤_1자부터_15자까지_허용한다(String value) {
+        // when & then
         assertThatCode(() -> new FolderName(value))
                 .doesNotThrowAnyException();
     }
@@ -43,6 +44,7 @@ class FolderNameTest {
     @NullSource
     @ValueSource(strings = {"", " ", "　"})
     void 이름이_없거나_공백뿐이면_예외가_발생한다(String value) {
+        // when & then
         assertThatThrownBy(() -> new FolderName(value))
                 .isInstanceOf(FolderException.class)
                 .extracting("errorCode")
