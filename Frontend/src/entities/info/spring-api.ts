@@ -34,6 +34,8 @@ type SavedPlaceResponse = {
   kakaoPlaceUrl: string | null;
   thumbnailUrl: string | null;
   lastSavedAt: string;
+  // 담은 시각 오름차순이라 마지막이 가장 최근에 담은 폴더입니다.
+  folderIds?: number[] | null;
 };
 
 type SavedPlaceMediaResponse = {
@@ -69,6 +71,7 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
       thumbnailUrl: item.thumbnailUrl,
       createdAt: item.lastSavedAt,
       lastSavedAt: item.lastSavedAt,
+      folderIds: (item.folderIds ?? []).map(String),
       place: {
         id: String(item.placeId),
         name: item.name,

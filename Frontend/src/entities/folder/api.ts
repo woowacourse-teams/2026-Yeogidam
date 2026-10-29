@@ -94,7 +94,6 @@ export function deleteFolder(folderId: string): Promise<void> {
 
 /**
  * 보관함 장소가 속할 폴더를 통째로 정합니다. 빈 배열이면 모든 폴더에서 빼고, 같은 요청은 몇 번을 보내도 결과가 같습니다.
- * TODO(#475): 서버 코드가 커밋되기 전 설계 기준이라 리뷰에서 바뀔 수 있습니다.
  */
 export function setSavedPlaceFolders(
   savedPlaceId: string,

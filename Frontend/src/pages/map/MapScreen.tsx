@@ -35,9 +35,10 @@ import {
 } from './components/PlaceFolderPanel';
 import {
   MAX_FOLDER_COUNT,
+  syncSavedPlaceFolderIds,
   usePlaceFolders,
 } from '../../lib/usePlaceFolders';
-import { getNextFolderColor } from '../../lib/placeFolderStorage';
+import { getNextFolderColor } from '../../entities/folder/color';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
 import { v4 as uuidv4 } from 'uuid';
@@ -150,7 +151,7 @@ export function MapScreen({
   );
   const {
     folders,
-    folderIdsByPlaceId,
+    getPlaceFolderIds,
     createFolder,
     updateFolder,
     deleteFolder,
@@ -266,6 +267,7 @@ export function MapScreen({
       .then(savedPlaceItems => {
         if (!isMounted) return;
 
+        syncSavedPlaceFolderIds(savedPlaceItems);
         setSavedPlacesLoadFailed(false);
         setSavedPlaces(
           Array.from(
@@ -293,7 +295,7 @@ export function MapScreen({
       isMounted = false;
     };
   }, [isGuest, isActive, savedPlacesRefreshSignal]);
-  // TODO(#474): saved-places 응답의 folderIds를 쓰게 되면 훅의 folderIdsByPlaceId와 이 map을 지웁니다.
+  // 폴더에 담거나 폴더를 지운 결과가 목록을 다시 읽기 전에도 보이도록 훅의 소속을 씁니다.
   const allPlacesWithCoordinates = useMemo(
     () =>
       savedPlaces
@@ -303,9 +305,9 @@ export function MapScreen({
         )
         .map(place => ({
           ...place,
-          folderIds: folderIdsByPlaceId.get(place.id) ?? [],
+          folderIds: getPlaceFolderIds(place),
         })),
-    [folderIdsByPlaceId, savedPlaces],
+    [getPlaceFolderIds, savedPlaces],
   );
   const openedFolder = useMemo(
     () => folders.find(folder => folder.id === openedFolderId) ?? null,
@@ -330,9 +332,8 @@ export function MapScreen({
   const folderListItems = useMemo(
     () =>
       folders.map(folder => {
-        const placeIds = new Set(folder.placeIds);
         const folderPlaces = allPlacesWithCoordinates.filter(place =>
-          placeIds.has(place.id),
+          place.folderIds.includes(folder.id),
         );
         return {
           id: folder.id,
@@ -460,13 +461,14 @@ export function MapScreen({
     const folder = folders.find(candidate => candidate.id === folderId);
     if (!folder) return;
 
-    const placeIds = new Set(folder.placeIds);
     setOpenedFolderId(folderId);
     setSelectedCategory(ALL_CATEGORY);
     setSearchedPlaces(null);
     setSearchKeyword('');
     focusMapOnPlaces(
-      allPlacesWithCoordinates.filter(place => placeIds.has(place.id)),
+      allPlacesWithCoordinates.filter(place =>
+        place.folderIds.includes(folderId),
+      ),
     );
   };
 
@@ -965,7 +967,7 @@ export function MapScreen({
           }
           onEditPlaceFolders={isGuest ? undefined : setFolderAssignPlace}
           getPlaceFoldersLabel={place =>
-            folders.some(folder => folder.placeIds.includes(place.id))
+            getPlaceFolderIds(place).length > 0
               ? '폴더 수정'
               : '폴더에 담기'
           }
@@ -1036,13 +1038,9 @@ export function MapScreen({
             visible={folderAssignPlace !== null}
             placeName={folderAssignPlace?.name ?? ''}
             folders={folderListItems}
-            selectedFolderIds={folders
-              .filter(folder =>
-                folderAssignPlace
-                  ? folder.placeIds.includes(folderAssignPlace.id)
-                  : false,
-              )
-              .map(folder => folder.id)}
+            selectedFolderIds={
+              folderAssignPlace ? getPlaceFolderIds(folderAssignPlace) : []
+            }
             onSave={folderIds => {
               if (folderAssignPlace) {
                 setPlaceFolderIds(folderAssignPlace, folderIds);

@@ -14,25 +14,32 @@ import {
   toFolderColorCode,
   toFolderColorHex,
 } from '../entities/folder/color';
+import { getSavedPlaces } from '../entities/info/api';
+import type { SavedPlaceListItem } from '../entities/info/types';
 import { isScreenApiError } from './api/screen-error';
-import {
-  getFolderIdsByPlace,
-  setFolderIdsByPlace,
-  type FolderIdsByPlace,
-  type PlaceFolder,
-} from './placeFolderStorage';
 
 export const MAX_FOLDER_NAME_LENGTH = 15;
 export const MAX_FOLDER_COUNT = 10;
 
+export type PlaceFolder = {
+  id: string;
+  name: string;
+  // 서버 색 코드를 그릴 hex로 바꾼 값입니다.
+  color: string;
+  savedPlaceIds: string[];
+};
+
+/** 보관함 항목(savedPlaceId)마다 담긴 폴더 id입니다. 담은 시각 오름차순이라 마지막이 가장 최근에 담은 폴더입니다. */
+type FolderIdsBySavedPlace = Record<string, string[]>;
+
 type FolderState = {
   folders: Folder[];
-  folderIdsByPlace: FolderIdsByPlace;
+  folderIdsBySavedPlace: FolderIdsBySavedPlace;
 };
 
 // 지도와 장소 상세처럼 같은 폴더 목록을 쓰는 화면끼리 변경을 바로 공유합니다.
-let sharedState: FolderState = { folders: [], folderIdsByPlace: {} };
-let isMembershipLoaded = false;
+let sharedState: FolderState = { folders: [], folderIdsBySavedPlace: {} };
+let hasSyncedSavedPlaces = false;
 let inFlightRefresh: Promise<void> | null = null;
 const folderListeners = new Set<(state: FolderState) => void>();
 
@@ -41,18 +48,25 @@ function publish(next: FolderState) {
   folderListeners.forEach(listener => listener(next));
 }
 
-// 지워졌거나 모르는 폴더 id는 장소의 소속에서 뺍니다.
-function pruneFolderIds(
-  folderIdsByPlace: FolderIdsByPlace,
-  folders: Folder[],
-): FolderIdsByPlace {
-  const validIds = new Set(folders.map(folder => folder.id));
+function toFolderIdsBySavedPlace(
+  savedPlaces: Pick<SavedPlaceListItem, 'id' | 'folderIds'>[],
+): FolderIdsBySavedPlace {
   return Object.fromEntries(
-    Object.entries(folderIdsByPlace).flatMap(([placeId, folderIds]) => {
-      const kept = folderIds.filter(id => validIds.has(id));
-      return kept.length > 0 ? [[placeId, kept]] : [];
-    }),
+    savedPlaces.flatMap(savedPlace =>
+      savedPlace.folderIds?.length ? [[savedPlace.id, savedPlace.folderIds]] : [],
+    ),
   );
+}
+
+/** 보관함 목록을 새로 받을 때마다 장소가 담긴 폴더를 응답의 folderIds로 맞춥니다. */
+export function syncSavedPlaceFolderIds(
+  savedPlaces: Pick<SavedPlaceListItem, 'id' | 'folderIds'>[],
+) {
+  hasSyncedSavedPlaces = true;
+  publish({
+    ...sharedState,
+    folderIdsBySavedPlace: toFolderIdsBySavedPlace(savedPlaces),
+  });
 }
 
 async function refreshFolders() {
@@ -60,18 +74,13 @@ async function refreshFolders() {
 
   inFlightRefresh = (async () => {
     try {
-      const folders = await getFolders();
-      if (!isMembershipLoaded) {
-        const stored = await getFolderIdsByPlace();
-        isMembershipLoaded = true;
-        sharedState = { ...sharedState, folderIdsByPlace: stored };
-      }
-      const folderIdsByPlace = pruneFolderIds(
-        sharedState.folderIdsByPlace,
-        folders,
-      );
-      publish({ folders, folderIdsByPlace });
-      setFolderIdsByPlace(folderIdsByPlace);
+      // 보관함 목록을 받은 화면이 아직 없으면 장소가 담긴 폴더도 함께 읽습니다.
+      const [folders, savedPlaces] = await Promise.all([
+        getFolders(),
+        hasSyncedSavedPlaces ? null : getSavedPlaces().catch(() => null),
+      ]);
+      if (savedPlaces) syncSavedPlaceFolderIds(savedPlaces);
+      publish({ ...sharedState, folders });
     } catch {
       // 목록을 못 받아도 가지고 있던 폴더로 화면을 계속 쓸 수 있게 둡니다.
     } finally {
@@ -112,12 +121,12 @@ function handleFolderError(error: unknown) {
   }
 }
 
-function toPlaceFolder(folder: Folder, placeIds: string[]): PlaceFolder {
+function toPlaceFolder(folder: Folder, savedPlaceIds: string[]): PlaceFolder {
   return {
     id: folder.id,
     name: folder.name,
     color: toFolderColorHex(folder.color),
-    placeIds,
+    savedPlaceIds,
   };
 }
 
@@ -138,23 +147,30 @@ export function usePlaceFolders(enabled = true) {
   const folders = useMemo<PlaceFolder[]>(() => {
     if (!enabled) return [];
 
-    const placeIdsByFolder = new Map<string, string[]>();
-    for (const [placeId, folderIds] of Object.entries(state.folderIdsByPlace)) {
+    const savedPlaceIdsByFolder = new Map<string, string[]>();
+    for (const [savedPlaceId, folderIds] of Object.entries(
+      state.folderIdsBySavedPlace,
+    )) {
       for (const folderId of folderIds) {
-        placeIdsByFolder.set(folderId, [
-          ...(placeIdsByFolder.get(folderId) ?? []),
-          placeId,
+        savedPlaceIdsByFolder.set(folderId, [
+          ...(savedPlaceIdsByFolder.get(folderId) ?? []),
+          savedPlaceId,
         ]);
       }
     }
     return state.folders.map(folder =>
-      toPlaceFolder(folder, placeIdsByFolder.get(folder.id) ?? []),
+      toPlaceFolder(folder, savedPlaceIdsByFolder.get(folder.id) ?? []),
     );
   }, [enabled, state]);
 
-  const folderIdsByPlaceId = useMemo(
-    () => new Map(enabled ? Object.entries(state.folderIdsByPlace) : []),
-    [enabled, state.folderIdsByPlace],
+  /** 장소가 담긴 폴더 id를 담은 순서대로 돌려줍니다. 보관함에 없는 장소는 빈 배열입니다. */
+  const getPlaceFolderIds = useCallback(
+    (place: { savedPlaceId?: string }): string[] =>
+      (enabled &&
+        place.savedPlaceId &&
+        state.folderIdsBySavedPlace[place.savedPlaceId]) ||
+      [],
+    [enabled, state.folderIdsBySavedPlace],
   );
 
   /** 폴더를 만듭니다. 실패하면 안내를 띄우고 null을 돌려줍니다. */
@@ -212,12 +228,16 @@ export function usePlaceFolders(enabled = true) {
       const remaining = sharedState.folders.filter(
         folder => folder.id !== folderId,
       );
-      const folderIdsByPlace = pruneFolderIds(
-        sharedState.folderIdsByPlace,
-        remaining,
+      // 서버도 폴더와 함께 장소 연결을 지우므로, 장소의 소속에서 지운 폴더를 뺍니다.
+      const folderIdsBySavedPlace = Object.fromEntries(
+        Object.entries(sharedState.folderIdsBySavedPlace).flatMap(
+          ([savedPlaceId, folderIds]) => {
+            const kept = folderIds.filter(id => id !== folderId);
+            return kept.length > 0 ? [[savedPlaceId, kept]] : [];
+          },
+        ),
       );
-      publish({ folders: remaining, folderIdsByPlace });
-      setFolderIdsByPlace(folderIdsByPlace);
+      publish({ folders: remaining, folderIdsBySavedPlace });
       return true;
     } catch (error) {
       handleFolderError(error);
@@ -226,29 +246,26 @@ export function usePlaceFolders(enabled = true) {
   }, []);
 
   // 한 장소를 여러 폴더에 담을 수 있으므로, 장소 기준으로 소속 폴더를 한 번에 바꿉니다.
-  // 이미 담겨 있던 폴더는 순서를 그대로 두고, 새로 담은 폴더만 뒤에 붙입니다.
+  // 서버처럼 이미 담겨 있던 폴더는 순서를 그대로 두고, 새로 담은 폴더만 뒤에 붙입니다.
   const setPlaceFolderIds = useCallback(
-    async (
-      place: { id: string; savedPlaceId?: string },
-      folderIds: string[],
-    ) => {
-      if (!place.savedPlaceId) {
+    async (place: { savedPlaceId?: string }, folderIds: string[]) => {
+      const { savedPlaceId } = place;
+      if (!savedPlaceId) {
         Alert.alert('저장한 장소만 폴더에 담을 수 있어요.');
         return false;
       }
 
       try {
-        await setSavedPlaceFolders(place.savedPlaceId, folderIds);
-        const previous = sharedState.folderIdsByPlace[place.id] ?? [];
+        await setSavedPlaceFolders(savedPlaceId, folderIds);
+        const previous = sharedState.folderIdsBySavedPlace[savedPlaceId] ?? [];
         const next = [
           ...previous.filter(id => folderIds.includes(id)),
           ...folderIds.filter(id => !previous.includes(id)),
         ];
-        const folderIdsByPlace = { ...sharedState.folderIdsByPlace };
-        if (next.length > 0) folderIdsByPlace[place.id] = next;
-        else delete folderIdsByPlace[place.id];
-        publish({ ...sharedState, folderIdsByPlace });
-        setFolderIdsByPlace(folderIdsByPlace);
+        const folderIdsBySavedPlace = { ...sharedState.folderIdsBySavedPlace };
+        if (next.length > 0) folderIdsBySavedPlace[savedPlaceId] = next;
+        else delete folderIdsBySavedPlace[savedPlaceId];
+        publish({ ...sharedState, folderIdsBySavedPlace });
         return true;
       } catch (error) {
         handleFolderError(error);
@@ -260,7 +277,7 @@ export function usePlaceFolders(enabled = true) {
 
   return {
     folders,
-    folderIdsByPlaceId,
+    getPlaceFolderIds,
     createFolder,
     updateFolder,
     deleteFolder,

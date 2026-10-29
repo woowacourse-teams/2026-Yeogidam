@@ -18,7 +18,7 @@ import Svg, { Path, Rect } from 'react-native-svg';
 import {
   FOLDER_COLORS,
   getNextFolderColor,
-} from '../../../lib/placeFolderStorage';
+} from '../../../entities/folder/color';
 import {
   MAX_FOLDER_COUNT,
   MAX_FOLDER_NAME_LENGTH,

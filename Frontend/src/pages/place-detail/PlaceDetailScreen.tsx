@@ -52,25 +52,20 @@ export function PlaceDetailScreen({
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
   const [isFolderPickerVisible, setIsFolderPickerVisible] = useState(false);
-  const { folders, createFolder, setPlaceFolderIds } = usePlaceFolders(!isGuest);
+  const { folders, getPlaceFolderIds, createFolder, setPlaceFolderIds } =
+    usePlaceFolders(!isGuest);
   const folderListItems = useMemo(
     () =>
       folders.map(folder => ({
         id: folder.id,
         name: folder.name,
         color: folder.color,
-        count: folder.placeIds.length,
+        count: folder.savedPlaceIds.length,
         thumbnail: undefined,
       })),
     [folders],
   );
-  const placeFolderIds = useMemo(
-    () =>
-      folders
-        .filter(folder => folder.placeIds.includes(place.id))
-        .map(folder => folder.id),
-    [folders, place.id],
-  );
+  const placeFolderIds = getPlaceFolderIds(place);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
 

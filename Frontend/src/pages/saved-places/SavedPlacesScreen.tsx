@@ -43,6 +43,7 @@ import {
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
+import { syncSavedPlaceFolderIds } from '../../lib/usePlaceFolders';
 import type { Place } from '../../entities/place/types';
 import { deleteSavedPlaces, getSavedPlaces } from '../../entities/info/api';
 import type { SavedPlacesApiError } from '../../entities/info/types';
@@ -269,6 +270,7 @@ export function SavedPlacesScreen({
       if (showLoadingState) setIsLoading(true);
       try {
         const savedPlaces = await getSavedPlaces();
+        syncSavedPlaceFolderIds(savedPlaces);
         const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
         cachedSavedPlaces = nextPlaces;
         hasLoadedPlacesRef.current = true;
