@@ -24,7 +24,7 @@ export default defineConfig({
     cloudflareApiToken: process.env.HOT_UPDATER_CLOUDFLARE_API_TOKEN!,
   }),
   plugins: [apiKeys(), insights(), remoteConfig()],
-  updateStrategy: 'appVersion', // or "fingerprint",
+  updateStrategy: 'fingerprint', // or "appVersion",
   signing: {
     enabled: true,
     privateKeyPath: './keys/private-key.pem',
