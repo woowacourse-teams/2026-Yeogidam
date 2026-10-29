@@ -12,20 +12,20 @@ readonly BIND_ADDRESS="127.0.0.1"
 readonly DEPLOY_LOCK_DIR="/tmp/yeogidam-deploy-${UID}"
 readonly DEPLOY_LOCK_FILE="${DEPLOY_LOCK_DIR}/backend.lock"
 
-# 블루그린 배포다. 앱 컨테이너는 블루(127.0.0.1:8080)와 그린(127.0.0.1:8081) 두 칸 가운데 한 칸에서
-# 돌고, nginx는 UPSTREAM_FILE이 가리키는 칸에만 요청을 보낸다. 새 이미지는 비어 있는 칸에 띄워
-# liveness가 통과한 뒤에만 nginx를 그쪽으로 돌리고, 옛 컨테이너는 하던 분석 작업이 끝난 뒤 내린다.
-# 새 컨테이너가 뜨지 않으면 nginx를 건드리지 않으므로 요청은 옛 컨테이너가 계속 받는다.
+# 블루그린 배포다. 앱 컨테이너는 블루(127.0.0.1:8080)와 그린(127.0.0.1:8081) 두 컨테이너 가운데 한쪽에서
+# 돌고, nginx는 UPSTREAM_FILE이 가리키는 컨테이너에만 요청을 보낸다. 새 이미지는 요청을 받지 않는 반대쪽에 띄워
+# liveness가 통과한 뒤에만 nginx를 그쪽으로 돌리고, 이전 컨테이너는 하던 분석 작업이 끝난 뒤 내린다.
+# 새 컨테이너가 뜨지 않으면 nginx를 건드리지 않으므로 요청은 이전 컨테이너가 계속 받는다.
 # 포트와 경로는 bootstrap-host.sh, switch-backend-upstream.sh, restart-backend.sh와 같은 값이어야 해서
 # 변수로 받지 않고 상수로 박는다. 8081도 127.0.0.1에만 열리므로 공용 보안 그룹과 무관하다.
 readonly BLUE_PORT="8080"
 readonly GREEN_PORT="8081"
 readonly UPSTREAM_FILE="/etc/nginx/yeogidam/backend-upstream.conf"
 readonly SWITCH_COMMAND="/usr/local/sbin/yeogidam-switch-backend"
-# 전환한 뒤 새 컨테이너가 계속 응답하는지 보는 시간이다. 이 안에 끊기면 옛 컨테이너로 되돌린다.
-# 전환 직전에 옛 컨테이너가 받은 요청이 끝나기를 기다리는 시간도 겸한다.
+# 전환한 뒤 새 컨테이너가 계속 응답하는지 보는 시간이다. 이 안에 끊기면 이전 컨테이너로 되돌린다.
+# 전환 직전에 이전 컨테이너가 받은 요청이 끝나기를 기다리는 시간도 겸한다.
 readonly POST_SWITCH_CHECK_SECONDS=10
-# 옛 컨테이너의 분석 작업(mediaExtractionExecutor)이 끝나기를 기다리는 최대 시간이다. 분석 하나가
+# 이전 컨테이너의 분석 작업(mediaExtractionExecutor)이 끝나기를 기다리는 최대 시간이다. 분석 하나가
 # 외부 호출을 여럿 거쳐 수십 초 걸리므로 넉넉히 두고, 넘기면 경고만 남기고 내린다.
 readonly DRAIN_TIMEOUT_SECONDS=120
 readonly STOP_TIMEOUT_SECONDS=30
@@ -38,7 +38,7 @@ readonly ROLE_CANDIDATE="candidate"
 
 # 컨테이너 로그는 awslogs 드라이버가 CloudWatch로 보낸다. 우테코 공용 계정은 리전이
 # ap-northeast-2 하나뿐이라 상수로 박는다. 로그 그룹 이름은 이 접두사 뒤에 환경과 backend를
-# 붙여 만들고(LOG_GROUP), 스트림은 칸마다 나눠(backend-blue, backend-green) 전환하는 동안 겹쳐
+# 붙여 만들고(LOG_GROUP), 스트림은 컨테이너마다 나눠(backend-blue, backend-green) 전환하는 동안 겹쳐
 # 도는 두 컨테이너의 로그가 섞이지 않게 한다.
 readonly AWS_REGION="ap-northeast-2"
 readonly LOG_GROUP_PREFIX="/yeogidam"
@@ -123,9 +123,9 @@ color_of_port() {
 
 color_label() {
   if [[ "$1" == "$BLUE_PORT" ]]; then
-    printf '블루 칸(%s:%s)' "$BIND_ADDRESS" "$1"
+    printf '블루(%s:%s)' "$BIND_ADDRESS" "$1"
   else
-    printf '그린 칸(%s:%s)' "$BIND_ADDRESS" "$1"
+    printf '그린(%s:%s)' "$BIND_ADDRESS" "$1"
   fi
 }
 
@@ -141,7 +141,7 @@ container_name_of_port() {
   printf '%s-%s' "$BACKEND_CONTAINER_NAME" "$(color_of_port "$1")"
 }
 
-# nginx가 지금 요청을 보내는 칸을 upstream 파일에서 읽는다. 이 파일은 전환 스크립트만 쓴다.
+# nginx가 지금 요청을 보내는 컨테이너의 포트를 upstream 파일에서 읽는다. 이 파일은 전환 스크립트만 쓴다.
 read_active_port() {
   grep -oE "server[[:space:]]+127\.0\.0\.1:(${BLUE_PORT}|${GREEN_PORT});" "$UPSTREAM_FILE" 2>/dev/null \
     | grep -oE "(${BLUE_PORT}|${GREEN_PORT})" | head -n 1 || true
@@ -189,7 +189,7 @@ verify_after_switch() {
   done
 }
 
-# 옛 컨테이너의 분석 실행기 지표(active, queued)를 정수로 읽는다. 못 읽으면 빈 값을 낸다.
+# 이전 컨테이너의 분석 실행기 지표(active, queued)를 정수로 읽는다. 못 읽으면 빈 값을 낸다.
 # 지표는 스프링 부트가 ThreadPoolTaskExecutor 빈마다 executor.* 이름으로 자동으로 만든다.
 executor_metric() {
   local port="$1"
@@ -201,7 +201,7 @@ executor_metric() {
   printf '%s' "$body" | grep -oE '"value":[0-9.]+' | head -n 1 | cut -d: -f2 | cut -d. -f1 || true
 }
 
-# 전환 뒤에는 옛 컨테이너로 새 요청이 가지 않으므로 돌던 분석 작업만 끝나면 내려도 된다. 실행기는
+# 전환 뒤에는 이전 컨테이너로 새 요청이 가지 않으므로 돌던 분석 작업만 끝나면 내려도 된다. 실행기는
 # 종료할 때 작업을 기다리는 시간(awaitTerminationSeconds)이 없어서, 바로 내리면 DB 연결이 먼저 닫혀
 # 분석이 EXTRACTING에 멈출 수 있다. 그래서 내리기 전에 실행기가 빌 때까지 여기서 기다린다.
 wait_for_drain() {
@@ -214,7 +214,7 @@ wait_for_drain() {
     queued="$(executor_metric "$port" queued)"
 
     if [[ -z "$active" || -z "$queued" ]]; then
-      printf '::warning::옛 컨테이너의 분석 실행기 지표를 읽지 못해 기다리지 않고 내립니다.\n'
+      printf '::warning::이전 컨테이너의 분석 실행기 지표를 읽지 못해 기다리지 않고 내립니다.\n'
       return 0
     fi
 
@@ -225,7 +225,7 @@ wait_for_drain() {
     sleep 2
   done
 
-  printf '::warning::옛 컨테이너의 분석 작업이 %s초 안에 끝나지 않았습니다. 남은 작업은 끊길 수 있습니다.\n' "$DRAIN_TIMEOUT_SECONDS"
+  printf '::warning::이전 컨테이너의 분석 작업이 %s초 안에 끝나지 않았습니다. 남은 작업은 끊길 수 있습니다.\n' "$DRAIN_TIMEOUT_SECONDS"
 }
 
 # 상한이 없으면 메모리가 모자랄 때 커널이 점수를 매겨 희생자를 고르므로 앱이 아니라
@@ -384,7 +384,7 @@ write_summary() {
     printf '## Backend %s 배포\n\n' "${DEPLOY_ENVIRONMENT:-운영}"
     printf -- "- Git SHA: \`%s\`\n" "${GITHUB_SHA:-unknown}"
     printf -- "- 이미지: \`%s\`\n" "$IMAGE_REFERENCE"
-    printf -- "- 요청 받는 칸: %s, 컨테이너 \`%s\`\n" "$(color_label "$serving_port")" "$(container_name_of_port "$serving_port")"
+    printf -- "- 요청 받는 컨테이너: %s, \`%s\`\n" "$(color_label "$serving_port")" "$(container_name_of_port "$serving_port")"
     printf -- "- 자원: \`--memory %s\`, \`--memory-swap %s\`, 헬스 대기 %s초\n" "$BACKEND_MEMORY_LIMIT" "$BACKEND_MEMORY_SWAP_LIMIT" "$HEALTH_TIMEOUT_SECONDS"
     printf -- "- 로그: CloudWatch \`%s\` 스트림 \`%s-blue\`, \`%s-green\`, 로컬 캐시 \`cache-max-size %s\`, \`cache-max-file %s\`\n" "$LOG_GROUP" "$LOG_STREAM_PREFIX" "$LOG_STREAM_PREFIX" "$BACKEND_LOG_MAX_SIZE" "$BACKEND_LOG_MAX_FILE"
     printf -- "- 현재 이미지: \`%s\`\n" "${current_digest:-없음}"
@@ -405,19 +405,19 @@ finish_success() {
   exit 0
 }
 
-# nginx를 돌리기 전에 멈출 때 부른다. 새 컨테이너만 지우므로 요청은 옛 컨테이너가 계속 받는다.
+# nginx를 돌리기 전에 멈출 때 부른다. 새 컨테이너만 지우므로 요청은 이전 컨테이너가 계속 받는다.
 abort_before_switch() {
   local reason="$1"
 
   printf '::error::%s\n' "$reason"
   remove_container "$IDLE_NAME"
   untag_role "$ROLE_CANDIDATE"
-  write_summary "실패" "전환 전에 멈춤. 요청은 $(color_label "$ACTIVE_PORT")이 계속 받음" "$ACTIVE_PORT"
+  write_summary "실패" "전환 전에 멈춤. 요청은 계속 $(color_label "$ACTIVE_PORT")에서 받음" "$ACTIVE_PORT"
   exit 1
 }
 
-# nginx를 돌린 뒤 새 컨테이너가 응답하지 않을 때 부른다. 옛 컨테이너는 아직 내리지 않았으므로
-# nginx를 옛 칸으로 되돌리면 바로 복구된다.
+# nginx를 돌린 뒤 새 컨테이너가 응답하지 않을 때 부른다. 이전 컨테이너는 아직 내리지 않았으므로
+# nginx를 이전 컨테이너로 되돌리면 바로 복구된다.
 revert_and_fail() {
   local reason="$1"
 
@@ -426,11 +426,11 @@ revert_and_fail() {
   if container_running "$ACTIVE_NAME" && liveness_ok "$ACTIVE_PORT" && sudo -n "$SWITCH_COMMAND" "$ACTIVE_PORT"; then
     remove_container "$IDLE_NAME"
     untag_role "$ROLE_CANDIDATE"
-    write_summary "실패" "전환 뒤 응답이 끊겨 $(color_label "$ACTIVE_PORT")으로 되돌림" "$ACTIVE_PORT"
+    write_summary "실패" "전환 뒤 응답이 끊겨 되돌림. 요청은 다시 $(color_label "$ACTIVE_PORT")에서 받음" "$ACTIVE_PORT"
   else
     untag_role "$ROLE_CANDIDATE"
     write_summary "실패" "되돌리지 못함. EC2에서 컨테이너와 nginx 상태 확인 필요" "$IDLE_PORT"
-    printf '::error::옛 컨테이너로 되돌리지 못했습니다. EC2에서 컨테이너와 nginx 상태를 확인해 주세요.\n'
+    printf '::error::이전 컨테이너로 되돌리지 못했습니다. EC2에서 컨테이너와 nginx 상태를 확인해 주세요.\n'
   fi
 
   exit 1
@@ -505,7 +505,7 @@ if [[ ! "$BACKEND_CONTAINER_NAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]; then
   fail "BACKEND_CONTAINER_NAME 형식이 올바르지 않습니다."
 fi
 
-# 블루그린 전 deploy.sh는 칸 구분 없이 이 이름 하나로 8080에서 돌렸고, 중간에 끊기면 -rollback을 남겼다.
+# 블루그린 전 deploy.sh는 블루와 그린 구분 없이 이 이름 하나로 8080에서 돌렸고, 중간에 끊기면 -rollback을 남겼다.
 LEGACY_CONTAINER_NAME="$BACKEND_CONTAINER_NAME"
 LEGACY_ROLLBACK_CONTAINER_NAME="${BACKEND_CONTAINER_NAME}-rollback"
 
@@ -563,7 +563,7 @@ if container_exists "$LEGACY_ROLLBACK_CONTAINER_NAME"; then
 fi
 
 # 블루그린으로 처음 배포할 때는 예전 이름의 컨테이너가 8080에서 요청을 받고 있으므로 그것을 블루로 본다.
-# 반대로 그린이 받는 중에 예전 이름이 남아 있으면 8080 칸을 막고 있는 찌꺼기라 지운다.
+# 반대로 그린이 받는 중에 예전 이름이 남아 있으면 8080을 막고 있는 찌꺼기라 지운다.
 if [[ "$ACTIVE_PORT" == "$BLUE_PORT" ]] && ! container_exists "$ACTIVE_NAME" && container_exists "$LEGACY_CONTAINER_NAME"; then
   ACTIVE_NAME="$LEGACY_CONTAINER_NAME"
 elif [[ "$IDLE_PORT" == "$BLUE_PORT" ]] && container_exists "$LEGACY_CONTAINER_NAME"; then
@@ -583,17 +583,17 @@ if container_exists "$ACTIVE_NAME"; then
 
   if [[ "$ACTIVE_IMAGE_ID" == "$TARGET_IMAGE_ID" ]]; then
     if [[ "$ACTIVE_HEALTH" == "healthy" ]] || wait_for_healthy "$ACTIVE_NAME"; then
-      # 지난 배포가 남긴 빈 칸 컨테이너는 요청을 받지 않으므로 지워도 끊기지 않는다.
+      # 지난 배포가 반대쪽에 남긴 컨테이너는 요청을 받지 않으므로 지워도 끊기지 않는다.
       remove_container "$IDLE_NAME"
       finish_success "이미 배포된 정상 이미지 유지"
     fi
-    # 같은 이미지인데 건강하지 않으면 아래에서 빈 칸에 새로 띄워 넘긴다.
+    # 같은 이미지인데 건강하지 않으면 아래에서 반대쪽에 새로 띄워 넘긴다.
   elif [[ "$ACTIVE_HEALTH" != "healthy" ]]; then
     fail "지금 요청을 받는 컨테이너(${ACTIVE_NAME})가 정상 상태가 아니므로 자동 교체하지 않습니다. EC2 상태를 먼저 확인해 주세요."
   fi
 fi
 
-# 빈 칸에 남은 컨테이너는 지난 배포가 중간에 끊긴 흔적이다. nginx가 요청을 보내지 않는 쪽이라 지운다.
+# 반대쪽에 남은 컨테이너는 지난 배포가 중간에 끊긴 흔적이다. nginx가 요청을 보내지 않는 쪽이라 지운다.
 remove_container "$IDLE_NAME"
 
 if ! start_container "$IMAGE_REFERENCE" "$IDLE_NAME" "$IDLE_PORT"; then
@@ -624,8 +624,8 @@ if container_exists "$ACTIVE_NAME"; then
   fi
 
   if ! docker stop --time "$STOP_TIMEOUT_SECONDS" "$ACTIVE_NAME" >/dev/null || ! docker rm "$ACTIVE_NAME" >/dev/null; then
-    printf '::warning::옛 컨테이너 %s를 정리하지 못했습니다. 요청은 새 컨테이너가 받고 있습니다.\n' "$ACTIVE_NAME"
-    SWITCH_RESULT="${SWITCH_RESULT}, 옛 컨테이너 정리 실패"
+    printf '::warning::이전 컨테이너 %s를 정리하지 못했습니다. 요청은 새 컨테이너가 받고 있습니다.\n' "$ACTIVE_NAME"
+    SWITCH_RESULT="${SWITCH_RESULT}, 이전 컨테이너 정리 실패"
   fi
 fi
 

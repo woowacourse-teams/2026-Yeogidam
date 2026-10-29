@@ -271,7 +271,7 @@ jobs:
       EXPECTED_IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE }}
       BACKEND_ENV_FILE: ${{ vars.BACKEND_ENV_FILE }}
       BACKEND_CONTAINER_NAME: ${{ vars.BACKEND_CONTAINER_NAME || 'yeogidam-backend' }}
-      # 바인딩 주소(127.0.0.1)와 블루그린 두 칸의 포트(8080, 8081)는 deploy.sh의 상수다. 변수로 두면
+      # 바인딩 주소(127.0.0.1)와 블루그린 두 컨테이너의 포트(8080, 8081)는 deploy.sh의 상수다. 변수로 두면
       # 0.0.0.0을 넣는 순간 앱이 TLS 없이 인터넷에 노출되고, 포트가 nginx 설정과 어긋나므로 여기서 받지 않는다.
       BACKEND_HEALTH_TIMEOUT_SECONDS: ${{ vars.BACKEND_HEALTH_TIMEOUT_SECONDS || '150' }}
       # t4g.micro 910Mi에서 러너와 dockerd 등이 고정으로 280MB를 쓰므로 앱에 512MB를 준다.
