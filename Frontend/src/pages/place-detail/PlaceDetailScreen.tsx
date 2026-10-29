@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +17,9 @@ import type {
 import type { Place } from '../../entities/place/types';
 import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
 import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
+import { PlaceFolderAssignPicker } from '../map/components/PlaceFolderPanel';
+import { usePlaceFolders } from '../../lib/usePlaceFolders';
 import { CopyToastProvider } from './components/CopyToast';
-import { PlaceDetailActionSheet } from './components/PlaceDetailActionSheet';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
 
 type PlaceDetailScreenProps = {
@@ -30,6 +31,8 @@ type PlaceDetailScreenProps = {
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
   bottomNavigationBar?: ReactNode;
+  /** 비회원에게는 폴더 버튼을 보여주지 않습니다. */
+  isGuest?: boolean;
 };
 
 export function PlaceDetailScreen({
@@ -40,6 +43,7 @@ export function PlaceDetailScreen({
   guestReels,
   onDeleteGuestPlaces,
   bottomNavigationBar,
+  isGuest = false,
 }: PlaceDetailScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const posthog = usePostHog();
@@ -47,7 +51,21 @@ export function PlaceDetailScreen({
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
-  const [isActionSheetVisible, setIsActionSheetVisible] = useState(false);
+  const [isFolderPickerVisible, setIsFolderPickerVisible] = useState(false);
+  const { folders, getPlaceFolderIds, createFolder, setPlaceFolderIds } =
+    usePlaceFolders(!isGuest);
+  const folderListItems = useMemo(
+    () =>
+      folders.map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        color: folder.color,
+        count: folder.savedPlaceIds.length,
+        thumbnail: undefined,
+      })),
+    [folders],
+  );
+  const placeFolderIds = getPlaceFolderIds(place);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
 
@@ -99,7 +117,6 @@ export function PlaceDetailScreen({
     }
     if (onDeleteGuestPlaces) {
       onDeleteGuestPlaces([place.id]);
-      setIsActionSheetVisible(false);
       onBack();
       return;
     }
@@ -117,7 +134,6 @@ export function PlaceDetailScreen({
     setDeleteError(null);
     try {
       await deleteSavedPlaces([place.savedPlaceId]);
-      setIsActionSheetVisible(false);
       onBack();
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
@@ -125,7 +141,6 @@ export function PlaceDetailScreen({
         try {
           const savedPlaces = await getSavedPlaces();
           if (!savedPlaces.some(savedPlace => savedPlace.id === place.savedPlaceId)) {
-            setIsActionSheetVisible(false);
             onBack();
             return;
           }
@@ -167,6 +182,17 @@ export function PlaceDetailScreen({
     ]);
   }, [handleDelete, isDeleting]);
 
+  // 더보기 시트가 없으므로 삭제에 실패하면 알림 창으로 알립니다.
+  useEffect(() => {
+    if (!deleteError) {
+      return;
+    }
+    Alert.alert('삭제하지 못했어요', deleteError.message);
+    setDeleteError(null);
+  }, [deleteError]);
+
+  const canDelete = guestReels === undefined || onDeleteGuestPlaces !== undefined;
+
   return (
     <CopyToastProvider bottomOffset={BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 16}>
       <PlaceDetailContent
@@ -182,21 +208,27 @@ export function PlaceDetailScreen({
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
-        onPressMore={guestReels === undefined || onDeleteGuestPlaces ? () => {
-          setDeleteError(null);
-          setIsActionSheetVisible(true);
-        } : undefined}
-      />
-      <PlaceDetailActionSheet
-        visible={isActionSheetVisible && (guestReels === undefined || onDeleteGuestPlaces !== undefined)}
-        onClose={() => {
-          setDeleteError(null);
-          setIsActionSheetVisible(false);
-        }}
-        onDelete={confirmDelete}
+        onPressFolder={isGuest ? undefined : () => setIsFolderPickerVisible(true)}
+        onPressDelete={canDelete ? confirmDelete : undefined}
+        isInFolder={placeFolderIds.length > 0}
         isDeleting={isDeleting}
-        deleteError={deleteError}
       />
+      {isGuest ? null : (
+        <PlaceFolderAssignPicker
+          visible={isFolderPickerVisible}
+          placeName={place.name}
+          folders={folderListItems}
+          selectedFolderIds={placeFolderIds}
+          onSave={folderIds => {
+            setPlaceFolderIds(place, folderIds);
+            setIsFolderPickerVisible(false);
+          }}
+          onCancel={() => setIsFolderPickerVisible(false)}
+          onCreateFolder={async (name, color) =>
+            (await createFolder(name, color))?.id ?? null
+          }
+        />
+      )}
       {bottomNavigationBar}
     </CopyToastProvider>
   );

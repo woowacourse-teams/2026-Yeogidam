@@ -1424,6 +1424,7 @@ function App() {
           }
           onBack={closeDetail}
           onAuthenticationRequired={requestLogin}
+          isGuest={isAuthenticated === false}
           place={selectedPlace}
           viewContext={selectedPlaceViewContext ?? undefined}
         />
