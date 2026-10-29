@@ -1,7 +1,7 @@
 {
   "ios": {
     "engine": "hot-updater/interface@1",
-    "hash": "db4f1976249fc54594ef589f7fab60b8a5c876e56c1d13e57827d5a4c757d4cf",
+    "hash": "02049cf30cc9845b83344dee3bacc946da63bb6892d695d956524d0d639da23f",
     "sources": [
       {
         "type": "contents",
@@ -549,6 +549,182 @@
       },
       {
         "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bar.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2fa258f0037846135bd55bfe38596bc5722badc0d19498f62462ed9ce66e0e8e"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bar.imageset/pin-category-bar.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fc1a66941e07d34245c5c81615c8638ef2a9e56e18379fb319d7ffb33d9d7145"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bunsik.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7fdf6cd6de1ae6bde7d4e154e9193ddc5271d47290ef43879b76c1796e58fdfe"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bunsik.imageset/pin-category-bunsik.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "afb5d514359aec46183435c216452403e5f367e8866c34b10dab5f74b2359222"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-cafe.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "484b98c699eb84e3ed357d7279d5a0e39b1c4a6d37f00088da23c0154c2a1327"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-cafe.imageset/pin-category-cafe.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "86bb9928a8561cfb1b8a27833a2ba58641e6d6aea13caa8907a24d9bf67a15d9"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-chinese.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "94796426df4179c1259187d97953422b7ebd71c434abe321a5e5bb68ac38090f"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-chinese.imageset/pin-category-chinese.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d6589770845947dbd18c8ee6911921807551d3a9642f055acadfe839b1747bf0"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-culture_leisure.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c1abf677853c39e5251271935cc402c467395b14803d363c79f50b53840173d1"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-culture_leisure.imageset/pin-category-culture_leisure.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "032ae3f1eca337669f34f2b3a86d24ea40b8af67be8ad38b82039fd239e30801"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-dessert.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "1bbd69a206a6d7827ccdef126247e1e3ba53f3ab35413c45e34bc884eca88f34"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-dessert.imageset/pin-category-dessert.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9dda5d5d3c961b5080b2402d126095951b677b55762f062b405d000ebb3335fd"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-etc.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bc1903579a62c9e475651340de2ba393e97de192a658cc0f03bc78003bf75cd6"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-etc.imageset/pin-category-etc.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6770e6576b55bec8be779a571fc47c3de19107cd4a2edd344656c21f093bdc85"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-japanese.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d94d6c4993c54fe30b7ab0e9c620b877ba4dbea9a952f456faa43ff0a308ce54"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-japanese.imageset/pin-category-japanese.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9f6ab54e64d26490c8b1fb4c6d5df718ed24574773445e622bd60dd4cd53d363"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-korean.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2ac3d17347fe842a6a8a4b3dc800eb999709024c14d1f7db8bb2e9197805c907"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-korean.imageset/pin-category-korean.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c7abea0a3ce40f0c10d1db359c311bbc09ca663182ca2c427c07e5537a2b5e31"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-specialty.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ed2c2e8a59dfe8997b404842ddb9342e3d829b90e4845ea7a65389c2541221db"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-specialty.imageset/pin-category-specialty.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ebd4875fdcd1afeb824e72fe081f8f949bfc078e27306bf449bff5c3e5f6d95f"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-western.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "1c9e1e7d7fdc7e0b73b8ca7fb14b443237eae147697f5e352fd32c5bce9e9089"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-western.imageset/pin-category-western.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9895b22e117c49bf834f79c4074dbcf9309013f531b0e848a27eb3b3828f94e7"
+      },
+      {
+        "type": "file",
         "filePath": "ios/Frontend/Info.plist",
         "reasons": [
           "extra-source"
@@ -601,7 +777,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "1ff73cc8fa3605875012a126aab77d4054f5652135ee978a5b7558f1fff9d9d8"
+        "hash": "1bc207c4ec55ebdec40e8db567622e8a1e2315bbc8685cc1ce317a717b26631e"
       },
       {
         "type": "file",
@@ -625,7 +801,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "68f6ce8a8ede4725d3e4492cedb0c2f3448d528b7d129c8bfed8d51f993cedf6"
+        "hash": "ee70af5f19946a46e3590e61c0bde93a94d74b554b642f0dbe0c2970baaa8425"
       },
       {
         "type": "file",
@@ -633,7 +809,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "ffdaa36b7ff4173e1b7a32e7d0de725ae3b44a611f0c2d50073cd56b8cb78366"
+        "hash": "8390865364f8699f85356fe157f3c7d70b864a94f18668469770fbb23910e11a"
       },
       {
         "type": "file",
@@ -751,7 +927,7 @@
   },
   "android": {
     "engine": "hot-updater/interface@1",
-    "hash": "4deb00993ff0f062c7938450826d11fbaa79483469cf98e8472a5280bf418da8",
+    "hash": "216bb449e8962112c7e4ee51f47c116a4a1d76f881d6ac52b14bc50163fcb870",
     "sources": [
       {
         "type": "contents",
@@ -977,7 +1153,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "22089517d50bccb4d447a62e4ff0de6ee6a3427e6f50c324af06b1b336736c54"
+        "hash": "84328800a488fc1e2167fbea06ae811246f55780f5356226150c767772858913"
       },
       {
         "type": "file",
@@ -1098,6 +1274,94 @@
           "extra-source"
         ],
         "hash": "a213d24fdb471b4a938feeda2c1fc7227f3b7459425aaedb3d15af4b1a6992e7"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_bar.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ab07908631d8afdc8905a3d51d5c6a3833ae8d4ebc47ab7e342ce304309188e6"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_bunsik.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fb330e46ed32e8f29ae0cf8f7da4a198ba5772beba3375f2d2e0e9a11b961115"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_cafe.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "e23fdb309bd0f1f6858df6a8fe7a31afd6b1f89db555f80f622e627b2f898342"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_chinese.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "e1d8cbd298baaca30b9ba321fc36176d257888993563487fca3fecc427b6a318"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_culture_leisure.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bc7ab9894e045aca69176c45cf7a29b843c0d69f24153773d9086185ac0ee9aa"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_dessert.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c4e3d49ac90aab314853df78c9e9c706359b451675980a101a38b75a198476c2"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_etc.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6a268aed67ea7bd346f1c5356a2e49a4f56625f0212642a56cd7e6be3036ea62"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_japanese.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "055d7fc32822f5ede84c5f3d8e19f1e69ae04f5754466cf95d8c8fed28d99bca"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_korean.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c9e9f9fc80a7cc7a451919d3cf8de9b8d4d0baefc2f3efced3a2c68b8014a0cc"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_specialty.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a0849dca5ed22ac74db89a771be676502f18fa4279b9e2f227d6ba0ef7d3f9d2"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_western.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2ee5be785d688512e91f472cd76ccfad2622f6df03b63d7ca4b1f1f6ee8f0ff7"
       },
       {
         "type": "file",
