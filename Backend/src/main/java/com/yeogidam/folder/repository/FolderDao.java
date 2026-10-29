@@ -3,19 +3,15 @@ package com.yeogidam.folder.repository;
 import com.yeogidam.folder.domain.Folder;
 import com.yeogidam.folder.domain.FolderColor;
 import com.yeogidam.folder.domain.FolderName;
-import java.sql.PreparedStatement;
-import java.sql.Statement;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@RequiredArgsConstructor
 public class FolderDao {
 
     private static final RowMapper<FolderProjection> PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -33,6 +29,19 @@ public class FolderDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
+    private final SimpleJdbcInsert jdbcInsert;
+
+    public FolderDao(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
+                .withTableName("folders")
+                .usingColumns(
+                        "member_id",
+                        "name",
+                        "color"
+                )
+                .usingGeneratedKeyColumns("id");
+    }
 
     /**
      * 회원의 폴더를 만든 순서(id 오름차순)로 읽고, 남의 폴더는 member_id 조건에 걸려 빠진다.
@@ -84,19 +93,12 @@ public class FolderDao {
      * 회원의 폴더를 새로 저장하고 생성된 id를 담은 폴더를 돌려주며, 같은 회원의 폴더와 이름이 겹치면 UNIQUE 제약(uk_folders_member_name)에 걸려 DuplicateKeyException이 난다.
      */
     public Folder save(Long memberId, Folder folder) {
-        String sql = """
-                INSERT INTO folders (member_id, name, color)
-                VALUES (?, ?, ?)
-                """;
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
-            statement.setLong(1, memberId);
-            statement.setString(2, folder.getName().value());
-            statement.setString(3, folder.getColor().name());
-            return statement;
-        }, keyHolder);
-        return new Folder(keyHolder.getKey().longValue(), folder.getName(), folder.getColor());
+        Number folderId = jdbcInsert.executeAndReturnKey(Map.of(
+                "member_id", memberId,
+                "name", folder.getName().value(),
+                "color", folder.getColor().name()
+        ));
+        return new Folder(folderId.longValue(), folder.getName(), folder.getColor());
     }
 
     /**
