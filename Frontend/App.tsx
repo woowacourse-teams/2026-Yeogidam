@@ -51,6 +51,7 @@ import {
   getSpringTokens,
   logoutSpringSession,
   onSpringSessionChange,
+  syncStoredSessionToShare,
 } from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
@@ -701,7 +702,11 @@ function App() {
 
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
-      resumeWaitingShares().catch(() => undefined);
+      // 공유 익스텐션에 세션이 비어 있을 수 있어 먼저 채운 뒤 대기 중인 공유를 재개합니다.
+      syncStoredSessionToShare()
+        .catch(() => undefined)
+        .then(() => resumeWaitingShares())
+        .catch(() => undefined);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);

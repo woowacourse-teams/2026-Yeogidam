@@ -170,6 +170,15 @@ export async function getSpringTokens(): Promise<SpringTokenPair | null> {
   return session ? toTokenPair(session) : null;
 }
 
+/**
+ * 앱 시작 시 저장된 세션을 공유 익스텐션에 다시 넣습니다. 동기화 도입 전에 로그인했거나
+ * 이전 동기화가 실패한 회원도 재로그인 없이 공유할 수 있게 합니다.
+ */
+export async function syncStoredSessionToShare(): Promise<void> {
+  const session = await readStoredSession();
+  if (session) await syncNativeShareSession(session);
+}
+
 export async function getSpringMemberId(): Promise<string | null> {
   return (await readStoredRecord())?.memberId ?? null;
 }
