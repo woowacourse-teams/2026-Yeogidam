@@ -57,6 +57,7 @@
     "@babel/runtime": "^7.25.0",
     "@hot-updater/bare": "^1.1.4",
     "@hot-updater/cloudflare": "^1.1.4",
+    "@hot-updater/sentry-plugin": "1.1.4",
     "@react-native-community/cli": "20.1.0",
     "@react-native-community/cli-platform-android": "20.1.0",
     "@react-native-community/cli-platform-ios": "20.1.0",
