@@ -57,6 +57,16 @@ jobs:
       - name: Test
         run: npm run test:ci
 
+      # 네이티브 코드나 네이티브 라이브러리가 바뀌었는데 fingerprint.json을 갱신하지 않으면 실패한다.
+      # OTA 번들은 이 해시가 같은 앱에만 배포되므로, 커밋된 값이 실제 네이티브와 일치해야 한다.
+      - name: Check fingerprint
+        run: |
+          npx hot-updater fingerprint create
+          if ! git diff --exit-code -- fingerprint.json; then
+            echo "::error file=Frontend/fingerprint.json::네이티브 변경이 반영되지 않았습니다. Frontend에서 npx hot-updater fingerprint create를 실행하고 fingerprint.json을 커밋하세요."
+            exit 1
+          fi
+
   # PR에서는 스토어 서명 없이 Android Release APK가 컴파일되는지 확인한다.
   android-build:
     if: inputs.beta_platform == ''
@@ -199,6 +209,7 @@ jobs:
       APP_BUILD_NUMBER: ${{ inputs.build_number }}
       APP_ENV: production
       API_BASE_URL: https://yeogidam.duckdns.org
+      HOT_UPDATER_URL: https://yeogidam-hot-updater.yeogidam.workers.dev
     defaults:
       run:
         working-directory: Frontend
@@ -232,19 +243,22 @@ jobs:
           ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          HOT_UPDATER_CLIENT_KEY: ${{ secrets.HOT_UPDATER_CLIENT_KEY }}
         run: |
           for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY \
             POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
-            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD SENTRY_AUTH_TOKEN; do
+            ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD SENTRY_AUTH_TOKEN \
+            HOT_UPDATER_URL HOT_UPDATER_CLIENT_KEY; do
             if [[ -z "${!key}" ]]; then
               echo "Missing beta build setting: $key" >&2
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\nHOT_UPDATER_URL=%s\nHOT_UPDATER_CLIENT_KEY=%s\n' \
             "$KAKAO_NATIVE_APP_KEY" "$API_BASE_URL" \
-            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" > "$RUNNER_TEMP/frontend-beta-config"
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" \
+            "$HOT_UPDATER_URL" "$HOT_UPDATER_CLIENT_KEY" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
           echo "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN" >> "$GITHUB_ENV"
@@ -304,6 +318,7 @@ jobs:
       APP_BUILD_NUMBER: ${{ inputs.build_number }}
       APP_ENV: production
       API_BASE_URL: https://yeogidam.duckdns.org
+      HOT_UPDATER_URL: https://yeogidam-hot-updater.yeogidam.workers.dev
     defaults:
       run:
         working-directory: Frontend
@@ -332,19 +347,22 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          HOT_UPDATER_CLIENT_KEY: ${{ secrets.HOT_UPDATER_CLIENT_KEY }}
         run: |
           for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY \
             POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
-            APP_STORE_CONNECT_ISSUER_ID SENTRY_AUTH_TOKEN; do
+            APP_STORE_CONNECT_ISSUER_ID SENTRY_AUTH_TOKEN \
+            HOT_UPDATER_URL HOT_UPDATER_CLIENT_KEY; do
             if [[ -z "${!key}" ]]; then
               echo "Missing beta build setting: $key" >&2
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\n' \
+          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\nHOT_UPDATER_URL=%s\nHOT_UPDATER_CLIENT_KEY=%s\n' \
             "$KAKAO_NATIVE_APP_KEY" "$API_BASE_URL" \
-            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" > "$RUNNER_TEMP/frontend-beta-config"
+            "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" \
+            "$HOT_UPDATER_URL" "$HOT_UPDATER_CLIENT_KEY" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
           echo "ENVFILE=$RUNNER_TEMP/frontend-beta-config" >> "$GITHUB_ENV"
           echo "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN" >> "$GITHUB_ENV"

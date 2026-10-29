@@ -3,6 +3,7 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import KakaoMapsSDK
+import HotUpdater
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -104,7 +105,8 @@ private final class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 #if DEBUG
     RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
 #else
-    Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+    // OTA로 받은 번들이 있으면 그 번들을, 없으면 앱에 포함된 main.jsbundle을 사용한다.
+    HotUpdater.bundleURL()
 #endif
   }
 }
