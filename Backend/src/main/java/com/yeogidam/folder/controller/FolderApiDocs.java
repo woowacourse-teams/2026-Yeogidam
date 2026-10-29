@@ -67,6 +67,7 @@ public interface FolderApiDocs {
 
                     - `name`과 `color`를 모두 보내야 합니다.
                     - 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하이고, 같은 회원의 기존 폴더와 겹칠 수 없습니다.
+                    - 이름에는 줄바꿈이나 탭 같은 제어 문자를 넣을 수 없습니다.
                     - `color`는 `RED`, `ORANGE`, `YELLOW`, `GREEN`, `TEAL`, `PURPLE`, `PINK` 중 하나이고, 대소문자를 구분합니다.
                     - 폴더는 회원마다 최대 10개까지 만들 수 있습니다.
                     """,
@@ -86,9 +87,9 @@ public interface FolderApiDocs {
                                                     value = """
                                                     {"message": "폴더는 최대 10개까지 만들 수 있습니다.", "errorCode": "FOLDER400_001"}
                                                     """),
-                                            @ExampleObject(name = "FOLDER400_002", description = "이름이 공백뿐이거나 15자를 넘을 때 돌려줍니다.",
+                                            @ExampleObject(name = "FOLDER400_002", description = "이름이 공백뿐이거나, 15자를 넘거나, 줄바꿈이나 탭 같은 제어 문자가 있을 때 돌려줍니다.",
                                                     value = """
-                                                    {"message": "폴더 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다.", "errorCode": "FOLDER400_002"}
+                                                    {"message": "폴더 이름은 줄바꿈이나 탭 없이 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다.", "errorCode": "FOLDER400_002"}
                                                     """),
                                             @ExampleObject(name = "FOLDER400_003", description = "`color`가 정해진 7가지가 아니거나 소문자가 섞였을 때 돌려줍니다.",
                                                     value = """
@@ -118,6 +119,7 @@ public interface FolderApiDocs {
 
                     - `name`과 `color`를 모두 보내야 합니다.
                     - 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하이고, 같은 회원의 다른 폴더와 겹칠 수 없습니다.
+                    - 이름에는 줄바꿈이나 탭 같은 제어 문자를 넣을 수 없습니다.
                     - 이름은 그대로 두고 색만 바꿔도 됩니다.
                     - `color`는 `RED`, `ORANGE`, `YELLOW`, `GREEN`, `TEAL`, `PURPLE`, `PINK` 중 하나이고, 대소문자를 구분합니다.
                     """,
@@ -128,9 +130,9 @@ public interface FolderApiDocs {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = {
-                                            @ExampleObject(name = "FOLDER400_002", description = "이름이 공백뿐이거나 15자를 넘을 때 돌려줍니다.",
+                                            @ExampleObject(name = "FOLDER400_002", description = "이름이 공백뿐이거나, 15자를 넘거나, 줄바꿈이나 탭 같은 제어 문자가 있을 때 돌려줍니다.",
                                                     value = """
-                                                    {"message": "폴더 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다.", "errorCode": "FOLDER400_002"}
+                                                    {"message": "폴더 이름은 줄바꿈이나 탭 없이 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다.", "errorCode": "FOLDER400_002"}
                                                     """),
                                             @ExampleObject(name = "COMMON400_001", description = "`name`이나 `color`가 없을 때 돌려줍니다.",
                                                     value = """

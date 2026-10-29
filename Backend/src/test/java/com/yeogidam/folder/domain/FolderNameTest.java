@@ -50,4 +50,14 @@ class FolderNameTest {
                 .extracting("errorCode")
                 .isEqualTo(FolderErrorCode.INVALID_FOLDER_NAME);
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"카페\n추천", "\n카페", "카페\t", "\r카페", "카페\r\n추천", "카페\u0000"})
+    void 줄바꿈이나_탭_같은_제어_문자가_있으면_예외가_발생한다(String value) {
+        // when & then
+        assertThatThrownBy(() -> new FolderName(value))
+                .isInstanceOf(FolderException.class)
+                .extracting("errorCode")
+                .isEqualTo(FolderErrorCode.INVALID_FOLDER_NAME);
+    }
 }

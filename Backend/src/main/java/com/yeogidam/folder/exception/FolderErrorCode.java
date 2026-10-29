@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 public enum FolderErrorCode implements ErrorCode {
 
     FOLDER_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "FOLDER400_001", "폴더는 최대 10개까지 만들 수 있습니다."),
-    INVALID_FOLDER_NAME(HttpStatus.BAD_REQUEST, "FOLDER400_002", "폴더 이름은 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다."),
+    INVALID_FOLDER_NAME(HttpStatus.BAD_REQUEST, "FOLDER400_002", "폴더 이름은 줄바꿈이나 탭 없이 앞뒤 공백을 뺀 1자 이상 15자 이하여야 합니다."),
     INVALID_FOLDER_COLOR(HttpStatus.BAD_REQUEST, "FOLDER400_003", "color는 RED, ORANGE, YELLOW, GREEN, TEAL, PURPLE, PINK 중 하나여야 합니다."),
     FOLDER_NOT_FOUND(HttpStatus.NOT_FOUND, "FOLDER404_001", "폴더를 찾을 수 없습니다."),
     SAVED_PLACE_OR_FOLDER_NOT_FOUND(HttpStatus.NOT_FOUND, "FOLDER404_002", "보관함 장소나 폴더를 찾을 수 없습니다."),
