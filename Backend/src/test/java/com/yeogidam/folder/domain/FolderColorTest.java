@@ -15,6 +15,7 @@ class FolderColorTest {
 
     @Test
     void 폴더_색은_빨강부터_분홍까지_7가지가_있다() {
+        // when & then
         assertThat(FolderColor.values())
                 .containsExactly(
                         FolderColor.RED,
@@ -30,6 +31,7 @@ class FolderColorTest {
     @ParameterizedTest
     @EnumSource(FolderColor.class)
     void 대문자_색_코드로_폴더_색을_찾는다(FolderColor color) {
+        // when & then
         assertThat(FolderColor.from(color.name()))
                 .isEqualTo(color);
     }
@@ -37,6 +39,7 @@ class FolderColorTest {
     @ParameterizedTest
     @ValueSource(strings = {"pink", "Pink", "pINK"})
     void 소문자가_섞인_색_코드면_예외가_발생한다(String value) {
+        // when & then
         assertThatThrownBy(() -> FolderColor.from(value))
                 .isInstanceOf(FolderException.class)
                 .extracting("errorCode")
@@ -47,6 +50,7 @@ class FolderColorTest {
     @NullAndEmptySource
     @ValueSource(strings = {"BLUE", "#F06292", "BLACK"})
     void 모르는_색_코드면_예외가_발생한다(String value) {
+        // when & then
         assertThatThrownBy(() -> FolderColor.from(value))
                 .isInstanceOf(FolderException.class)
                 .extracting("errorCode")
