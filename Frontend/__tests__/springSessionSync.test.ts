@@ -16,6 +16,7 @@ import {
   logoutSpringSession,
   onSpringSessionChange,
   refreshSpringSession,
+  syncStoredSessionToShare,
 } from '../src/lib/auth/spring-session';
 import {
   getShareSession,
@@ -242,4 +243,41 @@ test('AUTH401_005면 공유 익스텐션이 쓴 새 토큰을 기다렸다가 �
   });
   expect(stored).not.toBeNull();
   expect(listener).not.toHaveBeenCalledWith('SIGNED_OUT', expect.anything());
+});
+
+test('이전에 로그인해 공유 세션이 비어 있어도 앱 실행 시 저장된 세션을 공유 저장소에 복사한다', async () => {
+  const pair = tokens('access-1', 'refresh-1', 60);
+  storeSession(pair, '7');
+
+  await syncStoredSessionToShare();
+
+  expect(syncShareSession).toHaveBeenCalledTimes(1);
+  expect(nativeSession).toEqual({
+    accessToken: 'access-1',
+    refreshToken: 'refresh-1',
+    expiresAt: Math.floor(Date.parse(pair.expiresAt) / 1000),
+    userId: '7',
+  });
+});
+
+test('저장된 세션이 없으면 앱 실행 시 공유 저장소를 건드리지 않는다', async () => {
+  await syncStoredSessionToShare();
+
+  expect(syncShareSession).not.toHaveBeenCalled();
+});
+
+test('공유 익스텐션이 더 새 토큰으로 회전했다면 덮어쓰지 않고 그 토큰을 복사한다', async () => {
+  storeSession(tokens('access-old', 'refresh-old', 5), '7');
+  const newer = tokens('access-new', 'refresh-new', 60);
+  nativeSession = {
+    accessToken: 'access-new',
+    refreshToken: 'refresh-new',
+    expiresAt: Math.floor(Date.parse(newer.expiresAt) / 1000),
+    userId: '7',
+  };
+
+  await syncStoredSessionToShare();
+
+  expect(nativeSession?.refreshToken).toBe('refresh-new');
+  expect((await getSpringTokens())?.refreshToken).toBe('refresh-new');
 });

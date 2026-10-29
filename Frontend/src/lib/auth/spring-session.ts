@@ -165,6 +165,17 @@ async function readStoredSession(): Promise<StoredSpringSession | null> {
   return stored ? adoptNativeShareSession(stored) : null;
 }
 
+/**
+ * 앱 실행 때마다 앱 세션을 공유 익스텐션 저장소에 다시 복사합니다. 로그인과 토큰 갱신 때만
+ * 복사하면, 그 전에 로그인한 사용자는 앱은 로그인 상태인데 익스텐션엔 토큰이 없습니다.
+ * 읽는 과정에서 익스텐션이 회전한 더 새 토큰은 먼저 앱으로 가져오므로 덮어쓰지 않습니다.
+ */
+export async function syncStoredSessionToShare(): Promise<void> {
+  const session = await readStoredSession().catch(() => null);
+  if (!session) return;
+  await syncNativeShareSession(session);
+}
+
 export async function getSpringTokens(): Promise<SpringTokenPair | null> {
   const session = await readStoredSession();
   return session ? toTokenPair(session) : null;

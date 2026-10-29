@@ -51,6 +51,7 @@ import {
   getSpringTokens,
   logoutSpringSession,
   onSpringSessionChange,
+  syncStoredSessionToShare,
 } from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
@@ -701,7 +702,11 @@ function App() {
 
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
-      resumeWaitingShares().catch(() => undefined);
+      // 이전 버전에서 로그인한 사용자도 공유 익스텐션이 토큰을 읽을 수 있게 매 실행마다 복사합니다.
+      syncStoredSessionToShare()
+        .catch(() => undefined)
+        .then(() => resumeWaitingShares())
+        .catch(() => undefined);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
