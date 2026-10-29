@@ -76,3 +76,5 @@ xcuserdata/
 .env.hotupdater
 .hot-updater/output
 .hot-updater/log
+# hot-updater
+keys/private-key.pem

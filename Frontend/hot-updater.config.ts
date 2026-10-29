@@ -1,11 +1,11 @@
-import { bare } from "@hot-updater/bare";
-import { d1Database, r2Storage } from "@hot-updater/cloudflare";
-import { defineConfig } from "hot-updater";
-import { apiKeys, insights, remoteConfig } from "hot-updater/plugins";
-import { existsSync } from "node:fs";
+import { bare } from '@hot-updater/bare';
+import { d1Database, r2Storage } from '@hot-updater/cloudflare';
+import { defineConfig } from 'hot-updater';
+import { apiKeys, insights, remoteConfig } from 'hot-updater/plugins';
+import { existsSync } from 'node:fs';
 
-if (existsSync(".env.hotupdater")) {
-  process.loadEnvFile(".env.hotupdater");
+if (existsSync('.env.hotupdater')) {
+  process.loadEnvFile('.env.hotupdater');
 }
 
 export default defineConfig({
@@ -24,5 +24,15 @@ export default defineConfig({
     cloudflareApiToken: process.env.HOT_UPDATER_CLOUDFLARE_API_TOKEN!,
   }),
   plugins: [apiKeys(), insights(), remoteConfig()],
-  updateStrategy: "appVersion", // or "fingerprint"
+  updateStrategy: 'appVersion', // or "fingerprint",
+  signing: {
+    enabled: true,
+    privateKeyPath: './keys/private-key.pem',
+  },
+  platform: {
+    ios: { infoPlistPaths: ['ios/Frontend/Info.plist'] },
+    android: {
+      androidManifestPaths: ['android/app/src/main/AndroidManifest.xml'],
+    },
+  },
 });
