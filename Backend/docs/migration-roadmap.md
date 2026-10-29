@@ -63,7 +63,7 @@ PR 0 (수 오전, 공동)  →  1단계 (수 ~ 금, 3일)              →  2단
 
 정오 전에 머지한다. 내용은 스키마와 결정뿐이며 코드는 넣지 않는다.
 
-1. (2026-09-16 작성, 커밋 4df7ec9, be-dev 머지) `schema.sql`에 핵심 테이블 8개를 추가했다. 파일은 `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들고(로컬 실행용 데이터는 `data-local.sql`로), 시각은 `TIMESTAMP(6)`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 현재 쓰는 상태 어휘(`extraction_status`, `source_type`, `failure_reason`)는 CHECK로 막고 `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 두 테이블을 참조하는 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. `application.yml`의 기본은 `spring.sql.init.mode: never`이고 `local`, `test` 프로필만 `always`다(2026-09-19 프로필 분리, docs/profiles.md). 로컬 실행용 데이터는 `data-local.sql`에 두어 `local` 프로필의 `data-locations`에서만 읽고 회원 행은 `LocalMemberSeeder`가 `.env`의 카카오 회원번호로 넣는다. bean-fable의 테이블 이름은 아래 표처럼 옮겼다.
+1. (2026-09-16 작성, 커밋 4df7ec9, be-dev 머지) 당시 `schema.sql`에 핵심 테이블 8개를 추가했다. `DROP TABLE IF EXISTS` 뒤 `CREATE TABLE`로 기동마다 새로 만들었고, 시각은 `TIMESTAMP(6)`, 제약 이름은 `uk_<테이블>_<컬럼>`, `fk_<테이블>_<참조>`, `chk_<테이블>_<컬럼>`으로 통일했다. 현재 쓰는 상태 어휘(`extraction_status`, `source_type`, `failure_reason`)는 CHECK로 막고 `failure_reason`은 FAILED일 때만 들어가는 CHECK를 하나 더 두었다. `shared_media.member_id`, `saved_places.member_id`와 두 테이블을 참조하는 자식 FK는 `ON DELETE CASCADE`라 회원 탈퇴가 세션 폐기 + `members` 한 행 삭제로 끝난다. 2026-09-19 프로필 분리 당시에는 `local`, `test`만 SQL 자동 초기화를 사용했다. 현재 로컬 코드에서는 `schema.sql`을 삭제하고 모든 프로필의 `spring.sql.init.mode`를 `never`로 두며 Flyway로 구조를 관리한다. 로컬은 매 실행 미적용 마이그레이션만 적용한 뒤 업무 데이터와 ID를 TRUNCATE하고, `LocalMemberSeeder`, `db/seed/data-local.sql`, `db/seed/data-onboarding.sql` 순서로 샘플을 넣는다([Flyway 적용 구조](flyway.md)). bean-fable의 테이블 이름은 아래 표처럼 옮겼다.
 
 | bean-fable | be-dev | 비고 |
 |---|---|---|
@@ -106,10 +106,10 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 | 대상 | 규칙 |
 |---|---|
-| `schema.sql`, `cleanup.sql` | PR 0 이후의 스키마 변경은 다른 작업을 섞지 않은 단독 소형 PR로만 한다 |
+| `db/migration/*.sql`, `cleanup.sql` | PR 0 이후의 스키마 변경은 다른 작업을 섞지 않은 단독 소형 PR로만 한다. 구조 변경은 새 버전 파일에 작성한다 |
 | 컨트롤러와 문서 인터페이스 | 자원마다 파일이 따로다. `/shares`의 GET은 1단계에서 B가 만들고 POST는 2단계에서 각자 추가한다 |
 | DTO | 응답 DTO는 만든 사람이 소유한다. 공용 DTO를 만들지 않는다. 장소 목록 항목과 장소 상세처럼 모양이 같은 곳은 같은 묶음 안에서만 공유하고, A와 B에 같이 나오는 "공유 한 건"은 PR 0에서 맞춘 필드 이름을 쓴다 |
-| `E2eTestSupport` | 건드리지 않는다. DB 행 픽스처는 `support/fixture/sql`의 `XxxSqlFixture`(final 클래스, `insertXxx(jdbcTemplate, id, …)` 정적 메서드, 텍스트 블록 INSERT)로 두고 DAO 테스트와 E2E가 given에서 필요한 행만 직접 넣는다(2026-09-21 결정, `src/test/resources`의 `*.sql` 픽스처 파일과 `@Sql` 심기는 폐기, `cleanup.sql`만 남김). 같은 given이 반복되면 테스트 클래스의 private 메서드로 뺀다. E2E의 회원은 `loginAsKakao`가 만들고 `LoginResult.memberId()`를 픽스처에 넘긴다. A는 members, places, saved_places(+media, shared_media, shared_media_saved_places), B는 media, shared_media, media_places 픽스처를 각자 만들고 겹치면 2단계에서 하나로 합친다 |
+| `E2eTestSupport` | 건드리지 않는다. DB 행 픽스처는 `support/fixture/sql`의 `XxxSqlFixture`(final 클래스, `insertXxx(jdbcTemplate, id, …)` 정적 메서드, 텍스트 블록 INSERT)로 두고 DAO 테스트와 E2E가 given에서 필요한 행만 직접 넣는다(2026-09-21 결정, `src/test/resources`의 `*.sql` 픽스처 파일과 `@Sql` 심기는 폐기. 현재 데이터 정리는 `src/main/resources/cleanup.sql` 하나를 로컬과 테스트가 함께 사용). 같은 given이 반복되면 테스트 클래스의 private 메서드로 뺀다. E2E의 회원은 `loginAsKakao`가 만들고 `LoginResult.memberId()`를 픽스처에 넘긴다. A는 members, places, saved_places(+media, shared_media, shared_media_saved_places), B는 media, shared_media, media_places 픽스처를 각자 만들고 겹치면 2단계에서 하나로 합친다 |
 | 브랜치와 리뷰 | 이슈 번호별 `feat/#번호`(예: `feat/#141`)에서 작업하고 PR은 서로 교차 리뷰한다. 상대 PR이 머지되면 그날 퇴근 전에 be-dev에 rebase한다. 같은 자원의 후속 PR은 앞 PR 브랜치를 base로 쌓고 PR을 만들 때 "Start a pull request stack"을 켠다(#179 → #197 → #200). 앞 PR이 머지되면 GitHub가 위 PR을 be-dev 위로 다시 얹고 base를 바꾸는데, 충돌이 있으면 서버가 못 하므로 `git rebase --onto origin/be-dev <앞 브랜치> <내 브랜치>`로 로컬에서 풀고 force push한다. PR을 올리거나 리뷰와 댓글이 달리면 Discord 워크플로(#188)가 BE 채널로 알리고, 리뷰 기한은 제출 다음 날 23:59다 |
 | 완료 조건 | 표의 API가 Swagger에 보이고 E2E가 통과하며 be-dev에 머지되어 있다 |
 
@@ -167,7 +167,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 
 **1 인가 기초 작업.** (2026-09-16 완료) 구조는 spring-roomescape-waiting의 auth 패키지를 따랐다. LoginCheckInterceptor가 /api/** 중 /api/v1/auth/**를 뺀 경로에서 Bearer 토큰을 검증하고 LoginMemberArgumentResolver가 @LoginMember Long에 회원 식별자를 넣는다. 토큰 없음은 AUTH401_004, 깨지거나 만료된 토큰은 AUTH401_001이다. E2eTestSupport에 "로그인해서 액세스 토큰을 얻는" 헬퍼를 두면 이후 모든 화면 E2E가 같은 헬퍼를 쓴다. 액세스 토큰 만료 30분은 공유 확장이 같은 토큰을 쓰므로 사이클 13에서 다시 본다.
 
-**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 이후 작업은 모두 여기서 정한 계약을 따른다. bean-fable schema.sql의 instagram_media, media_share, media_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP(6)이고 테이블은 기동마다 DROP 뒤 CREATE한다. 접수 서비스(`ShareService.createShare`, 4.3)는 회원 확인, URL 파싱, 게시물 find-or-create, 공유 삽입, 추출 성공 장소의 자동 저장, 실패 상태면 재추출 선점, 커밋 후 디스패치까지 한 트랜잭션이다. 접수 멱등성 구현은 6.1 백로그 1에 둔다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기)의 네 겹으로 둔다.
+**2 스키마 계약과 접수 기본 흐름.** 사이클 2가 가장 크고 이후 작업은 모두 여기서 정한 계약을 따른다. bean-fable의 초기 스키마에서 instagram_media, media_share, media_place, place, saved_place, saved_place_share, media_share_report를 media, shared_media, media_places, places, saved_places, shared_media_saved_places, shared_media_reports로 옮겼다(4.1). 시각은 TIMESTAMP(6)이고 구조는 Flyway 버전 파일로 관리한다. 로컬은 기동마다 미적용 마이그레이션만 적용한 뒤 업무 데이터와 ID를 TRUNCATE하고, 테스트 컨테이너는 최초 한 번 적용한 뒤 테스트 사이에 업무 데이터만 정리한다. 접수 서비스(`ShareService.createShare`, 4.3)는 회원 확인, URL 파싱, 게시물 find-or-create, 공유 삽입, 추출 성공 장소의 자동 저장, 실패 상태면 재추출 선점, 커밋 후 디스패치까지 한 트랜잭션이다. 접수 멱등성 구현은 6.1 백로그 1에 둔다. 테스트는 도메인(이미 있음), @JdbcTest(DAO), 서비스 통합, E2E(awaitility로 Fake 완료 대기)의 네 겹으로 둔다.
 
 **3 히스토리.** 목록은 `created_at DESC`, `shared_media.id DESC` 순서로 커서 페이징한다. 첫 페이지 요청은 폴링에도 쓰고, 다음 페이지 요청에는 응답의 `nextCursor`를 전달한다. 재시도는 이력 스냅숏과 게시물 스냅숏 두 번으로 판단한다. 먼저 이력이 본인 것이고 FAILED이며 재시도 규칙에 맞는지 보고(아니면 404 또는 400), 게시물 행을 FOR UPDATE로 잠근 뒤 `ExtractionSnapshot.statusAfterRetry`가 현재 상태로 새 이력의 상태를 정한다. 재추출이 필요하면 UPDATE에 조건을 두지 않고 갱신한 뒤 커밋 후 디스패치한다. 규칙과 바뀐 이유는 9절에 있다.
 
@@ -225,7 +225,7 @@ A가 약 1.7일, B가 약 2.25일로 합쳐 4인일 안팎이다. 6인일 중 �
 13. **2단계 합치는 날과 방식.** (지남) 후보는 다음 주 목요일(09-24)이었다. 비교 기준은 4.3에 적었고 구현 중 서로 코드를 볼지는 도메인 모델링 때 방식을 따른다.
 14. **시각 형식 통일.** (완료, 2026-09-24) 도메인과 애플리케이션의 시각 타입은 `Instant`로 통일하고, DB의 `TIMESTAMP(6)`(마이크로초 단위)를 사용한다. JDBC 경계에서만 `Timestamp`로 변환하며, API 응답과 projection은 ISO-8601 UTC(`Instant`)를 사용한다.
 15. **읽기 규칙의 자리.** SQL은 회원 소유 확인과 커서 경계를 처리하고, 서비스는 추출 장소를 보관함과 공유 이력에 연결한다. 여러 행을 줄이거나 묶는 규칙은 Projection 일급 컬렉션에 두고, 한 항목의 표시값은 DTO의 정적 팩토리에서 계산한다. 규칙 하나를 SQL 반, 자바 반으로 나누지 않는다.
-16. **분석 상태의 저장 위치.** (미결, #297) #282가 `shared_media`에 상태 3열을 복사해 두었는데, `media`와 중복 저장을 유지할지 `extraction_attempts` 테이블로 분리할지는 따로 논의한다.
+16. **분석 상태의 저장 위치.** (#297 후속 단계, 2026-10-27 갱신) #412의 [Flyway V1 기반](flyway.md)은 개발 서버에 적용됐고 운영 최초 적용은 추후 진행한다. 기존 분석 구조와 API는 유지한다. #469의 V2, V3는 폴더와 소속 테이블을 추가하며 #297의 선행 조건이 아니다. #297은 실제 병합 순서에 맞춰 후속 버전 SQL과 데이터 이관 절차를 정한다. 운영 배포 전에 기존 구조의 V1 일치, 백업과 DB 계정 권한을 확인한다.
 17. **재시도 API의 자리.** (미결, #306) 재시도를 재공유 `POST /shares`에 합칠지, 지금처럼 별도 엔드포인트로 두되 내부 흐름을 공유할지 정한다.
 18. **재시도 반복 요청.** (미결. #309는 2026-10-08에 닫고 추후 논의로 미룸) 분석 중인 이력의 반복은 #282에서 같은 회원이면 기존 이력을 돌려주도록 막았고 E2E로 고정했다(9절). 성공한 게시물의 옛 실패 이력을 반복 재시도하면 이력과 보관함 연결이 요청 수만큼 늘어나는 것은 남아 있다. 16번(#297), 17번(#306)과 함께 논의해 정하고, 정한 내용에 따라 관련 이슈 본문을 고친다.
 19. **제보 후속.** (미결, 부모 이슈 #320 아래 #311, #319, #310) 제보 접수 때 모니터링 Discord 알림(#311), 히스토리 응답의 제보 여부(#319), 제보된 릴스를 운영자가 처리해 회원에게 알리는 흐름(#310). 중복 제보는 2026-10-08 FE와 정했다. 서버는 같은 이력에 409를 유지하고, 앱은 히스토리 응답의 제보 여부가 참이면 제보 API를 부르지 않는다(#319).

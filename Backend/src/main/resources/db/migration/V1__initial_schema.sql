@@ -1,12 +1,3 @@
-DROP TABLE IF EXISTS shared_media_reports;
-DROP TABLE IF EXISTS shared_media_saved_places;
-DROP TABLE IF EXISTS saved_places;
-DROP TABLE IF EXISTS media_places;
-DROP TABLE IF EXISTS shared_media;
-DROP TABLE IF EXISTS media;
-DROP TABLE IF EXISTS places;
-DROP TABLE IF EXISTS refresh_sessions;
-DROP TABLE IF EXISTS members;
 
 CREATE TABLE members
 (

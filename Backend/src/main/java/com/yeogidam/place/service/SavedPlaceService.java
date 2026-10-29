@@ -1,6 +1,8 @@
 package com.yeogidam.place.service;
 
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
+import com.yeogidam.place.domain.PlaceCategory;
+import com.yeogidam.place.domain.PlaceCategoryClassifier;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponse;
@@ -8,6 +10,7 @@ import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.place.exception.PlaceException;
 import com.yeogidam.place.repository.SavedPlaceDao;
+import com.yeogidam.place.repository.SavedPlaceFolderProjections;
 import com.yeogidam.place.repository.SavedPlaceMediaProjections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -22,11 +25,19 @@ public class SavedPlaceService {
     private final SavedPlaceDao savedPlaceDao;
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
 
+    /**
+     * 보관함을 최근 저장 순으로 읽고, 항목마다 폴더 ID를 담은 순서대로 붙인다.
+     * 장소와 폴더 연결을 각각 한 번 조회하므로 보관함 항목 수와 무관하게 쿼리는 두 번 실행한다.
+     */
     public SavedPlaceResponses readSavedPlaces(Long memberId) {
-        List<SavedPlaceResponse> responses = savedPlaceDao.findAllByMember(memberId).stream()
+        SavedPlaceFolderProjections folders = savedPlaceDao.findFolderLinksByMember(memberId);
+        List<SavedPlaceResponse> responses = savedPlaceDao.findAllByMember(memberId)
+                .stream()
                 .map(projection -> {
+                    PlaceCategory category = PlaceCategoryClassifier.classify(projection.category());
                     String placeThumbnailUrl = mediaThumbnailUrlResolver.resolve(projection.thumbnailKey());
-                    return SavedPlaceResponse.from(projection, placeThumbnailUrl);
+                    List<Long> folderIds = folders.folderIdsOf(projection.savedPlaceId());
+                    return SavedPlaceResponse.from(projection, placeThumbnailUrl, category, folderIds);
                 })
                 .toList();
         return SavedPlaceResponses.fromResponses(responses);

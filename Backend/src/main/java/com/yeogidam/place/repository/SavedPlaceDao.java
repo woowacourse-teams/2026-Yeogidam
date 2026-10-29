@@ -17,7 +17,7 @@ public class SavedPlaceDao {
 
     private static final RowMapper<SavedPlaceProjection> PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
             new SavedPlaceProjection(
-                    resultSet.getLong("saved_place_id"),
+                    resultSet.getLong("id"),
                     resultSet.getLong("place_id"),
                     resultSet.getString("name"),
                     resultSet.getString("category"),
@@ -30,6 +30,12 @@ public class SavedPlaceDao {
                     resultSet.getString("thumbnail_key"),
                     resultSet.getString("thumbnail_source"),
                     resultSet.getTimestamp("last_saved_at").toInstant()
+            );
+
+    private static final RowMapper<SavedPlaceFolderProjection> FOLDER_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SavedPlaceFolderProjection(
+                    resultSet.getLong("saved_place_id"),
+                    resultSet.getLong("folder_id")
             );
 
     private static final RowMapper<SavedPlaceMediaProjection> MEDIA_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -87,7 +93,7 @@ public class SavedPlaceDao {
      */
     public List<SavedPlaceProjection> findAllByMember(Long memberId) {
         String sql = """
-                SELECT sp.id AS saved_place_id,
+                SELECT sp.id,
                        p.id AS place_id,
                        p.name,
                        p.category,
@@ -106,6 +112,25 @@ public class SavedPlaceDao {
                 ORDER BY sp.last_saved_at DESC
                 """;
         return jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, memberId);
+    }
+
+    /**
+     * 회원의 폴더와 보관함 항목이 연결된 행을 담은 시각 오름차순으로 읽고, 같은 시각이면 연결 ID 오름차순으로 읽는다.
+     * 보관함 항목별로 묶는 일은 SavedPlaceFolderProjections가 맡는다.
+     */
+    public SavedPlaceFolderProjections findFolderLinksByMember(Long memberId) {
+        String sql = """
+                SELECT fsp.saved_place_id, fsp.folder_id
+                FROM folder_saved_places fsp
+                JOIN folders f ON f.id = fsp.folder_id
+                JOIN saved_places sp ON sp.id = fsp.saved_place_id
+                WHERE f.member_id = ?
+                  AND sp.member_id = ?
+                ORDER BY fsp.created_at ASC, fsp.id ASC
+                """;
+        return new SavedPlaceFolderProjections(
+                jdbcTemplate.query(sql, FOLDER_PROJECTION_ROW_MAPPER, memberId, memberId)
+        );
     }
 
     /**

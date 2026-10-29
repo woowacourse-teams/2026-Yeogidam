@@ -1,6 +1,8 @@
--- E2E 테스트 메서드 간 격리용. 트랜잭션 롤백으로 격리할 수 없는 테스트가 시작 전에 돌린다.
--- 시나리오 데이터(회원, 세션, 게시물, 공유, 장소, 보관함, 제보)를 전부 비운다.
+-- 로컬 앱 시작과 각 DB 테스트 전에 함께 사용하는 데이터 정리 SQL이다.
+-- 업무 데이터와 자동 증가 ID만 초기화한다. 테이블 구조와 flyway_schema_history는 유지한다.
 SET FOREIGN_KEY_CHECKS = 0;
+TRUNCATE TABLE folder_saved_places;
+TRUNCATE TABLE folders;
 TRUNCATE TABLE shared_media_reports;
 TRUNCATE TABLE shared_media_saved_places;
 TRUNCATE TABLE saved_places;

@@ -1,5 +1,7 @@
 package com.yeogidam.place;
 
+import static com.yeogidam.support.fixture.sql.FolderSavedPlaceSqlFixture.insertFolderSavedPlace;
+import static com.yeogidam.support.fixture.sql.FolderSqlFixture.insertFolder;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
@@ -49,6 +51,11 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces.placeId", contains(3, 2, 1))
                 .body("savedPlaces[0].name", equalTo("경복궁"))
                 .body("savedPlaces[0].category", equalTo("관광명소"))
+                .body("savedPlaces.categoryCode", contains("CULTURE_LEISURE", "CAFE", "CAFE"))
+                .body("savedPlaces.categoryName", contains("문화/여가", "카페", "카페"))
+                .body("savedPlaces[1].name", equalTo("윤숲 후르츠산도"))
+                .body("savedPlaces[1].category", equalTo("음식점 > 카페"))
+                .body("savedPlaces[2].category", equalTo("음식점 > 카페"))
                 .body("savedPlaces[0].landLotAddress", equalTo("서울 종로구 세종로 1-1"))
                 .body("savedPlaces[0].roadAddress", equalTo("서울 종로구 사직로 161"))
                 .body("savedPlaces[0].latitude", equalTo(37.5796f))
@@ -59,6 +66,82 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces[0].thumbnailSource", equalTo("KAKAO"))
                 .body("savedPlaces[0].lastSavedAt", equalTo("2026-09-15T00:00:10Z"))
                 .body("savedPlaces[1].roadAddress", nullValue());
+    }
+
+    @Test
+    void 담긴_폴더의_ID를_배열로_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertFolder(jdbcTemplate, 51L, login.memberId(), "성수 카페", "RED");
+        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(SAVED_PLACES_PATH)
+                .then()
+                .statusCode(200)
+                .body("savedPlaces", hasSize(1))
+                .body("savedPlaces[0].folderIds", contains(51));
+    }
+
+    @Test
+    void 담긴_폴더가_없으면_빈_배열을_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(SAVED_PLACES_PATH)
+                .then()
+                .statusCode(200)
+                .body("savedPlaces[0].folderIds", hasSize(0));
+    }
+
+    @Test
+    void 카테고리가_null이면_원문은_null로_유지하고_기타_칩을_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 1L, "kakao-1", "카테고리 없는 장소", "서울 광진구 화양동 1-1",
+                new BigDecimal("37.5400"), new BigDecimal("127.0700"));
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(SAVED_PLACES_PATH)
+                .then()
+                .statusCode(200)
+                .body("savedPlaces", hasSize(1))
+                .body("savedPlaces[0].category", nullValue())
+                .body("savedPlaces[0].categoryCode", equalTo("ETC"))
+                .body("savedPlaces[0].categoryName", equalTo("기타"));
+    }
+
+    @Test
+    void 카테고리_원문의_공백은_유지하고_분류한_칩을_함께_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        String category = "  음식점  >  간식 > 베이커리  ";
+        insertPlace(jdbcTemplate, 1L, "kakao-1", "성수 베이커리", category, "서울 성동구 성수동2가 289-10",
+                null, new BigDecimal("37.5445"), new BigDecimal("127.0561"),
+                "https://place.map.kakao.com/1", null, null, null);
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(SAVED_PLACES_PATH)
+                .then()
+                .statusCode(200)
+                .body("savedPlaces[0].category", equalTo(category))
+                .body("savedPlaces[0].categoryCode", equalTo("DESSERT"))
+                .body("savedPlaces[0].categoryName", equalTo("디저트"));
     }
 
     @Test
@@ -234,14 +317,14 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     /**
-     * 카페 온월은 열 전부가 채워진 장소(구글 사진), 윤숲은 비어 있을 수 있는 열이 전부 NULL인 장소, 경복궁은 카카오 사진에 전화가 없는 장소다.
+     * 카페 온월은 열 전부가 채워진 장소(구글 사진), 윤숲은 카테고리 외의 선택 열이 NULL인 카페, 경복궁은 카카오 사진에 전화가 없는 장소다.
      */
     private void insertThreePlaces() {
         insertPlace(jdbcTemplate, 1L, "kakao-1", "카페 온월", "음식점 > 카페", "서울 성동구 성수동2가 289-10",
                 "서울 성동구 성수이로 26 2층", new BigDecimal("37.5445"), new BigDecimal("127.0561"),
                 "https://place.map.kakao.com/1", "02-1234-5678", "https://img.example.com/1.jpg", "GOOGLE");
-        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 2L, "kakao-2", "윤숲 후르츠산도", "서울 광진구 화양동 1-1",
-                new BigDecimal("37.5400"), new BigDecimal("127.0700"));
+        insertPlace(jdbcTemplate, 2L, "kakao-2", "윤숲 후르츠산도", "음식점 > 카페", "서울 광진구 화양동 1-1",
+                null, new BigDecimal("37.5400"), new BigDecimal("127.0700"), null, null, null, null);
         insertPlace(jdbcTemplate, 3L, "kakao-3", "경복궁", "관광명소", "서울 종로구 세종로 1-1", "서울 종로구 사직로 161",
                 new BigDecimal("37.5796"), new BigDecimal("126.9770"), "https://place.map.kakao.com/3", null,
                 "https://img.example.com/3.jpg", "KAKAO");
