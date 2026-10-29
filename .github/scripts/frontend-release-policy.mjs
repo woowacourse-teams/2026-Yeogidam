@@ -54,6 +54,22 @@ if (mode === 'validate-branch') {
   process.exit(0);
 }
 
+// OTA는 앱 버전 대신 fingerprint로 대상 앱이 정해지므로 버전을 받지 않는다.
+// all은 두 플랫폼을 한 번에 배포하도록 matrix에 넘길 플랫폼 목록으로 바꾼다.
+if (mode === 'validate-ota-branch') {
+  if (!['all', 'android', 'ios'].includes(platform) || value !== 'fe-release' || versionOrOffset !== undefined) {
+    fail('select fe-release and an all, android or ios platform');
+  }
+  if (process.env.GITHUB_REF_TYPE && process.env.GITHUB_REF_TYPE !== 'branch') {
+    fail('select a release branch, not a tag, in Run workflow');
+  }
+  assertReleaseHead();
+  const platforms = platform === 'all' ? ['ios', 'android'] : [platform];
+  writeOutputs({ platforms: JSON.stringify(platforms) });
+  console.log(`Validated fe-release for OTA ${platforms.join(', ')}`);
+  process.exit(0);
+}
+
 if (mode !== 'assign-build' || !['android', 'ios'].includes(platform) || !versionPattern.test(value ?? '') || extra !== undefined) {
   fail('usage: node frontend-release-policy.mjs assign-build <android|ios> <version> <build number offset>');
 }
