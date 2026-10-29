@@ -6,6 +6,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+import com.yeogidam.auth.exception.AuthErrorCode;
+import com.yeogidam.folder.exception.FolderErrorCode;
+import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import io.restassured.http.ContentType;
@@ -60,8 +63,9 @@ class FolderE2eTest extends E2eTestSupport {
     @Test
     void 토큰_없이_폴더_목록을_조회하면_401_예외를_던진다() {
         given().when().get(FOLDERS_PATH)
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_004"));
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))
+                .body("message", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getMessage()));
     }
 
     @Test
@@ -98,8 +102,9 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "열한 번째 폴더", "color", "RED"))
                 .when().post(FOLDERS_PATH)
-                .then().statusCode(400)
-                .body("errorCode", equalTo("FOLDER400_001"));
+                .then().statusCode(FolderErrorCode.FOLDER_LIMIT_EXCEEDED.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.FOLDER_LIMIT_EXCEEDED.getCode()))
+                .body("message", equalTo(FolderErrorCode.FOLDER_LIMIT_EXCEEDED.getMessage()));
     }
 
     @Test
@@ -113,8 +118,9 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "PINK"))
                 .when().post(FOLDERS_PATH)
-                .then().statusCode(409)
-                .body("errorCode", equalTo("FOLDER409_001"));
+                .then().statusCode(FolderErrorCode.DUPLICATE_FOLDER_NAME.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.DUPLICATE_FOLDER_NAME.getCode()))
+                .body("message", equalTo(FolderErrorCode.DUPLICATE_FOLDER_NAME.getMessage()));
     }
 
     @Test
@@ -127,8 +133,9 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소"))
                 .when().post(FOLDERS_PATH)
-                .then().statusCode(400)
-                .body("errorCode", equalTo("COMMON400_001"));
+                .then().statusCode(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getCode()))
+                .body("message", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getMessage()));
     }
 
     @Test
@@ -136,8 +143,9 @@ class FolderE2eTest extends E2eTestSupport {
         given().contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "RED"))
                 .when().post(FOLDERS_PATH)
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_004"));
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))
+                .body("message", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getMessage()));
     }
 
     @Test
@@ -194,8 +202,9 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "TEAL"))
                 .when().put(FOLDERS_PATH + "/2")
-                .then().statusCode(409)
-                .body("errorCode", equalTo("FOLDER409_001"));
+                .then().statusCode(FolderErrorCode.DUPLICATE_FOLDER_NAME.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.DUPLICATE_FOLDER_NAME.getCode()))
+                .body("message", equalTo(FolderErrorCode.DUPLICATE_FOLDER_NAME.getMessage()));
     }
 
     @Test
@@ -209,8 +218,9 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "가나다라마바사아자차카타파하가나", "color", "RED"))
                 .when().put(FOLDERS_PATH + "/1")
-                .then().statusCode(400)
-                .body("errorCode", equalTo("FOLDER400_002"));
+                .then().statusCode(FolderErrorCode.INVALID_FOLDER_NAME.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.INVALID_FOLDER_NAME.getCode()))
+                .body("message", equalTo(FolderErrorCode.INVALID_FOLDER_NAME.getMessage()));
     }
 
     @Test
@@ -224,8 +234,9 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 장소", "color", "BLUE"))
                 .when().put(FOLDERS_PATH + "/1")
-                .then().statusCode(400)
-                .body("errorCode", equalTo("FOLDER400_003"));
+                .then().statusCode(FolderErrorCode.INVALID_FOLDER_COLOR.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.INVALID_FOLDER_COLOR.getCode()))
+                .body("message", equalTo(FolderErrorCode.INVALID_FOLDER_COLOR.getMessage()));
     }
 
     @Test
@@ -239,8 +250,9 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스"))
                 .when().put(FOLDERS_PATH + "/1")
-                .then().statusCode(400)
-                .body("errorCode", equalTo("COMMON400_001"));
+                .then().statusCode(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getCode()))
+                .body("message", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getMessage()));
     }
 
     @Test
@@ -255,14 +267,16 @@ class FolderE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "RED"))
                 .when().put(FOLDERS_PATH + "/3")
-                .then().statusCode(404)
-                .body("errorCode", equalTo("FOLDER404_001"));
+                .then().statusCode(FolderErrorCode.FOLDER_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.FOLDER_NOT_FOUND.getCode()))
+                .body("message", equalTo(FolderErrorCode.FOLDER_NOT_FOUND.getMessage()));
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "RED"))
                 .when().put(FOLDERS_PATH + "/999")
-                .then().statusCode(404)
-                .body("errorCode", equalTo("FOLDER404_001"));
+                .then().statusCode(FolderErrorCode.FOLDER_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.FOLDER_NOT_FOUND.getCode()))
+                .body("message", equalTo(FolderErrorCode.FOLDER_NOT_FOUND.getMessage()));
     }
 
     @Test
@@ -270,8 +284,9 @@ class FolderE2eTest extends E2eTestSupport {
         given().contentType(ContentType.JSON)
                 .body(Map.of("name", "데이트 코스", "color", "RED"))
                 .when().put(FOLDERS_PATH + "/1")
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_004"));
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))
+                .body("message", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getMessage()));
     }
 
     @Test
@@ -318,7 +333,8 @@ class FolderE2eTest extends E2eTestSupport {
     @Test
     void 토큰_없이_폴더를_지우면_401_예외를_던진다() {
         given().when().delete(FOLDERS_PATH + "/1")
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_004"));
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))
+                .body("message", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getMessage()));
     }
 }
