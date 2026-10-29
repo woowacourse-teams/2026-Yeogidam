@@ -28,7 +28,8 @@ public record SavedPlaceResponse(
     public static SavedPlaceResponse from(
             SavedPlaceProjection projection,
             String placeThumbnailUrl,
-            PlaceCategory category
+            PlaceCategory category,
+            List<Long> folderIds
     ) {
         return new SavedPlaceResponse(
                 projection.savedPlaceId(),
@@ -46,7 +47,7 @@ public record SavedPlaceResponse(
                 placeThumbnailUrl,
                 projection.thumbnailSource(),
                 projection.lastSavedAt(),
-                projection.folderIds()
+                folderIds
         );
     }
 }

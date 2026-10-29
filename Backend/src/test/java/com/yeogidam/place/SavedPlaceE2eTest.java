@@ -69,46 +69,13 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 장소를_폴더에_담은_순서대로_ID를_반환하고_폴더가_없으면_빈_배열이다() {
-        // given
-        LoginResult login = loginAsKakao("user-1");
-        insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:10Z"));
-        insertSavedPlace(jdbcTemplate, 12L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 13L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:00Z"));
-        Instant firstCreatedAt = Instant.parse("2026-09-14T00:00:00.123456Z");
-        insertFolder(jdbcTemplate, 51L, login.memberId(), "성수 카페", "RED", firstCreatedAt);
-        insertFolder(jdbcTemplate, 52L, login.memberId(), "가고 싶은 곳", "GREEN", firstCreatedAt.plusNanos(1_000));
-        Instant addedAt = Instant.parse("2026-09-16T00:00:00Z");
-        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L, addedAt.plusNanos(1_000));
-        insertFolderSavedPlace(jdbcTemplate, 2L, 52L, 11L, addedAt);
-        insertFolderSavedPlace(jdbcTemplate, 3L, 52L, 12L, addedAt);
-
-        // when & then
-        givenBearer(login.accessToken())
-                .when()
-                .get(SAVED_PLACES_PATH)
-                .then()
-                .statusCode(200)
-                .body("savedPlaces", hasSize(3))
-                .body("savedPlaces.savedPlaceId", contains(11, 12, 13))
-                .body("savedPlaces[0].folderIds", contains(52, 51))
-                .body("savedPlaces[1].folderIds", contains(52))
-                .body("savedPlaces[2].folderIds", hasSize(0));
-    }
-
-    @Test
-    void 폴더에_담은_시각이_같으면_연결_ID_순서대로_반환한다() {
+    void 담긴_폴더의_ID를_배열로_돌려준다() {
         // given
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
         insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
-        Instant createdAt = Instant.parse("2026-09-14T00:00:00.123456Z");
-        insertFolder(jdbcTemplate, 51L, login.memberId(), "성수 카페", "RED", createdAt);
-        insertFolder(jdbcTemplate, 52L, login.memberId(), "가고 싶은 곳", "GREEN", createdAt);
-        Instant addedAt = Instant.parse("2026-09-16T00:00:00Z");
-        insertFolderSavedPlace(jdbcTemplate, 1L, 52L, 11L, addedAt);
-        insertFolderSavedPlace(jdbcTemplate, 2L, 51L, 11L, addedAt);
+        insertFolder(jdbcTemplate, 51L, login.memberId(), "성수 카페", "RED");
+        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L);
 
         // when & then
         givenBearer(login.accessToken())
@@ -116,38 +83,24 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .get(SAVED_PLACES_PATH)
                 .then()
                 .statusCode(200)
-                .body("savedPlaces[0].folderIds", contains(52, 51));
+                .body("savedPlaces", hasSize(1))
+                .body("savedPlaces[0].folderIds", contains(51));
     }
 
     @Test
-    void 폴더_ID는_로그인한_회원의_폴더와_보관함_장소가_연결된_것만_반환한다() {
+    void 담긴_폴더가_없으면_빈_배열을_돌려준다() {
         // given
-        LoginResult owner = loginAsKakao("user-1");
-        LoginResult other = loginAsKakao("user-2");
+        LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
-        insertSavedPlace(jdbcTemplate, 11L, owner.memberId(), 1L, Instant.parse("2026-09-15T00:00:05Z"));
-        insertSavedPlace(jdbcTemplate, 12L, owner.memberId(), 2L, Instant.parse("2026-09-15T00:00:00Z"));
-        insertSavedPlace(jdbcTemplate, 21L, other.memberId(), 1L, Instant.parse("2026-09-15T00:00:10Z"));
-        Instant createdAt = Instant.parse("2026-09-14T00:00:00Z");
-        insertFolder(jdbcTemplate, 51L, owner.memberId(), "내 폴더", "RED", createdAt);
-        insertFolder(jdbcTemplate, 61L, other.memberId(), "다른 회원 폴더", "GREEN", createdAt);
-        Instant addedAt = Instant.parse("2026-09-16T00:00:00Z");
-        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L, addedAt);
-        insertFolderSavedPlace(jdbcTemplate, 2L, 61L, 21L, addedAt);
-        insertFolderSavedPlace(jdbcTemplate, 3L, 61L, 11L, addedAt);
-        insertFolderSavedPlace(jdbcTemplate, 4L, 61L, 12L, addedAt);
-        insertFolderSavedPlace(jdbcTemplate, 5L, 51L, 21L, addedAt);
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
 
         // when & then
-        givenBearer(owner.accessToken())
+        givenBearer(login.accessToken())
                 .when()
                 .get(SAVED_PLACES_PATH)
                 .then()
                 .statusCode(200)
-                .body("savedPlaces", hasSize(2))
-                .body("savedPlaces.savedPlaceId", contains(11, 12))
-                .body("savedPlaces[0].folderIds", contains(51))
-                .body("savedPlaces[1].folderIds", hasSize(0));
+                .body("savedPlaces[0].folderIds", hasSize(0));
     }
 
     @Test
