@@ -90,6 +90,8 @@ public class SavedPlaceDao {
 
     /**
      * 회원의 보관함 전량을 최근 저장 순으로 읽는다.
+     * 폴더 연결은 findFolderLinksByMember에서 별도로 조회하고,
+     * SavedPlaceService가 각 항목의 폴더 ID를 담은 순서대로 응답에 붙인다.
      */
     public List<SavedPlaceProjection> findAllByMember(Long memberId) {
         String sql = """
