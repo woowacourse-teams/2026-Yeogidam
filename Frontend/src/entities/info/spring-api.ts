@@ -23,6 +23,10 @@ type SavedPlaceResponse = {
   placeId: number;
   name: string;
   category: string | null;
+  // 2.2.0 서버부터 내려옵니다.
+  // TODO(범주 API): 운영 서버 배포가 확인되면 필수 필드로 바꿉니다.
+  categoryCode?: string | null;
+  categoryName?: string | null;
   landLotAddress: string | null;
   roadAddress: string | null;
   latitude: number | null;
@@ -30,6 +34,8 @@ type SavedPlaceResponse = {
   kakaoPlaceUrl: string | null;
   thumbnailUrl: string | null;
   lastSavedAt: string;
+  // 담은 시각 오름차순이라 마지막이 가장 최근에 담은 폴더입니다.
+  folderIds?: number[] | null;
 };
 
 type SavedPlaceMediaResponse = {
@@ -65,10 +71,13 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
       thumbnailUrl: item.thumbnailUrl,
       createdAt: item.lastSavedAt,
       lastSavedAt: item.lastSavedAt,
+      folderIds: (item.folderIds ?? []).map(String),
       place: {
         id: String(item.placeId),
         name: item.name,
         category: item.category,
+        categoryCode: item.categoryCode,
+        categoryName: item.categoryName,
         sourceAddress: item.landLotAddress,
         address: item.landLotAddress,
         roadAddress: item.roadAddress,
