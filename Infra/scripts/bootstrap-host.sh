@@ -7,7 +7,7 @@
 # CloudWatch 에이전트를 깔아 nginx 로그와 메모리, 디스크 지표를 보내게 한다.
 # 두 번 돌려도 안전하다. 이미 끝난 단계는 건너뛴다. 서버가 늘면 이 파일만 다시 돌리면 된다.
 #
-# 앱 컨테이너는 이 스크립트가 다루지 않는다. CD 워크플로가 Backend/scripts/deploy.sh로 한다.
+# 앱 컨테이너는 이 스크립트가 다루지 않는다. CD 워크플로가 Infra/scripts/deploy.sh로 한다.
 # 개발 DB 서버는 Infra/scripts/bootstrap-db-host.sh가 따로 맡는다.
 #
 # 도메인과 메일은 공개 저장소에 적지 않으려고 환경변수로 받는다. 비어 있으면 아무것도

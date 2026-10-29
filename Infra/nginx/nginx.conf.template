@@ -5,7 +5,7 @@
 # 도메인은 공개 저장소에 적지 않는다. bootstrap-host.sh가 SERVER_NAME 환경변수로 받아
 # envsubst로 넣고, 값이 비어 있으면 설정을 만들지 않고 멈춘다.
 #
-# 앱은 도커 컨테이너로 127.0.0.1:8080에만 귀를 연다(Backend/scripts/deploy.sh). nginx가
+# 앱은 도커 컨테이너로 127.0.0.1:8080에만 귀를 연다(Infra/scripts/deploy.sh). nginx가
 # 443에서 인증서를 들고 받아서 그쪽으로 넘긴다. 인증서는 /etc/letsencrypt에 있고
 # certbot이 갱신하면 nginx만 reload한다. 앱은 인증서를 모른다.
 

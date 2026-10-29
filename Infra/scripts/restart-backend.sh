@@ -10,7 +10,7 @@
 # 배포 워크플로가 도는 중에는 돌리지 않는다. 이 스크립트는 deploy.sh의 flock을 잡지 않아서
 # 둘이 동시에 돌면 서로의 컨테이너를 걷어낸다. Actions에서 Backend CD가 끝난 것을 보고 돌린다.
 #
-# 옵션은 Backend/scripts/deploy.sh의 start_container와 같아야 한다. 그쪽이 바뀌면 여기도 고친다.
+# 옵션은 Infra/scripts/deploy.sh의 start_container와 같아야 한다. 그쪽이 바뀌면 여기도 고친다.
 # 메모리 상한은 backend-cd.yml의 기본값(512m / 768m)을 그대로 쓴다. repository variable로 바꾼
 # 값은 모르므로, 기본값과 다르게 운영 중이면 아래 두 줄을 맞춘다.
 
