@@ -28,11 +28,9 @@ public class SavedPlaceDao {
                     resultSet.getTimestamp("created_at").toInstant()
             );
 
-    private final JdbcTemplate jdbcTemplate;
-
     private static RowMapper<SavedPlaceProjection> createProjectionRowMapper(Map<Long, List<Long>> folderIdsBySavedPlace) {
         return (resultSet, rowNumber) -> new SavedPlaceProjection(
-                resultSet.getLong("saved_place_id"),
+                resultSet.getLong("id"),
                 resultSet.getLong("place_id"),
                 resultSet.getString("name"),
                 resultSet.getString("category"),
@@ -45,9 +43,11 @@ public class SavedPlaceDao {
                 resultSet.getString("thumbnail_key"),
                 resultSet.getString("thumbnail_source"),
                 resultSet.getTimestamp("last_saved_at").toInstant(),
-                folderIdsBySavedPlace.getOrDefault(resultSet.getLong("saved_place_id"), List.of())
+                folderIdsBySavedPlace.getOrDefault(resultSet.getLong("id"), List.of())
         );
     }
+
+    private final JdbcTemplate jdbcTemplate;
 
     public void saveOrUpdate(SavedPlace savedPlace) {
         String sql = """
@@ -92,7 +92,7 @@ public class SavedPlaceDao {
     public List<SavedPlaceProjection> findAllByMember(Long memberId) {
         Map<Long, List<Long>> folderIdsBySavedPlace = findFolderIdsByMember(memberId);
         String sql = """
-                SELECT sp.id AS saved_place_id,
+                SELECT sp.id,
                        p.id AS place_id,
                        p.name,
                        p.category,
@@ -121,7 +121,7 @@ public class SavedPlaceDao {
                 JOIN saved_places sp ON sp.id = fsp.saved_place_id
                 WHERE f.member_id = ?
                   AND sp.member_id = ?
-                ORDER BY f.created_at ASC, f.id ASC
+                ORDER BY fsp.created_at ASC, fsp.id ASC
                 """;
         Map<Long, List<Long>> folderIdsBySavedPlace = new HashMap<>();
         jdbcTemplate.query(sql, resultSet -> {

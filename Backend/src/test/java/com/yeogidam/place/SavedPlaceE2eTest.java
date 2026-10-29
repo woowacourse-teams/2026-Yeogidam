@@ -69,7 +69,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 폴더를_생성한_순서대로_ID를_반환하고_폴더가_없으면_빈_배열이다() {
+    void 장소를_폴더에_담은_순서대로_ID를_반환하고_폴더가_없으면_빈_배열이다() {
         // given
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
@@ -77,11 +77,11 @@ class SavedPlaceE2eTest extends E2eTestSupport {
         insertSavedPlace(jdbcTemplate, 12L, login.memberId(), 2L, Instant.parse("2026-09-15T00:00:05Z"));
         insertSavedPlace(jdbcTemplate, 13L, login.memberId(), 3L, Instant.parse("2026-09-15T00:00:00Z"));
         Instant firstCreatedAt = Instant.parse("2026-09-14T00:00:00.123456Z");
-        insertFolder(jdbcTemplate, 51L, login.memberId(), "성수 카페", "RED", firstCreatedAt.plusNanos(1_000));
-        insertFolder(jdbcTemplate, 52L, login.memberId(), "가고 싶은 곳", "GREEN", firstCreatedAt);
+        insertFolder(jdbcTemplate, 51L, login.memberId(), "성수 카페", "RED", firstCreatedAt);
+        insertFolder(jdbcTemplate, 52L, login.memberId(), "가고 싶은 곳", "GREEN", firstCreatedAt.plusNanos(1_000));
         Instant addedAt = Instant.parse("2026-09-16T00:00:00Z");
-        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L, addedAt);
-        insertFolderSavedPlace(jdbcTemplate, 2L, 52L, 11L, addedAt.plusNanos(1_000));
+        insertFolderSavedPlace(jdbcTemplate, 1L, 51L, 11L, addedAt.plusNanos(1_000));
+        insertFolderSavedPlace(jdbcTemplate, 2L, 52L, 11L, addedAt);
         insertFolderSavedPlace(jdbcTemplate, 3L, 52L, 12L, addedAt);
 
         // when & then
@@ -98,7 +98,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 폴더를_생성한_시각이_같으면_폴더_ID_순서대로_반환한다() {
+    void 폴더에_담은_시각이_같으면_연결_ID_순서대로_반환한다() {
         // given
         LoginResult login = loginAsKakao("user-1");
         insertThreePlaces();
@@ -116,7 +116,7 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .get(SAVED_PLACES_PATH)
                 .then()
                 .statusCode(200)
-                .body("savedPlaces[0].folderIds", contains(51, 52));
+                .body("savedPlaces[0].folderIds", contains(52, 51));
     }
 
     @Test

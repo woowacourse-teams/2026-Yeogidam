@@ -32,7 +32,9 @@ public interface SavedPlaceApiDocs {
                     - `categoryCode`와 `categoryName`은 `/api/v1/place-categories`의 코드와 이름에 대응합니다.
                     - 원문이 없거나 분류 규칙에 맞지 않으면 `ETC`, `기타`를 돌려줍니다.
                     - `folderIds`는 해당 장소가 속한 로그인 회원의 폴더 ID 목록이며, 앱에서 폴더별로 필터링할 때 씁니다.
-                    - `folderIds`는 폴더 생성 시각 오름차순이며, 생성 시각이 같으면 폴더 ID 오름차순으로 반환합니다.
+                    - `folderIds`는 장소를 폴더에 담은 시각(`folder_saved_places.created_at`) 오름차순으로 반환합니다.
+                    - 가장 최근에 담은 폴더가 맨 뒤에 오며, 담은 시각이 같으면 연결 ID 오름차순으로 반환합니다.
+                    - 속한 폴더가 있는 장소의 지도 핀은 `folderIds` 마지막 ID에 해당하는 폴더의 색을 사용합니다.
                     - 속한 폴더가 없으면 `folderIds`는 빈 배열 `[]`입니다.
                     - 관련 릴스 조회는 보관함 목록 응답의 `savedPlaceId`(보관함 항목 ID)를 경로 변수로 쓰고 삭제는 같은 값을 `savedPlaceIds` 쿼리 파라미터로 보냅니다.
                     """,
