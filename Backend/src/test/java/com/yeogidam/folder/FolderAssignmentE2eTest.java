@@ -8,6 +8,9 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.yeogidam.auth.exception.AuthErrorCode;
+import com.yeogidam.folder.exception.FolderErrorCode;
+import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import io.restassured.http.ContentType;
@@ -86,14 +89,16 @@ class FolderAssignmentE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("folderIds", List.of(1)))
                 .when().put(FOLDER_ASSIGNMENTS_PATH + "/22")
-                .then().statusCode(404)
-                .body("errorCode", equalTo("FOLDER404_002"));
+                .then().statusCode(FolderErrorCode.SAVED_PLACE_OR_FOLDER_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.SAVED_PLACE_OR_FOLDER_NOT_FOUND.getCode()))
+                .body("message", equalTo(FolderErrorCode.SAVED_PLACE_OR_FOLDER_NOT_FOUND.getMessage()));
         givenBearer(login.accessToken())
                 .contentType(ContentType.JSON)
                 .body(Map.of("folderIds", List.of(2)))
                 .when().put(FOLDER_ASSIGNMENTS_PATH + "/11")
-                .then().statusCode(404)
-                .body("errorCode", equalTo("FOLDER404_002"));
+                .then().statusCode(FolderErrorCode.SAVED_PLACE_OR_FOLDER_NOT_FOUND.getHttpStatus().value())
+                .body("errorCode", equalTo(FolderErrorCode.SAVED_PLACE_OR_FOLDER_NOT_FOUND.getCode()))
+                .body("message", equalTo(FolderErrorCode.SAVED_PLACE_OR_FOLDER_NOT_FOUND.getMessage()));
     }
 
     @Test
@@ -123,8 +128,9 @@ class FolderAssignmentE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Collections.singletonMap("folderIds", null))
                 .when().put(FOLDER_ASSIGNMENTS_PATH + "/11")
-                .then().statusCode(400)
-                .body("errorCode", equalTo("COMMON400_001"));
+                .then().statusCode(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getCode()))
+                .body("message", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getMessage()));
     }
 
     @Test
@@ -137,8 +143,9 @@ class FolderAssignmentE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("folderIds", Arrays.asList(1, null)))
                 .when().put(FOLDER_ASSIGNMENTS_PATH + "/11")
-                .then().statusCode(400)
-                .body("errorCode", equalTo("COMMON400_001"));
+                .then().statusCode(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getCode()))
+                .body("message", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getMessage()));
     }
 
     @Test
@@ -154,17 +161,20 @@ class FolderAssignmentE2eTest extends E2eTestSupport {
                 .contentType(ContentType.JSON)
                 .body(Map.of("folderIds", folderIds))
                 .when().put(FOLDER_ASSIGNMENTS_PATH + "/11")
-                .then().statusCode(400)
-                .body("errorCode", equalTo("COMMON400_001"));
+                .then().statusCode(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getCode()))
+                .body("message", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getMessage()));
     }
 
     @Test
     void 토큰_없이_폴더에_담으면_401_예외를_던진다() {
+        // when & then
         given().contentType(ContentType.JSON)
                 .body(Map.of("folderIds", List.of(1)))
                 .when().put(FOLDER_ASSIGNMENTS_PATH + "/11")
-                .then().statusCode(401)
-                .body("errorCode", equalTo("AUTH401_004"));
+                .then().statusCode(AuthErrorCode.AUTHENTICATION_REQUIRED.getHttpStatus().value())
+                .body("errorCode", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getCode()))
+                .body("message", equalTo(AuthErrorCode.AUTHENTICATION_REQUIRED.getMessage()));
     }
 
     private int count(String fromWhere) {
