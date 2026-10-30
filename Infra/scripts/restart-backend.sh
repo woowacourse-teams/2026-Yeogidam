@@ -29,6 +29,7 @@ MEMORY_SWAP_LIMIT=768m
 BLUE_PORT=8080
 GREEN_PORT=8081
 UPSTREAM_FILE=/etc/nginx/yeogidam/backend-upstream.conf
+NGINX_CONF=/etc/nginx/nginx.conf
 SWITCH_COMMAND=/usr/local/sbin/yeogidam-switch-backend
 RUNNER_USER=github-runner
 POST_SWITCH_CHECK_SECONDS=10
@@ -46,6 +47,11 @@ esac
 [ -r "$ENV_FILE" ] || fail "env 파일이 없거나 읽을 수 없습니다: $ENV_FILE"
 [ -r "$UPSTREAM_FILE" ] || fail "nginx 블루그린 설정 ${UPSTREAM_FILE}이 없습니다. Infra/scripts/bootstrap-host.sh를 먼저 다시 돌려 주세요."
 [ -x "$SWITCH_COMMAND" ] || fail "전환 스크립트 ${SWITCH_COMMAND}가 없습니다. Infra/scripts/bootstrap-host.sh를 먼저 다시 돌려 주세요."
+# nginx.conf가 upstream 파일을 쓰지 않는 블루그린 전 설정이면, 전환한 뒤 이전 컨테이너를 내리는 순간 요청이 끊긴다.
+grep -qE "^[[:space:]]*include[[:space:]]+${UPSTREAM_FILE//./\\.};" "$NGINX_CONF" \
+  && grep -qE '^[[:space:]]*proxy_pass[[:space:]]+http://yeogidam_backend;' "$NGINX_CONF" \
+  && ! grep -qE '^[[:space:]]*proxy_pass[[:space:]]+http://127\.0\.0\.1:' "$NGINX_CONF" \
+  || fail "${NGINX_CONF}가 ${UPSTREAM_FILE}을 쓰지 않습니다. 최신 Infra/scripts/bootstrap-host.sh를 먼저 다시 돌려 주세요."
 command -v curl >/dev/null 2>&1 || fail "curl이 없습니다."
 command -v flock >/dev/null 2>&1 || fail "flock이 없습니다."
 

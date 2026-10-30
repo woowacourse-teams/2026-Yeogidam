@@ -21,6 +21,7 @@ readonly DEPLOY_LOCK_FILE="${DEPLOY_LOCK_DIR}/backend.lock"
 readonly BLUE_PORT="8080"
 readonly GREEN_PORT="8081"
 readonly UPSTREAM_FILE="/etc/nginx/yeogidam/backend-upstream.conf"
+readonly NGINX_CONF="/etc/nginx/nginx.conf"
 readonly SWITCH_COMMAND="/usr/local/sbin/yeogidam-switch-backend"
 # 전환한 뒤 새 컨테이너가 계속 응답하는지 보는 시간이다. 이 안에 끊기면 이전 컨테이너로 되돌린다.
 # 전환 직전에 이전 컨테이너가 받은 요청이 끝나기를 기다리는 시간도 겸한다.
@@ -145,6 +146,16 @@ container_name_of_port() {
 read_active_port() {
   grep -oE "server[[:space:]]+127\.0\.0\.1:(${BLUE_PORT}|${GREEN_PORT});" "$UPSTREAM_FILE" 2>/dev/null \
     | grep -oE "(${BLUE_PORT}|${GREEN_PORT})" | head -n 1 || true
+}
+
+# nginx.conf가 upstream 파일을 include하고 proxy_pass가 그 upstream을 가리키는지 본다. 블루그린 전
+# bootstrap-host.sh로 nginx.conf를 다시 그리면 upstream 파일은 남은 채 nginx가 8080으로 바로 보내는데,
+# 그 상태로 전환하면 새 컨테이너 확인은 통과하고 8080 컨테이너를 내리는 순간 모든 요청이 502가 된다.
+nginx_conf_uses_upstream() {
+  [[ -r "$NGINX_CONF" ]] \
+    && grep -qE "^[[:space:]]*include[[:space:]]+${UPSTREAM_FILE//./\\.};" "$NGINX_CONF" \
+    && grep -qE '^[[:space:]]*proxy_pass[[:space:]]+http://yeogidam_backend;' "$NGINX_CONF" \
+    && ! grep -qE '^[[:space:]]*proxy_pass[[:space:]]+http://127\.0\.0\.1:' "$NGINX_CONF"
 }
 
 liveness_ok() {
@@ -528,6 +539,10 @@ docker info >/dev/null 2>&1 || fail "Self-hosted Runner가 Docker daemon에 접�
 # 컨테이너를 만지기 전에 하므로, 장치를 깔기 전에 이 스크립트가 돌아도 지금 앱은 그대로 돈다.
 if [[ ! -r "$UPSTREAM_FILE" ]]; then
   fail "nginx 블루그린 설정 ${UPSTREAM_FILE}이 없습니다. 서버에서 Infra/scripts/bootstrap-host.sh를 다시 돌려 주세요."
+fi
+
+if ! nginx_conf_uses_upstream; then
+  fail "${NGINX_CONF}가 ${UPSTREAM_FILE}을 쓰지 않습니다. 블루그린 전 설정이라 전환하면 요청이 끊기므로 멈춥니다. 서버에서 최신 Infra/scripts/bootstrap-host.sh를 다시 돌려 주세요."
 fi
 
 ACTIVE_PORT="$(read_active_port)"
