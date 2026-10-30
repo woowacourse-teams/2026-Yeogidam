@@ -8,7 +8,7 @@
 
 | 대상 | 보내는 방법 | 로그 그룹 또는 네임스페이스 | 스트림 또는 지표 |
 | --- | --- | --- | --- |
-| 앱 컨테이너 stdout(JSON 한 줄) | Docker `awslogs` 드라이버 (`Backend/scripts/deploy.sh`) | `/yeogidam/<env>/backend` | `backend` |
+| 앱 컨테이너 stdout(JSON 한 줄) | Docker `awslogs` 드라이버 (`Infra/scripts/deploy.sh`) | `/yeogidam/<env>/backend` | `backend` |
 | nginx access, error | CloudWatch 에이전트 (`Infra/cloudwatch/agent-app.json.template`) | `/yeogidam/<env>/nginx` | `access`, `error` |
 | MySQL slow, error (dev만) | CloudWatch 에이전트 (`Infra/cloudwatch/agent-db.json.template`) | `/yeogidam/dev/mysql` | `slow`, `error` |
 | 메모리, 디스크 사용률 (서버 3대) | CloudWatch 에이전트 | `Yeogidam/<env>` | `mem_used_percent`(차원 `InstanceId`), `disk_used_percent`(차원 `InstanceId`, `path`, `fstype`) |
