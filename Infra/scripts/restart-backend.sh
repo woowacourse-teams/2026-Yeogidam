@@ -33,7 +33,7 @@ NGINX_CONF=/etc/nginx/nginx.conf
 SWITCH_COMMAND=/usr/local/sbin/yeogidam-switch-backend
 RUNNER_USER=github-runner
 POST_SWITCH_CHECK_SECONDS=10
-DRAIN_TIMEOUT_SECONDS=120
+DRAIN_TIMEOUT_SECONDS=180
 READY_TIMEOUT_SECONDS=150
 
 log()  { printf '[restart-backend] %s %s\n' "$(TZ=Asia/Seoul date '+%F %T KST')" "$*"; }

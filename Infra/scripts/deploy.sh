@@ -27,8 +27,9 @@ readonly SWITCH_COMMAND="/usr/local/sbin/yeogidam-switch-backend"
 # 전환 직전에 이전 컨테이너가 받은 요청이 끝나기를 기다리는 시간도 겸한다.
 readonly POST_SWITCH_CHECK_SECONDS=10
 # 이전 컨테이너의 분석 작업(mediaExtractionExecutor)이 끝나기를 기다리는 최대 시간이다. 분석 하나가
-# 외부 호출을 여럿 거쳐 수십 초 걸리므로 넉넉히 두고, 넘기면 경고만 남기고 내린다.
-readonly DRAIN_TIMEOUT_SECONDS=120
+# 외부 호출을 여럿 거치고 Gemini 미디어 호출 하나의 제한 시간만 120초(ExtractionConfig)라서 그보다 길게 두고,
+# 넘기면 경고만 남기고 내린다. 배포 잡 제한 15분 안에 들어온다.
+readonly DRAIN_TIMEOUT_SECONDS=180
 readonly STOP_TIMEOUT_SECONDS=30
 
 # ADR-01의 역할 태그다. digest로만 pull한 이미지는 로컬에서 태그가 없어 dangling으로 분류되므로,
