@@ -261,7 +261,7 @@ V2 이상의 버전 SQL은 개발 서버를 먼저 거쳐 운영 서버에 적�
 ### 6.1 개발 서버 배포
 
 1. 작업 브랜치의 PR을 `be-dev`에 머지한다. 버전 SQL은 `Backend/src/main/resources`에 있으므로 Backend CD의 push 경로 조건(`Backend/**`에서 문서 제외)에 걸린다.
-2. Backend CD가 `./gradlew check`, 이미지 빌드와 Docker Hub 발행, 개발 러너의 `Backend/scripts/deploy.sh`를 차례로 실행한다.
+2. Backend CD가 `./gradlew check`, 이미지 빌드와 Docker Hub 발행, 개발 러너의 `Infra/scripts/deploy.sh`를 차례로 실행한다.
 3. `deploy.sh`는 기존 컨테이너의 이름을 `yeogidam-backend-rollback`으로 바꿔 멈춘 뒤 새 컨테이너를 시작한다.
 4. 새 컨테이너의 Spring Boot가 `yeogidam_migrator`로 Flyway를 실행하고 미적용 버전을 모두 실행한 뒤에 앱 시작을 이어 간다.
 5. `deploy.sh`는 `/actuator/health/liveness`가 healthy가 될 때까지 기다린다. healthy가 되면 `yeogidam-backend-rollback`을 지우고 `current` 태그를 새 이미지로 옮기며, healthy가 되지 않으면 8.2절의 자동 롤백을 실행한다.
@@ -499,7 +499,7 @@ Either revert the changes to the migration, or run repair to update the schema h
 
 ## 9. hotfix와 버전 SQL
 
-hotfix는 `be-release`에서 분기해 `be-release`로 머지하며 개발 서버를 거치지 않고 새로 빌드한 이미지를 운영에 바로 배포한다([인프라 ADR-05](infra/adr-05-branch-strategy.md), `Backend/scripts/resolve-source-commit.sh`). hotfix에 넣은 버전 SQL은 운영 DB에서 처음 실행된다.
+hotfix는 `be-release`에서 분기해 `be-release`로 머지하며 개발 서버를 거치지 않고 새로 빌드한 이미지를 운영에 바로 배포한다([인프라 ADR-05](infra/adr-05-branch-strategy.md), `Infra/scripts/resolve-source-commit.sh`). hotfix에 넣은 버전 SQL은 운영 DB에서 처음 실행된다.
 
 `be-dev`에 운영에 아직 나가지 않은 버전 파일이 있을 때 hotfix에 버전 SQL을 넣으면 어느 번호를 써도 배포가 막힌다. 아래 표는 `be-dev`에 V2가 있고 개발 DB에 적용된 상태를 기준으로 한다.
 

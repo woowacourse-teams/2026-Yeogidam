@@ -62,7 +62,7 @@ GitHub 저장소 설정에 다음이 있어야 배포가 돈다.
 
 ### 인프라 ADR-01 Docker 이미지 식별 및 롤백 보존
 
-`.github/workflows/backend-cd.yml`과 `Backend/scripts/deploy.sh` 기준이다.
+`.github/workflows/backend-cd.yml`과 `Infra/scripts/deploy.sh` 기준이다.
 
 | 결정 항목 | 상태 |
 | --- | --- |
@@ -82,7 +82,7 @@ GitHub 저장소 설정에 다음이 있어야 배포가 돈다.
 
 `publish` 잡이 이미지 태그를 `${{ vars.DOCKERHUB_IMAGE }}:${{ github.sha }}`로 만들고 레지스트리에 있으면 재사용하는데, `be-dev`에서 `be-release`로 머지하면 **새 커밋 SHA가 생긴다.** 그래서 원래는 운영 배포 때 태그를 못 찾고 새로 빌드했다. Docker 빌드는 재현 가능하지 않으므로 digest가 달라져 개발에서 검증한 이미지가 운영에 가지 않았다.
 
-**2026-09-29에 `Backend/scripts/resolve-source-commit.sh`로 해결했다.** `be-release`에 들어온 커밋의 두 번째 부모를 승격 대상으로 잡고 정말 `be-dev`의 조상인지 `git merge-base --is-ancestor`로 확인한 뒤 재빌드 없이 개발에서 검증한 이미지를 배포한다. 조상 관계를 부모 수보다 **먼저** 보기 때문에, hotfix를 머지 커밋으로 넣어도 승격으로 새어 나가지 않는다. 결정은 [인프라 ADR-05](adr-05-branch-strategy.md)에 있고 판정표는 아래 「승격 판정」에 있다.
+**2026-09-29에 `Infra/scripts/resolve-source-commit.sh`로 해결했다.** `be-release`에 들어온 커밋의 두 번째 부모를 승격 대상으로 잡고 정말 `be-dev`의 조상인지 `git merge-base --is-ancestor`로 확인한 뒤 재빌드 없이 개발에서 검증한 이미지를 배포한다. 조상 관계를 부모 수보다 **먼저** 보기 때문에, hotfix를 머지 커밋으로 넣어도 승격으로 새어 나가지 않는다. 결정은 [인프라 ADR-05](adr-05-branch-strategy.md)에 있고 판정표는 아래 「승격 판정」에 있다.
 
 2026-09-30 첫 출시와 2026-10-01 두 번째 출시(#266) 모두 `mode=promote`로 가서 publish가 빌드 스텝을 건너뛰고 개발과 같은 digest가 운영에 갔다.
 
@@ -156,7 +156,7 @@ Superseded다. [인프라 ADR-05](adr-05-branch-strategy.md)가 대신한다.
 | 브랜치 여섯 종류 | 됨 |
 | main 진입 규칙 | 됨. `require-develop-for-main.yml`이 `be-release`와 `fe-release/*`만 허용한다 |
 | CI는 PR만, CD는 머지 뒤 | 됨(2026-09-29). `backend-ci.yml`의 push 트리거를 뗐다 |
-| `be-release` 승격 | 됨(2026-09-29). `Backend/scripts/resolve-source-commit.sh`가 판정한다. 2026-09-30과 2026-10-01(#266) 두 번 `promote`로 돌았다 |
+| `be-release` 승격 | 됨(2026-09-29). `Infra/scripts/resolve-source-commit.sh`가 판정한다. 2026-09-30과 2026-10-01(#266) 두 번 `promote`로 돌았다 |
 | 머지 방식 강제 | 됨(2026-09-29). ruleset `Backend Release Protection`의 `allowed_merge_methods`가 `["merge"]`다 |
 | `hotfix` 라벨 | 됨(2026-09-29) |
 | `be-release` 필수 체크 | 됨(2026-09-29). `Backend Verification`만 남았다. `Require branches to be up to date`는 2026-10-01에 껐다. 출시 PR의 head는 `be-dev`인데 base의 최신 커밋인 지난 출시의 merge 커밋을 `be-dev`가 포함할 수 없어, 두 번째 출시(#266)부터 최신 base 요구가 항상 막았다 |
@@ -167,7 +167,7 @@ Superseded다. [인프라 ADR-05](adr-05-branch-strategy.md)가 대신한다.
 
 ### 승격 판정
 
-`Backend/scripts/resolve-source-commit.sh`가 어떤 이미지를 배포할지 정해 `IMAGE_TAG`로 넘긴다.
+`Infra/scripts/resolve-source-commit.sh`가 어떤 이미지를 배포할지 정해 `IMAGE_TAG`로 넘긴다.
 
 | 조건 | 결과 |
 | --- | --- |
@@ -254,7 +254,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고 같은 날 
 5. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
 6. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 GitHub 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
 7. **Flyway 서버 적용이 남았다.** 개발 DB(2026-09-29, `yeogidam-dev-db`의 Docker MySQL)와 운영 DB(2026-10-02, RDS `yeogidam-prod-db`)의 테이블 구조 비교는 2026-10-27에 완료했다. 로컬 코드에서는 `schema.sql`을 삭제하고 `db/migration`의 버전 파일로 구조를 관리하도록 바꿨다. 이후 구조 변경은 새 버전 SQL로 작성한다. 전용 계정과 서버 환경변수 등록도 완료했으며, 백업을 준비하고 연결 코드를 개발 서버부터 배포해 baseline 1 기록과 전용 계정의 이력 작성, 기존 데이터 보존을 확인해야 한다. [Flyway 적용 구조](../flyway.md)를 따른다.
-8. **디스크가 다시 차지 않게 하는 장치가 없다.** 운영은 2026-10-24 18:26(KST)에 사용률이 85% 알람을 넘었다. 10-19 data migration 때 서버에 남긴 SQL 백업 8개가 79.7%를 82.9%로 올렸고, 10-24 러너 자동 업데이트(2.337.0에서 2.338.0)가 남긴 옛 버전이 83.5%를 89.1%로 올렸다. 2026-10-25에 journal을 100MB로 줄여 388MB를 비우고 dnf 캐시(169MB), 러너 옛 버전과 설치 파일(582MB), data migration 백업, `/opt/yeogidam/loadtest`(370MB)를 지워 사용률을 90%에서 68%로 낮췄다. 같은 날 루트 볼륨을 ADR-03의 값인 20GB로 늘리고 `growpart`와 `xfs_growfs`로 파티션과 파일 시스템까지 넓혀 사용률이 28%(20GB 중 5.5GB)로 내려갔다. 그래도 러너는 자동 업데이트 때마다 옛 버전을 남겨 2026-09-29와 10-25에 손으로 지웠는데 자동으로 지우는 장치가 없고, journal에는 상한(`SystemMaxUse`)이 없으며, 배포 작업이 저장소 전체를 받아 `_work`가 481MB를 쓴다(checkout을 `Backend/scripts`로 좁히면 줄어든다). 개발 앱 서버도 같은 날 대시보드 기준 83% 근처라 같은 정리가 필요하다.
+8. **디스크가 다시 차지 않게 하는 장치가 없다.** 운영은 2026-10-24 18:26(KST)에 사용률이 85% 알람을 넘었다. 10-19 data migration 때 서버에 남긴 SQL 백업 8개가 79.7%를 82.9%로 올렸고, 10-24 러너 자동 업데이트(2.337.0에서 2.338.0)가 남긴 옛 버전이 83.5%를 89.1%로 올렸다. 2026-10-25에 journal을 100MB로 줄여 388MB를 비우고 dnf 캐시(169MB), 러너 옛 버전과 설치 파일(582MB), data migration 백업, `/opt/yeogidam/loadtest`(370MB)를 지워 사용률을 90%에서 68%로 낮췄다. 같은 날 루트 볼륨을 ADR-03의 값인 20GB로 늘리고 `growpart`와 `xfs_growfs`로 파티션과 파일 시스템까지 넓혀 사용률이 28%(20GB 중 5.5GB)로 내려갔다. 그래도 러너는 자동 업데이트 때마다 옛 버전을 남겨 2026-09-29와 10-25에 손으로 지웠는데 자동으로 지우는 장치가 없고, journal에는 상한(`SystemMaxUse`)이 없으며, 배포 작업이 저장소 전체를 받아 `_work`가 481MB를 쓴다(checkout을 `Infra/scripts`로 좁히면 줄어든다). 개발 앱 서버도 같은 날 대시보드 기준 83% 근처라 같은 정리가 필요하다.
 9. **린터와 커버리지가 없다.** Gradle에는 checkstyle도 spotless도 jacoco도 없고, checkstyle은 IDEA 설정에만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
 10. **CODEOWNERS와 dependabot이 없다.**
 11. **`project-public`에 8080이 `0.0.0.0/0`으로 열려 있다.** 공용 보안 그룹이라 우리가 닫을 수 없다. 2026-09-30에 `deploy.sh`의 바인드 주소를 `127.0.0.1` 상수로 박고 `backend-cd.yml`에서 `BACKEND_BIND_ADDRESS` 변수를 지웠다. 이전에는 repository variable 하나로 앱이 TLS 없이 인터넷에 노출될 수 있었는데, 이제 앱은 언제나 로컬에만 바인드하고 밖에서 들어오는 길은 nginx 443뿐이다. 8080이 열려 있다는 사실은 그대로라서, 서버에서 다른 프로세스가 8080을 `0.0.0.0`으로 열면 여전히 노출된다.
@@ -281,7 +281,7 @@ backend-common-cd.yml  on: workflow_call, 실제 일을 전부 여기서 한다
 
 **언제 할지.** 첫 배포가 성공한 뒤에 하기로 했고 2026-09-30에 성공했으므로 조건을 채웠다. 검증하지 않은 워크플로를 쪼개면 실패했을 때 원인이 원래 로직인지 쪼개며 생긴 것인지 가리기 어려웠는데, 이제는 쪼개기 전후로 개발 배포를 한 번씩 돌려 결과를 비교할 기준이 있고 `workflow_dispatch`(#267)로 코드 변경 없이 배포를 부를 수 있어 비교도 쉽다.
 
-`Backend/scripts/resolve-source-commit.sh`가 분기에 쓰는 `github.ref_name`이 재사용 워크플로 안에서 호출한 쪽 ref를 가리키는지 확인해야 한다.
+`Infra/scripts/resolve-source-commit.sh`가 분기에 쓰는 `github.ref_name`이 재사용 워크플로 안에서 호출한 쪽 ref를 가리키는지 확인해야 한다.
 
 ## 확인이 필요한 것
 

@@ -7,7 +7,7 @@
 | `agent-app.json.template` | 앱 서버(yeogidam-dev, yeogidam-prod) | nginx access와 error 로그, 메모리와 디스크 사용률 |
 | `agent-db.json.template` | 개발 DB 서버(yeogidam-dev-db) | MySQL slow와 error 로그, 메모리와 디스크 사용률 |
 
-앱 컨테이너의 로그는 에이전트 대신 Docker `awslogs` 로그 드라이버(`Backend/scripts/deploy.sh`)가 보내고, nginx는 호스트 systemd로 돌아 로그를 파일로 남기므로 에이전트가 읽는다.
+앱 컨테이너의 로그는 에이전트 대신 Docker `awslogs` 로그 드라이버(`Infra/scripts/deploy.sh`)가 보내고, nginx는 호스트 systemd로 돌아 로그를 파일로 남기므로 에이전트가 읽는다.
 
 ## 서버에 반영하기
 
