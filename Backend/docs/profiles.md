@@ -1,6 +1,6 @@
 # 실행 프로필과 로컬 환경
 
-작성일 2026-09-19, 갱신 2026-10-27.
+작성일 2026-09-19, 갱신 2026-10-31.
 
 ## 1. 프로필
 
@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 용도 | 개발자 노트북 | Gradle 테스트 | 개발 서버 | 운영 |
 | DB | 로컬 MySQL(`.env`) | Testcontainers MySQL 8.4 | `yeogidam-dev-db`의 Docker MySQL 8.4 | RDS MySQL 8.4 `yeogidam-prod-db` (2026-10-02) |
-| 앱 업데이트 정책(`app-update.*`) | `application.yml` 값(최소 2.1.0, 최신 2.1.0) | `application-test.yml`(E2E용 구간) | 공통값 | 공통값 |
+| 앱 업데이트 정책(`app-update.*`) | `application.yml` 값(최소 2.2.0, 최신 2.2.0) | `application-test.yml`(E2E용 구간) | 공통값 | 공통값 |
 | Spring Boot의 Flyway 자동 실행 | 기본값 `true` | `false`. 공통 지원 코드에서 직접 실행 | 기본값 `true` | 기본값 `true` |
 | Flyway 접속 계정 | `DB_*`와 동일 | 테스트 컨테이너 계정 | `FLYWAY_*` 전용 계정 | `FLYWAY_*` 전용 계정 |
 | 구조 준비 | 매 기동 미적용 버전만 실행 | 공용 컨테이너 최초 준비 시 V1부터 모든 버전 실행 | 서버 시작 시 미적용 버전 실행 | 서버 시작 시 미적용 버전 실행 |
