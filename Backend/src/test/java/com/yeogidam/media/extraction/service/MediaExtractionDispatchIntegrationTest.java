@@ -10,8 +10,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.config.ExtractionProperties;
-import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
 import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.ShareResponse;
 import com.yeogidam.media.share.service.ShareService;
@@ -441,7 +442,11 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
         }
 
         @Override
-        public void extract(Long mediaId, InstagramUrl instagramUrl) {
+        public void extract(
+                Long mediaId,
+                InstagramUrl instagramUrl,
+                ExtractionReport report
+        ) {
             requests.add(new MetadataRequest(mediaId, instagramUrl));
             try {
                 waitForExtractionToFinish();
