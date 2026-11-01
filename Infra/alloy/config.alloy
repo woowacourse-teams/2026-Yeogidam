@@ -1,0 +1,88 @@
+// 앱과 Alloy는 yeogidam-observability 네트워크에서 통신한다. 호스트에 4318을 공개하지 않는다.
+otelcol.receiver.otlp "app" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    logs    = [otelcol.processor.memory_limiter.app.input]
+    metrics = [otelcol.processor.memory_limiter.app.input]
+    traces  = [otelcol.processor.memory_limiter.app.input]
+  }
+}
+
+otelcol.processor.memory_limiter "app" {
+  check_interval = "1s"
+  limit          = "160MiB"
+  spike_limit    = "32MiB"
+
+  output {
+    logs    = [otelcol.processor.batch.app.input]
+    metrics = [otelcol.processor.batch.app.input]
+    traces  = [otelcol.processor.batch.app.input]
+  }
+}
+
+otelcol.processor.batch "app" {
+  send_batch_size     = 256
+  send_batch_max_size = 512
+  timeout             = "5s"
+
+  output {
+    logs    = [otelcol.exporter.otlphttp.loki.input]
+    metrics = [otelcol.processor.transform.environment.input]
+    traces  = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+// 모든 리소스 속성을 레이블로 늘리지 않고 환경만 메트릭에 붙인다.
+otelcol.processor.transform "environment" {
+  metric_statements {
+    context = "datapoint"
+    statements = [
+      `set(attributes["deployment_environment_name"], resource.attributes["deployment.environment.name"]) where resource.attributes["deployment.environment.name"] != nil`,
+    ]
+  }
+
+  output {
+    metrics = [otelcol.exporter.prometheus.app.input]
+  }
+}
+
+otelcol.exporter.otlphttp "loki" {
+  client {
+    endpoint = sys.env("LOKI_OTLP_ENDPOINT")
+    headers  = { "Authorization" = sys.env("MONITOR_AUTHORIZATION") }
+  }
+
+  sending_queue {
+    queue_size = 128
+  }
+}
+
+otelcol.exporter.prometheus "app" {
+  forward_to = [prometheus.remote_write.monitor.receiver]
+}
+
+prometheus.remote_write "monitor" {
+  endpoint {
+    url     = sys.env("PROMETHEUS_REMOTE_WRITE_URL")
+    headers = { "Authorization" = sys.env("MONITOR_AUTHORIZATION") }
+  }
+}
+
+// 사설망 Nginx의 평문 gRPC 포트로 보낸다. endpoint에는 IP:4317만 넣는다.
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = sys.env("TEMPO_OTLP_ENDPOINT")
+    headers  = { "Authorization" = sys.env("MONITOR_AUTHORIZATION") }
+
+    tls {
+      insecure = true
+    }
+  }
+
+  sending_queue {
+    queue_size = 128
+  }
+}
