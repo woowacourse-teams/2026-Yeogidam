@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 
 readonly CONTAINER_PORT="8080"
+readonly OBSERVABILITY_NETWORK="yeogidam-observability"
 
 # 앱은 서버 안에서만 듣는다. 밖에서 오는 요청은 nginx가 443에서 받아 여기로 넘긴다.
 # project-public이 8080을 0.0.0.0/0으로 열어 두고 있어서(공용 보안 그룹이라 못 닫는다)
@@ -262,6 +263,7 @@ start_container() {
 
   docker run --detach \
     --name "$container_name" \
+    --network "$OBSERVABILITY_NETWORK" \
     --restart unless-stopped \
     --env-file "$BACKEND_ENV_FILE" \
     --publish "${BIND_ADDRESS}:${port}:${CONTAINER_PORT}" \
@@ -569,6 +571,12 @@ chmod 700 "$DEPLOY_LOCK_DIR"
 
 exec 9>"$DEPLOY_LOCK_FILE"
 flock -n 9 || fail "다른 Backend 배포나 재시작이 EC2에서 진행 중입니다."
+
+# Alloy가 아직 없어도 앱은 배포할 수 있다. 수집기와 같은 네트워크만 미리 준비한다.
+if ! docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null 2>&1; then
+  docker network create "$OBSERVABILITY_NETWORK" >/dev/null 2>&1 \
+    || docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null
+fi
 
 ACTIVE_NAME="$(container_name_of_port "$ACTIVE_PORT")"
 IDLE_NAME="$(container_name_of_port "$IDLE_PORT")"
