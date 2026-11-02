@@ -3,7 +3,7 @@
 스프린트 2 제출 항목 3(랜딩페이지)에 맞춘 정적 페이지이며 서버 없이 `index.html` 한 장과 `assets/` 폴더로 동작한다.
 
 - 서비스 소개: 히어로(이름, 한 줄 설명, 누구의 어떤 문제를 푸는지)와 문제 공감 섹션
-- 사용법: 히어로의 폰 프레임 데모(직접 눌러 보는 흐름)와 사용법 3단계 섹션(실제 앱 화면 캡처 포함)
+- 사용법: 히어로의 폰 프레임 데모(직접 눌러 보는 흐름)
 - 시작하기: 히어로, 데모 마침 카드, 하단 시작하기 섹션의 App Store와 Google Play 배지(데스크톱에서는 QR 코드도 보인다)
 - 기술력: 기능과 자주 묻는 질문 사이의 기술 섹션(스프린트 3 요구사항). 예시 릴스로 AI가 장소를 찾는 과정과 채점 숫자를 보여 준다
 - 품질: 기술과 자주 묻는 질문 사이의 품질 섹션. 버전마다 세운 가설과 사용자에게 직접 확인한 결과를 보여 준다
@@ -29,7 +29,6 @@ python3 -m http.server 8000
 | 기술 | 예시 릴스로 AI가 장소를 찾는 과정, 채점 숫자와 측정 방법 |
 | 품질 | 1.0부터 다음 버전까지 버전마다 세운 가설, 직접 써 본 사람 수, 결과와 바꾼 것 |
 | 자주 묻는 질문 | 비용, 지원 영상, 실패 처리, 저장 범위, 지원 기기 |
-| 사용법 | 공유 → 분석 → 보관함과 지도 3단계, 공유 목록 추가 팁. 기능과 기술을 먼저 보여 주려고 시작하기 바로 앞에 둔다 |
 | 시작하기 | 배지, QR 코드(900px 이상에서만) |
 | 푸터 | 팀, GitHub, 상표 표기 |
 
@@ -76,9 +75,9 @@ python3 -m http.server 8000
 | `favicon.ico`, `assets/favicon-16.png`, `assets/favicon-32.png`, `assets/apple-touch-icon.png` | 같은 앱 아이콘을 줄인 파비콘. 브라우저 탭과 iOS 홈 화면 아이콘용 |
 | `assets/app-store-badge.svg` | Apple 배지 생성기에서 받은 한국어 공식 배지 |
 | `assets/google-play-badge.png` | Google Play 한국어 공식 배지 |
-| `assets/screen-library.jpg` | fe-dev `src/assets/guide/intro-library.png`를 줄인 실제 보관함 화면 |
-| `assets/guide-share-sheet.jpg` | fe-dev `src/assets/guide/2page.png`(앱 사용 가이드의 iPhone 공유 시트)를 잘라 줄인 것 |
-| `assets/screen-map.jpg`, `assets/screen-sheet.jpg` | App Store에 올라간 1.1.0 스크린샷 |
+| `assets/screen-library.jpg` | fe-dev `src/assets/guide/intro-library.png`를 줄인 실제 보관함 화면. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
+| `assets/guide-share-sheet.jpg` | fe-dev `src/assets/guide/2page.png`(앱 사용 가이드의 iPhone 공유 시트)를 잘라 줄인 것. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
+| `assets/screen-map.jpg`, `assets/screen-sheet.jpg` | App Store에 올라간 1.1.0 스크린샷. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
 | `assets/place-<카카오 장소 id>.jpg` 13장, `assets/reel-gunja.jpg`, `assets/reel-chabap.jpg` | 군자역 5곳은 운영 S3 썸네일, 차밥열끼 8곳은 카카오 장소 페이지 미리보기 이미지, 릴스 썸네일 둘은 여기담 계정 게시물의 표지(480px로 줄임). 장소 사진은 카카오 장소 사진이라 앱 밖에서 오래 쓸 때는 저작권을 한 번 더 확인한다 |
 
 공식 배지는 비율과 색을 바꾸지 않고 App Store 배지를 먼저 두며 푸터에는 Apple과 Google 상표 표기가 있다.
