@@ -122,6 +122,9 @@ python3 -m http.server 8000
 | 스레드 | `https://yeogidam.vercel.app/?utm_source=threads&utm_medium=social&utm_campaign=threads_profile` |
 | 에브리타임 | `https://yeogidam.vercel.app/?utm_source=everytime&utm_medium=social&utm_campaign=everytime_post` |
 | 인스타그램 | `https://yeogidam.vercel.app/?utm_source=instagram&utm_medium=social&utm_campaign=food_post_to_app` |
+| 인스타그램 광고 | `https://yeogidam.vercel.app/?utm_source=instagram_ad&utm_medium=social&utm_campaign=caption_reel_boost` |
+| 슬랙 | `https://yeogidam.vercel.app/?utm_source=slack&utm_medium=social&utm_campaign=slack_post` |
+| SYDE | `https://yeogidam.vercel.app/?utm_source=syde&utm_medium=social&utm_campaign=syde_showcase` |
 | 팀원 확인 | `https://yeogidam.vercel.app/?utm_source=test&utm_medium=internal&utm_campaign=test` |
 
 - 스토어 버튼에도 스토어 통계용 꼬리표가 붙어 있어서, App Store Connect에서는 랜딩을 거친 설치를, Play Console에서는 랜딩에 들어온 채널별 설치를 볼 수 있다. App Store 버튼과 QR은 App Store Connect에서 만든 캠페인 `landing_store`로 가고, Google Play 버튼과 QR은 방문 주소의 `utm_source`와 `utm_medium`을 `referrer`에 옮겨 붙이며 꼬리표 없이 들어온 방문에는 `landing`과 `web`을 붙인다.
@@ -132,6 +135,8 @@ python3 -m http.server 8000
 | 스레드 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=threads_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dthreads%26utm_medium%3Dsocial%26utm_campaign%3Dthreads_store` |
 | 인스타그램 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=instagram_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dinstagram%26utm_medium%3Dsocial%26utm_campaign%3Dinstagram_store` |
 | 에브리타임 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=everytime_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Deverytime%26utm_medium%3Dsocial%26utm_campaign%3Deverytime_store` |
+| 슬랙 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=slack_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dslack%26utm_medium%3Dsocial%26utm_campaign%3Dslack_store` |
+| SYDE | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=syde_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dsyde%26utm_medium%3Dsocial%26utm_campaign%3Dsyde_store` |
 | 랜딩페이지 버튼 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=landing_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dlanding%26utm_medium%3Dweb%26utm_campaign%3Dlanding_store` (방문 주소에 꼬리표가 있으면 `utm_source`와 `utm_medium`이 바뀐다) |
 
 - 배포 뒤에는 GA4 보고서의 실시간 개요에서 이벤트 이름별 이벤트 수 카드에 `demo_step`, `store_click`, `tech_view`가 보이는지 확인한다. 표준 보고서는 하루 이틀 늦게 채워진다.
