@@ -38,6 +38,34 @@ PODS:
   - hermes-engine (250829098.0.16):
     - hermes-engine/Pre-built (= 250829098.0.16)
   - hermes-engine/Pre-built (250829098.0.16)
+  - HotUpdater (1.1.0):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - KakaoMapsSDK (2.12.17)
   - RCT-Folly (2024.11.18.00):
     - boost
@@ -2842,6 +2870,7 @@ DEPENDENCIES:
   - fmt (from `../node_modules/react-native/third-party-podspecs/fmt.podspec`)
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - "HotUpdater (from `../node_modules/@hot-updater/react-native`)"
   - KakaoMapsSDK
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2954,6 +2983,8 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v250829098.0.16
+  HotUpdater:
+    :path: "../node_modules/@hot-updater/react-native"
   RCT-Folly:
     :podspec: "../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec"
   RCTDeprecation:
@@ -3131,6 +3162,7 @@ SPEC CHECKSUMS:
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   glog: 9c7bd858f1402a8e680d1637276210773c093b76
   hermes-engine: 24427aaeeed69e5e7e7ccaec98f2847839d6e538
+  HotUpdater: dba1296d145a42612a8f650afeb4c261be957f79
   KakaoMapsSDK: 9becfe30f42630df1a0437ad2fcf2478ff8b56db
   RCT-Folly: 36c4f904fb6cd0219dcb76b94e9502d2a72fab0b
   RCTDeprecation: debcd5d989dc39edd50d61566b56e96da1c167b0
@@ -3217,6 +3249,6 @@ SPEC CHECKSUMS:
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 0b38f02674a32b9a15de1f41f8680ffa06eaf8ef
 
-PODFILE CHECKSUM: a7c395895f5bbb0f2e1e4c3302d54f0006c16206
+PODFILE CHECKSUM: fc6f96e9a98d23414d713f89b6b05d3842cd2667
 
 COCOAPODS: 1.17.0

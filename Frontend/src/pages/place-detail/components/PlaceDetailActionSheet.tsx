@@ -7,6 +7,9 @@ type PlaceDetailActionSheetProps = {
   visible: boolean;
   onClose: () => void;
   onDelete: () => void;
+  /** 지정하면 삭제 위에 폴더 담기/수정 버튼을 보여줍니다. */
+  onEditFolders?: () => void;
+  editFoldersLabel?: string;
   isDeleting?: boolean;
   deleteError?: SavedPlacesApiError | null;
 };
@@ -15,6 +18,8 @@ export function PlaceDetailActionSheet({
   visible,
   onClose,
   onDelete,
+  onEditFolders,
+  editFoldersLabel = '폴더에 담기',
   isDeleting = false,
   deleteError = null,
 }: PlaceDetailActionSheetProps) {
@@ -29,6 +34,19 @@ export function PlaceDetailActionSheet({
           onPress={event => event.stopPropagation()}
           style={styles.sheet}>
           <View style={styles.handle} />
+          {onEditFolders ? (
+            <Pressable
+              accessibilityLabel={editFoldersLabel}
+              accessibilityRole="button"
+              onPress={onEditFolders}
+              style={({pressed}) => [
+                styles.deleteButton,
+                pressed && styles.deleteButtonPressed,
+              ]}>
+              <MaterialIcons color="#000000" name="folder-open" size={21} />
+              <Text style={styles.deleteButtonText}>{editFoldersLabel}</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityLabel="장소 삭제하기"
             accessibilityRole="button"

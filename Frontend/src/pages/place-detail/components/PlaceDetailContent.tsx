@@ -22,6 +22,10 @@ type PlaceDetailContentProps = {
   onRetryReels?: () => void;
   onBack: () => void;
   onPressMore?: () => void;
+  onPressFolder?: () => void;
+  onPressDelete?: () => void;
+  isInFolder?: boolean;
+  isDeleting?: boolean;
   onInteractivePressIn?: () => void;
   hideHeader?: boolean;
   hideBack?: boolean;
@@ -49,6 +53,10 @@ export function PlaceDetailContent({
   onRetryReels,
   onBack,
   onPressMore,
+  onPressFolder,
+  onPressDelete,
+  isInFolder,
+  isDeleting,
   onInteractivePressIn,
   hideHeader = false,
   hideBack = false,
@@ -104,6 +112,10 @@ export function PlaceDetailContent({
         <PlaceDetailHeader
           onBack={onBack}
           onPressMore={onPressMore}
+          onPressFolder={onPressFolder}
+          onPressDelete={onPressDelete}
+          isInFolder={isInFolder}
+          isDeleting={isDeleting}
           onInteractivePressIn={onInteractivePressIn}
           hideBack={hideBack}
           title={place.name}

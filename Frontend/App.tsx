@@ -101,10 +101,13 @@ import {
   setSharedSaveState,
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
+import { otaBundleId } from './src/lib/hot-updater';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
   environment: Config.APP_ENV?.trim() || 'development',
+  // 어떤 OTA 배포에서 난 에러인지 구분해, 문제 배포를 bundle disable로 바로 끌 수 있게 한다.
+  ...(otaBundleId ? { initialScope: { tags: { ota_bundle_id: otaBundleId } } } : {}),
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -1424,6 +1427,7 @@ function App() {
           }
           onBack={closeDetail}
           onAuthenticationRequired={requestLogin}
+          isGuest={isAuthenticated === false}
           place={selectedPlace}
           viewContext={selectedPlaceViewContext ?? undefined}
         />

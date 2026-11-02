@@ -9,6 +9,7 @@ import {
 } from '../lib/auth/spring-session';
 import { getAnalyticsEnvironment } from '../analytics/analytics';
 import { getInstallationId } from '../lib/share-intent';
+import { otaBundleId } from '../lib/hot-updater';
 
 type PostHogRootProps = {
   children: ReactNode;
@@ -82,6 +83,7 @@ export function PostHogRoot({ children }: PostHogRootProps) {
             ...event.properties,
             environment,
             ...(installationId ? {installation_id: installationId} : {}),
+            ...(otaBundleId ? {ota_bundle_id: otaBundleId} : {}),
           },
         }),
       }}

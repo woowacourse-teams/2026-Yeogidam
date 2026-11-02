@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   Animated,
   FlatList,
   PanResponder,
@@ -194,29 +195,25 @@ test('중간 높이에서 펼친 상세의 첫 뒤로가기는 기존 <와 동�
   await act(async () => renderer.unmount());
 });
 
-test('드래그로 전체 목록에 도달하면 손을 놓기 전부터 뒤로가기 상태도 전체 높이가 된다', async () => {
+test('목록을 끝까지 드래그해도 전체 페이지가 되지 않고 카테고리 칩 아래에서 멈춘다', async () => {
   const create = jest.spyOn(PanResponder, 'create');
   const translateY = new Animated.Value(336);
   const setValue = jest.spyOn(translateY, 'setValue');
   const renderer = await render({ translateY });
   const handlers = create.mock.calls[0][0];
-  let reportStoppedPosition: ((value: number) => void) | undefined;
-  jest.spyOn(translateY, 'stopAnimation').mockImplementation(callback => {
-    reportStoppedPosition = callback;
-  });
+  jest.spyOn(translateY, 'stopAnimation').mockImplementation(() => undefined);
   const event = {} as GestureResponderEvent;
   const pan = { dy: -300, dx: 0, vy: -1 } as PanResponderGestureState;
   await act(async () => handlers.onPanResponderGrant?.(event, pan));
   await act(async () => handlers.onPanResponderMove?.(event, pan));
-  const full = renderer.root.findByType(SwipeBackStack);
-  expect(full.props.transitionKey).toBe('0:');
-  expect(full.props.backKey).toBe('state-back');
-  expect(full.props.gestureRegion.top).toBe(0);
-  // The native stop callback can arrive after the list has reached the top.
-  await act(async () => reportStoppedPosition?.(336));
+  // 검색바(16 + 44) + 칩 간격(8) + 칩(34) + 목록 간격(12)
+  const listTop = 16 + 44 + 8 + 34 + 12;
+  expect(setValue).toHaveBeenLastCalledWith(listTop);
   await act(async () => handlers.onPanResponderTerminate?.(event, pan));
-  expect(renderer.root.findByType(SwipeBackStack).props.transitionKey).toBe('0:');
-  expect(setValue).toHaveBeenLastCalledWith(0);
+  const stack = renderer.root.findByType(SwipeBackStack);
+  expect(stack.props.transitionKey).toBe('0:');
+  expect(stack.props.backKey).toBe('state-back');
+  expect(stack.props.gestureRegion.top).toBe(listTop);
   await act(async () => renderer.unmount());
 });
 
@@ -264,4 +261,17 @@ test('접힌 목록에서 마커 상세를 열어도 뒤 목록은 복귀 높이
     springsBeforeBack,
   );
   await act(async () => renderer.unmount());
+});
+
+test('장소 상세의 삭제 버튼은 바로 삭제하지 않고 안내 창을 먼저 띄운다', async () => {
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  const onDeleteGuestPlaces = jest.fn();
+  const renderer = await render({ onDeleteGuestPlaces });
+  await openDetail(renderer);
+  const detail = renderer.root.findAllByType(PlaceDetailContent)[0];
+  expect(detail.props.onPressDelete).toBeDefined();
+  await act(async () => detail.props.onPressDelete());
+  expect(alert).toHaveBeenCalledTimes(1);
+  expect(alert.mock.calls[0][0]).toBe('선택한 장소를 삭제할까요?');
+  expect(onDeleteGuestPlaces).not.toHaveBeenCalled();
 });

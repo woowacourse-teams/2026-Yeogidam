@@ -40,6 +40,11 @@ target 'Frontend' do
 
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |build_configuration|
+        deployment_target = build_configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        if deployment_target.to_f < 15.1
+          build_configuration.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+        end
+
         next unless build_configuration.name == 'Release'
 
         build_configuration.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'

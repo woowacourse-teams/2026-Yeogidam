@@ -5,6 +5,12 @@ import { MaterialIcons } from '@react-native-vector-icons/material-icons/static'
 type PlaceDetailHeaderProps = {
   onBack: () => void;
   onPressMore?: () => void;
+  /** 지정하면 케밥 대신 폴더·삭제 버튼을 보여줍니다. */
+  onPressFolder?: () => void;
+  onPressDelete?: () => void;
+  /** 장소가 하나 이상의 폴더에 담겨 있으면 폴더 버튼을 채워서 보여줍니다. */
+  isInFolder?: boolean;
+  isDeleting?: boolean;
   onInteractivePressIn?: () => void;
   hideBack?: boolean;
   title?: string;
@@ -16,6 +22,10 @@ type PlaceDetailHeaderProps = {
 export function PlaceDetailHeader({
   onBack,
   onPressMore,
+  onPressFolder,
+  onPressDelete,
+  isInFolder = false,
+  isDeleting = false,
   onInteractivePressIn,
   hideBack = false,
   title,
@@ -50,7 +60,39 @@ export function PlaceDetailHeader({
       ) : hideBack ? (
         <View style={styles.backPlaceholder} />
       ) : null}
-      {onPressMore ? (
+      {onPressFolder || onPressDelete ? (
+        <View style={styles.iconActions}>
+          {onPressFolder ? (
+            <Pressable
+              accessibilityLabel={isInFolder ? '폴더 수정' : '폴더에 담기'}
+              accessibilityRole="button"
+              hitSlop={6}
+              onPressIn={onInteractivePressIn}
+              onPress={onPressFolder}
+              style={[styles.iconButton, isInFolder && styles.iconButtonActive]}
+            >
+              <MaterialIcons
+                color={isInFolder ? '#ffffff' : '#9A9BB0'}
+                name={isInFolder ? 'folder' : 'folder-open'}
+                size={19}
+              />
+            </Pressable>
+          ) : null}
+          {onPressDelete ? (
+            <Pressable
+              accessibilityLabel="장소 삭제하기"
+              accessibilityRole="button"
+              disabled={isDeleting}
+              hitSlop={6}
+              onPressIn={onInteractivePressIn}
+              onPress={onPressDelete}
+              style={[styles.iconButton, isDeleting && styles.iconButtonDisabled]}
+            >
+              <MaterialIcons color="#9A9BB0" name="delete-outline" size={20} />
+            </Pressable>
+          ) : null}
+        </View>
+      ) : onPressMore ? (
         <Pressable
           accessibilityLabel="더보기"
           accessibilityRole="button"
@@ -126,6 +168,28 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 4},
     shadowRadius: 10,
     elevation: 4,
+  },
+  iconActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E3E6F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  },
+  iconButtonActive: {
+    borderColor: '#8FA2FF',
+    backgroundColor: '#8FA2FF',
+  },
+  iconButtonDisabled: {
+    opacity: 0.4,
   },
   morePlaceholder: {
     width: 40,

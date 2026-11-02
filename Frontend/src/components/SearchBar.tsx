@@ -46,7 +46,7 @@ export function SearchBar({
   topInset = 0,
   onPressBack,
   backButtonPosition = 'inside',
-  placeholder = '여기담 검색',
+  placeholder = '장소, 지역 검색',
   autoFocus = false,
   autoCorrect = true,
   onSubmitEditing,
@@ -118,7 +118,7 @@ export function SearchBar({
           </Text>
         ) : (
           <TextInput
-            accessibilityLabel="여기담 검색"
+            accessibilityLabel="장소, 지역 검색"
             autoCapitalize="none"
             autoCorrect={autoCorrect}
             autoFocus={autoFocus}
