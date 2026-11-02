@@ -23,6 +23,7 @@ import {
 import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
+import { EventNoticeModal } from './src/components/EventNoticeModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
@@ -1591,6 +1592,13 @@ function App() {
           }
           setRecommendedUpdate(null);
         }}
+      />
+      <EventNoticeModal
+        enabled={
+          requiredUpdateStoreUrl === null &&
+          recommendedUpdate === null &&
+          !(isGuestLoginPromptVisible && isGuestBrowsing)
+        }
       />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing}
