@@ -67,7 +67,7 @@ button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
 h1,h2,h3{margin:0;line-height:1.25;letter-spacing:-.02em;text-wrap:balance}
 p{margin:0}
 .wrap{max-width:1120px;margin-inline:auto;padding-inline:max(clamp(16px,4vw,32px),env(safe-area-inset-left,0px)) max(clamp(16px,4vw,32px),env(safe-area-inset-right,0px))}
-#demo,#how,#features,#tech,#faq,#start{scroll-margin-top:72px}
+#demo,#features,#tech,#journey,#faq,#start{scroll-margin-top:72px}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--brand-ink);background:var(--bg-soft);border-radius:999px;padding:6px 12px}
 .sec{padding-block:clamp(56px,9vw,112px)}
 .sec-head{max-width:640px;margin-bottom:clamp(28px,4vw,48px)}
@@ -527,6 +527,61 @@ p{margin:0}
 @media (max-width:859px){.tx-stage{padding:24px 16px 112px}}
 @media (max-width:520px){.tx-stats{flex-direction:column} .tx-stat{border:0;margin-right:0;padding-right:0}}
 
+/* ---------- 품질을 다듬는 방법 ---------- */
+/* 위에는 버전 번호를 한 줄로 늘어놓고, 마우스를 올리거나 누른 버전의 가설과 직접 써 본 사람(점 하나가 한 사람), 결과를 아래에 크게 보여 준다.
+   모든 버전의 내용을 같은 자리에 겹쳐 두어서 버전을 바꿔도 아래 내용이 밀리지 않는다 */
+.journey{background:var(--bg-soft)}
+.journey .eyebrow{background:#fff}
+.journey .sec-head{max-width:720px}
+.jr-nobr{white-space:nowrap}
+.jr-dotrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.jr-dots{display:grid;grid-template-columns:repeat(var(--cols),11px);gap:5px}
+.jr-dots i{width:11px;height:11px;border-radius:50%;background:var(--brand-deep)}
+.jr-dots i.on{background:var(--brand-ink)}
+.jr-dots.wait i{background:none;box-shadow:inset 0 0 0 2px var(--brand-deep)}
+.jr-n{font-size:14px;font-weight:700;color:var(--ink-2)}
+.jr-v{font-size:14px;font-weight:800;color:var(--ink-2)}
+.jr-v.no{color:#d14b4b}
+.jr-v.yes{color:#24963f}
+.jr-v.wip{color:var(--brand-ink)}
+.jr-pin{width:30px;height:auto}
+.jr-saw{font-size:15px;color:var(--ink-2);line-height:1.6}
+.jr-quote{margin:0;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.5}
+.jr-quote p{margin:0}
+.jr-quote span{white-space:nowrap}
+.jr-who{margin-top:4px;font-size:14px;color:var(--ink-2);line-height:1.55}
+.jr-did{margin-top:10px;display:flex;gap:8px;font-size:15px;font-weight:600;line-height:1.6}
+.jr-did::before{content:"→";flex:none;font-weight:800;color:var(--brand-ink)}
+.jr-tabs{display:flex;flex-wrap:wrap;gap:8px clamp(18px,4.2vw,56px);margin-bottom:clamp(28px,4vw,44px)}
+.jr-tab{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:0 0 14px;border:0;background:none;font:inherit;text-align:left;cursor:pointer;color:#b6bac7;transition:color .2s;-webkit-tap-highlight-color:transparent}
+.jr-tab b{font-size:clamp(28px,4.4vw,52px);font-weight:800;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.jr-tab small{display:flex;gap:6px;font-size:13px;font-weight:700;line-height:1.3;white-space:nowrap}
+.jr-tab::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:3px;background:var(--brand-ink);transform:scaleX(0);transform-origin:left;transition:transform .25s}
+.jr-tab:hover{color:var(--ink-2)}
+.jr-tab[aria-selected="true"]{color:var(--ink)}
+.jr-tab[aria-selected="true"] small{color:var(--ink-2)}
+.jr-tab[aria-selected="true"]::after{transform:none}
+.jr-tab[aria-selected="true"] .no{color:#d14b4b}
+.jr-tab[aria-selected="true"] .yes{color:#24963f}
+.jr-tab[aria-selected="true"] .wip{color:var(--brand-ink)}
+.jr-tab:focus-visible{outline:2px solid var(--brand-ink);outline-offset:6px;border-radius:6px}
+.jr-panels{display:grid}
+.jr-panel{grid-area:1/1;max-width:42em;display:flex;flex-direction:column;align-items:flex-start;gap:14px;visibility:hidden;opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s,visibility .25s}
+.jr-panel.on{visibility:visible;opacity:1;transform:none}
+.jr-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:14px;font-weight:700;color:var(--ink-2)}
+.jr-big{font-size:clamp(24px,3.2vw,34px);font-weight:800;letter-spacing:-.03em;line-height:1.3;text-wrap:balance}
+.jr-panel .jr-dots{grid-template-columns:repeat(var(--cols),14px);gap:6px}
+.jr-panel .jr-dots i{width:14px;height:14px}
+.jr-sets{display:grid;gap:10px}
+.jr-story{max-width:36em}
+.jr-story .jr-saw{font-size:16px}
+.jr-story .jr-did{font-size:16px}
+.jr-story .jr-quote{font-size:19px}
+@media (max-width:519px){
+  .jr-tabs{justify-content:space-between;gap:8px 4px}
+  .jr-tdate{display:none}
+}
+
 /* ---------- FAQ ---------- */
 .faq{max-width:760px}
 .faq details{border-bottom:1px solid var(--line)}
@@ -673,8 +728,8 @@ p{margin:0}
       <a href="#demo">직접 해 보기</a>
       <a href="#features">기능</a>
       <a href="#tech">기술</a>
+      <a href="#journey">품질</a>
       <a href="#faq">질문</a>
-      <a href="#how">사용법</a>
     </nav>
     <a class="btn btn-dark btn-sm" href="#start">앱 받기</a>
   </div>
@@ -921,6 +976,80 @@ p{margin:0}
   </div>
 </section>
 
+<!-- ========== 품질을 다듬는 방법 ========== -->
+<section class="sec journey" id="journey">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">품질을 다듬는 방법</span>
+      <h2>2주마다 가설을 세우고, 사용자에게 직접 확인해요</h2>
+      <p>무엇이 나아질지 먼저 가설로 적고, 처음 쓰는 사람과 고정 테스터에게 직접 써 보게 해서 <span class="jr-nobr">맞는지 확인해요.</span><br>실패한 가설도 지우지 않고 남겨 두었다가 다음 버전에서 고칩니다.</p>
+    </div>
+    <div class="jr-tabs" role="tablist" aria-label="버전">
+        <button class="jr-tab" type="button" role="tab" id="jr-t-10" aria-selected="false" aria-controls="jr-p-10" tabindex="-1" data-v="1.0"><b>1.0</b><small><span class="jr-tdate">8월 18일</span></small></button>
+        <button class="jr-tab" type="button" role="tab" id="jr-t-11" aria-selected="false" aria-controls="jr-p-11" tabindex="-1" data-v="1.1"><b>1.1</b><small><span class="jr-tdate">9월 5일</span><span class="no">✕</span></small></button>
+        <button class="jr-tab" type="button" role="tab" id="jr-t-20" aria-selected="true" aria-controls="jr-p-20" tabindex="0" data-v="2.0"><b>2.0</b><small><span class="jr-tdate">10월 16일</span><span class="yes">✓</span></small></button>
+        <button class="jr-tab" type="button" role="tab" id="jr-t-21" aria-selected="false" aria-controls="jr-p-21" tabindex="-1" data-v="2.1"><b>2.1</b><small><span class="jr-tdate">10월 23일</span><span class="yes">✓</span></small></button>
+        <button class="jr-tab" type="button" role="tab" id="jr-t-22" aria-selected="false" aria-controls="jr-p-22" tabindex="-1" data-v="2.2"><b>2.2</b><small><span class="jr-tdate">10월 30일</span></small></button>
+        <button class="jr-tab" type="button" role="tab" id="jr-t-next" aria-selected="false" aria-controls="jr-p-next" tabindex="-1" data-v="다음"><b>다음</b><small><span class="jr-tdate">만드는 중</span></small></button>
+    </div>
+    <div class="jr-panels">
+        <div class="jr-panel" role="tabpanel" id="jr-p-10" aria-labelledby="jr-t-10">
+          <p class="jr-meta"><time datetime="2026-08-18">8월 18일</time><span class="jr-v">첫 출시</span></p>
+          <p class="jr-big">손으로 해 보던 일을 앱으로</p>
+          <div class="jr-story">
+            <p class="jr-saw">앱을 만들기 전에 인스타그램 DM으로 받은 릴스를 팀이 손으로 지도에 옮겨 보내 봤어요.</p>
+            <p class="jr-did">같은 흐름을 앱으로 만들어 슈퍼베이스로 첫 버전을 냈어요.</p>
+          </div>
+        </div>
+        <div class="jr-panel" role="tabpanel" id="jr-p-11" aria-labelledby="jr-t-11">
+          <p class="jr-meta"><time datetime="2026-09-05">9월 5일</time><span class="jr-v no">✕ 목표 미달</span></p>
+          <p class="jr-big">10명 중 2명은 설치할까?</p>
+          <div class="jr-sets"><span class="jr-dotrow"><span class="jr-dots" style="--cols:10" aria-hidden="true"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="jr-n">19명 중 1명 설치</span></span></div>
+          <div class="jr-story">
+            <p class="jr-saw">군자역과 건대입구역에서 같은 불편을 겪은 19명에게 소개했지만 1명만 설치했어요.</p>
+            <p class="jr-did">처음부터 장소를 정확히 찾아야 다시 쓴다고 보고, 장소 찾는 정확도부터 다듬었어요.</p>
+          </div>
+        </div>
+        <div class="jr-panel on" role="tabpanel" id="jr-p-20" aria-labelledby="jr-t-20">
+          <p class="jr-meta"><time datetime="2026-10-16">10월 16일</time><span class="jr-v yes">✓ 다시 재서 통과</span></p>
+          <p class="jr-big">5명 중 4명 이상이 혼자 해낼까?</p>
+          <div class="jr-sets"><span class="jr-dotrow"><span class="jr-dots" style="--cols:5" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span><span class="jr-n">처음 5명 중 2명</span></span><span class="jr-dotrow"><span class="jr-dots" style="--cols:5" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span><span class="jr-n">다시 재서 5명 중 4명</span></span></div>
+          <div class="jr-story">
+            <p class="jr-saw">처음 쓰는 5명에게 설명 없이 맡기니 2명만 끝까지 해내서 가설을 기각했어요.</p>
+            <p class="jr-did">대기함을 없애고 다시 재니 5명 중 4명이 혼자 해냈어요.</p>
+          </div>
+        </div>
+        <div class="jr-panel" role="tabpanel" id="jr-p-21" aria-labelledby="jr-t-21">
+          <p class="jr-meta"><time datetime="2026-10-23">10월 23일</time><span class="jr-v yes">✓ 가설 통과</span></p>
+          <p class="jr-big">5명 모두 실수 두 번 안에 공유할까?</p>
+          <div class="jr-sets"><span class="jr-dotrow"><span class="jr-dots" style="--cols:5" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="jr-n">5명 모두 해냄</span></span></div>
+          <div class="jr-story">
+            <p class="jr-saw">2.0을 다시 잴 때도 4명이 온보딩에서 헤맸어요.</p>
+            <p class="jr-did">기기별 영상 가이드를 만들어 재 보니 5명 모두 해냈어요.</p>
+          </div>
+        </div>
+        <div class="jr-panel" role="tabpanel" id="jr-p-22" aria-labelledby="jr-t-22">
+          <p class="jr-meta"><time datetime="2026-10-30">10월 30일</time><span class="jr-v wip">재는 중</span></p>
+          <p class="jr-big">9명 중 6명 이상이 더 빨리 찾을까?</p>
+          <div class="jr-sets"><span class="jr-dotrow"><span class="jr-dots wait" style="--cols:9" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="jr-n">고정 테스터 9명</span></span></div>
+          <div class="jr-story">
+            <p class="jr-saw">고정 테스터 9명 중 3명이 저장한 장소를 다시 찾기 어렵다고 했어요.</p>
+            <p class="jr-did">카테고리 칩과 폴더를 넣었고, 테스터가 2.2 전과 후에 같은 과제를 하며 걸린 시간을 재고 있어요.</p>
+          </div>
+        </div>
+        <div class="jr-panel" role="tabpanel" id="jr-p-next" aria-labelledby="jr-t-next">
+          <p class="jr-meta"><img class="jr-pin" src="assets/marker-selected.png" alt="" width="96" height="96" loading="lazy"><span class="jr-v wip">만드는 중</span></p>
+          <p class="jr-big">릴스와 장소를 한 화면에</p>
+          <div class="jr-story">
+            <blockquote class="jr-quote"><p>장소만 늘어선 보관함을 나중에 보면 <span>“이게 뭐였지?”</span> 싶대요.</p></blockquote>
+            <p class="jr-who">10월에 고정 테스터에게 들은 말이에요.</p>
+            <p class="jr-did">릴스와 장소를 함께 보는 메인 화면을 그리고 있어요.</p>
+          </div>
+        </div>
+    </div>
+  </div>
+</section>
+
 <!-- ========== FAQ ========== -->
 <section class="sec" id="faq">
   <div class="wrap">
@@ -935,67 +1064,6 @@ p{margin:0}
       <details><summary>영상이 저장되나요?</summary><p>영상 자체는 저장하지 않아요. 릴스 링크와 썸네일, 찾아낸 장소 정보만 보관해요.</p></details>
       <details><summary>어떤 기기에서 쓸 수 있나요?</summary><p>iPhone과 Android 모두 돼요. 공유 목록에 여기담이 안 보이면 앱 안의 사용 가이드를 따라 한 번만 추가하면 돼요.</p></details>
     </div>
-  </div>
-</section>
-
-<!-- ========== 사용법 ========== -->
-<section class="sec" id="how">
-  <div class="wrap">
-    <div class="sec-head">
-      <span class="eyebrow">사용법</span>
-      <h2>공유하고, 기다리고, 꺼내 보면 끝이에요</h2>
-      <p>링크를 복사하거나 주소를 검색할 필요 없이 세 단계면 돼요.</p>
-    </div>
-    <div class="how-grid">
-      <article class="how">
-        <span class="num">1</span>
-        <h3>릴스에서 공유를 누르고 여기담을 골라요</h3>
-        <p>인스타그램 공유 목록에서 여기담을 고르면 링크가 바로 넘어가요. 링크나 주소를 복사할 필요가 없어요. 결과는 여기담 앱의 보관함에서 확인해요.</p>
-        <div class="vis">
-          <span class="tag">앱 가이드 화면</span>
-          <div class="shots one"><img src="assets/guide-share-sheet.jpg" alt="iPhone 공유 시트에서 여기담을 고르는 화면이에요." loading="lazy" width="354" height="520"></div>
-        </div>
-      </article>
-      <article class="how">
-        <span class="num">2</span>
-        <h3>여기담이 영상 속 장소를 찾아요</h3>
-        <p>AI가 영상과 캡션을 읽어 장소 이름을 뽑고, 카카오 지도에서 실제 장소와 맞춰요. 잠시 뒤 처리중 표시가 성공으로 바뀌어요.</p>
-        <div class="vis">
-          <span class="tag">실제 앱 화면</span>
-          <div class="hist">
-            <div class="hist-head"><span class="chev">&#8249;</span>히스토리</div>
-            <div class="hist-hero"><img class="hist-thumb" src="assets/reel-gunja.jpg" alt="" loading="lazy"><b>장소 분석이 완료되었어요!</b><small>총 5개의 장소를 찾았어요</small></div>
-            <div class="hist-orig"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#8a3ab9"/></linearGradient></defs><path fill="url(#ig)" d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path fill="url(#ig)" d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg><span class="lbl">원본 릴스로 이동</span><span class="chev2">&#8250;</span></div>
-            <div class="hist-label">발견한 장소</div>
-            <div class="hist-row">
-              <div class="hpc"><img src="assets/place-1775568752.jpg" alt="" loading="lazy"><b>윤숲 후르츠산도점</b><small>서울 광진구 면목로7길 8</small></div>
-              <div class="hpc"><img src="assets/place-137070444.jpg" alt="" loading="lazy"><b>에프씨씨</b><small>서울 광진구 용마산로3길 88</small></div>
-              <div class="hpc"><img src="assets/place-337953507.jpg" alt="" loading="lazy"><b>책방고즈넉</b><small>서울 광진구 동일로60길 41-13</small></div>
-              <div class="hpc"><img src="assets/place-98016856.jpg" alt="" loading="lazy"><b>윤키</b><small>서울 광진구 능동로38길 27</small></div>
-              <div class="hpc"><img src="assets/place-1107844606.jpg" alt="" loading="lazy"><b>연필</b><small>서울 광진구 면목로 12</small></div>
-            </div>
-          </div>
-        </div>
-      </article>
-      <article class="how">
-        <span class="num">3</span>
-        <h3>보관함과 지도에서 꺼내 봐요</h3>
-        <p>찾은 장소는 보관함에 카드로, 지도에는 핀으로 쌓여요. 장소를 누르면 주소를 복사하고 카카오맵으로 바로 넘어갈 수 있어요.</p>
-        <div class="vis">
-          <span class="tag">실제 앱 화면</span>
-          <div class="shots">
-            <img src="assets/screen-library.jpg" alt="여기담 보관함 화면. 저장한 카페가 사진 카드로 보여요." loading="lazy" width="413" height="720">
-            <img src="assets/screen-map.jpg" alt="여기담 지도 화면. 저장한 장소가 캐릭터 핀으로 보여요." loading="lazy" width="444" height="960">
-          </div>
-        </div>
-      </article>
-    </div>
-    <div class="tip"><span class="ico">💡</span><div><b>처음 한 번은 공유 목록에 여기담을 추가해 주세요.</b><br>iPhone은 공유 목록 끝의 더보기에서 편집을 눌러 여기담 옆 +를 누르고, Android는 공유 목록에서 여기담 아이콘을 길게 눌러 고정하면 다음부터 맨 앞에 보여요. 기기마다 화면이 조금 다르니 앱 안의 사용 가이드를 함께 보세요.
-      <div class="tip-shots">
-        <figure><div class="mini"><div class="mini-title">앱 편집</div><div class="mini-row on"><span class="plus">+</span><img src="assets/app-icon.png" alt=""><span>여기담</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div><div class="mini-row"><span class="plus">+</span><i></i><span>다른 앱</span></div></div><figcaption>iPhone은 편집 목록에서 여기담 옆 +</figcaption></figure>
-        <figure><div class="mini center"><div class="app-ic me"><img src="assets/app-icon.png" alt="">여기담</div><span class="pop">📌 고정</span></div><figcaption>Android는 아이콘을 길게 눌러 고정</figcaption></figure>
-      </div>
-      <span class="tag soft small">예시 화면</span></div></div>
   </div>
 </section>
 
@@ -1021,21 +1089,19 @@ p{margin:0}
 <footer class="foot">
   <div class="wrap">
     <div class="row">
-      <div><b style="color:var(--ink)">여기담</b>은 우아한테크코스 2026 여기담 팀이 만들었어요.</div>
       <div style="display:flex;gap:18px;flex-wrap:wrap">
-        <a href="https://github.com/woowacourse-teams/2026-Yeogidam" target="_blank" rel="noopener">GitHub</a>
         <a href="https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&amp;ct=landing_store&amp;mt=8" target="_blank" rel="noopener">App Store</a>
         <a href="https://play.google.com/store/apps/details?id=com.yeogidamm.app&amp;referrer=utm_source%3Dlanding%26utm_medium%3Dweb%26utm_campaign%3Dlanding_store" target="_blank" rel="noopener">Google Play</a>
       </div>
     </div>
-    <p class="legal">문의는 GitHub 이슈나 앱의 내 정보 &gt; 문의하기에서 받고 있어요.</p>
+    <p class="legal">문의는 앱의 내 정보 &gt; 문의하기에서 받고 있어요.</p>
     <p class="legal">방문 통계를 위해 Google 애널리틱스 쿠키를 써요. 원하지 않으면 브라우저 설정에서 쿠키를 막을 수 있어요.</p>
     <p class="legal">Apple과 Apple 로고는 Apple Inc.의 상표이고 App Store는 Apple Inc.의 서비스 마크예요.<br>Google Play와 Google Play 로고는 Google LLC의 상표예요.<br>인스타그램은 Meta Platforms, Inc.의 상표이며 여기담은 Meta와 관련이 없어요.</p>
     <p class="legal copyright">여기담의 캐릭터, 로고, 화면은 여기담 팀의 저작물이에요.<br>© 2026 Yeogidam. All rights reserved.</p>
   </div>
 </footer>
 
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "MobileApplication", "name": "여기담", "alternateName": "Yeogidam", "url": "https://yeogidam.vercel.app/", "description": "인스타그램 릴스를 여기담에 공유하면 AI가 영상 속 장소를 찾아 보관함과 지도에 저장하는 앱", "applicationCategory": "LifestyleApplication", "operatingSystem": "iOS, Android", "image": "https://yeogidam.vercel.app/assets/og.png", "installUrl": ["https://apps.apple.com/kr/app/id6801408355", "https://play.google.com/store/apps/details?id=com.yeogidamm.app"], "offers": {"@type": "Offer", "price": "0", "priceCurrency": "KRW"}, "author": {"@type": "Organization", "name": "여기담 팀", "url": "https://github.com/woowacourse-teams/2026-Yeogidam"}, "inLanguage": "ko"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "MobileApplication", "name": "여기담", "alternateName": "Yeogidam", "url": "https://yeogidam.vercel.app/", "description": "인스타그램 릴스를 여기담에 공유하면 AI가 영상 속 장소를 찾아 보관함과 지도에 저장하는 앱", "applicationCategory": "LifestyleApplication", "operatingSystem": "iOS, Android", "image": "https://yeogidam.vercel.app/assets/og.png", "installUrl": ["https://apps.apple.com/kr/app/id6801408355", "https://play.google.com/store/apps/details?id=com.yeogidamm.app"], "offers": {"@type": "Offer", "price": "0", "priceCurrency": "KRW"}, "author": {"@type": "Organization", "name": "여기담 팀"}, "inLanguage": "ko"}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "무료인가요?", "acceptedAnswer": {"@type": "Answer", "text": "네, 무료예요. 카카오, Apple, Google 로그인이나 이메일 계정으로 바로 시작할 수 있어요."}}, {"@type": "Question", "name": "어떤 영상이 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "인스타그램 릴스와 게시물 링크를 지원해요. 영상이나 캡션에 장소 이름이 드러나 있을수록 잘 찾아요. 유튜브 쇼츠는 아직 지원하지 않아요."}}, {"@type": "Question", "name": "장소를 못 찾으면 어떻게 되나요?", "acceptedAnswer": {"@type": "Answer", "text": "히스토리에 실패로 표시되고 이유를 함께 알려 드려요. 다시 시도하거나 제보 버튼으로 알려 주시면 팀이 확인해요."}}, {"@type": "Question", "name": "영상이 저장되나요?", "acceptedAnswer": {"@type": "Answer", "text": "영상 자체는 저장하지 않아요. 릴스 링크와 썸네일, 찾아낸 장소 정보만 보관해요."}}, {"@type": "Question", "name": "어떤 기기에서 쓸 수 있나요?", "acceptedAnswer": {"@type": "Answer", "text": "iPhone과 Android 모두 돼요. 공유 목록에 여기담이 안 보이면 앱 안의 사용 가이드를 따라 한 번만 추가하면 돼요."}}]}</script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "여기담", "url": "https://yeogidam.vercel.app/", "inLanguage": "ko"}</script>
 <script>
@@ -1530,6 +1596,51 @@ p{margin:0}
     var tHow = document.querySelector('.tx-how'), tHowSent = false;
     if (tHow) tHow.addEventListener('toggle', function(){
       if (tHow.open && !tHowSent){ tHowSent = true; track('tech_method_open'); }
+    });
+  }
+  /* ---------- 품질을 다듬는 방법: 섹션까지 내려온 방문자와 버전 내용을 처음 본 방문자를 센다 ---------- */
+  var journey = $('journey');
+  if (journey){
+    if ('IntersectionObserver' in window){
+      var jObserver = new IntersectionObserver(function(es){
+        // 페이지를 한 번 열 때 한 번만 보낸다
+        if (es.some(function(e){ return e.isIntersecting; })){ track('journey_view'); jObserver.disconnect(); }
+      }, {threshold:.3});
+      jObserver.observe(journey);
+    }
+    // 버전 내용을 처음 본 방문자를 페이지마다 한 번 센다. 마우스는 0.5초 넘게 올려 둔 때만 센다
+    var jOpenSent = false;
+    var jSeen = function(v){
+      if (jOpenSent) return;
+      jOpenSent = true;
+      track('journey_version_open', {version: v});
+    };
+
+    // 마우스를 올리거나 누른 버전 번호의 내용을 보여 주고, 키보드는 왼쪽과 오른쪽 화살표로 옮긴다
+    var jTabs = [].slice.call(journey.querySelectorAll('.jr-tab'));
+    var jSelect = function(tab, focus){
+      jTabs.forEach(function(t){
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        $(t.getAttribute('aria-controls')).classList.toggle('on', on);
+      });
+      if (focus) tab.focus();
+    };
+    jTabs.forEach(function(tab, i){
+      var hoverTimer;
+      tab.addEventListener('click', function(){ jSelect(tab); jSeen(tab.getAttribute('data-v')); });
+      tab.addEventListener('mouseenter', function(){
+        jSelect(tab);
+        hoverTimer = setTimeout(function(){ jSeen(tab.getAttribute('data-v')); }, 500);
+      });
+      tab.addEventListener('mouseleave', function(){ clearTimeout(hoverTimer); });
+      tab.addEventListener('keydown', function(e){
+        var step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!step) return;
+        e.preventDefault();
+        jSelect(jTabs[(i + step + jTabs.length) % jTabs.length], true);
+      });
     });
   }
 })();
