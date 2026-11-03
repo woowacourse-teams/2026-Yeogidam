@@ -1593,8 +1593,10 @@ function App() {
           setRecommendedUpdate(null);
         }}
       />
+      {/* 로그인·회원가입 화면 위에는 띄우지 않고, 메인 화면에 들어온 뒤에 안내한다. */}
       <EventNoticeModal
         enabled={
+          flowState.kind === 'main' &&
           requiredUpdateStoreUrl === null &&
           recommendedUpdate === null &&
           !(isGuestLoginPromptVisible && isGuestBrowsing)
