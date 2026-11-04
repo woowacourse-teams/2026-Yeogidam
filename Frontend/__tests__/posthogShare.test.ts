@@ -19,7 +19,7 @@ describe('flushShareAnalytics', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    global.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
     fetchMock.mockResolvedValue({ok: true});
   });
 
