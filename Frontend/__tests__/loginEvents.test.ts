@@ -2,6 +2,7 @@ import type {AnalyticsClient} from '../src/analytics/analytics';
 import {
   toLoginFailureType,
   trackLoginFinished,
+  trackLoginStarted,
 } from '../src/analytics/userEntryEvents';
 
 function createClient() {
@@ -43,5 +44,20 @@ describe('login_finished', () => {
       outcome: 'failure',
       failure_type: 'app_return_failed',
     });
+  });
+
+  test('links a login that started from the share screen to its share', () => {
+    const client = createClient();
+    const entry = {entry: 'share_login_handoff', shareId: 'share-123'} as const;
+
+    trackLoginStarted(client, 'apple', entry);
+    trackLoginFinished(client, {provider: 'apple', outcome: 'success', entry});
+    trackLoginStarted(client, 'kakao');
+
+    const calls = (client.capture as jest.Mock).mock.calls;
+    expect(calls[0][1]).toMatchObject({entry: 'share_login_handoff', share_id: 'share-123'});
+    expect(calls[1][1]).toMatchObject({entry: 'share_login_handoff', share_id: 'share-123'});
+    expect(calls[2][1]).not.toHaveProperty('entry');
+    expect(calls[2][1]).not.toHaveProperty('share_id');
   });
 });

@@ -28,7 +28,10 @@ import java.util.UUID
 
 private const val GUEST_PRACTICE_POST_URL = "https://www.instagram.com/p/Db4gRWqkuUg/"
 
-private enum class ResultCard { SUCCESS, LOGIN_REQUIRED, FAILURE }
+/** [analyticsName]은 `reel_share_card_dismissed`의 `card_state` 값입니다. */
+private enum class ResultCard(val analyticsName: String) {
+    SUCCESS("success"), LOGIN_REQUIRED("login_required"), FAILURE("failure"),
+}
 
 private const val RESULT_AUTO_FINISH_MILLIS = 4_000L
 
@@ -41,6 +44,8 @@ class ShareActivity : AppCompatActivity() {
     private lateinit var messageLabel: TextView
     private lateinit var actionButton: TextView
     private var cardShown = false
+    private var currentCard: ResultCard? = null
+    private var requestId = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,7 +59,7 @@ class ShareActivity : AppCompatActivity() {
     private fun configureContentView() {
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.argb(80, 0, 0, 0))
-            setOnClickListener { finish() }
+            setOnClickListener { dismissCard("tap_outside") }
         }
 
         mascotView = ImageView(this).apply {
@@ -130,6 +135,7 @@ class ShareActivity : AppCompatActivity() {
         mascotView.setImageResource(
             if (kind == ResultCard.LOGIN_REQUIRED) R.drawable.share_mascot_sad else R.drawable.share_mascot,
         )
+        currentCard = kind
         messageLabel.text = message
         actionButton.text = buttonTitle
         actionButton.setOnClickListener { onAction() }
@@ -139,33 +145,65 @@ class ShareActivity : AppCompatActivity() {
     }
 
     /** 앱을 엽니다. 열지 못하면 직접 열어 달라는 안내 카드로 바꿉니다. */
-    private fun openApp(failureMessage: String, stage: String) {
+    private fun openApp(action: String, failureMessage: String, stage: String) {
         try {
             startActivity(Intent(this, com.yeogidamm.app.MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             })
-            finish()
+            recordAction(action, "opened")
+            dismissCard("app_opened")
         } catch (_: Exception) {
             ShareSentryReporter.capture(this, "SHARE_LOGIN_APP_OPEN_FAILED", stage)
-            showCard(ResultCard.FAILURE, failureMessage, "닫기") { finish() }
+            recordAction(action, "open_failed")
+            showCard(ResultCard.FAILURE, failureMessage, "닫기", ::onCloseClicked)
         }
     }
 
+    private fun onCloseClicked() {
+        recordAction("close")
+        dismissCard("close_button")
+    }
+
+    /** 카드 버튼을 누른 결과를 기록합니다. 한 공유에서 로그인 → 닫기처럼 여러 버튼을 누를 수 있어 버튼마다 한 번씩 기록합니다. */
+    private fun recordAction(action: String, result: String? = null) {
+        ShareAnalyticsStore.record(
+            this, "reel_share_action_clicked", requestId,
+            JSONObject().put("action", action).apply { result?.let { put("result", it) } },
+            eventKey = "reel_share_action_clicked.$requestId.$action",
+        )
+    }
+
+    /** 화면을 닫고, 어떤 방법으로 닫혔는지 기록합니다. 카드가 나타나기 전에 닫히면 `card_state`는 `none`입니다. */
+    private fun dismissCard(method: String) {
+        if (isFinishing) return
+        ShareAnalyticsStore.record(
+            this, "reel_share_card_dismissed", requestId,
+            JSONObject().put("method", method).put("card_state", currentCard?.analyticsName ?: "none"),
+        )
+        finish()
+    }
+
     private fun processShare(intent: Intent?) {
-        val requestId = UUID.randomUUID().toString()
+        requestId = UUID.randomUUID().toString()
         ShareAnalyticsStore.record(this, "reel_share_received", requestId)
         val rawText = try {
             intent?.sharedText()
         } catch (_: Exception) {
             ShareSentryReporter.capture(this, "SHARE_PAYLOAD_READ_FAILED")
-            showResultAndFinish("링크를 확인하지 못했어요", requestId, "read_failed", ResultCard.FAILURE)
+            showResultAndFinish(
+                "링크를 확인하지 못했어요",
+                requestId, "read_failed", ResultCard.FAILURE, outcome = "failed", reason = "read_failed",
+            )
             return
         }
         val normalizedUrl = try {
             rawText?.let(::extractInstagramUrl)
         } catch (_: Exception) {
             ShareSentryReporter.capture(this, "SHARE_PAYLOAD_READ_FAILED")
-            showResultAndFinish("링크를 확인하지 못했어요", requestId, "read_failed", ResultCard.FAILURE)
+            showResultAndFinish(
+                "링크를 확인하지 못했어요",
+                requestId, "read_failed", ResultCard.FAILURE, outcome = "failed", reason = "read_failed",
+            )
             return
         }
         if (normalizedUrl == null) {
@@ -197,6 +235,10 @@ class ShareActivity : AppCompatActivity() {
                     showCard(ResultCard.LOGIN_REQUIRED, "로그인 해주세요", "로그인") {
                         onLoginClicked(requestId, normalizedUrl, rawText, auth)
                     }
+                    ShareAnalyticsStore.record(
+                        this, "reel_share_feedback_viewed", requestId,
+                        JSONObject().put("feedback_type", "login_required"),
+                    )
                     recordOutcomeViewed(requestId, "login_required", loginRequiredReason(auth.reason))
                 }
                 return@Thread
@@ -224,6 +266,9 @@ class ShareActivity : AppCompatActivity() {
                     ),
                 )
             }.getOrDefault(false)
+            // iOS와 같이 기기 보관 직후, 전송 등록 전에 보관 결과를 기록합니다.
+            ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
+                JSONObject().put("outcome", if (updated) "saved" else "storage_failed"))
             val queued = updated && transferStatus == "SAVED" &&
                 runCatching { ShareSaveWorker.enqueue(this, requestId) }
                     .getOrDefault(false)
@@ -262,10 +307,10 @@ class ShareActivity : AppCompatActivity() {
     ) {
         if (kind == ResultCard.SUCCESS) {
             showCard(kind, message, "앱에서 보기") {
-                openApp("앱을 직접 열어 주세요", "result_open")
+                openApp("open_app", "앱을 직접 열어 주세요", "result_open")
             }
         } else {
-            showCard(kind, message, "닫기") { finish() }
+            showCard(kind, message, "닫기", ::onCloseClicked)
         }
         ShareAnalyticsStore.record(
             this, "reel_share_feedback_viewed", requestId,
@@ -273,7 +318,7 @@ class ShareActivity : AppCompatActivity() {
         )
         outcome?.let { recordOutcomeViewed(requestId, it, reason) }
         // 로그인 안내와 달리 결과 안내는 잠시 뒤 스스로 닫힙니다.
-        card.postDelayed({ if (!isFinishing && !isDestroyed) finish() }, RESULT_AUTO_FINISH_MILLIS)
+        card.postDelayed({ if (!isFinishing && !isDestroyed) dismissCard("auto") }, RESULT_AUTO_FINISH_MILLIS)
     }
 
     /** 로그인을 위해 앱으로 넘기기 전에 공유한 링크를 저장하고 앱을 엽니다. */
@@ -295,6 +340,7 @@ class ShareActivity : AppCompatActivity() {
         }.getOrDefault(false)
         if (!saved) {
             ShareSentryReporter.capture(this, "SHARE_PAYLOAD_STORE_FAILED", "login_handoff")
+            recordAction("login", "save_failed")
             showResultAndFinish(
                 "링크를 저장하지 못했어요",
                 requestId, "save_failed", ResultCard.FAILURE, outcome = "failed", reason = "save_failed",
@@ -303,7 +349,7 @@ class ShareActivity : AppCompatActivity() {
         }
         ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
             JSONObject().put("outcome", "saved"))
-        openApp("앱을 직접 열어 로그인하세요", "login_handoff")
+        openApp("login", "앱을 직접 열어 로그인하세요", "login_handoff")
     }
 
     private fun recordOutcomeViewed(requestId: String, outcome: String, reason: String?) {

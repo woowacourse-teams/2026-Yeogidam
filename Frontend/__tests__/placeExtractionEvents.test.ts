@@ -83,4 +83,27 @@ describe('native share event forwarding', () => {
     expect(payload.properties).not.toHaveProperty('feedback_type');
     expect(payload.properties).not.toHaveProperty('instagram_url');
   });
+
+  it('forwards share card button clicks and dismissals with only their allowed properties', () => {
+    expect(isShareExtractionEventName('reel_share_action_clicked')).toBe(true);
+    expect(isShareExtractionEventName('reel_share_card_dismissed')).toBe(true);
+
+    const clicked = buildShareExtractionCapture({
+      name: 'reel_share_action_clicked',
+      share_id: 'share-901',
+      occurred_at: Date.UTC(2026, 10, 4),
+      properties: {platform: 'ios', action: 'login', result: 'open_failed', method: 'auto'},
+    });
+    expect(clicked.properties).toMatchObject({action: 'login', result: 'open_failed'});
+    expect(clicked.properties).not.toHaveProperty('method');
+
+    const dismissed = buildShareExtractionCapture({
+      name: 'reel_share_card_dismissed',
+      share_id: 'share-901',
+      occurred_at: Date.UTC(2026, 10, 4),
+      properties: {platform: 'android', method: 'tap_outside', card_state: 'success', action: 'close'},
+    });
+    expect(dismissed.properties).toMatchObject({method: 'tap_outside', card_state: 'success'});
+    expect(dismissed.properties).not.toHaveProperty('action');
+  });
 });
