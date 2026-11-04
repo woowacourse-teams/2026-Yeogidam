@@ -21,6 +21,7 @@ const ONBOARDING_PAGES: StepPage[] = [
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   return (
     <StepPager
+      flowName="onboarding"
       pages={ONBOARDING_PAGES}
       onComplete={onComplete}
       lastButtonLabel="시작하기"

@@ -14,6 +14,11 @@ import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
+import {
+  trackActionFinished,
+  trackButtonPressed,
+  trackScreenViewed,
+} from './src/analytics/uiEvents';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import {
@@ -1199,14 +1204,18 @@ function App() {
     // 온보딩을 거쳐 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
     try {
       const result = await logoutSpringSession();
-      if (!result.serverConfirmed) {
-        // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
-      }
+      // 로그아웃이 끝나면 PostHog 식별이 초기화되므로 그 전에 기록한다.
+      trackActionFinished(posthog, 'logout', 'success', {
+        server_confirmed: result.serverConfirmed,
+      });
       return;
     } catch (error) {
-      if (error instanceof LocalSessionCleanupError) {
-        // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
-      }
+      trackActionFinished(posthog, 'logout', 'failure', {
+        failure_type:
+          error instanceof LocalSessionCleanupError
+            ? 'local_cleanup_failed'
+            : 'unknown',
+      });
     }
 
     setIsLogoutPending(false);
@@ -1238,20 +1247,34 @@ function App() {
   };
 
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
+    let serverSideFailure = false;
     try {
       await deleteAccount(payload);
     } catch (error) {
       // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 탈퇴 화면에서 안내한다.
-      if (!isServerSideDeletionFailure(error)) throw error;
+      if (!isServerSideDeletionFailure(error)) {
+        trackActionFinished(posthog, 'account_deletion', 'failure', {
+          failure_type: 'user_fixable',
+        });
+        throw error;
+      }
+      serverSideFailure = true;
       // 서버·네트워크 실패는 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리한다.
       // TODO(sentry): 탈퇴 서버 실패 알림 (회원 ID: activeUserIdRef.current, 제공자: currentProfile?.oauthProvider, error)
     }
+
+    // 세션을 지우면 PostHog 식별이 초기화되므로 그 전에 기록한다.
+    trackActionFinished(posthog, 'account_deletion', 'success', {
+      server_side_failure: serverSideFailure,
+    });
 
     // 서버 회원은 삭제됐거나 수동 삭제 대상이므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지운다.
     try {
       await clearSpringSession();
     } catch {
-      // TODO(analytics): account_deletion_local_cleanup_failed 이벤트 기록
+      trackActionFinished(posthog, 'account_deletion', 'failure', {
+        failure_type: 'local_cleanup_failed',
+      });
       Alert.alert(
         '회원탈퇴를 마무리하지 못했어요',
         '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
@@ -1493,7 +1516,26 @@ function App() {
     : myPageOverlay !== null ? flowState.activeTab
     : flowState.detailSource ?? previousTab;
 
+  const analyticsScreenName =
+    !isAuthReady || isSplashVisible
+      ? 'splash'
+      : isOnboardingVisible
+      ? 'onboarding'
+      : myPageOverlay === 'accountDeletion'
+      ? 'account_deletion'
+      : myPageOverlay === 'guide'
+      ? 'app_guide'
+      : myPageOverlay === 'terms'
+      ? 'terms'
+      : currentScreen === 'emailLogin'
+      ? 'email_login'
+      : currentScreen;
+  useEffect(() => {
+    trackScreenViewed(posthog, analyticsScreenName);
+  }, [posthog, analyticsScreenName]);
+
   const handleSwipeBack = () => {
+    trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');
     if (myPageOverlay !== null) setMyPageOverlay(null);
     else if (flowState.kind === 'auth') popAuthScreen();
     else if (flowState.detailSource !== null) closeDetail();

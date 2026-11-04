@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
+import {useScreenAnalytics} from '../../analytics/uiEvents';
 import {AuthScaffold} from './components/AuthScaffold';
 import type {NormalizedAuthError} from '../../lib/auth/errors';
 
@@ -71,13 +72,20 @@ export function LoginScreen({
   onClose,
   onBrowseAsGuest,
 }: LoginScreenProps) {
+  const {button: trackButton} = useScreenAnalytics('login');
   const isSocialLoginPending = pendingSocialProvider !== null;
   const visibleSocialButtons = isAppleLoginAvailable
     ? socialButtons
     : socialButtons.filter(button => button.variant !== 'apple');
   const footerLinkActions: Record<FooterLink, () => void> = {
-    '약관 동의': onOpenTerms,
-    문의하기: onOpenContact,
+    '약관 동의': () => {
+      trackButton('terms');
+      onOpenTerms();
+    },
+    문의하기: () => {
+      trackButton('contact');
+      onOpenContact();
+    },
   };
   const socialButtonActions = {
     apple: onContinueWithApple,
@@ -86,7 +94,7 @@ export function LoginScreen({
   } as const;
 
   return (
-    <AuthScaffold onBack={onClose} contentStyle={styles.main}>
+    <AuthScaffold screenName="login" onBack={onClose} contentStyle={styles.main}>
       <View style={styles.buttonList}>
         {visibleSocialButtons.map(button => (
           <Pressable
@@ -133,7 +141,10 @@ export function LoginScreen({
           accessibilityRole="button"
           disabled={isSocialLoginPending}
           hitSlop={8}
-          onPress={onBrowseAsGuest}
+          onPress={() => {
+            trackButton('browse_as_guest');
+            onBrowseAsGuest();
+          }}
           style={({pressed}) => [styles.browseButton, pressed && styles.pressed]}>
           <Text style={styles.browseText}>로그인 없이 둘러보기</Text>
         </Pressable>

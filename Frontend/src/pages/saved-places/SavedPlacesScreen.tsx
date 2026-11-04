@@ -29,6 +29,10 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { usePostHog } from 'posthog-react-native';
+import {
+  trackActionFinished,
+  useScreenAnalytics,
+} from '../../analytics/uiEvents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -164,6 +168,7 @@ export function SavedPlacesScreen({
   onSharedResultConsumed,
 }: SavedPlacesScreenProps) {
   const posthog = usePostHog();
+  const analytics = useScreenAnalytics('saved');
   const initialScrollOffsetRef = useRef(initialScrollOffset);
   const hasRestoredInitialScrollRef = useRef(false);
   const { bottom: bottomInset } = useSafeAreaInsets();
@@ -307,6 +312,7 @@ export function SavedPlacesScreen({
 
     isRefreshingRef.current = true;
     setIsRefreshing(true);
+    analytics.refreshed();
 
     try {
       await loadSavedPlaces();
@@ -314,7 +320,7 @@ export function SavedPlacesScreen({
       isRefreshingRef.current = false;
       setIsRefreshing(false);
     }
-  }, [loadSavedPlaces]);
+  }, [analytics, loadSavedPlaces]);
 
   useEffect(() => {
     // Keep the already visible content while revalidating on return. Entering
@@ -566,6 +572,8 @@ export function SavedPlacesScreen({
       (onShowGuestLoginPrompt ?? onRequireLogin)?.();
       return;
     }
+    analytics.button('add_link');
+    analytics.modal('link_dialog');
     setLinkError(null);
     setIsDialogVisible(true);
   };
@@ -574,6 +582,7 @@ export function SavedPlacesScreen({
     if (isSubmitting) {
       return;
     }
+    analytics.button('link_dialog_close');
     setIsDialogVisible(false);
     setLinkValue('');
     setLinkError(null);
@@ -584,6 +593,7 @@ export function SavedPlacesScreen({
       return;
     }
 
+    analytics.button('link_dialog_submit');
     const normalizedUrl =
       normalizeInstagramContentUrl(linkValue) ?? linkValue.trim();
     saveRequestIdRef.current = uuidv4();
@@ -630,6 +640,11 @@ export function SavedPlacesScreen({
         reused: response.reused,
         reel: nextReel,
       });
+      trackActionFinished(posthog, 'link_save_request', 'success', {
+        source: 'url_input',
+        status: response.status,
+        reused: response.reused ?? false,
+      });
       handleSaveResponse(response, normalizedUrl, 'url_input');
       setIsDialogVisible(false);
       setLinkValue('');
@@ -637,6 +652,10 @@ export function SavedPlacesScreen({
       // if (response.saveMode === 'REVIEW_QUEUE') onOpenInbox?.();
     } catch (submitError) {
       const normalizedError = normalizeReelError(submitError);
+      trackActionFinished(posthog, 'link_save_request', 'failure', {
+        source: 'url_input',
+        failure_type: normalizedError.errorCode,
+      });
       setLastRequestId(normalizedError.requestId ?? null);
       const failedReel: ReelProcessingStatus = {
         id: `manual-failed-${Date.now()}`,
@@ -914,23 +933,27 @@ export function SavedPlacesScreen({
   }, [loadSavedPlaces, showSaveSuccess]);
 
   const scrollToTop = () => {
+    analytics.button('scroll_to_top');
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
   const handlePressEdit = useCallback(() => {
     const next = !isEditing;
+    analytics.button(next ? 'edit_start' : 'edit_cancel');
     setIsEditing(next);
     setSelectedPlaceIds(new Set());
     onEditModeChange?.(next);
-  }, [isEditing, onEditModeChange]);
+  }, [analytics, isEditing, onEditModeChange]);
 
   const enterEditMode = useCallback(() => {
+    analytics.button('edit_long_press');
     setIsEditing(true);
     setSelectedPlaceIds(new Set());
     onEditModeChange?.(true);
-  }, [onEditModeChange]);
+  }, [analytics, onEditModeChange]);
 
   const togglePlaceSelection = useCallback((placeId: string) => {
+    analytics.button('toggle_place_selection');
     setSelectedPlaceIds(current => {
       const next = new Set(current);
       if (next.has(placeId)) {
@@ -940,13 +963,14 @@ export function SavedPlacesScreen({
       }
       return next;
     });
-  }, []);
+  }, [analytics]);
 
   const handleDeleteSelectedPlaces = useCallback(async () => {
     if (isDeleting || selectedPlaceIds.size === 0) {
       return;
     }
 
+    const deleteCount = selectedPlaceIds.size;
     if (isGuest) {
       setPlaces(current =>
         current.filter(place => !selectedPlaceIds.has(place.id)),
@@ -977,6 +1001,9 @@ export function SavedPlacesScreen({
     setDeleteError(null);
     try {
       await deleteSavedPlaces(savedPlaceIds);
+      trackActionFinished(posthog, 'saved_places_delete', 'success', {
+        count: deleteCount,
+      });
       const deletedIds = new Set(savedPlaceIds);
       setPlaces(current =>
         current.filter(place => !deletedIds.has(place.savedPlaceId ?? '')),
@@ -1003,6 +1030,10 @@ export function SavedPlacesScreen({
         }
       }
 
+      trackActionFinished(posthog, 'saved_places_delete', 'failure', {
+        count: deleteCount,
+        failure_type: apiError.errorCode,
+      });
       setDeleteError(apiError);
       if (
         apiError.errorCode === 'AUTH401_001' ||
@@ -1021,6 +1052,7 @@ export function SavedPlacesScreen({
     onDeleteGuestPlaces,
     onEditModeChange,
     places,
+    posthog,
     selectedPlaceIds,
   ]);
 
@@ -1030,21 +1062,28 @@ export function SavedPlacesScreen({
     }
 
     const count = selectedPlaceIds.size;
+    analytics.button('delete_selected', {count});
+    analytics.modal('delete_confirm', {count});
     Alert.alert(
       '선택한 장소를 삭제할까요?',
       `선택한 ${count}곳의 장소가 보관함에서 삭제됩니다.`,
       [
-        { text: '취소', style: 'cancel' },
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => analytics.button('delete_confirm_cancel', {count}),
+        },
         {
           text: '삭제',
           style: 'destructive',
           onPress: () => {
+            analytics.button('delete_confirm_ok', {count});
             handleDeleteSelectedPlaces().catch(() => undefined);
           },
         },
       ],
     );
-  }, [handleDeleteSelectedPlaces, isDeleting, selectedPlaceIds.size]);
+  }, [analytics, handleDeleteSelectedPlaces, isDeleting, selectedPlaceIds.size]);
 
   const saveRecentSearch = useCallback((value: string) => {
     const normalizedValue = value.trim();
@@ -1116,14 +1155,23 @@ export function SavedPlacesScreen({
   ]);
   const renderListContent = () => (
     <View style={styles.container}>
-      <SavedPlacesHeader onPressSearch={() => setIsSearchOpen(true)} />
+      <SavedPlacesHeader
+        onPressSearch={() => {
+          analytics.button('open_search');
+          setIsSearchOpen(true);
+        }}
+      />
       {error && hasSavedPlaces ? (
         <View style={styles.errorBanner}>
           <Text numberOfLines={1} style={styles.errorText}>
             {error.message}
           </Text>
           {error.retryable ? (
-            <Pressable onPress={loadSavedPlaces}>
+            <Pressable
+              onPress={() => {
+                analytics.button('retry_load_banner');
+                loadSavedPlaces();
+              }}>
               <Text style={styles.errorRetryText}>재시도</Text>
             </Pressable>
           ) : null}
@@ -1135,7 +1183,11 @@ export function SavedPlacesScreen({
             {deleteError.message}
           </Text>
           {deleteError.retryable ? (
-            <Pressable onPress={handleDeleteSelectedPlaces}>
+            <Pressable
+              onPress={() => {
+                analytics.button('retry_delete');
+                handleDeleteSelectedPlaces();
+              }}>
               <Text style={styles.deleteErrorRetryText}>재시도</Text>
             </Pressable>
           ) : null}
@@ -1149,7 +1201,10 @@ export function SavedPlacesScreen({
           <CategoryFilterChips
             categories={PLACE_CATEGORIES}
             selectedCategory={activeCategory}
-            onSelectCategory={setSelectedCategory}
+            onSelectCategory={category => {
+              analytics.selection('category_filter', category);
+              setSelectedCategory(category);
+            }}
             style={styles.categoryChips}
           />
           <ScrollView
@@ -1197,12 +1252,24 @@ export function SavedPlacesScreen({
           </ScrollView>
         </>
       ) : error ? (
-        <SavedPlacesErrorState error={error} onRetry={loadSavedPlaces} />
+        <SavedPlacesErrorState
+          error={error}
+          onRetry={() => {
+            analytics.button('retry_load');
+            loadSavedPlaces();
+          }}
+        />
       ) : (
         <SavedPlacesEmptyState
           isGuest={isGuest}
-          onLogin={onAuthenticationRequired}
-          onOpenGuide={onOpenGuide}
+          onLogin={() => {
+            analytics.button('empty_login');
+            onAuthenticationRequired?.();
+          }}
+          onOpenGuide={() => {
+            analytics.button('empty_open_guide');
+            onOpenGuide?.();
+          }}
         />
       )}
       {isEditing ? (
@@ -1286,7 +1353,10 @@ export function SavedPlacesScreen({
                     <SavedPlacesSearchPanel
                       places={places}
                       recentSearches={recentSearches}
-                      onCloseSearch={() => setIsSearchOpen(false)}
+                      onCloseSearch={() => {
+                        analytics.button('close_search');
+                        setIsSearchOpen(false);
+                      }}
                       onPressPlace={(place, selection) =>
                         openPlaceDetail(
                           place,

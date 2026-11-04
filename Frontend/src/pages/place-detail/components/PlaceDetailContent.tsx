@@ -7,6 +7,10 @@ import type {
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
 import type { SavedPlaceViewContext } from '../../../analytics/savedPlaceEvents';
+import {
+  AnalyticsScreenContext,
+  useScreenAnalytics,
+} from '../../../analytics/uiEvents';
 import { PlaceDetailHeader } from './PlaceDetailHeader';
 import { PlaceInformation } from './PlaceInformation';
 import { PlaceInfo } from './PlaceInfo';
@@ -43,6 +47,8 @@ type PlaceDetailContentProps = {
   onTabChange?: (tab: PlaceTab) => void;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
+  /** 이벤트에 붙는 화면 이름입니다. 지도 시트처럼 다른 화면에서 쓸 때 지정합니다. */
+  analyticsScreenName?: string;
 };
 
 export function PlaceDetailContent({
@@ -74,11 +80,80 @@ export function PlaceDetailContent({
   onTabChange,
   initialScrollOffset,
   onScrollOffsetChange,
+  analyticsScreenName = 'place_detail',
 }: PlaceDetailContentProps) {
+  return (
+    <AnalyticsScreenContext.Provider value={analyticsScreenName}>
+      <PlaceDetailContentBody
+        place={place}
+        reels={reels}
+        reelsError={reelsError}
+        isReelsLoading={isReelsLoading}
+        onRetryReels={onRetryReels}
+        onBack={onBack}
+        onPressMore={onPressMore}
+        onPressFolder={onPressFolder}
+        onPressDelete={onPressDelete}
+        isInFolder={isInFolder}
+        isDeleting={isDeleting}
+        onInteractivePressIn={onInteractivePressIn}
+        hideHeader={hideHeader}
+        hideBack={hideBack}
+        showTitle={showTitle}
+        showMetadata={showMetadata}
+        actionsUnderTitle={actionsUnderTitle}
+        stickyHeader={stickyHeader}
+        titleInHeader={titleInHeader}
+        scrollEnabled={scrollEnabled}
+        contentBottomPadding={contentBottomPadding}
+        headerTopInset={headerTopInset}
+        compactHeader={compactHeader}
+        viewContext={viewContext}
+        activeTab={controlledTab}
+        onTabChange={onTabChange}
+        initialScrollOffset={initialScrollOffset}
+        onScrollOffsetChange={onScrollOffsetChange}
+      />
+    </AnalyticsScreenContext.Provider>
+  );
+}
+
+function PlaceDetailContentBody({
+  place,
+  reels,
+  reelsError = null,
+  isReelsLoading = false,
+  onRetryReels,
+  onBack,
+  onPressMore,
+  onPressFolder,
+  onPressDelete,
+  isInFolder,
+  isDeleting,
+  onInteractivePressIn,
+  hideHeader = false,
+  hideBack = false,
+  showTitle = true,
+  showMetadata = true,
+  actionsUnderTitle = false,
+  stickyHeader = false,
+  titleInHeader = false,
+  scrollEnabled = true,
+  contentBottomPadding = 100,
+  headerTopInset = 0,
+  compactHeader = false,
+  viewContext,
+  activeTab: controlledTab,
+  onTabChange,
+  initialScrollOffset,
+  onScrollOffsetChange,
+}: Omit<PlaceDetailContentProps, 'analyticsScreenName'>) {
+  const { selection } = useScreenAnalytics();
   const [localTab, setActiveTab] = useState<PlaceTab>('게시물');
   const activeTab = controlledTab ?? localTab;
 
   const handleTabPress = (tab: PlaceTab) => {
+    selection('place_tab', tab);
     setActiveTab(tab);
     onTabChange?.(tab);
   };
