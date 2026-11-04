@@ -61,6 +61,24 @@ test('rejects a missing or malformed version', () => {
   }
 });
 
+test('expands all into both platforms for an OTA deploy', () => {
+  const all = run('validate-ota-branch', ['all', 'fe-release']);
+  assert.equal(all.status, 0, all.stderr);
+  assert.equal(readFileSync(output, 'utf8'), 'platforms=["ios","android"]\n');
+
+  const ios = run('validate-ota-branch', ['ios', 'fe-release']);
+  assert.equal(ios.status, 0, ios.stderr);
+  assert.equal(readFileSync(output, 'utf8'), 'platforms=["ios"]\n');
+});
+
+test('rejects other branches, unknown platforms, or a version for an OTA deploy', () => {
+  for (const args of [['all', 'fe-dev'], ['web', 'fe-release'], ['ios', 'fe-release', '1.2.4']]) {
+    const result = run('validate-ota-branch', args);
+    assert.notEqual(result.status, 0);
+    assert.equal(readFileSync(output, 'utf8'), '');
+  }
+});
+
 test('uses a fixed offset plus the workflow run number without creating tags', () => {
   const first = run('assign-build', ['android', '1.2.4', '42']);
   assert.equal(first.status, 0, first.stderr);

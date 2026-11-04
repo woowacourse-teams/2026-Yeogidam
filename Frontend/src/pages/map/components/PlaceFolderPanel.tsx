@@ -19,7 +19,7 @@ import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
   getNextFolderColor,
-} from '../../../lib/placeFolderStorage';
+} from '../../../entities/folder/color';
 import {
   MAX_FOLDER_COUNT,
   MAX_FOLDER_NAME_LENGTH,

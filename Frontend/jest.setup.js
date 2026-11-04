@@ -43,6 +43,11 @@ jest.mock('@sentry/react-native', () => ({
   wrap: component => component,
 }));
 
+jest.mock('@hot-updater/react-native', () => ({
+  HotUpdater: { init: jest.fn() },
+  insights: jest.fn(),
+}));
+
 jest.mock('react-native-device-info', () => {
   const deviceInfoMock = require('react-native-device-info/jest/react-native-device-info-mock');
   const getVersion = jest.fn(() => '1.2.3');

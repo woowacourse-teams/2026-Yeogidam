@@ -77,5 +77,20 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>HOT_UPDATER_PUBLIC_KEY</key>
+	<string>-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAtOEb5zNmL++HtUXI63fp
+6eqen++aG9hvzBXAIvpPkFbUY0qELKwlJ04eQWGJjrBoNicKtfasly+Tv62DYTS3
+kGUf9xv79toix9cAG8VXhqrHp9soY+wHJy/6ANQ0KARAGhs5ql8WsKCussE3wzgr
+S3NWiXZFqrAmmzXn1WXHPSRwl+Z0v4/l/71BHw9m804epz00ST7PsH5161bhf9YE
+TpcyzGk7PfJ1dT+GllaQb5OMg/ZChX5uvyt7NYNWO6Whf2fep+RsO2YuHp7j1Sl3
+A+ZYUM72TH8l+DbAzwkRiLrDDjGv1RnhOh3fUjHiU9WHRe08B65OWoqN1Xl/DZs8
+x+JeMmvuT5OzUnJVNc5F+wSlC3SyGyaWCvoNblcN7HF3fPCz4n5YZ6D7VsQdCLH8
+jrbSCRnQZiIUL+7C68YfLR8kiGAxoKLpZXWIcrFCs+CZmwHdp4YwLE+4/oKjYE3Q
+zkFBXhRf+Vi7H77xQJPMVcS4kaZeFdCOxiuHqR36+drRQfQWtFsykp9pM1u2MmDu
+T7/Eb1Pu9uQNq508IP/aaI38L64+utFiw2mfCJinL7e2dDHiuo+3WzDvLeceM1gL
+NCGs5dqCZ1sOI7ImJ8lg0o6FeqMJ7KNyJP1qbbtqzM7vzgfEZj0pODDfXgdrEr2P
+UVYrJ8cxutVikRbgI7r+ufECAwEAAQ==
+-----END PUBLIC KEY-----</string>
 </dict>
 </plist>

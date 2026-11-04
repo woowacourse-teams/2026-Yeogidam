@@ -28,6 +28,7 @@ import {
 import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
+import { EventNoticeModal } from './src/components/EventNoticeModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
@@ -106,10 +107,13 @@ import {
   setSharedSaveState,
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
+import { otaBundleId } from './src/lib/hot-updater';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
   environment: Config.APP_ENV?.trim() || 'development',
+  // 어떤 OTA 배포에서 난 에러인지 구분해, 문제 배포를 bundle disable로 바로 끌 수 있게 한다.
+  ...(otaBundleId ? { initialScope: { tags: { ota_bundle_id: otaBundleId } } } : {}),
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -1630,6 +1634,15 @@ function App() {
           }
           setRecommendedUpdate(null);
         }}
+      />
+      {/* 로그인·회원가입 화면 위에는 띄우지 않고, 메인 화면에 들어온 뒤에 안내한다. */}
+      <EventNoticeModal
+        enabled={
+          flowState.kind === 'main' &&
+          requiredUpdateStoreUrl === null &&
+          recommendedUpdate === null &&
+          !(isGuestLoginPromptVisible && isGuestBrowsing)
+        }
       />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing}

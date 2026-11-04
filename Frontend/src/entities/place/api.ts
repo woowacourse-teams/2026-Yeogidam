@@ -11,6 +11,7 @@ export function toSavedPlaceDisplayPlace(savedPlace: SavedPlaceListItem): Place 
     id: place.id,
     savedPlaceId: savedPlace.id,
     savedAt: savedPlace.lastSavedAt ?? savedPlace.createdAt,
+    folderIds: savedPlace.folderIds ?? [],
     name: place.name,
     category: place.category ?? undefined,
     categoryCode: place.categoryCode ?? undefined,

@@ -1,0 +1,1572 @@
+{
+  "ios": {
+    "engine": "hot-updater/interface@1",
+    "hash": "02049cf30cc9845b83344dee3bacc946da63bb6892d695d956524d0d639da23f",
+    "sources": [
+      {
+        "type": "contents",
+        "id": "codegen-config:.",
+        "contents": "{\"ios\":{\"components\":{\"YeogidamKakaoMapView\":{\"className\":\"RCTKakaoMapView\"}}},\"jsSrcsDir\":\"spec\",\"name\":\"YeogidamMapSpec\",\"type\":\"components\"}",
+        "reasons": [
+          "codegen-config"
+        ],
+        "hash": "21436a05470275c33ab875508f05cdc6c7f3c02d9d47a1550bca1c851c8cdf50"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@hot-updater/react-native",
+        "contents": "@hot-updater/react-native@1.1.4",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "e2d71dba3ba8235bd1cd10e19eb91436bb39bd2b15c2107f452252e80411457f"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@invertase/react-native-apple-authentication",
+        "contents": "@invertase/react-native-apple-authentication@2.5.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "b76d02fcdc41ce2213e035442474a45f3974c4406af1ec617ba84fc727864a7f"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@react-native-async-storage/async-storage",
+        "contents": "@react-native-async-storage/async-storage@3.1.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "edfb52f8607692cb66abbf342992ef2e20f0d05aabd30bfc7d93207dd4969424"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@react-native-clipboard/clipboard",
+        "contents": "@react-native-clipboard/clipboard@1.16.3",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "3143886c46732fe03515e28f17ee5f736006bea6b498c7448ae437cb9437495b"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@react-native-vector-icons/material-icons",
+        "contents": "@react-native-vector-icons/material-icons@13.1.2",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "5456583ea062e98831b05499b9580dda5627f6b60d924d55e8fd0240fec0ba16"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@sentry/react-native",
+        "contents": "@sentry/react-native@8.28.0",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "2e3c4b0a51677af29736201789b63b963bd60ae54b2298b22ffb8f14e571cb10"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-config",
+        "contents": "react-native-config@1.6.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "d09db3433f3ea16047d4cf0599f30e7e096f1ff79994174d79394b0084d4b8ea"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-device-info",
+        "contents": "react-native-device-info@15.0.2",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "aa8918d442791ee9ae2c6aaaf82b749307d9b9a5d151caa62469516265934952"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-get-random-values",
+        "contents": "react-native-get-random-values@2.0.0",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "86bd718e1488eca0a514912682e3de39dd9318beb7af875cd036f25c54344843"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-inappbrowser-reborn",
+        "contents": "react-native-inappbrowser-reborn@3.7.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "6981f05a1a5d5702aa9f10bda28c412b72a00d2f0337cbe02f923e4ea045a849"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-keychain",
+        "contents": "react-native-keychain@10.0.0",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "2dc973e15313d3aa565b45071238ab3c478ab69da1b1c257487a7a4bf9203362"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-linear-gradient",
+        "contents": "react-native-linear-gradient@2.8.3",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "7eb3c1dab017d4bcfbbbe0609b7f5b5abc551f9ccb9c341504f82a4e9f4f75f7"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-safe-area-context",
+        "contents": "react-native-safe-area-context@5.8.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "1cad043c1cce3ff275173d33dce1434342ecd470a3461a3e1397d00b1a3a6c53"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-svg",
+        "contents": "react-native-svg@15.15.5",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "1ac8060440a95ec65795fd4951e91b0d3f2a8772b55d9178f1490b54edbf3d87"
+      },
+      {
+        "type": "contents",
+        "id": "runtime",
+        "contents": "react-native@0.86.2",
+        "reasons": [
+          "runtime"
+        ],
+        "hash": "f725cded0c46f0c420baea1d52d400e97a26cedd6cbfb4e292b7c858b952e43d"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/.xcode.env",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "3c02dca07775b31ce4e77dfb3bb660d7c6e577474d65a6216f1ea9bef54e1ca6"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension.xcconfig",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "e95d75994278eb748883d00128bb579ca25bc1fd3dfef8e01007eaa1cd87a567"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/ActionExtension.entitlements",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "b505f49163121c0c0390c9c79578574bf958b1f48a8d41c41a2e88fb64f618d0"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/ActionViewController.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bdaa400f2c297d53c24acae5fa1a790c09b6c7be8709af03a9ae6998f69a9aeb"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "726eff0b6f282c3beb19463e1c98bafbd4113831ceb0b8b67ba8a1a989043ff7"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c4f9cc54f7f30e60570fc718e2595433203504763c0245c3a153760d05646ad0"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fc470f6caba2293c57a638ab958bbe345148baf756e80718f597f9def8568d9c"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "f7a25261b97ece8ec43c687c25bc1621752de2a2593c2c9f683ab89c5fd10527"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "da29675d773c50ace47148f2ca44e344e3b6a5d229b9a5b05fb6c9ce50c9f354"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "74e1ad2552f0c8edf81f6253ac386fbf08a319def7840e22d64ee0d8215dbf81"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d55149528cb688f631013ca448aca87be91a49978537e7442ba904819660a375"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bf06b211eb9b3c5c15b88ed6c71f8af29b114eaa48b3c2cb73895a0f4b57992f"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a61bda6cd017cc39a98930b59bedc90fd3d7ad891e8e2a8adb779dbe17d8cfd5"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "393649b301f5dacad6e523c847654bafd6df8a80348b1fa155ad405847b5c9e4"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7badbf0f622aea0d53690b2eec1b0640c23c642954bed9fc32bea49dfc1d3e62"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7badbf0f622aea0d53690b2eec1b0640c23c642954bed9fc32bea49dfc1d3e62"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c6cbeac26fc31582536ec66a8852f0ca96f9d82ec66c205c84dc87328b919aaf"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "25d7748cd3a4f16487fa4428cf6581288935998092c6ce210ecfa96093fefacd"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "4e377dd7871e2d0eeed2b551e0fc57d56d142485f7483775b6c11c68a629027e"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "5d4fd7c53e39ce29b0a262c0c8f5ccfd61cbc497d09f36ce11be3699961d3aaf"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Images.xcassets/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "991ae939fbd598450a066b66404e06c5ae9b7d37e9aa0026de9e318443ba46fb"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ActionExtension/Info.plist",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "723aeaa924cba25bac73513a3cb296821d7b9223d9075fe8fd0d0e1ad3ce6cbd"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/BetaExportOptions.plist",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "69c8cf34a6f7b1840a937a17d00f2cc01f6def1be7a2cd0c40d7e2bbd9b6dacd"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Debug.xcconfig",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "efaf2599ec16beb70baacd5102587125329917b011a37cbcff6fd9695f27356e"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend.xcodeproj/project.pbxproj",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "10d822013492e9dda39fc329d4de0ab81195a86967516e229e14b1aad4ca0532"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend.xcodeproj/xcshareddata/xcschemes/Frontend.xcscheme",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2b7ecbad22e021c728b7c39401f6c6e6181e1602dc76c2b7eadf4b079b8cd0ae"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend.xcworkspace/contents.xcworkspacedata",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d55bb0af0b6b73073c504379093150a2b9b3fe0f43bc7183d8ac0a40ad8759dd"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/AppDelegate.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d47878c896741b49e607c7e775d3e6716453f7e34ce112d632336de202e4baee"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Frontend.entitlements",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "06006c3a3490f9aca7c98acf74739908f186bdb09a8ae651672ab0b560492949"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "726eff0b6f282c3beb19463e1c98bafbd4113831ceb0b8b67ba8a1a989043ff7"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c4f9cc54f7f30e60570fc718e2595433203504763c0245c3a153760d05646ad0"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fc470f6caba2293c57a638ab958bbe345148baf756e80718f597f9def8568d9c"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "f7a25261b97ece8ec43c687c25bc1621752de2a2593c2c9f683ab89c5fd10527"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "da29675d773c50ace47148f2ca44e344e3b6a5d229b9a5b05fb6c9ce50c9f354"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "74e1ad2552f0c8edf81f6253ac386fbf08a319def7840e22d64ee0d8215dbf81"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d55149528cb688f631013ca448aca87be91a49978537e7442ba904819660a375"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bf06b211eb9b3c5c15b88ed6c71f8af29b114eaa48b3c2cb73895a0f4b57992f"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a61bda6cd017cc39a98930b59bedc90fd3d7ad891e8e2a8adb779dbe17d8cfd5"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "393649b301f5dacad6e523c847654bafd6df8a80348b1fa155ad405847b5c9e4"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7badbf0f622aea0d53690b2eec1b0640c23c642954bed9fc32bea49dfc1d3e62"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7badbf0f622aea0d53690b2eec1b0640c23c642954bed9fc32bea49dfc1d3e62"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c6cbeac26fc31582536ec66a8852f0ca96f9d82ec66c205c84dc87328b919aaf"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "25d7748cd3a4f16487fa4428cf6581288935998092c6ce210ecfa96093fefacd"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "4e377dd7871e2d0eeed2b551e0fc57d56d142485f7483775b6c11c68a629027e"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "5d4fd7c53e39ce29b0a262c0c8f5ccfd61cbc497d09f36ce11be3699961d3aaf"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "991ae939fbd598450a066b66404e06c5ae9b7d37e9aa0026de9e318443ba46fb"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/MapMarker.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "db45be4143a8b5d92afc93486cb8f03f0950e44f861705b3105b3a7f050b719b"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/MapMarker.imageset/map-marker.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6d5a32f5f0a3450d2301f9a86937c051130586f76ccbe4093479343c724e5fd4"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/MapMarkerSelected.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2159090043f3a9c4db8142a0bc91582af756e0cba87c636c009501da90fd17d3"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/MapMarkerSelected.imageset/map-marker-selected.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a213d24fdb471b4a938feeda2c1fc7227f3b7459425aaedb3d15af4b1a6992e7"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bar.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2fa258f0037846135bd55bfe38596bc5722badc0d19498f62462ed9ce66e0e8e"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bar.imageset/pin-category-bar.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fc1a66941e07d34245c5c81615c8638ef2a9e56e18379fb319d7ffb33d9d7145"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bunsik.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7fdf6cd6de1ae6bde7d4e154e9193ddc5271d47290ef43879b76c1796e58fdfe"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-bunsik.imageset/pin-category-bunsik.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "afb5d514359aec46183435c216452403e5f367e8866c34b10dab5f74b2359222"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-cafe.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "484b98c699eb84e3ed357d7279d5a0e39b1c4a6d37f00088da23c0154c2a1327"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-cafe.imageset/pin-category-cafe.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "86bb9928a8561cfb1b8a27833a2ba58641e6d6aea13caa8907a24d9bf67a15d9"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-chinese.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "94796426df4179c1259187d97953422b7ebd71c434abe321a5e5bb68ac38090f"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-chinese.imageset/pin-category-chinese.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d6589770845947dbd18c8ee6911921807551d3a9642f055acadfe839b1747bf0"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-culture_leisure.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c1abf677853c39e5251271935cc402c467395b14803d363c79f50b53840173d1"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-culture_leisure.imageset/pin-category-culture_leisure.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "032ae3f1eca337669f34f2b3a86d24ea40b8af67be8ad38b82039fd239e30801"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-dessert.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "1bbd69a206a6d7827ccdef126247e1e3ba53f3ab35413c45e34bc884eca88f34"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-dessert.imageset/pin-category-dessert.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9dda5d5d3c961b5080b2402d126095951b677b55762f062b405d000ebb3335fd"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-etc.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bc1903579a62c9e475651340de2ba393e97de192a658cc0f03bc78003bf75cd6"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-etc.imageset/pin-category-etc.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6770e6576b55bec8be779a571fc47c3de19107cd4a2edd344656c21f093bdc85"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-japanese.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d94d6c4993c54fe30b7ab0e9c620b877ba4dbea9a952f456faa43ff0a308ce54"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-japanese.imageset/pin-category-japanese.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9f6ab54e64d26490c8b1fb4c6d5df718ed24574773445e622bd60dd4cd53d363"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-korean.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2ac3d17347fe842a6a8a4b3dc800eb999709024c14d1f7db8bb2e9197805c907"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-korean.imageset/pin-category-korean.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c7abea0a3ce40f0c10d1db359c311bbc09ca663182ca2c427c07e5537a2b5e31"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-specialty.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ed2c2e8a59dfe8997b404842ddb9342e3d829b90e4845ea7a65389c2541221db"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-specialty.imageset/pin-category-specialty.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ebd4875fdcd1afeb824e72fe081f8f949bfc078e27306bf449bff5c3e5f6d95f"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-western.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "1c9e1e7d7fdc7e0b73b8ca7fb14b443237eae147697f5e352fd32c5bce9e9089"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Images.xcassets/pin-category-western.imageset/pin-category-western.svg",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9895b22e117c49bf834f79c4074dbcf9309013f531b0e848a27eb3b3828f94e7"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/Info.plist",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "93d980480c138b41a8bf5aff7daa6a7775927b89dc4d81f5f47e1843ec7c5054"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/LaunchScreen.storyboard",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "f757dcc1f005e66120faa080fd4cbf6b06b7d5187354378ad462fbb7ef908aad"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/LocationPermissionModule.m",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "af510c193a867159763e8a6292a10abf226bed15eaff6b5121ca6b44c654ffe3"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/PrivacyInfo.xcprivacy",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fe5a08879b6f7d953a7d29cf2949c6267e059a1b1cefd199ceebeeffaef99837"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/ShareIntentModule.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ca8a0ac9a382edab33320c022713e7e9cb772a8e30c5ab9a0b43dc85c1412ac6"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Frontend/ShareIntentModuleBridge.m",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "86bb8409f42b3233cfe447c988aba10356589b3c0c9f182cd84cd31e50609300"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/KakaoMap/KakaoMapContainerView.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "1bc207c4ec55ebdec40e8db567622e8a1e2315bbc8685cc1ce317a717b26631e"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/KakaoMap/RCTKakaoMapView.h",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "419bc61b089cde67dab55e9dfa9a3a43dc33f0d6102cb0b6a1c356dd5839b955"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/KakaoMap/RCTKakaoMapView.mm",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "74c44971a1a069fc75c5f396cb19560d453fd445ea8ebba9ecf447e9d31a4d7e"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Podfile",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ee70af5f19946a46e3590e61c0bde93a94d74b554b642f0dbe0c2970baaa8425"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Podfile.lock",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "8390865364f8699f85356fe157f3c7d70b864a94f18668469770fbb23910e11a"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Release.xcconfig",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "0c4771b69e9e4ad2dcc703830c510eb39de1763b6bc5664cb2848830ba29f9d9"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ShareExtension.xcconfig",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c08c1199acd215bcafbdf685aa428a188829cc55f58628c1e66530268f9cfee9"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ShareExtension/Info.plist",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "94bf7153a2d90de53421a1f32c712acca26b84587058c9035f7c693d338480c9"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ShareExtension/ShareExtension.entitlements",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "b505f49163121c0c0390c9c79578574bf958b1f48a8d41c41a2e88fb64f618d0"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/ShareExtension/ShareViewController.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c614769b622db7a81dad8676abc726770b2bc25b6dad6a1d9654777618e58bf1"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/Images.xcassets/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "991ae939fbd598450a066b66404e06c5ae9b7d37e9aa0026de9e318443ba46fb"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/Images.xcassets/Mascot.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2738abc080d7f18f73d454b9ebddd3ea3a8f0ddb873466d3419fc65267c2d664"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/Images.xcassets/Mascot.imageset/mascot.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9b36bed3ae36339f10d942e5d98b9ce44a178dec1c52ab0e134089aefd834a72"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/Images.xcassets/MascotSad.imageset/Contents.json",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6085f57a3e3d9fa8d9145217e7034a2a6173c094850b50dcaa30668f98a58aed"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/Images.xcassets/MascotSad.imageset/mascot-sad.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7b3d8a9dd62c65df032aaff65242b278e7a1e6a33a0711c8ed218547a8065645"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/ShareCardViewController.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bb65790bb816dd22b1c07262e6d074e717d504a4d62aa910d0d5033b7ed32d82"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/ShareIntake.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9338fd69bfcdefc8d42a2fc3b693962253093b5d7741f81c63943af8a2a4bc2c"
+      },
+      {
+        "type": "file",
+        "filePath": "ios/Shared/ShareIntentStorage.swift",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "92bb6095d0f65cca100818a1d9d0d191d01fc1da2ddf63165265d3aa44e1e554"
+      },
+      {
+        "type": "file",
+        "filePath": "spec/KakaoMapNativeComponent.ts",
+        "reasons": [
+          "app-codegen-spec"
+        ],
+        "hash": "10a93eacf5425406cebb25aadabedac0150b345fadbd2c1808267d53f199a3cb"
+      }
+    ]
+  },
+  "android": {
+    "engine": "hot-updater/interface@1",
+    "hash": "216bb449e8962112c7e4ee51f47c116a4a1d76f881d6ac52b14bc50163fcb870",
+    "sources": [
+      {
+        "type": "contents",
+        "id": "codegen-config:.",
+        "contents": "{\"android\":{\"javaPackageName\":\"com.yeogidamm.app.map\"},\"jsSrcsDir\":\"spec\",\"name\":\"YeogidamMapSpec\",\"type\":\"components\"}",
+        "reasons": [
+          "codegen-config"
+        ],
+        "hash": "552c09907a3fad0bc46fc167317eab150269a7a82ad66c6c58408931f08abc08"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@hot-updater/react-native",
+        "contents": "@hot-updater/react-native@1.1.4",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "e2d71dba3ba8235bd1cd10e19eb91436bb39bd2b15c2107f452252e80411457f"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@invertase/react-native-apple-authentication",
+        "contents": "@invertase/react-native-apple-authentication@2.5.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "b76d02fcdc41ce2213e035442474a45f3974c4406af1ec617ba84fc727864a7f"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@react-native-async-storage/async-storage",
+        "contents": "@react-native-async-storage/async-storage@3.1.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "edfb52f8607692cb66abbf342992ef2e20f0d05aabd30bfc7d93207dd4969424"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@react-native-clipboard/clipboard",
+        "contents": "@react-native-clipboard/clipboard@1.16.3",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "3143886c46732fe03515e28f17ee5f736006bea6b498c7448ae437cb9437495b"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@react-native-vector-icons/material-icons",
+        "contents": "@react-native-vector-icons/material-icons@13.1.2",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "5456583ea062e98831b05499b9580dda5627f6b60d924d55e8fd0240fec0ba16"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:@sentry/react-native",
+        "contents": "@sentry/react-native@8.28.0",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "2e3c4b0a51677af29736201789b63b963bd60ae54b2298b22ffb8f14e571cb10"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-config",
+        "contents": "react-native-config@1.6.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "d09db3433f3ea16047d4cf0599f30e7e096f1ff79994174d79394b0084d4b8ea"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-device-info",
+        "contents": "react-native-device-info@15.0.2",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "aa8918d442791ee9ae2c6aaaf82b749307d9b9a5d151caa62469516265934952"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-get-random-values",
+        "contents": "react-native-get-random-values@2.0.0",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "86bd718e1488eca0a514912682e3de39dd9318beb7af875cd036f25c54344843"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-inappbrowser-reborn",
+        "contents": "react-native-inappbrowser-reborn@3.7.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "6981f05a1a5d5702aa9f10bda28c412b72a00d2f0337cbe02f923e4ea045a849"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-keychain",
+        "contents": "react-native-keychain@10.0.0",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "2dc973e15313d3aa565b45071238ab3c478ab69da1b1c257487a7a4bf9203362"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-linear-gradient",
+        "contents": "react-native-linear-gradient@2.8.3",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "7eb3c1dab017d4bcfbbbe0609b7f5b5abc551f9ccb9c341504f82a4e9f4f75f7"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-safe-area-context",
+        "contents": "react-native-safe-area-context@5.8.1",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "1cad043c1cce3ff275173d33dce1434342ecd470a3461a3e1397d00b1a3a6c53"
+      },
+      {
+        "type": "contents",
+        "id": "dependency:react-native-svg",
+        "contents": "react-native-svg@15.15.5",
+        "reasons": [
+          "native-dependency"
+        ],
+        "hash": "1ac8060440a95ec65795fd4951e91b0d3f2a8772b55d9178f1490b54edbf3d87"
+      },
+      {
+        "type": "contents",
+        "id": "runtime",
+        "contents": "react-native@0.86.2",
+        "reasons": [
+          "runtime"
+        ],
+        "hash": "f725cded0c46f0c420baea1d52d400e97a26cedd6cbfb4e292b7c858b952e43d"
+      },
+      {
+        "type": "contents",
+        "id": "setting:android:hermesEnabled",
+        "contents": "true",
+        "reasons": [
+          "native-setting"
+        ],
+        "hash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+      },
+      {
+        "type": "contents",
+        "id": "setting:android:newArchEnabled",
+        "contents": "true",
+        "reasons": [
+          "native-setting"
+        ],
+        "hash": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/build.gradle",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "4e51b7fe15ac226000bc49b8c14b53e13f5b8d8862fbe8d433912cf1d7aefe2f"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/debug.keystore",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "221e0a3106aa4c3ccc154e0a418b55020b3f9ea6e84f92e8749cd9e2f39f5e58"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/proguard-rules.pro",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "5c15c96fc764e1e79e07bae6e49a591d30c9a3bba8fcd778d7cb60f2f224b503"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/AndroidManifest.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9c231fa4930061c87beb2cc2e661b284924b74276311dedcc543530d5e0a1282"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/MainActivity.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "cc1bd718ffe9f5d85a46660cb74552be43e5eb94ce5ed1df1c8159fe930997b6"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/MainApplication.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "056e644181c26028f0e8374970b8a18e2bd447be620ce532c3fa12ea1cfc2657"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/KakaoMapPackage.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "27b89674e8b0a6002637efb81b34085faa424ecd13ff3d31783c050626148b9c"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/KakaoMapView.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "84328800a488fc1e2167fbea06ae811246f55780f5356226150c767772858913"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/KakaoMapViewManager.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ae06fd3cd11f10fdbc3e3c8b6978b7dd7ca9f6a9321718b3285548a325e96bb6"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareActivity.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "89c5d53e1be3c5f35ac0cb329dddb071bedcfa042fa15a4bb1a99c4428927a21"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareAnalyticsStore.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d3d3741459a70c6106e00328919c75c71e0eb6fa95008a0990d7286a2fe479a0"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareAuth.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "cc36c0af8cd2d9e0b92e5f2fee82c8dba518dcfb3c09e3397a2a7fffcbb37c7a"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareAuthStore.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "374e600255d2d7d472c56c93f9b32031062b0aa7b0510beb91685abc868ae49a"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareIntentCoordinator.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a724829a73aeddcf8f36e7ef6372692684e573f50197cd17055fbc02d3e3661c"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareIntentModule.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "f5d0d88474a5236d2d77cdc1cb0973bebcddfeb96ec87ed3215a5d2c51693e8a"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareIntentPackage.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6d6bc3fdb1b7daa966fe73ab35e7f1b3ac030a82936e7aca303b95208aecfb00"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareResultStore.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ce432910a47fc0a25ad86823fd312ad673dc153e7f813c3c45ecb756e73ee287"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareSaveWorker.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "4e67e1dfebaa1c8d045934051264a918a803dd65b9050e2377a35157c15eb650"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/share/ShareSentryReporter.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d2d30c052a9aabeca9ef355ae9013507f6932724dba76691dcf3594a8601fb29"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable-nodpi/share_mascot.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9b36bed3ae36339f10d942e5d98b9ce44a178dec1c52ab0e134089aefd834a72"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable-nodpi/share_mascot_sad.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7b3d8a9dd62c65df032aaff65242b278e7a1e6a33a0711c8ed218547a8065645"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/map_marker.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6d5a32f5f0a3450d2301f9a86937c051130586f76ccbe4093479343c724e5fd4"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/map_marker_selected.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a213d24fdb471b4a938feeda2c1fc7227f3b7459425aaedb3d15af4b1a6992e7"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_bar.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ab07908631d8afdc8905a3d51d5c6a3833ae8d4ebc47ab7e342ce304309188e6"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_bunsik.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fb330e46ed32e8f29ae0cf8f7da4a198ba5772beba3375f2d2e0e9a11b961115"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_cafe.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "e23fdb309bd0f1f6858df6a8fe7a31afd6b1f89db555f80f622e627b2f898342"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_chinese.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "e1d8cbd298baaca30b9ba321fc36176d257888993563487fca3fecc427b6a318"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_culture_leisure.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "bc7ab9894e045aca69176c45cf7a29b843c0d69f24153773d9086185ac0ee9aa"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_dessert.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c4e3d49ac90aab314853df78c9e9c706359b451675980a101a38b75a198476c2"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_etc.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "6a268aed67ea7bd346f1c5356a2e49a4f56625f0212642a56cd7e6be3036ea62"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_japanese.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "055d7fc32822f5ede84c5f3d8e19f1e69ae04f5754466cf95d8c8fed28d99bca"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_korean.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "c9e9f9fc80a7cc7a451919d3cf8de9b8d4d0baefc2f3efced3a2c68b8014a0cc"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_specialty.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a0849dca5ed22ac74db89a771be676502f18fa4279b9e2f227d6ba0ef7d3f9d2"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/pin_category_western.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2ee5be785d688512e91f472cd76ccfad2622f6df03b63d7ca4b1f1f6ee8f0ff7"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/drawable/rn_edit_text_material.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "738e3aaad53180caba1419a6d5db8465a0742662fe59a4bbaf05f1061cbc3390"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "b621028d951d8743d7a494ab14fd26b53c6316c43bb3fcd8ba68a6b54141d2bb"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "b621028d951d8743d7a494ab14fd26b53c6316c43bb3fcd8ba68a6b54141d2bb"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-mdpi/ic_launcher.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2a8518472a0b28e68ffe5b86573bdff296667052eb53e40b85a68e02cd7ff451"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2a8518472a0b28e68ffe5b86573bdff296667052eb53e40b85a68e02cd7ff451"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7986de10a059eb6961bffd2400c3f9cc0dfa13b9fa8e6e65d0acb8720948c201"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "7986de10a059eb6961bffd2400c3f9cc0dfa13b9fa8e6e65d0acb8720948c201"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9d9a2f536fdec8c9e376d7da4b46bf6700b1281e2587be0500953c244f271064"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "9d9a2f536fdec8c9e376d7da4b46bf6700b1281e2587be0500953c244f271064"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d25f77b9edd8405e10c8da3d0a9e2dbf735fef59ed001c370367e706c75b7225"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "d25f77b9edd8405e10c8da3d0a9e2dbf735fef59ed001c370367e706c75b7225"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/values/colors.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fcee19aadc034ac22093ed5375ddbc4b194e0796294f5587c94d7dd69a673188"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/values/strings.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ed2ead9ec35a31034b7a3c3350a8c58c203e4e4002e0d52816cfcb04968af630"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/res/values/styles.xml",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "0eb78c51658ef0c6b252e1bee7dee8190dcbd91e518b1d95bffcf218c6e73992"
+      },
+      {
+        "type": "file",
+        "filePath": "android/build.gradle",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "8034aa251e704fb9317b9c670022e19a1f8b057ea27191cedb80f90f71d409f5"
+      },
+      {
+        "type": "file",
+        "filePath": "android/gradle.properties",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "ecfffa0e29a26bf1434edfbf2a7ca21b51da65133d67f9198c42940d0a182cb3"
+      },
+      {
+        "type": "file",
+        "filePath": "android/gradle/gradle-daemon-jvm.properties",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a265c7482b1f8f3ee9828e9570ddee52ca034747eae57ff60488c518540cc483"
+      },
+      {
+        "type": "file",
+        "filePath": "android/gradle/wrapper/gradle-wrapper.jar",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "b3a875ddc1f044746e1b1a55f645584505f4a10438c1afea9f15e92a7c42ec13"
+      },
+      {
+        "type": "file",
+        "filePath": "android/gradle/wrapper/gradle-wrapper.properties",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "a180163249c7252412ddaee1c7adcf59f6494b1183136f690fbd9a3b8aaed00e"
+      },
+      {
+        "type": "file",
+        "filePath": "android/gradlew",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "fb68debc1b1acf8ec55dc0d5e5495e1dedd0bd6b61f304bee61613eeb2bd9b92"
+      },
+      {
+        "type": "file",
+        "filePath": "android/gradlew.bat",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "982f1b2979dd2d13505c11e92192ab43eef338242ca61587f86f8d7fbc86f67b"
+      },
+      {
+        "type": "file",
+        "filePath": "android/settings.gradle",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "2db0449e746635d8cc72918d147b0e306c843a2f83660a095918c845d5c6ad0a"
+      },
+      {
+        "type": "file",
+        "filePath": "spec/KakaoMapNativeComponent.ts",
+        "reasons": [
+          "app-codegen-spec"
+        ],
+        "hash": "10a93eacf5425406cebb25aadabedac0150b345fadbd2c1808267d53f199a3cb"
+      }
+    ]
+  },
+  "inputs": {
+    "adapter": "bare",
+    "extraSources": {
+      "ios": [
+        "ios/**"
+      ],
+      "android": [
+        "android/**"
+      ]
+    },
+    "ignorePaths": [
+      "**/sentry.properties",
+      "android/local.properties",
+      "ios/.xcode.env.local",
+      "**/xcuserdata/**",
+      "**/.idea/**",
+      "**/.DS_Store",
+      "**/.env"
+    ]
+  }
+}

@@ -1,0 +1,143 @@
+# Run workflow에서 fe-release 브랜치와 플랫폼을 지정하면 JS 번들만 production 채널에 OTA로 배포한다.
+# 네이티브 변경이 없을 때만 사용한다. 네이티브가 바뀌었으면 Frontend Beta로 스토어에 출시한다.
+# 배포 대상 앱은 fingerprint가 정하므로, 출시되지 않은 네이티브 변경이 포함되면 아무 앱도 받지 않는다.
+name: Frontend OTA
+run-name: "Frontend OTA ${{ inputs.platform }}${{ inputs.disabled && ' disabled' || '' }} (run ${{ github.run_number }})"
+
+# 릴리스 브랜치의 HEAD에서 수동 실행한다.
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: '배포할 플랫폼 (all은 iOS와 Android를 함께 배포)'
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - ios
+          - android
+      message:
+        description: '배포 메시지 (예: 지도 화면 버그 수정)'
+        required: true
+        type: string
+      disabled:
+        description: '꺼진 상태로 배포 (업로드만 확인하고 기기에는 전달하지 않음)'
+        type: boolean
+        default: false
+
+# OTA 배포가 동시에 진행되지 않도록 워크플로 실행을 직렬화한다.
+# 새 수동 실행이 시작돼도 현재 진행 중인 배포는 취소하지 않는다.
+concurrency:
+  group: frontend-ota
+  cancel-in-progress: false
+
+# 저장소 코드를 읽는 권한만 부여한다. 배포 인증은 fe-ota Environment Secrets를 사용한다.
+permissions:
+  contents: read
+
+jobs:
+  # 정확히 fe-release를 선택했는지 확인하고, all이면 두 플랫폼 목록으로 바꾼다.
+  # 실행 커밋이 원격 fe-release HEAD와 같은지도 검증한다.
+  release-check:
+    runs-on: ubuntu-latest
+    outputs:
+      platforms: ${{ steps.release.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Frontend/.nvmrc
+      - name: Validate selected release branch
+        id: release
+        env:
+          PLATFORM: ${{ inputs.platform }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
+        run: node .github/scripts/frontend-release-policy.mjs validate-ota-branch "$PLATFORM" "$RELEASE_BRANCH"
+
+  # 플랫폼마다 JS 번들을 빌드하고 서명해 R2/D1에 배포한다. 소스맵은 Sentry에 함께 올라간다.
+  # 한 플랫폼이 실패해도 다른 플랫폼은 계속 배포하며, 실패한 쪽은 Re-run failed jobs로 다시 실행한다.
+  deploy:
+    needs: release-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: fe-ota
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.release-check.outputs.platforms) }}
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: Frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+
+      # 커밋된 fingerprint.json이 실제 네이티브와 다르면 대상 앱을 잘못 고르므로 배포 전에 멈춘다.
+      - name: Check fingerprint
+        run: |
+          npx hot-updater fingerprint create
+          if ! git diff --exit-code -- fingerprint.json; then
+            echo "::error file=Frontend/fingerprint.json::fingerprint.json이 최신이 아닙니다. 네이티브 변경이 있다면 Frontend Beta로 스토어에 먼저 출시하세요."
+            exit 1
+          fi
+
+      - name: Deploy OTA bundle
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          MESSAGE: ${{ inputs.message }}
+          DISABLED: ${{ inputs.disabled }}
+          HOT_UPDATER_CLOUDFLARE_ACCOUNT_ID: ${{ vars.HOT_UPDATER_CLOUDFLARE_ACCOUNT_ID }}
+          HOT_UPDATER_CLOUDFLARE_R2_BUCKET_NAME: ${{ vars.HOT_UPDATER_CLOUDFLARE_R2_BUCKET_NAME }}
+          HOT_UPDATER_CLOUDFLARE_D1_DATABASE_ID: ${{ vars.HOT_UPDATER_CLOUDFLARE_D1_DATABASE_ID }}
+          HOT_UPDATER_CLOUDFLARE_API_TOKEN: ${{ secrets.HOT_UPDATER_CLOUDFLARE_API_TOKEN }}
+          HOT_UPDATER_CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.HOT_UPDATER_CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          HOT_UPDATER_CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.HOT_UPDATER_CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          HOT_UPDATER_SIGNING_PRIVATE_KEY_BASE64: ${{ secrets.HOT_UPDATER_SIGNING_PRIVATE_KEY_BASE64 }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          # 배포 로그를 tee로 남기므로, deploy가 실패하면 이 단계도 실패하도록 pipefail을 켠다.
+          set -o pipefail
+          for key in HOT_UPDATER_CLOUDFLARE_ACCOUNT_ID HOT_UPDATER_CLOUDFLARE_R2_BUCKET_NAME \
+            HOT_UPDATER_CLOUDFLARE_D1_DATABASE_ID HOT_UPDATER_CLOUDFLARE_API_TOKEN \
+            HOT_UPDATER_CLOUDFLARE_R2_ACCESS_KEY_ID HOT_UPDATER_CLOUDFLARE_R2_SECRET_ACCESS_KEY \
+            HOT_UPDATER_SIGNING_PRIVATE_KEY_BASE64 SENTRY_AUTH_TOKEN; do
+            if [[ -z "${!key}" ]]; then
+              echo "Missing OTA deploy setting: $key" >&2
+              exit 1
+            fi
+          done
+          # hot-updater.config.ts의 signing.privateKeyPath 위치에 번들 서명 키를 복원한다.
+          printf '%s' "$HOT_UPDATER_SIGNING_PRIVATE_KEY_BASE64" | base64 --decode > keys/private-key.pem
+          chmod 600 keys/private-key.pem
+
+          # 모든 앱이 기본 채널(production)로 빌드되므로 production에만 배포한다.
+          # 테스터용 staging 채널은 앱에 채널 전환 기능을 만든 뒤 입력값으로 추가한다.
+          args=(-p "$PLATFORM" -c production -m "$MESSAGE")
+          if [[ "$DISABLED" == "true" ]]; then
+            args+=(-d)
+          fi
+          npx hot-updater deploy "${args[@]}" | tee "$RUNNER_TEMP/deploy.log"
+
+          # 배포 ID는 bundle list, console, Sentry의 ota_bundle_id 태그와 같은 값이다.
+          # 소스맵 업로드 로그의 ID와 섞이지 않도록 마지막 "ID:" 줄에서만 UUID를 뽑는다.
+          bundle_id=$(grep 'ID:' "$RUNNER_TEMP/deploy.log" | tail -1 \
+            | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | tail -1 || true)
+          {
+            echo "### Frontend OTA ($PLATFORM)"
+            echo ""
+            echo "- Enabled: $([[ "$DISABLED" == "true" ]] && echo no || echo yes)"
+            echo "- Bundle ID: ${bundle_id:-unknown}"
+            echo "- Message: $MESSAGE"
+            echo "- Commit: $(git rev-parse HEAD)"
+          } >> "$GITHUB_STEP_SUMMARY"
