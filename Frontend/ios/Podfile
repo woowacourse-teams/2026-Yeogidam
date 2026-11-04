@@ -22,7 +22,8 @@ end
 target 'Frontend' do
   config = use_native_modules!
 
-  pod 'KakaoMapsSDK'
+  # fingerprint가 Podfile.lock을 보지 않으므로, SDK 버전 변경은 이 줄로 감지한다.
+  pod 'KakaoMapsSDK', '2.12.17'
 
   use_react_native!(
     :path => config[:reactNativePath],
