@@ -39,6 +39,8 @@ internal object ShareAnalyticsStore {
         "reel_share_received" to emptySet(),
         "reel_share_feedback_viewed" to setOf("feedback_type"),
         "reel_share_outcome_viewed" to setOf("outcome", "reason"),
+        "reel_share_action_clicked" to setOf("action", "result"),
+        "reel_share_card_dismissed" to setOf("method", "card_state"),
         "share_local_save_resolved" to setOf("outcome"),
         "share_delivery_status_changed" to setOf("delivery_status", "reason"),
         "extraction_request_started" to emptySet(),

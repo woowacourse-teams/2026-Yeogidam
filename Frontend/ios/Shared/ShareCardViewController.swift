@@ -2,10 +2,18 @@ import UIKit
 
 /// Share Extension과 Action Extension이 함께 쓰는 화면입니다. 화면 하단에 결과 카드만 보여줍니다.
 class ShareCardViewController: UIViewController {
-  private enum CardState {
+  private enum CardState: String {
     case success
-    case loginRequired
+    case loginRequired = "login_required"
     case failure
+  }
+
+  /// `reel_share_card_dismissed`의 `method` 값입니다.
+  private enum DismissMethod: String {
+    case auto
+    case tapOutside = "tap_outside"
+    case closeButton = "close_button"
+    case appOpened = "app_opened"
   }
 
   /// 카드 안 문구와 버튼 글자의 기준 크기입니다. 문구가 길면 한 줄에 맞게 줄어듭니다.
@@ -142,11 +150,12 @@ class ShareCardViewController: UIViewController {
   @objc private func handleActionButton() {
     switch cardState {
     case .success:
-      openApp(fallbackMessage: "앱을 직접 열어 주세요")
+      openApp(action: "open_app", fallbackMessage: "앱을 직접 열어 주세요")
     case .loginRequired:
       handleLogin()
     case .failure:
-      finish()
+      recordAction("close")
+      finish(.closeButton)
     }
   }
 
@@ -155,24 +164,31 @@ class ShareCardViewController: UIViewController {
     hasHandledAction = true
     do {
       try ShareIntake.saveLoginHandoff(payload, isGuestLogin: pendingGuestLogin, shareId: shareId)
-      openApp(fallbackMessage: "앱을 직접 열어 로그인하세요")
+      openApp(action: "login", fallbackMessage: "앱을 직접 열어 로그인하세요")
     } catch {
       hasHandledAction = false
       ShareSentryReporter.capture("SHARE_PAYLOAD_STORE_FAILED", stage: "login_handoff")
       ShareAnalyticsStore.record("share_local_save_resolved", shareId: shareId,
         properties: ["outcome": "storage_failed"])
+      recordAction("login", result: "save_failed")
       show(.failure, message: "링크를 저장하지 못했어요", buttonTitle: "닫기")
     }
   }
 
   /// 앱을 엽니다. 공식 경로(`extensionContext.open`)가 실패하면 responder chain의 대체 경로를 시도하고,
   /// 그래도 열지 못하면 직접 열어 달라는 안내 카드로 바꿉니다.
-  private func openApp(fallbackMessage: String) {
+  private func openApp(action: String, fallbackMessage: String) {
     autoDismissTask?.cancel()
     let url = ShareIntentConstants.shareExtensionOpenURL
+    let succeed = { [weak self] in
+      guard let self else { return }
+      self.recordAction(action, result: "opened")
+      self.finish(.appOpened)
+    }
     let fail = { [weak self] in
       guard let self else { return }
       ShareSentryReporter.capture("SHARE_LOGIN_APP_OPEN_FAILED", stage: "login_handoff")
+      self.recordAction(action, result: "open_failed")
       self.show(.failure, message: fallbackMessage, buttonTitle: "닫기")
     }
     guard let extensionContext else {
@@ -183,15 +199,24 @@ class ShareCardViewController: UIViewController {
       DispatchQueue.main.async {
         guard let self else { return }
         if opened {
-          self.finish()
+          succeed()
           return
         }
         // 공유·작업 확장에서는 공식 open이 보통 false를 돌려줍니다.
         self.openViaResponderChain(url) { opened in
-          if opened { self.finish() } else { fail() }
+          if opened { succeed() } else { fail() }
         }
       }
     }
+  }
+
+  /// 카드 버튼을 누른 결과를 기록합니다. 한 공유에서 로그인 → 닫기처럼 여러 버튼을 누를 수 있어
+  /// 버튼마다 따로 한 번씩 기록합니다.
+  private func recordAction(_ action: String, result: String? = nil) {
+    var properties: [String: Any] = ["action": action]
+    if let result { properties["result"] = result }
+    ShareAnalyticsStore.record("reel_share_action_clicked", shareId: shareId, properties: properties,
+      eventKey: "reel_share_action_clicked.\(shareId).\(action)")
   }
 
   private typealias OpenURLCompletion = @convention(block) (Bool) -> Void
@@ -234,16 +259,21 @@ class ShareCardViewController: UIViewController {
     autoDismissTask = Task { @MainActor [weak self] in
       try? await Task.sleep(nanoseconds: 4_000_000_000)
       guard !Task.isCancelled else { return }
-      self?.finish()
+      self?.finish(.auto)
     }
   }
 
   @objc private func handleBackgroundTap() {
-    finish()
+    finish(.tapOutside)
   }
 
-  private func finish() {
+  /// 확장을 닫고, 어떤 방법으로 닫혔는지 기록합니다. 카드가 나타나기 전에 닫히면 `card_state`는 `none`입니다.
+  private func finish(_ method: DismissMethod) {
     autoDismissTask?.cancel()
+    ShareAnalyticsStore.record("reel_share_card_dismissed", shareId: shareId, properties: [
+      "method": method.rawValue,
+      "card_state": cardView.alpha == 0 ? "none" : cardState.rawValue,
+    ])
     extensionContext?.completeRequest(returningItems: [], completionHandler: nil)
   }
 
