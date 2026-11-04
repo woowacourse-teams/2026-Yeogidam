@@ -15,6 +15,7 @@ import {
   capturePlaceMapViewed,
   type SavedPlaceViewContext,
 } from '../../../analytics/savedPlaceEvents';
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import type { Place } from '../../../entities/place/types';
 import { useCopyToast } from './CopyToast';
 
@@ -40,9 +41,11 @@ export function PlaceInfo({
   viewContext,
 }: PlaceInfoProps) {
   const posthog = usePostHog();
+  const { button } = useScreenAnalytics();
   const { showCopyToast } = useCopyToast();
 
   const copyAddress = () => {
+    button('copy_address');
     Clipboard.setString(place.fullAddress);
     showCopyToast('도로명 주소가 복사되었습니다.');
   };
@@ -99,6 +102,7 @@ export function PlaceInfo({
         accessibilityLabel={`${place.name} 카카오맵 열기`}
         onPressIn={onInteractivePressIn}
         onPress={() => {
+          button('open_kakao_map');
           openKakaoMap().catch(() => undefined);
         }}
         style={({ pressed }) => [
@@ -139,7 +143,10 @@ export function PlaceInfo({
                 accessibilityLabel="더보기"
                 hitSlop={8}
                 onPressIn={onInteractivePressIn}
-                onPress={onPressMore}
+                onPress={() => {
+                  button('more');
+                  onPressMore();
+                }}
                 style={styles.moreButton}
               >
                 <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />

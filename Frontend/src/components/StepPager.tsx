@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   type LayoutChangeEvent,
   Pressable,
@@ -7,6 +7,8 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+
+import { useStepAnalytics } from '../analytics/uiEvents';
 
 export type StepMediaFrame = {
   width: number;
@@ -21,6 +23,8 @@ export type StepPage = {
 };
 
 type StepPagerProps = {
+  /** 단계 이벤트에 붙는 흐름 이름입니다. 예: `onboarding`, `app_guide` */
+  flowName: string;
   pages: StepPage[];
   onComplete: () => void;
   /** 두 번째 페이지부터 이전 버튼을 보여준다. */
@@ -70,6 +74,7 @@ function PageDots({ count, current }: { count: number; current: number }) {
 
 // 점 표시, 제목, 데모 프레임, 하단 버튼으로 이뤄진 단계별 안내 화면
 export function StepPager({
+  flowName,
   pages,
   onComplete,
   showPrevious = false,
@@ -77,13 +82,19 @@ export function StepPager({
   lastButtonAccessibilityLabel,
 }: StepPagerProps) {
   const [pageIndex, setPageIndex] = useState(0);
+  const {button, stepViewed} = useStepAnalytics(flowName, pages.length);
   const [mediaAreaHeight, setMediaAreaHeight] = useState(0);
   const { frameWidth, frameHeight, frameRadius } = useMediaFrame(mediaAreaHeight);
   const page = pages[pageIndex];
   const isLast = pageIndex === pages.length - 1;
   const nextLabel = isLast ? lastButtonLabel : '다음';
 
+  useEffect(() => {
+    stepViewed(pageIndex);
+  }, [pageIndex, stepViewed]);
+
   const handleNext = () => {
+    button(isLast ? 'complete' : 'next', pageIndex);
     if (isLast) {
       onComplete();
       return;
@@ -133,7 +144,10 @@ export function StepPager({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="이전"
-            onPress={() => setPageIndex(prev => prev - 1)}
+            onPress={() => {
+              button('previous', pageIndex);
+              setPageIndex(prev => prev - 1);
+            }}
             style={({ pressed }) => [
               styles.button,
               styles.secondaryButton,

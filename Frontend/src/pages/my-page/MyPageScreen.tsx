@@ -1,6 +1,7 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
+import {useScreenAnalytics} from '../../analytics/uiEvents';
 import type {ProfileApiError, ProfileInfo} from '../../entities/info/types';
 import type {User} from '../../entities/user/types';
 import {ProfileSection} from './components/ProfileSection';
@@ -46,15 +47,26 @@ export function MyPageScreen({
   onReauthenticate,
   isLogoutPending = false,
 }: MyPageScreenProps) {
+  const {button} = useScreenAnalytics('my');
+  const tracked = (name: string, onPress?: () => void) =>
+    onPress
+      ? () => {
+          button(name);
+          onPress();
+        }
+      : undefined;
   const settingItems = [
-    {label: '사용 가이드', onPress: onOpenGuide},
-    {label: '약관 동의', onPress: onOpenTerms},
-    {label: '문의하기', onPress: onOpenContact},
+    {label: '사용 가이드', onPress: tracked('guide', onOpenGuide)},
+    {label: '약관 동의', onPress: tracked('terms', onOpenTerms)},
+    {label: '문의하기', onPress: tracked('contact', onOpenContact)},
     ...(isGuest
       ? []
       : [
-          {label: '회원탈퇴', onPress: onWithdraw},
-          {label: isLogoutPending ? '로그아웃 중...' : '로그아웃', onPress: onLogout},
+          {label: '회원탈퇴', onPress: tracked('withdraw', onWithdraw)},
+          {
+            label: isLogoutPending ? '로그아웃 중...' : '로그아웃',
+            onPress: tracked('logout', onLogout),
+          },
         ]),
   ];
 
@@ -76,7 +88,7 @@ export function MyPageScreen({
       {onRetryProfile ? (
         <Pressable
           disabled={isProfileLoading}
-          onPress={onRetryProfile}
+          onPress={tracked('retry_profile', onRetryProfile)}
           style={({pressed}) => [
             pressed && !isProfileLoading && styles.errorBannerActionPressed,
           ]}>
@@ -98,7 +110,7 @@ export function MyPageScreen({
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={onLogin}
+              onPress={tracked('login', onLogin)}
               style={({pressed}) => [
                 styles.guestLoginButton,
                 pressed && styles.guestLoginButtonPressed,
@@ -114,7 +126,9 @@ export function MyPageScreen({
             bottomContent={unavailableNotice}
             isProfileUnavailable={isProfileUnavailable}
             onPressEditProfile={
-              isProfileUnavailable ? undefined : onOpenEditProfile
+              isProfileUnavailable
+                ? undefined
+                : tracked('edit_profile', onOpenEditProfile)
             }
             user={displayedUser}
           />
@@ -130,11 +144,11 @@ export function MyPageScreen({
             {profileError?.message ?? '프로필 정보를 불러오지 못했어요.'}
           </Text>
           {showReauthenticateAction && onReauthenticate ? (
-            <Pressable onPress={onReauthenticate} style={styles.primaryButton}>
+            <Pressable onPress={tracked('reauthenticate', onReauthenticate)} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>다시 로그인</Text>
             </Pressable>
           ) : profileError?.retryable && onRetryProfile ? (
-            <Pressable onPress={onRetryProfile} style={styles.primaryButton}>
+            <Pressable onPress={tracked('retry_profile', onRetryProfile)} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>다시 시도</Text>
             </Pressable>
           ) : null}

@@ -14,6 +14,11 @@ import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
+import {
+  trackActionFinished,
+  trackButtonPressed,
+  trackScreenViewed,
+} from './src/analytics/uiEvents';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import {
@@ -64,6 +69,7 @@ import {
   trackAppOpened,
   trackLoginFinished,
   trackLoginStarted,
+  type LoginEntry,
 } from './src/analytics/userEntryEvents';
 // import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
@@ -359,6 +365,9 @@ function App() {
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const loginAttemptInFlightRef = useRef(false);
+  // 공유 화면의 [로그인]으로 로그인 화면에 온 경우, 로그인 이벤트에 붙일 진입 경로입니다.
+  // 로그인에 성공하거나 다른 경로로 로그인 화면을 열면 비웁니다.
+  const loginEntryRef = useRef<LoginEntry | null>(null);
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
@@ -752,6 +761,7 @@ function App() {
       }
 
       if (event === 'SIGNED_OUT') {
+        loginEntryRef.current = null;
         activeUserIdRef.current = null;
         setIsAuthenticated(false);
         setFlowState(INITIAL_FLOW_STATE);
@@ -894,6 +904,7 @@ function App() {
             });
           }
           if (result.transferStatus === 'GUEST_LOGIN_PROMPT') {
+            loginEntryRef.current = {entry: 'share_login_handoff', shareId: result.requestId};
             clearShareResult(result.requestId).catch(() => undefined);
             setSharedSaveState(null);
             setIsGuestLoginPromptVisible(false);
@@ -913,6 +924,7 @@ function App() {
             // 로그인 화면으로 보내는 것으로 이 결과의 역할은 끝난다. 로그인해도 이 공유는 추출하지
             // 않으므로, 로그인 대기 상태로 남겨 두지 않고 정리한다.
             const showLoginForHandoff = () => {
+              loginEntryRef.current = {entry: 'share_login_handoff', shareId: result.requestId};
               clearShareResult(result.requestId).catch(() => undefined);
               setHasPendingShareLogin(false);
               // 둘러보는 중에 넘어왔다면 앱 안에서 연 로그인 화면과 같게 X로 직전 화면에 돌아간다.
@@ -952,6 +964,7 @@ function App() {
                     );
                     return;
                   }
+                  loginEntryRef.current = null;
                   setFlowState(INITIAL_FLOW_STATE);
                   Alert.alert(
                     '로그인이 필요해요',
@@ -1069,9 +1082,10 @@ function App() {
       google: signInWithGoogle,
     }[provider];
     let signInStarted = false;
+    const loginEntry = loginEntryRef.current;
 
     // 로그인 버튼을 누른 시점에 기록해, 시작 전에 실패해도 로그인 시도로 센다.
-    trackLoginStarted(posthog, provider);
+    trackLoginStarted(posthog, provider, loginEntry);
 
     try {
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
@@ -1086,7 +1100,9 @@ function App() {
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
+        entry: loginEntry,
       });
+      loginEntryRef.current = null;
     } catch (error) {
       const normalizedError = withAuthErrorStage(
         error,
@@ -1097,6 +1113,7 @@ function App() {
         provider,
         outcome: 'failure',
         failureType: toLoginFailureType(normalizedError),
+        entry: loginEntry,
       });
       if (!signInStarted) {
         Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
@@ -1110,6 +1127,7 @@ function App() {
   };
 
   const handleCancelShareLogin = async () => {
+    loginEntryRef.current = null;
     const results = await getShareResults();
     await Promise.all(results
       .filter(result => result.transferStatus === 'LOGIN_HANDOFF')
@@ -1120,6 +1138,7 @@ function App() {
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
+    loginEntryRef.current = null;
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
     setShowLoginCloseButton(true);
@@ -1129,6 +1148,7 @@ function App() {
   const handleOpenGuestLoginFromMyPage = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
+    loginEntryRef.current = null;
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
     setShowLoginCloseButton(true);
@@ -1140,6 +1160,7 @@ function App() {
       handleOpenGuestLogin();
       return;
     }
+    loginEntryRef.current = null;
     setFlowState(INITIAL_FLOW_STATE);
   };
 
@@ -1199,14 +1220,18 @@ function App() {
     // 온보딩을 거쳐 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
     try {
       const result = await logoutSpringSession();
-      if (!result.serverConfirmed) {
-        // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
-      }
+      // 로그아웃이 끝나면 PostHog 식별이 초기화되므로 그 전에 기록한다.
+      trackActionFinished(posthog, 'logout', 'success', {
+        server_confirmed: result.serverConfirmed,
+      });
       return;
     } catch (error) {
-      if (error instanceof LocalSessionCleanupError) {
-        // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
-      }
+      trackActionFinished(posthog, 'logout', 'failure', {
+        failure_type:
+          error instanceof LocalSessionCleanupError
+            ? 'local_cleanup_failed'
+            : 'unknown',
+      });
     }
 
     setIsLogoutPending(false);
@@ -1238,20 +1263,34 @@ function App() {
   };
 
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
+    let serverSideFailure = false;
     try {
       await deleteAccount(payload);
     } catch (error) {
       // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 탈퇴 화면에서 안내한다.
-      if (!isServerSideDeletionFailure(error)) throw error;
+      if (!isServerSideDeletionFailure(error)) {
+        trackActionFinished(posthog, 'account_deletion', 'failure', {
+          failure_type: 'user_fixable',
+        });
+        throw error;
+      }
+      serverSideFailure = true;
       // 서버·네트워크 실패는 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리한다.
       // TODO(sentry): 탈퇴 서버 실패 알림 (회원 ID: activeUserIdRef.current, 제공자: currentProfile?.oauthProvider, error)
     }
+
+    // 세션을 지우면 PostHog 식별이 초기화되므로 그 전에 기록한다.
+    trackActionFinished(posthog, 'account_deletion', 'success', {
+      server_side_failure: serverSideFailure,
+    });
 
     // 서버 회원은 삭제됐거나 수동 삭제 대상이므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지운다.
     try {
       await clearSpringSession();
     } catch {
-      // TODO(analytics): account_deletion_local_cleanup_failed 이벤트 기록
+      trackActionFinished(posthog, 'account_deletion', 'failure', {
+        failure_type: 'local_cleanup_failed',
+      });
       Alert.alert(
         '회원탈퇴를 마무리하지 못했어요',
         '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
@@ -1493,7 +1532,26 @@ function App() {
     : myPageOverlay !== null ? flowState.activeTab
     : flowState.detailSource ?? previousTab;
 
+  const analyticsScreenName =
+    !isAuthReady || isSplashVisible
+      ? 'splash'
+      : isOnboardingVisible
+      ? 'onboarding'
+      : myPageOverlay === 'accountDeletion'
+      ? 'account_deletion'
+      : myPageOverlay === 'guide'
+      ? 'app_guide'
+      : myPageOverlay === 'terms'
+      ? 'terms'
+      : currentScreen === 'emailLogin'
+      ? 'email_login'
+      : currentScreen;
+  useEffect(() => {
+    trackScreenViewed(posthog, analyticsScreenName);
+  }, [posthog, analyticsScreenName]);
+
   const handleSwipeBack = () => {
+    trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');
     if (myPageOverlay !== null) setMyPageOverlay(null);
     else if (flowState.kind === 'auth') popAuthScreen();
     else if (flowState.detailSource !== null) closeDetail();

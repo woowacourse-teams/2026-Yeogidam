@@ -44,6 +44,7 @@ const GUIDE_PAGES: StepPage[] = [
 export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
   return (
     <StepPager
+      flowName="app_guide"
       pages={GUIDE_PAGES}
       onComplete={onComplete}
       showPrevious

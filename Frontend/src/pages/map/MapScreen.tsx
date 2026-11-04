@@ -41,6 +41,12 @@ import {
 import { getNextFolderColor } from '../../entities/folder/color';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
+import {
+  trackActionFinished,
+  trackUi,
+  UI_EVENTS,
+  useScreenAnalytics,
+} from '../../analytics/uiEvents';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -111,6 +117,7 @@ export function MapScreen({
   onShowGuestLoginPrompt,
 }: MapScreenProps) {
   const posthog = usePostHog();
+  const analytics = useScreenAnalytics('map');
   const [locationGranted, setLocationGranted] = useState(false);
   const didRequestInitialCurrentLocation = useRef(false);
   useEffect(() => {
@@ -127,9 +134,11 @@ export function MapScreen({
   }, []);
   const handleCurrentLocation = async () => {
     try {
-      if (await ensureLocationPermission())
-        setCurrentLocationRequestId(requestId => requestId + 1);
+      const granted = await ensureLocationPermission();
+      analytics.button('current_location', { permission_granted: granted });
+      if (granted) setCurrentLocationRequestId(requestId => requestId + 1);
     } catch {
+      analytics.button('current_location', { permission_granted: false });
       setMapMessage('위치 권한을 확인하지 못했어요. 다시 시도해 주세요.');
     }
   };
@@ -418,6 +427,11 @@ export function MapScreen({
         ),
     );
 
+    trackUi(posthog, UI_EVENTS.mapSearchSubmitted, {
+      result_count: places.length,
+      has_result: places.length > 0,
+      query_length: keyword.length,
+    });
     setSearchedPlaces(places);
     setSearchResultSignal(signal => signal + 1);
     if (places.length >= 2) {
@@ -450,6 +464,7 @@ export function MapScreen({
   };
 
   const handleChangeSheetMode = (mode: SheetMode) => {
+    analytics.selection('sheet_mode', mode);
     setSheetMode(mode);
     setOpenedFolderId(null);
     setSelectedCategory(ALL_CATEGORY);
@@ -461,6 +476,11 @@ export function MapScreen({
     const folder = folders.find(candidate => candidate.id === folderId);
     if (!folder) return;
 
+    analytics.button('open_folder', {
+      place_count: allPlacesWithCoordinates.filter(place =>
+        place.folderIds.includes(folderId),
+      ).length,
+    });
     setOpenedFolderId(folderId);
     setSelectedCategory(ALL_CATEGORY);
     setSearchedPlaces(null);
@@ -472,13 +492,16 @@ export function MapScreen({
     );
   };
 
-  const handleCloseFolder = () => {
+  const handleCloseFolder = useCallback(() => {
+    analytics.button('close_folder');
     setOpenedFolderId(null);
     setSelectedCategory(ALL_CATEGORY);
-  };
+  }, [analytics]);
 
   const handleCreateFolder = () => {
+    analytics.button('create_folder');
     if (folders.length >= MAX_FOLDER_COUNT) {
+      analytics.modal('folder_limit_reached');
       Alert.alert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
       return;
     }
@@ -494,6 +517,12 @@ export function MapScreen({
         folderDialog?.kind === 'rename'
           ? await updateFolder(folderDialog.folderId, name, color)
           : (await createFolder(name, color)) !== null;
+      trackActionFinished(
+        posthog,
+        folderDialog?.kind === 'rename' ? 'folder_rename' : 'folder_create',
+        succeeded ? 'success' : 'failure',
+        { screen_name: 'map' },
+      );
       // 실패하면 안내를 띄우고 입력 창을 열어 둬 이름을 고쳐 다시 시도할 수 있게 합니다.
       if (succeeded) setFolderDialog(null);
     } finally {
@@ -505,16 +534,28 @@ export function MapScreen({
     const folder = folders.find(candidate => candidate.id === folderId);
     if (!folder) return;
 
+    analytics.modal('folder_delete_confirm');
     Alert.alert(
       `'${folder.name}' 폴더를 삭제할까요?`,
       '폴더만 삭제되고 저장한 장소는 그대로 남아요.',
       [
-        { text: '취소', style: 'cancel' },
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => analytics.button('folder_delete_cancel'),
+        },
         {
           text: '삭제',
           style: 'destructive',
           onPress: () => {
+            analytics.button('folder_delete_confirm');
             deleteFolder(folderId).then(deleted => {
+              trackActionFinished(
+                posthog,
+                'folder_delete',
+                deleted ? 'success' : 'failure',
+                { screen_name: 'map' },
+              );
               if (deleted && openedFolderId === folderId) handleCloseFolder();
             });
           },
@@ -525,6 +566,7 @@ export function MapScreen({
 
   const showFolderActions = (folderId: string) => {
     if (folders.some(candidate => candidate.id === folderId)) {
+      analytics.button('folder_actions');
       setFolderActionId(folderId);
     }
   };
@@ -534,6 +576,7 @@ export function MapScreen({
     if (isPlaceDetailVisible) {
       setBackToPlaceListSignal(signal => signal + 1);
     }
+    analytics.selection('category_filter', category);
     setSelectedCategory(category);
     setSearchedPlaces(null);
     setSearchKeyword('');
@@ -546,6 +589,7 @@ export function MapScreen({
     }
   };
   const handleSearchBack = useCallback(() => {
+    analytics.button('search_back');
     if (isPlaceDetailVisible) {
       setBackToPlaceListSignal(signal => signal + 1);
       setIsSearchFocused(false);
@@ -578,6 +622,8 @@ export function MapScreen({
       Keyboard.dismiss();
     }
   }, [
+    analytics,
+    handleCloseFolder,
     hasActiveSearch,
     isPlaceDetailVisible,
     isSearchFocused,
@@ -820,7 +866,14 @@ export function MapScreen({
         <View pointerEvents="box-none" style={styles.searchOverlay}>
           <View>
             <SearchBar
-              onPress={isGuest ? onShowGuestLoginPrompt : undefined}
+              onPress={
+                isGuest
+                  ? () => {
+                      analytics.button('guest_search');
+                      onShowGuestLoginPrompt?.();
+                    }
+                  : undefined
+              }
               backButtonPosition={
                 (!page.clearsSearch && hasActiveSearch) ||
                 (!page.isBackPreview && isSearchFocused) ||
@@ -865,7 +918,10 @@ export function MapScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="안내 닫기"
-            onPress={() => setMapMessage(null)}
+            onPress={() => {
+              analytics.button('close_message');
+              setMapMessage(null);
+            }}
             style={[styles.mapMessage, { top: topInset + 72 }]}
           >
             <Text style={styles.mapMessageText}>{mapMessage}</Text>

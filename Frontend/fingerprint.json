@@ -1,7 +1,7 @@
 {
   "ios": {
     "engine": "hot-updater/interface@1",
-    "hash": "02049cf30cc9845b83344dee3bacc946da63bb6892d695d956524d0d639da23f",
+    "hash": "88653636a616a1847b3b52b7c82a5fd9aee3ac772a1219c5dc95c94472c9fe4f",
     "sources": [
       {
         "type": "contents",
@@ -801,15 +801,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "ee70af5f19946a46e3590e61c0bde93a94d74b554b642f0dbe0c2970baaa8425"
-      },
-      {
-        "type": "file",
-        "filePath": "ios/Podfile.lock",
-        "reasons": [
-          "extra-source"
-        ],
-        "hash": "8390865364f8699f85356fe157f3c7d70b864a94f18668469770fbb23910e11a"
+        "hash": "b0753e901deae0eab5daf0c9d2d00f1d94d02cf661010187759396a4c788a75b"
       },
       {
         "type": "file",
@@ -897,7 +889,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "bb65790bb816dd22b1c07262e6d074e717d504a4d62aa910d0d5033b7ed32d82"
+        "hash": "d7aa22ed3a9cb9ff9a7443a2f1bd9cf6e6d88ca37534c52ae82e0c039fa49005"
       },
       {
         "type": "file",
@@ -913,7 +905,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "92bb6095d0f65cca100818a1d9d0d191d01fc1da2ddf63165265d3aa44e1e554"
+        "hash": "c59740c6293218e6068342342cbe57fd9f50affb99e19264f57425e0640905eb"
       },
       {
         "type": "file",
@@ -927,7 +919,7 @@
   },
   "android": {
     "engine": "hot-updater/interface@1",
-    "hash": "216bb449e8962112c7e4ee51f47c116a4a1d76f881d6ac52b14bc50163fcb870",
+    "hash": "9756e98f41ec9dc68ba98730b9b07eab54801c8898a2ce1d1dabc4cf6d8c7eb3",
     "sources": [
       {
         "type": "contents",
@@ -1169,7 +1161,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "89c5d53e1be3c5f35ac0cb329dddb071bedcfa042fa15a4bb1a99c4428927a21"
+        "hash": "202d828406912f2933559201ef5c83b464acf3f8446a9b5c3dae49f4c487594d"
       },
       {
         "type": "file",
@@ -1177,7 +1169,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "d3d3741459a70c6106e00328919c75c71e0eb6fa95008a0990d7286a2fe479a0"
+        "hash": "f5c60bdc04f281dd63f5f8c3b60bb2ac61f3232d9f4540b1de2f4222fba5a70a"
       },
       {
         "type": "file",
@@ -1566,7 +1558,8 @@
       "**/xcuserdata/**",
       "**/.idea/**",
       "**/.DS_Store",
-      "**/.env"
+      "**/.env",
+      "ios/Podfile.lock"
     ]
   }
 }
