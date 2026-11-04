@@ -15,6 +15,7 @@ import {
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import Svg, { Path, Rect } from 'react-native-svg';
 
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
   getNextFolderColor,
@@ -79,6 +80,8 @@ export function FolderDetailHeader({
   count: number;
   onMore: () => void;
 }) {
+  const { button } = useScreenAnalytics('folder_panel');
+
   return (
     <View style={styles.detailHeader}>
       <View style={styles.detailTitleWrap}>
@@ -92,7 +95,10 @@ export function FolderDetailHeader({
         accessibilityRole="button"
         accessibilityLabel="폴더 더보기"
         hitSlop={8}
-        onPress={onMore}
+        onPress={() => {
+          button('folder_more');
+          onMore();
+        }}
         style={styles.iconButton}
       >
         <MaterialIcons color="#4A4F66" name="more-horiz" size={24} />
@@ -197,8 +203,12 @@ export function FolderNameDialog({
   onSubmit: (name: string, color: string) => void;
   onCancel: () => void;
 }) {
+  const { button, modal } = useScreenAnalytics('folder_panel');
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor);
+  useEffect(() => {
+    if (visible) modal('folder_name_dialog');
+  }, [modal, visible]);
   useEffect(() => {
     if (visible) {
       setName(initialName);
@@ -248,7 +258,10 @@ export function FolderNameDialog({
                   accessibilityLabel={`폴더 색상 ${candidate}`}
                   accessibilityState={{ selected }}
                   hitSlop={4}
-                  onPress={() => setColor(candidate)}
+                  onPress={() => {
+                    button('select_color');
+                    setColor(candidate);
+                  }}
                   style={[
                     styles.colorSwatch,
                     { backgroundColor: candidate },
@@ -263,12 +276,21 @@ export function FolderNameDialog({
             })}
           </View>
           <View style={styles.dialogActions}>
-            <Pressable onPress={onCancel} style={styles.dialogButton}>
+            <Pressable
+              onPress={() => {
+                button('name_dialog_cancel');
+                onCancel();
+              }}
+              style={styles.dialogButton}
+            >
               <Text style={styles.dialogCancel}>취소</Text>
             </Pressable>
             <Pressable
               disabled={!canSubmit}
-              onPress={() => onSubmit(name, color)}
+              onPress={() => {
+                button('name_dialog_submit');
+                onSubmit(name, color);
+              }}
               style={styles.dialogButton}
             >
               <Text
@@ -304,6 +326,7 @@ export function PlaceFolderAssignPicker({
   // 새 폴더를 만들고 그 id를 돌려줍니다. 만든 폴더는 바로 체크됩니다. 실패하면 null이고 입력 창이 열려 있습니다.
   onCreateFolder?: (name: string, color: string) => Promise<string | null>;
 }) {
+  const { button } = useScreenAnalytics('folder_panel');
   const [selected, setSelected] = useState<string[]>(selectedFolderIds);
   const [isCreating, setIsCreating] = useState(false);
   // 시트가 열릴 때만 체크 상태를 맞춥니다. 시트 안에서 폴더를 만들면 부모가 다시 그려지며
@@ -315,6 +338,7 @@ export function PlaceFolderAssignPicker({
   }, [selectedFolderIds, visible]);
 
   const startCreating = () => {
+    button('picker_create_folder');
     if (folders.length >= MAX_FOLDER_COUNT) {
       Alert.alert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
       return;
@@ -322,12 +346,14 @@ export function PlaceFolderAssignPicker({
     setIsCreating(true);
   };
 
-  const toggle = (folderId: string) =>
+  const toggle = (folderId: string) => {
+    button('picker_toggle_folder');
     setSelected(current =>
       current.includes(folderId)
         ? current.filter(id => id !== folderId)
         : [...current, folderId],
     );
+  };
 
   return (
     <Modal
@@ -442,6 +468,12 @@ export function FolderActionSheet({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const { button, modal } = useScreenAnalytics('folder_panel');
+  const isOpen = folder !== null;
+  useEffect(() => {
+    if (isOpen) modal('folder_action_sheet');
+  }, [isOpen, modal]);
+
   return (
     <Modal
       animationType="none"
@@ -469,7 +501,10 @@ export function FolderActionSheet({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="이름·색상 변경"
-            onPress={onEdit}
+            onPress={() => {
+              button('action_sheet_edit');
+              onEdit();
+            }}
             style={styles.actionButton}
           >
             <MaterialIcons color="#000000" name="edit" size={21} />
@@ -478,7 +513,10 @@ export function FolderActionSheet({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="폴더 삭제"
-            onPress={onDelete}
+            onPress={() => {
+              button('action_sheet_delete');
+              onDelete();
+            }}
             style={styles.actionButton}
           >
             <MaterialIcons color="#E5484D" name="delete-outline" size={21} />

@@ -96,7 +96,11 @@ describe('PlaceInfo', () => {
       await new Promise<void>(resolve => setTimeout(resolve, 0));
     });
 
-    expect(mockCapture).not.toHaveBeenCalled();
+    // 버튼을 누른 기록(button_pressed)은 남지만, 지도 조회 이벤트는 기록되지 않는다.
+    expect(mockCapture).not.toHaveBeenCalledWith(
+      'place_map_viewed',
+      expect.anything(),
+    );
 
     await ReactTestRenderer.act(async () => {
       renderer!.unmount();

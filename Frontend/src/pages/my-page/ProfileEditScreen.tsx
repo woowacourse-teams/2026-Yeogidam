@@ -8,6 +8,12 @@ import {
   View,
 } from 'react-native';
 
+import {usePostHog} from 'posthog-react-native';
+
+import {
+  trackActionFinished,
+  useScreenAnalytics,
+} from '../../analytics/uiEvents';
 import type {
   ProfileApiError,
   ProfileInfo,
@@ -26,6 +32,8 @@ export function ProfileEditScreen({
   onBack,
   onSave,
 }: ProfileEditScreenProps) {
+  const posthog = usePostHog();
+  const {button} = useScreenAnalytics('profile_edit');
   const initialNickname = profile.nickname ?? '';
   const initialDescription = profile.description ?? '';
   const initialAvatarUrl = profile.avatarUrl ?? '';
@@ -72,13 +80,16 @@ export function ProfileEditScreen({
       return;
     }
 
+    button('save', {changed_fields: Object.keys(patch).join(',')});
     setIsSaving(true);
     setSaveError(null);
 
     try {
       await onSave(patch);
+      trackActionFinished(posthog, 'profile_edit', 'success');
       onBack();
     } catch (error) {
+      trackActionFinished(posthog, 'profile_edit', 'failure');
       setSaveError(error as ProfileApiError);
     } finally {
       setIsSaving(false);
@@ -88,7 +99,13 @@ export function ProfileEditScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={onBack} style={styles.headerAction}>
+        <Pressable
+          hitSlop={12}
+          onPress={() => {
+            button('back');
+            onBack();
+          }}
+          style={styles.headerAction}>
           <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.title}>프로필 수정</Text>

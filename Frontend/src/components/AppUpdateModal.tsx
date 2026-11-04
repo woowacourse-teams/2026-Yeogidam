@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Linking,
   Modal,
@@ -7,6 +7,8 @@ import {
   Text,
   View,
 } from 'react-native';
+
+import { useScreenAnalytics } from '../analytics/uiEvents';
 
 type AppUpdateModalProps = {
   storeUrl: string;
@@ -19,14 +21,22 @@ type AppUpdateModalProps = {
 export function AppUpdateModal(props: AppUpdateModalProps) {
   const {storeUrl, visible} = props;
   const required = props.mode === 'required';
+  const {button, modal} = useScreenAnalytics(
+    required ? 'app_update_required' : 'app_update_recommended',
+  );
+  useEffect(() => {
+    if (visible) modal('app_update');
+  }, [modal, visible]);
   const openStore = useCallback(() => {
+    button('update');
     Linking.openURL(storeUrl).catch(error => {
       if (__DEV__) {
         console.warn('[AppUpdatePolicy] Unable to open store URL.', error);
       }
     });
-  }, [storeUrl]);
+  }, [button, storeUrl]);
   const dismiss = () => {
+    button('dismiss');
     if (props.mode === 'recommended') props.onDismiss();
   };
 

@@ -11,8 +11,12 @@ import {
 } from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
+import {useScreenAnalytics} from '../../../analytics/uiEvents';
+
 type AuthScaffoldProps = {
   children: React.ReactNode;
+  /** 닫기·뒤로 버튼 이벤트에 붙는 화면 이름입니다. */
+  screenName: string;
   onBack?: () => void;
   title?: string;
   description?: string;
@@ -21,18 +25,27 @@ type AuthScaffoldProps = {
 
 export function AuthScaffold({
   children,
+  screenName,
   onBack,
   title,
   description,
   contentStyle,
 }: AuthScaffoldProps) {
+  const {button} = useScreenAnalytics(screenName);
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}>
       {onBack ? (
-        <Pressable hitSlop={12} onPress={onBack} style={styles.closeButton}>
+        <Pressable
+          hitSlop={12}
+          onPress={() => {
+            button('close');
+            onBack();
+          }}
+          style={styles.closeButton}>
           <MaterialIcons color="#121212" name="close" size={34} />
         </Pressable>
       ) : (

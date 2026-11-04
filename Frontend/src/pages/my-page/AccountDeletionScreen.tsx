@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 
+import {useScreenAnalytics} from '../../analytics/uiEvents';
 import type {
   AccountDeletionProvider,
   DeleteAccountError,
@@ -32,6 +33,7 @@ export function AccountDeletionScreen({
   onBack,
   onDeleteAccount,
 }: AccountDeletionScreenProps) {
+  const {button} = useScreenAnalytics('account_deletion');
   const [confirmation, setConfirmation] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<DeleteAccountError | null>(null);
@@ -50,6 +52,7 @@ export function AccountDeletionScreen({
       return;
     }
 
+    button('delete_account', {provider});
     setIsDeleting(true);
     setError(null);
 
@@ -70,7 +73,13 @@ export function AccountDeletionScreen({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={onBack} style={styles.headerAction}>
+        <Pressable
+          hitSlop={12}
+          onPress={() => {
+            button('back');
+            onBack();
+          }}
+          style={styles.headerAction}>
           <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.title}>회원탈퇴</Text>

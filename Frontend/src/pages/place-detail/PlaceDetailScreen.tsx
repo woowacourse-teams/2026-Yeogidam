@@ -3,6 +3,10 @@ import type { ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
+import {
+  trackActionFinished,
+  useScreenAnalytics,
+} from '../../analytics/uiEvents';
 
 import {
   captureSavedPlaceOpened,
@@ -47,6 +51,7 @@ export function PlaceDetailScreen({
 }: PlaceDetailScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
   const posthog = usePostHog();
+  const analytics = useScreenAnalytics('place_detail');
   const capturedPlaceViewIdRef = useRef<string | null>(null);
   const [reels, setReels] = useState<PlaceReel[]>([]);
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
@@ -139,6 +144,9 @@ export function PlaceDetailScreen({
     setDeleteError(null);
     try {
       await deleteSavedPlaces([place.savedPlaceId]);
+      trackActionFinished(posthog, 'saved_place_delete', 'success', {
+        source: 'place_detail',
+      });
       onBack();
     } catch (nextError) {
       const apiError = nextError as SavedPlacesApiError;
@@ -154,6 +162,10 @@ export function PlaceDetailScreen({
         }
       }
 
+      trackActionFinished(posthog, 'saved_place_delete', 'failure', {
+        source: 'place_detail',
+        failure_type: apiError.errorCode,
+      });
       setDeleteError(apiError);
       if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
         onAuthenticationRequired?.();
@@ -167,6 +179,7 @@ export function PlaceDetailScreen({
     onBack,
     onDeleteGuestPlaces,
     place.id,
+    posthog,
     place.savedPlaceId,
   ]);
 
@@ -175,17 +188,23 @@ export function PlaceDetailScreen({
       return;
     }
 
+    analytics.modal('delete_confirm');
     Alert.alert('선택한 장소를 삭제할까요?', '선택한 장소가 보관함에서 삭제됩니다.', [
-      { text: '취소', style: 'cancel' },
+      {
+        text: '취소',
+        style: 'cancel',
+        onPress: () => analytics.button('delete_confirm_cancel'),
+      },
       {
         text: '삭제',
         style: 'destructive',
         onPress: () => {
+          analytics.button('delete_confirm_ok');
           handleDelete().catch(() => undefined);
         },
       },
     ]);
-  }, [handleDelete, isDeleting]);
+  }, [analytics, handleDelete, isDeleting]);
 
   // 더보기 시트가 없으므로 삭제에 실패하면 알림 창으로 알립니다.
   useEffect(() => {
@@ -213,7 +232,14 @@ export function PlaceDetailScreen({
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
-        onPressFolder={isGuest ? undefined : () => setIsFolderPickerVisible(true)}
+        onPressFolder={
+          isGuest
+            ? undefined
+            : () => {
+                analytics.modal('folder_picker');
+                setIsFolderPickerVisible(true);
+              }
+        }
         onPressDelete={canDelete ? confirmDelete : undefined}
         isInFolder={placeFolderIds.length > 0}
         isDeleting={isDeleting}
@@ -225,13 +251,20 @@ export function PlaceDetailScreen({
           folders={folderListItems}
           selectedFolderIds={placeFolderIds}
           onSave={folderIds => {
+            analytics.button('folder_picker_save', {
+              folder_count: folderIds.length,
+            });
             setPlaceFolderIds(place, folderIds);
             setIsFolderPickerVisible(false);
           }}
-          onCancel={() => setIsFolderPickerVisible(false)}
-          onCreateFolder={async (name, color) =>
-            (await createFolder(name, color))?.id ?? null
-          }
+          onCancel={() => {
+            analytics.button('folder_picker_cancel');
+            setIsFolderPickerVisible(false);
+          }}
+          onCreateFolder={async (name, color) => {
+            analytics.button('folder_create');
+            return (await createFolder(name, color))?.id ?? null;
+          }}
         />
       )}
       {bottomNavigationBar}
