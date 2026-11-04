@@ -1,7 +1,7 @@
 {
   "ios": {
     "engine": "hot-updater/interface@1",
-    "hash": "02049cf30cc9845b83344dee3bacc946da63bb6892d695d956524d0d639da23f",
+    "hash": "82d21e03b9ba24e41f922bcff1061fbebc02a4b3d6deca7c29aa5e4fdab8d4b4",
     "sources": [
       {
         "type": "contents",
@@ -801,15 +801,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "ee70af5f19946a46e3590e61c0bde93a94d74b554b642f0dbe0c2970baaa8425"
-      },
-      {
-        "type": "file",
-        "filePath": "ios/Podfile.lock",
-        "reasons": [
-          "extra-source"
-        ],
-        "hash": "8390865364f8699f85356fe157f3c7d70b864a94f18668469770fbb23910e11a"
+        "hash": "b0753e901deae0eab5daf0c9d2d00f1d94d02cf661010187759396a4c788a75b"
       },
       {
         "type": "file",
@@ -1566,7 +1558,8 @@
       "**/xcuserdata/**",
       "**/.idea/**",
       "**/.DS_Store",
-      "**/.env"
+      "**/.env",
+      "ios/Podfile.lock"
     ]
   }
 }
