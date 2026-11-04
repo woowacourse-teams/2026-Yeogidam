@@ -55,6 +55,17 @@ public class SharedMediaDao {
                     resultSet.getString("shared_url")
             );
 
+    private static final RowMapper<SavedMediaProjection> SAVED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
+            new SavedMediaProjection(
+                    resultSet.getLong("shared_media_id"),
+                    resultSet.getLong("media_id"),
+                    resultSet.getTimestamp("created_at").toInstant(),
+                    resultSet.getString("thumbnail_key"),
+                    resultSet.getString("caption"),
+                    resultSet.getString("author"),
+                    resultSet.getString("shared_url")
+            );
+
     private final JdbcTemplate jdbcTemplate;
 
     private static ExtractionFailureReason failureReason(ResultSet resultSet) throws SQLException {
@@ -218,6 +229,90 @@ public class SharedMediaDao {
         return new ShareHistoryProjections(jdbcTemplate.query(
                 sql, SHARE_ROW_MAPPER, memberId, cursorCreatedAt, cursorCreatedAt, cursor.sharedMediaId(),
                 ShareHistoryProjections.FETCH_SIZE));
+    }
+
+    /**
+     * 보관함 게시물 탭의 첫 페이지를 읽는다. 다음 페이지가 있는지 알 수 있게 페이지 크기보다 한 건 더 읽는다.
+     * 보관함 연결(shared_media_saved_places)이 남은 내 공유에 게시물마다 최신순 번호를 매겨 1번만 남긴다.
+     * 다른 회원의 공유는 읽지 않으므로, 여러 회원이 공유한 게시물이나 같은 게시물을 여러 번 공유한 경우에도 내 공유만큼만 읽는다.
+     * 공유 시각이 같으면 ID가 큰 공유를 더 최근으로 본다.
+     */
+    public SavedMediaProjections findSavedMedia(Long memberId) {
+        String sql = """
+                SELECT latest.shared_media_id,
+                       latest.media_id,
+                       latest.created_at,
+                       m.thumbnail_key,
+                       m.caption,
+                       m.author,
+                       latest.shared_url
+                FROM (
+                    SELECT sm.id AS shared_media_id,
+                           sm.media_id,
+                           sm.created_at,
+                           sm.shared_url,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY sm.media_id
+                               ORDER BY sm.created_at DESC, sm.id DESC
+                           ) AS recency_rank
+                    FROM shared_media sm
+                    WHERE sm.member_id = ?
+                      AND EXISTS (
+                          SELECT 1
+                          FROM shared_media_saved_places l
+                          WHERE l.shared_media_id = sm.id
+                      )
+                ) latest
+                JOIN media m ON m.id = latest.media_id
+                WHERE latest.recency_rank = 1
+                ORDER BY latest.created_at DESC, latest.shared_media_id DESC
+                LIMIT ?
+                """;
+        return new SavedMediaProjections(jdbcTemplate.query(
+                sql, SAVED_MEDIA_ROW_MAPPER, memberId, SavedMediaProjections.FETCH_SIZE));
+    }
+
+    /**
+     * 커서가 가리키는 공유보다 오래된 보관함 게시물을 다음 페이지로 읽는다.
+     * 게시물마다 한 건만 남긴 뒤에 커서를 적용하므로, 다시 공유해서 앞 페이지로 올라간 게시물의 옛 공유는 다시 읽지 않는다.
+     */
+    public SavedMediaProjections findSavedMediaBefore(Long memberId, SharedMediaCursor cursor) {
+        String sql = """
+                SELECT latest.shared_media_id,
+                       latest.media_id,
+                       latest.created_at,
+                       m.thumbnail_key,
+                       m.caption,
+                       m.author,
+                       latest.shared_url
+                FROM (
+                    SELECT sm.id AS shared_media_id,
+                           sm.media_id,
+                           sm.created_at,
+                           sm.shared_url,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY sm.media_id
+                               ORDER BY sm.created_at DESC, sm.id DESC
+                           ) AS recency_rank
+                    FROM shared_media sm
+                    WHERE sm.member_id = ?
+                      AND EXISTS (
+                          SELECT 1
+                          FROM shared_media_saved_places l
+                          WHERE l.shared_media_id = sm.id
+                      )
+                ) latest
+                JOIN media m ON m.id = latest.media_id
+                WHERE latest.recency_rank = 1
+                  AND (latest.created_at < ?
+                       OR (latest.created_at = ? AND latest.shared_media_id < ?))
+                ORDER BY latest.created_at DESC, latest.shared_media_id DESC
+                LIMIT ?
+                """;
+        Timestamp cursorCreatedAt = Timestamp.from(cursor.createdAt());
+        return new SavedMediaProjections(jdbcTemplate.query(
+                sql, SAVED_MEDIA_ROW_MAPPER, memberId, cursorCreatedAt, cursorCreatedAt, cursor.sharedMediaId(),
+                SavedMediaProjections.FETCH_SIZE));
     }
 
     public Optional<ExtractionStatus> findStatusByMemberAndSharedMediaId(Long memberId, Long sharedMediaId) {

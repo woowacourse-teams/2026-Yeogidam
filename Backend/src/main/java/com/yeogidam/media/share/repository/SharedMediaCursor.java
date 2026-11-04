@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 /**
- * 히스토리 다음 페이지를 어디서부터 읽을지 나타낸다.
+ * 히스토리와 보관함 게시물 목록의 다음 페이지를 어디서부터 읽을지 나타낸다.
  * 화면에 마지막으로 불러온 공유의 공유 시각과 ID를 담는다.
  */
 public record SharedMediaCursor(
