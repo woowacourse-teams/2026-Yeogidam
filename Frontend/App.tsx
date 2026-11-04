@@ -69,6 +69,7 @@ import {
   trackAppOpened,
   trackLoginFinished,
   trackLoginStarted,
+  type LoginEntry,
 } from './src/analytics/userEntryEvents';
 // import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
@@ -364,6 +365,9 @@ function App() {
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const loginAttemptInFlightRef = useRef(false);
+  // 공유 화면의 [로그인]으로 로그인 화면에 온 경우, 로그인 이벤트에 붙일 진입 경로입니다.
+  // 로그인에 성공하거나 다른 경로로 로그인 화면을 열면 비웁니다.
+  const loginEntryRef = useRef<LoginEntry | null>(null);
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
@@ -757,6 +761,7 @@ function App() {
       }
 
       if (event === 'SIGNED_OUT') {
+        loginEntryRef.current = null;
         activeUserIdRef.current = null;
         setIsAuthenticated(false);
         setFlowState(INITIAL_FLOW_STATE);
@@ -899,6 +904,7 @@ function App() {
             });
           }
           if (result.transferStatus === 'GUEST_LOGIN_PROMPT') {
+            loginEntryRef.current = {entry: 'share_login_handoff', shareId: result.requestId};
             clearShareResult(result.requestId).catch(() => undefined);
             setSharedSaveState(null);
             setIsGuestLoginPromptVisible(false);
@@ -918,6 +924,7 @@ function App() {
             // 로그인 화면으로 보내는 것으로 이 결과의 역할은 끝난다. 로그인해도 이 공유는 추출하지
             // 않으므로, 로그인 대기 상태로 남겨 두지 않고 정리한다.
             const showLoginForHandoff = () => {
+              loginEntryRef.current = {entry: 'share_login_handoff', shareId: result.requestId};
               clearShareResult(result.requestId).catch(() => undefined);
               setHasPendingShareLogin(false);
               // 둘러보는 중에 넘어왔다면 앱 안에서 연 로그인 화면과 같게 X로 직전 화면에 돌아간다.
@@ -957,6 +964,7 @@ function App() {
                     );
                     return;
                   }
+                  loginEntryRef.current = null;
                   setFlowState(INITIAL_FLOW_STATE);
                   Alert.alert(
                     '로그인이 필요해요',
@@ -1074,9 +1082,10 @@ function App() {
       google: signInWithGoogle,
     }[provider];
     let signInStarted = false;
+    const loginEntry = loginEntryRef.current;
 
     // 로그인 버튼을 누른 시점에 기록해, 시작 전에 실패해도 로그인 시도로 센다.
-    trackLoginStarted(posthog, provider);
+    trackLoginStarted(posthog, provider, loginEntry);
 
     try {
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
@@ -1091,7 +1100,9 @@ function App() {
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
+        entry: loginEntry,
       });
+      loginEntryRef.current = null;
     } catch (error) {
       const normalizedError = withAuthErrorStage(
         error,
@@ -1102,6 +1113,7 @@ function App() {
         provider,
         outcome: 'failure',
         failureType: toLoginFailureType(normalizedError),
+        entry: loginEntry,
       });
       if (!signInStarted) {
         Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
@@ -1115,6 +1127,7 @@ function App() {
   };
 
   const handleCancelShareLogin = async () => {
+    loginEntryRef.current = null;
     const results = await getShareResults();
     await Promise.all(results
       .filter(result => result.transferStatus === 'LOGIN_HANDOFF')
@@ -1125,6 +1138,7 @@ function App() {
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
+    loginEntryRef.current = null;
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
     setShowLoginCloseButton(true);
@@ -1134,6 +1148,7 @@ function App() {
   const handleOpenGuestLoginFromMyPage = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
+    loginEntryRef.current = null;
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
     setShowLoginCloseButton(true);
@@ -1145,6 +1160,7 @@ function App() {
       handleOpenGuestLogin();
       return;
     }
+    loginEntryRef.current = null;
     setFlowState(INITIAL_FLOW_STATE);
   };
 
