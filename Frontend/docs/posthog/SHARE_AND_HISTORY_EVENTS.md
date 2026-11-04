@@ -1,27 +1,20 @@
-# 공유부터 히스토리까지의 PostHog 이벤트
+# 공유·추출·로그인·히스토리·장소 활용 이벤트
 
 현재 코드에 실제로 연결된 이벤트를 기준으로 정리한다(2026-11-04 확인). 대상은 Android·iOS 공유 화면, 기기의 전송·추출 작업, 앱의 진입·로그인·히스토리·장소 활용 이벤트다.
-화면 진입·버튼·기능 결과 같은 범용 UI 이벤트(`screen_viewed`, `button_pressed` 등)는 [`UI_EVENTS.md`](./UI_EVENTS.md)에 있다.
+연동 구조, 사용자 식별, 공통 속성(`environment`, `installation_id`, `is_guest` 등), 보내지 않는 정보, 테스터 제외 방법은 [README.md](./README.md)에 있다. 범용 UI 이벤트는 [UI_EVENTS.md](./UI_EVENTS.md)에 있다.
 
 > **🆕 표시**는 2.2.1 다음 스토어 빌드부터 수집되는 항목이다. 그 이전 버전에는 데이터가 없으므로 기간을 비교할 때 앱 버전(`release`)으로 나눠 본다.
 
-## 1. 공통 속성과 ID
+## 1. 이 문서에서 쓰는 ID
 
-| 속성 | 붙는 곳 | 의미 |
+| ID | 붙는 곳 | 의미 |
 | --- | --- | --- |
-| `platform`, `release`, `environment` | 모든 이벤트 | `environment`는 `.env`의 `APP_ENV`(없으면 `development`). 스토어 배포는 내부·공개 모두 `production`이다 |
-| `installation_id` | 앱 이벤트, 네이티브 공유 이벤트 | 설치본마다 만드는 UUID. 앱을 열기 전에 공유 확장이 먼저 만들 수 있고, 앱이 같은 값을 읽는다. 백업에서 제외되어 재설치하면 바뀐다 |
-| `is_guest` | 앱 이벤트 | 로그인 상태가 확정된 뒤에만 붙는다. 비회원이면 `true` |
 | `share_id` | 네이티브 공유 이벤트, 공유에서 온 로그인 이벤트 | 공유 화면에 들어온 한 번의 시도. 네이티브의 `requestId`와 같은 값이다 |
 | `content_id` | 추출 결과, 히스토리 이벤트 | 히스토리 콘텐츠 ID. API의 `reelId`를 이벤트에서만 `content_id`로 바꿔 부른다 |
+| `place_view_id` | 장소 활용 이벤트 | 한 번의 장소 탐색(선택 → 상세 → 지도)을 잇는 ID |
+| `request_id` | 히스토리 재시도 추출 이벤트 | API의 `clientRequestId`. 재시도 요청의 시작과 종료를 잇는다 |
 
-**`distinct_id`:** 네이티브 공유 이벤트는 처음 기록할 때 저장된 로그인 세션의 `userId`를 쓴다. 세션이 없으면 `share_id`를 쓰고 프로필 생성을 끈다(`$process_person_profile=false`). 한 공유 건 안에서는 처음 정한 값을 유지한다. 그래서 세션이 없던 공유는 앱 사용자와 자동으로 연결되지 않는다.
-
-**보내지 않는 것:** URL, 공유 텍스트, 토큰, 오류 메시지 원문, 검색어, 장소명, 주소, 좌표.
-
-**비회원 예시 콘텐츠:** `ONBOARDING_SAMPLE_IDS`에 해당하는 콘텐츠와 장소에 대해서는 `history_content_viewed`, `history_content_detail_viewed`, `saved_place_selected`, `saved_place_opened`, `place_map_viewed`를 보내지 않는다.
-
-**내부 테스터 제외:** `environment=production`으로 거른 뒤, 테스터의 `installation_id` **또는** 로그인 계정의 `distinct_id`를 제외한다. 테스터 설치 ID는 처음 생긴 이벤트에서 확인해 등록해야 하므로, 등록 전 첫 비로그인 공유는 걸러지지 않는다.
+네이티브 공유 이벤트의 `distinct_id`는 기록 시점에 저장된 세션의 회원 ID이고, 세션이 없으면 `share_id`다(프로필 생성 안 함). 그래서 세션이 없던 공유는 앱 사용자와 자동으로 연결되지 않는다. 공유 건 단위로 볼 때는 `share_id`로 묶는다.
 
 ## 2. 공유 화면 (네이티브)
 

@@ -2,7 +2,8 @@
 
 앱 안의 화면 진입, 버튼, 기능 결과를 기록하는 이벤트 목록입니다. 코드는 `src/analytics/uiEvents.ts`에 있고,
 이벤트 이름은 `__tests__/analyticsEventNames.test.ts`로 고정되어 있습니다(퍼널과 대시보드가 이름에 의존합니다).
-공유 확장과 저장·추출 흐름의 기존 이벤트는 [`SHARE_AND_HISTORY_EVENTS.md`](./SHARE_AND_HISTORY_EVENTS.md)를 참고하세요.
+공유 확장과 저장·추출 흐름의 기존 이벤트는 [`SHARE_AND_HISTORY_EVENTS.md`](./SHARE_AND_HISTORY_EVENTS.md)를,
+연동 구조·사용자 식별·공통 속성·전체 이벤트 목록은 [`README.md`](./README.md)를 참고하세요.
 
 ## 설계 원칙
 
