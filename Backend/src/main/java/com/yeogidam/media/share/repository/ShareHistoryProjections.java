@@ -23,11 +23,11 @@ public record ShareHistoryProjections(
     /**
      * 다음 페이지가 있으면 이번 페이지 마지막 공유로 커서를 만들고, 없으면 null을 반환한다.
      */
-    public ShareHistoryCursor nextCursor() {
+    public SharedMediaCursor nextCursor() {
         if (shares.size() <= PAGE_SIZE) {
             return null;
         }
         ShareHistoryProjection last = shares.get(PAGE_SIZE - 1);
-        return new ShareHistoryCursor(last.createdAt(), last.sharedMediaId());
+        return new SharedMediaCursor(last.createdAt(), last.sharedMediaId());
     }
 }

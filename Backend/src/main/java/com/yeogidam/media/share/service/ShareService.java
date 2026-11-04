@@ -25,8 +25,8 @@ import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponse;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.ShareResponse;
-import com.yeogidam.media.share.repository.ShareHistoryCursor;
 import com.yeogidam.media.share.repository.ShareHistoryProjections;
+import com.yeogidam.media.share.repository.SharedMediaCursor;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import com.yeogidam.place.service.SavedPlaceRegistrationService;
 import java.time.Instant;
@@ -181,9 +181,9 @@ public class ShareService {
             return sharedMediaDao.findShareHistory(memberId);
         }
         if (cursorCreatedAt == null || cursorId == null) {
-            throw new MediaException(MediaErrorCode.INCOMPLETE_HISTORY_CURSOR);
+            throw new MediaException(MediaErrorCode.INCOMPLETE_CURSOR);
         }
-        return sharedMediaDao.findShareHistoryBefore(memberId, new ShareHistoryCursor(cursorCreatedAt, cursorId));
+        return sharedMediaDao.findShareHistoryBefore(memberId, new SharedMediaCursor(cursorCreatedAt, cursorId));
     }
 
     public ShareHistoryPlaceResponses readShareHistoryPlaces(Long memberId, Long sharedMediaId) {

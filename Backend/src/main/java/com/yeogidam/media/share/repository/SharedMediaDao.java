@@ -196,7 +196,7 @@ public class SharedMediaDao {
     /**
      * 커서가 가리키는 공유보다 오래된 공유를 다음 페이지로 읽는다. 공유 시각이 같으면 ID가 작은 공유를 더 오래된 공유로 본다.
      */
-    public ShareHistoryProjections findShareHistoryBefore(Long memberId, ShareHistoryCursor cursor) {
+    public ShareHistoryProjections findShareHistoryBefore(Long memberId, SharedMediaCursor cursor) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
                        sm.created_at,

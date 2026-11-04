@@ -337,7 +337,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
         // when: 공유 4까지 본 뒤 다음 페이지를 읽는다
         List<ShareHistoryProjection> shares = sharedMediaDao
-                .findShareHistoryBefore(9L, new ShareHistoryCursor(sameTime, 4L))
+                .findShareHistoryBefore(9L, new SharedMediaCursor(sameTime, 4L))
                 .shares();
 
         // then: 시각이 같은 공유 3과 1마이크로초 이른 공유 2는 빠지지 않고, 다른 회원의 공유 6은 섞이지 않는다
