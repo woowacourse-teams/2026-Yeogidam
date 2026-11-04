@@ -177,13 +177,9 @@ public class ShareService {
             Instant cursorCreatedAt,
             Long cursorId
     ) {
-        if (cursorCreatedAt == null && cursorId == null) {
-            return sharedMediaDao.findShareHistory(memberId);
-        }
-        if (cursorCreatedAt == null || cursorId == null) {
-            throw new MediaException(MediaErrorCode.INCOMPLETE_CURSOR);
-        }
-        return sharedMediaDao.findShareHistoryBefore(memberId, new SharedMediaCursor(cursorCreatedAt, cursorId));
+        return SharedMediaCursor.fromParameters(cursorCreatedAt, cursorId)
+                .map(cursor -> sharedMediaDao.findShareHistoryBefore(memberId, cursor))
+                .orElseGet(() -> sharedMediaDao.findShareHistory(memberId));
     }
 
     public ShareHistoryPlaceResponses readShareHistoryPlaces(Long memberId, Long sharedMediaId) {
