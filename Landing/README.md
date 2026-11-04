@@ -3,9 +3,10 @@
 스프린트 2 제출 항목 3(랜딩페이지)에 맞춘 정적 페이지이며 서버 없이 `index.html` 한 장과 `assets/` 폴더로 동작한다.
 
 - 서비스 소개: 히어로(이름, 한 줄 설명, 누구의 어떤 문제를 푸는지)와 문제 공감 섹션
-- 사용법: 히어로의 폰 프레임 데모(직접 눌러 보는 흐름)와 사용법 3단계 섹션(실제 앱 화면 캡처 포함)
+- 사용법: 히어로의 폰 프레임 데모(직접 눌러 보는 흐름)
 - 시작하기: 히어로, 데모 마침 카드, 하단 시작하기 섹션의 App Store와 Google Play 배지(데스크톱에서는 QR 코드도 보인다)
 - 기술력: 기능과 자주 묻는 질문 사이의 기술 섹션(스프린트 3 요구사항). 예시 릴스로 AI가 장소를 찾는 과정과 채점 숫자를 보여 준다
+- 품질: 기술과 자주 묻는 질문 사이의 품질 섹션. 버전마다 세운 가설과 사용자에게 직접 확인한 결과를 보여 준다
 
 ## 로컬에서 보기
 
@@ -26,10 +27,10 @@ python3 -m http.server 8000
 | 문제 공감 | 저장만 하고 잊는 세 장면 |
 | 기능 | 지도, 주소 복사와 카카오맵, 출처 릴스, 검색과 정리 |
 | 기술 | 예시 릴스로 AI가 장소를 찾는 과정, 채점 숫자와 측정 방법 |
+| 품질 | 1.0부터 다음 버전까지 버전마다 세운 가설, 직접 써 본 사람 수, 결과와 바꾼 것 |
 | 자주 묻는 질문 | 비용, 지원 영상, 실패 처리, 저장 범위, 지원 기기 |
-| 사용법 | 공유 → 분석 → 보관함과 지도 3단계, 공유 목록 추가 팁. 기능과 기술을 먼저 보여 주려고 시작하기 바로 앞에 둔다 |
 | 시작하기 | 배지, QR 코드(900px 이상에서만) |
-| 푸터 | 팀, GitHub, 상표 표기 |
+| 푸터 | 스토어 링크, 문의 안내, 쿠키 안내, 상표 표기, 저작권 |
 
 ### 폰 데모의 흐름
 
@@ -52,6 +53,18 @@ python3 -m http.server 8000
 - 숫자(85%, 장소 133곳 중 113곳, 영상에만 나온 장소에서 놓친 곳 9곳 → 1곳)는 2026-10-13에 골든셋(공개 인스타그램 게시물 40건, 음식점과 카페 정답 133곳)을 gemini-3.5-flash-lite로 채점한 결과다. 캡션만 읽던 때 값은 2026-10-09 운영 코드의 예측을 같은 정답으로 다시 센 것이다.
 - be-dev의 골든셋(`Backend/eval`)은 #411에서 음식점 밖 장소까지 넣어 다시 정의되어서, 133곳 기준 채점 결과는 아직 저장소에 없다. 숫자를 다시 재면 섹션의 숫자 두 개와 "측정 방법 보기" 목록을 같이 고친다.
 
+### 품질 섹션
+
+품질 섹션(`#journey`)은 1.0부터 지금까지 버전마다 세운 가설과, 처음 쓰는 사람과 고정 테스터에게 직접 써 보게 해서 확인한 결과를 보여 준다.
+
+- 위에는 버전 번호(1.0, 1.1, 2.0, 2.1, 2.2, 다음)를 한 줄로 늘어놓고, 마우스를 올리거나 누른 버전의 가설, 직접 써 본 사람, 본 것과 바꾼 것을 아래에 보여 준다. 처음에는 2.0이 열려 있고, 키보드는 왼쪽과 오른쪽 화살표로 옮긴다.
+- 테스트에 참여한 사람을 한 명에 점 하나로 그리고, 가설의 기준을 해낸 사람은 점을 채운다. 아직 재는 2.2는 점을 모두 비워 둔다.
+- 버전 날짜는 각 버전을 낸 날이다(2.0, 2.1, 2.2는 배포 커밋 날짜).
+- 숫자는 팀의 사용성 테스트 기록에서 가져왔다. 1.1은 군자역과 건대입구역 현장 검증(같은 불편을 겪은 19명 중 1명 설치), 2.0은 처음 쓰는 5명 테스트(처음 2명, 대기함을 없애고 다시 재서 4명), 2.1은 영상 가이드 테스트(5명 모두, 평균 실수 0.6번), 2.2는 고정 테스터 9명의 전후 비교(진행 중)다.
+- 「다음」의 고정 테스터 말은 말한 분께 싣는 데 동의를 받았다.
+- 모든 버전의 내용을 같은 자리에 겹쳐 두어서 버전을 바꿔도 아래 섹션이 밀리지 않는다. 버전을 더할 때는 `.jr-tabs`에 버튼 하나, `.jr-panels`에 내용 하나를 같은 `aria-controls`, `id`로 짝지어 넣는다.
+- 섹션까지 내려온 방문자와 버전 내용을 처음 본 방문자는 GA4 이벤트 `journey_view`, `journey_version_open`으로 센다(방문 통계 절).
+
 ## 자산 출처
 
 | 파일 | 출처 |
@@ -62,9 +75,9 @@ python3 -m http.server 8000
 | `favicon.ico`, `assets/favicon-16.png`, `assets/favicon-32.png`, `assets/apple-touch-icon.png` | 같은 앱 아이콘을 줄인 파비콘. 브라우저 탭과 iOS 홈 화면 아이콘용 |
 | `assets/app-store-badge.svg` | Apple 배지 생성기에서 받은 한국어 공식 배지 |
 | `assets/google-play-badge.png` | Google Play 한국어 공식 배지 |
-| `assets/screen-library.jpg` | fe-dev `src/assets/guide/intro-library.png`를 줄인 실제 보관함 화면 |
-| `assets/guide-share-sheet.jpg` | fe-dev `src/assets/guide/2page.png`(앱 사용 가이드의 iPhone 공유 시트)를 잘라 줄인 것 |
-| `assets/screen-map.jpg`, `assets/screen-sheet.jpg` | App Store에 올라간 1.1.0 스크린샷 |
+| `assets/screen-library.jpg` | fe-dev `src/assets/guide/intro-library.png`를 줄인 실제 보관함 화면. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
+| `assets/guide-share-sheet.jpg` | fe-dev `src/assets/guide/2page.png`(앱 사용 가이드의 iPhone 공유 시트)를 잘라 줄인 것. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
+| `assets/screen-map.jpg`, `assets/screen-sheet.jpg` | App Store에 올라간 1.1.0 스크린샷. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
 | `assets/place-<카카오 장소 id>.jpg` 13장, `assets/reel-gunja.jpg`, `assets/reel-chabap.jpg` | 군자역 5곳은 운영 S3 썸네일, 차밥열끼 8곳은 카카오 장소 페이지 미리보기 이미지, 릴스 썸네일 둘은 여기담 계정 게시물의 표지(480px로 줄임). 장소 사진은 카카오 장소 사진이라 앱 밖에서 오래 쓸 때는 저작권을 한 번 더 확인한다 |
 
 공식 배지는 비율과 색을 바꾸지 않고 App Store 배지를 먼저 두며 푸터에는 Apple과 Google 상표 표기가 있다.
@@ -86,10 +99,10 @@ python3 -m http.server 8000
 
 ## 방문 통계(GA4)
 
-랜딩 방문과 데모 진행, 스토어 버튼 클릭, 기술 섹션 도달은 Google 애널리틱스 4(GA4) 속성 "Yeogidam Landing"으로 센다. 측정 ID `G-V0G6SC57DV`(둘째 자리는 숫자 0)는 페이지 소스에 공개되는 값이라 저장소에 그대로 둔다.
+랜딩 방문과 데모 진행, 스토어 버튼 클릭, 기술 섹션과 품질 섹션 도달은 Google 애널리틱스 4(GA4) 속성 "Yeogidam Landing"으로 센다. 측정 ID `G-V0G6SC57DV`(둘째 자리는 숫자 0)는 페이지 소스에 공개되는 값이라 저장소에 그대로 둔다.
 
-- head의 Google 태그(gtag.js)가 페이지 조회와 향상된 측정 이벤트(스크롤, 외부 링크 클릭 등)를 보낸다. 외부 링크 클릭 이벤트(`click`)에는 스토어 말고도 GitHub, 카카오맵, 인스타그램 링크가 섞이므로 스토어 클릭은 아래 `store_click`으로 센다.
-- 스크립트는 아래 네 이벤트를 직접 보낸다. 데모와 스토어 이벤트를 보내는 코드는 `track()`, `mark()`, `placementOf()`와 스토어 링크 클릭 리스너에 있고, 기술 섹션 이벤트는 기술 섹션 스크립트에 있다.
+- head의 Google 태그(gtag.js)가 페이지 조회와 향상된 측정 이벤트(스크롤, 외부 링크 클릭 등)를 보낸다. 외부 링크 클릭 이벤트(`click`)에는 스토어 말고도 카카오맵, 인스타그램 링크가 섞이므로 스토어 클릭은 아래 `store_click`으로 센다.
+- 스크립트는 아래 여섯 이벤트를 직접 보낸다. 데모와 스토어 이벤트를 보내는 코드는 `track()`, `mark()`, `placementOf()`와 스토어 링크 클릭 리스너에 있고, 기술 섹션과 품질 섹션 이벤트는 각 섹션 스크립트에 있다.
 
 | 이벤트 | 보내는 때 | 매개변수 |
 |---|---|---|
@@ -97,8 +110,10 @@ python3 -m http.server 8000
 | `store_click` | App Store나 Google Play 링크를 누를 때 | `store`(app_store 또는 google_play), `placement`(hero, demo_end, start, footer), `demo_progress`(누른 시점까지 간 가장 먼 데모 단계, 시작 전이면 none) |
 | `tech_view` | 기술 섹션의 예시 화면이 화면에 30% 이상 처음 보일 때. 페이지를 한 번 열면 한 번만 보낸다 | 없음 |
 | `tech_method_open` | 기술 섹션의 "측정 방법 보기"를 처음 펼칠 때. 페이지를 한 번 열면 한 번만 보낸다 | 없음 |
+| `journey_view` | 품질 섹션이 화면에 30% 이상 처음 보일 때. 페이지를 한 번 열면 한 번만 보낸다 | 없음 |
+| `journey_version_open` | 품질 섹션의 버전 내용을 처음 볼 때(버전 번호를 누르거나 마우스를 0.5초 넘게 올렸을 때). 페이지를 한 번 열면 한 번만 보낸다 | `version`(1.0, 1.1, 2.0, 2.1, 2.2, 다음) |
 
-- 매개변수로 나눠 보려면 GA4의 관리, 데이터 표시, 맞춤 정의 순서로 들어가 이벤트 범위 맞춤 측정기준으로 등록해야 한다. 위 다섯 매개변수는 2026-10-21에 등록했고, 맞춤 측정기준은 등록한 뒤에 들어온 데이터에만 붙으므로 매개변수를 더하면 바로 등록한다.
+- 매개변수로 나눠 보려면 GA4의 관리, 데이터 표시, 맞춤 정의 순서로 들어가 이벤트 범위 맞춤 측정기준으로 등록해야 한다. `step`, `mode`, `store`, `placement`, `demo_progress`는 2026-10-21에, `version`(이름 '품질 섹션 버전')은 2026-11-02에 등록했다. 맞춤 측정기준은 등록한 뒤에 들어온 데이터에만 붙으므로 매개변수를 더하면 바로 등록한다.
 - 유입 경로는 링크 끝에 붙이는 UTM 파라미터(유입 꼬리표)로 나누고, 어느 채널에서 왔는지는 `utm_source`에 채널 이름을 그대로 적는다. GA4에서는 첫 사용자 소스로 보면 채널별로 나뉜다. `utm_medium`은 모두 `social`로 맞춰 기본 채널 그룹에서 소셜 유입으로 잡히게 하고, `utm_campaign`은 같은 채널 안에서 홍보를 구분할 때만 쓴다.
 - 팀원은 아래 팀원 확인 링크로 들어가 실험 숫자에 섞이지 않게 한다.
 
@@ -107,6 +122,9 @@ python3 -m http.server 8000
 | 스레드 | `https://yeogidam.vercel.app/?utm_source=threads&utm_medium=social&utm_campaign=threads_profile` |
 | 에브리타임 | `https://yeogidam.vercel.app/?utm_source=everytime&utm_medium=social&utm_campaign=everytime_post` |
 | 인스타그램 | `https://yeogidam.vercel.app/?utm_source=instagram&utm_medium=social&utm_campaign=food_post_to_app` |
+| 인스타그램 광고 | `https://yeogidam.vercel.app/?utm_source=instagram_ad&utm_medium=social&utm_campaign=caption_reel_boost` |
+| 슬랙 | `https://yeogidam.vercel.app/?utm_source=slack&utm_medium=social&utm_campaign=slack_post` |
+| SYDE | `https://yeogidam.vercel.app/?utm_source=syde&utm_medium=social&utm_campaign=syde_showcase` |
 | 팀원 확인 | `https://yeogidam.vercel.app/?utm_source=test&utm_medium=internal&utm_campaign=test` |
 
 - 스토어 버튼에도 스토어 통계용 꼬리표가 붙어 있어서, App Store Connect에서는 랜딩을 거친 설치를, Play Console에서는 랜딩에 들어온 채널별 설치를 볼 수 있다. App Store 버튼과 QR은 App Store Connect에서 만든 캠페인 `landing_store`로 가고, Google Play 버튼과 QR은 방문 주소의 `utm_source`와 `utm_medium`을 `referrer`에 옮겨 붙이며 꼬리표 없이 들어온 방문에는 `landing`과 `web`을 붙인다.
@@ -117,6 +135,8 @@ python3 -m http.server 8000
 | 스레드 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=threads_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dthreads%26utm_medium%3Dsocial%26utm_campaign%3Dthreads_store` |
 | 인스타그램 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=instagram_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dinstagram%26utm_medium%3Dsocial%26utm_campaign%3Dinstagram_store` |
 | 에브리타임 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=everytime_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Deverytime%26utm_medium%3Dsocial%26utm_campaign%3Deverytime_store` |
+| 슬랙 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=slack_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dslack%26utm_medium%3Dsocial%26utm_campaign%3Dslack_store` |
+| SYDE | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=syde_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dsyde%26utm_medium%3Dsocial%26utm_campaign%3Dsyde_store` |
 | 랜딩페이지 버튼 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=landing_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dlanding%26utm_medium%3Dweb%26utm_campaign%3Dlanding_store` (방문 주소에 꼬리표가 있으면 `utm_source`와 `utm_medium`이 바뀐다) |
 
 - 배포 뒤에는 GA4 보고서의 실시간 개요에서 이벤트 이름별 이벤트 수 카드에 `demo_step`, `store_click`, `tech_view`가 보이는지 확인한다. 표준 보고서는 하루 이틀 늦게 채워진다.
