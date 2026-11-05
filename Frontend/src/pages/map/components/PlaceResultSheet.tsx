@@ -986,9 +986,10 @@ export function PlaceResultSheet({
             compactHeader
             scrollEnabled={snapIndex !== 2}
             contentBottomPadding={
+              // 상세 시트는 화면 끝까지 내려와 바텀 네비게이션에 덮이므로 그 높이만큼 띄웁니다.
               snapIndex === 0
                 ? Math.max(DETAIL_PAGE_BOTTOM_PADDING, bottomTabOffset + 12)
-                : DETAIL_ACTION_BOTTOM_PADDING
+                : bottomTabOffset + DETAIL_ACTION_BOTTOM_PADDING
             }
           />
         </CopyToastProvider>
