@@ -1,8 +1,11 @@
 package com.yeogidamm.app.share
 
 import android.content.Context
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
@@ -11,6 +14,7 @@ import com.yeogidamm.app.BuildConfig
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.TimeUnit
 
 internal class ShareSaveWorker(
     appContext: Context,
@@ -56,7 +60,9 @@ internal class ShareSaveWorker(
                         retryable = true,
                     ),
                 )
-                return Result.success()
+                // 네트워크 대기는 연결 조건과 재시도 간격에 맞춰 다시 실행한다.
+                // 로그인 확인 대기는 앱이 새 토큰을 줄 때까지 기다린다.
+                return if (auth is ShareAuthResult.WaitingForNetwork) retryOrWaitForApp() else Result.success()
             }
         }
 
@@ -182,7 +188,8 @@ internal class ShareSaveWorker(
                 }
                 ShareAnalyticsStore.recordDeliveryStatus(applicationContext, requestId, "deferred",
                     if (networkFailure) "network_unavailable" else "pre_request_error")
-                return Result.success()
+                // 요청을 보내기 전에 난 네트워크 오류라 다시 보내도 공유가 두 번 생기지 않는다.
+                return if (networkFailure) retryOrWaitForApp() else Result.success()
             }
             saveFailure(
                 requestId = requestId,
@@ -202,6 +209,14 @@ internal class ShareSaveWorker(
             connection?.disconnect()
         }
     }
+
+    /**
+     * 네트워크 오류는 재시도 간격(30초부터 두 배씩)에 맞춰 다시 실행한다.
+     * 간격이 길어지면 앱을 열어도 남은 간격을 기다려야 하므로, 정해진 횟수가 넘으면
+     * 지금처럼 앱을 열 때 다시 등록되기를 기다린다.
+     */
+    private fun retryOrWaitForApp(): Result =
+        if (runAttemptCount < MAX_NETWORK_RETRY_COUNT) Result.retry() else Result.success()
 
     private fun isConnectionFailure(error: Exception): Boolean =
         error is java.net.UnknownHostException ||
@@ -251,6 +266,7 @@ internal class ShareSaveWorker(
 
     companion object {
         private const val KEY_REQUEST_ID = "request_id"
+        private const val MAX_NETWORK_RETRY_COUNT = 5
 
         /** Spring ExtractionStatus를 앱 처리 상태로 바꾼다. */
         fun toReelStatus(extractionStatus: String?): String = when (extractionStatus) {
@@ -269,6 +285,9 @@ internal class ShareSaveWorker(
                 .build()
             val request = OneTimeWorkRequestBuilder<ShareSaveWorker>()
                 .setInputData(input)
+                // 네트워크가 없으면 연결될 때까지 기다리고, 다시 시도할 때마다 간격을 늘린다.
+                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(

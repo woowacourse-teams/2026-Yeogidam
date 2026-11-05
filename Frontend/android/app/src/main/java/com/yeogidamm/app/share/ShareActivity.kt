@@ -269,7 +269,9 @@ class ShareActivity : AppCompatActivity() {
             // iOS와 같이 기기 보관 직후, 전송 등록 전에 보관 결과를 기록합니다.
             ShareAnalyticsStore.record(this, "share_local_save_resolved", requestId,
                 JSONObject().put("outcome", if (updated) "saved" else "storage_failed"))
-            val queued = updated && transferStatus == "SAVED" &&
+            // 네트워크를 기다리는 공유도 작업을 등록해 두면, 앱을 열지 않아도 연결되는 대로 보냅니다.
+            val shouldQueue = transferStatus == "SAVED" || transferStatus == "WAITING_FOR_NETWORK"
+            val queued = updated && shouldQueue &&
                 runCatching { ShareSaveWorker.enqueue(this, requestId) }
                     .getOrDefault(false)
             if (auth is ShareAuthResult.WaitingForNetwork) {
@@ -277,7 +279,7 @@ class ShareActivity : AppCompatActivity() {
             } else if (auth is ShareAuthResult.WaitingForAuth) {
                 ShareAnalyticsStore.recordDeliveryStatus(this, requestId, "deferred", "auth_pending")
             }
-            if (!updated || (transferStatus == "SAVED" && !queued)) {
+            if (!updated || (shouldQueue && !queued)) {
                 if (!updated) {
                     ShareSentryReporter.capture(this, "SHARE_PAYLOAD_STORE_FAILED")
                 }
