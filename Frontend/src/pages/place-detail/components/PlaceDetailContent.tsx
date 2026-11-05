@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type {
@@ -47,6 +47,10 @@ type PlaceDetailContentProps = {
   onTabChange?: (tab: PlaceTab) => void;
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
+  /** 사용자가 맨 위에서 본문을 아래로 당긴 거리입니다. iOS에서 본문이 튕길 때만 0보다 큽니다. */
+  onTopPull?: (distance: number) => void;
+  /** 맨 위에서 당기던 손을 놓을 때 당긴 거리와 세로 속도(pt/ms)를 넘깁니다. */
+  onTopPullRelease?: (distance: number, velocityY: number) => void;
   /** 이벤트에 붙는 화면 이름입니다. 지도 시트처럼 다른 화면에서 쓸 때 지정합니다. */
   analyticsScreenName?: string;
 };
@@ -80,6 +84,8 @@ export function PlaceDetailContent({
   onTabChange,
   initialScrollOffset,
   onScrollOffsetChange,
+  onTopPull,
+  onTopPullRelease,
   analyticsScreenName = 'place_detail',
 }: PlaceDetailContentProps) {
   return (
@@ -113,6 +119,8 @@ export function PlaceDetailContent({
         onTabChange={onTabChange}
         initialScrollOffset={initialScrollOffset}
         onScrollOffsetChange={onScrollOffsetChange}
+        onTopPull={onTopPull}
+        onTopPullRelease={onTopPullRelease}
       />
     </AnalyticsScreenContext.Provider>
   );
@@ -147,7 +155,11 @@ function PlaceDetailContentBody({
   onTabChange,
   initialScrollOffset,
   onScrollOffsetChange,
+  onTopPull,
+  onTopPullRelease,
 }: Omit<PlaceDetailContentProps, 'analyticsScreenName'>) {
+  // 손을 뗀 뒤 본문이 제자리로 튕겨 돌아오는 스크롤은 당김으로 보지 않습니다.
+  const isDraggingRef = useRef(false);
   const { selection } = useScreenAnalytics();
   const [localTab, setActiveTab] = useState<PlaceTab>('게시물');
   const activeTab = controlledTab ?? localTab;
@@ -171,10 +183,22 @@ function PlaceDetailContentBody({
           : { x: 0, y: initialScrollOffset }
       }
       onScroll={
-        onScrollOffsetChange
-          ? event => onScrollOffsetChange(event.nativeEvent.contentOffset.y)
+        onScrollOffsetChange || onTopPull
+          ? event => {
+              const offset = event.nativeEvent.contentOffset.y;
+              onScrollOffsetChange?.(offset);
+              if (isDraggingRef.current) onTopPull?.(Math.max(0, -offset));
+            }
           : undefined
       }
+      onScrollBeginDrag={() => {
+        isDraggingRef.current = true;
+      }}
+      onScrollEndDrag={event => {
+        isDraggingRef.current = false;
+        const { contentOffset, velocity } = event.nativeEvent;
+        onTopPullRelease?.(Math.max(0, -contentOffset.y), velocity?.y ?? 0);
+      }}
       scrollEventThrottle={16}
       scrollEnabled={scrollEnabled}
       nestedScrollEnabled

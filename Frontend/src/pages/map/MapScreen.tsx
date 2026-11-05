@@ -197,6 +197,11 @@ export function MapScreen({
   }, []);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailCameraRef = useRef<MapCamera | null>(null);
+  // 목록에서 연 상세는 열리기 전 카메라 대신 이 카메라의 하단 여백을 씁니다.
+  const listPlaceCameraRef = useRef<{
+    placeId: string;
+    camera: MapCamera;
+  } | null>(null);
   if (!isPlaceDetailVisible) detailCameraRef.current = null;
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [mapPanCollapseSignal, setMapPanCollapseSignal] = useState(0);
@@ -463,6 +468,29 @@ export function MapScreen({
     }
   };
 
+  const handleListPlaceSelect = (place: Place, sheetVisibleHeight: number) => {
+    if (place.latitude === undefined || place.longitude === undefined) return;
+
+    // 지도는 하단 여백만 받으므로, 위를 덮는 검색창·칩 높이만큼 여백을 줄여
+    // 칩 아래부터 시트 위까지 보이는 영역의 가운데에 장소를 둡니다.
+    const topOverlayHeight =
+      topInset +
+      SEARCH_BAR_TOP_GAP +
+      SEARCH_BAR_HEIGHT +
+      CATEGORY_CHIPS_TOP_GAP +
+      CATEGORY_CHIPS_HEIGHT;
+    listPlaceCameraRef.current = {
+      placeId: place.id,
+      camera: {
+        latitude: place.latitude,
+        longitude: place.longitude,
+        zoomLevel: 16,
+        bottomInset: Math.max(0, sheetVisibleHeight - topOverlayHeight),
+      },
+    };
+    focusMapOnPlaces([place]);
+  };
+
   const handleChangeSheetMode = (mode: SheetMode) => {
     analytics.selection('sheet_mode', mode);
     setSheetMode(mode);
@@ -671,7 +699,11 @@ export function MapScreen({
     if (page.isDetail && !detailCameraRef.current) {
       // Keep the map padding unchanged while the detail sheet opens.
       const markerCamera =
-        openedMarker.place?.id === page.place?.id ? openedMarker.camera : null;
+        listPlaceCameraRef.current?.placeId === page.place?.id
+          ? listPlaceCameraRef.current?.camera ?? null
+          : openedMarker.place?.id === page.place?.id
+          ? openedMarker.camera
+          : null;
       detailCameraRef.current = {
         ...(markerCamera ?? lastMapCameraRef.current),
       };
@@ -743,6 +775,7 @@ export function MapScreen({
                 captureSavedPlaceSelected(posthog, viewContext);
               }
 
+              listPlaceCameraRef.current = null;
               const camera: MapCamera = {
                 latitude: event.nativeEvent.latitude,
                 longitude: event.nativeEvent.longitude,
@@ -1016,6 +1049,7 @@ export function MapScreen({
           collapseSignal={collapseSignal}
           mapPanCollapseSignal={mapPanCollapseSignal}
           onDetailViewChange={handleDetailViewChange}
+          onListPlaceSelect={handleListPlaceSelect}
           guestReelsByPlace={isGuest ? {} : undefined}
           onAuthenticationRequired={onAuthenticationRequired}
           onGuestExpandInteraction={
