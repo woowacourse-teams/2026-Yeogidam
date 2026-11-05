@@ -919,7 +919,7 @@
   },
   "android": {
     "engine": "hot-updater/interface@1",
-    "hash": "9756e98f41ec9dc68ba98730b9b07eab54801c8898a2ce1d1dabc4cf6d8c7eb3",
+    "hash": "5034578e8effbc4218b7f91242ca62f57410940dc9b03b480717b0c4f90654a9",
     "sources": [
       {
         "type": "contents",
@@ -1161,7 +1161,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "202d828406912f2933559201ef5c83b464acf3f8446a9b5c3dae49f4c487594d"
+        "hash": "646c98cb85f196444a3b0127d2867fa479734810da8c66bebb3e6b1e6c989d7d"
       },
       {
         "type": "file",
@@ -1225,7 +1225,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "4e67e1dfebaa1c8d045934051264a918a803dd65b9050e2377a35157c15eb650"
+        "hash": "b01aeca762cd13fa704f285de71f02a8340bd867aa04eeb068669df77fd20561"
       },
       {
         "type": "file",
