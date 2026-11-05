@@ -1,4 +1,4 @@
-import {createContext, useCallback, useContext} from 'react';
+import {createContext, useCallback, useContext, useMemo} from 'react';
 import {usePostHog} from 'posthog-react-native';
 
 import {
@@ -143,7 +143,12 @@ export function useScreenAnalytics(screenNameOverride?: string) {
     [posthog, screenName],
   );
 
-  return {button, selection, modal, refreshed};
+  // 화면들이 반환값을 useCallback, useEffect 의존성으로 쓰기 때문에
+  // 렌더마다 같은 객체를 돌려줍니다.
+  return useMemo(
+    () => ({button, selection, modal, refreshed}),
+    [button, selection, modal, refreshed],
+  );
 }
 
 /** 온보딩·가이드처럼 여러 단계로 된 흐름의 단계 노출과 버튼을 기록합니다. */
