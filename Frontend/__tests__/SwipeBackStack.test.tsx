@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { SwipeBackStack } from '../src/components/navigation/SwipeBackStack';
+import { KeyboardAvoidingModal } from '../src/components/KeyboardAvoidingModal';
 
 const event = {} as GestureResponderEvent;
 const gesture = (dx: number, vx = 0.1, x0 = 5, dy = 0) =>
@@ -346,4 +347,37 @@ test('같은 페이지의 상태만 복원해도 애니메이션 위치와 터�
   expect(onBack).toHaveBeenCalledTimes(2);
   expect(unmounts).not.toHaveBeenCalled();
   await act(async () => renderer.unmount());
+});
+
+test('모달이 열려 있는 동안에는 가장자리 터치를 가져가지 않아 모달 안 버튼이 눌린다', async () => {
+  const { renderer, handlers } = await render();
+  const edge = {
+    nativeEvent: { pageX: 20, pageY: 300 },
+  } as GestureResponderEvent;
+  const swipe = gesture(20, 0.1, 5);
+  const modal = (visible: boolean) => (
+    <KeyboardAvoidingModal visible={visible}>
+      <Text>modal</Text>
+    </KeyboardAvoidingModal>
+  );
+  let modalRenderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    modalRenderer = TestRenderer.create(modal(true));
+  });
+  expect(handlers.onStartShouldSetPanResponderCapture?.(edge, gesture(0))).toBe(
+    false,
+  );
+  expect(handlers.onMoveShouldSetPanResponderCapture?.(edge, swipe)).toBe(
+    false,
+  );
+
+  await act(async () => modalRenderer.update(modal(false)));
+  expect(handlers.onStartShouldSetPanResponderCapture?.(edge, gesture(0))).toBe(
+    true,
+  );
+  expect(handlers.onMoveShouldSetPanResponderCapture?.(edge, swipe)).toBe(true);
+  await act(async () => {
+    modalRenderer.unmount();
+    renderer.unmount();
+  });
 });

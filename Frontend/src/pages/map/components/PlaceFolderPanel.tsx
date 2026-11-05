@@ -2,9 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +12,7 @@ import {
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import Svg, { Path, Rect } from 'react-native-svg';
 
+import { KeyboardAvoidingModal } from '../../../components/KeyboardAvoidingModal';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
@@ -223,11 +221,8 @@ export function FolderNameDialog({
   const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
   return (
-    <Modal transparent animationType="fade" visible={visible}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}
-      >
+    <KeyboardAvoidingModal transparent animationType="fade" visible={visible}>
+      <View style={styles.backdrop}>
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
           <View style={styles.inputField}>
@@ -301,8 +296,8 @@ export function FolderNameDialog({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      </View>
+    </KeyboardAvoidingModal>
   );
 }
 
@@ -356,7 +351,7 @@ export function PlaceFolderAssignPicker({
   };
 
   return (
-    <Modal
+    <KeyboardAvoidingModal
       animationType="slide"
       presentationStyle="pageSheet"
       visible={visible}
@@ -452,7 +447,7 @@ export function PlaceFolderAssignPicker({
           onCancel={() => setIsCreating(false)}
         />
       ) : null}
-    </Modal>
+    </KeyboardAvoidingModal>
   );
 }
 
@@ -475,7 +470,7 @@ export function FolderActionSheet({
   }, [isOpen, modal]);
 
   return (
-    <Modal
+    <KeyboardAvoidingModal
       animationType="none"
       transparent
       visible={folder !== null}
@@ -526,7 +521,7 @@ export function FolderActionSheet({
           </Pressable>
         </Pressable>
       </Pressable>
-    </Modal>
+    </KeyboardAvoidingModal>
   );
 }
 

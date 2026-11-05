@@ -1,13 +1,14 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+
+import { KeyboardAvoidingModal } from '../../../components/KeyboardAvoidingModal';
 
 type SavedPlacesLinkDialogProps = {
   visible: boolean;
@@ -31,7 +32,7 @@ export function SavedPlacesLinkDialog({
   submitLabel = '저장',
 }: SavedPlacesLinkDialogProps) {
   return (
-    <Modal
+    <KeyboardAvoidingModal
       animationType="fade"
       transparent
       visible={visible}
@@ -64,7 +65,7 @@ export function SavedPlacesLinkDialog({
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </KeyboardAvoidingModal>
   );
 }
 

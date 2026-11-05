@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect } from 'react';
 import {
   Linking,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
+import { KeyboardAvoidingModal } from './KeyboardAvoidingModal';
 import { useScreenAnalytics } from '../analytics/uiEvents';
 
 type AppUpdateModalProps = {
@@ -41,7 +41,7 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
   };
 
   return (
-    <Modal
+    <KeyboardAvoidingModal
       animationType="fade"
       onRequestClose={dismiss}
       statusBarTranslucent
@@ -84,7 +84,7 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
           )}
         </View>
       </View>
-    </Modal>
+    </KeyboardAvoidingModal>
   );
 }
 

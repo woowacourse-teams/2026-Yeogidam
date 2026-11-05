@@ -1,6 +1,7 @@
 import React from 'react';
-import {Modal, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
+import {KeyboardAvoidingModal} from '../../../components/KeyboardAvoidingModal';
 import type {SavedPlacesApiError} from '../../../entities/info/types';
 
 type PlaceDetailActionSheetProps = {
@@ -24,7 +25,7 @@ export function PlaceDetailActionSheet({
   deleteError = null,
 }: PlaceDetailActionSheetProps) {
   return (
-    <Modal
+    <KeyboardAvoidingModal
       animationType="none"
       transparent
       visible={visible}
@@ -74,7 +75,7 @@ export function PlaceDetailActionSheet({
           ) : null}
         </Pressable>
       </Pressable>
-    </Modal>
+    </KeyboardAvoidingModal>
   );
 }
 

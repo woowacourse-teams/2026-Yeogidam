@@ -1,6 +1,7 @@
 import React, {useEffect} from 'react';
-import {Modal, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
 
+import {KeyboardAvoidingModal} from './KeyboardAvoidingModal';
 import {useScreenAnalytics} from '../analytics/uiEvents';
 
 type GuestLoginPromptProps = {
@@ -22,7 +23,7 @@ export function GuestLoginPrompt({
   }, [modal, visible]);
 
   return (
-    <Modal
+    <KeyboardAvoidingModal
       animationType="fade"
       onRequestClose={onContinueBrowsing}
       statusBarTranslucent
@@ -54,7 +55,7 @@ export function GuestLoginPrompt({
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </KeyboardAvoidingModal>
   );
 }
 

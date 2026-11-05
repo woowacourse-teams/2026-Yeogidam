@@ -12,6 +12,8 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 
+import { isAnyModalOpen } from '../modalPresence';
+
 const BACK_EDGE_WIDTH = 40;
 
 export type BackGestureRegion = { top: number; bottom: number };
@@ -206,6 +208,8 @@ export function SwipeBackStack({
         const { pageX, pageY } = event.nativeEvent;
         const current = latest.current;
         return (
+          // 모달 안의 터치도 React 트리상 이 스택을 거치므로, 모달이 열려 있으면 가져가지 않습니다.
+          !isAnyModalOpen() &&
           current.enabled &&
           !!current.backKey &&
           motions.has(current.backKey) &&
@@ -221,6 +225,7 @@ export function SwipeBackStack({
         );
       },
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
+        !isAnyModalOpen() &&
         latest.current.enabled &&
         !!latest.current.backKey &&
         motions.has(latest.current.backKey) &&
