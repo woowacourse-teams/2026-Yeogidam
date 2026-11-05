@@ -201,9 +201,9 @@ class ShareHistoryE2eTest extends E2eTestSupport {
             request.queryParam("cursorId", cursorId);
         }
         request.when().get(PATH)
-                .then().statusCode(MediaErrorCode.INCOMPLETE_HISTORY_CURSOR.getHttpStatus().value())
-                .body("errorCode", equalTo(MediaErrorCode.INCOMPLETE_HISTORY_CURSOR.getCode()))
-                .body("message", equalTo(MediaErrorCode.INCOMPLETE_HISTORY_CURSOR.getMessage()));
+                .then().statusCode(MediaErrorCode.INCOMPLETE_CURSOR.getHttpStatus().value())
+                .body("errorCode", equalTo(MediaErrorCode.INCOMPLETE_CURSOR.getCode()))
+                .body("message", equalTo(MediaErrorCode.INCOMPLETE_CURSOR.getMessage()));
     }
 
     @ParameterizedTest

@@ -1,0 +1,79 @@
+package com.yeogidam.media.share.controller;
+
+import com.yeogidam.global.dto.ErrorResponse;
+import com.yeogidam.media.share.dto.response.SavedMediaResponses;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import java.time.Instant;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+
+/**
+ * SavedMediaController의 Swagger 문서로, 문서 어노테이션만 두고 요청 매핑과 인증 파라미터는 구현체가 맡는다.
+ */
+@Tag(name = "SavedMedia", description = "보관함 게시물 API입니다.")
+public interface SavedMediaApiDocs {
+
+    @Operation(summary = "보관함 게시물 목록 조회",
+            description = """
+                    로그인한 회원의 보관함 게시물 탭 목록을 최근 공유부터 50건씩 돌려줍니다.
+
+                    - 보관함 연결이 남은 공유만 돌려주므로 분석 중이거나 실패한 공유와 장소를 보관함에서 모두 지운 게시물은 빠집니다.
+                    - 같은 게시물을 여러 번 공유했으면 보관함 연결이 남은 공유 중 가장 최근 한 건만 돌려줍니다.
+                    - `createdAt` 내림차순으로 정렬하고 같은 시각에는 `sharedMediaId` 내림차순으로 정렬합니다.
+                    - 다음 페이지가 있으면 `nextCursor`에 이번 페이지 마지막 게시물의 `createdAt`과 `id`를 담고, 없으면 `nextCursor`를 null로 돌려줍니다.
+                    - 다음 페이지는 `nextCursor`의 두 값을 `cursorCreatedAt`, `cursorId`로 보내 요청하며 두 값은 함께 보내야 합니다.
+                    - `cursorCreatedAt`은 받은 값을 마이크로초까지 그대로 보내야 페이지 경계의 게시물이 빠지지 않습니다.
+                    - `places`에는 게시물에서 추출된 장소를 추출 순서로 담고, 보관함에 없는 장소는 `savedPlaceId`를 null로 돌려줍니다.
+                    - 카드 제목은 앱이 `caption` 첫 줄을 잘라 만듭니다.
+                    - 보관함 게시물이 없으면 빈 `sharedMedias` 배열을 돌려줍니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "보관함 게시물 목록을 조회했으며 게시물이 없으면 빈 배열을 돌려줍니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = SavedMediaResponses.class))),
+                    @ApiResponse(responseCode = "400", description = "커서 값이 하나만 오거나 형식이 맞지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "MEDIA400_015",
+                                                    description = "cursorCreatedAt과 cursorId 중 하나만 보냈을 때 돌려줍니다.",
+                                                    value = """
+                                                            {"message": "커서의 공유 시각과 ID는 함께 보내야 합니다.", "errorCode": "MEDIA400_015"}
+                                                            """),
+                                            @ExampleObject(name = "COMMON400_004",
+                                                    description = "cursorCreatedAt이 ISO-8601 시각이 아니거나 cursorId가 숫자가 아닐 때 돌려줍니다.",
+                                                    value = """
+                                                            {"message": "요청 값의 형식이 올바르지 않습니다.", "errorCode": "COMMON400_004"}
+                                                            """)
+                                    })),
+                    @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "AUTH401_004",
+                                                    description = "Authorization 헤더가 없거나 Bearer 형식이 아닐 때 돌려줍니다.",
+                                                    value = """
+                                                            {"message": "로그인이 필요한 요청입니다.", "errorCode": "AUTH401_004"}
+                                                            """),
+                                            @ExampleObject(name = "AUTH401_001",
+                                                    description = "토큰이 깨졌거나 만료됐거나 액세스 토큰이 아닐 때 돌려줍니다.",
+                                                    value = """
+                                                            {"message": "인증 토큰이 유효하지 않습니다.", "errorCode": "AUTH401_001"}
+                                                            """)
+                                    }))
+            })
+    ResponseEntity<SavedMediaResponses> readSavedMedia(
+            Long memberId,
+            @Parameter(description = "다음 페이지를 요청할 때 이전 응답의 nextCursor.createdAt을 보냅니다.",
+                    example = "2026-11-04T03:12:45.123456Z") Instant cursorCreatedAt,
+            @Parameter(description = "다음 페이지를 요청할 때 이전 응답의 nextCursor.id를 보냅니다.", example = "812") Long cursorId
+    );
+}
