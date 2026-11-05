@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 
-import { KeyboardAvoidingModal } from './KeyboardAvoidingModal';
+import { AppModal } from './AppModal';
 import { useScreenAnalytics } from '../analytics/uiEvents';
 
 type AppUpdateModalProps = {
@@ -41,7 +41,7 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
   };
 
   return (
-    <KeyboardAvoidingModal
+    <AppModal
       animationType="fade"
       onRequestClose={dismiss}
       statusBarTranslucent
@@ -84,7 +84,7 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
           )}
         </View>
       </View>
-    </KeyboardAvoidingModal>
+    </AppModal>
   );
 }
 

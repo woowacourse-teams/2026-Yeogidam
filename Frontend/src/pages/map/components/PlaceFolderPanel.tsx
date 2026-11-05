@@ -13,7 +13,7 @@ import {
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import Svg, { Path, Rect } from 'react-native-svg';
 
-import { KeyboardAvoidingModal } from '../../../components/KeyboardAvoidingModal';
+import { AppModal } from '../../../components/AppModal';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
@@ -221,7 +221,12 @@ export function FolderNameDialog({
   const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
   return (
-    <KeyboardAvoidingModal transparent animationType="fade" visible={visible}>
+    <AppModal
+      avoidKeyboard
+      transparent
+      animationType="fade"
+      visible={visible}
+    >
       {/* 바깥을 누르면 닫히지 않고 키보드만 내려갑니다. */}
       <Pressable
         accessible={false}
@@ -305,7 +310,7 @@ export function FolderNameDialog({
           </View>
         </View>
       </Pressable>
-    </KeyboardAvoidingModal>
+    </AppModal>
   );
 }
 
@@ -359,7 +364,7 @@ export function PlaceFolderAssignPicker({
   };
 
   return (
-    <KeyboardAvoidingModal
+    <AppModal
       animationType="slide"
       presentationStyle="pageSheet"
       visible={visible}
@@ -455,7 +460,7 @@ export function PlaceFolderAssignPicker({
           onCancel={() => setIsCreating(false)}
         />
       ) : null}
-    </KeyboardAvoidingModal>
+    </AppModal>
   );
 }
 
@@ -478,7 +483,7 @@ export function FolderActionSheet({
   }, [isOpen, modal]);
 
   return (
-    <KeyboardAvoidingModal
+    <AppModal
       animationType="none"
       transparent
       visible={folder !== null}
@@ -529,7 +534,7 @@ export function FolderActionSheet({
           </Pressable>
         </Pressable>
       </Pressable>
-    </KeyboardAvoidingModal>
+    </AppModal>
   );
 }
 

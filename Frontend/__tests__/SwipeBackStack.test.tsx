@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import { SwipeBackStack } from '../src/components/navigation/SwipeBackStack';
-import { KeyboardAvoidingModal } from '../src/components/KeyboardAvoidingModal';
+import { AppModal } from '../src/components/AppModal';
 
 const event = {} as GestureResponderEvent;
 const gesture = (dx: number, vx = 0.1, x0 = 5, dy = 0) =>
@@ -356,9 +356,9 @@ test('모달이 열려 있는 동안에는 가장자리 터치를 가져가지 �
   } as GestureResponderEvent;
   const swipe = gesture(20, 0.1, 5);
   const modal = (visible: boolean) => (
-    <KeyboardAvoidingModal visible={visible}>
+    <AppModal visible={visible}>
       <Text>modal</Text>
-    </KeyboardAvoidingModal>
+    </AppModal>
   );
   let modalRenderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {

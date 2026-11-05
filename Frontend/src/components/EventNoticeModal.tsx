@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
-import { KeyboardAvoidingModal } from './KeyboardAvoidingModal';
+import { AppModal } from './AppModal';
 import {
   hasDismissedEventNotice,
   rememberDismissedEventNotice,
@@ -168,7 +168,7 @@ export function EventNoticeModal({
   }, [dismiss]);
 
   return (
-    <KeyboardAvoidingModal
+    <AppModal
       animationType="fade"
       onRequestClose={() => setIsHiddenForSession(true)}
       statusBarTranslucent
@@ -206,7 +206,7 @@ export function EventNoticeModal({
           </Pressable>
         </View>
       </View>
-    </KeyboardAvoidingModal>
+    </AppModal>
   );
 }
 
