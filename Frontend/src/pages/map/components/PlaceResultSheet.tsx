@@ -108,6 +108,8 @@ type PlaceResultSheetProps = {
   openPlaceSignal?: number;
   backToPlaceListSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
+  /** 목록에서 장소를 열 때 호출합니다. 중간 높이 시트가 가리는 높이를 함께 넘깁니다. */
+  onListPlaceSelect?: (place: Place, sheetVisibleHeight: number) => void;
   onAuthenticationRequired?: () => void;
   onGuestExpandInteraction?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
@@ -175,6 +177,7 @@ export function PlaceResultSheet({
   openPlaceSignal = 0,
   backToPlaceListSignal = 0,
   onDetailViewChange,
+  onListPlaceSelect,
   onAuthenticationRequired,
   onGuestExpandInteraction,
   onSavedPlaceDeleted,
@@ -769,6 +772,9 @@ export function PlaceResultSheet({
     } else {
       setSelectedPlaceViewContext(null);
     }
+
+    // 핀과 달리 목록은 지도를 움직이지 않으므로, 상세가 열릴 중간 높이 위로 장소를 옮겨 보여줍니다.
+    onListPlaceSelect?.(place, sheetHeight - snapOffsets[1]);
 
     if (activeSnapIndex !== 1) {
       snapTo(snapOffsets[1], detailTranslateY);
