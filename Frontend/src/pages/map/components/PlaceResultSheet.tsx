@@ -17,12 +17,14 @@ import {
   LayoutAnimation,
   Image,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
   type GestureResponderEvent,
+  type PanResponderCallbacks,
 } from 'react-native';
 import { usePostHog } from 'posthog-react-native';
 import {
@@ -128,6 +130,9 @@ const MIDDLE_VISIBLE_RATIO = 0.58;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const MIDDLE_TO_EXPANDED_DRAG_THRESHOLD = 48;
 const MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD = 0.35;
+// iOS에서 상세 본문을 맨 위에서 이만큼 당기거나 이 속도(pt/ms)로 놓으면 시트를 한 단계 내립니다.
+const DETAIL_PULL_DOWN_DISTANCE = 48;
+const DETAIL_PULL_DOWN_VELOCITY = 0.5;
 const BOTTOM_TAB_CLEARANCE = 92;
 export const LIST_TOP_GAP = 12;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
@@ -592,103 +597,102 @@ export function PlaceResultSheet({
     snapTo,
   ]);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          !isPageModeRef.current &&
-          Math.abs(gesture.dy) > 4 &&
-          Math.abs(gesture.dy) > Math.abs(gesture.dx),
-        onMoveShouldSetPanResponderCapture: (_, gesture) =>
-          !isPageModeRef.current &&
-          Math.abs(gesture.dy) > 4 &&
-          Math.abs(gesture.dy) > Math.abs(gesture.dx),
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => {
-          const revision = ++sheetDragRevision.current;
-          startedInPageMode.current = isPageModeRef.current;
-          dragStartSnapIndex.current = activeSnapIndex;
-          dragStartOffset.current = currentOffset.current;
-          translateY.stopAnimation(value => {
-            if (sheetDragRevision.current !== revision) return;
-            dragStartOffset.current = value;
-            currentOffset.current = value;
-          });
-        },
-        onPanResponderMove: (_, gesture) => {
-          // Ignore a delayed stopAnimation callback once dragging has moved
-          // the sheet; it must not restore the old middle-height position.
-          sheetDragRevision.current += 1;
-          let nextOffset = Math.max(
-            topOffset,
-            Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
-          );
+  const sheetDragCallbacks = useMemo<PanResponderCallbacks>(
+    () => ({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        !isPageModeRef.current &&
+        Math.abs(gesture.dy) > 4 &&
+        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onMoveShouldSetPanResponderCapture: (_, gesture) =>
+        !isPageModeRef.current &&
+        Math.abs(gesture.dy) > 4 &&
+        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        const revision = ++sheetDragRevision.current;
+        startedInPageMode.current = isPageModeRef.current;
+        dragStartSnapIndex.current = activeSnapIndex;
+        dragStartOffset.current = currentOffset.current;
+        translateY.stopAnimation(value => {
+          if (sheetDragRevision.current !== revision) return;
+          dragStartOffset.current = value;
+          currentOffset.current = value;
+        });
+      },
+      onPanResponderMove: (_, gesture) => {
+        // Ignore a delayed stopAnimation callback once dragging has moved
+        // the sheet; it must not restore the old middle-height position.
+        sheetDragRevision.current += 1;
+        let nextOffset = Math.max(
+          topOffset,
+          Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
+        );
 
-          // Once the sheet reaches the search bar, it becomes a page and its
-          // actual animated position is reset as well. Keeping both positions
-          // aligned makes repeated open/close drags reliable.
-          if (selectedPlace) {
-            if (isPageModeRef.current) {
-              if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
-                nextOffset = 0;
-              } else {
-                updatePageMode(false);
-              }
-            } else if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
+        // Once the sheet reaches the search bar, it becomes a page and its
+        // actual animated position is reset as well. Keeping both positions
+        // aligned makes repeated open/close drags reliable.
+        if (selectedPlace) {
+          if (isPageModeRef.current) {
+            if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
               nextOffset = 0;
-              updatePageMode(true);
+            } else {
+              updatePageMode(false);
             }
+          } else if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
+            nextOffset = 0;
+            updatePageMode(true);
           }
+        }
 
-          currentOffset.current = nextOffset;
-          // Reaching page mode removes the handle that owns this responder.
-          // Commit the logical snap now, before its release can be lost.
-          if (selectedPlace && nextOffset === 0) setActiveSnapIndex(0);
-          translateY.setValue(nextOffset);
-        },
-        onPanResponderRelease: (_, gesture) => {
-          sheetDragRevision.current += 1;
-          if (gesture.dy < -4 || gesture.vy < -0.35) {
-            onGuestExpandInteraction?.();
-          }
+        currentOffset.current = nextOffset;
+        // Reaching page mode removes the handle that owns this responder.
+        // Commit the logical snap now, before its release can be lost.
+        if (selectedPlace && nextOffset === 0) setActiveSnapIndex(0);
+        translateY.setValue(nextOffset);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        sheetDragRevision.current += 1;
+        if (gesture.dy < -4 || gesture.vy < -0.35) {
+          onGuestExpandInteraction?.();
+        }
 
-          if (Math.abs(gesture.dy) < 3) {
-            snapTo(isExpanded ? collapsedOffset : topOffset);
-            return;
-          }
+        if (Math.abs(gesture.dy) < 3) {
+          snapTo(isExpanded ? collapsedOffset : topOffset);
+          return;
+        }
 
-          const releasedOffset = Math.max(
-            topOffset,
-            Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
-          );
-          if (
-            startedInPageMode.current &&
-            releasedOffset > PAGE_MODE_TRIGGER_OFFSET
-          ) {
-            snapTo(snapOffsets[1]);
-            return;
-          }
+        const releasedOffset = Math.max(
+          topOffset,
+          Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
+        );
+        if (
+          startedInPageMode.current &&
+          releasedOffset > PAGE_MODE_TRIGGER_OFFSET
+        ) {
+          snapTo(snapOffsets[1]);
+          return;
+        }
 
-          if (dragStartSnapIndex.current === 2 && gesture.dy < -4) {
-            snapTo(snapOffsets[1]);
-            return;
-          }
+        if (dragStartSnapIndex.current === 2 && gesture.dy < -4) {
+          snapTo(snapOffsets[1]);
+          return;
+        }
 
-          if (dragStartSnapIndex.current === 1 && gesture.dy < 0) {
-            const shouldExpand =
-              Math.abs(gesture.dy) >= MIDDLE_TO_EXPANDED_DRAG_THRESHOLD ||
-              gesture.vy <= -MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD;
-            snapTo(shouldExpand ? snapOffsets[0] : snapOffsets[1]);
-            return;
-          }
+        if (dragStartSnapIndex.current === 1 && gesture.dy < 0) {
+          const shouldExpand =
+            Math.abs(gesture.dy) >= MIDDLE_TO_EXPANDED_DRAG_THRESHOLD ||
+            gesture.vy <= -MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD;
+          snapTo(shouldExpand ? snapOffsets[0] : snapOffsets[1]);
+          return;
+        }
 
-          snapTo(releasedOffset);
-        },
-        onPanResponderTerminate: () => {
-          sheetDragRevision.current += 1;
-          snapTo(currentOffset.current);
-        },
-      }),
+        snapTo(releasedOffset);
+      },
+      onPanResponderTerminate: () => {
+        sheetDragRevision.current += 1;
+        snapTo(currentOffset.current);
+      },
+    }),
     [
       activeSnapIndex,
       collapsedOffset,
@@ -702,6 +706,43 @@ export function PlaceResultSheet({
       updatePageMode,
     ],
   );
+  const panResponder = useMemo(
+    () => PanResponder.create(sheetDragCallbacks),
+    [sheetDragCallbacks],
+  );
+  // 펼친 상세는 본문이 스크롤되므로, 본문이 맨 위일 때 아래로 당기면 시트를 끌어내립니다.
+  // Android는 맨 위에서 더 당겨도 본문이 스크롤되지 않으므로 이 드래그가 그대로 시트를 움직입니다.
+  const detailPullDownResponder = useMemo(() => {
+    const shouldPullDown: PanResponderCallbacks['onMoveShouldSetPanResponder'] =
+      (_, gesture) =>
+        !isPageModeRef.current &&
+        detailScrollOffset.current <= 0 &&
+        gesture.dy > 4 &&
+        gesture.dy > Math.abs(gesture.dx);
+    return PanResponder.create({
+      ...sheetDragCallbacks,
+      onMoveShouldSetPanResponder: shouldPullDown,
+      onMoveShouldSetPanResponderCapture: shouldPullDown,
+    });
+  }, [sheetDragCallbacks]);
+  // iOS는 본문이 튕기며 네이티브 스크롤이 JS 드래그를 취소하므로, 튕긴 거리만큼 시트를 따라 내립니다.
+  const followDetailTopPull = (snapIndex: number, distance: number) => {
+    sheetDragRevision.current += 1;
+    const offset = Math.min(collapsedOffset, snapOffsets[snapIndex] + distance);
+    currentOffset.current = offset;
+    translateY.setValue(offset);
+  };
+  const releaseDetailTopPull = (
+    snapIndex: number,
+    distance: number,
+    velocityY: number,
+  ) => {
+    if (distance <= 0) return;
+    const shouldLower =
+      distance >= DETAIL_PULL_DOWN_DISTANCE ||
+      velocityY <= -DETAIL_PULL_DOWN_VELOCITY;
+    snapTo(snapOffsets[shouldLower ? snapIndex + 1 : snapIndex]);
+  };
 
   const toggleSheet = () => {
     analytics.button('toggle_sheet');
@@ -934,7 +975,11 @@ export function PlaceResultSheet({
   const renderDetailContent = (snapIndex: number, preview = false) =>
     selectedPlace ? (
       <View
-        {...(snapIndex === 2 ? panResponder.panHandlers : {})}
+        {...(snapIndex === 2
+          ? panResponder.panHandlers
+          : preview || Platform.OS === 'ios'
+          ? {}
+          : detailPullDownResponder.panHandlers)}
         onResponderStart={handleCollapsedBodyTouchStart}
         onResponderEnd={handleCollapsedBodyTouchEnd}
         style={[
@@ -966,6 +1011,17 @@ export function PlaceResultSheet({
                 : offset => {
                     detailScrollOffset.current = offset;
                   }
+            }
+            onTopPull={
+              Platform.OS === 'ios' && !preview && snapIndex !== 2
+                ? distance => followDetailTopPull(snapIndex, distance)
+                : undefined
+            }
+            onTopPullRelease={
+              Platform.OS === 'ios' && !preview && snapIndex !== 2
+                ? (distance, velocityY) =>
+                    releaseDetailTopPull(snapIndex, distance, velocityY)
+                : undefined
             }
             onBack={backToPlaceList}
             place={selectedPlace}
