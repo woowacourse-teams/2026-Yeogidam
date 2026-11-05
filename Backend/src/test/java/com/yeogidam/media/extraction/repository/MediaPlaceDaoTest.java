@@ -5,6 +5,7 @@ import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -159,6 +160,64 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
                 ),
                 () -> assertThat(mediaPlaceDao.findExtractedPlaces(3L).places()).isEmpty()
         );
+    }
+
+    @Test
+    void 고른_게시물들의_장소만_추출_순서대로_게시물별로_읽는다() {
+        // given: 게시물 1에서는 장소 2, 1 순서로 추출됐고, 게시물 2에서는 장소 1이 나왔으며, 게시물 3은 고르지 않는다.
+        insertKakaoMember(jdbcTemplate, 1L, "saved-media-place-order", null, null, null);
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertMedia(jdbcTemplate, 2L, null, null, null);
+        insertMedia(jdbcTemplate, 3L, null, null, null);
+        insertPlaces();
+        insertMediaPlace(jdbcTemplate, 11L, 1L, 2L);
+        insertMediaPlace(jdbcTemplate, 12L, 2L, 1L);
+        insertMediaPlace(jdbcTemplate, 13L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 14L, 3L, 2L);
+
+        // when
+        SavedMediaPlaceProjections places = mediaPlaceDao.findSavedMediaPlaces(1L, List.of(1L, 2L));
+
+        // then
+        assertAll(
+                () -> assertThat(places.placesOf(1L))
+                        .extracting(SavedMediaPlaceProjection::placeId)
+                        .containsExactly(2L, 1L),
+                () -> assertThat(places.placesOf(2L))
+                        .extracting(SavedMediaPlaceProjection::placeId)
+                        .containsExactly(1L),
+                () -> assertThat(places.placesOf(3L)).isEmpty()
+        );
+    }
+
+    @Test
+    void 장소_정보에_내_보관함_항목_ID를_붙이고_다른_회원만_저장한_장소는_null로_읽는다() {
+        // given: 게시물 1에서 장소 1, 2가 나왔고, 회원 1은 장소 1을, 회원 2는 장소 2를 보관함에 두었다.
+        insertKakaoMember(jdbcTemplate, 1L, "saved-media-place-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 2L, "saved-media-place-other", null, null, null);
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertPlaces();
+        insertMediaPlace(jdbcTemplate, 11L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 12L, 1L, 2L);
+        insertSavedPlace(jdbcTemplate, 101L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 202L, 2L, 2L, Instant.parse("2026-11-01T10:00:00Z"));
+
+        // when
+        List<SavedMediaPlaceProjection> places = mediaPlaceDao.findSavedMediaPlaces(1L, List.of(1L)).placesOf(1L);
+
+        // then
+        assertThat(places).containsExactly(
+                new SavedMediaPlaceProjection(1L, 1L, 101L, "cafe.jpg", "성수 카페", "카페",
+                        "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1"),
+                new SavedMediaPlaceProjection(1L, 2L, null, null, "종로 식당", null,
+                        "서울 종로구 관철동 1-1", null)
+        );
+    }
+
+    @Test
+    void 고른_게시물이_없으면_조회하지_않고_빈_묶음을_돌려준다() {
+        // when & then
+        assertThat(mediaPlaceDao.findSavedMediaPlaces(1L, List.of()).placesOf(1L)).isEmpty();
     }
 
     private void insertPlaces() {

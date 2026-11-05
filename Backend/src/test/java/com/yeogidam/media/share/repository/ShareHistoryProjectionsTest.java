@@ -21,7 +21,7 @@ class ShareHistoryProjectionsTest {
 
         // when
         List<ShareHistoryProjection> page = history.page();
-        ShareHistoryCursor nextCursor = history.nextCursor();
+        SharedMediaCursor nextCursor = history.nextCursor();
 
         // then
         ShareHistoryProjection fiftieth = page.getLast();
@@ -29,7 +29,7 @@ class ShareHistoryProjectionsTest {
                 () -> assertThat(page).hasSize(50),
                 () -> assertThat(page.getFirst().sharedMediaId()).isEqualTo(51L),
                 () -> assertThat(fiftieth.sharedMediaId()).isEqualTo(2L),
-                () -> assertThat(nextCursor).isEqualTo(new ShareHistoryCursor(fiftieth.createdAt(), 2L))
+                () -> assertThat(nextCursor).isEqualTo(new SharedMediaCursor(fiftieth.createdAt(), 2L))
         );
     }
 

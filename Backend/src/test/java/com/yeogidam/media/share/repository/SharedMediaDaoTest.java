@@ -4,6 +4,9 @@ import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertExtractingM
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,6 +20,7 @@ import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.support.JdbcTestSupport;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -337,7 +341,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
         // when: 공유 4까지 본 뒤 다음 페이지를 읽는다
         List<ShareHistoryProjection> shares = sharedMediaDao
-                .findShareHistoryBefore(9L, new ShareHistoryCursor(sameTime, 4L))
+                .findShareHistoryBefore(9L, new SharedMediaCursor(sameTime, 4L))
                 .shares();
 
         // then: 시각이 같은 공유 3과 1마이크로초 이른 공유 2는 빠지지 않고, 다른 회원의 공유 6은 섞이지 않는다
@@ -350,6 +354,169 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         Instant base = Instant.parse("2026-09-20T03:00:00Z");
         for (long id = 1; id <= count; id++) {
             insertSharedMedia(jdbcTemplate, id, memberId, mediaId, base.plusSeconds(id));
+        }
+    }
+
+    @Test
+    void 보관함_게시물로는_보관함_연결이_남은_내_공유만_읽는다() {
+        // given: 공유 1만 보관함 장소와 연결되어 있고, 실패한 공유 2와 분석 중인 공유 3은 연결이 없으며, 공유 4는 다른 회원이 공유했다
+        insertKakaoMember(jdbcTemplate, 11L, "saved-media-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 12L, "saved-media-other", null, null, null);
+        insertMedia(jdbcTemplate, 11L, "성수 카페 모음", "saved.jpg", "@saved");
+        insertFailedMedia(jdbcTemplate, 12L, 1, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
+        insertExtractingMedia(jdbcTemplate, 13L);
+        insertSavedMediaPlace(1L, "saved-media-place");
+        insertSavedPlace(jdbcTemplate, 101L, 11L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 102L, 12L, 1L, Instant.parse("2026-11-04T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 1L, 11L, 11L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 2L, 11L, 12L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 3L, 11L, 13L, Instant.parse("2026-11-03T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 4L, 12L, 11L, Instant.parse("2026-11-04T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1001L, 101L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1002L, 102L, 4L, Instant.parse("2026-11-04T10:00:00Z"));
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(11L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void 보관함_장소_여럿과_연결된_공유도_한_건으로_읽고_공유와_게시물_정보를_빠짐없이_읽는다() {
+        // given: 공유 1이 보관함 장소 둘과 연결되어 있다
+        insertKakaoMember(jdbcTemplate, 13L, "saved-media-columns", null, null, null);
+        insertMedia(jdbcTemplate, 14L, "성수 카페 모음", "saved.jpg", "@saved");
+        insertSavedMediaPlace(1L, "saved-media-columns-1");
+        insertSavedMediaPlace(2L, "saved-media-columns-2");
+        insertSavedPlace(jdbcTemplate, 201L, 13L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 202L, 13L, 2L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 1L, 13L, 14L, Instant.parse("2026-11-01T10:00:00.123456Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2001L, 201L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2002L, 202L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(13L).shares();
+
+        // then
+        assertThat(shares).containsExactly(new SavedMediaProjection(
+                1L,
+                14L,
+                Instant.parse("2026-11-01T10:00:00.123456Z"),
+                "saved.jpg",
+                "성수 카페 모음",
+                "@saved",
+                "https://www.instagram.com/reel/fixture-1/"
+        ));
+    }
+
+    @Test
+    void 보관함_게시물은_게시물마다_보관함_연결이_남은_최신_공유_한_건만_최신순으로_읽는다() {
+        // given: 게시물 21은 공유 1, 2로 연결되어 있고 더 최근 공유 3은 연결이 없으며, 게시물 22는 같은 시각의 공유 4, 5로 연결되어 있다
+        insertSavedMediaOwner(15L, 301L);
+        insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 22L, "연남 와인바", "22.jpg", "@yeonnam");
+        Instant base = Instant.parse("2026-11-01T03:00:00.123456Z");
+        insertLinkedShare(1L, 15L, 21L, 301L, base);
+        insertLinkedShare(2L, 15L, 21L, 301L, base.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 3L, 15L, 21L, base.plusSeconds(2));
+        insertLinkedShare(4L, 15L, 22L, 301L, base.plusSeconds(3));
+        insertLinkedShare(5L, 15L, 22L, 301L, base.plusSeconds(3));
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(15L).shares();
+
+        // then: 연결이 없는 공유 3은 공유 2를 가리지 않고, 시각이 같은 공유 4와 5 가운데 ID가 큰 5가 남는다
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(5L, 2L);
+    }
+
+    @Test
+    void 보관함_게시물_첫_페이지는_다음_페이지가_있는지_알_수_있게_최신순으로_51건을_읽는다() {
+        // given: 게시물 55개를 1초 간격으로 한 번씩 공유했고 모두 보관함 장소와 연결되어 있다
+        insertSavedMediaOwner(16L, 302L);
+        insertLinkedSharesOneSecondApart(16L, 302L, 55);
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(16L).shares();
+
+        // then: 최신인 55부터 51건을 읽고, 52번째인 4부터는 읽지 않는다
+        assertAll(
+                () -> assertThat(shares).hasSize(51),
+                () -> assertThat(shares.getFirst().sharedMediaId()).isEqualTo(55L),
+                () -> assertThat(shares.getLast().sharedMediaId()).isEqualTo(5L)
+        );
+    }
+
+    @Test
+    void 보관함_게시물_다음_페이지는_커서보다_오래된_게시물만_읽고_다시_공유한_게시물의_옛_공유는_읽지_않는다() {
+        // given: 공유 3, 4, 5는 공유 시각이 같고, 게시물 1은 가장 최근에 공유 6으로 다시 공유했다
+        insertSavedMediaOwner(17L, 303L);
+        Instant sameTime = Instant.parse("2026-11-01T03:00:00.123456Z");
+        for (long mediaId = 1; mediaId <= 5; mediaId++) {
+            insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
+        }
+        insertLinkedShare(1L, 17L, 1L, 303L, sameTime.minusSeconds(2));
+        insertLinkedShare(2L, 17L, 2L, 303L, sameTime.minusNanos(1_000));
+        insertLinkedShare(3L, 17L, 3L, 303L, sameTime);
+        insertLinkedShare(4L, 17L, 4L, 303L, sameTime);
+        insertLinkedShare(5L, 17L, 5L, 303L, sameTime);
+        insertLinkedShare(6L, 17L, 1L, 303L, sameTime.plusSeconds(10));
+
+        // when: 공유 4까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(17L, new SharedMediaCursor(sameTime, 4L))
+                .shares();
+
+        // then: 시각이 같은 공유 3과 1마이크로초 이른 공유 2는 빠지지 않고, 게시물 1의 옛 공유 1은 공유 6에 가려 다시 나오지 않는다
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(3L, 2L);
+    }
+
+    private void insertSavedMediaPlace(Long placeId, String kakaoPlaceId) {
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, placeId, kakaoPlaceId, "성수 카페",
+                "서울 성동구 성수동2가 1-1", new BigDecimal("37.5446"), new BigDecimal("127.0559"));
+    }
+
+    /**
+     * 보관함 게시물 테스트의 회원과, 공유를 연결할 보관함 장소 하나를 넣는다.
+     */
+    private void insertSavedMediaOwner(Long memberId, Long savedPlaceId) {
+        insertKakaoMember(jdbcTemplate, memberId, "saved-media-owner-" + memberId, null, null, null);
+        insertSavedMediaPlace(1L, "saved-media-owner-place-" + memberId);
+        insertSavedPlace(jdbcTemplate, savedPlaceId, memberId, 1L, Instant.parse("2026-11-01T00:00:00Z"));
+    }
+
+    /**
+     * 공유를 넣고 보관함 장소와 연결한다. 연결 ID는 공유 ID와 같게 둔다.
+     */
+    private void insertLinkedShare(
+            Long sharedMediaId,
+            Long memberId,
+            Long mediaId,
+            Long savedPlaceId,
+            Instant createdAt
+    ) {
+        insertSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
+        insertSavedPlaceShare(jdbcTemplate, sharedMediaId, savedPlaceId, sharedMediaId, createdAt);
+    }
+
+    /**
+     * 게시물 1부터 count까지 1초 간격으로 한 번씩 공유하고 모두 보관함 장소와 연결한다. ID가 클수록 최근 공유다.
+     */
+    private void insertLinkedSharesOneSecondApart(
+            Long memberId,
+            Long savedPlaceId,
+            int count
+    ) {
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        for (long id = 1; id <= count; id++) {
+            insertMedia(jdbcTemplate, id, "게시물 " + id, id + ".jpg", "@author");
+            insertLinkedShare(id, memberId, id, savedPlaceId, base.plusSeconds(id));
         }
     }
 
