@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -37,7 +38,8 @@ export function SavedPlacesLinkDialog({
       transparent
       visible={visible}
       onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={styles.backdrop}>
+      {/* 입력 중 바깥을 눌러도 닫히지 않고 키보드만 내려갑니다. 닫기는 취소 버튼으로 합니다. */}
+      <Pressable accessible={false} onPress={Keyboard.dismiss} style={styles.backdrop}>
         <Pressable onPress={event => event.stopPropagation()} style={styles.dialog}>
           <Text style={styles.title}>링크 입력</Text>
           <View style={styles.inputWrapper}>

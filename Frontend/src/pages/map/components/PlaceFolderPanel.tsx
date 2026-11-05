@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -137,7 +138,6 @@ export function FolderList({
       contentContainerStyle={{ paddingBottom: bottomPadding }}
       showsVerticalScrollIndicator={false}
     >
-     
       {folders.map(folder => (
         <Pressable
           key={folder.id}
@@ -162,7 +162,7 @@ export function FolderList({
           <MaterialIcons color="#B8BFE8" name="chevron-right" size={24} />
         </Pressable>
       ))}
-       <Pressable
+      <Pressable
         accessibilityRole="button"
         onPress={onCreateFolder}
         style={styles.row}
@@ -222,7 +222,12 @@ export function FolderNameDialog({
 
   return (
     <KeyboardAvoidingModal transparent animationType="fade" visible={visible}>
-      <View style={styles.backdrop}>
+      {/* 바깥을 누르면 닫히지 않고 키보드만 내려갑니다. */}
+      <Pressable
+        accessible={false}
+        onPress={Keyboard.dismiss}
+        style={styles.backdrop}
+      >
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
           <View style={styles.inputField}>
@@ -238,7 +243,10 @@ export function FolderNameDialog({
               value={name}
             />
             {isDuplicate ? (
-              <Text accessibilityLiveRegion="polite" style={styles.inputErrorText}>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.inputErrorText}
+              >
                 이미 같은 이름의 폴더가 있어요.
               </Text>
             ) : null}
@@ -296,7 +304,7 @@ export function FolderNameDialog({
             </Pressable>
           </View>
         </View>
-      </View>
+      </Pressable>
     </KeyboardAvoidingModal>
   );
 }
