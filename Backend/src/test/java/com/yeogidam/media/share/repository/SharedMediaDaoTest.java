@@ -419,6 +419,28 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 다른_회원의_공유는_보관함_게시물로_읽지_않는다() {
+        // given: 회원 30은 게시물 52를 공유 2로 공유했고, 회원 31은 게시물 51을 공유 1로 공유했으며, 두 공유 모두 분석에 성공해 장소가 나왔다
+        insertSavedMediaMember(30L);
+        insertKakaoMember(jdbcTemplate, 31L, "saved-media-member-other", null, null, null);
+        insertMedia(jdbcTemplate, 51L, "게시물 51", "51.jpg", "@author");
+        insertMedia(jdbcTemplate, 52L, "게시물 52", "52.jpg", "@author");
+        insertMediaPlace(jdbcTemplate, 51L, 51L, 1L);
+        insertMediaPlace(jdbcTemplate, 52L, 52L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 31L, 51L, base.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 2L, 30L, 52L, base);
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(30L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(2L);
+    }
+
+    @Test
     void 추출된_장소가_여럿인_게시물도_한_건으로_읽고_공유와_게시물_정보를_빠짐없이_읽는다() {
         // given: 공유 1의 게시물 14에서 장소 둘이 나왔다
         insertKakaoMember(jdbcTemplate, 13L, "saved-media-columns", null, null, null);
@@ -603,6 +625,31 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
         List<SavedMediaProjection> shares = sharedMediaDao
                 .findSavedMediaBefore(29L, new SharedMediaCursor(base.plusSeconds(2), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void 보관함_게시물_다음_페이지에서도_다른_회원의_공유는_읽지_않는다() {
+        // given: 회원 32는 게시물 61, 63을 공유 1, 3으로 공유했고, 두 공유 사이 시각에 회원 33이 게시물 62를 공유 2로 공유했으며, 세 공유 모두 분석에 성공해 장소가 나왔다
+        insertSavedMediaMember(32L);
+        insertKakaoMember(jdbcTemplate, 33L, "saved-media-next-member-other", null, null, null);
+        for (long mediaId = 61; mediaId <= 63; mediaId++) {
+            insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
+            insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
+        }
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 32L, 61L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 33L, 62L, base.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 3L, 32L, 63L, base.plusSeconds(2));
+
+        // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(32L, new SharedMediaCursor(base.plusSeconds(2), 3L))
                 .shares();
 
         // then
