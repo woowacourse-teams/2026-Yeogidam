@@ -24,6 +24,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 보관함 저장·조회·삭제와 공유 연결이 실제 MySQL에서 동작하는지 검증한다.
@@ -37,6 +42,9 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void 처음_저장하는_장소면_보관함에_장소가_생성된다() {
@@ -101,13 +109,48 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
         // when & then
         assertAll(
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 1L))
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 1L))
                         .isEqualTo(11L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 2L))
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 2L))
                         .isEqualTo(12L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(2L, 1L))
+                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(2L, 1L))
                         .isEqualTo(21L)
         );
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 선행_일반_조회_뒤_다른_트랜잭션이_지운_장소를_다시_저장하면_새_보관함_ID를_읽는다() {
+        // given
+        insertMember(1L, "saved-id-stale-owner");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        TransactionTemplate otherTransaction = new TransactionTemplate(transactionManager);
+        otherTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        try {
+            // when
+            Long savedPlaceId = transaction.execute(status -> {
+                assertThat(savedPlaceDao.findAllByMember(1L)).hasSize(1);
+                otherTransaction.executeWithoutResult(otherStatus ->
+                        savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L)));
+                savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, previous.plusSeconds(60)));
+                return savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 1L);
+            });
+
+            // then: 스냅숏에 남은 옛 ID 11이 아니라 지금 남은 항목의 ID를 읽는다
+            assertAll(
+                    () -> assertThat(savedPlaceId).isNotEqualTo(11L),
+                    () -> assertThat(savedPlaceId).isEqualTo(readSavedPlaceId(1L, 1L))
+            );
+        } finally {
+            jdbcTemplate.update("DELETE FROM saved_places WHERE member_id = ?", 1L);
+            jdbcTemplate.update("DELETE FROM places WHERE id IN (1, 2, 3)");
+            jdbcTemplate.update("DELETE FROM members WHERE id = ?", 1L);
+        }
     }
 
     @Test
@@ -544,6 +587,11 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
         // then: 장소 1(보관함 11)과 폴더에 담은 장소 3(보관함 13)은 읽고, 공유 200에서도 저장한 장소 2(보관함 12)는 읽지 않는다
         assertThat(unlinkedIds).containsExactly(11L, 13L);
+    }
+
+    private Long readSavedPlaceId(Long memberId, Long placeId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM saved_places WHERE member_id = ? AND place_id = ?", Long.class, memberId, placeId);
     }
 
     private Instant readSavedAt(Long savedPlaceId) {

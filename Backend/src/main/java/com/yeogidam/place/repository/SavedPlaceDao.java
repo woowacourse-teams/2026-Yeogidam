@@ -68,12 +68,18 @@ public class SavedPlaceDao {
         );
     }
 
-    public Long getIdByMemberAndPlace(Long memberId, Long placeId) {
+    /**
+     * 저장(saveOrUpdate)한 보관함 항목의 ID를 잠금 조회로 읽는다.
+     * REPEATABLE READ의 일반 조회는 트랜잭션 스냅숏을 읽어서, 다른 트랜잭션이 지우고 커밋한 옛 ID까지 돌려줄 수 있다.
+     * 옛 ID로 공유 연결을 넣으면 외래 키에 걸리므로, 잠금 조회로 지금 남은 항목의 ID만 읽는다.
+     */
+    public Long getIdByMemberAndPlaceForUpdate(Long memberId, Long placeId) {
         String sql = """
                 SELECT id
                 FROM saved_places
                 WHERE member_id = ?
                   AND place_id = ?
+                FOR UPDATE
                 """;
         return jdbcTemplate.queryForObject(sql, Long.class, memberId, placeId);
     }
