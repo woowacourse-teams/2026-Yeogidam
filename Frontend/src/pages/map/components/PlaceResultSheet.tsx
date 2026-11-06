@@ -608,12 +608,11 @@ export function PlaceResultSheet({
 
   const sheetDragCallbacks = useMemo<PanResponderCallbacks>(
     () => ({
+      // 끝까지 올린 상세(페이지 모드)에서도 핸들을 끌어 시트를 내릴 수 있어야 하므로 막지 않습니다.
       onMoveShouldSetPanResponder: (_, gesture) =>
-        !isPageModeRef.current &&
         Math.abs(gesture.dy) > 4 &&
         Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
-        !isPageModeRef.current &&
         Math.abs(gesture.dy) > 4 &&
         Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderTerminationRequest: () => false,
