@@ -6,6 +6,7 @@ import { PlacePreviewDemo } from './components/PlacePreviewDemo';
 
 type OnboardingScreenProps = {
   onComplete: () => void;
+  backRequest?: number;
 };
 
 const ONBOARDING_PAGES: StepPage[] = [
@@ -18,12 +19,16 @@ const ONBOARDING_PAGES: StepPage[] = [
 ];
 
 // 로그아웃 상태로 앱을 열면 로그인 화면 앞에 보여준다.
-export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
+export function OnboardingScreen({
+  onComplete,
+  backRequest,
+}: OnboardingScreenProps) {
   return (
     <StepPager
       flowName="onboarding"
       pages={ONBOARDING_PAGES}
       onComplete={onComplete}
+      backRequest={backRequest}
       lastButtonLabel="시작하기"
     />
   );

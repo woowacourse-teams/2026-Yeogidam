@@ -278,6 +278,19 @@ test('로그아웃 상태로 열면 온보딩 뒤 로그인 화면을 보여준�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('사용자 가이드가 열리면 바깥 화면 뒤로가기 제스처가 가이드를 닫지 않는다', async () => {
+  const renderer = await renderGuestMain();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenGuide();
+  });
+
+  const stack = renderer.root.findByType(SwipeBackStack);
+  expect(stack.props.activeKey).toBe('myPage-guide');
+  expect(stack.props.backKey).toBeNull();
+  expect(stack.props.enabled).toBe(false);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('온보딩 중에도 필수 업데이트를 표시한다', async () => {
   (getAppUpdatePolicy as jest.Mock).mockResolvedValue({
     updateRequired: true,
