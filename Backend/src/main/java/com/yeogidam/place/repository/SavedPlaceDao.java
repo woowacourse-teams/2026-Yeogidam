@@ -5,10 +5,12 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -50,6 +52,7 @@ public class SavedPlaceDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     public void saveOrUpdate(SavedPlace savedPlace) {
         String sql = """
@@ -65,12 +68,18 @@ public class SavedPlaceDao {
         );
     }
 
-    public Long getIdByMemberAndPlace(Long memberId, Long placeId) {
+    /**
+     * 저장(saveOrUpdate)한 보관함 항목의 ID를 잠금 조회로 읽는다.
+     * REPEATABLE READ의 일반 조회는 트랜잭션 스냅숏을 읽어서, 다른 트랜잭션이 지우고 커밋한 옛 ID까지 돌려줄 수 있다.
+     * 옛 ID로 공유 연결을 넣으면 외래 키에 걸리므로, 잠금 조회로 지금 남은 항목의 ID만 읽는다.
+     */
+    public Long getIdByMemberAndPlaceForUpdate(Long memberId, Long placeId) {
         String sql = """
                 SELECT id
                 FROM saved_places
                 WHERE member_id = ?
                   AND place_id = ?
+                FOR UPDATE
                 """;
         return jdbcTemplate.queryForObject(sql, Long.class, memberId, placeId);
     }
@@ -149,7 +158,7 @@ public class SavedPlaceDao {
     }
 
     /**
-     * 보관함 행 하나에 연결된 공유를 전부 읽는다. 연결 행 하나가 결과 한 행이라 행이 늘지 않는다.
+     * 보관함 항목 하나에 연결된 공유 가운데 지우지 않은 공유를 전부 읽는다. 연결 하나가 결과 하나라 결과가 늘지 않는다.
      * 릴스당 최신 공유 한 건만 남기는 규칙과 정렬은 SavedPlaceMediaProjections가 맡는다.
      */
     public SavedPlaceMediaProjections findMediaBySavedPlace(Long savedPlaceId) {
@@ -165,6 +174,7 @@ public class SavedPlaceDao {
                 JOIN shared_media sm ON sm.id = l.shared_media_id
                 JOIN media m ON m.id = sm.media_id
                 WHERE l.saved_place_id = ?
+                  AND sm.deleted_at IS NULL
                 """;
         return new SavedPlaceMediaProjections(jdbcTemplate.query(sql, MEDIA_PROJECTION_ROW_MAPPER, savedPlaceId));
     }
@@ -186,5 +196,88 @@ public class SavedPlaceDao {
         arguments.add(memberId);
         arguments.addAll(savedPlaceIds);
         return jdbcTemplate.update(sql, arguments.toArray());
+    }
+
+    /**
+     * 회원이 고른 게시물(mediaIds)의 장소 가운데 회원 보관함에 있는 장소의 ID를 중복 없이 읽는다.
+     * 게시물에서 추출된 장소와, 게시물의 내 공유(이미 지운 공유 포함)에 연결된 장소를 함께 읽는다.
+     * 다른 게시글로 다시 저장해서 공유 연결이 없는 장소도 읽어야, 같은 장소가 나오는 게시글들을 동시에 지울 때 모두 같은 항목을 잠근다.
+     */
+    public List<Long> findPlaceIdsByMemberAndMediaIds(Long memberId, List<Long> mediaIds) {
+        String sql = """
+                SELECT sp.place_id
+                FROM media_places mp
+                JOIN saved_places sp ON sp.place_id = mp.place_id
+                WHERE sp.member_id = :memberId
+                  AND mp.media_id IN (:mediaIds)
+                UNION
+                SELECT sp.place_id
+                FROM shared_media_saved_places l
+                JOIN shared_media sm ON sm.id = l.shared_media_id
+                JOIN saved_places sp ON sp.id = l.saved_place_id
+                WHERE sm.member_id = :memberId
+                  AND sm.media_id IN (:mediaIds)
+                ORDER BY place_id
+                """;
+        return namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "mediaIds", mediaIds
+        ), Long.class);
+    }
+
+    /**
+     * 회원의 보관함 항목을 (member_id, place_id) 유니크 인덱스로 장소 ID 순서대로 잠근다.
+     * 공유와 추출 완료의 저장(saveOrUpdate)도 같은 인덱스부터 잠그므로 잠그는 순서가 엇갈리지 않는다.
+     * 공유 연결을 넣으려면 외래 키 확인으로 항목 레코드에 공유 락이 필요해서, 잠근 동안에는 다른 트랜잭션이 연결을 더하지 못한다.
+     */
+    public void lockByMemberAndPlaceIds(Long memberId, List<Long> placeIds) {
+        String sql = """
+                SELECT id
+                FROM saved_places
+                WHERE member_id = :memberId
+                  AND place_id IN (:placeIds)
+                ORDER BY place_id
+                FOR UPDATE
+                """;
+        namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "placeIds", placeIds
+        ), Long.class);
+    }
+
+    /**
+     * 회원의 보관함 항목 가운데 남은 게시글이 쓰지 않는 항목의 ID를 읽는다. 폴더에 담긴 항목도 읽는다.
+     * 지우지 않은 공유와 연결이 있거나, 지우지 않은 내 성공 공유의 게시물에서 같은 장소가 추출됐으면 남은 게시글이 쓰는 항목이다.
+     * 게시물 상세의 체크는 공유 연결이 아니라 보관함 항목이 있는지로 그리므로, 연결 없이 체크로 보이는 장소도 남긴다.
+     * 잠금 없는 일반 SELECT라서 다른 공유 레코드에 공유 락을 남기지 않는다.
+     */
+    public List<Long> findUnusedIdsByMemberAndPlaceIds(Long memberId, List<Long> placeIds) {
+        String sql = """
+                SELECT sp.id
+                FROM saved_places sp
+                WHERE sp.member_id = :memberId
+                  AND sp.place_id IN (:placeIds)
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM shared_media_saved_places l
+                      JOIN shared_media sm ON sm.id = l.shared_media_id
+                      WHERE l.saved_place_id = sp.id
+                        AND sm.deleted_at IS NULL
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM shared_media sm
+                      JOIN media_places mp ON mp.media_id = sm.media_id
+                      WHERE sm.member_id = sp.member_id
+                        AND sm.deleted_at IS NULL
+                        AND sm.extraction_status = 'SUCCEEDED'
+                        AND mp.place_id = sp.place_id
+                  )
+                ORDER BY sp.id
+                """;
+        return namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "placeIds", placeIds
+        ), Long.class);
     }
 }

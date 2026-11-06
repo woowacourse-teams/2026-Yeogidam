@@ -519,6 +519,38 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
+    void 분석_중에_지운_게시글을_재시도하면_새_이력이_생기고_장소가_보관함에_담긴다() throws Exception {
+        // given
+        LoginResult member = loginAsKakao("retry-after-delete");
+        createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
+        Long deletedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
+        assertThat(placeNameExtractor.awaitStarted())
+                .isTrue();
+        deleteSavedMedia(member, deletedShareId);
+
+        // when
+        Long retriedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
+
+        // then
+        assertAll(
+                () -> assertThat(retriedShareId)
+                        .isNotEqualTo(deletedShareId)
+                        .isNotEqualTo(ORIGINAL_SHARE_ID),
+                () -> assertThat(readHistoryIds(member))
+                        .containsExactly(retriedShareId, deletedShareId, ORIGINAL_SHARE_ID),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1)
+        );
+        completeExtraction();
+        assertAll(
+                () -> assertSucceededHistory(member, retriedShareId),
+                () -> assertThat(readSavedShareIds(member))
+                        .containsExactly(retriedShareId),
+                () -> assertThat(placeNameExtractor.requestCount())
+                        .isEqualTo(1)
+        );
+    }
+
+    @Test
     void 다른_회원이_분석_중에_재시도하면_자신의_새_이력으로_분석에_합류한다() throws Exception {
         // given
         LoginResult memberA = loginAsKakao("retry-join-member-a");
@@ -595,6 +627,15 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
 
     private static String retryPath(Long sharedMediaId) {
         return SHARES_PATH + "/" + sharedMediaId + "/extraction-retries";
+    }
+
+    private void deleteSavedMedia(LoginResult member, Long sharedMediaId) {
+        givenBearer(member.accessToken())
+                .queryParam("sharedMediaIds", sharedMediaId)
+                .when()
+                .delete("/api/v1/saved-media")
+                .then()
+                .statusCode(HttpStatus.NO_CONTENT.value());
     }
 
     private void assertJoined(

@@ -74,4 +74,28 @@ public final class SharedMediaSqlFixture {
                 "https://www.instagram.com/reel/fixture-" + sharedMediaId + "/", Timestamp.from(createdAt),
                 snapshot.status().name(), failureReason, snapshot.version());
     }
+
+    /**
+     * 보관함에서 지운 공유를 넣는 판. 다른 판은 deleted_at을 비워 둔다.
+     */
+    public static void insertDeletedSharedMedia(
+            JdbcTemplate jdbcTemplate,
+            Long sharedMediaId,
+            Long memberId,
+            Long mediaId,
+            Instant createdAt,
+            Instant deletedAt
+    ) {
+        jdbcTemplate.update("""
+                INSERT INTO shared_media (
+                    id, member_id, media_id, shared_url, created_at,
+                    extraction_status, failure_reason, extraction_version, deleted_at
+                )
+                SELECT ?, ?, m.id, ?, ?, m.extraction_status, m.failure_reason, m.extraction_version, ?
+                FROM media m
+                WHERE m.id = ?
+                """, sharedMediaId, memberId,
+                "https://www.instagram.com/reel/fixture-" + sharedMediaId + "/",
+                Timestamp.from(createdAt), Timestamp.from(deletedAt), mediaId);
+    }
 }

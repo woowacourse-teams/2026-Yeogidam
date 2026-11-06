@@ -12,11 +12,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
@@ -67,6 +70,7 @@ public class SharedMediaDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     private static ExtractionFailureReason failureReason(ResultSet resultSet) throws SQLException {
         String reason = resultSet.getString("failure_reason");
@@ -147,6 +151,10 @@ public class SharedMediaDao {
                 .findFirst();
     }
 
+    /**
+     * 재시도가 이어받을 회원의 분석 중인 공유를 읽는다.
+     * 지운 공유를 이어받으면 추출이 끝나도 장소가 붙지 않으므로, 지운 공유는 읽지 않고 재시도가 새 공유를 만들게 한다.
+     */
     public Optional<Long> findExtractingShareId(Long memberId, Long mediaId) {
         String sql = """
                 SELECT id
@@ -154,6 +162,7 @@ public class SharedMediaDao {
                 WHERE member_id = ?
                   AND media_id = ?
                   AND extraction_status = 'EXTRACTING'
+                  AND deleted_at IS NULL
                 ORDER BY id DESC
                 LIMIT 1
                 """;
@@ -162,6 +171,9 @@ public class SharedMediaDao {
                 .findFirst();
     }
 
+    /**
+     * 추출이 끝난 게시물의 장소를 붙일 공유를 회원마다 가장 나중 공유 한 건씩 읽는다. 지운 공유에는 장소를 붙이지 않는다.
+     */
     public List<SharedMediaOwnerProjection> findLatestSharesByMediaId(Long mediaId) {
         String sql = """
                 SELECT sm.id AS shared_media_id,
@@ -169,6 +181,7 @@ public class SharedMediaDao {
                 FROM shared_media sm
                 WHERE sm.media_id = ?
                   AND sm.extraction_status = 'EXTRACTING'
+                  AND sm.deleted_at IS NULL
                   AND NOT EXISTS (
                       SELECT 1
                       FROM shared_media newer
@@ -233,7 +246,7 @@ public class SharedMediaDao {
 
     /**
      * 보관함 게시물 탭의 첫 페이지를 읽는다. 다음 페이지가 있는지 알 수 있게 페이지 크기보다 한 건 더 읽는다.
-     * 보관함 연결(shared_media_saved_places)이 남은 내 공유에 게시물마다 최신순 번호를 매겨 1번만 남긴다.
+     * 지우지 않았고 보관함 연결(shared_media_saved_places)이 남은 내 공유에 게시물마다 최신순 번호를 매겨 1번만 남긴다.
      * 다른 회원의 공유는 읽지 않으므로, 여러 회원이 공유한 게시물이나 같은 게시물을 여러 번 공유한 경우에도 내 공유만큼만 읽는다.
      * 공유 시각이 같으면 ID가 큰 공유를 더 최근으로 본다.
      */
@@ -257,6 +270,7 @@ public class SharedMediaDao {
                            ) AS recency_rank
                     FROM shared_media sm
                     WHERE sm.member_id = ?
+                      AND sm.deleted_at IS NULL
                       AND EXISTS (
                           SELECT 1
                           FROM shared_media_saved_places l
@@ -296,6 +310,7 @@ public class SharedMediaDao {
                            ) AS recency_rank
                     FROM shared_media sm
                     WHERE sm.member_id = ?
+                      AND sm.deleted_at IS NULL
                       AND EXISTS (
                           SELECT 1
                           FROM shared_media_saved_places l
@@ -313,6 +328,43 @@ public class SharedMediaDao {
         return new SavedMediaProjections(jdbcTemplate.query(
                 sql, SAVED_MEDIA_ROW_MAPPER, memberId, cursorCreatedAt, cursorCreatedAt, cursor.sharedMediaId(),
                 SavedMediaProjections.FETCH_SIZE));
+    }
+
+    /**
+     * 고른 공유 가운데 지우지 않은 내 공유의 게시물 ID를 중복 없이 읽는다. 남의 공유와 이미 지운 공유는 member_id와 deleted_at 조건에 걸려 빠진다.
+     */
+    public List<Long> findMediaIdsByMemberAndIds(Long memberId, List<Long> sharedMediaIds) {
+        String sql = """
+                SELECT DISTINCT media_id
+                FROM shared_media
+                WHERE member_id = :memberId
+                  AND id IN (:sharedMediaIds)
+                  AND deleted_at IS NULL
+                ORDER BY media_id
+                """;
+        return namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "sharedMediaIds", sharedMediaIds
+        ), Long.class);
+    }
+
+    /**
+     * 고른 게시물마다 회원의 공유를 모두 지운 것으로 표시한다(soft delete). 게시물 탭은 게시물마다 최신 공유 한 건만 보여 주므로, 한 건만 지우면 예전 공유가 대신 올라온다.
+     * 이미 지운 공유는 처음 지운 시각을 그대로 둔다.
+     */
+    public void softDeleteByMemberAndMediaIds(Long memberId, List<Long> mediaIds, Instant deletedAt) {
+        String sql = """
+                UPDATE shared_media
+                SET deleted_at = :deletedAt
+                WHERE member_id = :memberId
+                  AND media_id IN (:mediaIds)
+                  AND deleted_at IS NULL
+                """;
+        namedParameterJdbcTemplate.update(sql, Map.of(
+                "deletedAt", Timestamp.from(deletedAt),
+                "memberId", memberId,
+                "mediaIds", mediaIds
+        ));
     }
 
     public Optional<ExtractionStatus> findStatusByMemberAndSharedMediaId(Long memberId, Long sharedMediaId) {

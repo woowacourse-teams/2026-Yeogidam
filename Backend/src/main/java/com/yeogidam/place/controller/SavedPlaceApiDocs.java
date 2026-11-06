@@ -65,6 +65,7 @@ public interface SavedPlaceApiDocs {
 
                     - `createdAt` 내림차순으로 정렬합니다.
                     - 같은 릴스를 여러 번 공유해 여러 번 저장했으면 최신 공유 한 건만 돌려줍니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글은 빠집니다.
                     - 릴스 한 건은 히스토리 목록의 항목과 필드 이름이 같습니다.
                     - `thumbnailUrl`은 게시물 썸네일이 없으면 null입니다.
                     """,
