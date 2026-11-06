@@ -1,5 +1,6 @@
 package com.yeogidam.media.share.repository;
 
+import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertExtractingMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
@@ -7,6 +8,7 @@ import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMembe
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertDeletedSharedMedia;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,6 +23,7 @@ import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -160,6 +163,18 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 () -> assertThat(sharedMediaDao.findExtractingShareId(60L, 62L)).isEmpty(),
                 () -> assertThat(sharedMediaDao.findExtractingShareId(99L, 99L)).isEmpty()
         );
+    }
+
+    @Test
+    void 지운_공유는_분석_중이어도_재시도가_이어받을_공유로_읽지_않는다() {
+        // given
+        insertKakaoMember(jdbcTemplate, 60L, "extracting-deleted-owner", null, null, null);
+        insertExtractingMedia(jdbcTemplate, 60L);
+        Instant sharedAt = Instant.parse("2026-10-01T10:00:00Z");
+        insertDeletedSharedMedia(jdbcTemplate, 601L, 60L, 60L, sharedAt, sharedAt.plusSeconds(1));
+
+        // when & then
+        assertThat(sharedMediaDao.findExtractingShareId(60L, 60L)).isEmpty();
     }
 
     @Test
@@ -475,6 +490,125 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 보관함_게시물로는_지운_공유를_읽지_않는다() {
+        // given: 게시물 21의 공유 1은 지웠고 게시물 22의 공유 2는 남아 있으며, 두 공유 모두 보관함 장소와 연결되어 있다
+        insertSavedMediaOwner(18L, 304L);
+        insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 22L, "연남 와인바", "22.jpg", "@yeonnam");
+        insertMediaPlace(jdbcTemplate, 1L, 21L, 1L);
+        insertMediaPlace(jdbcTemplate, 2L, 22L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        insertDeletedSharedMedia(jdbcTemplate, 1L, 18L, 21L, base.plusSeconds(1), base.plusSeconds(10));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 304L, 1L, base.plusSeconds(1));
+        insertLinkedShare(2L, 18L, 22L, 304L, base);
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(18L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(2L);
+    }
+
+    @Test
+    void 보관함_게시물_다음_페이지에서도_지운_공유를_읽지_않는다() {
+        // given: 게시물 21, 22, 23을 차례로 공유했고 가운데 게시물 22의 공유 2는 지웠다
+        insertSavedMediaOwner(19L, 305L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        for (long mediaId = 21; mediaId <= 23; mediaId++) {
+            insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
+            insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
+        }
+        insertLinkedShare(1L, 19L, 21L, 305L, base);
+        insertDeletedSharedMedia(jdbcTemplate, 2L, 19L, 22L, base.plusSeconds(1), base.plusSeconds(10));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 305L, 2L, base.plusSeconds(1));
+        insertLinkedShare(3L, 19L, 23L, 305L, base.plusSeconds(2));
+
+        // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(19L, new SharedMediaCursor(base.plusSeconds(2), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void 고른_공유_가운데_지우지_않은_내_공유의_게시물_ID만_중복_없이_읽는다() {
+        // given: 회원 1의 공유 1, 2는 같은 게시물 11이고 공유 3은 이미 지웠으며, 공유 4는 회원 2의 것이다
+        insertKakaoMember(jdbcTemplate, 1L, "delete-target-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 2L, "delete-target-other", null, null, null);
+        insertMedia(jdbcTemplate, 11L, null, null, null);
+        insertMedia(jdbcTemplate, 12L, null, null, null);
+        insertMedia(jdbcTemplate, 13L, null, null, null);
+        Instant now = Instant.parse("2026-11-05T10:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 11L, now);
+        insertSharedMedia(jdbcTemplate, 2L, 1L, 11L, now);
+        insertDeletedSharedMedia(jdbcTemplate, 3L, 1L, 12L, now, now);
+        insertSharedMedia(jdbcTemplate, 4L, 2L, 13L, now);
+
+        // when: 없는 공유 999도 함께 보낸다
+        List<Long> mediaIds = sharedMediaDao.findMediaIdsByMemberAndIds(1L, List.of(1L, 2L, 3L, 4L, 999L));
+
+        // then
+        assertThat(mediaIds).containsExactly(11L);
+    }
+
+    @Test
+    void 게시물마다_회원의_공유를_모두_지운_것으로_표시하고_이미_지운_공유와_남의_공유는_그대로_둔다() {
+        // given: 회원 1은 게시물 11을 공유 1, 2로 두 번 공유했고 같은 게시물의 공유 3은 먼저 지웠다. 공유 4는 회원 2의 것이고 공유 5는 회원 1의 다른 게시물이다
+        insertKakaoMember(jdbcTemplate, 1L, "soft-delete-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 2L, "soft-delete-other", null, null, null);
+        insertMedia(jdbcTemplate, 11L, null, null, null);
+        insertMedia(jdbcTemplate, 12L, null, null, null);
+        Instant now = Instant.parse("2026-11-01T10:00:00Z");
+        Instant firstDeletedAt = Instant.parse("2026-11-04T10:00:00.123456Z");
+        Instant deletedAt = Instant.parse("2026-11-05T10:00:00.654321Z");
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 11L, now);
+        insertSharedMedia(jdbcTemplate, 2L, 1L, 11L, now.plusSeconds(1));
+        insertDeletedSharedMedia(jdbcTemplate, 3L, 1L, 11L, now.minusSeconds(1), firstDeletedAt);
+        insertSharedMedia(jdbcTemplate, 4L, 2L, 11L, now);
+        insertSharedMedia(jdbcTemplate, 5L, 1L, 12L, now);
+
+        // when
+        sharedMediaDao.softDeleteByMemberAndMediaIds(1L, List.of(11L), deletedAt);
+
+        // then
+        assertAll(
+                () -> assertThat(readDeletedAt(1L).toInstant()).isEqualTo(deletedAt),
+                () -> assertThat(readDeletedAt(2L).toInstant()).isEqualTo(deletedAt),
+                () -> assertThat(readDeletedAt(3L).toInstant()).isEqualTo(firstDeletedAt),
+                () -> assertThat(readDeletedAt(4L)).isNull(),
+                () -> assertThat(readDeletedAt(5L)).isNull()
+        );
+    }
+
+    @Test
+    void 지운_공유는_추출이_끝난_장소를_연결할_공유로_읽지_않는다() {
+        // given: 회원 1은 분석 중인 게시물 1의 공유 1을 지웠고, 회원 2의 공유 2는 남아 있다
+        insertKakaoMember(jdbcTemplate, 1L, "latest-deleted-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 2L, "latest-deleted-other", null, null, null);
+        insertExtractingMedia(jdbcTemplate, 1L);
+        Instant now = Instant.parse("2026-11-05T10:00:00Z");
+        insertDeletedSharedMedia(jdbcTemplate, 1L, 1L, 1L, now, now.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 2L, 2L, 1L, now);
+
+        // when
+        List<SharedMediaOwnerProjection> shares = sharedMediaDao.findLatestSharesByMediaId(1L);
+
+        // then
+        assertThat(shares).containsExactly(new SharedMediaOwnerProjection(2L, 2L));
+    }
+
+    private Timestamp readDeletedAt(Long sharedMediaId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT deleted_at FROM shared_media WHERE id = ?", Timestamp.class, sharedMediaId);
     }
 
     private void insertSavedMediaPlace(Long placeId, String kakaoPlaceId) {

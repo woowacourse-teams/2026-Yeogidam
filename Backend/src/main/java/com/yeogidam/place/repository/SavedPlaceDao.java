@@ -5,10 +5,12 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -50,6 +52,7 @@ public class SavedPlaceDao {
             );
 
     private final JdbcTemplate jdbcTemplate;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     public void saveOrUpdate(SavedPlace savedPlace) {
         String sql = """
@@ -149,7 +152,7 @@ public class SavedPlaceDao {
     }
 
     /**
-     * 보관함 행 하나에 연결된 공유를 전부 읽는다. 연결 행 하나가 결과 한 행이라 행이 늘지 않는다.
+     * 보관함 항목 하나에 연결된 공유 가운데 지우지 않은 공유를 전부 읽는다. 연결 하나가 결과 하나라 결과가 늘지 않는다.
      * 릴스당 최신 공유 한 건만 남기는 규칙과 정렬은 SavedPlaceMediaProjections가 맡는다.
      */
     public SavedPlaceMediaProjections findMediaBySavedPlace(Long savedPlaceId) {
@@ -165,6 +168,7 @@ public class SavedPlaceDao {
                 JOIN shared_media sm ON sm.id = l.shared_media_id
                 JOIN media m ON m.id = sm.media_id
                 WHERE l.saved_place_id = ?
+                  AND sm.deleted_at IS NULL
                 """;
         return new SavedPlaceMediaProjections(jdbcTemplate.query(sql, MEDIA_PROJECTION_ROW_MAPPER, savedPlaceId));
     }
@@ -186,5 +190,69 @@ public class SavedPlaceDao {
         arguments.add(memberId);
         arguments.addAll(savedPlaceIds);
         return jdbcTemplate.update(sql, arguments.toArray());
+    }
+
+    /**
+     * 회원이 고른 게시물(mediaIds)의 공유에서 저장한 보관함 항목의 장소 ID를 중복 없이 읽는다. 이미 지운 공유의 연결도 함께 읽는다.
+     */
+    public List<Long> findPlaceIdsByMemberAndMediaIds(Long memberId, List<Long> mediaIds) {
+        String sql = """
+                SELECT DISTINCT sp.place_id
+                FROM shared_media_saved_places l
+                JOIN shared_media sm ON sm.id = l.shared_media_id
+                JOIN saved_places sp ON sp.id = l.saved_place_id
+                WHERE sm.member_id = :memberId
+                  AND sm.media_id IN (:mediaIds)
+                ORDER BY sp.place_id
+                """;
+        return namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "mediaIds", mediaIds
+        ), Long.class);
+    }
+
+    /**
+     * 회원의 보관함 항목을 (member_id, place_id) 유니크 인덱스로 장소 ID 순서대로 잠근다.
+     * 공유와 추출 완료의 저장(saveOrUpdate)도 같은 인덱스부터 잠그므로 잠그는 순서가 엇갈리지 않는다.
+     * 공유 연결을 넣으려면 외래 키 확인으로 항목 레코드에 공유 락이 필요해서, 잠근 동안에는 다른 트랜잭션이 연결을 더하지 못한다.
+     */
+    public void lockByMemberAndPlaceIds(Long memberId, List<Long> placeIds) {
+        String sql = """
+                SELECT id
+                FROM saved_places
+                WHERE member_id = :memberId
+                  AND place_id IN (:placeIds)
+                ORDER BY place_id
+                FOR UPDATE
+                """;
+        namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "placeIds", placeIds
+        ), Long.class);
+    }
+
+    /**
+     * 회원의 보관함 항목 가운데 지우지 않은 공유와 연결이 없는 항목의 ID를 읽는다. 폴더에 담긴 항목도 읽는다.
+     * 잠금 없는 일반 SELECT라서 다른 공유 레코드에 공유 락을 남기지 않는다.
+     */
+    public List<Long> findUnlinkedIdsByMemberAndPlaceIds(Long memberId, List<Long> placeIds) {
+        String sql = """
+                SELECT sp.id
+                FROM saved_places sp
+                WHERE sp.member_id = :memberId
+                  AND sp.place_id IN (:placeIds)
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM shared_media_saved_places l
+                      JOIN shared_media sm ON sm.id = l.shared_media_id
+                      WHERE l.saved_place_id = sp.id
+                        AND sm.deleted_at IS NULL
+                  )
+                ORDER BY sp.id
+                """;
+        return namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "placeIds", placeIds
+        ), Long.class);
     }
 }

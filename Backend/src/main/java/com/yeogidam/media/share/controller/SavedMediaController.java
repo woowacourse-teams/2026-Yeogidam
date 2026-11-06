@@ -4,8 +4,10 @@ import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.media.share.dto.response.SavedMediaResponses;
 import com.yeogidam.media.share.service.SavedMediaService;
 import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -28,5 +30,16 @@ public class SavedMediaController implements SavedMediaApiDocs {
         SavedMediaResponses response = savedMediaService.readSavedMedia(memberId, cursorCreatedAt, cursorId);
         return ResponseEntity.ok()
                 .body(response);
+    }
+
+    @Override
+    @DeleteMapping
+    public ResponseEntity<Void> deleteSavedMedia(
+            @LoginMember Long memberId,
+            @RequestParam List<Long> sharedMediaIds
+    ) {
+        savedMediaService.deleteSavedMedia(memberId, sharedMediaIds);
+        return ResponseEntity.noContent()
+                .build();
     }
 }
