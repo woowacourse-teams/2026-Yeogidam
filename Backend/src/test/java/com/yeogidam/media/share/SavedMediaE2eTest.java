@@ -64,7 +64,7 @@ class SavedMediaE2eTest extends E2eTestSupport {
                 new BigDecimal("127.0559"), "https://place.map.kakao.com/1", null, "place-1.jpg", "KAKAO");
         insertPlace(jdbcTemplate, 2L, "kakao-saved-media-2", "담다식당", "음식점 > 한식",
                 "서울 성동구 성수동1가 2-2", null, new BigDecimal("37.5440"),
-                new BigDecimal("127.0500"), "https://place.map.kakao.com/2", null, null, null);
+                new BigDecimal("127.0500"), "https://place.map.kakao.com/2", "02-1234-5678", null, null);
         insertMediaPlace(jdbcTemplate, 1L, 1L, 2L);
         insertMediaPlace(jdbcTemplate, 2L, 1L, 1L);
         insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, BASE);
@@ -88,6 +88,10 @@ class SavedMediaE2eTest extends E2eTestSupport {
                 .body("sharedMedias[0].places[0].name", equalTo("담다식당"))
                 .body("sharedMedias[0].places[0].categoryCode", equalTo("KOREAN"))
                 .body("sharedMedias[0].places[0].roadAddress", nullValue())
+                .body("sharedMedias[0].places[0].latitude", equalTo(37.544f))
+                .body("sharedMedias[0].places[0].longitude", equalTo(127.05f))
+                .body("sharedMedias[0].places[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/2"))
+                .body("sharedMedias[0].places[0].telephone", equalTo("02-1234-5678"))
                 .body("sharedMedias[0].places[0].thumbnailUrl", nullValue())
                 .body("sharedMedias[0].places[1].savedPlaceId", equalTo(10))
                 .body("sharedMedias[0].places[1].placeId", equalTo(1))

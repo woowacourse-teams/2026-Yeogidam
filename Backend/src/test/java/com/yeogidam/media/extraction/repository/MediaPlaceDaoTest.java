@@ -208,9 +208,12 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
         // then
         assertThat(places).containsExactly(
                 new SavedMediaPlaceProjection(1L, 1L, 101L, "cafe.jpg", "성수 카페", "카페",
-                        "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1"),
+                        "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",
+                        new BigDecimal("37.5446000000"), new BigDecimal("127.0559000000"),
+                        "https://place.map.kakao.com/1", "02-1234-5678"),
                 new SavedMediaPlaceProjection(1L, 2L, null, null, "종로 식당", null,
-                        "서울 종로구 관철동 1-1", null)
+                        "서울 종로구 관철동 1-1", null,
+                        new BigDecimal("37.5704000000"), new BigDecimal("126.9921000000"), null, null)
         );
     }
 
@@ -223,7 +226,8 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
     private void insertPlaces() {
         insertPlace(jdbcTemplate, 1L, "media-place-cafe", "성수 카페", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",
-                new BigDecimal("37.5446"), new BigDecimal("127.0559"), null, null, "cafe.jpg", "KAKAO");
+                new BigDecimal("37.5446"), new BigDecimal("127.0559"), "https://place.map.kakao.com/1", "02-1234-5678",
+                "cafe.jpg", "KAKAO");
         insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 2L, "media-place-restaurant", "종로 식당",
                 "서울 종로구 관철동 1-1", new BigDecimal("37.5704"), new BigDecimal("126.9921"));
     }
