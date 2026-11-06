@@ -1,5 +1,5 @@
 import React from 'react';
-import {Image, Text} from 'react-native';
+import {Image, StyleSheet, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {StepPager} from '../src/components/StepPager';
@@ -177,7 +177,23 @@ test('GIF 페이지는 진입할 때마다 첫 프레임을 보여주고 새 미
     });
   });
   expect(mounts).toEqual({first: 1, second: 0});
-  expect(renderer.root.findAllByType(Image).map(node => node.props.source.uri)).toContain('poster-first');
+  const firstPoster = renderer.root.findAllByType(Image).find(
+    node => node.props.source.uri === 'poster-first',
+  );
+  expect(firstPoster).toBeDefined();
+  const posterStyle = StyleSheet.flatten(firstPoster!.props.style);
+  const gifStyle = StyleSheet.flatten(
+    renderer.root.findByProps({testID: 'step-media-gif-layer'}).props.style,
+  );
+  expect(posterStyle.width).toBeGreaterThan(0);
+  expect(posterStyle.height).toBeGreaterThan(0);
+  expect(gifStyle).toMatchObject({
+    width: posterStyle.width,
+    height: posterStyle.height,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  });
 
   await ReactTestRenderer.act(async () => {
     renderer.root.findByType(GifProbe).props.onLoad();

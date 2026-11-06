@@ -113,11 +113,14 @@ function PageMedia({
           source={page.posterSource}
           accessible={false}
           resizeMode="cover"
-          style={styles.mediaFill}
+          style={frame}
         />
       ) : null}
       {!page.posterSource || active ? (
-        <View style={[styles.mediaFill, showPoster && styles.mediaLoading]}>
+        <View
+          testID="step-media-gif-layer"
+          style={[styles.mediaLayer, frame, showPoster && styles.mediaLoading]}
+        >
           {page.renderMedia(
             frame,
             page.posterSource
@@ -461,8 +464,10 @@ const styles = StyleSheet.create({
     borderColor: '#e1e3e8',
     backgroundColor: '#ffffff',
   },
-  mediaFill: {
-    ...StyleSheet.absoluteFill,
+  mediaLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   mediaLoading: {
     opacity: 0,
