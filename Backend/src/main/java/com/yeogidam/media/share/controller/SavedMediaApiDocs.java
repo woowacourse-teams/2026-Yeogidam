@@ -38,7 +38,7 @@ public interface SavedMediaApiDocs {
                     - `places`의 `latitude`, `longitude`, `kakaoPlaceUrl`, `telephone`은 보관함 장소 목록과 같은 값이라, 저장하지 않은 장소도 장소 상세의 지도 위치, 카카오 링크, 전화번호를 게시물 탭 응답의 값으로 채울 수 있습니다.
                     - `latitude`와 `longitude`는 늘 값이 있고, `kakaoPlaceUrl`과 `telephone`은 장소에 값이 없으면 null을 돌려줍니다.
                     - 카드 제목은 앱이 `caption` 첫 줄을 잘라 만듭니다.
-                    - 보관함 게시물이 없으면 빈 `sharedMedias` 배열을 돌려줍니다.
+                    - 보관함 게시물이 없으면 빈 `media` 배열을 돌려줍니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
