@@ -27,7 +27,7 @@ public interface SavedMediaApiDocs {
 
                     - 보관함 연결이 남은 공유만 돌려주므로 분석 중이거나 실패한 공유와 장소를 보관함에서 모두 지운 게시물은 빠집니다.
                     - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글도 빠집니다.
-                    - 같은 게시물을 여러 번 공유했으면 보관함 연결이 남은 공유 중 가장 최근 한 건만 돌려줍니다.
+                    - 같은 게시물을 여러 번 공유했으면 지우지 않았고 보관함 연결이 남은 공유 중 가장 최근 한 건만 돌려줍니다.
                     - `createdAt` 내림차순으로 정렬하고 같은 시각에는 `sharedMediaId` 내림차순으로 정렬합니다.
                     - 다음 페이지가 있으면 `nextCursor`에 이번 페이지 마지막 게시물의 `createdAt`과 `id`를 담고, 없으면 `nextCursor`를 null로 돌려줍니다.
                     - 다음 페이지는 `nextCursor`의 두 값을 `cursorCreatedAt`, `cursorId`로 보내 요청하며 두 값은 함께 보내야 합니다.
@@ -89,7 +89,7 @@ public interface SavedMediaApiDocs {
                     - 지운 게시글은 게시물 탭과 장소 상세의 관련 릴스에서 빠지고, 히스토리(`GET /api/v1/shares`)에는 그대로 남습니다.
                     - 한 트랜잭션이라 일부만 지워지는 일이 없습니다.
                     - 이미 지웠거나 남의 게시글이 섞여 있어도 "해당 게시글이 내 보관함에 없다"는 결과가 같아 204를 돌려주므로 멱등합니다.
-                    - 지운 게시물을 다시 공유하면 새 게시글로 보관함에 다시 담깁니다.
+                    - 지운 게시물을 다시 공유하면 새 게시글로 보관함에 다시 담깁니다. 분석 중인 게시물이면 분석이 끝난 뒤에 담깁니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
             responses = {
