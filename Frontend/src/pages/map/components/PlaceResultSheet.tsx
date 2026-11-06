@@ -92,6 +92,9 @@ type PlaceResultSheetProps = {
   folderHeader?: React.ReactNode;
   /** 지정하면 장소 목록 대신 이 내용을 보여줍니다(폴더 목록). */
   folderContent?: React.ReactNode;
+  /** 뒤로 스와이프할 때 미리 보여줄 이전 화면의 헤더와 내용입니다(폴더 안에서 폴더 목록으로). */
+  backFolderHeader?: React.ReactNode;
+  backFolderContent?: React.ReactNode;
   /** 장소 목록이 비었을 때 기본 안내 대신 보여줄 내용입니다. */
   emptyContent?: React.ReactNode;
   isSavedPlacesLoading?: boolean;
@@ -165,6 +168,8 @@ export function PlaceResultSheet({
   hasSavedPlaces = false,
   folderHeader,
   folderContent,
+  backFolderHeader,
+  backFolderContent,
   emptyContent,
   isSavedPlacesLoading = false,
   savedPlacesLoadFailed = false,
@@ -1143,170 +1148,172 @@ export function PlaceResultSheet({
         </CopyToastProvider>
       </View>
     ) : null;
-  const renderListContent = (snapIndex: number, preview = false) => (
-    <View
-      {...(snapIndex === 2 ? panResponder.panHandlers : {})}
-      onResponderStart={handleCollapsedBodyTouchStart}
-      onResponderEnd={handleCollapsedBodyTouchEnd}
-      style={styles.expansionTapArea}
-    >
-      {folderHeader}
-      {folderContent ?? (
-        <FlatList
-          ref={preview ? undefined : resultsListRef}
-          contentOffset={
-            preview ? { x: 0, y: resultsScrollOffsetRef.current } : undefined
-          }
-          data={
-            preview && !selectedPlace && snapIndex !== 0
-              ? backPlaces ?? places
-              : places
-          }
-          style={styles.resultsScroll}
-          contentContainerStyle={[
-            styles.results,
-            {
-              paddingBottom: BOTTOM_TAB_CLEARANCE + listSnapOffsets[snapIndex],
-            },
-          ]}
-          keyExtractor={place => place.id}
-          getItemLayout={(_, index) => ({
-            length: RESULT_ITEM_HEIGHT,
-            offset: RESULT_ITEM_HEIGHT * index,
-            index,
-          })}
-          contentInsetAdjustmentBehavior="never"
-          scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={snapIndex !== 2}
-          onScrollBeginDrag={event => {
-            isResultsUserScrollingRef.current = true;
-            restoringResultsScrollOffsetRef.current = null;
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-          }}
-          onScroll={event => {
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-          }}
-          scrollEventThrottle={16}
-          onScrollEndDrag={event => {
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-            isResultsUserScrollingRef.current = false;
-          }}
-          onMomentumScrollEnd={event => {
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-            isResultsUserScrollingRef.current = false;
-          }}
-          onContentSizeChange={preview ? undefined : restoreResultsScroll}
-          renderItem={({ item: place, index }) => (
-            <View style={styles.result}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${place.name} 상세 보기`}
-                onPress={() => selectPlace(place, index + 1)}
-                onPressIn={ignoreCollapsedBodyTapOnPressIn}
-                style={styles.resultCard}
-              >
-                {place.image ? (
-                  <Image
-                    source={place.image}
-                    style={[styles.photo, { width: photoWidth }]}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.photo,
-                      styles.imagePlaceholder,
-                      { width: photoWidth },
-                    ]}
-                  />
-                )}
-                <View style={styles.resultText}>
-                  {getMiddleCategory(place.category) ? (
-                    <View style={styles.titleRow}>
+  const renderListContent = (snapIndex: number, preview = false) => {
+    // 높이만 내려가는 뒤로가기가 아니라 이전 화면으로 돌아가는 뒤로가기의 미리보기입니다.
+    const isPageBackPreview = preview && !selectedPlace && snapIndex !== 0;
+    const showsBackFolder = isPageBackPreview && backFolderHeader !== undefined;
+    return (
+      <View
+        {...(snapIndex === 2 ? panResponder.panHandlers : {})}
+        onResponderStart={handleCollapsedBodyTouchStart}
+        onResponderEnd={handleCollapsedBodyTouchEnd}
+        style={styles.expansionTapArea}
+      >
+        {showsBackFolder ? backFolderHeader : folderHeader}
+        {(showsBackFolder ? backFolderContent : folderContent) ?? (
+          <FlatList
+            ref={preview ? undefined : resultsListRef}
+            contentOffset={
+              preview ? { x: 0, y: resultsScrollOffsetRef.current } : undefined
+            }
+            data={isPageBackPreview ? backPlaces ?? places : places}
+            style={styles.resultsScroll}
+            contentContainerStyle={[
+              styles.results,
+              {
+                paddingBottom:
+                  BOTTOM_TAB_CLEARANCE + listSnapOffsets[snapIndex],
+              },
+            ]}
+            keyExtractor={place => place.id}
+            getItemLayout={(_, index) => ({
+              length: RESULT_ITEM_HEIGHT,
+              offset: RESULT_ITEM_HEIGHT * index,
+              index,
+            })}
+            contentInsetAdjustmentBehavior="never"
+            scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={snapIndex !== 2}
+            onScrollBeginDrag={event => {
+              isResultsUserScrollingRef.current = true;
+              restoringResultsScrollOffsetRef.current = null;
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+            }}
+            onScroll={event => {
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+            }}
+            scrollEventThrottle={16}
+            onScrollEndDrag={event => {
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+              isResultsUserScrollingRef.current = false;
+            }}
+            onMomentumScrollEnd={event => {
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+              isResultsUserScrollingRef.current = false;
+            }}
+            onContentSizeChange={preview ? undefined : restoreResultsScroll}
+            renderItem={({ item: place, index }) => (
+              <View style={styles.result}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${place.name} 상세 보기`}
+                  onPress={() => selectPlace(place, index + 1)}
+                  onPressIn={ignoreCollapsedBodyTapOnPressIn}
+                  style={styles.resultCard}
+                >
+                  {place.image ? (
+                    <Image
+                      source={place.image}
+                      style={[styles.photo, { width: photoWidth }]}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.photo,
+                        styles.imagePlaceholder,
+                        { width: photoWidth },
+                      ]}
+                    />
+                  )}
+                  <View style={styles.resultText}>
+                    {getMiddleCategory(place.category) ? (
+                      <View style={styles.titleRow}>
+                        <Text numberOfLines={1} style={styles.name}>
+                          {place.name}
+                        </Text>
+                        <View style={styles.categoryPill}>
+                          <Text style={styles.category}>
+                            {getMiddleCategory(place.category)}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
                       <Text numberOfLines={1} style={styles.name}>
                         {place.name}
                       </Text>
-                      <View style={styles.categoryPill}>
-                        <Text style={styles.category}>
-                          {getMiddleCategory(place.category)}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <Text numberOfLines={1} style={styles.name}>
-                      {place.name}
+                    )}
+                    <Text style={styles.address}>
+                      {place.fullAddress || place.address}
                     </Text>
-                  )}
-                  <Text style={styles.address}>
-                    {place.fullAddress || place.address}
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View
-              style={[
-                styles.emptyResult,
-                emptyContent ? styles.customEmptyResult : null,
-              ]}
-            >
-              {emptyContent ? (
-                emptyContent
-              ) : isVisibleAreaUpdating ? (
-                <Text style={styles.emptyResultText}>
-                  현재 지도 영역을 확인하고 있어요.
-                </Text>
-              ) : isSavedPlacesLoading ? (
-                <Text style={styles.emptyResultText}>
-                  저장한 장소를 불러오고 있어요.
-                </Text>
-              ) : savedPlacesLoadFailed ? (
-                <Text style={styles.emptyResultText}>
-                  저장한 장소를 불러오지 못했어요.
-                </Text>
-              ) : isSearchActive ? (
-                <>
-                  <Text style={styles.emptyResultTitle}>
-                    검색 결과가 없어요
-                  </Text>
+                  </View>
+                </Pressable>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View
+                style={[
+                  styles.emptyResult,
+                  emptyContent ? styles.customEmptyResult : null,
+                ]}
+              >
+                {emptyContent ? (
+                  emptyContent
+                ) : isVisibleAreaUpdating ? (
                   <Text style={styles.emptyResultText}>
-                    다른 키워드로 다시 검색해보세요.
+                    현재 지도 영역을 확인하고 있어요.
                   </Text>
-                </>
-              ) : !hasSavedPlaces ? (
-                <>
-                  <Image
-                    source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
-                    style={styles.emptyIllustration}
-                  />
-                  <Text style={styles.emptyResultTitle}>
-                    아직 저장한 장소가 없어요
-                  </Text>
+                ) : isSavedPlacesLoading ? (
                   <Text style={styles.emptyResultText}>
-                    장소를 저장하면 지도에서 확인할 수 있어요.
+                    저장한 장소를 불러오고 있어요.
                   </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.emptyResultTitle}>
-                    이 지도 영역에 저장한 장소가 없어요
-                  </Text>
+                ) : savedPlacesLoadFailed ? (
                   <Text style={styles.emptyResultText}>
-                    지도를 움직여 다른 곳도 확인해보세요.
+                    저장한 장소를 불러오지 못했어요.
                   </Text>
-                </>
-              )}
-            </View>
-          }
-        />
-      )}
-    </View>
-  );
+                ) : isSearchActive ? (
+                  <>
+                    <Text style={styles.emptyResultTitle}>
+                      검색 결과가 없어요
+                    </Text>
+                    <Text style={styles.emptyResultText}>
+                      다른 키워드로 다시 검색해보세요.
+                    </Text>
+                  </>
+                ) : !hasSavedPlaces ? (
+                  <>
+                    <Image
+                      source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
+                      style={styles.emptyIllustration}
+                    />
+                    <Text style={styles.emptyResultTitle}>
+                      아직 저장한 장소가 없어요
+                    </Text>
+                    <Text style={styles.emptyResultText}>
+                      장소를 저장하면 지도에서 확인할 수 있어요.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyResultTitle}>
+                      이 지도 영역에 저장한 장소가 없어요
+                    </Text>
+                    <Text style={styles.emptyResultText}>
+                      지도를 움직여 다른 곳도 확인해보세요.
+                    </Text>
+                  </>
+                )}
+              </View>
+            }
+          />
+        )}
+      </View>
+    );
+  };
   const listHeight = Math.max(
     COLLAPSED_HANDLE_HEIGHT + COLLAPSED_CONTENT_VISIBLE_HEIGHT,
     pageHeight - bottomTabOffset,

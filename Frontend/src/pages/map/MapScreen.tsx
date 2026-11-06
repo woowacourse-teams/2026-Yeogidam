@@ -960,6 +960,22 @@ export function MapScreen({
     );
   };
 
+  const folderSegmentHeader = (
+    <FolderSegmentHeader
+      mode={sheetMode}
+      onChangeMode={handleChangeSheetMode}
+    />
+  );
+  const folderList = (
+    <FolderList
+      folders={folderListItems}
+      bottomPadding={FOLDER_LIST_BOTTOM_PADDING}
+      onOpenFolder={handleOpenFolder}
+      onLongPressFolder={showFolderActions}
+      onCreateFolder={handleCreateFolder}
+    />
+  );
+
   return (
     <View
       style={styles.container}
@@ -990,6 +1006,9 @@ export function MapScreen({
           bottomTabOffset={bottomNavigationOffset}
           places={resultPlaces}
           hasSavedPlaces={savedPlaces.length > 0}
+          // 폴더 안에서 뒤로 스와이프하면 뒤에 돌아갈 폴더 목록이 보여야 한다.
+          backFolderHeader={openedFolder ? folderSegmentHeader : undefined}
+          backFolderContent={openedFolder ? folderList : undefined}
           folderHeader={
             isGuest ? undefined : openedFolder ? (
               <FolderDetailHeader
@@ -999,21 +1018,12 @@ export function MapScreen({
                 onMore={() => showFolderActions(openedFolder.id)}
               />
             ) : (
-              <FolderSegmentHeader
-                mode={sheetMode}
-                onChangeMode={handleChangeSheetMode}
-              />
+              folderSegmentHeader
             )
           }
           folderContent={
             isFolderListVisible ? (
-              <FolderList
-                folders={folderListItems}
-                bottomPadding={FOLDER_LIST_BOTTOM_PADDING}
-                onOpenFolder={handleOpenFolder}
-                onLongPressFolder={showFolderActions}
-                onCreateFolder={handleCreateFolder}
-              />
+              folderList
             ) : activeCategory !== ALL_CATEGORY &&
               placesWithCoordinates.length === 0 ? (
               <View style={styles.folderEmpty}>
