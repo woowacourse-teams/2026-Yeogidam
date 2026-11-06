@@ -96,13 +96,12 @@ export function StepPager({
   const touchStart = useRef<{pageX: number; pageY: number} | null>(null);
   const translation = useRef(new Animated.Value(0)).current;
   const isTransitioning = useRef(false);
-  const transitionDirection = useRef(0);
   const pendingBack = useRef(false);
   const lastBackRequest = useRef(backRequest);
   const backAction = useRef<() => void>(() => undefined);
   const {width: screenWidth} = useWindowDimensions();
+  const [pageWidth, setPageWidth] = useState(Math.max(0, screenWidth - 48));
   const { frameWidth, frameHeight, frameRadius } = useMediaFrame(mediaAreaHeight);
-  const page = pages[pageIndex];
   const isLast = pageIndex === pages.length - 1;
   const nextLabel = isLast ? lastButtonLabel : '다음';
 
@@ -111,25 +110,14 @@ export function StepPager({
   }, [pageIndex, stepViewed]);
 
   useEffect(() => {
-    if (transitionDirection.current === 0) return;
-    Animated.timing(translation, {
-      toValue: 0,
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      isTransitioning.current = false;
-      transitionDirection.current = 0;
-      if (pendingBack.current) {
-        pendingBack.current = false;
-        backAction.current();
-      }
-    });
-  }, [pageIndex, translation]);
+    if (!pendingBack.current || isTransitioning.current) return;
+    pendingBack.current = false;
+    backAction.current();
+  }, [pageIndex]);
 
   const resetTranslation = () => {
     Animated.spring(translation, {
-      toValue: 0,
+      toValue: -pageIndex * pageWidth,
       speed: 22,
       bounciness: 3,
       useNativeDriver: true,
@@ -145,20 +133,17 @@ export function StepPager({
     }
 
     isTransitioning.current = true;
-    transitionDirection.current = direction;
     Animated.timing(translation, {
-      toValue: -direction * screenWidth,
-      duration: 160,
+      toValue: -nextIndex * pageWidth,
+      duration: 260,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({finished}) => {
+      isTransitioning.current = false;
       if (!finished) {
-        isTransitioning.current = false;
-        transitionDirection.current = 0;
         resetTranslation();
         return;
       }
-      translation.setValue(direction * screenWidth * 0.45);
       setPageIndex(nextIndex);
     });
   };
@@ -192,6 +177,13 @@ export function StepPager({
     setMediaAreaHeight(event.nativeEvent.layout.height);
   };
 
+  const handlePageViewportLayout = (event: LayoutChangeEvent) => {
+    const width = event.nativeEvent.layout.width;
+    if (width <= 0 || width === pageWidth) return;
+    setPageWidth(width);
+    translation.setValue(-pageIndex * width);
+  };
+
   const handleTouchStart = (event: GestureResponderEvent) => {
     if (isTransitioning.current) return;
     touchStart.current =
@@ -207,7 +199,8 @@ export function StepPager({
     const dy = event.nativeEvent.pageY - start.pageY;
     if (Math.abs(dx) <= Math.abs(dy) * SWIPE_HORIZONTAL_RATIO) return;
     translation.setValue(
-      Math.max(-screenWidth * 0.55, Math.min(screenWidth * 0.55, dx)),
+      -pageIndex * pageWidth +
+        Math.max(-pageWidth * 0.55, Math.min(pageWidth * 0.55, dx)),
     );
   };
 
@@ -244,36 +237,67 @@ export function StepPager({
       >
         <PageDots count={pages.length} current={pageIndex} />
 
-        <Animated.View
-          style={[styles.pageContent, {transform: [{translateX: translation}]}]}
+        <View
+          testID="step-page-viewport"
+          onLayout={handlePageViewportLayout}
+          style={styles.pageViewport}
         >
-          <View style={styles.header}>
-            {page.eyebrow ? (
-              <Text style={styles.eyebrow}>{page.eyebrow}</Text>
-            ) : null}
-            <Text accessibilityRole="header" style={styles.title}>
-              {page.title}
-            </Text>
-          </View>
-
-          <View style={styles.mediaArea} onLayout={handleMediaAreaLayout}>
-            {frameWidth > 0 ? (
+          <Animated.View
+            style={[
+              styles.pageTrack,
+              {
+                width: pageWidth * pages.length,
+                transform: [{translateX: translation}],
+              },
+            ]}
+          >
+            {pages.map((stepPage, index) => (
               <View
-                key={page.key}
-                style={[
-                  styles.frame,
-                  {
-                    width: frameWidth + 2,
-                    borderTopLeftRadius: frameRadius,
-                    borderTopRightRadius: frameRadius,
-                  },
-                ]}
+                key={stepPage.key}
+                testID={`step-page-${index}`}
+                accessibilityElementsHidden={index !== pageIndex}
+                importantForAccessibility={
+                  index === pageIndex ? 'auto' : 'no-hide-descendants'
+                }
+                pointerEvents={index === pageIndex ? 'auto' : 'none'}
+                style={[styles.pageContent, {width: pageWidth}]}
               >
-                {page.renderMedia({ width: frameWidth, height: frameHeight })}
+                <View style={styles.header}>
+                  {stepPage.eyebrow ? (
+                    <Text style={styles.eyebrow}>{stepPage.eyebrow}</Text>
+                  ) : null}
+                  <Text accessibilityRole="header" style={styles.title}>
+                    {stepPage.title}
+                  </Text>
+                </View>
+
+                <View
+                  testID="step-media-area"
+                  style={styles.mediaArea}
+                  onLayout={handleMediaAreaLayout}
+                >
+                  {frameWidth > 0 ? (
+                    <View
+                      style={[
+                        styles.frame,
+                        {
+                          width: frameWidth + 2,
+                          borderTopLeftRadius: frameRadius,
+                          borderTopRightRadius: frameRadius,
+                        },
+                      ]}
+                    >
+                      {stepPage.renderMedia({
+                        width: frameWidth,
+                        height: frameHeight,
+                      })}
+                    </View>
+                  ) : null}
+                </View>
               </View>
-            ) : null}
-          </View>
-        </Animated.View>
+            ))}
+          </Animated.View>
+        </View>
       </View>
 
       <View style={styles.footer}>
@@ -328,6 +352,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignSelf: 'stretch',
     alignItems: 'center',
+  },
+  pageViewport: {
+    flex: 1,
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+  },
+  pageTrack: {
+    flex: 1,
+    flexDirection: 'row',
   },
   dots: {
     flexDirection: 'row',
