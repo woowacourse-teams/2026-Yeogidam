@@ -65,6 +65,7 @@ jest.mock('../src/lib/auth/spring-session', () => ({
   onSpringSessionChange: jest.fn(),
   logoutSpringSession: jest.fn(() => Promise.resolve()),
   clearSpringSession: jest.fn(() => Promise.resolve()),
+  syncStoredSessionToShare: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('../src/lib/app-guide-storage', () => ({
