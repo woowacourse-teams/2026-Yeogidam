@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -101,6 +102,21 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 이미_보관함에_있는_장소를_다시_저장하면_새로_넣지_않은_것으로_돌려준다() {
+        // given: 보관함 11은 이미 장소 1을 저장했다
+        insertMember(1L, "save-existing-owner");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00.123456Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+
+        // when
+        boolean isCreated = savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, previous.plusSeconds(10)));
+
+        // then
+        assertThat(isCreated).isFalse();
+    }
+
+    @Test
     void 회원과_장소가_모두_일치하는_보관함_ID를_조회한다() {
         // given
         insertMember(1L, "saved-id-owner");
@@ -113,13 +129,28 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
         // when & then
         assertAll(
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 1L))
-                        .isEqualTo(11L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 2L))
-                        .isEqualTo(12L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(2L, 1L))
-                        .isEqualTo(21L)
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L))
+                        .contains(11L),
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 2L))
+                        .contains(12L),
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(2L, 1L))
+                        .contains(21L)
         );
+    }
+
+    @Test
+    void 다른_회원만_저장한_장소의_보관함_ID는_읽지_않는다() {
+        // given: 장소 1은 회원 2만 저장했다
+        insertMember(1L, "saved-id-empty-owner");
+        insertMember(2L, "saved-id-empty-other");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-10-01T10:00:00Z"));
+
+        // when
+        Optional<Long> savedPlaceId = savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L);
+
+        // then
+        assertThat(savedPlaceId).isEmpty();
     }
 
     @Test
@@ -142,7 +173,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 otherTransaction.executeWithoutResult(otherStatus ->
                         savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L)));
                 savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, previous.plusSeconds(60)));
-                return savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 1L);
+                return savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L).orElseThrow();
             });
 
             // then: 스냅숏에 남은 옛 ID 11이 아니라 지금 남은 항목의 ID를 읽는다
@@ -512,6 +543,23 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(count("saved_places WHERE id = 12")).isEqualTo(1),
                 () -> assertThat(count("saved_places WHERE id = 21")).isEqualTo(1)
         );
+    }
+
+    @Test
+    void 고른_보관함_항목_가운데_내_항목의_장소_ID만_읽는다() {
+        // given: 보관함 11(장소 2), 12(장소 1)는 회원 1의 것이고, 21(장소 3)은 회원 2의 것이다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 1L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 3L, Instant.parse("2026-09-15T00:00:10Z"));
+
+        // when: 내 항목 11과 12, 없는 id 999, 남의 항목 21을 함께 보낸다
+        List<Long> placeIds = savedPlaceDao.findPlaceIdsByMemberAndIds(1L, List.of(11L, 12L, 999L, 21L));
+
+        // then: 내 항목의 장소만 장소 ID 순서로 읽는다
+        assertThat(placeIds).containsExactly(1L, 2L);
     }
 
     @Test

@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,6 +17,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 public class SavedPlaceDao {
+
+    private static final int INSERTED_ROWS = 1;
 
     private static final RowMapper<SavedPlaceProjection> PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
             new SavedPlaceProjection(
@@ -54,26 +57,32 @@ public class SavedPlaceDao {
     private final JdbcTemplate jdbcTemplate;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
-    public void saveOrUpdate(SavedPlace savedPlace) {
+    /**
+     * 회원의 보관함에 장소를 넣고, 이미 있으면 저장 시각만 바꾼다. 새로 넣었으면 true를 돌려준다.
+     * 영향 행 수가 새로 넣으면 1이고 있던 항목을 바꾸면 2라서, 1일 때만 새로 넣은 것으로 본다.
+     * 있던 항목의 저장 시각이 마이크로초까지 같아 바뀐 값이 없으면 JDBC 드라이버가 1을 돌려주므로, 새로 넣은 것으로 본다.
+     */
+    public boolean saveOrUpdate(SavedPlace savedPlace) {
         String sql = """
                 INSERT INTO saved_places (member_id, place_id, last_saved_at)
                 VALUES (?, ?, ?)
                 ON DUPLICATE KEY UPDATE last_saved_at = VALUES(last_saved_at)
                 """;
-        jdbcTemplate.update(
+        int affectedRows = jdbcTemplate.update(
                 sql,
                 savedPlace.getMemberId(),
                 savedPlace.getPlaceId(),
                 Timestamp.from(savedPlace.getLastSavedAt())
         );
+        return affectedRows == INSERTED_ROWS;
     }
 
     /**
-     * 저장(saveOrUpdate)한 보관함 항목의 ID를 잠금 조회로 읽는다.
+     * 회원이 저장한 장소의 보관함 항목 ID를 잠금 조회로 읽고, 저장하지 않은 장소면 빈 값을 돌려준다.
      * REPEATABLE READ의 일반 조회는 트랜잭션 스냅숏을 읽어서, 다른 트랜잭션이 지우고 커밋한 옛 ID까지 돌려줄 수 있다.
-     * 옛 ID로 공유 연결을 넣으면 외래 키에 걸리므로, 잠금 조회로 지금 남은 항목의 ID만 읽는다.
+     * 잠금 조회는 지금 남은 항목만 읽고, 잠근 항목은 트랜잭션이 끝날 때까지 다른 요청이 지우지 못한다.
      */
-    public Long getIdByMemberAndPlaceForUpdate(Long memberId, Long placeId) {
+    public Optional<Long> findIdByMemberAndPlaceForUpdate(Long memberId, Long placeId) {
         String sql = """
                 SELECT id
                 FROM saved_places
@@ -81,7 +90,9 @@ public class SavedPlaceDao {
                   AND place_id = ?
                 FOR UPDATE
                 """;
-        return jdbcTemplate.queryForObject(sql, Long.class, memberId, placeId);
+        return jdbcTemplate.queryForList(sql, Long.class, memberId, placeId)
+                .stream()
+                .findFirst();
     }
 
     public void saveShareIfAbsent(
@@ -177,6 +188,23 @@ public class SavedPlaceDao {
                   AND sm.deleted_at IS NULL
                 """;
         return new SavedPlaceMediaProjections(jdbcTemplate.query(sql, MEDIA_PROJECTION_ROW_MAPPER, savedPlaceId));
+    }
+
+    /**
+     * 고른 보관함 항목 가운데 내 항목의 장소 ID를 장소 ID 순서로 읽는다. 없는 항목이나 남의 항목은 member_id 조건에 걸려 빠진다.
+     */
+    public List<Long> findPlaceIdsByMemberAndIds(Long memberId, List<Long> savedPlaceIds) {
+        String sql = """
+                SELECT place_id
+                FROM saved_places
+                WHERE member_id = :memberId
+                  AND id IN (:savedPlaceIds)
+                ORDER BY place_id
+                """;
+        return namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "savedPlaceIds", savedPlaceIds
+        ), Long.class);
     }
 
     /**
