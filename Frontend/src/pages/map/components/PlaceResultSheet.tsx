@@ -19,6 +19,7 @@ import {
   PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -285,6 +286,13 @@ export function PlaceResultSheet({
   const completingPageSwipe = useRef(false);
   const [detailTab, setDetailTab] = useState<PlaceTab>('게시물');
   const detailScrollOffset = useRef(0);
+  const detailScrollRef = useRef<ScrollView>(null);
+  // Android에서 끝까지 올린 상세의 본문이 맨 위에 있으면 ScrollView 스크롤을 잠급니다.
+  // 잠그지 않으면 빠르게 쓸어내릴 때 ScrollView가 JS보다 먼저 터치를 가로채 시트가 내려가지 않습니다.
+  // 잠긴 동안 위로 끄는 스크롤은 detailPullDownResponder가 직접 처리합니다.
+  const [isDetailAtTop, setIsDetailAtTop] = useState(true);
+  const isDetailTopLockedRef = useRef(false);
+  const isScrollingLockedDetail = useRef(false);
   const [, refreshBackPreview] = useState(0);
   const dragStartSnapIndex = useRef(activeSnapIndex);
   const [isPageMode, setIsPageMode] = useState(false);
@@ -489,6 +497,7 @@ export function PlaceResultSheet({
     previousSelectedPlaceId.current = nextPlaceId;
     setDetailTab('게시물');
     detailScrollOffset.current = 0;
+    setIsDetailAtTop(true);
   }, [selectedPlace]);
 
   useLayoutEffect(() => {
@@ -712,19 +721,83 @@ export function PlaceResultSheet({
   );
   // 펼친 상세는 본문이 스크롤되므로, 본문이 맨 위일 때 아래로 당기면 시트를 끌어내립니다.
   // Android는 맨 위에서 더 당겨도 본문이 스크롤되지 않으므로 이 드래그가 그대로 시트를 움직입니다.
+  // 이 응답자는 Android에만, 그것도 본문 ScrollView 안쪽에 붙습니다. 바깥에 붙이면 응답자를
+  // 잡은 직후 ScrollView가 터치를 가로채 드래그가 끊깁니다. iOS는 아래 onTopPull 경로를 씁니다.
+  // 끝까지 올린 페이지 모드에서는 iOS처럼 끄는 동안 시트만 따라 내리고, 손을 놓을 때 한 단계
+  // 내릴지 정합니다.
   const detailPullDownResponder = useMemo(() => {
     const shouldPullDown: PanResponderCallbacks['onMoveShouldSetPanResponder'] =
-      (_, gesture) =>
-        !isPageModeRef.current &&
-        detailScrollOffset.current <= 0 &&
-        gesture.dy > 4 &&
-        gesture.dy > Math.abs(gesture.dx);
+      (_, gesture) => {
+        const isVertical = Math.abs(gesture.dy) > Math.abs(gesture.dx);
+        if (isDetailTopLockedRef.current) {
+          // 스크롤이 잠긴 동안에는 위로 끄는 것도 받아 본문을 직접 스크롤합니다.
+          if (Math.abs(gesture.dy) <= 4 || !isVertical) return false;
+          isScrollingLockedDetail.current = gesture.dy < 0;
+          return true;
+        }
+        isScrollingLockedDetail.current = false;
+        return detailScrollOffset.current <= 0 && gesture.dy > 4 && isVertical;
+      };
     return PanResponder.create({
       ...sheetDragCallbacks,
       onMoveShouldSetPanResponder: shouldPullDown,
       onMoveShouldSetPanResponderCapture: shouldPullDown,
+      onPanResponderGrant: (event, gesture) => {
+        if (isScrollingLockedDetail.current) return;
+        sheetDragCallbacks.onPanResponderGrant?.(event, gesture);
+      },
+      onPanResponderTerminate: (event, gesture) => {
+        if (isScrollingLockedDetail.current) return;
+        sheetDragCallbacks.onPanResponderTerminate?.(event, gesture);
+      },
+      onPanResponderMove: (event, gesture) => {
+        if (isScrollingLockedDetail.current) {
+          detailScrollRef.current?.scrollTo({
+            y: Math.max(0, -gesture.dy),
+            animated: false,
+          });
+          return;
+        }
+        if (!startedInPageMode.current) {
+          sheetDragCallbacks.onPanResponderMove?.(event, gesture);
+          return;
+        }
+        sheetDragRevision.current += 1;
+        const offset = Math.max(
+          topOffset,
+          Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
+        );
+        currentOffset.current = offset;
+        translateY.setValue(offset);
+      },
+      onPanResponderRelease: (event, gesture) => {
+        if (isScrollingLockedDetail.current) {
+          // 손을 놓을 때 위로 튕긴 속도만큼 조금 더 스크롤해 관성을 흉내 냅니다.
+          detailScrollRef.current?.scrollTo({
+            y: Math.max(0, -gesture.dy + Math.max(0, -gesture.vy) * 250),
+            animated: true,
+          });
+          return;
+        }
+        if (!startedInPageMode.current) {
+          sheetDragCallbacks.onPanResponderRelease?.(event, gesture);
+          return;
+        }
+        sheetDragRevision.current += 1;
+        const shouldLower =
+          gesture.dy >= DETAIL_PULL_DOWN_DISTANCE ||
+          gesture.vy >= DETAIL_PULL_DOWN_VELOCITY;
+        snapTo(snapOffsets[shouldLower ? 1 : 0]);
+      },
     });
-  }, [sheetDragCallbacks]);
+  }, [
+    collapsedOffset,
+    sheetDragCallbacks,
+    snapOffsets,
+    snapTo,
+    topOffset,
+    translateY,
+  ]);
   // iOS는 본문이 튕기며 네이티브 스크롤이 JS 드래그를 취소하므로, 튕긴 거리만큼 시트를 따라 내립니다.
   const followDetailTopPull = (snapIndex: number, distance: number) => {
     sheetDragRevision.current += 1;
@@ -972,14 +1045,13 @@ export function PlaceResultSheet({
     selectedPlace !== null &&
     activeSnapIndex === 0 &&
     detailEntrySnapIndex.current !== 0;
+  const isDetailTopLocked =
+    Platform.OS === 'android' && isPageMode && isDetailAtTop;
+  isDetailTopLockedRef.current = isDetailTopLocked;
   const renderDetailContent = (snapIndex: number, preview = false) =>
     selectedPlace ? (
       <View
-        {...(snapIndex === 2
-          ? panResponder.panHandlers
-          : preview || Platform.OS === 'ios'
-          ? {}
-          : detailPullDownResponder.panHandlers)}
+        {...(snapIndex === 2 ? panResponder.panHandlers : {})}
         onResponderStart={handleCollapsedBodyTouchStart}
         onResponderEnd={handleCollapsedBodyTouchEnd}
         style={[
@@ -987,9 +1059,7 @@ export function PlaceResultSheet({
           {
             height: Math.max(
               0,
-              sheetHeight -
-                snapOffsets[snapIndex] -
-                COLLAPSED_HANDLE_HEIGHT,
+              sheetHeight - snapOffsets[snapIndex] - COLLAPSED_HANDLE_HEIGHT,
             ),
           },
         ]}
@@ -1010,6 +1080,7 @@ export function PlaceResultSheet({
                 ? undefined
                 : offset => {
                     detailScrollOffset.current = offset;
+                    setIsDetailAtTop(offset <= 0);
                   }
             }
             onTopPull={
@@ -1021,6 +1092,11 @@ export function PlaceResultSheet({
               Platform.OS === 'ios' && !preview && snapIndex !== 2
                 ? (distance, velocityY) =>
                     releaseDetailTopPull(snapIndex, distance, velocityY)
+                : undefined
+            }
+            contentPanHandlers={
+              Platform.OS === 'android' && !preview && snapIndex !== 2
+                ? detailPullDownResponder.panHandlers
                 : undefined
             }
             onBack={backToPlaceList}
@@ -1046,7 +1122,11 @@ export function PlaceResultSheet({
             isDeleting={isDeleting}
             headerTopInset={0}
             compactHeader
-            scrollEnabled={snapIndex !== 2}
+            scrollEnabled={
+              snapIndex !== 2 &&
+              !(snapIndex === 0 && !preview && isDetailTopLocked)
+            }
+            scrollViewRef={preview ? undefined : detailScrollRef}
             contentBottomPadding={
               // 상세 시트는 화면 끝까지 내려와 바텀 네비게이션에 덮이므로 그 높이만큼 띄웁니다.
               snapIndex === 0
