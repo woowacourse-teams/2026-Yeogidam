@@ -75,33 +75,33 @@ class SavedMediaE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias", hasSize(1))
-                .body("sharedMedias[0].sharedMediaId", equalTo(1))
-                .body("sharedMedias[0].createdAt", equalTo("2026-11-01T03:00:00.123456Z"))
-                .body("sharedMedias[0].thumbnailUrl", equalTo("https://img.example.com/media.jpg"))
-                .body("sharedMedias[0].caption", equalTo("성수 감성 카페 모음"))
-                .body("sharedMedias[0].author", equalTo("@seongsu_cafe"))
-                .body("sharedMedias[0].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-1/"))
-                .body("sharedMedias[0].places", hasSize(2))
-                .body("sharedMedias[0].places[0].savedPlaceId", nullValue())
-                .body("sharedMedias[0].places[0].placeId", equalTo(2))
-                .body("sharedMedias[0].places[0].name", equalTo("담다식당"))
-                .body("sharedMedias[0].places[0].categoryCode", equalTo("KOREAN"))
-                .body("sharedMedias[0].places[0].roadAddress", nullValue())
-                .body("sharedMedias[0].places[0].latitude", equalTo(37.544f))
-                .body("sharedMedias[0].places[0].longitude", equalTo(127.05f))
-                .body("sharedMedias[0].places[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/2"))
-                .body("sharedMedias[0].places[0].telephone", equalTo("02-1234-5678"))
-                .body("sharedMedias[0].places[0].thumbnailUrl", nullValue())
-                .body("sharedMedias[0].places[1].savedPlaceId", equalTo(10))
-                .body("sharedMedias[0].places[1].placeId", equalTo(1))
-                .body("sharedMedias[0].places[1].name", equalTo("카페 온월"))
-                .body("sharedMedias[0].places[1].category", equalTo("음식점 > 카페"))
-                .body("sharedMedias[0].places[1].categoryCode", equalTo("CAFE"))
-                .body("sharedMedias[0].places[1].categoryName", equalTo("카페"))
-                .body("sharedMedias[0].places[1].landLotAddress", equalTo("서울 성동구 성수동2가 1-1"))
-                .body("sharedMedias[0].places[1].roadAddress", equalTo("서울 성동구 연무장길 1"))
-                .body("sharedMedias[0].places[1].thumbnailUrl", equalTo("https://img.example.com/place-1.jpg"))
+                .body("sharedMedia", hasSize(1))
+                .body("sharedMedia[0].sharedMediaId", equalTo(1))
+                .body("sharedMedia[0].createdAt", equalTo("2026-11-01T03:00:00.123456Z"))
+                .body("sharedMedia[0].thumbnailUrl", equalTo("https://img.example.com/media.jpg"))
+                .body("sharedMedia[0].caption", equalTo("성수 감성 카페 모음"))
+                .body("sharedMedia[0].author", equalTo("@seongsu_cafe"))
+                .body("sharedMedia[0].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-1/"))
+                .body("sharedMedia[0].places", hasSize(2))
+                .body("sharedMedia[0].places[0].savedPlaceId", nullValue())
+                .body("sharedMedia[0].places[0].placeId", equalTo(2))
+                .body("sharedMedia[0].places[0].name", equalTo("담다식당"))
+                .body("sharedMedia[0].places[0].categoryCode", equalTo("KOREAN"))
+                .body("sharedMedia[0].places[0].roadAddress", nullValue())
+                .body("sharedMedia[0].places[0].latitude", equalTo(37.544f))
+                .body("sharedMedia[0].places[0].longitude", equalTo(127.05f))
+                .body("sharedMedia[0].places[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/2"))
+                .body("sharedMedia[0].places[0].telephone", equalTo("02-1234-5678"))
+                .body("sharedMedia[0].places[0].thumbnailUrl", nullValue())
+                .body("sharedMedia[0].places[1].savedPlaceId", equalTo(10))
+                .body("sharedMedia[0].places[1].placeId", equalTo(1))
+                .body("sharedMedia[0].places[1].name", equalTo("카페 온월"))
+                .body("sharedMedia[0].places[1].category", equalTo("음식점 > 카페"))
+                .body("sharedMedia[0].places[1].categoryCode", equalTo("CAFE"))
+                .body("sharedMedia[0].places[1].categoryName", equalTo("카페"))
+                .body("sharedMedia[0].places[1].landLotAddress", equalTo("서울 성동구 성수동2가 1-1"))
+                .body("sharedMedia[0].places[1].roadAddress", equalTo("서울 성동구 연무장길 1"))
+                .body("sharedMedia[0].places[1].thumbnailUrl", equalTo("https://img.example.com/place-1.jpg"))
                 .body("nextCursor", nullValue());
     }
 
@@ -114,7 +114,7 @@ class SavedMediaE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias", hasSize(0))
+                .body("sharedMedia", hasSize(0))
                 .body("nextCursor", nullValue());
     }
 
@@ -126,7 +126,7 @@ class SavedMediaE2eTest extends E2eTestSupport {
         JsonPath firstPage = givenBearer(login.accessToken())
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias", hasSize(50))
+                .body("sharedMedia", hasSize(50))
                 .body("nextCursor.createdAt", equalTo("2026-11-01T03:00:06.123456Z"))
                 .body("nextCursor.id", equalTo(6))
                 .extract().jsonPath();
@@ -137,7 +137,7 @@ class SavedMediaE2eTest extends E2eTestSupport {
                 .queryParam("cursorId", firstPage.getLong("nextCursor.id"))
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias.sharedMediaId", contains(5, 4, 3, 2, 1))
+                .body("sharedMedia.sharedMediaId", contains(5, 4, 3, 2, 1))
                 .body("nextCursor", nullValue());
     }
 
@@ -177,7 +177,7 @@ class SavedMediaE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias.sharedMediaId", contains(2));
+                .body("sharedMedia.sharedMediaId", contains(2));
         givenBearer(login.accessToken())
                 .when().get(SHARES_PATH)
                 .then().statusCode(200)
@@ -232,7 +232,7 @@ class SavedMediaE2eTest extends E2eTestSupport {
         givenBearer(other.accessToken())
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias.sharedMediaId", contains(2));
+                .body("sharedMedia.sharedMediaId", contains(2));
         givenBearer(other.accessToken())
                 .when().get(SAVED_PLACES_PATH)
                 .then().statusCode(200)
@@ -266,8 +266,8 @@ class SavedMediaE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias.sharedMediaId", contains(sharedMediaId))
-                .body("sharedMedias[0].places[0].savedPlaceId", notNullValue());
+                .body("sharedMedia.sharedMediaId", contains(sharedMediaId))
+                .body("sharedMedia[0].places[0].savedPlaceId", notNullValue());
         givenBearer(login.accessToken())
                 .when().get(SAVED_PLACES_PATH)
                 .then().statusCode(200)
@@ -317,9 +317,9 @@ class SavedMediaE2eTest extends E2eTestSupport {
         givenBearer(login.accessToken())
                 .when().get(PATH)
                 .then().statusCode(200)
-                .body("sharedMedias.sharedMediaId", contains(1))
-                .body("sharedMedias[0].places[0].placeId", equalTo(1))
-                .body("sharedMedias[0].places[0].savedPlaceId", notNullValue());
+                .body("sharedMedia.sharedMediaId", contains(1))
+                .body("sharedMedia[0].places[0].placeId", equalTo(1))
+                .body("sharedMedia[0].places[0].savedPlaceId", notNullValue());
     }
 
     @Test
