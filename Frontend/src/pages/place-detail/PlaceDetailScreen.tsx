@@ -1,6 +1,6 @@
+import { showAlert } from '../../lib/app-alert';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
 import {
@@ -184,7 +184,7 @@ export function PlaceDetailScreen({
     }
 
     analytics.modal('delete_confirm');
-    Alert.alert('선택한 장소를 삭제할까요?', '선택한 장소가 보관함에서 삭제됩니다.', [
+    showAlert('선택한 장소를 삭제할까요?', '선택한 장소가 보관함에서 삭제됩니다.', [
       {
         text: '취소',
         style: 'cancel',
@@ -206,7 +206,7 @@ export function PlaceDetailScreen({
     if (!deleteError) {
       return;
     }
-    Alert.alert('삭제하지 못했어요', deleteError.message);
+    showAlert('삭제하지 못했어요', deleteError.message);
     setDeleteError(null);
   }, [deleteError]);
 

@@ -1,3 +1,4 @@
+import { showAlert } from '../../../lib/app-alert';
 import {
   SwipeBackStack,
   type BackGestureRegion,
@@ -11,7 +12,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  Alert,
   Animated,
   FlatList,
   LayoutAnimation,
@@ -1022,7 +1022,7 @@ export function PlaceResultSheet({
       return;
     }
     analytics.modal('delete_confirm');
-    Alert.alert(
+    showAlert(
       '선택한 장소를 삭제할까요?',
       '선택한 1곳의 장소가 보관함에서 삭제됩니다.',
       [
@@ -1048,7 +1048,7 @@ export function PlaceResultSheet({
     if (!deleteError) {
       return;
     }
-    Alert.alert('삭제하지 못했어요', deleteError.message);
+    showAlert('삭제하지 못했어요', deleteError.message);
     setDeleteError(null);
   }, [deleteError]);
 

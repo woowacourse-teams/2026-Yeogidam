@@ -1,6 +1,6 @@
+import { showAlert } from './app-alert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  Alert,
   Linking,
   NativeModules,
   PermissionsAndroid,
@@ -27,7 +27,7 @@ function notifyPermission(granted: boolean) {
 }
 
 function showSettingsAlert(disabled = false) {
-  Alert.alert(
+  showAlert(
     '위치 권한이 필요해요',
     disabled
       ? '현재 위치를 표시하려면 iPhone 설정 > 개인정보 보호 및 보안 > 위치 서비스에서 위치 서비스를 켜 주세요.'
@@ -38,7 +38,7 @@ function showSettingsAlert(disabled = false) {
         text: '설정 열기',
         onPress: () => {
           Linking.openSettings().catch(() =>
-            Alert.alert(
+            showAlert(
               '설정을 열지 못했어요',
               '휴대폰 설정에서 여기담의 위치 권한을 허용해 주세요.',
             ),

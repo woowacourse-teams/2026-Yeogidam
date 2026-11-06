@@ -30,6 +30,7 @@ export function GuestLoginPrompt({
       transparent
       visible={visible}>
       <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={onContinueBrowsing} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal style={styles.dialog}>
           <Text style={styles.title}>둘러보니 어떠셨나요?</Text>
           <Text style={styles.message}>

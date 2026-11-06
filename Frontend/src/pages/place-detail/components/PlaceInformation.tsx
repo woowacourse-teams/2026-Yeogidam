@@ -1,7 +1,7 @@
+import { showAlert } from '../../../lib/app-alert';
 import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
 import {
-  Alert,
   Dimensions,
   Linking,
   Pressable,
@@ -31,7 +31,7 @@ export function PlaceInformation({ place }: PlaceInformationProps) {
     button('call');
     modal('call_confirm');
 
-    Alert.alert('전화 걸기', `${place.telephone}로 전화하시겠어요?`, [
+    showAlert('전화 걸기', `${place.telephone}로 전화하시겠어요?`, [
       {
         text: '취소',
         style: 'cancel',
