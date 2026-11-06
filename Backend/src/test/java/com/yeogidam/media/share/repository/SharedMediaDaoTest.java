@@ -469,6 +469,27 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 보관함_게시물은_ID보다_공유_시각을_먼저_보고_최신_공유를_고르고_정렬한다() {
+        // given: 게시물 21은 공유 10(10-05)과 공유 7(10-07)로 두 번 공유했고, 게시물 22는 공유 9(10-06)로 공유했다
+        insertSavedMediaMember(25L);
+        insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 22L, "연남 와인바", "22.jpg", "@yeonnam");
+        insertMediaPlace(jdbcTemplate, 21L, 21L, 1L);
+        insertMediaPlace(jdbcTemplate, 22L, 22L, 1L);
+        insertSharedMedia(jdbcTemplate, 10L, 25L, 21L, Instant.parse("2026-10-05T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 7L, 25L, 21L, Instant.parse("2026-10-07T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 9L, 25L, 22L, Instant.parse("2026-10-06T10:00:00Z"));
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(25L).shares();
+
+        // then: 게시물 21은 ID가 작아도 공유 시각이 늦은 공유 7이 남고, 공유 9보다 앞에 온다
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(7L, 9L);
+    }
+
+    @Test
     void 보관함_게시물_첫_페이지는_다음_페이지가_있는지_알_수_있게_최신순으로_51건을_읽는다() {
         // given: 게시물 55개를 1초 간격으로 한 번씩 공유했고, 게시물마다 장소가 나왔다
         insertSavedMediaMember(16L);
@@ -510,6 +531,31 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(3L, 2L);
+    }
+
+    @Test
+    void 보관함_게시물_다음_페이지도_ID보다_공유_시각을_먼저_보고_커서보다_오래된_게시물을_읽는다() {
+        // given: 게시물 22의 공유 7(10-07)까지 읽었고, 게시물 21은 공유 10(10-05)과 공유 2(10-06)로 두 번, 게시물 24는 공유 12(10-03)로 공유했다
+        insertSavedMediaMember(26L);
+        for (long mediaId = 21; mediaId <= 24; mediaId++) {
+            insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
+            insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
+        }
+        Instant cursorCreatedAt = Instant.parse("2026-10-07T10:00:00Z");
+        insertSharedMedia(jdbcTemplate, 7L, 26L, 22L, cursorCreatedAt);
+        insertSharedMedia(jdbcTemplate, 10L, 26L, 21L, Instant.parse("2026-10-05T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 2L, 26L, 21L, Instant.parse("2026-10-06T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 12L, 26L, 24L, Instant.parse("2026-10-03T10:00:00Z"));
+
+        // when: 공유 7까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(26L, new SharedMediaCursor(cursorCreatedAt, 7L))
+                .shares();
+
+        // then: ID가 큰 공유 10과 12도 공유 시각으로 커서와 비교하고, 게시물 21은 공유 시각이 늦은 공유 2가 남아 공유 12보다 앞에 온다
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(2L, 12L);
     }
 
     @Test
