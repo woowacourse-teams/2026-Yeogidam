@@ -388,7 +388,6 @@ function App() {
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
-  const mainTabHistoryRef = useRef<MainScreen[]>([]);
   const nestedBackStateRef = useRef(false);
   const [mapBackGestureRegion, setMapBackGestureRegion] = useState<BackGestureRegion>({top: Number.MAX_SAFE_INTEGER, bottom: 0});
   const reportMapBackGestureRegion = useCallback((region: BackGestureRegion) => {
@@ -427,9 +426,6 @@ function App() {
     tabSessionRef.current = isAuthenticated;
   }
   if (flowState.kind === 'main') visitedTabsRef.current.add(flowState.activeTab);
-  useEffect(() => {
-    mainTabHistoryRef.current = [];
-  }, [isAuthenticated]);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -593,36 +589,8 @@ function App() {
       return;
     }
 
-    if (
-      flowState.kind === 'main' &&
-      flowState.detailSource === null &&
-      flowState.activeTab !== nextScreen
-    ) {
-      mainTabHistoryRef.current.push(flowState.activeTab);
-    }
-
     openMainScreen(nextScreen);
   };
-
-  const goBackMainTab = useCallback(() => {
-    if (flowState.kind !== 'main' || flowState.detailSource !== null) {
-      return false;
-    }
-
-    const previousTab =
-      mainTabHistoryRef.current.pop() ??
-      (flowState.activeTab === 'saved' ? null : 'saved');
-    if (!previousTab) {
-      return false;
-    }
-
-    setFlowState(current =>
-      current.kind === 'main'
-        ? { ...current, activeTab: previousTab, detailSource: null }
-        : current,
-    );
-    return true;
-  }, [flowState]);
 
   const openMainScreenRef = useRef(openMainScreen);
   openMainScreenRef.current = openMainScreen;
@@ -694,12 +662,12 @@ function App() {
           return false;
         }
 
-        return goBackMainTab();
+        return false;
       },
     );
 
     return () => subscription.remove();
-  }, [closeDetail, flowState, goBackMainTab, myPageOverlay]);
+  }, [closeDetail, flowState, myPageOverlay]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1356,7 +1324,7 @@ function App() {
         <HistoryScreen
           key={tabRefreshCounts.history}
           guestReels={isAuthenticated === false ? [] : undefined}
-          onBack={goBackMainTab}
+          onBack={() => openMainScreen(historyReturnScreenRef.current)}
           isActive={currentScreen === 'history' && myPageOverlay === null}
           onNestedBackStateChange={reportHistoryBackState}
           onRequireLogin={requestLogin}
@@ -1540,10 +1508,6 @@ function App() {
   };
 
   const isMapScreen = currentScreen === 'map';
-  const previousTab = flowState.kind === 'main'
-    ? mainTabHistoryRef.current[mainTabHistoryRef.current.length - 1] ??
-      (flowState.activeTab === 'saved' ? null : 'saved')
-    : null;
   const activeLayerKey = flowState.kind === 'auth'
     ? `auth-${flowState.stack.length - 1}-${currentScreen}`
     : myPageOverlay !== null ? `myPage-${myPageOverlay}`
@@ -1553,7 +1517,7 @@ function App() {
       ? `auth-${flowState.stack.length - 2}-${flowState.stack[flowState.stack.length - 2]}`
       : null
     : myPageOverlay !== null ? flowState.activeTab
-    : flowState.detailSource ?? previousTab;
+    : flowState.detailSource;
 
   const analyticsScreenName =
     !isAuthReady || isSplashVisible
@@ -1578,7 +1542,6 @@ function App() {
     if (myPageOverlay !== null) setMyPageOverlay(null);
     else if (flowState.kind === 'auth') popAuthScreen();
     else if (flowState.detailSource !== null) closeDetail();
-    else goBackMainTab();
   };
 
   const wrapScreen = (content: React.ReactNode, map = false) => (

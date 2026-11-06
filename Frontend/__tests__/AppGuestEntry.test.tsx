@@ -566,6 +566,27 @@ test('현재 탭을 다시 누르면 네비게이션은 유지하고 화면만 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('바텀 탭 이동은 이전 탭을 뒤로가기 대상으로 쌓지 않는다', async () => {
+  const renderer = await renderGuestMain();
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('map');
+  });
+  expect(renderer.root.findByType(SwipeBackStack).props.backKey).toBeNull();
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('history');
+  });
+  expect(renderer.root.findByType(SwipeBackStack).props.backKey).toBeNull();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(HistoryScreen).props.onBack();
+  });
+  expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('map');
+  expect(renderer.root.findByType(SwipeBackStack).props.backKey).toBeNull();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async () => {
   const renderer = await renderGuestMain();
 
