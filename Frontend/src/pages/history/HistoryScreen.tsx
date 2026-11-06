@@ -66,6 +66,8 @@ type HistoryScreenProps = {
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
   onRequireLogin?: () => void;
+  /** 성공한 공유를 누르면 게시물 상세 화면을 엽니다. 없으면 히스토리 안의 결과 화면을 씁니다. */
+  onOpenReel?: (reel: HistoryReel) => void;
 };
 
 const thumbnail =
@@ -609,6 +611,7 @@ export function HistoryScreen({
   guestReels,
   guestDetails,
   onRequireLogin,
+  onOpenReel,
 }: HistoryScreenProps) {
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('history');
@@ -673,6 +676,7 @@ export function HistoryScreen({
   // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
   const hasReelsRef = useRef(false);
   hasReelsRef.current = reels.length > 0;
+
   const showErrorIfEmpty = useCallback(() => {
     if (!hasReelsRef.current) setError(true);
   }, []);
@@ -980,7 +984,7 @@ export function HistoryScreen({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="대기함으로 돌아가기"
+          accessibilityLabel="이전 화면으로 돌아가기"
           hitSlop={12}
           onPress={() => {
             analytics.button('back');
@@ -988,10 +992,7 @@ export function HistoryScreen({
           }}
           style={styles.backButton}
         >
-          <Image
-            source={require('../../assets/icons/brand-mark.png')}
-            style={styles.brandMark}
-          />
+          <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
@@ -1089,6 +1090,10 @@ export function HistoryScreen({
                     reel.processing_status === 'COMPLETED'
                       ? () => {
                           analytics.button('open_item', {status: 'completed'});
+                          if (onOpenReel) {
+                            onOpenReel(reel);
+                            return;
+                          }
                           setSelectedReel(reel);
                           setSelectedSuccess(true);
                         }
@@ -1097,6 +1102,12 @@ export function HistoryScreen({
                           analytics.button('open_item', {status: 'failed'});
                           setSelectedReel(reel);
                           setSelectedFailure(true);
+                        }
+                      : onOpenReel
+                      ? () => {
+                          // 처리 중·대기 중인 공유는 진행 화면으로 넘어간다.
+                          analytics.button('open_item', {status: 'processing'});
+                          onOpenReel(reel);
                         }
                       : undefined
                   }
@@ -1155,7 +1166,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandMark: { width: 44, height: 44, borderRadius: 22 },
   back: {
     fontSize: 30,
     lineHeight: 34,

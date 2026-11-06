@@ -222,6 +222,71 @@ test('더 보기 중에 폴링이 끝나도 같은 커서로 다시 요청하지
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('onOpenReel이 있으면 성공한 항목은 게시물 상세로 넘기고 히스토리 안 결과 화면은 열지 않는다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([5, 4]), nextCursor: null});
+  const onOpenReel = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />,
+    );
+  });
+
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '4' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(onOpenReel).toHaveBeenCalledWith(
+    expect.objectContaining({id: '4', processing_status: 'COMPLETED'}),
+  );
+  expect(getHistoryReelDetail).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('onOpenReel이 있으면 처리 중인 항목도 진행 화면으로 넘긴다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: [{...reel(9, 'PROCESSING'), instagram_thumbnail_url: 'https://cdn.example.com/9.jpg'}],
+    nextCursor: null,
+  });
+  const onOpenReel = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />,
+    );
+  });
+
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '9' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(onOpenReel).toHaveBeenCalledWith(
+    expect.objectContaining({id: '9', processing_status: 'PROCESSING'}),
+  );
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('onOpenReel이 있어도 실패한 항목은 히스토리의 실패 화면을 연다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([7], 'FAILED'), nextCursor: null});
+  const onOpenReel = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />,
+    );
+  });
+
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(onOpenReel).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다', async () => {
   const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
   jest
