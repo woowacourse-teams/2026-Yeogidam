@@ -267,6 +267,7 @@ export function PlaceResultSheet({
     middleOffset,
     collapsedOffset,
     listTopOffset,
+    hasDetail: selectedPlace !== null,
   });
   const handledCollapseSignal = useRef(collapseSignal);
   const handledMapPanCollapseSignal = useRef(mapPanCollapseSignal);
@@ -500,6 +501,7 @@ export function PlaceResultSheet({
     setIsDetailAtTop(true);
   }, [selectedPlace]);
 
+  const hasDetail = selectedPlace !== null;
   useLayoutEffect(() => {
     const previous = previousGeometry.current;
     if (
@@ -515,7 +517,11 @@ export function PlaceResultSheet({
       middleOffset,
       collapsedOffset,
       listTopOffset,
+      hasDetail,
     };
+    // 상세를 열면 시트가 바텀 네비게이션까지 길어져 높이가 바뀐다. 이때 위치를 다시 맞추면
+    // 목록 높이에서 중간 높이로 내려오는 애니메이션이 끊기므로, 여는 쪽이 정한 위치를 그대로 둔다.
+    if (!previous.hasDetail && hasDetail) return;
     // Preserve the logical snap, not a pixel value from a different layout.
     // Do not restore state from stopAnimation's asynchronous native callback:
     // it can arrive after a back action and overwrite its destination height.
@@ -527,6 +533,7 @@ export function PlaceResultSheet({
   }, [
     activeSnapIndex,
     collapsedOffset,
+    hasDetail,
     listTopOffset,
     middleOffset,
     reportVisibleHeight,
