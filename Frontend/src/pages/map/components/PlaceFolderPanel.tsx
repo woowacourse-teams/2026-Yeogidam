@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import Svg, { Path, Rect } from 'react-native-svg';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppModal } from '../../../components/AppModal';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
@@ -370,80 +371,85 @@ export function PlaceFolderAssignPicker({
       visible={visible}
       onRequestClose={onCancel}
     >
-      <View style={styles.pickerContainer}>
-        <View style={styles.pickerHeader}>
-          <Pressable hitSlop={8} onPress={onCancel}>
-            <Text style={styles.dialogCancel}>취소</Text>
-          </Pressable>
-          <Text style={styles.dialogTitle}>폴더 선택</Text>
-          <Pressable hitSlop={8} onPress={() => onSave(selected)}>
-            <Text style={styles.dialogConfirm}>저장</Text>
-          </Pressable>
-        </View>
-        <Text numberOfLines={2} style={styles.assignPlaceName}>
-          '{placeName}'을(를) 담을 폴더를 선택하세요.
-        </Text>
-        <FlatList
-          data={folders}
-          keyExtractor={folder => folder.id}
-          ListFooterComponent={
-            onCreateFolder ? (
-              // 폴더 목록의 새 폴더 만들기(점선 상자 + 파란 글씨)를 이 시트의 행 크기에 맞춘 모양입니다.
-              <Pressable
-                accessibilityRole="button"
-                onPress={startCreating}
-                style={[styles.row, styles.assignRow]}
-              >
-                <View style={[styles.assignCheckbox, styles.createThumb]}>
-                  <MaterialIcons color="#8FA2FF" name="add" size={18} />
-                </View>
-                <Text style={[styles.createText, styles.assignName]}>
-                  새 폴더 만들기
-                </Text>
-              </Pressable>
-            ) : null
-          }
-          ListEmptyComponent={
-            onCreateFolder ? null : (
-              <Text style={styles.hint}>
-                지도의 폴더 탭에서 폴더를 먼저 만들어 주세요.
-              </Text>
-            )
-          }
-          renderItem={({ item }) => {
-            const checked = selected.includes(item.id);
-            return (
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked }}
-                onPress={() => toggle(item.id)}
-                style={[styles.row, styles.assignRow]}
-              >
-                <View
-                  style={[
-                    styles.assignCheckbox,
-                    checked && styles.assignCheckboxChecked,
-                  ]}
+      <SafeAreaProvider>
+        <SafeAreaView edges={['top']} style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Pressable hitSlop={8} onPress={onCancel}>
+              <Text style={styles.dialogCancel}>취소</Text>
+            </Pressable>
+            <Text style={styles.dialogTitle}>폴더 선택</Text>
+            <Pressable hitSlop={8} onPress={() => onSave(selected)}>
+              <Text style={styles.dialogConfirm}>저장</Text>
+            </Pressable>
+          </View>
+          <Text numberOfLines={2} style={styles.assignPlaceName}>
+            '{placeName}'을(를) 담을 폴더를 선택하세요.
+          </Text>
+          <FlatList
+            data={folders}
+            keyExtractor={folder => folder.id}
+            ListFooterComponent={
+              onCreateFolder ? (
+                // 폴더 목록의 새 폴더 만들기(점선 상자 + 파란 글씨)를 이 시트의 행 크기에 맞춘 모양입니다.
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={startCreating}
+                  style={[styles.row, styles.assignRow]}
                 >
-                  {checked ? (
-                    <MaterialIcons color="#ffffff" name="check" size={18} />
-                  ) : null}
-                </View>
-                <View
-                  style={[styles.assignRowDot, { backgroundColor: item.color }]}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.rowName, styles.assignName]}
-                >
-                  {item.name}
+                  <View style={[styles.assignCheckbox, styles.createThumb]}>
+                    <MaterialIcons color="#8FA2FF" name="add" size={18} />
+                  </View>
+                  <Text style={[styles.createText, styles.assignName]}>
+                    새 폴더 만들기
+                  </Text>
+                </Pressable>
+              ) : null
+            }
+            ListEmptyComponent={
+              onCreateFolder ? null : (
+                <Text style={styles.hint}>
+                  지도의 폴더 탭에서 폴더를 먼저 만들어 주세요.
                 </Text>
-                <Text style={styles.assignCount}>장소 {item.count}개</Text>
-              </Pressable>
-            );
-          }}
-        />
-      </View>
+              )
+            }
+            renderItem={({ item }) => {
+              const checked = selected.includes(item.id);
+              return (
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  onPress={() => toggle(item.id)}
+                  style={[styles.row, styles.assignRow]}
+                >
+                  <View
+                    style={[
+                      styles.assignCheckbox,
+                      checked && styles.assignCheckboxChecked,
+                    ]}
+                  >
+                    {checked ? (
+                      <MaterialIcons color="#ffffff" name="check" size={18} />
+                    ) : null}
+                  </View>
+                  <View
+                    style={[
+                      styles.assignRowDot,
+                      { backgroundColor: item.color },
+                    ]}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.rowName, styles.assignName]}
+                  >
+                    {item.name}
+                  </Text>
+                  <Text style={styles.assignCount}>장소 {item.count}개</Text>
+                </Pressable>
+              );
+            }}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
       {onCreateFolder ? (
         <FolderNameDialog
           visible={isCreating}
