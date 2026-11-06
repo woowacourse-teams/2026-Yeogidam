@@ -32,7 +32,7 @@ public class SavedMediaService {
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
 
     /**
-     * 보관함 게시물 탭의 한 페이지를 읽어, 지우지 않았고 보관함 연결이 남은 내 공유를 게시물마다 최신 한 건으로 줄여 50건씩 내리고
+     * 보관함 게시물 탭의 한 페이지를 읽어, 지우지 않았고 분석에 성공했으며 추출된 장소가 있는 내 공유를 게시물마다 최신 한 건으로 줄여 50건씩 내리고
      * 게시물마다 추출된 장소를 붙인다. 공유 조회와 장소 조회를 한 트랜잭션에서 한 번씩 실행해 같은 시점을 읽는다.
      */
     public SavedMediaResponses readSavedMedia(
