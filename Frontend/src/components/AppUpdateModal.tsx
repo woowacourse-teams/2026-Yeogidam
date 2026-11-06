@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect } from 'react';
 import {
   Linking,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
+import { AppModal } from './AppModal';
 import { useScreenAnalytics } from '../analytics/uiEvents';
 
 type AppUpdateModalProps = {
@@ -41,7 +41,7 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
   };
 
   return (
-    <Modal
+    <AppModal
       animationType="fade"
       onRequestClose={dismiss}
       statusBarTranslucent
@@ -49,6 +49,9 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
       visible={visible}
     >
       <View style={styles.backdrop}>
+        {!required && (
+          <Pressable accessible={false} onPress={dismiss} style={StyleSheet.absoluteFill} />
+        )}
         <View accessibilityViewIsModal style={styles.dialog}>
           <Text style={styles.title}>
             {required ? '앱 업데이트가 필요해요' : '새 버전이 나왔어요'}
@@ -84,7 +87,7 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

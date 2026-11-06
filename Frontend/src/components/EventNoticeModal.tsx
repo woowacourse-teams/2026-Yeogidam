@@ -3,7 +3,6 @@ import {
   AppState,
   Image,
   Linking,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
+import { AppModal } from './AppModal';
 import {
   hasDismissedEventNotice,
   rememberDismissedEventNotice,
@@ -168,7 +168,7 @@ export function EventNoticeModal({
   }, [dismiss]);
 
   return (
-    <Modal
+    <AppModal
       animationType="fade"
       onRequestClose={() => setIsHiddenForSession(true)}
       statusBarTranslucent
@@ -178,6 +178,7 @@ export function EventNoticeModal({
       }
     >
       <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={dismiss} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal style={styles.dialog}>
           <CelebrationHero />
           <Text style={styles.title}>오픈 이벤트 당첨자를 발표했어요!</Text>
@@ -206,7 +207,7 @@ export function EventNoticeModal({
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

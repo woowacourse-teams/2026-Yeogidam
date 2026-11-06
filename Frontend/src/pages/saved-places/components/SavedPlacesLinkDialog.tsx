@@ -1,13 +1,14 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+
+import { AppModal } from '../../../components/AppModal';
 
 type SavedPlacesLinkDialogProps = {
   visible: boolean;
@@ -31,13 +32,15 @@ export function SavedPlacesLinkDialog({
   submitLabel = '저장',
 }: SavedPlacesLinkDialogProps) {
   return (
-    <Modal
+    <AppModal
+      avoidKeyboard
       animationType="fade"
       transparent
       visible={visible}
       onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={styles.backdrop}>
-        <Pressable onPress={event => event.stopPropagation()} style={styles.dialog}>
+      <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={onClose} style={StyleSheet.absoluteFill} />
+        <View style={styles.dialog}>
           <Text style={styles.title}>링크 입력</Text>
           <View style={styles.inputWrapper}>
             <TextInput
@@ -62,9 +65,9 @@ export function SavedPlacesLinkDialog({
               {isSubmitting ? <ActivityIndicator color="#23232d" /> : <Text style={styles.confirmText}>{submitLabel}</Text>}
             </Pressable>
           </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+        </View>
+      </View>
+    </AppModal>
   );
 }
 

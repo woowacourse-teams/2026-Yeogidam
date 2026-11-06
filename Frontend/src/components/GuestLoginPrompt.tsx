@@ -1,6 +1,7 @@
 import React, {useEffect} from 'react';
-import {Modal, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
 
+import {AppModal} from './AppModal';
 import {useScreenAnalytics} from '../analytics/uiEvents';
 
 type GuestLoginPromptProps = {
@@ -22,13 +23,14 @@ export function GuestLoginPrompt({
   }, [modal, visible]);
 
   return (
-    <Modal
+    <AppModal
       animationType="fade"
       onRequestClose={onContinueBrowsing}
       statusBarTranslucent
       transparent
       visible={visible}>
       <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={onContinueBrowsing} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal style={styles.dialog}>
           <Text style={styles.title}>둘러보니 어떠셨나요?</Text>
           <Text style={styles.message}>
@@ -54,7 +56,7 @@ export function GuestLoginPrompt({
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 
