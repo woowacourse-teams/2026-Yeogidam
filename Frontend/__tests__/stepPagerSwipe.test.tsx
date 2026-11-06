@@ -1,5 +1,5 @@
 import React from 'react';
-import {Text} from 'react-native';
+import {Image, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {StepPager} from '../src/components/StepPager';
@@ -146,5 +146,54 @@ test('페이지를 왕복해도 각 페이지의 미디어를 다시 마운트�
 
   expect(mounts).toEqual({first: 1, second: 1});
   expect(unmounts).toEqual({first: 0, second: 0});
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('GIF 페이지는 진입할 때마다 첫 프레임을 보여주고 새 미디어를 재생한다', async () => {
+  const mounts: Record<string, number> = {first: 0, second: 0};
+  function GifProbe({id, onLoad}: {id: string; onLoad?: () => void}) {
+    React.useEffect(() => {
+      mounts[id] += 1;
+    }, [id]);
+    return <Text onPress={onLoad}>{id}</Text>;
+  }
+  const gifPages = ['first', 'second'].map(id => ({
+    key: id,
+    title: id,
+    posterSource: {uri: `poster-${id}`},
+    renderMedia: (_frame: unknown, onLoad?: () => void) => (
+      <GifProbe id={id} onLoad={onLoad} />
+    ),
+  }));
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <StepPager flowName="app_guide" pages={gifPages} onComplete={jest.fn()} showPrevious />,
+    );
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findAllByProps({testID: 'step-media-area'})[0].props.onLayout({
+      nativeEvent: {layout: {height: 600}},
+    });
+  });
+  expect(mounts).toEqual({first: 1, second: 0});
+  expect(renderer.root.findAllByType(Image).map(node => node.props.source.uri)).toContain('poster-first');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(GifProbe).props.onLoad();
+  });
+  expect(renderer.root.findAllByType(Image).map(node => node.props.source.uri)).not.toContain('poster-first');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.find(node => node.props.accessibilityLabel === '다음').props.onPress();
+  });
+  await finishTransition();
+  expect(mounts).toEqual({first: 1, second: 1});
+  await ReactTestRenderer.act(async () => {
+    renderer.root.find(node => node.props.accessibilityLabel === '이전').props.onPress();
+  });
+  await finishTransition();
+  expect(mounts).toEqual({first: 2, second: 1});
+  expect(renderer.root.findAllByType(Image).map(node => node.props.source.uri)).toContain('poster-first');
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

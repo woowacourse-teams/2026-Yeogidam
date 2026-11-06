@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Image,
+  type ImageSourcePropType,
   type GestureResponderEvent,
   type LayoutChangeEvent,
   Pressable,
@@ -22,7 +24,8 @@ export type StepPage = {
   key: string;
   eyebrow?: string;
   title: string;
-  renderMedia: (frame: StepMediaFrame) => React.ReactNode;
+  posterSource?: ImageSourcePropType;
+  renderMedia: (frame: StepMediaFrame, onLoad?: () => void) => React.ReactNode;
 };
 
 type StepPagerProps = {
@@ -75,6 +78,61 @@ function PageDots({ count, current }: { count: number; current: number }) {
           style={[styles.dot, index === current && styles.dotActive]}
         />
       ))}
+    </View>
+  );
+}
+
+function PageMedia({
+  page,
+  frame,
+  active,
+}: {
+  page: StepPage;
+  frame: StepMediaFrame;
+  active: boolean;
+}) {
+  const [ready, setReady] = useState(false);
+  const loadVersion = useRef(0);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  useEffect(() => {
+    if (!active) {
+      loadVersion.current += 1;
+      setReady(false);
+    }
+  }, [active]);
+
+  // GIF 페이지는 이동 중 첫 프레임을 유지하고, 도착할 때마다 GIF를 새로 시작한다.
+  const showPoster = !!page.posterSource && (!active || !ready);
+  const currentLoadVersion = loadVersion.current;
+  return (
+    <View style={frame}>
+      {showPoster ? (
+        <Image
+          source={page.posterSource}
+          accessible={false}
+          resizeMode="cover"
+          style={styles.mediaFill}
+        />
+      ) : null}
+      {!page.posterSource || active ? (
+        <View style={[styles.mediaFill, showPoster && styles.mediaLoading]}>
+          {page.renderMedia(
+            frame,
+            page.posterSource
+              ? () => {
+                  if (
+                    activeRef.current &&
+                    loadVersion.current === currentLoadVersion
+                  ) {
+                    setReady(true);
+                  }
+                }
+              : undefined,
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -287,10 +345,11 @@ export function StepPager({
                         },
                       ]}
                     >
-                      {stepPage.renderMedia({
-                        width: frameWidth,
-                        height: frameHeight,
-                      })}
+                      <PageMedia
+                        page={stepPage}
+                        active={index === pageIndex}
+                        frame={{width: frameWidth, height: frameHeight}}
+                      />
                     </View>
                   ) : null}
                 </View>
@@ -401,6 +460,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e1e3e8',
     backgroundColor: '#ffffff',
+  },
+  mediaFill: {
+    ...StyleSheet.absoluteFill,
+  },
+  mediaLoading: {
+    opacity: 0,
   },
   mediaArea: {
     flex: 1,
