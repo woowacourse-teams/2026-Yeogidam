@@ -512,6 +512,27 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 보관함_게시물은_공유_시각이_같으면_공유_ID가_큰_게시물부터_읽는다() {
+        // given: 회원 34는 게시물 71과 72를 같은 시각에 공유 1과 2로 공유했고, 두 공유 모두 분석에 성공해 장소가 나왔다
+        insertSavedMediaMember(34L);
+        insertMedia(jdbcTemplate, 71L, "게시물 71", "71.jpg", "@author");
+        insertMedia(jdbcTemplate, 72L, "게시물 72", "72.jpg", "@author");
+        insertMediaPlace(jdbcTemplate, 71L, 71L, 1L);
+        insertMediaPlace(jdbcTemplate, 72L, 72L, 1L);
+        Instant sameTime = Instant.parse("2026-11-01T03:00:00.123456Z");
+        insertSharedMedia(jdbcTemplate, 1L, 34L, 71L, sameTime);
+        insertSharedMedia(jdbcTemplate, 2L, 34L, 72L, sameTime);
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(34L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(2L, 1L);
+    }
+
+    @Test
     void 보관함_게시물_첫_페이지는_다음_페이지가_있는지_알_수_있게_최신순으로_51건을_읽는다() {
         // given: 게시물 55개를 1초 간격으로 한 번씩 공유했고, 게시물마다 장소가 나왔다
         insertSavedMediaMember(16L);
@@ -578,6 +599,54 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(2L, 12L);
+    }
+
+    @Test
+    void 보관함_게시물_다음_페이지도_공유_시각이_같으면_공유_ID가_큰_게시물부터_읽는다() {
+        // given: 회원 35는 게시물 81과 82를 같은 시각에 공유 1과 2로 공유했고, 1초 뒤에 게시물 83을 공유 3으로 공유했으며, 세 공유 모두 분석에 성공해 장소가 나왔다
+        insertSavedMediaMember(35L);
+        for (long mediaId = 81; mediaId <= 83; mediaId++) {
+            insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
+            insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
+        }
+        Instant sameTime = Instant.parse("2026-11-01T03:00:00.123456Z");
+        insertSharedMedia(jdbcTemplate, 1L, 35L, 81L, sameTime);
+        insertSharedMedia(jdbcTemplate, 2L, 35L, 82L, sameTime);
+        insertSharedMedia(jdbcTemplate, 3L, 35L, 83L, sameTime.plusSeconds(1));
+
+        // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(35L, new SharedMediaCursor(sameTime.plusSeconds(1), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(2L, 1L);
+    }
+
+    @Test
+    void 보관함_게시물_다음_페이지도_같은_게시물을_같은_시각에_두_번_공유했으면_ID가_큰_공유를_남긴다() {
+        // given: 회원 36은 게시물 91을 같은 시각에 공유 1과 2로 두 번 공유했고, 1초 뒤에 게시물 92를 공유 3으로 공유했으며, 세 공유 모두 분석에 성공해 장소가 나왔다
+        insertSavedMediaMember(36L);
+        insertMedia(jdbcTemplate, 91L, "게시물 91", "91.jpg", "@author");
+        insertMedia(jdbcTemplate, 92L, "게시물 92", "92.jpg", "@author");
+        insertMediaPlace(jdbcTemplate, 91L, 91L, 1L);
+        insertMediaPlace(jdbcTemplate, 92L, 92L, 1L);
+        Instant sameTime = Instant.parse("2026-11-01T03:00:00.123456Z");
+        insertSharedMedia(jdbcTemplate, 1L, 36L, 91L, sameTime);
+        insertSharedMedia(jdbcTemplate, 2L, 36L, 91L, sameTime);
+        insertSharedMedia(jdbcTemplate, 3L, 36L, 92L, sameTime.plusSeconds(1));
+
+        // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(36L, new SharedMediaCursor(sameTime.plusSeconds(1), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(2L);
     }
 
     @Test
