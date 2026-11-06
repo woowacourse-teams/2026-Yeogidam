@@ -4,6 +4,7 @@ import {
   Easing,
   Image,
   type ImageSourcePropType,
+  Platform,
   type GestureResponderEvent,
   type LayoutChangeEvent,
   Pressable,
@@ -92,6 +93,7 @@ function PageMedia({
   active: boolean;
 }) {
   const [ready, setReady] = useState(false);
+  const fadeOpacity = useRef(new Animated.Value(0)).current;
   const loadVersion = useRef(0);
   const activeRef = useRef(active);
   activeRef.current = active;
@@ -100,11 +102,16 @@ function PageMedia({
     if (!active) {
       loadVersion.current += 1;
       setReady(false);
+      fadeOpacity.stopAnimation();
+      fadeOpacity.setValue(0);
     }
-  }, [active]);
+  }, [active, fadeOpacity]);
 
   // GIF 페이지는 이동 중 첫 프레임을 유지하고, 도착할 때마다 GIF를 새로 시작한다.
-  const showPoster = !!page.posterSource && (!active || !ready);
+  const androidGif = Platform.OS === 'android' && !!page.posterSource;
+  // Android는 onLoad 직후 GIF가 그려지기 전에도 포스터를 뒤에 남겨 둔다.
+  const showPoster = !!page.posterSource && (androidGif || !active || !ready);
+  const fadeStyle = androidGif ? {opacity: fadeOpacity} : undefined;
   const currentLoadVersion = loadVersion.current;
   return (
     <View style={frame}>
@@ -117,9 +124,14 @@ function PageMedia({
         />
       ) : null}
       {!page.posterSource || active ? (
-        <View
+        <Animated.View
           testID="step-media-gif-layer"
-          style={[styles.mediaLayer, frame, showPoster && styles.mediaLoading]}
+          style={[
+            styles.mediaLayer,
+            frame,
+            fadeStyle,
+            !androidGif && showPoster && styles.mediaLoading,
+          ]}
         >
           {page.renderMedia(
             frame,
@@ -130,11 +142,18 @@ function PageMedia({
                     loadVersion.current === currentLoadVersion
                   ) {
                     setReady(true);
+                    if (androidGif) {
+                      Animated.timing(fadeOpacity, {
+                        toValue: 1,
+                        duration: 180,
+                        useNativeDriver: true,
+                      }).start();
+                    }
                   }
                 }
               : undefined,
           )}
-        </View>
+        </Animated.View>
       ) : null}
     </View>
   );

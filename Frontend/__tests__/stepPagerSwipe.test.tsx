@@ -1,5 +1,5 @@
 import React from 'react';
-import {Image, StyleSheet, Text} from 'react-native';
+import {Animated, Image, Platform, StyleSheet, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {StepPager} from '../src/components/StepPager';
@@ -212,4 +212,50 @@ test('GIF 페이지는 진입할 때마다 첫 프레임을 보여주고 새 미
   expect(mounts).toEqual({first: 2, second: 1});
   expect(renderer.root.findAllByType(Image).map(node => node.props.source.uri)).toContain('poster-first');
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('Android는 GIF 로드 후에도 첫 프레임 이미지를 뒤에 유지한다', async () => {
+  const platform = jest.replaceProperty(Platform, 'OS', 'android');
+  const timingSpy = jest.spyOn(Animated, 'timing');
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  try {
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <StepPager
+          flowName="app_guide"
+          pages={[{
+            key: 'gif',
+            title: 'GIF',
+            posterSource: {uri: 'poster'},
+            renderMedia: (_frame, onLoad) => <Text onPress={onLoad}>GIF</Text>,
+          }]}
+          onComplete={jest.fn()}
+        />,
+      );
+    });
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByProps({testID: 'step-media-area'}).props.onLayout({
+        nativeEvent: {layout: {height: 600}},
+      });
+    });
+    const opacity = StyleSheet.flatten(
+      renderer.root.findByProps({testID: 'step-media-gif-layer'}).props.style,
+    ).opacity;
+    expect(opacity.__getValue()).toBe(0);
+    await ReactTestRenderer.act(async () => {
+      renderer.root.find(
+        node => node.type === Text && node.props.children === 'GIF' && !!node.props.onPress,
+      ).props.onPress();
+    });
+    expect(renderer.root.findAllByType(Image).map(node => node.props.source.uri)).toContain('poster');
+    expect(timingSpy).toHaveBeenCalledWith(
+      opacity,
+      expect.objectContaining({toValue: 1, duration: 180, useNativeDriver: true}),
+    );
+    await finishTransition();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  } finally {
+    timingSpy.mockRestore();
+    platform.restore();
+  }
 });
