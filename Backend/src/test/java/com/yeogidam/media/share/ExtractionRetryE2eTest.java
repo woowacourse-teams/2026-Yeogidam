@@ -519,7 +519,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 분석_중인_게시글을_지운_뒤_재시도하면_새_이력을_만들고_보관함에_다시_담는다() throws Exception {
+    void 분석_중에_지운_게시글을_재시도하면_새_이력이_생기고_장소가_보관함에_담긴다() throws Exception {
         // given
         LoginResult member = loginAsKakao("retry-after-delete");
         createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);

@@ -124,7 +124,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void 선행_일반_조회_뒤_다른_트랜잭션이_지운_장소를_다시_저장하면_새_보관함_ID를_읽는다() {
+    void 다른_트랜잭션이_지운_장소를_다시_저장하면_새_보관함_ID를_읽는다() {
         // given
         insertMember(1L, "saved-id-stale-owner");
         insertThreePlaces();
@@ -537,7 +537,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 고른_게시물의_공유에서_저장한_보관함_항목의_장소_ID를_중복_없이_읽는다() {
+    void 지울_후보로_게시물의_공유에_연결된_장소를_한_번씩_읽는다() {
         // given: 회원 1은 게시물 10을 공유 100(지움)과 101로, 게시물 20을 공유 200으로 공유했고, 회원 2는 게시물 10을 공유 300으로 공유했다
         insertMember(1L, "user-1");
         insertMember(2L, "user-2");
@@ -590,7 +590,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
-    void 지우지_않은_공유와_연결이_없는_보관함_항목은_폴더에_있어도_읽고_연결이_남은_항목은_읽지_않는다() {
+    void 남은_공유와_연결된_장소는_지울_대상에서_빼고_폴더에_담긴_장소는_지울_대상에_넣는다() {
         // given: 장소 1, 2, 3을 지운 공유 100에서 저장했고, 장소 2는 남아 있는 공유 200에서도 저장했으며, 장소 3은 폴더 31에 담았다
         insertMember(1L, "user-1");
         insertThreePlaces();
