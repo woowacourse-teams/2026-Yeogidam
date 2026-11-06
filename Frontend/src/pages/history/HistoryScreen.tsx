@@ -621,6 +621,10 @@ export function HistoryScreen({
 }: HistoryScreenProps) {
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('history');
+  const {bottom: bottomInset} = useSafeAreaInsets();
+  // 하단 네비게이션이 목록 위에 겹쳐 있으므로 마지막 카드가 가려지지 않게 그만큼 띄운다.
+  const listBottomPadding =
+    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 40;
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
   const viewportHeightRef = useRef(0);
@@ -1051,6 +1055,7 @@ export function HistoryScreen({
         }}
         contentContainerStyle={[
           styles.content,
+          {paddingBottom: listBottomPadding},
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
