@@ -2,10 +2,12 @@ package com.yeogidam.place.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.place.dto.request.SavedPlaceCreateRequest;
+import com.yeogidam.place.dto.request.SavedPlaceSearchRequest;
 import com.yeogidam.place.dto.response.SavedPlaceCreateResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.service.SavedPlaceSaveResult;
+import com.yeogidam.place.service.SavedPlaceSearchService;
 import com.yeogidam.place.service.SavedPlaceService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -14,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,11 +30,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class SavedPlaceController implements SavedPlaceApiDocs {
 
     private final SavedPlaceService savedPlaceService;
+    private final SavedPlaceSearchService savedPlaceSearchService;
 
     @Override
     @GetMapping
     public ResponseEntity<SavedPlaceResponses> readSavedPlaces(@LoginMember Long memberId) {
         SavedPlaceResponses response = savedPlaceService.readSavedPlaces(memberId);
+        return ResponseEntity.ok()
+                .body(response);
+    }
+
+    @Override
+    @GetMapping("/search")
+    public ResponseEntity<SavedPlaceResponses> readSavedPlacesByQuery(
+            @LoginMember Long memberId,
+            @Valid @ModelAttribute SavedPlaceSearchRequest request
+    ) {
+        SavedPlaceResponses response = savedPlaceSearchService.readSavedPlaces(memberId, request);
         return ResponseEntity.ok()
                 .body(response);
     }

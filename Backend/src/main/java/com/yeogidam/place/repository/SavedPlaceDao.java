@@ -1,6 +1,7 @@
 package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.SavedPlace;
+import com.yeogidam.search.domain.SearchQuery;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -41,6 +42,12 @@ public class SavedPlaceDao {
             new SavedPlaceFolderProjection(
                     resultSet.getLong("saved_place_id"),
                     resultSet.getLong("folder_id")
+            );
+
+    private static final RowMapper<SavedPlaceCategoryProjection> CATEGORY_PROJECTION_ROW_MAPPER =
+            (resultSet, rowNumber) -> new SavedPlaceCategoryProjection(
+                    resultSet.getLong("saved_place_id"),
+                    resultSet.getString("category")
             );
 
     private static final RowMapper<SavedPlaceMediaProjection> MEDIA_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -150,6 +157,35 @@ public class SavedPlaceDao {
                 """;
         return new SavedPlaceFolderProjections(
                 jdbcTemplate.query(sql, FOLDER_PROJECTION_ROW_MAPPER, memberId, memberId)
+        );
+    }
+
+    public SavedPlaceFolderProjections findFolderLinksByMemberAndSavedPlaceIds(
+            Long memberId,
+            List<Long> savedPlaceIds
+    ) {
+        if (savedPlaceIds.isEmpty()) {
+            return new SavedPlaceFolderProjections(List.of());
+        }
+        String placeholders = savedPlaceIds.stream()
+                .map(id -> "?")
+                .collect(Collectors.joining(", "));
+        String sql = """
+                SELECT fsp.saved_place_id, fsp.folder_id
+                FROM folder_saved_places fsp
+                JOIN folders f ON f.id = fsp.folder_id
+                JOIN saved_places sp ON sp.id = fsp.saved_place_id
+                WHERE f.member_id = ?
+                  AND sp.member_id = ?
+                  AND fsp.saved_place_id IN (%s)
+                ORDER BY fsp.created_at ASC, fsp.id ASC
+                """.formatted(placeholders);
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(memberId);
+        arguments.add(memberId);
+        arguments.addAll(savedPlaceIds);
+        return new SavedPlaceFolderProjections(
+                jdbcTemplate.query(sql, FOLDER_PROJECTION_ROW_MAPPER, arguments.toArray())
         );
     }
 
@@ -307,5 +343,72 @@ public class SavedPlaceDao {
                 "memberId", memberId,
                 "placeIds", placeIds
         ), Long.class);
+    }
+
+    public SavedPlaceCategoryProjections findCategoriesByMember(Long memberId) {
+        String sql = """
+                SELECT sp.id AS saved_place_id, p.category
+                FROM saved_places sp
+                JOIN places p ON p.id = sp.place_id
+                WHERE sp.member_id = ?
+                """;
+        return new SavedPlaceCategoryProjections(jdbcTemplate.query(sql, CATEGORY_PROJECTION_ROW_MAPPER, memberId));
+    }
+
+    public SavedPlaceProjections findAllByMemberAndQuery(
+            Long memberId,
+            SearchQuery query,
+            SavedPlaceCategoryProjections categories
+    ) {
+        String conditions = query.getWords().stream()
+                .map(word -> placeWordCondition(categories.savedPlaceIdsMatching(word)))
+                .collect(Collectors.joining(" AND "));
+        String sql = """
+                SELECT sp.id, p.id AS place_id, p.name, p.category, p.land_lot_address, p.road_address,
+                       p.latitude, p.longitude, p.kakao_place_url, p.telephone,
+                       p.thumbnail_key, p.thumbnail_source, sp.last_saved_at
+                FROM saved_places sp
+                JOIN places p ON p.id = sp.place_id
+                WHERE sp.member_id = ?
+                  AND %s
+                ORDER BY sp.last_saved_at DESC, sp.id DESC
+                """.formatted(conditions);
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(memberId);
+        for (String word : query.getWords()) {
+            String pattern = searchPattern(word);
+            arguments.addAll(List.of(pattern, pattern, pattern));
+            arguments.addAll(categories.savedPlaceIdsMatching(word));
+        }
+        return new SavedPlaceProjections(jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, arguments.toArray()));
+    }
+
+    private String placeWordCondition(List<Long> categorySavedPlaceIds) {
+        return """
+                (LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.name, ''),
+                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
+                 OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.land_lot_address, ''),
+                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
+                 OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.road_address, ''),
+                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
+                 OR %s)
+                """.formatted(categoryCondition(categorySavedPlaceIds));
+    }
+
+    private String categoryCondition(List<Long> savedPlaceIds) {
+        if (savedPlaceIds.isEmpty()) {
+            return "FALSE";
+        }
+        String placeholders = savedPlaceIds.stream()
+                .map(id -> "?")
+                .collect(Collectors.joining(", "));
+        return "sp.id IN (%s)".formatted(placeholders);
+    }
+
+    private String searchPattern(String word) {
+        String escaped = word.replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
+        return "%" + escaped + "%";
     }
 }

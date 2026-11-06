@@ -2,18 +2,22 @@ package com.yeogidam.place.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.place.dto.request.SavedPlaceCreateRequest;
+import com.yeogidam.place.dto.request.SavedPlaceSearchRequest;
 import com.yeogidam.place.dto.response.SavedPlaceCreateResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.util.List;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -23,6 +27,36 @@ import org.springframework.http.ResponseEntity;
  */
 @Tag(name = "SavedPlace", description = "보관함 API입니다.")
 public interface SavedPlaceApiDocs {
+
+    @Operation(summary = "저장 장소 검색",
+            description = """
+                    로그인 회원의 저장 장소를 장소명, 지번, 도로명, 화면에 표시하는 카테고리 이름에서 부분 검색합니다.
+
+                    - 공백으로 나눈 검색 단어를 모두 포함해야 하며, 각 단어는 서로 다른 필드에 있어도 됩니다.
+                    - 카테고리는 `categoryName`으로 검색합니다. 예를 들어 간식으로 분류된 장소는 `디저트`로 찾습니다.
+                    - 영문 대소문자와 공백 차이를 허용하고 입력한 `%`, `_`는 문자 그대로 검색합니다.
+                    - 검색어는 앞뒤 공백을 제외하고 1~100자입니다.
+                    - 최근 저장 시각과 보관함 항목 ID 내림차순으로 전체 결과를 반환합니다.
+                    - 각 장소의 좌표, folderIds, categoryCode는 기존 장소 목록과 같습니다.
+                    - 폴더·카테고리 필터와 지도 이동은 프론트가 결과에 적용합니다.
+                    - 일치하는 장소가 없으면 빈 savedPlaces 배열을 반환합니다.
+                    """,
+            parameters = @Parameter(name = "query", in = ParameterIn.QUERY, required = true,
+                    description = "장소명, 주소, 화면 카테고리 이름에 포함된 검색어. 앞뒤 공백 제외 최대 100자", example = "잠실 카페"),
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "내 저장 장소의 검색 결과",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = SavedPlaceResponses.class))),
+                    @ApiResponse(responseCode = "400", description = "검색어가 비어 있거나 100자를 초과합니다.",
+                            content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "401", description = "로그인이 필요합니다.",
+                            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<SavedPlaceResponses> readSavedPlacesByQuery(
+            Long memberId,
+            @Valid @ParameterObject SavedPlaceSearchRequest request
+    );
 
     @Operation(summary = "보관함 목록 조회",
             description = """
