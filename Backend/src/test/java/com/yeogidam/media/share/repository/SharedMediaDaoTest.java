@@ -613,7 +613,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
     @Test
     void 게시물_탭_목록에서_지운_공유는_빠진다() {
-        // given: 게시물 21의 공유 1은 지웠지만 보관함 연결이 남아 있고, 게시물 22의 공유 2는 분석에 성공해 장소가 나왔다
+        // given: 게시물 21과 22를 공유 1과 2로 공유해 둘 다 분석에 성공하고 장소가 나왔으며, 게시물 21의 공유 1은 지웠지만 보관함 연결이 남아 있다
         insertSavedMediaOwner(18L, 304L);
         insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
         insertMedia(jdbcTemplate, 22L, "연남 와인바", "22.jpg", "@yeonnam");
@@ -627,7 +627,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         // when
         List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(18L).shares();
 
-        // then: 보관함 연결이 남은 지운 공유 1은 빠지고, 분석에 성공해 장소가 나온 공유 2만 남는다
+        // then: 장소가 나왔고 보관함 연결도 남은 공유 1은 지웠으므로 빠지고, 공유 2만 남는다
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(2L);
