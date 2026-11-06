@@ -85,7 +85,6 @@ import {
 import type { BackGestureRegion } from '../../components/navigation/SwipeBackStack';
 
 type MapScreenProps = {
-  bottomNavigationBar?: React.ReactNode;
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   isActive?: boolean;
   isGuest?: boolean;
@@ -107,7 +106,6 @@ const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
 
 export function MapScreen({
-  bottomNavigationBar,
   onBackGestureRegionChange,
   isActive = true,
   isGuest = false,
@@ -955,7 +953,6 @@ export function MapScreen({
             <Text style={styles.mapMessageText}>{mapMessage}</Text>
           </Pressable>
         ) : null}
-        {bottomNavigationBar}
       </View>
     );
   };
