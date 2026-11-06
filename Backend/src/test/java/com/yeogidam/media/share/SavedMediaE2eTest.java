@@ -10,6 +10,7 @@ import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedP
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -261,6 +262,54 @@ class SavedMediaE2eTest extends E2eTestSupport {
                 .when().get(SAVED_PLACES_PATH)
                 .then().statusCode(200)
                 .body("savedPlaces.placeId", contains(1));
+    }
+
+    @Test
+    void 재공유한_게시글을_지워도_같은_장소가_나온_다른_게시글이_남아_있으면_장소는_보관함에_남는다() {
+        // given: 게시물 21(공유 1)에서 카페 온월과 담다식당을, 게시물 22(공유 2)에서 카페 온월을 저장했다
+        LoginResult login = loginAsKakao("saved-media-resaved-place-user");
+        insertMedia(jdbcTemplate, 21L, "성수 감성 카페 모음", "21.jpg", "@seongsu_cafe");
+        insertMedia(jdbcTemplate, 22L, "성수 카페 한 곳", "22.jpg", "@seongsu_one");
+        insertTwoPlaces();
+        insertMediaPlace(jdbcTemplate, 1L, 21L, 1L);
+        insertMediaPlace(jdbcTemplate, 2L, 21L, 2L);
+        insertMediaPlace(jdbcTemplate, 3L, 22L, 1L);
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 21L, BASE);
+        insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 22L, sharedUrl(22L), BASE.plusSeconds(1));
+        insertSavedPlace(jdbcTemplate, 10L, login.memberId(), 1L, BASE);
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 2L, BASE);
+        insertSavedPlaceShare(jdbcTemplate, 100L, 10L, 1L, BASE);
+        insertSavedPlaceShare(jdbcTemplate, 101L, 11L, 1L, BASE);
+        insertSavedPlaceShare(jdbcTemplate, 102L, 10L, 2L, BASE.plusSeconds(1));
+        // 카페 온월을 보관함에서 뺐다가 게시물 22를 다시 공유해 저장하면, 새 보관함 항목은 새 공유에만 연결된다
+        givenBearer(login.accessToken())
+                .queryParam("savedPlaceIds", "10")
+                .when().delete(SAVED_PLACES_PATH)
+                .then().statusCode(204);
+        int resharedId = givenBearer(login.accessToken())
+                .contentType("application/json")
+                .body("{\"instagramUrl\":\"" + sharedUrl(22L) + "\"}")
+                .when().post(SHARES_PATH)
+                .then().statusCode(HttpStatus.ACCEPTED.value())
+                .extract().path("sharedMediaId");
+
+        // when: 다시 공유한 게시물 22의 게시글을 지운다
+        givenBearer(login.accessToken())
+                .queryParam("sharedMediaIds", resharedId)
+                .when().delete(PATH)
+                .then().statusCode(204);
+
+        // then: 지우지 않은 게시물 21에도 카페 온월이 있으므로, 보관함에 남고 게시물 21의 상세에서도 체크가 풀리지 않는다
+        givenBearer(login.accessToken())
+                .when().get(SAVED_PLACES_PATH)
+                .then().statusCode(200)
+                .body("savedPlaces.placeId", containsInAnyOrder(1, 2));
+        givenBearer(login.accessToken())
+                .when().get(PATH)
+                .then().statusCode(200)
+                .body("sharedMedias.sharedMediaId", contains(1))
+                .body("sharedMedias[0].places[0].placeId", equalTo(1))
+                .body("sharedMedias[0].places[0].savedPlaceId", notNullValue());
     }
 
     @Test

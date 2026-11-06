@@ -48,7 +48,7 @@ public class SavedMediaService {
     }
 
     /**
-     * 고른 게시글을 보관함에서 지운다. 게시글마다 같은 게시물의 내 공유를 모두 지운 것으로 표시하고, 지운 게시글로만 저장한 장소를 보관함에서 뺀다.
+     * 고른 게시글을 보관함에서 지운다. 게시글마다 같은 게시물의 내 공유를 모두 지운 것으로 표시하고, 남은 게시글이 쓰지 않는 장소를 보관함에서 뺀다.
      * 히스토리는 지운 공유도 그대로 보여 준다. 이미 지웠거나 남의 공유가 섞여 있어도 "해당 게시글이 내 보관함에 없다"는 결과가 같아 멱등하게 204다.
      * 공유 접수, 추출 완료와 같은 순서로 게시물(media)부터 잠가서, 지우는 사이에 추출이 끝나도 지운 공유에 장소가 붙지 않는다.
      */
@@ -67,8 +67,9 @@ public class SavedMediaService {
     }
 
     /**
-     * 지운 게시물의 공유에서 저장한 보관함 항목을 장소 ID 순서로 잠근 뒤, 지우지 않은 공유와 연결이 없는 항목만 지운다.
-     * 트랜잭션을 READ COMMITTED로 열어서, 잠금을 기다린 뒤의 연결 확인이 그사이 커밋된 연결까지 본다.
+     * 지운 게시물의 장소 가운데 보관함에 있는 항목을 장소 ID 순서로 잠근 뒤, 남은 게시글이 쓰지 않는 항목만 지운다.
+     * 남은 게시글이 쓰는 항목은 지우지 않은 공유와 연결이 있거나, 지우지 않은 내 성공 공유의 게시물에서 같은 장소가 추출된 항목이다.
+     * 트랜잭션을 READ COMMITTED로 열어서, 잠금을 기다린 뒤의 확인이 그사이 커밋된 연결과 공유 삭제까지 본다.
      * 연결 확인을 DELETE 안의 서브쿼리로 하면 회원의 다른 공유 레코드에 공유 락이 걸려, 같은 회원의 다른 게시물 추출 완료나 다른 게시글 삭제와 교착한다(MySQL 8.4에서 재현).
      */
     private void deleteSavedPlacesOnlyFrom(Long memberId, List<Long> mediaIds) {
@@ -77,10 +78,10 @@ public class SavedMediaService {
             return;
         }
         savedPlaceDao.lockByMemberAndPlaceIds(memberId, placeIds);
-        List<Long> unlinkedIds = savedPlaceDao.findUnlinkedIdsByMemberAndPlaceIds(memberId, placeIds);
-        if (unlinkedIds.isEmpty()) {
+        List<Long> unusedIds = savedPlaceDao.findUnusedIdsByMemberAndPlaceIds(memberId, placeIds);
+        if (unusedIds.isEmpty()) {
             return;
         }
-        savedPlaceDao.deleteByMemberAndIds(memberId, unlinkedIds);
+        savedPlaceDao.deleteByMemberAndIds(memberId, unusedIds);
     }
 }

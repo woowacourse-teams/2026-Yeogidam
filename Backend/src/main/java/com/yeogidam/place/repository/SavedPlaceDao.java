@@ -199,17 +199,25 @@ public class SavedPlaceDao {
     }
 
     /**
-     * 회원이 고른 게시물(mediaIds)의 공유에서 저장한 보관함 항목의 장소 ID를 중복 없이 읽는다. 이미 지운 공유의 연결도 함께 읽는다.
+     * 회원이 고른 게시물(mediaIds)의 장소 가운데 회원 보관함에 있는 장소의 ID를 중복 없이 읽는다.
+     * 게시물에서 추출된 장소와, 게시물의 내 공유(이미 지운 공유 포함)에 연결된 장소를 함께 읽는다.
+     * 다른 게시글로 다시 저장해서 공유 연결이 없는 장소도 읽어야, 같은 장소가 나오는 게시글들을 동시에 지울 때 모두 같은 항목을 잠근다.
      */
     public List<Long> findPlaceIdsByMemberAndMediaIds(Long memberId, List<Long> mediaIds) {
         String sql = """
-                SELECT DISTINCT sp.place_id
+                SELECT sp.place_id
+                FROM media_places mp
+                JOIN saved_places sp ON sp.place_id = mp.place_id
+                WHERE sp.member_id = :memberId
+                  AND mp.media_id IN (:mediaIds)
+                UNION
+                SELECT sp.place_id
                 FROM shared_media_saved_places l
                 JOIN shared_media sm ON sm.id = l.shared_media_id
                 JOIN saved_places sp ON sp.id = l.saved_place_id
                 WHERE sm.member_id = :memberId
                   AND sm.media_id IN (:mediaIds)
-                ORDER BY sp.place_id
+                ORDER BY place_id
                 """;
         return namedParameterJdbcTemplate.queryForList(sql, Map.of(
                 "memberId", memberId,
@@ -238,10 +246,12 @@ public class SavedPlaceDao {
     }
 
     /**
-     * 회원의 보관함 항목 가운데 지우지 않은 공유와 연결이 없는 항목의 ID를 읽는다. 폴더에 담긴 항목도 읽는다.
+     * 회원의 보관함 항목 가운데 남은 게시글이 쓰지 않는 항목의 ID를 읽는다. 폴더에 담긴 항목도 읽는다.
+     * 지우지 않은 공유와 연결이 있거나, 지우지 않은 내 성공 공유의 게시물에서 같은 장소가 추출됐으면 남은 게시글이 쓰는 항목이다.
+     * 게시물 상세의 체크는 공유 연결이 아니라 보관함 항목이 있는지로 그리므로, 연결 없이 체크로 보이는 장소도 남긴다.
      * 잠금 없는 일반 SELECT라서 다른 공유 레코드에 공유 락을 남기지 않는다.
      */
-    public List<Long> findUnlinkedIdsByMemberAndPlaceIds(Long memberId, List<Long> placeIds) {
+    public List<Long> findUnusedIdsByMemberAndPlaceIds(Long memberId, List<Long> placeIds) {
         String sql = """
                 SELECT sp.id
                 FROM saved_places sp
@@ -253,6 +263,15 @@ public class SavedPlaceDao {
                       JOIN shared_media sm ON sm.id = l.shared_media_id
                       WHERE l.saved_place_id = sp.id
                         AND sm.deleted_at IS NULL
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM shared_media sm
+                      JOIN media_places mp ON mp.media_id = sm.media_id
+                      WHERE sm.member_id = sp.member_id
+                        AND sm.deleted_at IS NULL
+                        AND sm.extraction_status = 'SUCCEEDED'
+                        AND mp.place_id = sp.place_id
                   )
                 ORDER BY sp.id
                 """;
