@@ -35,7 +35,7 @@ public interface SavedMediaApiDocs {
                     - 다음 페이지는 `nextCursor`의 두 값을 `cursorCreatedAt`, `cursorId`로 보내 요청하며 두 값은 함께 보내야 합니다.
                     - `cursorCreatedAt`은 받은 값을 마이크로초까지 그대로 보내야 페이지 경계의 게시물이 빠지지 않습니다.
                     - `places`에는 게시물에서 추출된 장소를 추출 순서로 담고, 보관함에 없는 장소는 `savedPlaceId`를 null로 돌려줍니다.
-                    - `places`의 `latitude`, `longitude`, `kakaoPlaceUrl`, `telephone`은 보관함 장소 목록과 같은 값이라, 앱은 저장하지 않은 장소의 장소 상세도 게시물 탭 응답의 값으로 그릴 수 있습니다.
+                    - `places`의 `latitude`, `longitude`, `kakaoPlaceUrl`, `telephone`은 보관함 장소 목록과 같은 값이라, 저장하지 않은 장소도 장소 상세의 지도 위치, 카카오 링크, 전화번호를 게시물 탭 응답의 값으로 채울 수 있습니다.
                     - `latitude`와 `longitude`는 늘 값이 있고, `kakaoPlaceUrl`과 `telephone`은 장소에 값이 없으면 null을 돌려줍니다.
                     - 카드 제목은 앱이 `caption` 첫 줄을 잘라 만듭니다.
                     - 보관함 게시물이 없으면 빈 `sharedMedias` 배열을 돌려줍니다.
