@@ -225,6 +225,8 @@ export function SavedPlacesScreen({
   const barReveal = useRef(new Animated.Value(1)).current;
   const barScrollStateRef = useRef(INITIAL_BAR_SCROLL_STATE);
   const barRevealTargetRef = useRef(1);
+  // 화면이 사라진 뒤에 바 숨김/표시 애니메이션이 남아 돌지 않게 멈춥니다.
+  useEffect(() => () => barReveal.stopAnimation(), [barReveal]);
   const hasCapturedViewRef = useRef(false);
   const isRefreshingRef = useRef(false);
   const reelPollStartedAtRef = useRef<number | null>(null);
