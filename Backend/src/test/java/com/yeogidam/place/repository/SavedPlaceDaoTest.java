@@ -546,6 +546,23 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 고른_보관함_항목_가운데_내_항목의_장소_ID만_읽는다() {
+        // given: 보관함 11(장소 2), 12(장소 1)는 회원 1의 것이고, 21(장소 3)은 회원 2의 것이다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 1L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 3L, Instant.parse("2026-09-15T00:00:10Z"));
+
+        // when: 내 항목 11과 12, 없는 id 999, 남의 항목 21을 함께 보낸다
+        List<Long> placeIds = savedPlaceDao.findPlaceIdsByMemberAndIds(1L, List.of(11L, 12L, 999L, 21L));
+
+        // then: 내 항목의 장소만 장소 ID 순서로 읽는다
+        assertThat(placeIds).containsExactly(1L, 2L);
+    }
+
+    @Test
     void 장소의_관련_릴스에서_지운_공유는_빠진다() {
         // given: 보관함 11은 공유 100과 102에서 저장했고, 공유 100은 보관함에서 지웠다
         insertMember(1L, "user-1");

@@ -97,12 +97,19 @@ public class SavedPlaceService {
 
     /**
      * 고른 보관함 항목을 한 번에 지운다. 이미 지웠거나 남의 항목이 섞여 있어도 "그 항목이 내 보관함에 없다"는 결과가 같아 멱등하게 204다.
+     * 지울 항목의 장소 ID를 먼저 읽고 (member_id, place_id) 유니크 인덱스로 장소 ID 순서대로 잠근 뒤 지운다.
+     * 공유와 추출 완료의 저장, 게시글 삭제도 같은 인덱스를 같은 순서로 잠그므로, 기본 키 순서로 지울 때 생기던 교착이 없다(MySQL 8.4에서 재현).
      */
     @Transactional
     public void deleteSavedPlaces(Long memberId, List<Long> savedPlaceIds) {
         if (savedPlaceIds.isEmpty()) {
             throw new PlaceException(PlaceErrorCode.EMPTY_SAVED_PLACE_IDS);
         }
+        List<Long> placeIds = savedPlaceDao.findPlaceIdsByMemberAndIds(memberId, savedPlaceIds);
+        if (placeIds.isEmpty()) {
+            return;
+        }
+        savedPlaceDao.lockByMemberAndPlaceIds(memberId, placeIds);
         savedPlaceDao.deleteByMemberAndIds(memberId, savedPlaceIds);
     }
 }

@@ -12,16 +12,20 @@ import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertDelet
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
+import com.yeogidam.place.domain.SavedPlace;
 import com.yeogidam.place.dto.request.SavedPlaceCreateRequest;
+import com.yeogidam.place.repository.SavedPlaceDao;
 import com.yeogidam.place.service.SavedPlaceService;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
@@ -59,6 +63,9 @@ class SavedPlaceE2eTest extends E2eTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private SavedPlaceDao savedPlaceDao;
 
     @Autowired
     private SavedPlaceService savedPlaceService;
@@ -585,6 +592,39 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("errorCode", equalTo("AUTH401_004"));
     }
 
+    @Test
+    void 보관함_장소_삭제와_같은_회원의_장소_저장이_겹쳐도_교착_없이_둘_다_끝난다() throws Exception {
+        // given: 보관함 항목 ID 순서(11, 20)와 장소 ID 순서(1, 2)가 반대다
+        LoginResult login = loginAsKakao("user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 2L, SHARED_AT);
+        insertSavedPlace(jdbcTemplate, 20L, login.memberId(), 1L, SHARED_AT);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            // 공유나 추출 완료의 저장이 장소 1을 저장한 뒤 장소 2를 저장하기 전에 멈춘 사이, 보관함 항목 11과 20을 한 번에 지운다
+            Future<?> save = holdSavingPlacesInOrder(pool, locked, release, login.memberId());
+            locked.await();
+            Future<Integer> deletion = pool.submit(() -> givenBearer(login.accessToken())
+                    .queryParam("savedPlaceIds", "11,20")
+                    .when().delete(SAVED_PLACES_PATH)
+                    .then().extract().statusCode());
+            awaitLockWaiter("FROM saved_places");
+
+            // when
+            release.countDown();
+
+            // then: 삭제가 장소 ID 순서로 잠그면 장소 1에서 기다리므로, 저장이 장소 2까지 마친 뒤 삭제가 이어진다
+            assertAll(
+                    () -> assertThatCode(save::get).doesNotThrowAnyException(),
+                    () -> assertThat(deletion.get()).isEqualTo(204)
+            );
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     private static ValidatableResponse savePlace(String accessToken, Long sharedMediaId, Long placeId) {
         return givenBearer(accessToken)
                 .contentType(ContentType.JSON)
@@ -627,6 +667,26 @@ class SavedPlaceE2eTest extends E2eTestSupport {
             savedPlaceService.createSavedPlace(memberId, new SavedPlaceCreateRequest(1L, 1L));
             locked.countDown();
             awaitLatch(release);
+        }));
+    }
+
+    /**
+     * 장소 1을 저장한 뒤 release가 열릴 때까지 기다렸다가 장소 2를 저장하고 커밋한다.
+     * 공유와 추출 완료의 저장(savePlacesFromShare)이 장소 ID 오름차순으로 저장하는 사이에 삭제가 들어오는 상황을 만든다.
+     */
+    private Future<?> holdSavingPlacesInOrder(
+            ExecutorService pool,
+            CountDownLatch locked,
+            CountDownLatch release,
+            Long memberId
+    ) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        Instant savedAt = SHARED_AT.plusSeconds(60);
+        return pool.submit(() -> transactionTemplate.executeWithoutResult(status -> {
+            savedPlaceDao.saveOrUpdate(new SavedPlace(memberId, 1L, savedAt));
+            locked.countDown();
+            awaitLatch(release);
+            savedPlaceDao.saveOrUpdate(new SavedPlace(memberId, 2L, savedAt));
         }));
     }
 

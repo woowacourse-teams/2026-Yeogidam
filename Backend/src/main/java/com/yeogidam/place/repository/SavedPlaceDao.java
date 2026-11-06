@@ -191,6 +191,23 @@ public class SavedPlaceDao {
     }
 
     /**
+     * 고른 보관함 항목 가운데 내 항목의 장소 ID를 장소 ID 순서로 읽는다. 없는 항목이나 남의 항목은 member_id 조건에 걸려 빠진다.
+     */
+    public List<Long> findPlaceIdsByMemberAndIds(Long memberId, List<Long> savedPlaceIds) {
+        String sql = """
+                SELECT place_id
+                FROM saved_places
+                WHERE member_id = :memberId
+                  AND id IN (:savedPlaceIds)
+                ORDER BY place_id
+                """;
+        return namedParameterJdbcTemplate.queryForList(sql, Map.of(
+                "memberId", memberId,
+                "savedPlaceIds", savedPlaceIds
+        ), Long.class);
+    }
+
+    /**
      * 회원의 보관함에서 고른 항목(saved_places.id)을 한 번에 뺀다. 없는 항목이나 남의 항목은 member_id 조건에 걸려 그냥 지워지지 않는다.
      * 어느 공유에서 저장했는지 연결(shared_media_saved_places)은 FK의 ON DELETE CASCADE가 함께 지운다.
      */
