@@ -60,6 +60,6 @@ class ShareHistoryProjectionsTest {
      * 페이지 규칙은 공유 ID와 공유 시각만 보므로 나머지 값은 비워 둔다.
      */
     private static ShareHistoryProjection share(long id) {
-        return new ShareHistoryProjection(id, BASE.plusSeconds(id), null, null, null, "SUCCEEDED", null, null);
+        return new ShareHistoryProjection(id, BASE.plusSeconds(id), null, null, null, "SUCCEEDED", null, null, false);
     }
 }

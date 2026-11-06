@@ -55,7 +55,8 @@ public class SharedMediaDao {
                     resultSet.getString("author"),
                     resultSet.getString("extraction_status"),
                     resultSet.getString("failure_reason"),
-                    resultSet.getString("shared_url")
+                    resultSet.getString("shared_url"),
+                    resultSet.getBoolean("reported")
             );
 
     private static final RowMapper<SavedMediaProjection> SAVED_MEDIA_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -196,6 +197,8 @@ public class SharedMediaDao {
 
     /**
      * 히스토리 첫 페이지를 읽는다. 다음 페이지가 있는지 알 수 있게 페이지 크기보다 한 건 더 읽는다.
+     * 공유마다 제보 여부를 함께 읽고, 지운 공유도 제보 여부를 그대로 읽는다.
+     * 제보 여부는 SELECT 절의 하위 쿼리라서, MySQL이 정렬과 LIMIT을 마친 페이지 행에만 유니크 인덱스로 한 번씩 실행한다.
      */
     public ShareHistoryProjections findShareHistory(Long memberId) {
         String sql = """
@@ -206,7 +209,12 @@ public class SharedMediaDao {
                        m.author,
                        sm.extraction_status,
                        sm.failure_reason,
-                       sm.shared_url
+                       sm.shared_url,
+                       EXISTS (
+                           SELECT 1
+                           FROM shared_media_reports smr
+                           WHERE smr.shared_media_id = sm.id
+                       ) AS reported
                 FROM shared_media sm
                 JOIN media m ON m.id = sm.media_id
                 WHERE sm.member_id = ?
@@ -219,6 +227,7 @@ public class SharedMediaDao {
 
     /**
      * 커서가 가리키는 공유보다 오래된 공유를 다음 페이지로 읽는다. 공유 시각이 같으면 ID가 작은 공유를 더 오래된 공유로 본다.
+     * 제보 여부는 첫 페이지(findShareHistory)와 같은 규칙으로 읽는다.
      */
     public ShareHistoryProjections findShareHistoryBefore(Long memberId, SharedMediaCursor cursor) {
         String sql = """
@@ -229,7 +238,12 @@ public class SharedMediaDao {
                        m.author,
                        sm.extraction_status,
                        sm.failure_reason,
-                       sm.shared_url
+                       sm.shared_url,
+                       EXISTS (
+                           SELECT 1
+                           FROM shared_media_reports smr
+                           WHERE smr.shared_media_id = sm.id
+                       ) AS reported
                 FROM shared_media sm
                 JOIN media m ON m.id = sm.media_id
                 WHERE sm.member_id = ?

@@ -269,6 +269,9 @@ public interface ShareApiDocs {
                       `PROCESSING_FAILED`, `UNEXPECTED` 중 하나입니다.
                     - 게시물에 접근하지 못한 공유 이력은 `thumbnailUrl`, `caption`, `author`가 null일 수 있습니다.
                     - `sharedUrl`은 게시물 접근 성공 여부와 관계없이 돌려줍니다.
+                    - `reported`는 공유 이력을 제보했으면 `true`, 제보하지 않았으면 `false`를 돌려줍니다.
+                    - 제보는 공유 이력마다 받으므로, 재시도나 다시 공유로 만든 새 공유 이력은 제보하기 전까지 `false`를 돌려줍니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 목록에 남고 `reported`를 지우기 전과 같게 돌려줍니다.
                     - 공유 이력이 없으면 빈 `sharedMedias` 배열을 돌려줍니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
@@ -320,6 +323,12 @@ public interface ShareApiDocs {
 
                     - 장소는 릴스 추출 결과 순서로 돌려줍니다.
                     - 장소마다 `landLotAddress`와 `roadAddress`를 모두 제공합니다.
+                    - `savedPlaceId`는 로그인한 회원의 보관함 항목 ID를 돌려주고, 보관함에 없는 장소면 null을 돌려줍니다.
+                    - `categoryCode`와 `categoryName`은 `/api/v1/place-categories`의 코드와 이름에 대응합니다.
+                    - `category` 원문이 없거나 분류 규칙에 맞지 않으면 `ETC`, `기타`를 돌려줍니다.
+                    - `latitude`, `longitude`, `kakaoPlaceUrl`, `telephone`은 보관함 게시물 목록(`GET /api/v1/saved-media`)의 장소와 같은 값이라, 저장하지 않은 장소도 장소 상세의 지도 위치, 카카오 링크, 전화번호를 히스토리 응답의 값으로 채울 수 있습니다.
+                    - `latitude`와 `longitude`는 늘 값이 있고, `kakaoPlaceUrl`과 `telephone`은 장소에 값이 없으면 null을 돌려줍니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 같은 방식으로 장소를 돌려줍니다.
                     - 존재하지 않거나 다른 회원의 공유 이력이면 조회할 수 없습니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),

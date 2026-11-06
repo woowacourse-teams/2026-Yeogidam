@@ -8,10 +8,12 @@ import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMembe
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.insertReport;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertDeletedSharedMedia;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
@@ -363,6 +365,64 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         assertThat(shares)
                 .extracting(ShareHistoryProjection::sharedMediaId)
                 .containsExactly(3L, 2L, 1L);
+    }
+
+    @Test
+    void 히스토리는_공유마다_제보했는지를_읽는다() {
+        // given: 회원 1이 실패한 게시물 1을 공유 1과 공유 2로 두 번 공유했고, 공유 1만 제보했다.
+        insertKakaoMember(jdbcTemplate, 1L, "history-reported-owner", null, null, null);
+        insertFailedMedia(jdbcTemplate, 1L, 1, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 2L, 1L, 1L, Instant.parse("2026-11-01T11:00:00Z"));
+        insertReport(jdbcTemplate, 1L, 1L, Instant.parse("2026-11-01T10:30:00Z"));
+
+        // when
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(1L).page();
+
+        // then
+        assertThat(shares)
+                .extracting(ShareHistoryProjection::sharedMediaId, ShareHistoryProjection::reported)
+                .containsExactly(tuple(2L, false), tuple(1L, true));
+    }
+
+    @Test
+    void 지운_공유도_히스토리에서_제보_여부를_그대로_읽는다() {
+        // given: 회원 1이 실패한 게시물 1의 공유 1을 제보한 뒤 보관함에서 지웠다.
+        insertKakaoMember(jdbcTemplate, 1L, "history-deleted-reported-owner", null, null, null);
+        insertFailedMedia(jdbcTemplate, 1L, 1, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
+        insertDeletedSharedMedia(jdbcTemplate, 1L, 1L, 1L,
+                Instant.parse("2026-11-01T10:00:00Z"), Instant.parse("2026-11-02T10:00:00Z"));
+        insertReport(jdbcTemplate, 1L, 1L, Instant.parse("2026-11-01T10:30:00Z"));
+
+        // when
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(1L).page();
+
+        // then
+        assertThat(shares)
+                .extracting(ShareHistoryProjection::sharedMediaId, ShareHistoryProjection::reported)
+                .containsExactly(tuple(1L, true));
+    }
+
+    @Test
+    void 히스토리_다음_페이지도_첫_페이지처럼_제보_여부를_읽는다() {
+        // given: 회원 1이 실패한 게시물 1을 공유 1, 2, 3으로 세 번 공유해 공유 1만 제보했고, 공유 3까지 본 뒤 다음 페이지를 읽는다.
+        insertKakaoMember(jdbcTemplate, 1L, "history-next-page-owner", null, null, null);
+        insertFailedMedia(jdbcTemplate, 1L, 1, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
+        Instant base = Instant.parse("2026-11-01T10:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 1L, 1L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 1L, 1L, base.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 3L, 1L, 1L, base.plusSeconds(2));
+        insertReport(jdbcTemplate, 1L, 1L, base.plusSeconds(3));
+
+        // when
+        List<ShareHistoryProjection> shares = sharedMediaDao
+                .findShareHistoryBefore(1L, new SharedMediaCursor(base.plusSeconds(2), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(ShareHistoryProjection::sharedMediaId, ShareHistoryProjection::reported)
+                .containsExactly(tuple(2L, false), tuple(1L, true));
     }
 
     private void insertSharesOneSecondApart(Long memberId, Long mediaId, int count) {

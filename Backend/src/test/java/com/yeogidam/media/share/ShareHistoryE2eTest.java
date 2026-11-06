@@ -4,6 +4,9 @@ import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaP
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.insertReport;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -112,6 +115,23 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .body("sharedMedias[1].extractionStatus", equalTo("SUCCEEDED"))
                 .body("sharedMedias[1].failureReason", equalTo(null))
                 .body("sharedMedias[1].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-1/"));
+    }
+
+    @Test
+    void 히스토리_목록은_공유마다_제보_여부를_돌려준다() {
+        // given: 회원이 장소를 찾지 못한 게시물 1을 공유 1과 공유 2로 두 번 공유했고, 공유 2만 제보했다.
+        LoginResult login = loginAsKakao("share-list-reported-user");
+        insertFailedMedia(jdbcTemplate, 1L, 1, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, BASE);
+        insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 1L, BASE.plusSeconds(1));
+        insertReport(jdbcTemplate, 1L, 2L, BASE.plusSeconds(2));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(PATH)
+                .then().statusCode(200)
+                .body("sharedMedias.sharedMediaId", contains(2, 1))
+                .body("sharedMedias.reported", contains(true, false));
     }
 
     @Test
@@ -256,6 +276,38 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     }
 
     @Test
+    void 히스토리_장소_목록은_보관함_항목_ID와_카테고리와_장소_상세_필드를_돌려준다() {
+        // given: 게시물 1에서 카페 온월, 종로 식당 순서로 장소가 나왔고, 회원은 카페 온월만 보관함에 두었다.
+        LoginResult login = loginAsKakao("share-history-places-fields-user");
+        insertMedia(jdbcTemplate, 1L, "장소 모음", "media.jpg", "@author");
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, BASE);
+        insertTwoPlaces();
+        insertMediaPlace(jdbcTemplate, 1L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 2L, 1L, 2L);
+        insertSavedPlace(jdbcTemplate, 10L, login.memberId(), 1L, BASE);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(PATH + "/1/places")
+                .then().statusCode(200)
+                .body("places", hasSize(2))
+                .body("places[0].savedPlaceId", equalTo(10))
+                .body("places[0].categoryCode", equalTo("CAFE"))
+                .body("places[0].categoryName", equalTo("카페"))
+                .body("places[0].latitude", equalTo(37.5446f))
+                .body("places[0].longitude", equalTo(127.0559f))
+                .body("places[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/1"))
+                .body("places[0].telephone", equalTo("02-1234-5678"))
+                .body("places[1].savedPlaceId", nullValue())
+                .body("places[1].categoryCode", equalTo("ETC"))
+                .body("places[1].categoryName", equalTo("기타"))
+                .body("places[1].latitude", equalTo(37.5704f))
+                .body("places[1].longitude", equalTo(126.9921f))
+                .body("places[1].kakaoPlaceUrl", nullValue())
+                .body("places[1].telephone", nullValue());
+    }
+
+    @Test
     void 토큰_없이_히스토리_내_장소_목록을_조회하면_401_예외를_던진다() {
         // when & then
         given().when().get(PATH + "/1/places")
@@ -299,5 +351,16 @@ class ShareHistoryE2eTest extends E2eTestSupport {
         insertMedia(jdbcTemplate, 1L, "페이지 게시글", "page.jpg", "@page");
         IntStream.rangeClosed(1, count)
                 .forEach(id -> insertSharedMedia(jdbcTemplate, (long) id, memberId, 1L, BASE.plusSeconds(id)));
+    }
+
+    /**
+     * 장소 1로 모든 정보가 있는 카페 온월을, 장소 2로 카테고리와 카카오 링크와 전화번호가 없는 종로 식당을 넣는다.
+     */
+    private void insertTwoPlaces() {
+        insertPlace(jdbcTemplate, 1L, "kakao-history-1", "카페 온월", "음식점 > 카페",
+                "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new BigDecimal("37.5446"),
+                new BigDecimal("127.0559"), "https://place.map.kakao.com/1", "02-1234-5678", "place-1.jpg", "KAKAO");
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 2L, "kakao-history-2", "종로 식당",
+                "서울 종로구 관철동 1-1", new BigDecimal("37.5704"), new BigDecimal("126.9921"));
     }
 }

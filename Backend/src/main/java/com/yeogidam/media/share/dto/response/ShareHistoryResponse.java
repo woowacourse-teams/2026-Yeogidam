@@ -11,7 +11,8 @@ public record ShareHistoryResponse(
         String author,
         String extractionStatus,
         String failureReason,
-        String sharedUrl
+        String sharedUrl,
+        boolean reported
 ) {
     public static ShareHistoryResponse from(
             ShareHistoryProjection projection,
@@ -25,7 +26,8 @@ public record ShareHistoryResponse(
                 projection.author(),
                 projection.extractionStatus(),
                 projection.failureReason(),
-                projection.sharedUrl()
+                projection.sharedUrl(),
+                projection.reported()
         );
     }
 }

@@ -23,11 +23,16 @@ public class MediaPlaceDao {
     private static final RowMapper<MediaPlaceProjection> PLACE_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
             new MediaPlaceProjection(
                     resultSet.getLong("place_id"),
+                    resultSet.getObject("saved_place_id", Long.class),
                     resultSet.getString("thumbnail_key"),
                     resultSet.getString("name"),
                     resultSet.getString("category"),
                     resultSet.getString("land_lot_address"),
-                    resultSet.getString("road_address")
+                    resultSet.getString("road_address"),
+                    resultSet.getBigDecimal("latitude"),
+                    resultSet.getBigDecimal("longitude"),
+                    resultSet.getString("kakao_place_url"),
+                    resultSet.getString("telephone")
             );
 
     private static final RowMapper<SavedMediaPlaceProjection> SAVED_MEDIA_PLACE_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -80,21 +85,33 @@ public class MediaPlaceDao {
         return new ExtractedPlaceProjections(jdbcTemplate.query(sql, EXTRACTED_PLACE_ROW_MAPPER, mediaId));
     }
 
-    public List<MediaPlaceProjection> findBySharedMediaId(Long sharedMediaId) {
+    /**
+     * 공유한 게시물에서 추출된 장소를 추출 순서로 읽고, 장소마다 회원의 보관함 항목 ID를 붙인다.
+     * 보관함 항목은 회원 조건으로만 붙이므로 다른 회원이 저장한 장소는 null로 읽는다.
+     * 공유의 분석 상태와 삭제 여부는 보지 않아서, 보관함에서 지운 공유도 히스토리에서 장소를 그대로 읽는다.
+     */
+    public List<MediaPlaceProjection> findBySharedMediaId(Long memberId, Long sharedMediaId) {
         String sql = """
                 SELECT p.id AS place_id,
+                       sp.id AS saved_place_id,
                        p.thumbnail_key,
                        p.name,
                        p.category,
                        p.land_lot_address,
-                       p.road_address
+                       p.road_address,
+                       p.latitude,
+                       p.longitude,
+                       p.kakao_place_url,
+                       p.telephone
                 FROM shared_media sm
                 JOIN media_places mp ON mp.media_id = sm.media_id
                 JOIN places p ON p.id = mp.place_id
+                LEFT JOIN saved_places sp ON sp.place_id = p.id
+                                         AND sp.member_id = ?
                 WHERE sm.id = ?
                 ORDER BY mp.id
                 """;
-        return jdbcTemplate.query(sql, PLACE_PROJECTION_ROW_MAPPER, sharedMediaId);
+        return jdbcTemplate.query(sql, PLACE_PROJECTION_ROW_MAPPER, memberId, sharedMediaId);
     }
 
     /**
