@@ -1,6 +1,8 @@
 package com.yeogidam.place.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
+import com.yeogidam.place.dto.request.SavedPlaceCreateRequest;
+import com.yeogidam.place.dto.response.SavedPlaceCreateResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import io.swagger.v3.oas.annotations.Operation;
@@ -103,9 +105,61 @@ public interface SavedPlaceApiDocs {
                                                                   @Parameter(description = "보관함 항목 ID(saved_places.id)입니다.", example = "11")
                                                                   Long savedPlaceId);
 
+    @Operation(summary = "게시물 장소 저장",
+            description = """
+                    게시물 상세의 「나온 장소」에서 체크를 켠 장소를 보관함에 저장하고, 보관함 항목 ID를 돌려줍니다.
+
+                    - `sharedMediaId`는 게시물 탭 카드의 공유 ID이고, `placeId`는 해당 게시물에서 추출된 장소 ID입니다.
+                    - 새로 저장한 장소는 요청한 게시글에만 연결되고, 장소 탭과 지도에 다시 보입니다.
+                    - 이미 보관함에 있는 장소면 보관함을 바꾸지 않고 200과 기존 `savedPlaceId`를 돌려줍니다.
+                    - 다른 요청이 같은 장소를 동시에 처음 저장했으면 200을 돌려주고, 저장 시각만 바뀔 수 있습니다.
+                    - 저장은 회원과 장소마다 하나라서, 같은 장소가 나온 다른 게시글에서도 체크된 것으로 보입니다.
+                    - 체크 끄기는 보관함 장소 삭제(`DELETE /api/v1/saved-places?savedPlaceIds=`)로 합니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글이나, 분석에 실패했거나 분석 중인 공유에서는 저장할 수 없습니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "201", description = "보관함에 새로 저장했습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = SavedPlaceCreateResponse.class),
+                                    examples = @ExampleObject(name = "새로 저장한 장소", value = """
+                                            {"savedPlaceId": 31}
+                                            """))),
+                    @ApiResponse(responseCode = "200", description = "이미 보관함에 있는 장소라 기존 보관함 항목 ID를 돌려줍니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = SavedPlaceCreateResponse.class),
+                                    examples = @ExampleObject(name = "이미 저장한 장소", value = """
+                                            {"savedPlaceId": 11}
+                                            """))),
+                    @ApiResponse(responseCode = "400", description = "`sharedMediaId`나 `placeId`가 없습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "COMMON400_001", description = "`sharedMediaId`나 `placeId`가 없을 때 돌려줍니다.",
+                                            value = """
+                                            {"message": "유효하지 않은 요청 필드입니다.", "errorCode": "COMMON400_001"}
+                                            """))),
+                    @ApiResponse(responseCode = "404", description = "내 공유가 아니거나, 지운 게시글이거나, 분석에 성공한 공유가 아니거나, 게시물에서 추출된 장소가 아닙니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = {
+                                            @ExampleObject(name = "MEDIA404_002", description = "없는 공유, 남의 공유, 지운 게시글, 분석에 실패했거나 분석 중인 공유일 때 모두 같은 응답을 돌려줍니다.",
+                                                    value = """
+                                                    {"message": "존재하지 않는 공유입니다.", "errorCode": "MEDIA404_002"}
+                                                    """),
+                                            @ExampleObject(name = "PLACE404_002", description = "`placeId`가 해당 게시물에서 추출된 장소가 아닐 때 돌려줍니다.",
+                                                    value = """
+                                                    {"message": "게시물에서 추출된 장소가 아닙니다.", "errorCode": "PLACE404_002"}
+                                                    """)
+                                    })),
+                    @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<SavedPlaceCreateResponse> createSavedPlace(Long memberId, SavedPlaceCreateRequest request);
+
     @Operation(summary = "보관함 장소 삭제",
             description = """
-                    보관함 편집(여러 개 선택)과 장소 상세 더보기(한 개)에서 고른 보관함 항목을 한 번에 뺍니다.
+                    보관함 편집(여러 개 선택), 장소 상세 더보기(한 개), 게시물 상세의 체크 끄기(한 개)에서 고른 보관함 항목을 한 번에 뺍니다.
 
                     - 보관함 항목과 공유 연결만 지우고 추출 결과, 공유 이력, 장소 정보는 남습니다.
                     - 한 트랜잭션이라 일부만 지워지는 일이 없습니다.

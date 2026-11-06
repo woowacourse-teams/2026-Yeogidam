@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -101,6 +102,21 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 이미_보관함에_있는_장소를_다시_저장하면_새로_넣지_않은_것으로_돌려준다() {
+        // given: 보관함 11은 이미 장소 1을 저장했다
+        insertMember(1L, "save-existing-owner");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00.123456Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+
+        // when
+        boolean isCreated = savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, previous.plusSeconds(10)));
+
+        // then
+        assertThat(isCreated).isFalse();
+    }
+
+    @Test
     void 회원과_장소가_모두_일치하는_보관함_ID를_조회한다() {
         // given
         insertMember(1L, "saved-id-owner");
@@ -113,13 +129,28 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
         // when & then
         assertAll(
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 1L))
-                        .isEqualTo(11L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 2L))
-                        .isEqualTo(12L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlaceForUpdate(2L, 1L))
-                        .isEqualTo(21L)
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L))
+                        .contains(11L),
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 2L))
+                        .contains(12L),
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(2L, 1L))
+                        .contains(21L)
         );
+    }
+
+    @Test
+    void 다른_회원만_저장한_장소의_보관함_ID는_읽지_않는다() {
+        // given: 장소 1은 회원 2만 저장했다
+        insertMember(1L, "saved-id-empty-owner");
+        insertMember(2L, "saved-id-empty-other");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-10-01T10:00:00Z"));
+
+        // when
+        Optional<Long> savedPlaceId = savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L);
+
+        // then
+        assertThat(savedPlaceId).isEmpty();
     }
 
     @Test
@@ -142,7 +173,7 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 otherTransaction.executeWithoutResult(otherStatus ->
                         savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L)));
                 savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, previous.plusSeconds(60)));
-                return savedPlaceDao.getIdByMemberAndPlaceForUpdate(1L, 1L);
+                return savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L).orElseThrow();
             });
 
             // then: 스냅숏에 남은 옛 ID 11이 아니라 지금 남은 항목의 ID를 읽는다

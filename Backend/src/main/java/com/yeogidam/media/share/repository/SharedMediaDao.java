@@ -349,6 +349,24 @@ public class SharedMediaDao {
     }
 
     /**
+     * 체크 켜기가 장소를 저장할 공유의 게시물 ID를 읽는다. 지우지 않았고 분석에 성공한 내 공유만 읽는다.
+     * 게시물 탭, 장소 상세 릴스, 게시글 삭제의 남은 게시글과 같은 기준이라, 실패한 공유에 연결이 생겨 어느 화면에도 없는 장소가 보관함에 남지 않는다.
+     */
+    public Optional<Long> findSucceededMediaIdByMemberAndId(Long memberId, Long sharedMediaId) {
+        String sql = """
+                SELECT media_id
+                FROM shared_media
+                WHERE member_id = ?
+                  AND id = ?
+                  AND deleted_at IS NULL
+                  AND extraction_status = 'SUCCEEDED'
+                """;
+        return jdbcTemplate.queryForList(sql, Long.class, memberId, sharedMediaId)
+                .stream()
+                .findFirst();
+    }
+
+    /**
      * 고른 게시물마다 회원의 공유를 모두 지운 것으로 표시한다(soft delete). 게시물 탭은 게시물마다 최신 공유 한 건만 보여 주므로, 한 건만 지우면 예전 공유가 대신 올라온다.
      * 이미 지운 공유는 처음 지운 시각을 그대로 둔다.
      */
