@@ -559,6 +559,59 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 보관함_게시물_다음_페이지에서도_내_공유가_실패로_남은_게시물은_읽지_않는다() {
+        // given: 회원 27은 게시물 32, 31, 33을 공유 1, 2, 4로 차례로 공유했고, 게시물 31의 공유 2는 실패로 끝났지만 나중에 회원 28의 공유 3으로 추출이 성공해 장소가 나왔다
+        insertSavedMediaMember(27L);
+        insertKakaoMember(jdbcTemplate, 28L, "saved-media-next-success-other", null, null, null);
+        for (long mediaId = 31; mediaId <= 33; mediaId++) {
+            insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
+            insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
+        }
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        ExtractionSnapshot failed = new ExtractionSnapshot(
+                ExtractionStatus.FAILED, ExtractionFailureReason.PLACE_NOT_EXTRACTED, 1, MediaSourceType.EXTRACTED);
+        insertSharedMedia(jdbcTemplate, 1L, 27L, 32L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 27L, 31L, base.plusSeconds(1), failed);
+        insertSharedMedia(jdbcTemplate, 3L, 28L, 31L, base.plusSeconds(5));
+        insertSharedMedia(jdbcTemplate, 4L, 27L, 33L, base.plusSeconds(2));
+
+        // when: 공유 4까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(27L, new SharedMediaCursor(base.plusSeconds(2), 4L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void 보관함_게시물_다음_페이지에서도_장소가_나오지_않은_게시물은_읽지_않는다() {
+        // given: 회원 29는 게시물 41, 42, 43을 공유 1, 2, 3으로 차례로 공유했고, 모두 분석에 성공했지만 게시물 42에서는 장소가 나오지 않았다
+        insertSavedMediaMember(29L);
+        insertMedia(jdbcTemplate, 41L, "게시물 41", "41.jpg", "@author");
+        insertMedia(jdbcTemplate, 42L, "장소 없는 게시물", "42.jpg", "@author");
+        insertMedia(jdbcTemplate, 43L, "게시물 43", "43.jpg", "@author");
+        insertMediaPlace(jdbcTemplate, 41L, 41L, 1L);
+        insertMediaPlace(jdbcTemplate, 43L, 43L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 29L, 41L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 29L, 42L, base.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 3L, 29L, 43L, base.plusSeconds(2));
+
+        // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(29L, new SharedMediaCursor(base.plusSeconds(2), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
+    }
+
+    @Test
     void 게시물_탭_목록에서_지운_공유는_빠진다() {
         // given: 게시물 21의 공유 1은 지웠지만 보관함 연결이 남아 있고, 게시물 22의 공유 2는 분석에 성공해 장소가 나왔다
         insertSavedMediaOwner(18L, 304L);
