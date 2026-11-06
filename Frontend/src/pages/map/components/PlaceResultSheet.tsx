@@ -412,7 +412,7 @@ export function PlaceResultSheet({
     setIsReelsLoading(true);
     setReelsError(null);
     try {
-      setSelectedPlaceReels(await getPlaceReels(selectedPlace.id));
+      setSelectedPlaceReels(await getPlaceReels(selectedPlace.savedPlaceId));
     } catch (error) {
       setReelsError(error as PlaceReelsApiError);
     } finally {
