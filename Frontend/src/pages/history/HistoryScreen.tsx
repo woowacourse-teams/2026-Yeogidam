@@ -602,6 +602,15 @@ function HistoryFailureDetail({
 /** 처리 중 항목의 상태도 앱 공용 목록 폴링 하나로 갱신한다(단건 폴링 없음). */
 const LIST_POLL_INTERVAL_MS = 3000;
 
+/**
+ * 서버가 재시도를 받지 않는 같은 분석 버전 실패(MEDIA400_016)를 처리 중으로 보여 주는 시간.
+ * 이 시간이 지나면 서버 상태(실패)로 돌아와 다시 시도한 뒤 또 실패한 것처럼 보인다.
+ */
+const SILENT_RETRY_PROCESSING_MS = 6000;
+
+/** 같은 분석 버전이라 서버가 재시도를 받지 않았다는 오류 코드. 사용자에게는 알리지 않는다. */
+const RETRY_NOT_ELIGIBLE_ERROR_CODE = 'MEDIA400_016';
+
 export function HistoryScreen({
   isActive = true,
   onBack,
@@ -635,6 +644,16 @@ export function HistoryScreen({
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+  // 같은 분석 버전이라 서버가 재시도를 받지 않은 항목. 잠시 처리 중으로 보여 준다.
+  const [silentRetryIds, setSilentRetryIds] = useState<ReadonlySet<string>>(() => new Set());
+  const silentRetryTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = silentRetryTimersRef.current;
+    return () => {
+      timers.forEach(clearTimeout);
+      timers.clear();
+    };
+  }, []);
 
   const handleDetailBack = useCallback(() => {
     shouldRestoreScrollRef.current = true;
@@ -851,7 +870,29 @@ export function HistoryScreen({
         failureType: toExtractionFailureType(normalized),
         responseStatus: normalized.status,
       });
-      // MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
+      // 같은 분석 버전이면 서버는 400 + errorCode 'MEDIA400_016'("현재 분석 버전에서는 재시도가
+      // 불가능합니다.")으로 재시도를 받지 않는다. 사용자가 알 필요 없는 내부 사정이라 문구 없이
+      // 목록으로 돌아가 잠시 처리 중으로 보여 준다. 다른 실패는 아래에서 그대로 안내한다.
+      if (normalized.errorCode === RETRY_NOT_ELIGIBLE_ERROR_CODE) {
+        scrollOffsetRef.current = 0;
+        shouldRestoreScrollRef.current = false;
+        setSelectedFailure(false);
+        setSelectedReel(null);
+        const timers = silentRetryTimersRef.current;
+        const previous = timers.get(reel.id);
+        if (previous) clearTimeout(previous);
+        setSilentRetryIds(current => new Set(current).add(reel.id));
+        timers.set(reel.id, setTimeout(() => {
+          timers.delete(reel.id);
+          setSilentRetryIds(current => {
+            const next = new Set(current);
+            next.delete(reel.id);
+            return next;
+          });
+        }, SILENT_RETRY_PROCESSING_MS));
+        return;
+      }
+      // 그 밖의 MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
       Alert.alert(
         '다시 시도하지 못했어요',
         normalized.errorCode?.startsWith('MEDIA')
@@ -941,7 +982,13 @@ export function HistoryScreen({
     return () => cancelAnimationFrame(restoreScroll);
   }, [loading, reels.length, selectedFailure, selectedSuccess]);
 
-  const groupedReels = reels.reduce<Record<string, HistoryReel[]>>(
+  // 재시도를 받지 않은 항목은 정해진 시간 동안 처리 중 카드로 그린다(눌러도 상세로 가지 않는다).
+  const displayedReels = silentRetryIds.size === 0
+    ? reels
+    : reels.map(item => (silentRetryIds.has(item.id)
+      ? {...item, processing_status: 'PROCESSING' as const, failure_reason: null}
+      : item));
+  const groupedReels = displayedReels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
       const date = formatHistoryDate(reel.created_at);
       groups[date] = groups[date] ? [...groups[date], reel] : [reel];
