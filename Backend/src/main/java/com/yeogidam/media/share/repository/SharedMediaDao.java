@@ -246,7 +246,8 @@ public class SharedMediaDao {
 
     /**
      * 보관함 게시물 탭의 첫 페이지를 읽는다. 다음 페이지가 있는지 알 수 있게 페이지 크기보다 한 건 더 읽는다.
-     * 지우지 않았고 보관함 연결(shared_media_saved_places)이 남은 내 공유에 게시물마다 최신순 번호를 매겨 1번만 남긴다.
+     * 지우지 않았고 분석에 성공했으며 추출된 장소(media_places)가 있는 내 공유에 게시물마다 최신순 번호를 매겨 1번만 남긴다.
+     * 보관함 연결(shared_media_saved_places)은 보지 않으므로, 장소를 모두 저장 해제한 게시물도 남는다.
      * 다른 회원의 공유는 읽지 않으므로, 여러 회원이 공유한 게시물이나 같은 게시물을 여러 번 공유한 경우에도 내 공유만큼만 읽는다.
      * 공유 시각이 같으면 ID가 큰 공유를 더 최근으로 본다.
      */
@@ -271,10 +272,11 @@ public class SharedMediaDao {
                     FROM shared_media sm
                     WHERE sm.member_id = ?
                       AND sm.deleted_at IS NULL
+                      AND sm.extraction_status = 'SUCCEEDED'
                       AND EXISTS (
                           SELECT 1
-                          FROM shared_media_saved_places l
-                          WHERE l.shared_media_id = sm.id
+                          FROM media_places mp
+                          WHERE mp.media_id = sm.media_id
                       )
                 ) latest
                 JOIN media m ON m.id = latest.media_id
@@ -311,10 +313,11 @@ public class SharedMediaDao {
                     FROM shared_media sm
                     WHERE sm.member_id = ?
                       AND sm.deleted_at IS NULL
+                      AND sm.extraction_status = 'SUCCEEDED'
                       AND EXISTS (
                           SELECT 1
-                          FROM shared_media_saved_places l
-                          WHERE l.shared_media_id = sm.id
+                          FROM media_places mp
+                          WHERE mp.media_id = sm.media_id
                       )
                 ) latest
                 JOIN media m ON m.id = latest.media_id

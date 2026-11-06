@@ -39,7 +39,11 @@ public class MediaPlaceDao {
                     resultSet.getString("name"),
                     resultSet.getString("category"),
                     resultSet.getString("land_lot_address"),
-                    resultSet.getString("road_address")
+                    resultSet.getString("road_address"),
+                    resultSet.getBigDecimal("latitude"),
+                    resultSet.getBigDecimal("longitude"),
+                    resultSet.getString("kakao_place_url"),
+                    resultSet.getString("telephone")
             );
 
     private final JdbcTemplate jdbcTemplate;
@@ -110,7 +114,11 @@ public class MediaPlaceDao {
                        p.name,
                        p.category,
                        p.land_lot_address,
-                       p.road_address
+                       p.road_address,
+                       p.latitude,
+                       p.longitude,
+                       p.kakao_place_url,
+                       p.telephone
                 FROM media_places mp
                 JOIN places p ON p.id = mp.place_id
                 LEFT JOIN saved_places sp ON sp.place_id = p.id
