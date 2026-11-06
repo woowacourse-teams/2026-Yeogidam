@@ -1,4 +1,5 @@
-import {Alert, Linking} from 'react-native';
+import { showAlert } from '../app-alert';
+import {Linking} from 'react-native';
 import Config from 'react-native-config';
 
 const KAKAO_CHANNEL_HOST = 'pf.kakao.com';
@@ -77,7 +78,7 @@ export async function openKakaoChannelChat() {
   const chatUrl = createKakaoChannelChatUrl();
 
   if (!chatUrl) {
-    Alert.alert(
+    showAlert(
       '문의 채널 준비 중',
       '카카오톡 문의 채널 설정이 아직 완료되지 않았어요. 잠시 후 다시 시도해주세요.',
     );
@@ -87,7 +88,7 @@ export async function openKakaoChannelChat() {
   try {
     await Linking.openURL(chatUrl);
   } catch {
-    Alert.alert(
+    showAlert(
       '문의 연결 실패',
       '카카오톡 문의 화면을 열지 못했어요. 잠시 후 다시 시도해주세요.',
     );

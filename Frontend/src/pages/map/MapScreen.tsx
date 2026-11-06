@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/app-alert';
 import React, {
   useCallback,
   useEffect,
@@ -6,7 +7,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  Alert,
   Animated,
   BackHandler,
   Keyboard,
@@ -530,7 +530,7 @@ export function MapScreen({
     analytics.button('create_folder');
     if (folders.length >= MAX_FOLDER_COUNT) {
       analytics.modal('folder_limit_reached');
-      Alert.alert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
+      showAlert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
       return;
     }
     setFolderDialog({ kind: 'create' });
@@ -563,7 +563,7 @@ export function MapScreen({
     if (!folder) return;
 
     analytics.modal('folder_delete_confirm');
-    Alert.alert(
+    showAlert(
       `'${folder.name}' 폴더를 삭제할까요?`,
       '폴더만 삭제되고 저장한 장소는 그대로 남아요.',
       [

@@ -1,6 +1,6 @@
+import { showAlert } from './src/lib/app-alert';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   AppState,
   BackHandler,
   Platform,
@@ -29,6 +29,7 @@ import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/com
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
+import { AppAlertHost } from './src/components/AppAlertHost';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
@@ -963,7 +964,7 @@ function App() {
               getSpringTokens()
                 .then(tokens => {
                   if (tokens) {
-                    Alert.alert(
+                    showAlert(
                       '공유한 게시물을 저장하지 못했어요',
                       '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
                     );
@@ -971,7 +972,7 @@ function App() {
                   }
                   loginEntryRef.current = null;
                   setFlowState(INITIAL_FLOW_STATE);
-                  Alert.alert(
+                  showAlert(
                     '로그인이 필요해요',
                     '다시 로그인한 뒤 게시물을 공유해 주세요.',
                   );
@@ -979,7 +980,7 @@ function App() {
                 .catch(() => undefined);
               return;
             }
-            Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
+            showAlert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
           if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
@@ -1121,7 +1122,7 @@ function App() {
         entry: loginEntry,
       });
       if (!signInStarted) {
-        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+        showAlert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
         return;
       }
       setSocialLoginError(normalizedError);
@@ -1211,7 +1212,7 @@ function App() {
   };
 
   const showPreparingAlert = (featureName: string) => {
-    Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
+    showAlert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
   const handleLogout = async () => {
@@ -1240,7 +1241,7 @@ function App() {
     }
 
     setIsLogoutPending(false);
-    Alert.alert(
+    showAlert(
       '로그아웃 실패',
       '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
     );
@@ -1256,7 +1257,7 @@ function App() {
     const providers = getLinkedDeletionProviders(oauthProvider);
 
     if (providers.length === 0) {
-      Alert.alert(
+      showAlert(
         '로그인이 필요해요',
         '회원탈퇴를 진행하려면 다시 로그인해주세요.',
       );
@@ -1296,7 +1297,7 @@ function App() {
       trackActionFinished(posthog, 'account_deletion', 'failure', {
         failure_type: 'local_cleanup_failed',
       });
-      Alert.alert(
+      showAlert(
         '회원탈퇴를 마무리하지 못했어요',
         '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
       );
@@ -1309,7 +1310,7 @@ function App() {
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
-    Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+    showAlert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
 
   const handleRetryProfile = async () => {
@@ -1685,4 +1686,13 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Sentry.wrap(App);
+function AppRoot() {
+  return (
+    <>
+      <AppAlertHost />
+      <App />
+    </>
+  );
+}
+
+export default Sentry.wrap(AppRoot);
