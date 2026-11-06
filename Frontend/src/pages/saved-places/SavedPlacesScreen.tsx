@@ -1,13 +1,13 @@
 import {
-  SEARCH_BAR_TOP_GAP,
-} from '../../components/SearchBar';
-import {
   ALL_CATEGORY,
-  CATEGORY_CHIPS_TOP_GAP,
   CategoryFilterChips,
   filterPlacesByCategory,
   PLACE_CATEGORIES,
 } from '../../components/CategoryFilterChips';
+import {
+  SEARCH_BAR_HEIGHT,
+  SEARCH_BAR_TOP_GAP,
+} from '../../components/SearchBar';
 import { SwipeBackStack } from '../../components/navigation/SwipeBackStack';
 import React, {
   useCallback,
@@ -18,7 +18,9 @@ import React, {
 } from 'react';
 import {
   Alert,
+  Animated,
   BackHandler,
+  Easing,
   Platform,
   Pressable,
   RefreshControl,
@@ -27,7 +29,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import { usePostHog } from 'posthog-react-native';
 import {
   trackActionFinished,
@@ -42,7 +43,6 @@ import {
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
 import {
-  BOTTOM_NAVIGATION_BAR_HEIGHT,
   bottomNavigationBarContainerStyle,
   getBottomNavigationBarOffset,
 } from '../../components/BottomNavigationBar';
@@ -58,6 +58,18 @@ import { SavedPlacesHeader } from './components/SavedPlacesHeader';
 import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
+import { SavedPlacesRecentShares } from './components/SavedPlacesRecentShares';
+import {
+  type SavedLibraryView,
+  SavedPlacesViewToggle,
+} from './components/SavedPlacesViewToggle';
+import { SavedPostGrid } from './components/SavedPostGrid';
+import {
+  INITIAL_BAR_SCROLL_STATE,
+  reduceBarScroll,
+  SavedPlacesStickyBar,
+} from './components/SavedPlacesStickyBar';
+import { LIBRARY_GUTTER } from './components/libraryTheme';
 import {
   getReelProcessingStatus,
   normalizeInstagramContentUrl,
@@ -87,6 +99,11 @@ const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
 const MAX_RECENT_SEARCHES = 10;
+// 검색 헤더 높이(SearchBar header 레이아웃과 같음). 목록이 있을 때 헤더를 내용 위에 겹쳐 둡니다.
+const SAVED_HEADER_HEIGHT = SEARCH_BAR_HEIGHT + SEARCH_BAR_TOP_GAP * 2;
+// 공용 폴러는 구독자 중 가장 짧은 주기를 따릅니다. 최근 공유 행은 하단 탭 바(5초)나
+// 링크 처리 폴링(3초)이 읽은 결과를 받아 쓰면 되므로, 자체 주기는 길게 잡아 요청을 늘리지 않습니다.
+const RECENT_SHARES_INTERVAL_MS = 60_000;
 
 // 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
 // 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
@@ -116,6 +133,10 @@ type SavedPlacesScreenProps = {
   onOpenGuide?: () => void;
   onShowGuestLoginPrompt?: () => void;
   onEditModeChange?: (isEditing: boolean) => void;
+  /** 최근 공유 '전체보기'와 게시물 카드에서 히스토리 화면으로 이동합니다. */
+  onOpenHistory?: () => void;
+  /** 게시물 카드를 눌렀을 때 해당 게시물의 상세 페이지를 엽니다. */
+  onOpenReel?: (reel: HistoryReel) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
   onRequireLogin?: () => void;
   // onOpenInbox?: () => void;
@@ -124,31 +145,6 @@ type SavedPlacesScreenProps = {
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
   onSharedResultConsumed?: (requestId?: string) => Promise<void>;
 };
-
-function SavedPlacesEditAction({
-  isEditing,
-  onPress,
-}: {
-  isEditing: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <View style={styles.editActionRow}>
-      <Pressable
-        accessibilityLabel={isEditing ? '보관함 편집 취소' : '보관함 편집'}
-        accessibilityRole="button"
-        hitSlop={8}
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.editButton,
-          pressed && styles.editButtonPressed,
-        ]}
-      >
-        <Text style={styles.editButtonText}>{isEditing ? '취소' : '편집'}</Text>
-      </Pressable>
-    </View>
-  );
-}
 
 export function SavedPlacesScreen({
   isActive: isScreenActive = true,
@@ -161,6 +157,8 @@ export function SavedPlacesScreen({
   onOpenGuide,
   onShowGuestLoginPrompt,
   onEditModeChange,
+  onOpenHistory,
+  onOpenReel,
   onRequireLogin,
   // onOpenInbox,
   places: providedPlaces,
@@ -174,6 +172,13 @@ export function SavedPlacesScreen({
   const { bottom: bottomInset } = useSafeAreaInsets();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [libraryView, setLibraryView] = useState<SavedLibraryView>('posts');
+  // 게시물 편집은 장소 편집(하단 삭제 막대·장소 삭제)과 따로 둡니다. 삭제 동작은 아직 없습니다.
+  const [isEditingPosts, setIsEditingPosts] = useState(false);
+  const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [sharedReels, setSharedReels] = useState<HistoryReel[]>([]);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -210,6 +215,16 @@ export function SavedPlacesScreen({
     useState<ShareApiDiagnostics | null>(null);
   const [_lastRequestId, setLastRequestId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  // 토글·카테고리 칩 바를 고정하기 위한 스크롤 위치와 바의 원래 y 위치입니다.
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const [libraryBarLayout, setLibraryBarLayout] = useState<{
+    top: number;
+    height: number;
+  } | null>(null);
+  // 바는 아래로 스크롤하면 가려지고, 위로 살짝만 올리면 바로 다시 나타납니다(1=보임, 0=숨김).
+  const barReveal = useRef(new Animated.Value(1)).current;
+  const barScrollStateRef = useRef(INITIAL_BAR_SCROLL_STATE);
+  const barRevealTargetRef = useRef(1);
   const hasCapturedViewRef = useRef(false);
   const isRefreshingRef = useRef(false);
   const reelPollStartedAtRef = useRef<number | null>(null);
@@ -920,6 +935,51 @@ export function SavedPlacesScreen({
   ]);
 
   useEffect(() => {
+    if (isGuest) {
+      setSharedReels([]);
+      return;
+    }
+    // 최근 공유 행과 게시물 보기는 앱 공용 폴러가 읽은 공유 목록을 그대로 씁니다.
+    // 첫 조회는 하단 탭 바가 시작하므로 여기서는 결과만 받고 따로 읽지 않습니다.
+    const subscription = subscribeRecentShares({
+      intervalMs: RECENT_SHARES_INTERVAL_MS,
+      onResult: ({ reels }) => setSharedReels(reels),
+    });
+    return () => subscription.unsubscribe();
+  }, [isGuest]);
+
+  // 방금 저장을 요청한 릴스는 서버 목록에 잡히기 전에도 "최근 공유" 줄에 처리 중으로 바로 보여 줍니다.
+  // 처리 중·대기 상태만 끼워 넣어서, 실패한 요청의 임시 카드가 목록에 남지 않게 합니다.
+  const recentRowReels = useMemo(() => {
+    if (
+      !processingReel ||
+      (processingReel.processing_status !== 'PENDING' &&
+        processingReel.processing_status !== 'PROCESSING') ||
+      sharedReels.some(reel => reel.id === processingReel.id)
+    ) {
+      return sharedReels;
+    }
+    const pendingReel: HistoryReel = {
+      id: processingReel.id,
+      instagram_url: null,
+      instagram_title: null,
+      instagram_description: null,
+      instagram_author_username: null,
+      instagram_thumbnail_url: processingReel.instagram_thumbnail_url,
+      processing_status: processingReel.processing_status,
+      failure_reason: null,
+      save_mode: null,
+      created_at: processingReel.created_at,
+    };
+    return [pendingReel, ...sharedReels];
+  }, [processingReel, sharedReels]);
+
+  const postReels = useMemo(
+    () => sharedReels.filter(reel => reel.processing_status === 'COMPLETED'),
+    [sharedReels],
+  );
+
+  useEffect(() => {
     if (!showSaveSuccess) {
       return;
     }
@@ -932,11 +992,6 @@ export function SavedPlacesScreen({
     return () => clearTimeout(timeoutId);
   }, [loadSavedPlaces, showSaveSuccess]);
 
-  const scrollToTop = () => {
-    analytics.button('scroll_to_top');
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-  };
-
   const handlePressEdit = useCallback(() => {
     const next = !isEditing;
     analytics.button(next ? 'edit_start' : 'edit_cancel');
@@ -944,6 +999,79 @@ export function SavedPlacesScreen({
     setSelectedPlaceIds(new Set());
     onEditModeChange?.(next);
   }, [analytics, isEditing, onEditModeChange]);
+
+  const handleChangeLibraryView = useCallback(
+    (next: SavedLibraryView) => {
+      if (next === libraryView) {
+        return;
+      }
+      analytics.selection('library_view', next);
+      if (isEditing) {
+        setIsEditing(false);
+        setSelectedPlaceIds(new Set());
+        onEditModeChange?.(false);
+      }
+      if (isEditingPosts) {
+        setIsEditingPosts(false);
+        setSelectedPostIds(new Set());
+      }
+      setLibraryView(next);
+    },
+    [analytics, isEditing, isEditingPosts, libraryView, onEditModeChange],
+  );
+
+  const handlePressEditPosts = useCallback(() => {
+    const next = !isEditingPosts;
+    analytics.button(next ? 'post_edit_start' : 'post_edit_cancel');
+    setIsEditingPosts(next);
+    setSelectedPostIds(new Set());
+  }, [analytics, isEditingPosts]);
+
+  const togglePostSelection = useCallback(
+    (reelId: string) => {
+      analytics.button('toggle_post_selection');
+      setSelectedPostIds(current => {
+        const next = new Set(current);
+        if (next.has(reelId)) {
+          next.delete(reelId);
+        } else {
+          next.add(reelId);
+        }
+        return next;
+      });
+    },
+    [analytics],
+  );
+
+  const handleOpenHistory = useCallback(() => {
+    analytics.button('open_history');
+    onOpenHistory?.();
+  }, [analytics, onOpenHistory]);
+
+  const handleOpenReel = useCallback(
+    (reel: HistoryReel) => {
+      analytics.button('open_reel_detail');
+      if (onOpenReel) {
+        onOpenReel(reel);
+        return;
+      }
+      onOpenHistory?.();
+    },
+    [analytics, onOpenHistory, onOpenReel],
+  );
+
+  // 방금 공유한 릴스: 성공·처리 중·대기 중인 공유는 상세 화면(처리 중이면 진행 화면)으로,
+  // 실패한 공유는 다시 시도할 수 있는 히스토리로 보냅니다.
+  const handleOpenRecentReel = useCallback(
+    (reel: HistoryReel) => {
+      if (reel.processing_status !== 'FAILED') {
+        handleOpenReel(reel);
+        return;
+      }
+      handleOpenHistory();
+    },
+    [handleOpenHistory, handleOpenReel],
+  );
 
   const enterEditMode = useCallback(() => {
     analytics.button('edit_long_press');
@@ -1128,9 +1256,17 @@ export function SavedPlacesScreen({
   const closeNestedScreen = useCallback(() => {
     if (isSearchOpen) setIsSearchOpen(false);
     else if (isEditing) handlePressEdit();
-  }, [handlePressEdit, isEditing, isSearchOpen]);
+    else if (isEditingPosts) handlePressEditPosts();
+  }, [
+    handlePressEdit,
+    handlePressEditPosts,
+    isEditing,
+    isEditingPosts,
+    isSearchOpen,
+  ]);
   useEffect(() => {
-    const canGoBack = isScreenActive && (isSearchOpen || isEditing);
+    const canGoBack =
+      isScreenActive && (isSearchOpen || isEditing || isEditingPosts);
     onNestedBackStateChange?.(canGoBack);
     if (Platform.OS !== 'android' || !canGoBack) {
       return () => onNestedBackStateChange?.(false);
@@ -1150,19 +1286,74 @@ export function SavedPlacesScreen({
     closeNestedScreen,
     isScreenActive,
     isEditing,
+    isEditingPosts,
     isSearchOpen,
     onNestedBackStateChange,
   ]);
+  const updateBarVisibility = (
+    offsetY: number,
+    metrics: { contentHeight?: number; viewportHeight?: number },
+  ) => {
+    const next = reduceBarScroll(barScrollStateRef.current, offsetY, metrics);
+    barScrollStateRef.current = next;
+    const target = next.visible ? 1 : 0;
+    if (barRevealTargetRef.current === target) {
+      return;
+    }
+    barRevealTargetRef.current = target;
+    Animated.timing(barReveal, {
+      toValue: target,
+      duration: 180,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  };
+
+  // 장소/게시물 토글과 카테고리 칩. 스크롤 내용 안에 한 번(자리 확보), 위에 겹쳐 한 번 그립니다.
+  const libraryBar = (
+    <View style={styles.libraryBar}>
+      <SavedPlacesViewToggle
+        view={libraryView}
+        onChangeView={handleChangeLibraryView}
+        isEditing={libraryView === 'places' ? isEditing : isEditingPosts}
+        onPressEdit={
+          libraryView === 'places' ? handlePressEdit : handlePressEditPosts
+        }
+      />
+      {libraryView === 'places' ? (
+        <CategoryFilterChips
+          categories={PLACE_CATEGORIES}
+          selectedCategory={activeCategory}
+          onSelectCategory={category => {
+            analytics.selection('category_filter', category);
+            setSelectedCategory(category);
+          }}
+          style={styles.categoryChips}
+        />
+      ) : null}
+    </View>
+  );
+  const stickOffset = error || deleteError ? 0 : SAVED_HEADER_HEIGHT;
+
   const renderListContent = () => (
     <View style={styles.container}>
-      <SavedPlacesHeader
-        onPressSearch={() => {
-          analytics.button('open_search');
-          setIsSearchOpen(true);
-        }}
-      />
+      <View
+        style={[styles.header, hasSavedPlaces && styles.headerOverlay]}
+      >
+        <SavedPlacesHeader
+          onPressSearch={() => {
+            analytics.button('open_search');
+            setIsSearchOpen(true);
+          }}
+        />
+      </View>
       {error && hasSavedPlaces ? (
-        <View style={styles.errorBanner}>
+        <View
+          style={[
+            styles.errorBanner,
+            hasSavedPlaces && styles.bannerBelowHeader,
+          ]}
+        >
           <Text numberOfLines={1} style={styles.errorText}>
             {error.message}
           </Text>
@@ -1178,7 +1369,12 @@ export function SavedPlacesScreen({
         </View>
       ) : null}
       {deleteError ? (
-        <View style={styles.deleteErrorBanner}>
+        <View
+          style={[
+            styles.deleteErrorBanner,
+            hasSavedPlaces && !(error && hasSavedPlaces) && styles.bannerBelowHeader,
+          ]}
+        >
           <Text numberOfLines={2} style={styles.deleteErrorText}>
             {deleteError.message}
           </Text>
@@ -1196,23 +1392,25 @@ export function SavedPlacesScreen({
       {isLoading && !hasSavedPlaces ? (
         <SavedPlacesSkeleton />
       ) : hasSavedPlaces ? (
-        <>
-          {/* 칩은 스크롤되지 않고 고정되며, 지도 화면의 칩과 같은 높이에 놓입니다. */}
-          <CategoryFilterChips
-            categories={PLACE_CATEGORIES}
-            selectedCategory={activeCategory}
-            onSelectCategory={category => {
-              analytics.selection('category_filter', category);
-              setSelectedCategory(category);
-            }}
-            style={styles.categoryChips}
-          />
+        <View style={styles.listArea}>
           <ScrollView
             ref={scrollViewRef}
             alwaysBounceVertical
-            onScroll={event =>
-              onScrollOffsetChange?.(event.nativeEvent.contentOffset.y)
-            }
+            contentContainerStyle={[
+              styles.scrollContent,
+              // 헤더가 내용 위에 떠 있으므로, 배너가 없을 때만 헤더 높이만큼 비워 둡니다.
+              !(error || deleteError) && { paddingTop: SAVED_HEADER_HEIGHT },
+            ]}
+            onScroll={event => {
+              const { contentOffset, contentSize, layoutMeasurement } =
+                event.nativeEvent;
+              scrollY.setValue(contentOffset.y);
+              onScrollOffsetChange?.(contentOffset.y);
+              updateBarVisibility(contentOffset.y, {
+                contentHeight: contentSize?.height,
+                viewportHeight: layoutMeasurement?.height,
+              });
+            }}
             refreshControl={
               <RefreshControl
                 colors={['#8FA2FF']}
@@ -1225,32 +1423,75 @@ export function SavedPlacesScreen({
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
           >
-            <SavedPlacesEditAction
-              isEditing={isEditing}
-              onPress={handlePressEdit}
+            <SavedPlacesRecentShares
+              reels={recentRowReels}
+              onPressReel={handleOpenRecentReel}
+              onPressViewAll={handleOpenHistory}
+              onPressAdd={openDialog}
             />
-            <SavedPlaceGrid
-              isEditing={isEditing}
-              places={filteredPlaces}
-              onLongPressPlace={enterEditMode}
-              onPressPlace={(place, position) =>
-                openPlaceDetail(place, 'saved_places_grid', position)
+            <View
+              accessibilityElementsHidden={libraryBarLayout !== null}
+              importantForAccessibility={
+                libraryBarLayout !== null ? 'no-hide-descendants' : 'auto'
               }
-              onTogglePlaceSelection={togglePlaceSelection}
-              selectedPlaceIds={selectedPlaceIds}
-            />
-            {filteredPlaces.length === 0 ? (
-              <Text style={styles.categoryEmptyText}>
-                {activeCategory} 카테고리에 저장한 장소가 없어요
-              </Text>
-            ) : null}
-            <View style={styles.scrollFooter}>
-              <Pressable onPress={scrollToTop} style={styles.scrollTopButton}>
-                <MaterialIcons color="#8FA2FF" name="upload" size={24} />
-              </Pressable>
+              onLayout={event =>
+                setLibraryBarLayout({
+                  top: event.nativeEvent.layout.y,
+                  height: event.nativeEvent.layout.height,
+                })
+              }
+              pointerEvents={libraryBarLayout !== null ? 'none' : 'auto'}
+              style={libraryBarLayout !== null && styles.libraryBarPlaceholder}
+            >
+              {libraryBar}
             </View>
+            {libraryView === 'places' ? (
+              <>
+                <SavedPlaceGrid
+                  isEditing={isEditing}
+                  places={filteredPlaces}
+                  onLongPressPlace={enterEditMode}
+                  onPressPlace={(place, position) =>
+                    openPlaceDetail(place, 'saved_places_grid', position)
+                  }
+                  onTogglePlaceSelection={togglePlaceSelection}
+                  selectedPlaceIds={selectedPlaceIds}
+                />
+                {filteredPlaces.length === 0 ? (
+                  <Text style={styles.categoryEmptyText}>
+                    {activeCategory} 카테고리에 저장한 장소가 없어요
+                  </Text>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <SavedPostGrid
+                  isEditing={isEditingPosts}
+                  reels={postReels}
+                  onPressReel={handleOpenReel}
+                  onToggleReelSelection={togglePostSelection}
+                  selectedReelIds={selectedPostIds}
+                />
+                {postReels.length === 0 ? (
+                  <Text style={styles.categoryEmptyText}>
+                    공유한 게시물이 아직 없어요
+                  </Text>
+                ) : null}
+              </>
+            )}
           </ScrollView>
-        </>
+          {libraryBarLayout !== null ? (
+            <SavedPlacesStickyBar
+              barHeight={libraryBarLayout.height}
+              naturalTop={libraryBarLayout.top}
+              reveal={barReveal}
+              scrollY={scrollY}
+              stickOffset={stickOffset}
+            >
+              {libraryBar}
+            </SavedPlacesStickyBar>
+          ) : null}
+        </View>
       ) : error ? (
         <SavedPlacesErrorState
           error={error}
@@ -1314,26 +1555,7 @@ export function SavedPlacesScreen({
             ) : null}
           </View>
         </Pressable>
-      ) : (
-        <Pressable
-          accessibilityLabel="장소 링크 추가"
-          accessibilityRole="button"
-          onPress={openDialog}
-          style={[
-            styles.fabShadow,
-            {
-              bottom:
-                BOTTOM_NAVIGATION_BAR_HEIGHT +
-                getBottomNavigationBarOffset(bottomInset) +
-                12,
-            },
-          ]}
-        >
-          <View key="saved-places-fab" style={styles.fab}>
-            <Text style={styles.fabText}>＋</Text>
-          </View>
-        </Pressable>
-      )}
+      ) : null}
     </View>
   );
   return (
@@ -1453,28 +1675,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#8A8FA8',
   },
-  // 헤더 아래 여백(SEARCH_BAR_TOP_GAP)이 이미 있으므로 지도와 같은 위치가 되도록 당깁니다.
+  // 검색 헤더(좌우 24)를 시안의 좌우 여백(20)에 맞춥니다.
+  header: {
+    marginHorizontal: -(24 - LIBRARY_GUTTER),
+  },
+  // 스크롤 내용 위에 떠 있는 헤더입니다. 흰 배경으로 내용이 뒤에 비치지 않게 합니다.
+  headerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: '#ffffff',
+  },
+  bannerBelowHeader: {
+    marginTop: SAVED_HEADER_HEIGHT,
+  },
+  scrollContent: {
+    gap: 16,
+    paddingTop: 0,
+  },
+  listArea: {
+    flex: 1,
+  },
+  libraryBar: {
+    gap: 16,
+    paddingBottom: 8,
+    backgroundColor: '#ffffff',
+  },
+  libraryBarPlaceholder: {
+    opacity: 0,
+  },
+  // 칩 목록의 기본 좌우 여백(24)을 시안의 20에 맞춥니다.
   categoryChips: {
-    marginTop: CATEGORY_CHIPS_TOP_GAP - SEARCH_BAR_TOP_GAP,
-    marginBottom: 4,
-  },
-  editActionRow: {
-    alignItems: 'flex-end',
-    marginHorizontal: 24,
-    marginBottom: 2,
-  },
-  editButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  editButtonPressed: {
-    opacity: 0.6,
-  },
-  editButtonText: {
-    color: '#7b7d8b',
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 18,
+    marginHorizontal: -(24 - LIBRARY_GUTTER),
   },
   errorBanner: {
     flexDirection: 'row',
@@ -1487,49 +1721,4 @@ const styles = StyleSheet.create({
   },
   errorText: { flex: 1, color: '#7c2d2d', fontSize: 13 },
   errorRetryText: { color: '#5c6fc8', fontSize: 13, fontWeight: '700' },
-  fabShadow: {
-    position: 'absolute',
-    right: 18,
-    // The screen is rendered underneath the absolute bottom tab bar.
-    // Keep the FAB above it, including the device's bottom safe-area inset.
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    shadowColor: '#000000',
-    shadowOpacity: 0.16,
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  fab: {
-    flex: 1,
-    borderRadius: 28,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(219, 224, 249, 0.82)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.52)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fabText: {
-    fontSize: 30,
-    color: '#000000',
-    fontWeight: '300',
-  },
-  scrollFooter: {
-    alignItems: 'center',
-    paddingBottom: 104,
-  },
-  scrollTopButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#DBE0F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
