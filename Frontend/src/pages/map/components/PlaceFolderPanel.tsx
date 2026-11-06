@@ -2,9 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +13,7 @@ import {
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import Svg, { Path, Rect } from 'react-native-svg';
 
+import { AppModal } from '../../../components/AppModal';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
@@ -139,7 +138,6 @@ export function FolderList({
       contentContainerStyle={{ paddingBottom: bottomPadding }}
       showsVerticalScrollIndicator={false}
     >
-     
       {folders.map(folder => (
         <Pressable
           key={folder.id}
@@ -164,7 +162,7 @@ export function FolderList({
           <MaterialIcons color="#B8BFE8" name="chevron-right" size={24} />
         </Pressable>
       ))}
-       <Pressable
+      <Pressable
         accessibilityRole="button"
         onPress={onCreateFolder}
         style={styles.row}
@@ -223,9 +221,16 @@ export function FolderNameDialog({
   const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
   return (
-    <Modal transparent animationType="fade" visible={visible}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <AppModal
+      avoidKeyboard
+      transparent
+      animationType="fade"
+      visible={visible}
+    >
+      {/* 바깥을 누르면 닫히지 않고 키보드만 내려갑니다. */}
+      <Pressable
+        accessible={false}
+        onPress={Keyboard.dismiss}
         style={styles.backdrop}
       >
         <View style={styles.dialog}>
@@ -243,7 +248,10 @@ export function FolderNameDialog({
               value={name}
             />
             {isDuplicate ? (
-              <Text accessibilityLiveRegion="polite" style={styles.inputErrorText}>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.inputErrorText}
+              >
                 이미 같은 이름의 폴더가 있어요.
               </Text>
             ) : null}
@@ -301,8 +309,8 @@ export function FolderNameDialog({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      </Pressable>
+    </AppModal>
   );
 }
 
@@ -356,7 +364,7 @@ export function PlaceFolderAssignPicker({
   };
 
   return (
-    <Modal
+    <AppModal
       animationType="slide"
       presentationStyle="pageSheet"
       visible={visible}
@@ -452,7 +460,7 @@ export function PlaceFolderAssignPicker({
           onCancel={() => setIsCreating(false)}
         />
       ) : null}
-    </Modal>
+    </AppModal>
   );
 }
 
@@ -475,7 +483,7 @@ export function FolderActionSheet({
   }, [isOpen, modal]);
 
   return (
-    <Modal
+    <AppModal
       animationType="none"
       transparent
       visible={folder !== null}
@@ -526,7 +534,7 @@ export function FolderActionSheet({
           </Pressable>
         </Pressable>
       </Pressable>
-    </Modal>
+    </AppModal>
   );
 }
 

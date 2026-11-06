@@ -1,13 +1,15 @@
 import React from 'react';
 import {
   ActivityIndicator,
-  Modal,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+
+import { AppModal } from '../../../components/AppModal';
 
 type SavedPlacesLinkDialogProps = {
   visible: boolean;
@@ -31,12 +33,14 @@ export function SavedPlacesLinkDialog({
   submitLabel = '저장',
 }: SavedPlacesLinkDialogProps) {
   return (
-    <Modal
+    <AppModal
+      avoidKeyboard
       animationType="fade"
       transparent
       visible={visible}
       onRequestClose={onClose}>
-      <Pressable onPress={onClose} style={styles.backdrop}>
+      {/* 입력 중 바깥을 눌러도 닫히지 않고 키보드만 내려갑니다. 닫기는 취소 버튼으로 합니다. */}
+      <Pressable accessible={false} onPress={Keyboard.dismiss} style={styles.backdrop}>
         <Pressable onPress={event => event.stopPropagation()} style={styles.dialog}>
           <Text style={styles.title}>링크 입력</Text>
           <View style={styles.inputWrapper}>
@@ -64,7 +68,7 @@ export function SavedPlacesLinkDialog({
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </AppModal>
   );
 }
 

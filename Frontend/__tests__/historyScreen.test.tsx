@@ -7,6 +7,7 @@ import {
   getHistoryReels,
   retryHistoryReelExtraction,
 } from '../src/entities/content/history-api';
+import {ReelApiError} from '../src/entities/content/errors';
 import type {HistoryReel} from '../src/entities/content/types';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {setSharedSaveState} from '../src/lib/reel-save-state';
@@ -586,4 +587,64 @@ describe('저장 요청 직후의 처리 중 스켈레톤', () => {
     expect(itemsOf(renderer, 'manual-3')).toHaveLength(0);
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
+});
+
+test('같은 분석 버전이라 재시도를 받지 않으면(MEDIA400_016) 안내 없이 처리 중으로 보여 준다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([7], 'FAILED'),
+    nextCursor: null,
+  });
+  jest.mocked(retryHistoryReelExtraction).mockRejectedValue(
+    new ReelApiError({
+      errorCode: 'MEDIA400_016',
+      message: '현재 분석 버전에서는 재시도가 불가능합니다.',
+      status: 400,
+    }),
+  );
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+  const statusOf = () =>
+    renderer.root.find(node => node.props.reel?.id === '7').props.reel.processing_status;
+
+  expect(alertSpy).not.toHaveBeenCalled();
+  expect(
+    renderer.root.findAll(node => node.props.children === '장소 분석에 실패했어요ㅠ'),
+  ).toHaveLength(0);
+  expect(renderedIds(renderer)).toEqual(['7']);
+  expect(statusOf()).toBe('PROCESSING');
+
+  // 폴링이 실패 상태를 다시 읽어도 정해진 시간 동안은 처리 중으로 유지한다.
+  await tick(3000);
+  expect(statusOf()).toBe('PROCESSING');
+
+  // 시간이 지나면 서버 상태(실패)로 돌아온다.
+  await tick(3000);
+  expect(statusOf()).toBe('FAILED');
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('MEDIA400_016이 아닌 서버 거절은 기존처럼 서버 문구로 안내한다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([7], 'FAILED'),
+    nextCursor: null,
+  });
+  jest.mocked(retryHistoryReelExtraction).mockRejectedValue(
+    new ReelApiError({
+      errorCode: 'MEDIA400_006',
+      message: '추출이 진행 중인 게시물은 다시 시도할 수 없습니다.',
+      status: 400,
+    }),
+  );
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+
+  expect(alertSpy).toHaveBeenCalledWith(
+    '다시 시도하지 못했어요',
+    '추출이 진행 중인 게시물은 다시 시도할 수 없습니다.',
+  );
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
 });

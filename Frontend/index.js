@@ -8,12 +8,15 @@ import { AppRegistry } from 'react-native';
 import App from './App';
 import { name as appName } from './app.json';
 import { PostHogRoot } from './src/app/PostHogRoot';
+import { DismissKeyboardOnOutsideTap } from './src/components/DismissKeyboardOnOutsideTap';
 import { withHotUpdater } from './src/lib/hot-updater';
 
 function Root() {
   return (
     <PostHogRoot>
-      <App />
+      <DismissKeyboardOnOutsideTap>
+        <App />
+      </DismissKeyboardOnOutsideTap>
     </PostHogRoot>
   );
 }

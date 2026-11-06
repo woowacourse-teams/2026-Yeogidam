@@ -1,4 +1,4 @@
-import {createContext, useCallback, useContext} from 'react';
+import {createContext, useCallback, useContext, useMemo} from 'react';
 import {usePostHog} from 'posthog-react-native';
 
 import {
@@ -143,7 +143,11 @@ export function useScreenAnalytics(screenNameOverride?: string) {
     [posthog, screenName],
   );
 
-  return {button, selection, modal, refreshed};
+  // 화면들이 이 객체를 훅 의존성으로 쓰므로, 렌더마다 새로 만들면 effect가 매번 다시 실행된다.
+  return useMemo(
+    () => ({button, selection, modal, refreshed}),
+    [button, selection, modal, refreshed],
+  );
 }
 
 /** 온보딩·가이드처럼 여러 단계로 된 흐름의 단계 노출과 버튼을 기록합니다. */
