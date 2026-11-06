@@ -58,6 +58,11 @@ import type {
 } from '../../entities/content/types';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
+import {subscribeSharedSaveState} from '../../lib/reel-save-state';
+
+// 앱이 직접 만든 임시 항목(보낸 직후의 manual-·share- 항목)이 서버 목록에 끝내 안 잡히면
+// 스켈레톤이 영원히 남지 않도록 이 시간이 지나면 숨깁니다.
+const PENDING_SHARE_MAX_AGE_MS = 60_000;
 
 type HistoryScreenProps = {
   isActive?: boolean;
@@ -66,6 +71,8 @@ type HistoryScreenProps = {
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
   onRequireLogin?: () => void;
+  /** 성공한 공유를 누르면 게시물 상세 화면을 엽니다. 없으면 히스토리 안의 결과 화면을 씁니다. */
+  onOpenReel?: (reel: HistoryReel) => void;
 };
 
 const thumbnail =
@@ -618,6 +625,7 @@ export function HistoryScreen({
   guestReels,
   guestDetails,
   onRequireLogin,
+  onOpenReel,
 }: HistoryScreenProps) {
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('history');
@@ -640,6 +648,8 @@ export function HistoryScreen({
   // 첫 페이지 다음까지 읽었으면 커서는 더 보기만 갱신한다.
   const hasLoadedMoreRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
+  // 방금 저장을 요청해 아직 서버 목록에 없는 공유. 요청 직후부터 처리 중 스켈레톤으로 보여 줍니다.
+  const [pendingShare, setPendingShare] = useState<HistoryReel | null>(null);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(guestReels === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -696,6 +706,44 @@ export function HistoryScreen({
   // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
   const hasReelsRef = useRef(false);
   hasReelsRef.current = reels.length > 0;
+
+  useEffect(() => {
+    if (guestReels !== undefined) {
+      setPendingShare(null);
+      return undefined;
+    }
+    // 보관함에서 링크를 저장하거나 공유 확장으로 보낸 요청이 진행 중이면 목록 맨 앞에 끼워 넣습니다.
+    return subscribeSharedSaveState(state => {
+      const isTemporaryId =
+        state?.reel.id.startsWith('manual-') ||
+        state?.reel.id.startsWith('share-');
+      const createdAt = state ? Date.parse(state.reel.created_at) : NaN;
+      const isStale =
+        isTemporaryId &&
+        Number.isFinite(createdAt) &&
+        Date.now() - createdAt > PENDING_SHARE_MAX_AGE_MS;
+      if (
+        !state ||
+        isStale ||
+        (state.status !== 'PENDING' && state.status !== 'PROCESSING')
+      ) {
+        setPendingShare(null);
+        return;
+      }
+      setPendingShare({
+        id: state.reel.id,
+        instagram_url: state.url,
+        instagram_title: null,
+        instagram_description: null,
+        instagram_author_username: null,
+        instagram_thumbnail_url: state.reel.instagram_thumbnail_url,
+        processing_status: state.status,
+        failure_reason: null,
+        save_mode: null,
+        created_at: state.reel.created_at,
+      });
+    });
+  }, [guestReels]);
   const showErrorIfEmpty = useCallback(() => {
     if (!hasReelsRef.current) setError(true);
   }, []);
@@ -992,7 +1040,12 @@ export function HistoryScreen({
     : reels.map(item => (silentRetryIds.has(item.id)
       ? {...item, processing_status: 'PROCESSING' as const, failure_reason: null}
       : item));
-  const groupedReels = displayedReels.reduce<Record<string, HistoryReel[]>>(
+  // 서버 목록에 같은 공유가 오면 임시 항목은 빠지고 서버 쪽 항목으로 대체됩니다.
+  const displayReels =
+    pendingShare && !displayedReels.some(reel => reel.id === pendingShare.id)
+      ? [pendingShare, ...displayedReels]
+      : displayedReels;
+  const groupedReels = displayReels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
       const date = formatHistoryDate(reel.created_at);
       groups[date] = groups[date] ? [...groups[date], reel] : [reel];
@@ -1031,7 +1084,7 @@ export function HistoryScreen({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="대기함으로 돌아가기"
+          accessibilityLabel="이전 화면으로 돌아가기"
           hitSlop={12}
           onPress={() => {
             analytics.button('back');
@@ -1039,10 +1092,7 @@ export function HistoryScreen({
           }}
           style={styles.backButton}
         >
-          <Image
-            source={require('../../assets/icons/brand-mark.png')}
-            style={styles.brandMark}
-          />
+          <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
@@ -1056,7 +1106,7 @@ export function HistoryScreen({
         contentContainerStyle={[
           styles.content,
           {paddingBottom: listBottomPadding},
-          !loading && reels.length === 0 && styles.emptyContent,
+          !loading && displayReels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
           scrollOffsetRef.current = nativeEvent.contentOffset.y;
@@ -1072,7 +1122,7 @@ export function HistoryScreen({
         scrollEventThrottle={200}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
+        {loading && !pendingShare ? (
           <Text style={styles.stateText}>히스토리를 불러오는 중이에요.</Text>
         ) : error ? (
           <View style={styles.stateBody}>
@@ -1086,7 +1136,7 @@ export function HistoryScreen({
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
           </View>
-        ) : reels.length === 0 ? (
+        ) : displayReels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
               source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}
@@ -1141,6 +1191,10 @@ export function HistoryScreen({
                     reel.processing_status === 'COMPLETED'
                       ? () => {
                           analytics.button('open_item', {status: 'completed'});
+                          if (onOpenReel) {
+                            onOpenReel(reel);
+                            return;
+                          }
                           setSelectedReel(reel);
                           setSelectedSuccess(true);
                         }
@@ -1149,6 +1203,12 @@ export function HistoryScreen({
                           analytics.button('open_item', {status: 'failed'});
                           setSelectedReel(reel);
                           setSelectedFailure(true);
+                        }
+                      : onOpenReel
+                      ? () => {
+                          // 처리 중·대기 중인 공유는 진행 화면으로 넘어간다.
+                          analytics.button('open_item', {status: 'processing'});
+                          onOpenReel(reel);
                         }
                       : undefined
                   }
@@ -1207,7 +1267,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandMark: { width: 44, height: 44, borderRadius: 22 },
   back: {
     fontSize: 30,
     lineHeight: 34,

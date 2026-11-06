@@ -1,11 +1,12 @@
-import { showAlert } from './src/lib/app-alert';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   AppState,
   BackHandler,
   Platform,
   StatusBar,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -29,7 +30,6 @@ import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/com
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
-import { AppAlertHost } from './src/components/AppAlertHost';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
@@ -85,6 +85,16 @@ import { SignUpScreen } from './src/pages/login/SignUpScreen';
 import { MapScreen } from './src/pages/map/MapScreen';
 // 대기함(inBoxScreen, inbox-api)은 Supabase 전용이라 삭제했습니다. 다시 쓰려면 Spring API로 새로 만들어야 합니다.
 import { HistoryScreen } from './src/pages/history/HistoryScreen';
+import {
+  getReelBackGestureRegion,
+  ReelDetailScreen,
+} from './src/pages/reel-detail/ReelDetailScreen';
+import {
+  getProcessingBackGestureRegion,
+  isReelInProgress,
+  ReelProcessingScreen,
+} from './src/pages/reel-processing/ReelProcessingScreen';
+import type { HistoryReel } from './src/entities/content/types';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
@@ -390,6 +400,12 @@ function App() {
   );
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
+  // 보관함에서 연 게시물 상세. 내 정보 오버레이처럼 현재 탭 위에 한 겹 더 쌓습니다.
+  const [reelDetail, setReelDetail] = useState<HistoryReel | null>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  useEffect(() => {
+    if (flowState.kind !== 'main') setReelDetail(null);
+  }, [flowState.kind]);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
   const mainTabHistoryRef = useRef<MainScreen[]>([]);
   const nestedBackStateRef = useRef(false);
@@ -418,12 +434,6 @@ function App() {
     );
   }, []);
   const visitedTabsRef = useRef(new Set<MainScreen>(['saved']));
-  const [tabRefreshCounts, setTabRefreshCounts] = useState<Record<MainScreen, number>>({
-    saved: 0,
-    map: 0,
-    history: 0,
-    my: 0,
-  });
   const tabSessionRef = useRef(isAuthenticated);
   if (tabSessionRef.current !== isAuthenticated) {
     visitedTabsRef.current = new Set(['saved']);
@@ -586,19 +596,6 @@ function App() {
     if (
       flowState.kind === 'main' &&
       flowState.detailSource === null &&
-      flowState.activeTab === nextScreen
-    ) {
-      if (nextScreen === 'saved') savedPlacesScrollOffsetRef.current = 0;
-      setTabRefreshCounts(current => ({
-        ...current,
-        [nextScreen]: current[nextScreen] + 1,
-      }));
-      return;
-    }
-
-    if (
-      flowState.kind === 'main' &&
-      flowState.detailSource === null &&
       flowState.activeTab !== nextScreen
     ) {
       mainTabHistoryRef.current.push(flowState.activeTab);
@@ -684,6 +681,11 @@ function App() {
           return true;
         }
 
+        if (reelDetail !== null) {
+          setReelDetail(null);
+          return true;
+        }
+
         if (myPageOverlay !== null) {
           setMyPageOverlay(null);
           return true;
@@ -712,7 +714,7 @@ function App() {
     );
 
     return () => subscription.remove();
-  }, [closeDetail, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay]);
+  }, [closeDetail, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, reelDetail]);
 
   useEffect(() => {
     let isMounted = true;
@@ -995,7 +997,7 @@ function App() {
               getSpringTokens()
                 .then(tokens => {
                   if (tokens) {
-                    showAlert(
+                    Alert.alert(
                       '공유한 게시물을 저장하지 못했어요',
                       '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
                     );
@@ -1003,7 +1005,7 @@ function App() {
                   }
                   loginEntryRef.current = null;
                   setFlowState(INITIAL_FLOW_STATE);
-                  showAlert(
+                  Alert.alert(
                     '로그인이 필요해요',
                     '다시 로그인한 뒤 게시물을 공유해 주세요.',
                   );
@@ -1011,10 +1013,29 @@ function App() {
                 .catch(() => undefined);
               return;
             }
-            showAlert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
+            Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
-          if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
+          if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK') {
+            // 아직 서버로 가는 중인 공유도 보낸 즉시 대기 중으로 보여 준다. 서버 목록에 잡힐 때까지
+            // 히스토리와 최근 공유가 비어 보이지 않게 한다. 사용자가 보던 화면은 옮기지 않는다.
+            setSharedSaveState({
+              shareResultId: result.requestId,
+              url: result.url,
+              status: 'PENDING',
+              source: 'instagram_share',
+              rawSharedText: result.rawSharedText,
+              reel: {
+                id: `share-${result.requestId ?? result.updatedAt}`,
+                processing_status: 'PENDING',
+                failure_reason: null,
+                instagram_thumbnail_url: null,
+                created_at: new Date(result.updatedAt).toISOString(),
+              },
+            });
+            return;
+          }
+          if (result.transferStatus === 'WAITING_FOR_AUTH') {
             return;
           }
           setSharedSaveState({
@@ -1106,7 +1127,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [flowState.kind, isAuthenticated, tabRefreshCounts.my]);
+  }, [flowState.kind, isAuthenticated]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider || loginAttemptInFlightRef.current) {
@@ -1153,7 +1174,7 @@ function App() {
         entry: loginEntry,
       });
       if (!signInStarted) {
-        showAlert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
         return;
       }
       setSocialLoginError(normalizedError);
@@ -1243,7 +1264,7 @@ function App() {
   };
 
   const showPreparingAlert = (featureName: string) => {
-    showAlert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
+    Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
   const handleLogout = async () => {
@@ -1272,7 +1293,7 @@ function App() {
     }
 
     setIsLogoutPending(false);
-    showAlert(
+    Alert.alert(
       '로그아웃 실패',
       '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
     );
@@ -1288,7 +1309,7 @@ function App() {
     const providers = getLinkedDeletionProviders(oauthProvider);
 
     if (providers.length === 0) {
-      showAlert(
+      Alert.alert(
         '로그인이 필요해요',
         '회원탈퇴를 진행하려면 다시 로그인해주세요.',
       );
@@ -1328,7 +1349,7 @@ function App() {
       trackActionFinished(posthog, 'account_deletion', 'failure', {
         failure_type: 'local_cleanup_failed',
       });
-      showAlert(
+      Alert.alert(
         '회원탈퇴를 마무리하지 못했어요',
         '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
       );
@@ -1341,7 +1362,7 @@ function App() {
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
-    showAlert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+    Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
 
   const handleRetryProfile = async () => {
@@ -1367,11 +1388,11 @@ function App() {
     if (screen === 'history') {
       return (
         <HistoryScreen
-          key={tabRefreshCounts.history}
           guestReels={isAuthenticated === false ? [] : undefined}
           onBack={goBackMainTab}
           isActive={currentScreen === 'history' && myPageOverlay === null}
           onNestedBackStateChange={reportHistoryBackState}
+          onOpenReel={setReelDetail}
           onRequireLogin={requestLogin}
         />
       );
@@ -1430,8 +1451,8 @@ function App() {
         <SavedPlacesScreen
           key={
             isAuthenticated === false
-              ? `guest-saved-${tabRefreshCounts.saved}`
-              : `member-saved-${tabRefreshCounts.saved}`
+              ? 'guest-saved'
+              : 'member-saved'
           }
           isActive={currentScreen === 'saved' && myPageOverlay === null}
           onNestedBackStateChange={reportSavedBackState}
@@ -1442,6 +1463,8 @@ function App() {
           onOpenGuide={() => setMyPageOverlay('guide')}
           onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
           onEditModeChange={setIsSavedPlacesEditing}
+          onOpenHistory={() => openMainScreen('history')}
+          onOpenReel={setReelDetail}
           onOpenDetail={(place, context) =>
             openDetailFrom('saved', place, context)
           }
@@ -1474,10 +1497,13 @@ function App() {
       return (
         <MapScreen
           onBackGestureRegionChange={reportMapBackGestureRegion}
+          bottomNavigationBar={
+            <BottomNavigationBar active="map" isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+          }
           key={
             isAuthenticated === false
-              ? `guest-map-${tabRefreshCounts.map}`
-              : `member-map-${tabRefreshCounts.map}`
+              ? 'guest-map'
+              : 'member-map'
           }
           isGuest={isAuthenticated === false}
           isActive={currentScreen === 'map' && myPageOverlay === null}
@@ -1511,7 +1537,6 @@ function App() {
 
     return (
       <MyPageScreen
-        key={tabRefreshCounts.my}
         currentProfile={currentProfile}
         isGuest={isAuthenticated === false}
         isProfileLoading={isProfileLoading}
@@ -1562,12 +1587,14 @@ function App() {
     : null;
   const activeLayerKey = flowState.kind === 'auth'
     ? `auth-${flowState.stack.length - 1}-${currentScreen}`
+    : reelDetail !== null ? `reelDetail-${reelDetail.id}`
     : myPageOverlay !== null ? `myPage-${myPageOverlay}`
     : flowState.detailSource !== null ? 'detail' : flowState.activeTab;
   const backLayerKey = flowState.kind === 'auth'
     ? flowState.stack.length > 1
       ? `auth-${flowState.stack.length - 2}-${flowState.stack[flowState.stack.length - 2]}`
       : null
+    : reelDetail !== null ? flowState.activeTab
     : myPageOverlay !== null ? flowState.activeTab
     : flowState.detailSource ?? previousTab;
 
@@ -1591,7 +1618,8 @@ function App() {
 
   const handleSwipeBack = () => {
     trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');
-    if (myPageOverlay !== null) setMyPageOverlay(null);
+    if (reelDetail !== null) setReelDetail(null);
+    else if (myPageOverlay !== null) setMyPageOverlay(null);
     else if (flowState.kind === 'auth') popAuthScreen();
     else if (flowState.detailSource !== null) closeDetail();
     else goBackMainTab();
@@ -1612,7 +1640,7 @@ function App() {
         content: wrapScreen(
           <View style={styles.container}>
             {renderScreen(tab)}
-            {!(tab === 'saved' && isSavedPlacesEditing) ? (
+            {tab !== 'map' && tab !== 'history' && !(tab === 'saved' && isSavedPlacesEditing) ? (
               <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
             ) : null}
           </View>, tab === 'map',
@@ -1623,6 +1651,42 @@ function App() {
   }
   if (flowState.kind === 'main' && myPageOverlay !== null) {
     screenLayers.push({key: `myPage-${myPageOverlay}`, content: wrapScreen(renderMyPageOverlay())});
+  }
+  if (flowState.kind === 'main' && reelDetail !== null) {
+    screenLayers.push({
+      key: `reelDetail-${reelDetail.id}`,
+      content: isReelInProgress(reelDetail)
+        ? // 처리 중인 릴스는 하단 탭을 둔 채 진행 화면을 보여 주고, 끝나면 상세로 바꾼다.
+          wrapScreen(
+            <View style={styles.container}>
+              <ReelProcessingScreen
+                reel={reelDetail}
+                onBack={() => setReelDetail(null)}
+                onCompleted={setReelDetail}
+                onFailed={() => {
+                  setReelDetail(null);
+                  openMainScreen('history');
+                }}
+              />
+              <BottomNavigationBar
+                active={flowState.activeTab}
+                isGuest={isAuthenticated === false}
+                onNavigate={tab => {
+                  setReelDetail(null);
+                  navigateMainTab(tab);
+                }}
+              />
+            </View>,
+          )
+        : // 원본 이미지가 상태 표시줄 아래까지 채워지도록 위쪽 안전 영역은 화면 안에서 처리한다.
+          wrapScreen(
+            <ReelDetailScreen
+              reel={reelDetail}
+              onBack={() => setReelDetail(null)}
+            />,
+            true,
+          ),
+    });
   }
 
   if (!isAuthReady || isSplashVisible) {
@@ -1668,14 +1732,23 @@ function App() {
         key={`${flowState.kind}-${isAuthenticated}`}
         screens={screenLayers}
         activeKey={activeLayerKey}
-        gestureRegion={currentScreen === 'map' ? mapBackGestureRegion : undefined}
+        gestureRegion={
+          currentScreen === 'map'
+            ? mapBackGestureRegion
+            : reelDetail !== null
+              ? isReelInProgress(reelDetail)
+                ? getProcessingBackGestureRegion()
+                : getReelBackGestureRegion(windowHeight)
+              : undefined
+        }
         backKey={myPageOverlay === 'guide' ? null : backLayerKey}
         onBack={handleSwipeBack}
         enabled={
           myPageOverlay !== 'guide' &&
           (!nestedBackStateRef.current ||
             currentScreen === 'detail' ||
-            myPageOverlay !== null)
+            myPageOverlay !== null ||
+            reelDetail !== null)
         }
       />
       {currentScreen === 'detail' ? <SystemNavigationGradient /> : null}
@@ -1727,13 +1800,4 @@ const styles = StyleSheet.create({
   },
 });
 
-function AppRoot() {
-  return (
-    <>
-      <AppAlertHost />
-      <App />
-    </>
-  );
-}
-
-export default Sentry.wrap(AppRoot);
+export default Sentry.wrap(App);

@@ -95,3 +95,16 @@ export function resolvePlaceCategoryCode(place: {
     ? place.categoryCode
     : toPlaceCategoryCode(place.category);
 }
+
+/** "대분류 > 중분류 > ..." 카테고리에서 목록에 보여 줄 중분류를 돌려줍니다. */
+export function getMiddleCategory(category?: string | null) {
+  if (!category) {
+    return undefined;
+  }
+
+  const categories = category
+    .split('>')
+    .map(item => item.trim())
+    .filter(Boolean);
+  return categories[1] ?? categories[0];
+}
