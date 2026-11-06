@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
+  type GestureResponderEvent,
   type LayoutChangeEvent,
   Pressable,
   StyleSheet,
@@ -31,6 +34,8 @@ type StepPagerProps = {
   showPrevious?: boolean;
   lastButtonLabel?: string;
   lastButtonAccessibilityLabel?: string;
+  backRequest?: number;
+  onBackAtFirst?: () => void;
 };
 
 // 데모 영상 비율(300x500)에 맞춘 프레임
@@ -38,6 +43,8 @@ const MEDIA_RATIO = 500 / 300;
 // 영상의 둥근 모서리 바깥은 검은색이라, 영상 모서리(폭의 약 13%)보다 살짝 크게 잘라 가린다.
 const MEDIA_CORNER_RATIO = 0.145;
 const MEDIA_BOTTOM_GAP = 16;
+const SWIPE_MIN_DISTANCE = 50;
+const SWIPE_HORIZONTAL_RATIO = 1.3;
 
 // 실제 영상 영역의 높이에 맞춰 데모 프레임 크기를 정한다.
 function useMediaFrame(mediaAreaHeight: number) {
@@ -80,10 +87,20 @@ export function StepPager({
   showPrevious = false,
   lastButtonLabel = '다음',
   lastButtonAccessibilityLabel,
+  backRequest = 0,
+  onBackAtFirst,
 }: StepPagerProps) {
   const [pageIndex, setPageIndex] = useState(0);
   const {button, stepViewed} = useStepAnalytics(flowName, pages.length);
   const [mediaAreaHeight, setMediaAreaHeight] = useState(0);
+  const touchStart = useRef<{pageX: number; pageY: number} | null>(null);
+  const translation = useRef(new Animated.Value(0)).current;
+  const isTransitioning = useRef(false);
+  const transitionDirection = useRef(0);
+  const pendingBack = useRef(false);
+  const lastBackRequest = useRef(backRequest);
+  const backAction = useRef<() => void>(() => undefined);
+  const {width: screenWidth} = useWindowDimensions();
   const { frameWidth, frameHeight, frameRadius } = useMediaFrame(mediaAreaHeight);
   const page = pages[pageIndex];
   const isLast = pageIndex === pages.length - 1;
@@ -93,50 +110,170 @@ export function StepPager({
     stepViewed(pageIndex);
   }, [pageIndex, stepViewed]);
 
+  useEffect(() => {
+    if (transitionDirection.current === 0) return;
+    Animated.timing(translation, {
+      toValue: 0,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      isTransitioning.current = false;
+      transitionDirection.current = 0;
+      if (pendingBack.current) {
+        pendingBack.current = false;
+        backAction.current();
+      }
+    });
+  }, [pageIndex, translation]);
+
+  const resetTranslation = () => {
+    Animated.spring(translation, {
+      toValue: 0,
+      speed: 22,
+      bounciness: 3,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const changePage = (direction: number) => {
+    if (isTransitioning.current) return;
+    const nextIndex = pageIndex + direction;
+    if (nextIndex < 0 || nextIndex >= pages.length) {
+      resetTranslation();
+      return;
+    }
+
+    isTransitioning.current = true;
+    transitionDirection.current = direction;
+    Animated.timing(translation, {
+      toValue: -direction * screenWidth,
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({finished}) => {
+      if (!finished) {
+        isTransitioning.current = false;
+        transitionDirection.current = 0;
+        resetTranslation();
+        return;
+      }
+      translation.setValue(direction * screenWidth * 0.45);
+      setPageIndex(nextIndex);
+    });
+  };
+
+  backAction.current = () => {
+    if (isTransitioning.current) {
+      pendingBack.current = true;
+      return;
+    }
+    if (pageIndex === 0) onBackAtFirst?.();
+    else changePage(-1);
+  };
+
+  useEffect(() => {
+    if (lastBackRequest.current === backRequest) return;
+    lastBackRequest.current = backRequest;
+    backAction.current();
+  }, [backRequest]);
+
   const handleNext = () => {
+    if (isTransitioning.current) return;
     button(isLast ? 'complete' : 'next', pageIndex);
     if (isLast) {
       onComplete();
       return;
     }
-    setPageIndex(prev => prev + 1);
+    changePage(1);
   };
 
   const handleMediaAreaLayout = (event: LayoutChangeEvent) => {
     setMediaAreaHeight(event.nativeEvent.layout.height);
   };
 
+  const handleTouchStart = (event: GestureResponderEvent) => {
+    if (isTransitioning.current) return;
+    touchStart.current =
+      event.nativeEvent.touches.length === 1
+        ? {pageX: event.nativeEvent.pageX, pageY: event.nativeEvent.pageY}
+        : null;
+  };
+
+  const handleTouchMove = (event: GestureResponderEvent) => {
+    const start = touchStart.current;
+    if (!start || isTransitioning.current) return;
+    const dx = event.nativeEvent.pageX - start.pageX;
+    const dy = event.nativeEvent.pageY - start.pageY;
+    if (Math.abs(dx) <= Math.abs(dy) * SWIPE_HORIZONTAL_RATIO) return;
+    translation.setValue(
+      Math.max(-screenWidth * 0.55, Math.min(screenWidth * 0.55, dx)),
+    );
+  };
+
+  const handleTouchEnd = (event: GestureResponderEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || isTransitioning.current) return;
+
+    const dx = event.nativeEvent.pageX - start.pageX;
+    const dy = event.nativeEvent.pageY - start.pageY;
+    if (
+      Math.abs(dx) < SWIPE_MIN_DISTANCE ||
+      Math.abs(dx) < Math.abs(dy) * SWIPE_HORIZONTAL_RATIO
+    ) {
+      resetTranslation();
+      return;
+    }
+
+    // 완료는 마지막 페이지의 버튼으로만 확정한다.
+    changePage(dx < 0 ? 1 : -1);
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
+      <View
+        style={styles.content}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => {
+          touchStart.current = null;
+          resetTranslation();
+        }}
+      >
         <PageDots count={pages.length} current={pageIndex} />
 
-        <View style={styles.header}>
-          {page.eyebrow ? (
-            <Text style={styles.eyebrow}>{page.eyebrow}</Text>
-          ) : null}
-          <Text accessibilityRole="header" style={styles.title}>
-            {page.title}
-          </Text>
-        </View>
+        <Animated.View
+          style={[styles.pageContent, {transform: [{translateX: translation}]}]}
+        >
+          <View style={styles.header}>
+            {page.eyebrow ? (
+              <Text style={styles.eyebrow}>{page.eyebrow}</Text>
+            ) : null}
+            <Text accessibilityRole="header" style={styles.title}>
+              {page.title}
+            </Text>
+          </View>
 
-        <View style={styles.mediaArea} onLayout={handleMediaAreaLayout}>
-          {frameWidth > 0 ? (
-            <View
-              key={page.key}
-              style={[
-                styles.frame,
-                {
-                  width: frameWidth + 2,
-                  borderTopLeftRadius: frameRadius,
-                  borderTopRightRadius: frameRadius,
-                },
-              ]}
-            >
-              {page.renderMedia({ width: frameWidth, height: frameHeight })}
-            </View>
-          ) : null}
-        </View>
+          <View style={styles.mediaArea} onLayout={handleMediaAreaLayout}>
+            {frameWidth > 0 ? (
+              <View
+                key={page.key}
+                style={[
+                  styles.frame,
+                  {
+                    width: frameWidth + 2,
+                    borderTopLeftRadius: frameRadius,
+                    borderTopRightRadius: frameRadius,
+                  },
+                ]}
+              >
+                {page.renderMedia({ width: frameWidth, height: frameHeight })}
+              </View>
+            ) : null}
+          </View>
+        </Animated.View>
       </View>
 
       <View style={styles.footer}>
@@ -146,7 +283,7 @@ export function StepPager({
             accessibilityLabel="이전"
             onPress={() => {
               button('previous', pageIndex);
-              setPageIndex(prev => prev - 1);
+              changePage(-1);
             }}
             style={({ pressed }) => [
               styles.button,
@@ -186,6 +323,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 40,
+  },
+  pageContent: {
+    flex: 1,
+    alignSelf: 'stretch',
+    alignItems: 'center',
   },
   dots: {
     flexDirection: 'row',
