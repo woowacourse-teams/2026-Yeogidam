@@ -6,6 +6,7 @@ import { PIN_FLOW_MEDIA, SHARE_FLOW_MEDIA } from './guideMedia';
 
 type AppGuideScreenProps = {
   onComplete: () => void;
+  backRequest?: number;
 };
 
 export const SHARE_GUIDE_PAGE: StepPage = {
@@ -41,12 +42,17 @@ const GUIDE_PAGES: StepPage[] = [
   },
 ];
 
-export function AppGuideScreen({ onComplete }: AppGuideScreenProps) {
+export function AppGuideScreen({
+  onComplete,
+  backRequest,
+}: AppGuideScreenProps) {
   return (
     <StepPager
       flowName="app_guide"
       pages={GUIDE_PAGES}
       onComplete={onComplete}
+      backRequest={backRequest}
+      onBackAtFirst={onComplete}
       showPrevious
       lastButtonAccessibilityLabel="가이드 마치기"
     />

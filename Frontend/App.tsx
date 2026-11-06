@@ -351,6 +351,8 @@ function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
+  const [onboardingBackRequest, setOnboardingBackRequest] = useState(0);
+  const [guideBackRequest, setGuideBackRequest] = useState(0);
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
@@ -652,6 +654,16 @@ function App() {
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        if (isOnboardingVisible) {
+          setOnboardingBackRequest(current => current + 1);
+          return true;
+        }
+
+        if (myPageOverlay === 'guide') {
+          setGuideBackRequest(current => current + 1);
+          return true;
+        }
+
         if (myPageOverlay !== null) {
           setMyPageOverlay(null);
           return true;
@@ -680,7 +692,7 @@ function App() {
     );
 
     return () => subscription.remove();
-  }, [closeDetail, flowState, goBackMainTab, myPageOverlay]);
+  }, [closeDetail, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1514,7 +1526,10 @@ function App() {
 
     if (myPageOverlay === 'guide') {
       return (
-        <AppGuideScreen onComplete={() => setMyPageOverlay(null)} />
+        <AppGuideScreen
+          backRequest={guideBackRequest}
+          onComplete={() => setMyPageOverlay(null)}
+        />
       );
     }
 
@@ -1608,7 +1623,10 @@ function App() {
           edges={['top', 'left', 'right', 'bottom']}
           style={styles.safeArea}
         >
-          <OnboardingScreen onComplete={() => setIsOnboardingVisible(false)} />
+          <OnboardingScreen
+            backRequest={onboardingBackRequest}
+            onComplete={() => setIsOnboardingVisible(false)}
+          />
         </SafeAreaView>
         {/* 필수 업데이트는 온보딩 중에도 막는다. 권장 업데이트는 온보딩 뒤에 안내한다. */}
         <AppUpdateModal
@@ -1632,9 +1650,14 @@ function App() {
         screens={screenLayers}
         activeKey={activeLayerKey}
         gestureRegion={currentScreen === 'map' ? mapBackGestureRegion : undefined}
-        backKey={backLayerKey}
+        backKey={myPageOverlay === 'guide' ? null : backLayerKey}
         onBack={handleSwipeBack}
-        enabled={!nestedBackStateRef.current || currentScreen === 'detail' || myPageOverlay !== null}
+        enabled={
+          myPageOverlay !== 'guide' &&
+          (!nestedBackStateRef.current ||
+            currentScreen === 'detail' ||
+            myPageOverlay !== null)
+        }
       />
       {currentScreen === 'detail' ? <SystemNavigationGradient /> : null}
       <AppUpdateModal
