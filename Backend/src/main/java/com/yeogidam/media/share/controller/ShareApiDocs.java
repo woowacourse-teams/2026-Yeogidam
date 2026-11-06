@@ -2,12 +2,15 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.media.share.dto.request.ShareRequest;
+import com.yeogidam.media.share.dto.request.SharedMediaSearchRequest;
 import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
+import com.yeogidam.media.share.dto.response.SavedMediaResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.ShareResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,6 +19,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.Instant;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -319,6 +323,55 @@ public interface ShareApiDocs {
             @Parameter(description = "다음 페이지를 요청할 때 이전 응답의 nextCursor.createdAt을 보냅니다.",
                     example = "2026-09-20T03:12:45.123456Z") Instant cursorCreatedAt,
             @Parameter(description = "다음 페이지를 요청할 때 이전 응답의 nextCursor.id를 보냅니다.", example = "812") Long cursorId
+    );
+
+    @Operation(summary = "보관함 게시글 캡션 검색",
+            description = """
+                    로그인한 회원의 전체 대상 게시글 캡션을 검색하고 최근 공유부터 50건씩 반환합니다.
+
+                    - 지우지 않았고 분석에 성공했으며 추출 장소가 1곳 이상인 내 공유만 검색합니다.
+                    - 장소를 모두 저장 해제해도 검색에 남습니다. 저장 장소와의 연결 여부는 검색 대상 조건으로 쓰지 않습니다.
+                    - 같은 게시글의 적격 공유 중 최신 한 건을 먼저 고른 뒤 캡션 검색과 커서를 적용합니다.
+                    - 프론트가 이미 받은 첫 50건으로 검색 범위를 제한하지 않고 캡션 전체를 검색합니다.
+                    - 공백으로 나눈 검색 단어를 모두 포함해야 합니다. 영문 대소문자와 공백 차이를 허용합니다.
+                    - `!`, `%`, `_`는 문자 그대로 검색하며 작성자와 장소 정보는 검색 대상이 아닙니다.
+                    - 검색어는 앞뒤 공백을 제외하고 1~100자입니다.
+                    - `createdAt` 내림차순, 같은 시각에는 `sharedMediaId` 내림차순으로 정렬합니다.
+                    - 다음 페이지가 있으면 마지막 반환 항목의 시각과 ID를 `nextCursor`에 담고, 없으면 null입니다.
+                    - 같은 검색어와 `nextCursor`의 두 값을 `cursorCreatedAt`, `cursorId`로 보내 다음 페이지를 요청합니다.
+                    - 커서의 시각은 마이크로초까지 받은 값 그대로 전달합니다. 검색어를 바꾸면 두 커서를 모두 비웁니다.
+                    - 응답은 보관함 게시물 목록과 같은 `sharedMedia`, `nextCursor` 구조입니다.
+                    - `places`는 모든 추출 장소를 추출 순서로 담고 미보관 장소의 `savedPlaceId`는 null입니다.
+                    - 장소의 좌표, `kakaoPlaceUrl`, `telephone`, 카테고리와 주소를 포함해 추가 조회 없이 상세 화면을 엽니다.
+                    - 링크와 전화번호는 없으면 null입니다. 카드의 장소 수는 `places.length`로 계산합니다.
+                    - 검색 결과가 없으면 빈 `sharedMedia` 배열과 `nextCursor: null`을 반환합니다.
+                    """,
+            parameters = {
+                    @Parameter(name = "query", in = ParameterIn.QUERY, required = true,
+                            description = "캡션에 포함된 검색어. 앞뒤 공백 제외 최대 100자", example = "성수 카페"),
+                    @Parameter(name = "cursorCreatedAt", in = ParameterIn.QUERY,
+                            description = "이전 응답의 nextCursor.createdAt. cursorId와 함께 전달",
+                            example = "2026-11-01T03:00:00.123456Z"),
+                    @Parameter(name = "cursorId", in = ParameterIn.QUERY,
+                            description = "이전 응답의 nextCursor.id. cursorCreatedAt과 함께 전달", example = "123")
+            },
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "게시글 검색 결과와 전체 추출 장소",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = SavedMediaResponses.class))),
+                    @ApiResponse(responseCode = "400",
+                            description = "검색어 누락·빈 값은 COMMON400_001, 100자 초과는 COMMON400_005, "
+                                    + "커서 한쪽 누락은 MEDIA400_015입니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class)))
+            })
+    ResponseEntity<SavedMediaResponses> readSharedMedia(
+            Long memberId,
+            @Valid @ParameterObject SharedMediaSearchRequest request
     );
 
     @Operation(summary = "히스토리 내 장소 목록 조회",

@@ -5,6 +5,7 @@ import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.share.domain.CaptionSearchQuery;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
 import java.sql.PreparedStatement;
@@ -13,9 +14,11 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -449,5 +452,99 @@ public class SharedMediaDao {
                 )
                 """;
         return jdbcTemplate.queryForObject(sql, Boolean.class, memberId, sharedMediaId);
+    }
+
+    /**
+     * 보관함 게시물 목록과 같은 적격 공유 중 게시물별 최신 한 건을 먼저 고른 뒤 전체 캡션을 검색한다.
+     * 보관 장소와의 연결은 보지 않고, 모든 검색 단어가 포함된 게시물만 페이지 크기보다 한 건 더 읽는다.
+     */
+    public SavedMediaProjections findSavedMediaByQuery(Long memberId, CaptionSearchQuery query) {
+        return findSavedMediaByQuery(query, "", searchArguments(memberId, query));
+    }
+
+    /**
+     * 대표 공유를 고른 뒤 검색과 커서를 적용하므로 앞 페이지에 나온 게시물의 옛 공유는 다시 나오지 않는다.
+     */
+    public SavedMediaProjections findSavedMediaByQueryBefore(
+            Long memberId,
+            CaptionSearchQuery query,
+            SharedMediaCursor cursor
+    ) {
+        String cursorCondition = """
+                AND (latest.created_at < ?
+                     OR (latest.created_at = ? AND latest.shared_media_id < ?))
+                """;
+        List<Object> arguments = searchArguments(memberId, query);
+        Timestamp cursorCreatedAt = Timestamp.from(cursor.createdAt());
+        arguments.addAll(List.of(cursorCreatedAt, cursorCreatedAt, cursor.sharedMediaId()));
+        return findSavedMediaByQuery(query, cursorCondition, arguments);
+    }
+
+    private SavedMediaProjections findSavedMediaByQuery(
+            CaptionSearchQuery query,
+            String cursorCondition,
+            List<Object> arguments
+    ) {
+        String sql = """
+                SELECT latest.shared_media_id,
+                       latest.media_id,
+                       latest.created_at,
+                       m.thumbnail_key,
+                       m.caption,
+                       m.author,
+                       latest.shared_url
+                FROM (
+                    SELECT sm.id AS shared_media_id,
+                           sm.media_id,
+                           sm.created_at,
+                           sm.shared_url,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY sm.media_id
+                               ORDER BY sm.created_at DESC, sm.id DESC
+                           ) AS recency_rank
+                    FROM shared_media sm
+                    WHERE sm.member_id = ?
+                      AND sm.deleted_at IS NULL
+                      AND sm.extraction_status = 'SUCCEEDED'
+                      AND EXISTS (
+                          SELECT 1
+                          FROM media_places mp
+                          WHERE mp.media_id = sm.media_id
+                      )
+                ) latest
+                JOIN media m ON m.id = latest.media_id
+                WHERE latest.recency_rank = 1
+                  AND %s
+                  %s
+                ORDER BY latest.created_at DESC, latest.shared_media_id DESC
+                LIMIT ?
+                """.formatted(captionSearchConditions(query), cursorCondition);
+        arguments.add(SavedMediaProjections.FETCH_SIZE);
+        return new SavedMediaProjections(jdbcTemplate.query(sql, SAVED_MEDIA_ROW_MAPPER, arguments.toArray()));
+    }
+
+    private String captionSearchConditions(CaptionSearchQuery query) {
+        return query.getWords().stream()
+                .map(word -> """
+                        LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.caption, ''),
+                            ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
+                        """)
+                .collect(Collectors.joining(" AND "));
+    }
+
+    private List<Object> searchArguments(Long memberId, CaptionSearchQuery query) {
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(memberId);
+        arguments.addAll(query.getWords().stream()
+                .map(this::searchPattern)
+                .toList());
+        return arguments;
+    }
+
+    private String searchPattern(String word) {
+        String escaped = word.replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
+        return "%" + escaped + "%";
     }
 }
