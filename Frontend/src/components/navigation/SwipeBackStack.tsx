@@ -128,6 +128,15 @@ export function SwipeBackStack({
     gestureRef.current = null;
     setDragging(false);
 
+    // 화면을 새로 열면 이전 화면은 뒤에 남는다. 이 화면을 한 프레임 늦게 가리면, 새 화면이
+    // 다른 높이로 움직이는 동안 이전 화면이 함께 보이므로 바로 가린다. 가리기만 하므로
+    // pop 중인 화면(translation이 width)도 화면 밖에 그대로 있다.
+    for (const [key, motion] of motions) {
+      if (key === activeKey) continue;
+      motion.clipTranslation.stopAnimation();
+      motion.clipTranslation.setValue(-width);
+    }
+
     // Reset outgoing/hidden views only after the visibility change was committed.
     // Resetting the foreground at the same time as the pop can flash it at x=0.
     const cleanupFrame = requestAnimationFrame(() => {
@@ -135,8 +144,6 @@ export function SwipeBackStack({
         if (key === activeKey || key === gestureRef.current?.to) continue;
         motion.translation.stopAnimation();
         motion.translation.setValue(0);
-        motion.clipTranslation.stopAnimation();
-        motion.clipTranslation.setValue(-width);
         motion.radius.setValue(0);
         motion.shade.setValue(0);
       }

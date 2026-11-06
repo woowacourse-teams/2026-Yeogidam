@@ -180,6 +180,8 @@ export function MapScreen({
     bottomInset: 0,
   });
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
+  // 같은 좌표로 다시 옮길 때도 지도가 움직이도록, 좌표와 별개로 이동 요청을 보낸다.
+  const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
@@ -439,18 +441,7 @@ export function MapScreen({
     });
     setSearchedPlaces(places);
     setSearchResultSignal(signal => signal + 1);
-    if (places.length >= 2) {
-      setCameraFitRequestId(requestId => requestId + 1);
-    } else if (
-      places[0]?.latitude !== undefined &&
-      places[0]?.longitude !== undefined
-    ) {
-      setMapCenter({
-        latitude: places[0].latitude,
-        longitude: places[0].longitude,
-      });
-      setMapZoomLevel(16);
-    }
+    focusMapOnPlaces(places);
   };
 
   const focusMapOnPlaces = (places: Place[]) => {
@@ -465,6 +456,7 @@ export function MapScreen({
         longitude: places[0].longitude,
       });
       setMapZoomLevel(16);
+      setCameraMoveRequestId(requestId => requestId + 1);
     }
   };
 
@@ -513,6 +505,8 @@ export function MapScreen({
     setSelectedCategory(ALL_CATEGORY);
     setSearchedPlaces(null);
     setSearchKeyword('');
+    // 끝까지 올린 시트는 지도를 덮으므로, 폴더 장소가 지도에 보이도록 중간 높이로 내린다.
+    if (isSheetExpanded) setCollapseSignal(signal => signal + 1);
     focusMapOnPlaces(
       allPlacesWithCoordinates.filter(place =>
         place.folderIds.includes(folderId),
@@ -724,6 +718,7 @@ export function MapScreen({
             latitude={pageCamera.latitude}
             longitude={pageCamera.longitude}
             zoomLevel={pageCamera.zoomLevel}
+            cameraMoveRequestId={cameraMoveRequestId}
             cameraFitPointsJson={cameraFitPointsJson}
             cameraFitRequestId={cameraFitRequestId}
             cameraBottomInset={cameraBottomInset}
@@ -965,6 +960,22 @@ export function MapScreen({
     );
   };
 
+  const folderSegmentHeader = (
+    <FolderSegmentHeader
+      mode={sheetMode}
+      onChangeMode={handleChangeSheetMode}
+    />
+  );
+  const folderList = (
+    <FolderList
+      folders={folderListItems}
+      bottomPadding={FOLDER_LIST_BOTTOM_PADDING}
+      onOpenFolder={handleOpenFolder}
+      onLongPressFolder={showFolderActions}
+      onCreateFolder={handleCreateFolder}
+    />
+  );
+
   return (
     <View
       style={styles.container}
@@ -995,6 +1006,9 @@ export function MapScreen({
           bottomTabOffset={bottomNavigationOffset}
           places={resultPlaces}
           hasSavedPlaces={savedPlaces.length > 0}
+          // 폴더 안에서 뒤로 스와이프하면 뒤에 돌아갈 폴더 목록이 보여야 한다.
+          backFolderHeader={openedFolder ? folderSegmentHeader : undefined}
+          backFolderContent={openedFolder ? folderList : undefined}
           folderHeader={
             isGuest ? undefined : openedFolder ? (
               <FolderDetailHeader
@@ -1004,21 +1018,12 @@ export function MapScreen({
                 onMore={() => showFolderActions(openedFolder.id)}
               />
             ) : (
-              <FolderSegmentHeader
-                mode={sheetMode}
-                onChangeMode={handleChangeSheetMode}
-              />
+              folderSegmentHeader
             )
           }
           folderContent={
             isFolderListVisible ? (
-              <FolderList
-                folders={folderListItems}
-                bottomPadding={FOLDER_LIST_BOTTOM_PADDING}
-                onOpenFolder={handleOpenFolder}
-                onLongPressFolder={showFolderActions}
-                onCreateFolder={handleCreateFolder}
-              />
+              folderList
             ) : activeCategory !== ALL_CATEGORY &&
               placesWithCoordinates.length === 0 ? (
               <View style={styles.folderEmpty}>
