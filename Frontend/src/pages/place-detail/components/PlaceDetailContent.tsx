@@ -1,5 +1,10 @@
 import React, { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  type GestureResponderHandlers,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import type {
   PlaceReel,
@@ -51,6 +56,13 @@ type PlaceDetailContentProps = {
   onTopPull?: (distance: number) => void;
   /** 맨 위에서 당기던 손을 놓을 때 당긴 거리와 세로 속도(pt/ms)를 넘깁니다. */
   onTopPullRelease?: (distance: number, velocityY: number) => void;
+  /**
+   * 본문(ScrollView 안쪽)에 붙일 터치 응답자입니다. Android에서 본문을 아래로 당겨 시트를 내릴 때 씁니다.
+   * 응답자가 ScrollView 안쪽에 있어야 응답자를 잡는 순간 ScrollView가 터치를 가로채지 못합니다.
+   */
+  contentPanHandlers?: GestureResponderHandlers;
+  /** 본문 ScrollView를 직접 스크롤해야 할 때 씁니다. */
+  scrollViewRef?: React.Ref<ScrollView>;
   /** 이벤트에 붙는 화면 이름입니다. 지도 시트처럼 다른 화면에서 쓸 때 지정합니다. */
   analyticsScreenName?: string;
 };
@@ -86,6 +98,8 @@ export function PlaceDetailContent({
   onScrollOffsetChange,
   onTopPull,
   onTopPullRelease,
+  contentPanHandlers,
+  scrollViewRef,
   analyticsScreenName = 'place_detail',
 }: PlaceDetailContentProps) {
   return (
@@ -121,6 +135,8 @@ export function PlaceDetailContent({
         onScrollOffsetChange={onScrollOffsetChange}
         onTopPull={onTopPull}
         onTopPullRelease={onTopPullRelease}
+        contentPanHandlers={contentPanHandlers}
+        scrollViewRef={scrollViewRef}
       />
     </AnalyticsScreenContext.Provider>
   );
@@ -157,6 +173,8 @@ function PlaceDetailContentBody({
   onScrollOffsetChange,
   onTopPull,
   onTopPullRelease,
+  contentPanHandlers,
+  scrollViewRef,
 }: Omit<PlaceDetailContentProps, 'analyticsScreenName'>) {
   // 손을 뗀 뒤 본문이 제자리로 튕겨 돌아오는 스크롤은 당김으로 보지 않습니다.
   const isDraggingRef = useRef(false);
@@ -170,8 +188,58 @@ function PlaceDetailContentBody({
     onTabChange?.(tab);
   };
 
+  // stickyHeaderIndices가 첫 자식을 헤더로 보므로 Fragment로 묶지 않고 배열로 둡니다.
+  const body = [
+    hideHeader ? (
+      <View key="header" style={{ height: headerTopInset }} />
+    ) : (
+      <PlaceDetailHeader
+        key="header"
+        onBack={onBack}
+        onPressMore={onPressMore}
+        onPressFolder={onPressFolder}
+        onPressDelete={onPressDelete}
+        isInFolder={isInFolder}
+        isDeleting={isDeleting}
+        onInteractivePressIn={onInteractivePressIn}
+        hideBack={hideBack}
+        title={place.name}
+        titleInHeader={titleInHeader}
+        topInset={headerTopInset}
+        compact={compactHeader}
+      />
+    ),
+    <View key="info">
+      <PlaceInfo
+        place={place}
+        showTitle={showTitle}
+        showCategory={showMetadata}
+        showAddress={showMetadata}
+        actionsUnderTitle={actionsUnderTitle}
+        viewContext={viewContext}
+        onInteractivePressIn={onInteractivePressIn}
+      />
+    </View>,
+    <View key="tabs" style={styles.tabsContainer}>
+      <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />
+    </View>,
+    activeTab === '게시물' ? (
+      <PlacePostGrid
+        key="posts"
+        reels={reels}
+        error={reelsError}
+        isLoading={isReelsLoading}
+        onRetry={onRetryReels}
+      />
+    ) : null,
+    activeTab === '정보' ? (
+      <PlaceInformation key="info-tab" place={place} />
+    ) : null,
+  ];
+
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={styles.container}
       contentContainerStyle={[
         styles.content,
@@ -205,47 +273,13 @@ function PlaceDetailContentBody({
       stickyHeaderIndices={stickyHeader && !hideHeader ? [0] : undefined}
       showsVerticalScrollIndicator={false}
     >
-      {hideHeader ? (
-        <View style={{ height: headerTopInset }} />
+      {contentPanHandlers ? (
+        <View {...contentPanHandlers} style={styles.content}>
+          {body}
+        </View>
       ) : (
-        <PlaceDetailHeader
-          onBack={onBack}
-          onPressMore={onPressMore}
-          onPressFolder={onPressFolder}
-          onPressDelete={onPressDelete}
-          isInFolder={isInFolder}
-          isDeleting={isDeleting}
-          onInteractivePressIn={onInteractivePressIn}
-          hideBack={hideBack}
-          title={place.name}
-          titleInHeader={titleInHeader}
-          topInset={headerTopInset}
-          compact={compactHeader}
-        />
+        body
       )}
-      <View>
-        <PlaceInfo
-          place={place}
-          showTitle={showTitle}
-          showCategory={showMetadata}
-          showAddress={showMetadata}
-          actionsUnderTitle={actionsUnderTitle}
-          viewContext={viewContext}
-          onInteractivePressIn={onInteractivePressIn}
-        />
-      </View>
-      <View style={styles.tabsContainer}>
-        <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />
-      </View>
-      {activeTab === '게시물' ? (
-        <PlacePostGrid
-          reels={reels}
-          error={reelsError}
-          isLoading={isReelsLoading}
-          onRetry={onRetryReels}
-        />
-      ) : null}
-      {activeTab === '정보' ? <PlaceInformation place={place} /> : null}
     </ScrollView>
   );
 }

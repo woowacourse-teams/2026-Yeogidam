@@ -3,7 +3,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   type ModalProps,
-  Platform,
   StyleSheet,
   View,
 } from 'react-native';
@@ -12,8 +11,8 @@ import { markModalOpened } from './modalPresence';
 
 type AppModalProps = ModalProps & {
   // 입력창이 있는 모달에서 켭니다. 키보드가 올라오면 내용이 키보드 위로 밀려 올라갑니다.
-  // iOS는 모달이 키보드에 맞춰 줄어들지 않아 padding으로 밀어 올리고,
-  // Android는 모달 창이 adjustResize로 직접 줄어들기 때문에 따로 처리하지 않습니다.
+  // iOS 모달은 키보드에 맞춰 줄어들지 않습니다. Android도 targetSdk 35+에서는 15·16 기기가
+  // edge-to-edge를 강제해 adjustResize가 창을 줄이지 않으므로, 두 플랫폼 모두 padding으로 밀어 올립니다.
   avoidKeyboard?: boolean;
 };
 
@@ -30,10 +29,7 @@ export function AppModal({
   return (
     <Modal {...modalProps}>
       {avoidKeyboard ? (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.container}
-        >
+        <KeyboardAvoidingView behavior="padding" style={styles.container}>
           {children}
         </KeyboardAvoidingView>
       ) : (
