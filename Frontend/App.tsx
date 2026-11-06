@@ -415,6 +415,12 @@ function App() {
     );
   }, []);
   const visitedTabsRef = useRef(new Set<MainScreen>(['saved']));
+  const [tabRefreshCounts, setTabRefreshCounts] = useState<Record<MainScreen, number>>({
+    saved: 0,
+    map: 0,
+    history: 0,
+    my: 0,
+  });
   const tabSessionRef = useRef(isAuthenticated);
   if (tabSessionRef.current !== isAuthenticated) {
     visitedTabsRef.current = new Set(['saved']);
@@ -574,6 +580,19 @@ function App() {
   };
 
   const navigateMainTab = (nextScreen: MainScreen) => {
+    if (
+      flowState.kind === 'main' &&
+      flowState.detailSource === null &&
+      flowState.activeTab === nextScreen
+    ) {
+      if (nextScreen === 'saved') savedPlacesScrollOffsetRef.current = 0;
+      setTabRefreshCounts(current => ({
+        ...current,
+        [nextScreen]: current[nextScreen] + 1,
+      }));
+      return;
+    }
+
     if (
       flowState.kind === 'main' &&
       flowState.detailSource === null &&
@@ -1074,7 +1093,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [flowState.kind, isAuthenticated]);
+  }, [flowState.kind, isAuthenticated, tabRefreshCounts.my]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider || loginAttemptInFlightRef.current) {
@@ -1335,6 +1354,7 @@ function App() {
     if (screen === 'history') {
       return (
         <HistoryScreen
+          key={tabRefreshCounts.history}
           guestReels={isAuthenticated === false ? [] : undefined}
           onBack={goBackMainTab}
           isActive={currentScreen === 'history' && myPageOverlay === null}
@@ -1397,8 +1417,8 @@ function App() {
         <SavedPlacesScreen
           key={
             isAuthenticated === false
-              ? 'guest-saved'
-              : 'member-saved'
+              ? `guest-saved-${tabRefreshCounts.saved}`
+              : `member-saved-${tabRefreshCounts.saved}`
           }
           isActive={currentScreen === 'saved' && myPageOverlay === null}
           onNestedBackStateChange={reportSavedBackState}
@@ -1441,13 +1461,10 @@ function App() {
       return (
         <MapScreen
           onBackGestureRegionChange={reportMapBackGestureRegion}
-          bottomNavigationBar={
-            <BottomNavigationBar active="map" isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
-          }
           key={
             isAuthenticated === false
-              ? 'guest-map'
-              : 'member-map'
+              ? `guest-map-${tabRefreshCounts.map}`
+              : `member-map-${tabRefreshCounts.map}`
           }
           isGuest={isAuthenticated === false}
           isActive={currentScreen === 'map' && myPageOverlay === null}
@@ -1481,6 +1498,7 @@ function App() {
 
     return (
       <MyPageScreen
+        key={tabRefreshCounts.my}
         currentProfile={currentProfile}
         isGuest={isAuthenticated === false}
         isProfileLoading={isProfileLoading}
@@ -1578,7 +1596,7 @@ function App() {
         content: wrapScreen(
           <View style={styles.container}>
             {renderScreen(tab)}
-            {tab !== 'map' && !(tab === 'saved' && isSavedPlacesEditing) ? (
+            {!(tab === 'saved' && isSavedPlacesEditing) ? (
               <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
             ) : null}
           </View>, tab === 'map',
