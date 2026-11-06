@@ -178,6 +178,7 @@ export function EventNoticeModal({
       }
     >
       <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={dismiss} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal style={styles.dialog}>
           <CelebrationHero />
           <Text style={styles.title}>오픈 이벤트 당첨자를 발표했어요!</Text>

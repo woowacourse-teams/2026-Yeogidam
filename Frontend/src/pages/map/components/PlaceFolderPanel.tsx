@@ -1,8 +1,7 @@
+import { showAlert } from '../../../lib/app-alert';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
-  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -226,13 +225,10 @@ export function FolderNameDialog({
       transparent
       animationType="fade"
       visible={visible}
+      onRequestClose={onCancel}
     >
-      {/* 바깥을 누르면 닫히지 않고 키보드만 내려갑니다. */}
-      <Pressable
-        accessible={false}
-        onPress={Keyboard.dismiss}
-        style={styles.backdrop}
-      >
+      <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={onCancel} style={StyleSheet.absoluteFill} />
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
           <View style={styles.inputField}>
@@ -309,7 +305,7 @@ export function FolderNameDialog({
             </Pressable>
           </View>
         </View>
-      </Pressable>
+      </View>
     </AppModal>
   );
 }
@@ -348,7 +344,7 @@ export function PlaceFolderAssignPicker({
   const startCreating = () => {
     button('picker_create_folder');
     if (folders.length >= MAX_FOLDER_COUNT) {
-      Alert.alert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
+      showAlert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
       return;
     }
     setIsCreating(true);
