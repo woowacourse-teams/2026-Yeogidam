@@ -999,7 +999,26 @@ function App() {
             Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
-          if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
+          if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK') {
+            // 아직 서버로 가는 중인 공유도 보낸 즉시 대기 중으로 보여 준다. 서버 목록에 잡힐 때까지
+            // 히스토리와 최근 공유가 비어 보이지 않게 한다. 사용자가 보던 화면은 옮기지 않는다.
+            setSharedSaveState({
+              shareResultId: result.requestId,
+              url: result.url,
+              status: 'PENDING',
+              source: 'instagram_share',
+              rawSharedText: result.rawSharedText,
+              reel: {
+                id: `share-${result.requestId ?? result.updatedAt}`,
+                processing_status: 'PENDING',
+                failure_reason: null,
+                instagram_thumbnail_url: null,
+                created_at: new Date(result.updatedAt).toISOString(),
+              },
+            });
+            return;
+          }
+          if (result.transferStatus === 'WAITING_FOR_AUTH') {
             return;
           }
           setSharedSaveState({

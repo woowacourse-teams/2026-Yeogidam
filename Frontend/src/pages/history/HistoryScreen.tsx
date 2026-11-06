@@ -58,6 +58,11 @@ import type {
 } from '../../entities/content/types';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
+import {subscribeSharedSaveState} from '../../lib/reel-save-state';
+
+// 앱이 직접 만든 임시 항목(보낸 직후의 manual-·share- 항목)이 서버 목록에 끝내 안 잡히면
+// 스켈레톤이 영원히 남지 않도록 이 시간이 지나면 숨깁니다.
+const PENDING_SHARE_MAX_AGE_MS = 60_000;
 
 type HistoryScreenProps = {
   isActive?: boolean;
@@ -630,6 +635,8 @@ export function HistoryScreen({
   // 첫 페이지 다음까지 읽었으면 커서는 더 보기만 갱신한다.
   const hasLoadedMoreRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
+  // 방금 저장을 요청해 아직 서버 목록에 없는 공유. 요청 직후부터 처리 중 스켈레톤으로 보여 줍니다.
+  const [pendingShare, setPendingShare] = useState<HistoryReel | null>(null);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(guestReels === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -677,6 +684,43 @@ export function HistoryScreen({
   const hasReelsRef = useRef(false);
   hasReelsRef.current = reels.length > 0;
 
+  useEffect(() => {
+    if (guestReels !== undefined) {
+      setPendingShare(null);
+      return undefined;
+    }
+    // 보관함에서 링크를 저장하거나 공유 확장으로 보낸 요청이 진행 중이면 목록 맨 앞에 끼워 넣습니다.
+    return subscribeSharedSaveState(state => {
+      const isTemporaryId =
+        state?.reel.id.startsWith('manual-') ||
+        state?.reel.id.startsWith('share-');
+      const createdAt = state ? Date.parse(state.reel.created_at) : NaN;
+      const isStale =
+        isTemporaryId &&
+        Number.isFinite(createdAt) &&
+        Date.now() - createdAt > PENDING_SHARE_MAX_AGE_MS;
+      if (
+        !state ||
+        isStale ||
+        (state.status !== 'PENDING' && state.status !== 'PROCESSING')
+      ) {
+        setPendingShare(null);
+        return;
+      }
+      setPendingShare({
+        id: state.reel.id,
+        instagram_url: state.url,
+        instagram_title: null,
+        instagram_description: null,
+        instagram_author_username: null,
+        instagram_thumbnail_url: state.reel.instagram_thumbnail_url,
+        processing_status: state.status,
+        failure_reason: null,
+        save_mode: null,
+        created_at: state.reel.created_at,
+      });
+    });
+  }, [guestReels]);
   const showErrorIfEmpty = useCallback(() => {
     if (!hasReelsRef.current) setError(true);
   }, []);
@@ -945,7 +989,12 @@ export function HistoryScreen({
     return () => cancelAnimationFrame(restoreScroll);
   }, [loading, reels.length, selectedFailure, selectedSuccess]);
 
-  const groupedReels = reels.reduce<Record<string, HistoryReel[]>>(
+  // 서버 목록에 같은 공유가 오면 임시 항목은 빠지고 서버 쪽 항목으로 대체됩니다.
+  const displayReels =
+    pendingShare && !reels.some(reel => reel.id === pendingShare.id)
+      ? [pendingShare, ...reels]
+      : reels;
+  const groupedReels = displayReels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
       const date = formatHistoryDate(reel.created_at);
       groups[date] = groups[date] ? [...groups[date], reel] : [reel];
@@ -1005,7 +1054,7 @@ export function HistoryScreen({
         }}
         contentContainerStyle={[
           styles.content,
-          !loading && reels.length === 0 && styles.emptyContent,
+          !loading && displayReels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
           scrollOffsetRef.current = nativeEvent.contentOffset.y;
@@ -1021,7 +1070,7 @@ export function HistoryScreen({
         scrollEventThrottle={200}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
+        {loading && !pendingShare ? (
           <Text style={styles.stateText}>히스토리를 불러오는 중이에요.</Text>
         ) : error ? (
           <View style={styles.stateBody}>
@@ -1035,7 +1084,7 @@ export function HistoryScreen({
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
           </View>
-        ) : reels.length === 0 ? (
+        ) : displayReels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
               source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}

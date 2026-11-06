@@ -9,6 +9,7 @@ import {
 } from '../src/entities/content/history-api';
 import type {HistoryReel} from '../src/entities/content/types';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
+import {setSharedSaveState} from '../src/lib/reel-save-state';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
 jest.mock('react-native-safe-area-context', () => ({
@@ -81,6 +82,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setSharedSaveState(null);
   jest.clearAllTimers();
   jest.useRealTimers();
 });
@@ -470,4 +472,118 @@ test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다'
   ).toBeGreaterThan(0);
   alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+describe('저장 요청 직후의 처리 중 스켈레톤', () => {
+  const sharing = (
+    id: string,
+    status: HistoryReel['processing_status'] = 'PROCESSING',
+  ) =>
+    setSharedSaveState({
+      url: 'https://www.instagram.com/reel/abc/',
+      status,
+      source: 'url_input',
+      reel: {
+        id,
+        processing_status: status,
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date().toISOString(),
+      },
+    });
+
+  const itemsOf = (renderer: ReactTestRenderer.ReactTestRenderer, id: string) =>
+    renderer.root.findAll(
+      node => node.props.reel?.id === id && typeof node.props.onLayout === 'function',
+    );
+
+  test('서버 목록이 비어 있어도 요청 직후 처리 중 항목을 바로 보여 준다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    sharing('manual-1');
+    const renderer = await render();
+
+    const items = itemsOf(renderer, 'manual-1');
+    expect(items.length).toBeGreaterThan(0);
+    expect(items[0].props.reel).toMatchObject({
+      processing_status: 'PROCESSING',
+      instagram_thumbnail_url: null,
+      instagram_description: null,
+    });
+    // 썸네일·제목이 아직 없으니 눌리지 않는 스켈레톤 카드다.
+    expect(items[0].props.onPress).toBeUndefined();
+    expect(hasText(renderer, '아직 공유된 콘텐츠가 없어요')).toBe(false);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('요청 뒤에 상태가 생기면 열려 있는 히스토리에도 바로 나타난다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    const renderer = await render();
+    expect(itemsOf(renderer, 'manual-2')).toHaveLength(0);
+
+    await ReactTestRenderer.act(async () => sharing('manual-2'));
+    expect(itemsOf(renderer, 'manual-2').length).toBeGreaterThan(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('서버 목록에 같은 공유가 오면 임시 항목과 겹치지 않는다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: page([9], 'PROCESSING'), nextCursor: null});
+    sharing('9');
+    const renderer = await render();
+
+    const ids = renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function' && node.props.reel)
+      .map(node => node.props.reel.id as string);
+    expect(new Set(ids)).toEqual(new Set(['9']));
+    expect(
+      renderer.root.findAll(
+        node =>
+          node.props.reel?.id === '9' &&
+          node.props.reel?.instagram_url === 'https://www.instagram.com/reel/9/',
+      ).length,
+    ).toBeGreaterThan(0); // 서버 쪽 항목이 쓰였다
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('이미 끝났거나 실패한 요청은 임시 항목으로 보이지 않는다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    for (const status of ['COMPLETED', 'FAILED'] as const) {
+      sharing(`done-${status}`, status);
+      const renderer = await render();
+      expect(itemsOf(renderer, `done-${status}`)).toHaveLength(0);
+      await ReactTestRenderer.act(async () => renderer.unmount());
+    }
+  });
+
+  test('보낸 지 오래된 임시 항목은 스켈레톤이 영원히 남지 않게 숨긴다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    setSharedSaveState({
+      url: 'https://www.instagram.com/reel/abc/',
+      status: 'PENDING',
+      source: 'instagram_share',
+      reel: {
+        id: 'share-old',
+        processing_status: 'PENDING',
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+      },
+    });
+    const renderer = await render();
+    expect(itemsOf(renderer, 'share-old')).toHaveLength(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('비회원 히스토리에는 임시 항목을 끼워 넣지 않는다', async () => {
+    sharing('manual-3');
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <HistoryScreen guestReels={[]} onBack={jest.fn()} />,
+      );
+    });
+    expect(itemsOf(renderer, 'manual-3')).toHaveLength(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
 });

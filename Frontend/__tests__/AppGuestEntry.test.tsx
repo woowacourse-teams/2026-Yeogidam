@@ -36,7 +36,7 @@ import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
-import {setSharedSaveState} from '../src/lib/reel-save-state';
+import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {GuestLoginPrompt} from '../src/components/GuestLoginPrompt';
@@ -863,6 +863,49 @@ describe('처리 중인 릴스 열기', () => {
     );
     expect(renderer.root.findAllByType(ReelProcessingScreen)).toHaveLength(0);
     expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(1);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+});
+
+describe('인스타그램 공유 직후(서버로 가는 중)', () => {
+  afterEach(() => setSharedSaveState(null));
+
+  const shareResult = (transferStatus: string) => ({
+    requestId: 'req-1',
+    url: 'https://www.instagram.com/reel/abc/',
+    status: 'PENDING',
+    transferStatus,
+    retryable: false,
+    updatedAt: Date.now(),
+  });
+
+  test.each(['SAVED', 'WAITING_FOR_NETWORK'])(
+    '%s 단계에서도 대기 중 항목으로 바로 보이게 하고 화면은 옮기지 않는다',
+    async transferStatus => {
+      restoreSpringSession();
+      (getShareResults as jest.Mock).mockResolvedValue([shareResult(transferStatus)]);
+
+      const renderer = await renderAfterSplash();
+
+      expect(getSharedSaveState()).toMatchObject({
+        source: 'instagram_share',
+        status: 'PENDING',
+        shareResultId: 'req-1',
+        reel: {id: 'share-req-1', processing_status: 'PENDING'},
+      });
+      // 사용자가 보던 화면(보관함)은 그대로이고 히스토리가 열리지 않는다.
+      expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(0);
+      await ReactTestRenderer.act(async () => renderer.unmount());
+    },
+  );
+
+  test('로그인 대기(WAITING_FOR_AUTH) 중인 공유는 항목으로 보이지 않는다', async () => {
+    restoreSpringSession();
+    (getShareResults as jest.Mock).mockResolvedValue([shareResult('WAITING_FOR_AUTH')]);
+
+    const renderer = await renderAfterSplash();
+
+    expect(getSharedSaveState()).toBeNull();
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
 });
