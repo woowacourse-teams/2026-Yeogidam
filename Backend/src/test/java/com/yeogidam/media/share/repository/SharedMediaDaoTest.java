@@ -552,7 +552,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 .findSavedMediaBefore(26L, new SharedMediaCursor(cursorCreatedAt, 7L))
                 .shares();
 
-        // then: ID가 큰 공유 10과 12도 공유 시각으로 커서와 비교하고, 게시물 21은 공유 시각이 늦은 공유 2가 남아 공유 12보다 앞에 온다
+        // then: 게시물 21은 ID가 큰 공유 10 대신 공유 시각이 늦은 공유 2가 남고, 공유 12는 ID가 커서보다 커도 공유 시각이 이르므로 다음 페이지에 들어와 공유 2 뒤에 온다
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(2L, 12L);
@@ -560,7 +560,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
     @Test
     void 게시물_탭_목록에서_지운_공유는_빠진다() {
-        // given: 게시물 21의 공유 1은 지웠고 게시물 22의 공유 2는 남아 있으며, 두 공유 모두 보관함 장소와 연결되어 있다
+        // given: 게시물 21의 공유 1은 지웠지만 보관함 연결이 남아 있고, 게시물 22의 공유 2는 분석에 성공해 장소가 나왔다
         insertSavedMediaOwner(18L, 304L);
         insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
         insertMedia(jdbcTemplate, 22L, "연남 와인바", "22.jpg", "@yeonnam");
@@ -569,12 +569,12 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         Instant base = Instant.parse("2026-11-01T03:00:00Z");
         insertDeletedSharedMedia(jdbcTemplate, 1L, 18L, 21L, base.plusSeconds(1), base.plusSeconds(10));
         insertSavedPlaceShare(jdbcTemplate, 1L, 304L, 1L, base.plusSeconds(1));
-        insertLinkedShare(2L, 18L, 22L, 304L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 18L, 22L, base);
 
         // when
         List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(18L).shares();
 
-        // then
+        // then: 보관함 연결이 남은 지운 공유 1은 빠지고, 분석에 성공해 장소가 나온 공유 2만 남는다
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(2L);
@@ -582,24 +582,24 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
     @Test
     void 게시물_탭_다음_페이지에서도_지운_공유는_빠진다() {
-        // given: 게시물 21, 22, 23을 차례로 공유했고 가운데 게시물 22의 공유 2는 지웠다
+        // given: 게시물 21, 22, 23을 차례로 공유해 모두 분석에 성공하고 장소가 나왔으며, 가운데 게시물 22의 공유 2는 지웠지만 보관함 연결이 남아 있다
         insertSavedMediaOwner(19L, 305L);
         Instant base = Instant.parse("2026-11-01T03:00:00Z");
         for (long mediaId = 21; mediaId <= 23; mediaId++) {
             insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
             insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
         }
-        insertLinkedShare(1L, 19L, 21L, 305L, base);
+        insertSharedMedia(jdbcTemplate, 1L, 19L, 21L, base);
         insertDeletedSharedMedia(jdbcTemplate, 2L, 19L, 22L, base.plusSeconds(1), base.plusSeconds(10));
         insertSavedPlaceShare(jdbcTemplate, 2L, 305L, 2L, base.plusSeconds(1));
-        insertLinkedShare(3L, 19L, 23L, 305L, base.plusSeconds(2));
+        insertSharedMedia(jdbcTemplate, 3L, 19L, 23L, base.plusSeconds(2));
 
         // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
         List<SavedMediaProjection> shares = sharedMediaDao
                 .findSavedMediaBefore(19L, new SharedMediaCursor(base.plusSeconds(2), 3L))
                 .shares();
 
-        // then
+        // then: 보관함 연결이 남은 지운 공유 2는 빠지고, 분석에 성공해 장소가 나온 공유 1만 남는다
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(1L);
@@ -696,20 +696,6 @@ class SharedMediaDaoTest extends JdbcTestSupport {
     private void insertSavedMediaOwner(Long memberId, Long savedPlaceId) {
         insertSavedMediaMember(memberId);
         insertSavedPlace(jdbcTemplate, savedPlaceId, memberId, 1L, Instant.parse("2026-11-01T00:00:00Z"));
-    }
-
-    /**
-     * 공유를 넣고 보관함 장소와 연결한다. 연결 ID는 공유 ID와 같게 둔다.
-     */
-    private void insertLinkedShare(
-            Long sharedMediaId,
-            Long memberId,
-            Long mediaId,
-            Long savedPlaceId,
-            Instant createdAt
-    ) {
-        insertSharedMedia(jdbcTemplate, sharedMediaId, memberId, mediaId, createdAt);
-        insertSavedPlaceShare(jdbcTemplate, sharedMediaId, savedPlaceId, sharedMediaId, createdAt);
     }
 
     /**
