@@ -1,8 +1,8 @@
+import { showAlert } from '../../lib/app-alert';
 import {SwipeBackStack} from '../../components/navigation/SwipeBackStack';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Image,
   Linking,
@@ -520,7 +520,7 @@ function HistoryFailureDetail({
                 return;
               }
               modal('retry_confirm');
-              Alert.alert('다시 시도할까요?', '', [
+              showAlert('다시 시도할까요?', '', [
                 {
                   text: '취소',
                   style: 'cancel',
@@ -563,7 +563,7 @@ function HistoryFailureDetail({
                 return;
               }
               modal('report_confirm');
-              Alert.alert('제보할까요?', '', [
+              showAlert('제보할까요?', '', [
                 {
                   text: '취소',
                   style: 'cancel',
@@ -581,7 +581,7 @@ function HistoryFailureDetail({
                       .catch(() => {
                         trackActionFinished(posthog, 'history_report', 'failure');
                         setReported(false);
-                        Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
+                        showAlert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
                       });
                   },
                 },
@@ -945,7 +945,7 @@ export function HistoryScreen({
         return;
       }
       // 그 밖의 MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
-      Alert.alert(
+      showAlert(
         '다시 시도하지 못했어요',
         normalized.errorCode?.startsWith('MEDIA')
           ? normalized.message

@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/app-alert';
 import {
   ALL_CATEGORY,
   CategoryFilterChips,
@@ -17,7 +18,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  Alert,
   Animated,
   BackHandler,
   Easing,
@@ -1194,7 +1194,7 @@ export function SavedPlacesScreen({
     const count = selectedPlaceIds.size;
     analytics.button('delete_selected', {count});
     analytics.modal('delete_confirm', {count});
-    Alert.alert(
+    showAlert(
       '선택한 장소를 삭제할까요?',
       `선택한 ${count}곳의 장소가 보관함에서 삭제됩니다.`,
       [

@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Alert, AppState} from 'react-native';
+import {AppState} from 'react-native';
 
 import App from '../App';
 import {SwipeBackStack} from '../src/components/navigation/SwipeBackStack';
@@ -40,6 +40,9 @@ import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {GuestLoginPrompt} from '../src/components/GuestLoginPrompt';
+import {AppAlertHost} from '../src/components/AppAlertHost';
+import {AppModal} from '../src/components/AppModal';
+import {getCurrentAppAlert} from '../src/lib/app-alert';
 import {getDismissedRecommendedVersion} from '../src/lib/app-update-policy-storage';
 
 const DISMISSED_RECOMMENDED_VERSION_KEY =
@@ -117,7 +120,7 @@ jest.mock('../src/pages/saved-places/SavedPlacesScreen', () => ({
 }));
 
 jest.mock('../src/pages/map/MapScreen', () => ({
-  MapScreen: ({bottomNavigationBar}: {bottomNavigationBar?: React.ReactNode}) => bottomNavigationBar ?? null,
+  MapScreen: () => null,
 }));
 
 jest.mock('../src/pages/history/HistoryScreen', () => ({
@@ -284,6 +287,19 @@ test('로그아웃 상태로 열면 온보딩 뒤 로그인 화면을 보여준�
     expect.any(Function),
   );
   expect(getCurrentProfile).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('사용자 가이드가 열리면 바깥 화면 뒤로가기 제스처가 가이드를 닫지 않는다', async () => {
+  const renderer = await renderGuestMain();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenGuide();
+  });
+
+  const stack = renderer.root.findByType(SwipeBackStack);
+  expect(stack.props.activeKey).toBe('myPage-guide');
+  expect(stack.props.backKey).toBeNull();
+  expect(stack.props.enabled).toBe(false);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -546,6 +562,35 @@ test('비회원 지도 인터랙션은 공통 로그인 안내 모달을 연다'
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('현재 탭을 다시 누르면 네비게이션은 유지하고 화면만 새로고침한다', async () => {
+  const renderer = await renderGuestMain();
+  const initialSaved = renderer.root.findByType(SavedPlacesScreen);
+  const initialSavedBar = activeBar(renderer);
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('saved');
+  });
+  const refreshedSaved = renderer.root.findByType(SavedPlacesScreen);
+  expect(refreshedSaved).not.toBe(initialSaved);
+  expect(activeBar(renderer)).toBe(initialSavedBar);
+  expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('saved');
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('map');
+  });
+  const initialMap = renderer.root.findByType(MapScreen);
+  const initialMapBar = activeBar(renderer);
+  expect(renderer.root.findByType(SavedPlacesScreen)).toBe(refreshedSaved);
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('map');
+  });
+  expect(renderer.root.findByType(MapScreen)).not.toBe(initialMap);
+  expect(activeBar(renderer)).toBe(initialMapBar);
+  expect(renderer.root.findByType(SavedPlacesScreen)).toBe(refreshedSaved);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async () => {
   const renderer = await renderGuestMain();
 
@@ -695,6 +740,23 @@ test('세션이 복원되면 온보딩 없이 회원 메인으로 들어가고 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('내 정보 탭을 다시 누르면 프로필을 다시 요청한다', async () => {
+  restoreSpringSession();
+  const renderer = await renderAfterSplash();
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('my');
+  });
+  (getCurrentProfile as jest.Mock).mockClear();
+
+  await ReactTestRenderer.act(async () => {
+    activeBar(renderer).props.onNavigate('my');
+  });
+  expect(getCurrentProfile).toHaveBeenCalledTimes(1);
+  expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('my');
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('복원된 세션이 무효화되면 온보딩 뒤 로그인 화면으로 이동한다', async () => {
   restoreSpringSession();
   const renderer = await renderAfterSplash();
@@ -711,7 +773,6 @@ test('복원된 세션이 무효화되면 온보딩 뒤 로그인 화면으로 �
 });
 
 test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다시 공유하도록 안내한다', async () => {
-  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   restoreSpringSession();
   (getShareResults as jest.Mock).mockResolvedValueOnce([{
     requestId: 'expired-share-request',
@@ -728,12 +789,14 @@ test('공유가 로그인 만료(401)로 실패하면 추출 실패 대신 다�
   });
 
   expect(clearShareResult).toHaveBeenCalledWith('expired-share-request');
-  expect(alertSpy).toHaveBeenCalledWith(
-    '공유한 게시물을 저장하지 못했어요',
-    '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
-  );
-  expect(alertSpy).not.toHaveBeenCalledWith('장소 추출 실패', expect.anything());
-  alertSpy.mockRestore();
+  expect(getCurrentAppAlert()).toMatchObject({
+    title: '공유한 게시물을 저장하지 못했어요',
+    message: '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(AppAlertHost).findByType(AppModal).props.children.props.children[0].props.onPress();
+  });
+  expect(getCurrentAppAlert()).toBeNull();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -752,7 +815,6 @@ async function openAccountDeletion() {
 }
 
 test('회원탈퇴가 서버·네트워크 문제로 실패하면 탈퇴된 것처럼 처리한다', async () => {
-  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   (deleteAccount as jest.Mock).mockRejectedValueOnce({
     status: null,
     errorCode: 'CLIENT000_001',
@@ -770,8 +832,14 @@ test('회원탈퇴가 서버·네트워크 문제로 실패하면 탈퇴된 것�
 
   expect(clearSpringSession).toHaveBeenCalled();
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(1);
-  expect(alertSpy).toHaveBeenCalledWith('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
-  alertSpy.mockRestore();
+  expect(getCurrentAppAlert()).toMatchObject({
+    title: '회원탈퇴 완료',
+    message: '회원탈퇴가 완료되었어요.',
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(AppAlertHost).findByType(AppModal).props.children.props.children[0].props.onPress();
+  });
+  expect(getCurrentAppAlert()).toBeNull();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

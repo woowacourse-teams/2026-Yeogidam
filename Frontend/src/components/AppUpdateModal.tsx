@@ -49,6 +49,9 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
       visible={visible}
     >
       <View style={styles.backdrop}>
+        {!required && (
+          <Pressable accessible={false} onPress={dismiss} style={StyleSheet.absoluteFill} />
+        )}
         <View accessibilityViewIsModal style={styles.dialog}>
           <Text style={styles.title}>
             {required ? '앱 업데이트가 필요해요' : '새 버전이 나왔어요'}

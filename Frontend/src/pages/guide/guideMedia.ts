@@ -2,3 +2,5 @@
 // iOS는 guideMedia.ios.ts를 쓰므로 각 앱 번들에는 자기 플랫폼 GIF만 들어간다.
 export const SHARE_FLOW_MEDIA = require('../../assets/guide/android-share.gif');
 export const PIN_FLOW_MEDIA = require('../../assets/guide/android-pin.gif');
+export const SHARE_FLOW_POSTER = require('../../assets/guide/android-share-poster.png');
+export const PIN_FLOW_POSTER = require('../../assets/guide/android-pin-poster.png');

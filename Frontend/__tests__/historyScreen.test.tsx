@@ -10,6 +10,9 @@ import {
 import {ReelApiError} from '../src/entities/content/errors';
 import type {HistoryReel} from '../src/entities/content/types';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
+import {AppAlertHost} from '../src/components/AppAlertHost';
+import {AppModal} from '../src/components/AppModal';
+import {getCurrentAppAlert} from '../src/lib/app-alert';
 import {setSharedSaveState} from '../src/lib/reel-save-state';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
@@ -99,6 +102,41 @@ test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱�
   await tick(3000);
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('iOS 제보 확인창은 바깥쪽을 한 번 누르면 닫힌다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([7], 'FAILED'),
+    nextCursor: null,
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <>
+        <AppAlertHost />
+        <HistoryScreen onBack={jest.fn()} />
+      </>,
+    );
+  });
+  const failed = renderer.root.find(
+    node => node.props?.reel?.id === '7' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => failed.props.onPress());
+  const report = renderer.root.find(
+    node =>
+      typeof node.props?.onPress === 'function' &&
+      node.findAll(child => child.props?.children === '제보하기').length > 0,
+  );
+  await ReactTestRenderer.act(async () => report.props.onPress());
+  // 빠르게 연속으로 눌러도 같은 확인창이 두 장 쌓이지 않아야 합니다.
+  await ReactTestRenderer.act(async () => report.props.onPress());
+  expect(getCurrentAppAlert()?.title).toBe('제보할까요?');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(AppAlertHost).findByType(AppModal).props.children.props.children[0].props.onPress();
+  });
+  expect(getCurrentAppAlert()).toBeNull();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -467,7 +505,12 @@ test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다'
 
   const alertSpy = await openFailureAndRetry(renderer);
 
-  expect(alertSpy).toHaveBeenCalledWith('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
+  expect(alertSpy).toHaveBeenCalledWith(
+    '다시 시도하지 못했어요',
+    '잠시 후 다시 시도해주세요.',
+    undefined,
+    {cancelable: true},
+  );
   expect(
     renderer.root.findAll(node => node.props.children === '장소 분석에 실패했어요ㅠ').length,
   ).toBeGreaterThan(0);
@@ -644,6 +687,8 @@ test('MEDIA400_016이 아닌 서버 거절은 기존처럼 서버 문구로 안�
   expect(alertSpy).toHaveBeenCalledWith(
     '다시 시도하지 못했어요',
     '추출이 진행 중인 게시물은 다시 시도할 수 없습니다.',
+    undefined,
+    {cancelable: true},
   );
   alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
