@@ -47,7 +47,7 @@ public class SavedMediaService {
         return toSavedMediaResponses(memberId, shares);
     }
 
-    public SavedMediaResponses searchSavedMedia(
+    public SavedMediaResponses readSavedMediaByQuery(
             Long memberId,
             String query,
             Instant cursorCreatedAt,

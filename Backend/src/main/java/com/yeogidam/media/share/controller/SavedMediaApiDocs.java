@@ -120,7 +120,7 @@ public interface SavedMediaApiDocs {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class)))
             })
-    ResponseEntity<SavedMediaResponses> searchSavedMedia(
+    ResponseEntity<SavedMediaResponses> readSavedMediaByQuery(
             Long memberId,
             @Parameter(description = "캡션에 포함된 검색어. 앞뒤 공백 제외 1~100자", example = "성수 카페",
                     required = true) String query,
