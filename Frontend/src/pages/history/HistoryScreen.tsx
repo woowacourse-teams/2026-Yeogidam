@@ -67,6 +67,8 @@ const PENDING_SHARE_MAX_AGE_MS = 60_000;
 type HistoryScreenProps = {
   isActive?: boolean;
   onBack: () => void;
+  initialFailureReel?: HistoryReel | null;
+  onInitialFailureExit?: () => void;
   onNestedBackStateChange?: (canGoBack: boolean) => void;
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
@@ -406,12 +408,14 @@ function HistorySuccessDetail({
 
 function HistoryFailureDetail({
   onBack,
+  backLabel = '히스토리 목록으로 돌아가기',
   reel,
   onRetry,
   guestDetail,
   onRequireLogin,
 }: {
   onBack: () => void;
+  backLabel?: string;
   reel: HistoryReel;
   onRetry: () => Promise<void>;
   guestDetail?: HistoryReelDetail | null;
@@ -450,7 +454,7 @@ function HistoryFailureDetail({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="히스토리 목록으로 돌아가기"
+          accessibilityLabel={backLabel}
           hitSlop={12}
           onPress={() => {
             button('back');
@@ -621,6 +625,8 @@ const RETRY_NOT_ELIGIBLE_ERROR_CODE = 'MEDIA400_016';
 export function HistoryScreen({
   isActive = true,
   onBack,
+  initialFailureReel,
+  onInitialFailureExit,
   onNestedBackStateChange,
   guestReels,
   guestDetails,
@@ -656,8 +662,14 @@ export function HistoryScreen({
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
-  const [selectedFailure, setSelectedFailure] = useState(false);
-  const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+  const [selectedFailure, setSelectedFailure] = useState(!!initialFailureReel);
+  const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(initialFailureReel ?? null);
+  useEffect(() => {
+    if (!initialFailureReel) return;
+    setSelectedSuccess(false);
+    setSelectedReel(initialFailureReel);
+    setSelectedFailure(true);
+  }, [initialFailureReel]);
   // 같은 분석 버전이라 서버가 재시도를 받지 않은 항목. 잠시 처리 중으로 보여 준다.
   const [silentRetryIds, setSilentRetryIds] = useState<ReadonlySet<string>>(() => new Set());
   const silentRetryTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -670,11 +682,14 @@ export function HistoryScreen({
   }, []);
 
   const handleDetailBack = useCallback(() => {
+    if (initialFailureReel) {
+      onBack();
+    }
     shouldRestoreScrollRef.current = true;
     setSelectedSuccess(false);
     setSelectedFailure(false);
     setSelectedReel(null);
-  }, []);
+  }, [initialFailureReel, onBack]);
 
   useEffect(() => {
     const canGoBack = isActive && (selectedSuccess || selectedFailure);
@@ -930,6 +945,7 @@ export function HistoryScreen({
         shouldRestoreScrollRef.current = false;
         setSelectedFailure(false);
         setSelectedReel(null);
+        onInitialFailureExit?.();
         const timers = silentRetryTimersRef.current;
         const previous = timers.get(reel.id);
         if (previous) clearTimeout(previous);
@@ -972,6 +988,7 @@ export function HistoryScreen({
     shouldRestoreScrollRef.current = false;
     setSelectedFailure(false);
     setSelectedReel(null);
+    onInitialFailureExit?.();
     // 같은 게시물을 다시 처리하므로 접수된 공유는 실패 카드의 내용으로 바로 보여 준다.
     // 생성 시각 등 서버 값은 이어지는 목록 조회가 같은 ID로 덮어쓴다.
     if (!response.reused) {
@@ -989,7 +1006,7 @@ export function HistoryScreen({
       );
     }
     await load(undefined, true);
-  }, [load, posthog]);
+  }, [load, onInitialFailureExit, posthog]);
 
   useEffect(() => {
     if (!isActive || guestReels !== undefined) return;
@@ -1066,6 +1083,7 @@ export function HistoryScreen({
   ) : selectedFailure ? (
       <HistoryFailureDetail
         onBack={handleDetailBack}
+        backLabel={initialFailureReel ? '보관함으로 돌아가기' : undefined}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
         onRequireLogin={onRequireLogin}

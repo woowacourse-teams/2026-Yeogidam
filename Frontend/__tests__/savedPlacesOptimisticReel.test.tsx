@@ -131,18 +131,20 @@ describe('최근 공유 링 누르기', () => {
     jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
     const onOpenReel = jest.fn();
     const onOpenHistory = jest.fn();
+    const onOpenFailedReel = jest.fn();
     let renderer!: ReactTestRenderer.ReactTestRenderer;
     await ReactTestRenderer.act(async () => {
       renderer = ReactTestRenderer.create(
         <SavedPlacesScreen
           onOpenDetail={jest.fn()}
           onOpenHistory={onOpenHistory}
+          onOpenFailedReel={onOpenFailedReel}
           onOpenReel={onOpenReel}
           places={places as never}
         />,
       );
     });
-    return {renderer, onOpenReel, onOpenHistory};
+    return {renderer, onOpenReel, onOpenHistory, onOpenFailedReel};
   }
 
   const press = async (
@@ -167,10 +169,13 @@ describe('최근 공유 링 누르기', () => {
     }
   });
 
-  test('실패한 공유는 히스토리로 보낸다', async () => {
-    const {renderer, onOpenReel, onOpenHistory} = await renderWithHandlers();
+  test('실패한 공유는 해당 실패 상세로 보낸다', async () => {
+    const {renderer, onOpenReel, onOpenHistory, onOpenFailedReel} = await renderWithHandlers();
     await press(renderer, 'FAILED');
-    expect(onOpenHistory).toHaveBeenCalledTimes(1);
+    expect(onOpenFailedReel).toHaveBeenCalledWith(
+      expect.objectContaining({id: '8', processing_status: 'FAILED'}),
+    );
+    expect(onOpenHistory).not.toHaveBeenCalled();
     expect(onOpenReel).not.toHaveBeenCalled();
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
