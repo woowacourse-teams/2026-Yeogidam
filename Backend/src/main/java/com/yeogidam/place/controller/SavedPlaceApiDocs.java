@@ -2,7 +2,6 @@ package com.yeogidam.place.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
 import com.yeogidam.place.dto.request.SavedPlaceCreateRequest;
-import com.yeogidam.place.dto.request.SavedPlaceSearchRequest;
 import com.yeogidam.place.dto.response.SavedPlaceCreateResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
@@ -16,7 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
-import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -50,15 +48,15 @@ public interface SavedPlaceApiDocs {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = SavedPlaceResponses.class))),
                     @ApiResponse(responseCode = "400",
-                            description = "검색어가 없거나 앞뒤 공백을 제외한 길이가 1~100자가 아닙니다. (`PLACE400_003`)",
+                            description = """
+                                    - 검색어 파라미터 누락 (`COMMON400_003`)
+                                    - 앞뒤 공백을 제외한 검색어 길이가 1~100자가 아님 (`PLACE400_003`)
+                                    """,
                             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
                     @ApiResponse(responseCode = "401", description = "로그인이 필요합니다.",
                             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
             })
-    ResponseEntity<SavedPlaceResponses> readSavedPlacesByQuery(
-            Long memberId,
-            @ParameterObject SavedPlaceSearchRequest request
-    );
+    ResponseEntity<SavedPlaceResponses> readSavedPlacesByQuery(Long memberId, String query);
 
     @Operation(summary = "보관함 목록 조회",
             description = """

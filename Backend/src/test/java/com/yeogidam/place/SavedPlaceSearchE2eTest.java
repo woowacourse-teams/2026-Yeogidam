@@ -12,6 +12,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
+import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
@@ -205,7 +206,7 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
     void 검색어를_보내지_않으면_400_예외를_던진다() {
         // given
         LoginResult login = loginAsKakao("place-search-missing-query");
-        PlaceErrorCode errorCode = PlaceErrorCode.INVALID_SEARCH_QUERY;
+        CommonErrorCode errorCode = CommonErrorCode.MISSING_REQUEST_PARAMETER;
 
         // when & then
         givenBearer(login.accessToken())
