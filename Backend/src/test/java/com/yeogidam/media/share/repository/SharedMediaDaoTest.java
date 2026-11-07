@@ -425,6 +425,48 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 .containsExactly(tuple(2L, false), tuple(1L, true));
     }
 
+    @Test
+    void 지운_공유는_히스토리에서_지운_시각을_읽고_지우지_않은_공유는_null로_읽는다() {
+        // given: 회원 1이 게시물 1을 공유 1로, 게시물 2를 공유 2로 공유했고, 공유 1만 보관함에서 지웠다.
+        insertKakaoMember(jdbcTemplate, 1L, "history-deleted-at-owner", null, null, null);
+        insertMedia(jdbcTemplate, 1L, "지운 게시글", "deleted.jpg", "@deleted");
+        insertMedia(jdbcTemplate, 2L, "남은 게시글", "kept.jpg", "@kept");
+        Instant deletedAt = Instant.parse("2026-11-02T10:00:00.123456Z");
+        insertDeletedSharedMedia(jdbcTemplate, 1L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"), deletedAt);
+        insertSharedMedia(jdbcTemplate, 2L, 1L, 2L, Instant.parse("2026-11-01T11:00:00Z"));
+
+        // when
+        List<ShareHistoryProjection> shares = sharedMediaDao.findShareHistory(1L).page();
+
+        // then
+        assertThat(shares)
+                .extracting(ShareHistoryProjection::sharedMediaId, ShareHistoryProjection::deletedAt)
+                .containsExactly(tuple(2L, null), tuple(1L, deletedAt));
+    }
+
+    @Test
+    void 히스토리_다음_페이지도_첫_페이지처럼_지운_시각을_읽는다() {
+        // given: 회원 1이 게시물 1을 공유 1로, 게시물 2를 공유 2와 공유 3으로 공유해 공유 1만 지웠고, 공유 3까지 본 뒤 다음 페이지를 읽는다.
+        insertKakaoMember(jdbcTemplate, 1L, "history-next-page-deleted-at-owner", null, null, null);
+        insertMedia(jdbcTemplate, 1L, "지운 게시글", "deleted.jpg", "@deleted");
+        insertMedia(jdbcTemplate, 2L, "남은 게시글", "kept.jpg", "@kept");
+        Instant base = Instant.parse("2026-11-01T10:00:00Z");
+        Instant deletedAt = Instant.parse("2026-11-02T10:00:00.123456Z");
+        insertDeletedSharedMedia(jdbcTemplate, 1L, 1L, 1L, base, deletedAt);
+        insertSharedMedia(jdbcTemplate, 2L, 1L, 2L, base.plusSeconds(1));
+        insertSharedMedia(jdbcTemplate, 3L, 1L, 2L, base.plusSeconds(2));
+
+        // when
+        List<ShareHistoryProjection> shares = sharedMediaDao
+                .findShareHistoryBefore(1L, new SharedMediaCursor(base.plusSeconds(2), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(ShareHistoryProjection::sharedMediaId, ShareHistoryProjection::deletedAt)
+                .containsExactly(tuple(2L, null), tuple(1L, deletedAt));
+    }
+
     private void insertSharesOneSecondApart(Long memberId, Long mediaId, int count) {
         Instant base = Instant.parse("2026-09-20T03:00:00Z");
         for (long id = 1; id <= count; id++) {

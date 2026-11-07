@@ -272,6 +272,8 @@ public interface ShareApiDocs {
                     - `reported`는 공유 이력을 제보했으면 `true`, 제보하지 않았으면 `false`를 돌려줍니다.
                     - 제보는 공유 이력마다 받으므로, 재시도나 다시 공유로 만든 새 공유 이력은 제보하기 전까지 `false`를 돌려줍니다.
                     - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 목록에 남고 `reported`를 지우기 전과 같게 돌려줍니다.
+                    - `deletedAt`은 보관함 게시물 삭제로 지운 공유 이력이면 지운 시각을 돌려주고, 지우지 않은 공유 이력이면 null을 돌려줍니다.
+                    - 지운 게시글은 보관함에 없고 장소 저장(`POST /api/v1/saved-places`)도 404를 돌려주므로, 앱은 `deletedAt`으로 지운 공유 이력을 가려 릴스 상세로 들어가지 않게 합니다.
                     - 공유 이력이 없으면 빈 `sharedMedias` 배열을 돌려줍니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),

@@ -7,6 +7,7 @@ import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
 import static com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.insertReport;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertDeletedSharedMedia;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -132,6 +133,24 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .then().statusCode(200)
                 .body("sharedMedias.sharedMediaId", contains(2, 1))
                 .body("sharedMedias.reported", contains(true, false));
+    }
+
+    @Test
+    void 히스토리_목록은_지운_공유에_지운_시각을_돌려주고_지우지_않은_공유에는_null을_돌려준다() {
+        // given: 회원이 게시물 1을 공유 1로, 게시물 2를 공유 2로 공유했고, 공유 1만 보관함에서 지웠다.
+        LoginResult login = loginAsKakao("share-list-deleted-at-user");
+        insertMedia(jdbcTemplate, 1L, "지운 게시글", "deleted.jpg", "@deleted");
+        insertMedia(jdbcTemplate, 2L, "남은 게시글", "kept.jpg", "@kept");
+        insertDeletedSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, BASE, BASE.plusSeconds(10));
+        insertSharedMedia(jdbcTemplate, 2L, login.memberId(), 2L, BASE.plusSeconds(1));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(PATH)
+                .then().statusCode(200)
+                .body("sharedMedias.sharedMediaId", contains(2, 1))
+                .body("sharedMedias[0].deletedAt", nullValue())
+                .body("sharedMedias[1].deletedAt", equalTo("2026-09-20T03:00:10.123456Z"));
     }
 
     @Test

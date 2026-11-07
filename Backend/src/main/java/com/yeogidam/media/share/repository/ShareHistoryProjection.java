@@ -11,6 +11,7 @@ public record ShareHistoryProjection(
         String extractionStatus,
         String failureReason,
         String sharedUrl,
-        boolean reported
+        boolean reported,
+        Instant deletedAt
 ) {
 }

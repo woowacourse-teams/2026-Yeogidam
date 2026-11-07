@@ -185,6 +185,28 @@ class SavedMediaE2eTest extends E2eTestSupport {
     }
 
     @Test
+    void 게시글을_지우면_히스토리에서_지운_게시물의_공유에만_지운_시각이_붙는다() {
+        // given: 게시물 21을 공유 1과 3으로 두 번, 게시물 22를 공유 2로 공유했다
+        LoginResult login = loginAsKakao("saved-media-delete-history-user");
+        insertTwoMediaWithOverlappingPlace(login.memberId());
+
+        // when: 게시물 21의 최신 공유 3을 지운다
+        givenBearer(login.accessToken())
+                .queryParam("sharedMediaIds", "3")
+                .when().delete(PATH)
+                .then().statusCode(204);
+
+        // then: 게시물 21의 공유 3과 1에는 지운 시각이 붙고, 게시물 22의 공유 2는 null이다
+        givenBearer(login.accessToken())
+                .when().get(SHARES_PATH)
+                .then().statusCode(200)
+                .body("sharedMedias.sharedMediaId", contains(3, 2, 1))
+                .body("sharedMedias[0].deletedAt", notNullValue())
+                .body("sharedMedias[1].deletedAt", nullValue())
+                .body("sharedMedias[2].deletedAt", notNullValue());
+    }
+
+    @Test
     void 게시글을_지우면_지운_게시글에만_있던_장소는_사라지고_다른_게시글에도_있는_장소는_보관함에_남는다() {
         // given: 카페 온월은 게시물 21에서만, 담다식당은 게시물 21과 22에서 저장했다
         LoginResult login = loginAsKakao("saved-media-delete-place-user");
