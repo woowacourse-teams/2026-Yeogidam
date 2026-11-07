@@ -211,6 +211,20 @@ test('게시물 탭은 saved-media 목록을 그리고 다음 커서로 이어 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('게시물 썸네일에 추출된 장소 수를 편집 모드에서도 표시한다', async () => {
+  jest.mocked(getSavedMedia).mockResolvedValue({
+    reels: [{...historyReel('81', 'COMPLETED'), extracted_place_count: 3}],
+    nextCursor: null,
+  });
+  const renderer = await render();
+  expect(renderer.root.findByProps({accessibilityLabel: '추출된 장소 3곳'})).toBeTruthy();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesViewToggle).props.onPressEdit();
+  });
+  expect(renderer.root.findByProps({accessibilityLabel: '추출된 장소 3곳'})).toBeTruthy();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('게시물 편집에서 선택한 ID를 삭제 API로 보내고 목록을 갱신한다', async () => {
   jest.mocked(getSavedMedia)
     .mockResolvedValueOnce({reels: [historyReel('81', 'COMPLETED')], nextCursor: null})

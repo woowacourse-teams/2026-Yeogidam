@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import type {HistoryReel} from '../../../entities/content/types';
 import {normalizeReelTitle} from '../../../entities/content/title';
@@ -79,6 +80,14 @@ export function SavedPostGrid({
             <Text numberOfLines={1} style={styles.title}>
               {title}
             </Text>
+            {reel.extracted_place_count != null ? (
+              <View
+                accessibilityLabel={`추출된 장소 ${reel.extracted_place_count}곳`}
+                style={styles.placeCountBadge}>
+                <MaterialIcons color="#1a1a2e" name="place" size={14} />
+                <Text style={styles.placeCountText}>{reel.extracted_place_count}</Text>
+              </View>
+            ) : null}
             {isEditing ? (
               <View
                 style={[
@@ -133,6 +142,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.28)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  placeCountBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    minWidth: 40,
+    height: 26,
+    paddingHorizontal: 7,
+    borderRadius: 13,
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  placeCountText: {
+    color: '#1a1a2e',
+    fontSize: 12,
+    fontWeight: '700',
   },
   selectionIndicatorSelected: {
     borderColor: '#7186ed',
