@@ -1,7 +1,7 @@
-package com.yeogidam.place.domain;
+package com.yeogidam.search.repository;
 
-import com.yeogidam.place.exception.PlaceErrorCode;
-import com.yeogidam.place.exception.PlaceException;
+import com.yeogidam.search.exception.SearchErrorCode;
+import com.yeogidam.search.exception.SearchException;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -23,7 +23,7 @@ public final class SearchQuery {
         this.words = List.of(WORD_SEPARATOR.split(trimmed.toLowerCase(Locale.ROOT)));
     }
 
-    static String normalizeForMatching(String value) {
+    public static String normalizeForMatching(String value) {
         return WORD_SEPARATOR.matcher(value).replaceAll("").toLowerCase(Locale.ROOT);
     }
 
@@ -36,7 +36,7 @@ public final class SearchQuery {
 
     private void validate(String query) {
         if (query == null || query.isEmpty() || query.length() > MAX_LENGTH) {
-            throw new PlaceException(PlaceErrorCode.INVALID_SEARCH_QUERY);
+            throw new SearchException(SearchErrorCode.INVALID_SEARCH_QUERY);
         }
     }
 }

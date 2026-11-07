@@ -11,6 +11,7 @@ import com.yeogidam.media.share.repository.SavedMediaProjections;
 import com.yeogidam.media.share.repository.SharedMediaCursor;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import com.yeogidam.place.repository.SavedPlaceDao;
+import com.yeogidam.search.repository.SearchQuery;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -43,8 +44,20 @@ public class SavedMediaService {
         SavedMediaProjections shares = SharedMediaCursor.fromParameters(cursorCreatedAt, cursorId)
                 .map(cursor -> sharedMediaDao.findSavedMediaBefore(memberId, cursor))
                 .orElseGet(() -> sharedMediaDao.findSavedMedia(memberId));
-        SavedMediaPlaceProjections places = mediaPlaceDao.findSavedMediaPlaces(memberId, shares.pageMediaIds());
-        return SavedMediaResponses.from(shares, places, mediaThumbnailUrlResolver::resolve);
+        return toSavedMediaResponses(memberId, shares);
+    }
+
+    public SavedMediaResponses readSavedMediaByQuery(
+            Long memberId,
+            String query,
+            Instant cursorCreatedAt,
+            Long cursorId
+    ) {
+        SearchQuery searchQuery = new SearchQuery(query);
+        SavedMediaProjections shares = SharedMediaCursor.fromParameters(cursorCreatedAt, cursorId)
+                .map(cursor -> sharedMediaDao.findSavedMediaByQueryBefore(memberId, searchQuery, cursor))
+                .orElseGet(() -> sharedMediaDao.findSavedMediaByQuery(memberId, searchQuery));
+        return toSavedMediaResponses(memberId, shares);
     }
 
     /**
@@ -83,5 +96,10 @@ public class SavedMediaService {
             return;
         }
         savedPlaceDao.deleteByMemberAndIds(memberId, unusedIds);
+    }
+
+    private SavedMediaResponses toSavedMediaResponses(Long memberId, SavedMediaProjections shares) {
+        SavedMediaPlaceProjections places = mediaPlaceDao.findSavedMediaPlaces(memberId, shares.pageMediaIds());
+        return SavedMediaResponses.from(shares, places, mediaThumbnailUrlResolver::resolve);
     }
 }

@@ -33,6 +33,20 @@ public class SavedMediaController implements SavedMediaApiDocs {
     }
 
     @Override
+    @GetMapping("/search")
+    public ResponseEntity<SavedMediaResponses> readSavedMediaByQuery(
+            @LoginMember Long memberId,
+            @RequestParam String query,
+            @RequestParam(required = false) Instant cursorCreatedAt,
+            @RequestParam(required = false) Long cursorId
+    ) {
+        SavedMediaResponses response = savedMediaService.readSavedMediaByQuery(
+                memberId, query, cursorCreatedAt, cursorId);
+        return ResponseEntity.ok()
+                .body(response);
+    }
+
+    @Override
     @DeleteMapping
     public ResponseEntity<Void> deleteSavedMedia(
             @LoginMember Long memberId,

@@ -13,7 +13,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.global.exception.CommonErrorCode;
-import com.yeogidam.place.exception.PlaceErrorCode;
+import com.yeogidam.search.exception.SearchErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.math.BigDecimal;
@@ -222,7 +222,7 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
     void 검색어가_공백뿐이면_400_예외를_던진다() {
         // given
         LoginResult login = loginAsKakao("place-search-blank-query");
-        PlaceErrorCode errorCode = PlaceErrorCode.INVALID_SEARCH_QUERY;
+        SearchErrorCode errorCode = SearchErrorCode.INVALID_SEARCH_QUERY;
 
         // when & then
         givenBearer(login.accessToken())
@@ -239,7 +239,7 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
     void 검색어가_101자이면_400_예외를_던진다() {
         // given
         LoginResult login = loginAsKakao("place-search-long-query");
-        PlaceErrorCode errorCode = PlaceErrorCode.INVALID_SEARCH_QUERY;
+        SearchErrorCode errorCode = SearchErrorCode.INVALID_SEARCH_QUERY;
 
         // when & then
         givenBearer(login.accessToken())

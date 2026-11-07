@@ -50,7 +50,7 @@ public interface SavedPlaceApiDocs {
                     @ApiResponse(responseCode = "400",
                             description = """
                                     - 검색어 파라미터 누락 (`COMMON400_003`)
-                                    - 앞뒤 공백을 제외한 검색어 길이가 1~100자가 아님 (`PLACE400_003`)
+                                    - 앞뒤 공백을 제외한 검색어 길이가 1~100자가 아님 (`SEARCH400_001`)
                                     """,
                             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
                     @ApiResponse(responseCode = "401", description = "로그인이 필요합니다.",

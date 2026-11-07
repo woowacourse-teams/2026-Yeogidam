@@ -1,13 +1,12 @@
 package com.yeogidam.place.service;
 
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
-import com.yeogidam.place.domain.PlaceCategory;
-import com.yeogidam.place.domain.SearchQuery;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.repository.SavedPlaceCategoryProjections;
 import com.yeogidam.place.repository.SavedPlaceDao;
 import com.yeogidam.place.repository.SavedPlaceFolderProjections;
 import com.yeogidam.place.repository.SavedPlaceProjections;
+import com.yeogidam.search.repository.SearchQuery;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,7 +30,7 @@ public class SavedPlaceSearchService {
     }
 
     private SavedPlaceCategoryProjections readSearchCategories(Long memberId, SearchQuery query) {
-        if (!PlaceCategory.hasAnyNameContaining(query.getWords())) {
+        if (!SavedPlaceCategoryProjections.hasCategoryNameContaining(query.getWords())) {
             return new SavedPlaceCategoryProjections(List.of());
         }
         return savedPlaceDao.findCategoriesByMember(memberId);
