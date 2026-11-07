@@ -515,6 +515,7 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 이동 중�
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
   });
+  expect(activeBar(renderer).props.active).toBe('map');
   expect(renderer.root.findByType(MapScreen).props.guestPlaces).toBeUndefined();
 
   await ReactTestRenderer.act(async () => {
@@ -588,6 +589,37 @@ test('현재 탭을 다시 누르면 네비게이션은 유지하고 화면만 �
   expect(renderer.root.findByType(MapScreen)).not.toBe(initialMap);
   expect(activeBar(renderer)).toBe(initialMapBar);
   expect(renderer.root.findByType(SavedPlacesScreen)).toBe(refreshedSaved);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('보관함과 히스토리의 성공 게시물은 같은 릴스 상세 화면을 연다', async () => {
+  const completedReel: HistoryReel = {
+    id: '81',
+    instagram_url: 'https://www.instagram.com/reel/abc/',
+    instagram_title: null,
+    instagram_description: '성수 카페',
+    instagram_author_username: 'yeogidam',
+    instagram_thumbnail_url: null,
+    processing_status: 'COMPLETED',
+    failure_reason: null,
+    save_mode: null,
+    created_at: '2026-11-07T00:00:00Z',
+  };
+  const renderer = await renderGuestMain();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenReel(completedReel);
+  });
+  expect(renderer.root.findByType(ReelDetailScreen).props.reel).toBe(completedReel);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ReelDetailScreen).props.onBack();
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenHistory();
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(HistoryScreen).props.onOpenReel(completedReel);
+  });
+  expect(renderer.root.findByType(ReelDetailScreen).props.reel).toBe(completedReel);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

@@ -1454,7 +1454,7 @@ function App() {
               ? 'guest-saved'
               : 'member-saved'
           }
-          isActive={currentScreen === 'saved' && myPageOverlay === null}
+          isActive={currentScreen === 'saved' && myPageOverlay === null && reelDetail === null}
           onNestedBackStateChange={reportSavedBackState}
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
@@ -1497,9 +1497,6 @@ function App() {
       return (
         <MapScreen
           onBackGestureRegionChange={reportMapBackGestureRegion}
-          bottomNavigationBar={
-            <BottomNavigationBar active="map" isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
-          }
           key={
             isAuthenticated === false
               ? 'guest-map'
@@ -1640,7 +1637,7 @@ function App() {
         content: wrapScreen(
           <View style={styles.container}>
             {renderScreen(tab)}
-            {tab !== 'map' && tab !== 'history' && !(tab === 'saved' && isSavedPlacesEditing) ? (
+            {tab !== 'history' && !(tab === 'saved' && isSavedPlacesEditing) ? (
               <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
             ) : null}
           </View>, tab === 'map',
@@ -1682,6 +1679,7 @@ function App() {
           wrapScreen(
             <ReelDetailScreen
               reel={reelDetail}
+              isGuest={isAuthenticated === false}
               onBack={() => setReelDetail(null)}
             />,
             true,
