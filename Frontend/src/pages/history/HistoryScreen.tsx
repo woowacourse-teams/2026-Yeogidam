@@ -1191,6 +1191,10 @@ export function HistoryScreen({
                     reel.processing_status === 'COMPLETED'
                       ? () => {
                           analytics.button('open_item', {status: 'completed'});
+                          if (reel.deleted_from_library) {
+                            showAlert('보관함에서 삭제한 게시물이에요.');
+                            return;
+                          }
                           if (onOpenReel) {
                             onOpenReel(reel);
                             return;

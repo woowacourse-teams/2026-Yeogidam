@@ -8,6 +8,8 @@ import {
   toHistoryReel,
 } from '../src/entities/content/history-api';
 import {ApiError} from '../src/lib/api/errors';
+import {getSavedPlaces} from '../src/entities/info/api';
+import {getSavedMedia} from '../src/entities/content/saved-media-api';
 
 const mockRequest = jest.fn();
 
@@ -15,6 +17,10 @@ jest.mock('../src/lib/api/spring-client', () => ({
   createSpringApiClient: jest.fn(() => ({
     request: (...args: unknown[]) => mockRequest(...args),
   })),
+}));
+
+jest.mock('../src/entities/info/api', () => ({
+  getSavedPlaces: jest.fn(),
 }));
 
 const share = (
@@ -34,6 +40,7 @@ const share = (
 
 beforeEach(() => {
   mockRequest.mockReset();
+  jest.mocked(getSavedPlaces).mockReset().mockResolvedValue([]);
 });
 
 test('공유 목록을 히스토리 카드 형태와 다음 커서로 바꾼다', async () => {
@@ -63,6 +70,14 @@ test('공유 목록을 히스토리 카드 형태와 다음 커서로 바꾼다'
     save_mode: null,
     created_at: '2026-10-15T00:00:00Z',
   });
+});
+
+test('삭제 시각이 있는 히스토리 항목만 보관함 삭제 상태로 표시한다', () => {
+  expect(toHistoryReel({...share(8, 'SUCCEEDED'), deletedAt: '2026-10-16T00:00:00Z'}))
+    .toMatchObject({id: '8', deleted_from_library: true});
+  expect(toHistoryReel({...share(9, 'SUCCEEDED'), deletedAt: null}).deleted_from_library)
+    .toBeUndefined();
+  expect(toHistoryReel(share(10, 'SUCCEEDED')).deleted_from_library).toBeUndefined();
 });
 
 test('커서를 cursorCreatedAt과 cursorId로 보내고 마지막 페이지는 null 커서를 돌려준다', async () => {
@@ -104,11 +119,13 @@ test('추출 성공 공유의 상세는 목록을 다시 읽지 않고 장소 �
 
   expect(mockRequest).toHaveBeenCalledTimes(1);
   expect(mockRequest).toHaveBeenCalledWith('/api/v1/shares/8/places');
+  expect(getSavedPlaces).toHaveBeenCalledTimes(1);
   expect(detail?.processing_status).toBe('COMPLETED');
   expect(detail?.extraction?.extraction_places).toEqual([
     {
       id: '31',
       position: 0,
+      savedPlaceId: null,
       place: {
         id: '31',
         name: '카페 A',
@@ -125,6 +142,56 @@ test('추출 성공 공유의 상세는 목록을 다시 읽지 않고 장소 �
     },
     expect.objectContaining({id: '32', position: 1}),
   ]);
+});
+
+test('보관함 게시물도 히스토리와 같은 상세 조회 경로를 사용한다', async () => {
+  mockRequest
+    .mockResolvedValueOnce({
+      sharedMedia: [{
+        sharedMediaId: 81,
+        createdAt: '2026-10-15T00:00:00Z',
+        thumbnailUrl: null,
+        caption: '성수 카페',
+        author: 'yeogidam',
+        sharedUrl: 'https://www.instagram.com/reel/abc/',
+        places: [{placeId: 31, savedPlaceId: 99}],
+      }],
+      nextCursor: null,
+    })
+    .mockResolvedValueOnce({
+      places: [{
+        placeId: 31,
+        thumbnailUrl: null,
+        name: '카페 A',
+        category: '카페',
+        landLotAddress: '서울 성동구',
+        roadAddress: null,
+      }],
+    });
+  jest.mocked(getSavedPlaces).mockResolvedValue([{
+    id: '99',
+    place: {id: '31'},
+  }] as never);
+
+  const page = await getSavedMedia();
+  const detail = await getHistoryReelDetail(page.reels[0]);
+
+  expect(mockRequest).toHaveBeenNthCalledWith(1, '/api/v1/saved-media', {query: undefined});
+  expect(mockRequest).toHaveBeenNthCalledWith(2, '/api/v1/shares/81/places');
+  expect(getSavedPlaces).toHaveBeenCalledTimes(1);
+  expect(detail.extraction?.extraction_places[0]).toMatchObject({
+    id: '31',
+    savedPlaceId: '99',
+    place: {name: '카페 A'},
+  });
+});
+
+test('북마크 상태 조회 실패를 해제 상태로 표시하지 않는다', async () => {
+  mockRequest.mockResolvedValueOnce({places: []});
+  jest.mocked(getSavedPlaces).mockRejectedValueOnce(new Error('network'));
+
+  await expect(getHistoryReelDetail(toHistoryReel(share(8, 'SUCCEEDED'))))
+    .rejects.toBeInstanceOf(ReelApiError);
 });
 
 test('추출 중·실패 공유의 상세는 장소를 조회하지 않는다', async () => {

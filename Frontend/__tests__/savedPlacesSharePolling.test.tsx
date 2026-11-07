@@ -1,13 +1,19 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
+import {ScrollView} from 'react-native';
 
 import {getReelProcessingStatus, saveContent} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {getHistoryReels} from '../src/entities/content/history-api';
+import {deleteSavedMedia, getSavedMedia} from '../src/entities/content/saved-media-api';
 import type {HistoryReel} from '../src/entities/content/types';
-import {getSavedPlaces} from '../src/entities/info/api';
+import {deleteSavedPlaces, getSavedPlaces} from '../src/entities/info/api';
 import {SavedPlacesLinkDialog} from '../src/pages/saved-places/components/SavedPlacesLinkDialog';
+import {SavedPostGrid} from '../src/pages/saved-places/components/SavedPostGrid';
+import {SavedPlaceGrid} from '../src/pages/saved-places/components/SavedPlaceGrid';
+import {SavedPlacesViewToggle} from '../src/pages/saved-places/components/SavedPlacesViewToggle';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
+import {showAlert} from '../src/lib/app-alert';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
 jest.mock('react-native-safe-area-context', () => ({
@@ -38,6 +44,11 @@ jest.mock('../src/entities/content/api', () => ({
 jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
 }));
+jest.mock('../src/entities/content/saved-media-api', () => ({
+  getSavedMedia: jest.fn(),
+  deleteSavedMedia: jest.fn(),
+}));
+jest.mock('../src/lib/app-alert', () => ({showAlert: jest.fn()}));
 
 const LINK = 'https://www.instagram.com/reel/abc/';
 
@@ -64,11 +75,11 @@ async function tick(ms: number) {
   });
 }
 
-async function render() {
+async function render(onEditModeChange?: (isEditing: boolean) => void) {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(
-      <SavedPlacesScreen onOpenDetail={jest.fn()} />,
+      <SavedPlacesScreen onEditModeChange={onEditModeChange} onOpenDetail={jest.fn()} />,
     );
   });
   return renderer;
@@ -86,6 +97,7 @@ async function saveLink(renderer: ReactTestRenderer.ReactTestRenderer) {
 beforeEach(() => {
   jest.useFakeTimers();
   jest.mocked(getSavedPlaces).mockReset().mockResolvedValue([]);
+  jest.mocked(deleteSavedPlaces).mockReset().mockResolvedValue(undefined);
   jest.mocked(getReelProcessingStatus).mockReset().mockResolvedValue(null);
   jest.mocked(saveContent).mockReset().mockResolvedValue({
     reelId: '8',
@@ -93,6 +105,9 @@ beforeEach(() => {
     reused: false,
   });
   jest.mocked(getHistoryReels).mockReset();
+  jest.mocked(getSavedMedia).mockReset().mockResolvedValue({reels: [], nextCursor: null});
+  jest.mocked(deleteSavedMedia).mockReset().mockResolvedValue(undefined);
+  jest.mocked(showAlert).mockReset();
 });
 
 afterEach(() => {
@@ -173,5 +188,75 @@ test('빈 보관함에 복귀할 때 조회가 진행되거나 실패해도 기�
   });
   expect(renderer.root.findAllByType(SavedPlacesEmptyState)).toHaveLength(1);
   expect(renderer.root.findAllByType(SavedPlacesErrorState)).toHaveLength(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('게시물 탭은 saved-media 목록을 그리고 다음 커서로 이어 붙인다', async () => {
+  const cursor = {created_at: '2026-11-04T03:12:45.123456Z', id: '81'};
+  jest.mocked(getSavedMedia)
+    .mockResolvedValueOnce({reels: [historyReel('81', 'COMPLETED')], nextCursor: cursor})
+    .mockResolvedValueOnce({reels: [historyReel('80', 'COMPLETED')], nextCursor: null});
+  const renderer = await render();
+  expect(renderer.root.findByType(SavedPostGrid).props.reels.map((reel: HistoryReel) => reel.id)).toEqual(['81']);
+  const list = renderer.root.findAllByType(ScrollView).find(node => typeof node.props.onScroll === 'function');
+  await ReactTestRenderer.act(async () => {
+    list?.props.onScroll({nativeEvent: {
+      contentOffset: {y: 900},
+      contentSize: {height: 1300},
+      layoutMeasurement: {height: 400},
+    }});
+  });
+  expect(getSavedMedia).toHaveBeenCalledWith(cursor);
+  expect(renderer.root.findByType(SavedPostGrid).props.reels.map((reel: HistoryReel) => reel.id)).toEqual(['81', '80']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('게시물 편집에서 선택한 ID를 삭제 API로 보내고 목록을 갱신한다', async () => {
+  jest.mocked(getSavedMedia)
+    .mockResolvedValueOnce({reels: [historyReel('81', 'COMPLETED')], nextCursor: null})
+    .mockResolvedValue({reels: [], nextCursor: null});
+  const onEditModeChange = jest.fn();
+  const renderer = await render(onEditModeChange);
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesViewToggle).props.onPressEdit();
+    renderer.root.findByType(SavedPostGrid).props.onToggleReelSelection('81');
+  });
+  expect(onEditModeChange).toHaveBeenCalledWith(true);
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByProps({accessibilityLabel: '선택한 게시물 삭제하기'}).props.onPress();
+  });
+  expect(jest.mocked(showAlert).mock.calls[0][1]).toContain('장소 보관함과 지도에서 사라져요.');
+  const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
+  await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
+  expect(deleteSavedMedia).toHaveBeenCalledWith(['81']);
+  expect(getSavedMedia).toHaveBeenCalledTimes(2);
+  expect(onEditModeChange).toHaveBeenCalledWith(false);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('장소 편집은 북마크 해제를 안내하고 저장 장소 ID로 해제한다', async () => {
+  jest.mocked(getSavedPlaces).mockResolvedValue([{
+    id: '99',
+    createdAt: '2026-10-16T00:00:00Z',
+    place: {id: '1', name: '카페 온월', address: '서울 성동구'},
+  }] as never);
+  const renderer = await render();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesViewToggle).props.onChangeView('places');
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesViewToggle).props.onPressEdit();
+    renderer.root.findByType(SavedPlaceGrid).props.onTogglePlaceSelection('1');
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByProps({accessibilityLabel: '선택한 장소 북마크 해제하기'}).props.onPress();
+  });
+  expect(jest.mocked(showAlert).mock.calls[0][0]).toBe('선택한 장소의 북마크를 해제할까요?');
+  expect(jest.mocked(showAlert).mock.calls[0][1]).toContain('장소 보관함과 지도에서 사라져요.');
+  expect(jest.mocked(showAlert).mock.calls[0][1]).toContain('해당 게시물에서 다시 북마크할 수 있어요.');
+  const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
+  expect(buttons[1]?.text).toBe('북마크 해제');
+  await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
+  expect(deleteSavedPlaces).toHaveBeenCalledWith(['99']);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

@@ -412,7 +412,7 @@ export function PlaceResultSheet({
     setIsReelsLoading(true);
     setReelsError(null);
     try {
-      setSelectedPlaceReels(await getPlaceReels(selectedPlace.savedPlaceId));
+      setSelectedPlaceReels(await getPlaceReels(selectedPlace.id));
     } catch (error) {
       setReelsError(error as PlaceReelsApiError);
     } finally {
@@ -1016,15 +1016,15 @@ export function PlaceResultSheet({
     selectedPlace,
   ]);
 
-  // 삭제 전에 보관함과 같은 문구로 한 번 더 확인합니다.
+  // 북마크 해제 전에 보관함과 같은 문구로 한 번 더 확인합니다.
   const confirmDelete = useCallback(() => {
     if (isDeleting || !selectedPlace) {
       return;
     }
     analytics.modal('delete_confirm');
     showAlert(
-      '선택한 장소를 삭제할까요?',
-      '선택한 1곳의 장소가 보관함에서 삭제됩니다.',
+      '이 장소의 북마크를 해제할까요?',
+      '장소 보관함과 지도에서 사라져요. 해당 게시물에서 다시 북마크할 수 있어요.',
       [
         {
           text: '취소',
@@ -1032,8 +1032,7 @@ export function PlaceResultSheet({
           onPress: () => analytics.button('delete_confirm_cancel'),
         },
         {
-          text: '삭제',
-          style: 'destructive',
+          text: '북마크 해제',
           onPress: () => {
             analytics.button('delete_confirm_ok');
             handleDelete().catch(() => undefined);
@@ -1043,12 +1042,12 @@ export function PlaceResultSheet({
     );
   }, [analytics, handleDelete, isDeleting, selectedPlace]);
 
-  // 삭제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
+  // 해제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
   useEffect(() => {
     if (!deleteError) {
       return;
     }
-    showAlert('삭제하지 못했어요', deleteError.message);
+    showAlert('북마크를 해제하지 못했어요', deleteError.message);
     setDeleteError(null);
   }, [deleteError]);
 

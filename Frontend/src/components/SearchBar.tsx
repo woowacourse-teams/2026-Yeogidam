@@ -20,6 +20,8 @@ type SearchBarProps = {
   onPress?: () => void;
   layout?: 'overlay' | 'embedded' | 'header';
   topInset?: number;
+  /** 오버레이 검색창의 좌우 여백. 기본값은 24입니다. */
+  horizontalInset?: number;
   onPressBack?: () => void;
   backButtonPosition?: 'inside' | 'leading';
   placeholder?: string;
@@ -44,6 +46,7 @@ export function SearchBar({
   onPress,
   layout = 'overlay',
   topInset = 0,
+  horizontalInset = 24,
   onPressBack,
   backButtonPosition = 'inside',
   placeholder = '장소, 지역 검색',
@@ -68,7 +71,11 @@ export function SearchBar({
     <View
       style={[
         styles.container,
-        layout === 'overlay' && { top: topInset + SEARCH_BAR_TOP_GAP },
+        layout === 'overlay' && {
+          top: topInset + SEARCH_BAR_TOP_GAP,
+          left: horizontalInset,
+          right: horizontalInset,
+        },
         layout === 'embedded' && styles.embedded,
         layout === 'header' && styles.header,
       ]}

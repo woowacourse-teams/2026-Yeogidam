@@ -1,8 +1,11 @@
 import React from 'react';
-import {Linking, Text} from 'react-native';
+import {Linking, ScrollView, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
-import {getHistoryReelDetail} from '../src/entities/content/history-api';
+import {getHistoryReelDetail, reportHistoryReel} from '../src/entities/content/history-api';
+import {saveMediaPlace} from '../src/entities/content/saved-media-api';
+import {deleteSavedPlaces} from '../src/entities/info/api';
+import {showAlert} from '../src/lib/app-alert';
 import type {HistoryReel} from '../src/entities/content/types';
 import {
   getReelBackGestureRegion,
@@ -16,7 +19,11 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReelDetail: jest.fn(),
+  reportHistoryReel: jest.fn(),
 }));
+jest.mock('../src/entities/content/saved-media-api', () => ({saveMediaPlace: jest.fn()}));
+jest.mock('../src/entities/info/api', () => ({deleteSavedPlaces: jest.fn()}));
+jest.mock('../src/lib/app-alert', () => ({showAlert: jest.fn()}));
 
 const LONG_CAPTION =
   '성수동에서 주말에도 웨이팅 없이 갈 수 있는 감성 카페 5곳을 모아봤어요. 1. 카페 온월 - 시그니처 라떼가 정말 맛있어요 2. 담다식당 - 점심 한정 메뉴 꼭 드세요';
@@ -71,6 +78,10 @@ async function render(onBack = jest.fn()) {
 }
 
 beforeEach(() => {
+  jest.mocked(saveMediaPlace).mockReset().mockResolvedValue('99');
+  jest.mocked(deleteSavedPlaces).mockReset().mockResolvedValue(undefined);
+  jest.mocked(reportHistoryReel).mockReset().mockResolvedValue(undefined);
+  jest.mocked(showAlert).mockReset();
   jest.mocked(getHistoryReelDetail).mockReset().mockResolvedValue({
     ...reel,
     extraction: {
@@ -81,6 +92,7 @@ beforeEach(() => {
     },
   });
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  jest.mocked(Linking.openURL).mockClear();
 });
 
 afterEach(() => {
@@ -142,7 +154,7 @@ test('접힌 캡션을 누르면 펼치고 접기로 닫는다', async () => {
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('뒤로가기와 원본 열기가 동작한다', async () => {
+test('상단 원본 버튼은 확인 전에는 이동하지 않고 열기를 누른 뒤 이동한다', async () => {
   const {renderer, onBack} = await render();
 
   const back = renderer.root.findByProps({
@@ -155,11 +167,21 @@ test('뒤로가기와 원본 열기가 동작한다', async () => {
     accessibilityLabel: '원본 게시물 보기',
   });
   await ReactTestRenderer.act(async () => original.props.onPress());
+  expect(Linking.openURL).not.toHaveBeenCalled();
+  expect(showAlert).toHaveBeenCalledWith(
+    '인스타그램에서 원본 게시물을 볼까요?',
+    '인스타그램 앱 또는 웹사이트로 이동해요.',
+    expect.any(Array),
+  );
+  const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
+  await ReactTestRenderer.act(async () => buttons[0]?.onPress?.());
+  expect(Linking.openURL).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
   expect(Linking.openURL).toHaveBeenCalledWith(reel.instagram_url);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('이미지 영역을 누르면 원본 게시물로 넘어가고 재생 버튼은 없다', async () => {
+test('이미지 영역도 확인 후 원본 게시물로 넘어가고 재생 버튼은 없다', async () => {
   const {renderer} = await render();
 
   expect(
@@ -169,6 +191,9 @@ test('이미지 영역을 누르면 원본 게시물로 넘어가고 재생 버�
   await ReactTestRenderer.act(async () =>
     renderer.root.findByProps({accessibilityLabel: '원본 게시물 열기'}).props.onPress(),
   );
+  expect(Linking.openURL).not.toHaveBeenCalled();
+  const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
+  await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
   expect(Linking.openURL).toHaveBeenCalledWith(reel.instagram_url);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
@@ -238,5 +263,39 @@ test('시트 윗부분을 누르면 시트가 펼쳐지고 다시 누르면 접�
   expect(
     renderer.root.findAllByProps({accessibilityLabel: '찾은 장소 펼치기'}).length,
   ).toBeGreaterThan(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('장소 북마크 버튼은 savedPlaceId로 표시하고 활성화와 해제를 호출한다', async () => {
+  const {renderer} = await render();
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByProps({accessibilityLabel: '카페 온월 북마크하기'}).props.onPress();
+  });
+  expect(saveMediaPlace).toHaveBeenCalledWith('8', '1');
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByProps({accessibilityLabel: '카페 온월 북마크 해제'}).props.onPress();
+  });
+  expect(deleteSavedPlaces).toHaveBeenCalledWith(['99']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('성공 게시물 제보는 확인 뒤 한 번 호출하고 완료 상태로 막는다', async () => {
+  const {renderer} = await render();
+  const sheetScroll = renderer.root.findAllByType(ScrollView).find(scroll =>
+    scroll.findAllByProps({accessibilityLabel: '게시물 제보하기'}).length > 0,
+  );
+  expect(sheetScroll).toBeDefined();
+  const sheetTexts = sheetScroll!.findAllByType(Text).map(node => node.props.children);
+  expect(sheetTexts.indexOf('장소가 빠졌거나 잘못 찾았나요?')).toBeGreaterThan(
+    sheetTexts.indexOf('카페 온월'),
+  );
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByProps({accessibilityLabel: '게시물 제보하기'}).props.onPress();
+  });
+  expect(reportHistoryReel).not.toHaveBeenCalled();
+  const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
+  await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
+  expect(reportHistoryReel).toHaveBeenCalledWith('8');
+  expect(renderer.root.findByProps({accessibilityLabel: '제보 완료'}).props.disabled).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

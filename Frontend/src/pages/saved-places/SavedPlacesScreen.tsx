@@ -75,9 +75,11 @@ import {
   normalizeInstagramContentUrl,
   saveContent,
 } from '../../entities/content/api';
+import {deleteSavedMedia, getSavedMedia} from '../../entities/content/saved-media-api';
 import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
 import type {
   HistoryReel,
+  HistoryCursor,
   ReelProcessingStatus,
   SaveSource,
 } from '../../entities/content/types';
@@ -173,12 +175,16 @@ export function SavedPlacesScreen({
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [libraryView, setLibraryView] = useState<SavedLibraryView>('posts');
-  // 게시물 편집은 장소 편집(하단 삭제 막대·장소 삭제)과 따로 둡니다. 삭제 동작은 아직 없습니다.
+  // 게시물 삭제와 장소 북마크 해제는 별도의 선택 상태를 사용합니다.
   const [isEditingPosts, setIsEditingPosts] = useState(false);
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [sharedReels, setSharedReels] = useState<HistoryReel[]>([]);
+  const [postReels, setPostReels] = useState<HistoryReel[]>([]);
+  const [postCursor, setPostCursor] = useState<HistoryCursor | null>(null);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -229,10 +235,13 @@ export function SavedPlacesScreen({
   useEffect(() => () => barReveal.stopAnimation(), [barReveal]);
   const hasCapturedViewRef = useRef(false);
   const isRefreshingRef = useRef(false);
+  const isLoadingMorePostsRef = useRef(false);
+  const postRequestIdRef = useRef(0);
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
-  const hasSavedPlaces = places.length > 0;
+  const hasSavedPlaces =
+    places.length > 0 || postReels.length > 0 || sharedReels.length > 0 || postError !== null;
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const activeCategory = selectedCategory;
   const filteredPlaces = useMemo(
@@ -322,6 +331,42 @@ export function SavedPlacesScreen({
     [fetchSavedPlaces],
   );
 
+  const loadPostPage = useCallback(async (cursor?: HistoryCursor) => {
+    if (cursor && isLoadingMorePostsRef.current) return;
+    const requestId = ++postRequestIdRef.current;
+    isLoadingMorePostsRef.current = true;
+    setIsLoadingPosts(true);
+    setPostError(null);
+    try {
+      const page = await getSavedMedia(cursor);
+      if (requestId !== postRequestIdRef.current) return;
+      setPostReels(current => cursor
+        ? [...current, ...page.reels.filter(reel => !current.some(item => item.id === reel.id))]
+        : page.reels);
+      setPostCursor(page.nextCursor);
+    } catch (nextError) {
+      if (requestId === postRequestIdRef.current) {
+        setPostError((nextError as {message?: string}).message ?? '게시물을 불러오지 못했어요.');
+      }
+    } finally {
+      if (requestId === postRequestIdRef.current) {
+        isLoadingMorePostsRef.current = false;
+        setIsLoadingPosts(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isGuest || !isScreenActive) {
+      if (isGuest) {
+        setPostReels([]);
+        setPostCursor(null);
+      }
+      return;
+    }
+    loadPostPage().catch(() => undefined);
+  }, [isGuest, isScreenActive, loadPostPage]);
+
   const refreshSavedPlaces = useCallback(async () => {
     if (isRefreshingRef.current) {
       return;
@@ -332,12 +377,12 @@ export function SavedPlacesScreen({
     analytics.refreshed();
 
     try {
-      await loadSavedPlaces();
+      await Promise.all([loadSavedPlaces(), isGuest ? Promise.resolve() : loadPostPage()]);
     } finally {
       isRefreshingRef.current = false;
       setIsRefreshing(false);
     }
-  }, [analytics, loadSavedPlaces]);
+  }, [analytics, isGuest, loadPostPage, loadSavedPlaces]);
 
   useEffect(() => {
     // Keep the already visible content while revalidating on return. Entering
@@ -941,8 +986,7 @@ export function SavedPlacesScreen({
       setSharedReels([]);
       return;
     }
-    // 최근 공유 행과 게시물 보기는 앱 공용 폴러가 읽은 공유 목록을 그대로 씁니다.
-    // 첫 조회는 하단 탭 바가 시작하므로 여기서는 결과만 받고 따로 읽지 않습니다.
+    // 최근 공유 행은 히스토리와 같은 공용 폴러를 씁니다.
     const subscription = subscribeRecentShares({
       intervalMs: RECENT_SHARES_INTERVAL_MS,
       onResult: ({ reels }) => setSharedReels(reels),
@@ -976,11 +1020,6 @@ export function SavedPlacesScreen({
     return [pendingReel, ...sharedReels];
   }, [processingReel, sharedReels]);
 
-  const postReels = useMemo(
-    () => sharedReels.filter(reel => reel.processing_status === 'COMPLETED'),
-    [sharedReels],
-  );
-
   useEffect(() => {
     if (!showSaveSuccess) {
       return;
@@ -989,10 +1028,11 @@ export function SavedPlacesScreen({
     // 저장 API의 즉시 완료 응답, 상태 폴링 완료, 공유 상태 복원 중 어느
     // 경로로 완료되더라도 최신 저장 장소를 보관함에 바로 반영합니다.
     loadSavedPlaces().catch(() => undefined);
+    loadPostPage().catch(() => undefined);
 
     const timeoutId = setTimeout(() => setShowSaveSuccess(false), 1800);
     return () => clearTimeout(timeoutId);
-  }, [loadSavedPlaces, showSaveSuccess]);
+  }, [loadPostPage, loadSavedPlaces, showSaveSuccess]);
 
   const handlePressEdit = useCallback(() => {
     const next = !isEditing;
@@ -1016,6 +1056,7 @@ export function SavedPlacesScreen({
       if (isEditingPosts) {
         setIsEditingPosts(false);
         setSelectedPostIds(new Set());
+        onEditModeChange?.(false);
       }
       setLibraryView(next);
     },
@@ -1027,7 +1068,8 @@ export function SavedPlacesScreen({
     analytics.button(next ? 'post_edit_start' : 'post_edit_cancel');
     setIsEditingPosts(next);
     setSelectedPostIds(new Set());
-  }, [analytics, isEditingPosts]);
+    onEditModeChange?.(next);
+  }, [analytics, isEditingPosts, onEditModeChange]);
 
   const togglePostSelection = useCallback(
     (reelId: string) => {
@@ -1044,6 +1086,40 @@ export function SavedPlacesScreen({
     },
     [analytics],
   );
+
+  const handleDeleteSelectedPosts = useCallback(async () => {
+    if (isDeleting || selectedPostIds.size === 0) return;
+    const ids = [...selectedPostIds];
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteSavedMedia(ids);
+      setPostReels(current => current.filter(reel => !selectedPostIds.has(reel.id)));
+      setSelectedPostIds(new Set());
+      setIsEditingPosts(false);
+      onEditModeChange?.(false);
+      await Promise.all([loadPostPage(), loadSavedPlaces()]);
+    } catch (nextError) {
+      setDeleteError(nextError as SavedPlacesApiError);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [isDeleting, loadPostPage, loadSavedPlaces, onEditModeChange, selectedPostIds]);
+
+  const confirmDeleteSelectedPosts = useCallback(() => {
+    if (isDeleting || selectedPostIds.size === 0) return;
+    const count = selectedPostIds.size;
+    showAlert(
+      '선택한 게시물을 삭제할까요?',
+      `선택한 ${count}개의 게시물이 보관함에서 삭제됩니다. 이 게시물에만 담긴 장소는 장소 보관함과 지도에서 사라져요.`,
+      [
+        {text: '취소', style: 'cancel'},
+        {text: '삭제', style: 'destructive', onPress: () => {
+          handleDeleteSelectedPosts().catch(() => undefined);
+        }},
+      ],
+    );
+  }, [handleDeleteSelectedPosts, isDeleting, selectedPostIds.size]);
 
   const handleOpenHistory = useCallback(() => {
     analytics.button('open_history');
@@ -1195,8 +1271,8 @@ export function SavedPlacesScreen({
     analytics.button('delete_selected', {count});
     analytics.modal('delete_confirm', {count});
     showAlert(
-      '선택한 장소를 삭제할까요?',
-      `선택한 ${count}곳의 장소가 보관함에서 삭제됩니다.`,
+      '선택한 장소의 북마크를 해제할까요?',
+      `선택한 ${count}곳이 장소 보관함과 지도에서 사라져요. 해당 게시물에서 다시 북마크할 수 있어요.`,
       [
         {
           text: '취소',
@@ -1204,8 +1280,7 @@ export function SavedPlacesScreen({
           onPress: () => analytics.button('delete_confirm_cancel', {count}),
         },
         {
-          text: '삭제',
-          style: 'destructive',
+          text: '북마크 해제',
           onPress: () => {
             analytics.button('delete_confirm_ok', {count});
             handleDeleteSelectedPlaces().catch(() => undefined);
@@ -1412,6 +1487,14 @@ export function SavedPlacesScreen({
                 contentHeight: contentSize?.height,
                 viewportHeight: layoutMeasurement?.height,
               });
+              if (
+                libraryView === 'posts' &&
+                postCursor &&
+                !isLoadingMorePostsRef.current &&
+                contentSize.height - (contentOffset.y + layoutMeasurement.height) < 240
+              ) {
+                loadPostPage(postCursor).catch(() => undefined);
+              }
             }}
             refreshControl={
               <RefreshControl
@@ -1474,9 +1557,15 @@ export function SavedPlacesScreen({
                   onToggleReelSelection={togglePostSelection}
                   selectedReelIds={selectedPostIds}
                 />
-                {postReels.length === 0 ? (
+                {isLoadingPosts ? (
+                  <Text style={styles.categoryEmptyText}>게시물을 불러오고 있어요.</Text>
+                ) : postError ? (
+                  <Pressable onPress={() => loadPostPage(postCursor ?? undefined)}>
+                    <Text style={styles.categoryEmptyText}>{postError} 다시 시도하기</Text>
+                  </Pressable>
+                ) : postReels.length === 0 ? (
                   <Text style={styles.categoryEmptyText}>
-                    공유한 게시물이 아직 없어요
+                    담긴 게시물이 아직 없어요
                   </Text>
                 ) : null}
               </>
@@ -1515,20 +1604,18 @@ export function SavedPlacesScreen({
           }}
         />
       )}
-      {isEditing ? (
+      {isEditing || isEditingPosts ? (
         <Pressable
           accessibilityLabel={
-            selectedPlaceIds.size > 0
-              ? '선택한 장소 삭제하기'
-              : '보관함 편집 취소'
+            isEditingPosts
+              ? selectedPostIds.size > 0 ? '선택한 게시물 삭제하기' : '게시물 편집 취소'
+              : selectedPlaceIds.size > 0 ? '선택한 장소 북마크 해제하기' : '보관함 편집 취소'
           }
           accessibilityRole="button"
           disabled={isDeleting}
-          onPress={
-            selectedPlaceIds.size === 0
-              ? handlePressEdit
-              : confirmDeleteSelectedPlaces
-          }
+          onPress={isEditingPosts
+            ? selectedPostIds.size === 0 ? handlePressEditPosts : confirmDeleteSelectedPosts
+            : selectedPlaceIds.size === 0 ? handlePressEdit : confirmDeleteSelectedPlaces}
           style={({ pressed }) => [
             bottomNavigationBarContainerStyle,
             styles.deleteAction,
@@ -1542,16 +1629,16 @@ export function SavedPlacesScreen({
             style={styles.deleteActionContent}
           >
             <Text style={styles.deleteActionText}>
-              {selectedPlaceIds.size > 0
-                ? isDeleting
-                  ? '삭제 중...'
-                  : '삭제하기'
+              {(isEditingPosts ? selectedPostIds.size : selectedPlaceIds.size) > 0
+                ? isEditingPosts
+                  ? isDeleting ? '삭제 중...' : '삭제하기'
+                  : isDeleting ? '해제 중...' : '북마크 해제'
                 : '취소'}
             </Text>
-            {selectedPlaceIds.size > 0 ? (
+            {(isEditingPosts ? selectedPostIds.size : selectedPlaceIds.size) > 0 ? (
               <View style={styles.deleteCountBadge}>
                 <Text style={styles.deleteCountText}>
-                  {selectedPlaceIds.size}
+                  {isEditingPosts ? selectedPostIds.size : selectedPlaceIds.size}
                 </Text>
               </View>
             ) : null}

@@ -22,7 +22,10 @@ import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {useScreenAnalytics} from '../../analytics/uiEvents';
-import {getHistoryReelDetail} from '../../entities/content/history-api';
+import {getHistoryReelDetail, reportHistoryReel} from '../../entities/content/history-api';
+import {saveMediaPlace} from '../../entities/content/saved-media-api';
+import {deleteSavedPlaces} from '../../entities/info/api';
+import {showAlert} from '../../lib/app-alert';
 import {normalizeReelCaption} from '../../entities/content/title';
 import type {
   HistoryReel,
@@ -33,6 +36,7 @@ import {getMiddleCategory} from '../../entities/place/category';
 type ReelDetailScreenProps = {
   reel: HistoryReel;
   onBack: () => void;
+  isGuest?: boolean;
 };
 
 const COLLAPSED_RATIO = 600 / 844;
@@ -120,7 +124,7 @@ type PlacesState =
   | {status: 'ready'; places: HistoryReelPlace[]};
 
 /** 공유한 게시물 하나의 상세. 원본 이미지 위에 캡션을, 아래 시트에 찾은 장소를 보여 줍니다. */
-export function ReelDetailScreen({reel, onBack}: ReelDetailScreenProps) {
+export function ReelDetailScreen({reel, onBack, isGuest = false}: ReelDetailScreenProps) {
   const analytics = useScreenAnalytics('reel_detail');
   const insets = useSafeAreaInsets();
   const {height: windowHeight} = useWindowDimensions();
@@ -132,6 +136,9 @@ export function ReelDetailScreen({reel, onBack}: ReelDetailScreenProps) {
   });
   const [isCaptionOpen, setIsCaptionOpen] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const [savingPlaceIds, setSavingPlaceIds] = useState<Set<string>>(new Set());
+  const [isReported, setIsReported] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
 
   const caption = normalizeReelCaption(reel.instagram_description);
   const author = reel.instagram_author_username
@@ -166,6 +173,52 @@ export function ReelDetailScreen({reel, onBack}: ReelDetailScreenProps) {
       isMounted = false;
     };
   }, [reel]);
+
+  const toggleSavedPlace = useCallback(async (item: HistoryReelPlace) => {
+    const placeId = item.place?.id;
+    if (!placeId || savingPlaceIds.has(placeId)) return;
+    setSavingPlaceIds(current => new Set(current).add(placeId));
+    try {
+      let savedPlaceId: string | null;
+      if (item.savedPlaceId) {
+        await deleteSavedPlaces([item.savedPlaceId]);
+        savedPlaceId = null;
+      } else {
+        savedPlaceId = await saveMediaPlace(reel.id, placeId);
+      }
+      setPlacesState(current => current.status !== 'ready' ? current : {
+        ...current,
+        places: current.places.map(place => place.place?.id === placeId
+          ? {...place, savedPlaceId}
+          : place),
+      });
+    } catch (error) {
+      showAlert('장소를 저장하지 못했어요.', (error as {message?: string}).message);
+    } finally {
+      setSavingPlaceIds(current => {
+        const next = new Set(current);
+        next.delete(placeId);
+        return next;
+      });
+    }
+  }, [reel.id, savingPlaceIds]);
+
+  const confirmReport = useCallback(() => {
+    if (isReported || isReporting) return;
+    showAlert('제보할까요?', '', [
+      {text: '취소', style: 'cancel'},
+      {
+        text: '확인',
+        onPress: () => {
+          setIsReporting(true);
+          reportHistoryReel(reel.id)
+            .then(() => setIsReported(true))
+            .catch(() => showAlert('제보하지 못했어요.', '잠시 후 다시 시도해주세요.'))
+            .finally(() => setIsReporting(false));
+        },
+      },
+    ]);
+  }, [isReported, isReporting, reel.id]);
 
   // 시트 위쪽 y 위치(접힘 collapsedTop ↔ 끌어올림 expandedTop). 오버레이 위치도 이 값에서 계산합니다.
   const sheetTop = useRef(new Animated.Value(collapsedTop)).current;
@@ -241,10 +294,18 @@ export function ReelDetailScreen({reel, onBack}: ReelDetailScreenProps) {
   );
 
   const openOriginal = useCallback(() => {
-    analytics.button('open_original');
-    if (reel.instagram_url) {
-      Linking.openURL(reel.instagram_url).catch(() => undefined);
-    }
+    if (!reel.instagram_url) return;
+    const url = reel.instagram_url;
+    showAlert('인스타그램에서 원본 게시물을 볼까요?', '인스타그램 앱 또는 웹사이트로 이동해요.', [
+      {text: '취소', style: 'cancel'},
+      {
+        text: '열기',
+        onPress: () => {
+          analytics.button('open_original');
+          Linking.openURL(url).catch(() => undefined);
+        },
+      },
+    ]);
   }, [analytics, reel.instagram_url]);
 
   const toggleCaption = useCallback(
@@ -288,11 +349,11 @@ export function ReelDetailScreen({reel, onBack}: ReelDetailScreenProps) {
         style={[styles.shade, {top: windowHeight * 0.355, height: windowHeight * 0.355}]}
       />
 
-      {/* 이미지 영역을 누르면 원본 게시물로 넘어갑니다. 시트나 캡션이 펼쳐진 동안은 받지 않습니다. */}
+      {/* 이미지 영역을 누르면 원본 이동을 확인합니다. 시트나 캡션이 펼쳐진 동안은 받지 않습니다. */}
       <Pressable
         accessibilityLabel="원본 게시물 열기"
         accessibilityRole="button"
-        disabled={isSheetExpanded || isCaptionOpen}
+        disabled={!reel.instagram_url || isSheetExpanded || isCaptionOpen}
         onPress={openOriginal}
         style={styles.imageTapArea}
       />
@@ -362,20 +423,22 @@ export function ReelDetailScreen({reel, onBack}: ReelDetailScreenProps) {
           style={styles.backButton}>
           <MaterialIcons color="#1a1a2e" name="chevron-left" size={28} />
         </Pressable>
-        {reel.instagram_url ? (
-          <Pressable
-            accessibilityLabel="원본 게시물 보기"
-            accessibilityRole="button"
-            onPress={openOriginal}
-            style={styles.originalButton}>
-            <Image
-              source={require('../../assets/icons/instagram-logo.png')}
-              style={styles.originalIcon}
-            />
-            <Text style={styles.originalText}>원본</Text>
-            <MaterialIcons color="#1a1a2e" name="north-east" size={13} />
-          </Pressable>
-        ) : null}
+        <View style={styles.topBarActions}>
+          {reel.instagram_url ? (
+            <Pressable
+              accessibilityLabel="원본 게시물 보기"
+              accessibilityRole="button"
+              onPress={openOriginal}
+              style={styles.originalButton}>
+              <Image
+                source={require('../../assets/icons/instagram-logo.png')}
+                style={styles.originalIcon}
+              />
+              <Text style={styles.originalText}>원본</Text>
+              <MaterialIcons color="#1a1a2e" name="north-east" size={13} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <Animated.View
@@ -451,10 +514,44 @@ export function ReelDetailScreen({reel, onBack}: ReelDetailScreenProps) {
                       {place.road_address ?? place.address ?? ''}
                     </Text>
                   </View>
+                  {reel.processing_status === 'COMPLETED' && !isGuest ? (
+                    <Pressable
+                      accessibilityLabel={`${place.name} ${item.savedPlaceId ? '북마크 해제' : '북마크하기'}`}
+                      accessibilityRole="button"
+                      disabled={savingPlaceIds.has(place.id)}
+                      onPress={() => toggleSavedPlace(item)}
+                      style={styles.savePlaceButton}>
+                      <MaterialIcons
+                        color={item.savedPlaceId ? '#7186ed' : '#8b8e99'}
+                        name={item.savedPlaceId ? 'bookmark' : 'bookmark-border'}
+                        size={25}
+                      />
+                    </Pressable>
+                  ) : null}
                 </View>
               );
             })
           )}
+          {placesState.status === 'ready' && reel.processing_status === 'COMPLETED' && !isGuest ? (
+            <View style={styles.reportSection}>
+              <Text style={styles.reportHint}>장소가 빠졌거나 잘못 찾았나요?</Text>
+              <Pressable
+                accessibilityLabel={isReported ? '제보 완료' : '게시물 제보하기'}
+                accessibilityRole="button"
+                disabled={isReported || isReporting}
+                onPress={confirmReport}
+                style={styles.reportButton}>
+                <MaterialIcons
+                  color="#5868ed"
+                  name="outlined-flag"
+                  size={23}
+                />
+                <Text style={styles.reportText}>
+                  {isReported ? '제보 완료' : '제보하기'}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
         </ScrollView>
       </Animated.View>
     </View>
@@ -557,6 +654,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   backButton: {
     width: 40,
     height: 40,
@@ -628,6 +730,30 @@ const styles = StyleSheet.create({
   sheetContent: {
     paddingHorizontal: 20,
   },
+  reportSection: {
+    alignItems: 'center',
+    paddingTop: 48,
+    paddingBottom: 52,
+  },
+  reportHint: {
+    color: '#bcbcbc',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  reportButton: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 16,
+  },
+  reportText: {
+    color: '#5868ed',
+    fontSize: 18,
+    fontWeight: '700',
+  },
   stateText: {
     paddingVertical: 24,
     color: '#8e8e93',
@@ -653,6 +779,12 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 7,
     paddingTop: 3,
+  },
+  savePlaceButton: {
+    width: 36,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nameRow: {
     flexDirection: 'row',
