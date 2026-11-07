@@ -99,6 +99,18 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
   };
 }
 
+/** 최근 공유 링에 표시할 추출 장소 수만 조회합니다. */
+export async function getHistoryReelPlaceCount(reelId: string): Promise<number> {
+  try {
+    const response = await client.request<SpringShareHistoryPlacesResponse>(
+      `${SHARES_PATH}/${encodeURIComponent(reelId)}/places`,
+    );
+    return (response?.places ?? []).length;
+  } catch (error) {
+    throw toReelApiError(error);
+  }
+}
+
 /**
  * 상세는 보관함·히스토리에서 같은 공유별 장소 API로 조회합니다. 서버에 단건 공유
  * 조회 API가 없어 게시물 기본 정보는 진입한 목록에서 받은 값을 사용합니다.
