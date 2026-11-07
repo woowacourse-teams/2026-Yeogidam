@@ -2,6 +2,8 @@ package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.PlaceCategory;
 import com.yeogidam.place.domain.PlaceCategoryClassifier;
+import com.yeogidam.search.repository.SearchQuery;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -23,10 +25,19 @@ public class SavedPlaceCategoryProjections {
                 ));
     }
 
+    public static boolean hasCategoryNameContaining(List<String> words) {
+        return Arrays.stream(PlaceCategory.values())
+                .anyMatch(category -> words.stream().anyMatch(word -> nameContains(category, word)));
+    }
+
     public List<Long> savedPlaceIdsMatching(String word) {
         return savedPlaceIdsByCategory.entrySet().stream()
-                .filter(entry -> entry.getKey().hasNameContaining(word))
+                .filter(entry -> nameContains(entry.getKey(), word))
                 .flatMap(entry -> entry.getValue().stream())
                 .toList();
+    }
+
+    private static boolean nameContains(PlaceCategory category, String word) {
+        return SearchQuery.normalizeForMatching(category.getName()).contains(word);
     }
 }

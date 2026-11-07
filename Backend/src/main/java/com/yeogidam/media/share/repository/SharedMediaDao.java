@@ -7,7 +7,7 @@ import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
-import com.yeogidam.search.domain.SearchQuery;
+import com.yeogidam.search.repository.SearchQuery;
 import com.yeogidam.search.repository.SearchSql;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -367,7 +367,7 @@ public class SharedMediaDao {
      * 보관 장소와의 연결은 보지 않고, 모든 검색 단어가 포함된 게시물만 페이지 크기보다 한 건 더 읽는다.
      */
     public SavedMediaProjections findSavedMediaByQuery(Long memberId, SearchQuery query) {
-        List<String> patterns = query.likePatterns();
+        List<String> patterns = SearchSql.containsPatterns(query);
         return findLatestSavedMedia(memberId, captionSearchConditions(patterns.size()), patterns);
     }
 
@@ -379,7 +379,7 @@ public class SharedMediaDao {
             SearchQuery query,
             SharedMediaCursor cursor
     ) {
-        List<String> patterns = query.likePatterns();
+        List<String> patterns = SearchSql.containsPatterns(query);
         List<Object> arguments = new ArrayList<>(patterns);
         arguments.addAll(savedMediaCursorArguments(cursor));
         String conditions = captionSearchConditions(patterns.size()) + savedMediaCursorCondition();
@@ -388,8 +388,12 @@ public class SharedMediaDao {
 
     /**
      * 지우지 않았고 분석에 성공했으며 추출 장소가 있는 내 공유 중 게시물마다 최신 한 건을 고른다.
-     * 보관 장소 연결은 보지 않고, 공유 시각이 같으면 ID가 큰 공유를 우선한다.
-     * 대표 공유를 고른 뒤 캡션과 커서를 적용하고, 대표 공유 ID로 제보 여부를 읽는다.
+     * 보관함 연결(shared_media_saved_places)은 보지 않으므로, 장소를 모두 저장 해제한 게시물도 남는다.
+     * 다른 회원의 공유는 읽지 않으므로, 여러 회원이 공유한 게시물이나 같은 게시물을 여러 번 공유한 경우에도 내 공유만큼만 읽는다.
+     * 공유 시각이 같으면 ID가 큰 공유를 더 최근으로 본다.
+     * 대표 공유를 고른 뒤 캡션과 커서를 적용하고, 다음 페이지가 있는지 알 수 있게 페이지 크기보다 한 건 더 읽는다.
+     * 대표 공유마다 제보 여부를 함께 읽는다. 제보는 공유마다 받으므로, 같은 게시물의 옛 공유만 제보했으면 false다.
+     * 제보 여부는 SELECT 절의 하위 쿼리라서, MySQL이 정렬과 LIMIT을 마친 페이지 행에만 유니크 인덱스로 한 번씩 실행한다.
      */
     private SavedMediaProjections findLatestSavedMedia(
             Long memberId,

@@ -11,7 +11,7 @@ import com.yeogidam.media.share.repository.SavedMediaProjections;
 import com.yeogidam.media.share.repository.SharedMediaCursor;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import com.yeogidam.place.repository.SavedPlaceDao;
-import com.yeogidam.search.domain.SearchQuery;
+import com.yeogidam.search.repository.SearchQuery;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;

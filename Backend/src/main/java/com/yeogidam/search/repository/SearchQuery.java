@@ -1,4 +1,4 @@
-package com.yeogidam.search.domain;
+package com.yeogidam.search.repository;
 
 import com.yeogidam.search.exception.SearchErrorCode;
 import com.yeogidam.search.exception.SearchException;
@@ -25,19 +25,6 @@ public final class SearchQuery {
 
     public static String normalizeForMatching(String value) {
         return WORD_SEPARATOR.matcher(value).replaceAll("").toLowerCase(Locale.ROOT);
-    }
-
-    public List<String> likePatterns() {
-        return words.stream()
-                .map(this::likePattern)
-                .toList();
-    }
-
-    private String likePattern(String word) {
-        String escaped = word.replace("!", "!!")
-                .replace("%", "!%")
-                .replace("_", "!_");
-        return "%" + escaped + "%";
     }
 
     private String trim(String query) {

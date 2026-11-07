@@ -1,4 +1,4 @@
-package com.yeogidam.search.domain;
+package com.yeogidam.search.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

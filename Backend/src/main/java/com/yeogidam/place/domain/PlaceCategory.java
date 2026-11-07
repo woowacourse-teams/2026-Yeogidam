@@ -1,8 +1,5 @@
 package com.yeogidam.place.domain;
 
-import com.yeogidam.search.domain.SearchQuery;
-import java.util.Arrays;
-import java.util.List;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -23,15 +20,6 @@ public enum PlaceCategory {
     ETC("기타");
 
     private final String name;
-
-    public static boolean hasAnyNameContaining(List<String> words) {
-        return Arrays.stream(values())
-                .anyMatch(category -> words.stream().anyMatch(category::hasNameContaining));
-    }
-
-    public boolean hasNameContaining(String word) {
-        return SearchQuery.normalizeForMatching(name).contains(word);
-    }
 
     public String getCode() {
         return name();

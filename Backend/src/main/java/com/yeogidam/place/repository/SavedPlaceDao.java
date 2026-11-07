@@ -1,7 +1,7 @@
 package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.SavedPlace;
-import com.yeogidam.search.domain.SearchQuery;
+import com.yeogidam.search.repository.SearchQuery;
 import com.yeogidam.search.repository.SearchSql;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -368,7 +368,7 @@ public class SavedPlaceDao {
                 .map(SearchSql::containsCondition)
                 .collect(Collectors.joining(" OR "));
         List<String> words = query.getWords();
-        List<String> patterns = query.likePatterns();
+        List<String> patterns = SearchSql.containsPatterns(query);
         StringJoiner conditions = new StringJoiner(" AND ");
         List<Object> arguments = new ArrayList<>();
         arguments.add(memberId);
