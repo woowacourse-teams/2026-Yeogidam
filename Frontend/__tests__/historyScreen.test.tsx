@@ -355,6 +355,26 @@ test('onOpenReel이 있어도 실패한 항목은 히스토리의 실패 화면�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('보관함에서 선택한 실패 항목은 상세를 바로 열고 뒤로 가면 보관함으로 돌아간다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([7], 'FAILED'), nextCursor: null});
+  const onBack = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={onBack} />,
+    );
+  });
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(<HistoryScreen initialFailureReel={reel(7, 'FAILED')} onBack={onBack} />);
+  });
+
+  const back = renderer.root.findByProps({accessibilityLabel: '보관함으로 돌아가기'});
+  await ReactTestRenderer.act(async () => back.props.onPress());
+  expect(onBack).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다', async () => {
   const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
   jest
