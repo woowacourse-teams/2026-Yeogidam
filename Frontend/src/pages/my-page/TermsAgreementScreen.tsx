@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useScreenAnalytics } from '../../analytics/uiEvents';
 import {
   TERMS_DOCUMENT_BLOCKS,
   type TermsDocumentBlock,
@@ -153,10 +154,18 @@ function ContentList({ blocks }: { blocks: readonly ContentBlock[] }) {
 }
 
 export function TermsAgreementScreen({ onBack }: TermsAgreementScreenProps) {
+  const { button } = useScreenAnalytics('terms');
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable hitSlop={12} onPress={onBack} style={styles.headerAction}>
+        <Pressable
+          hitSlop={12}
+          onPress={() => {
+            button('back');
+            onBack();
+          }}
+          style={styles.headerAction}>
           <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.title}>약관 동의</Text>

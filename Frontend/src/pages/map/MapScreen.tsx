@@ -1,3 +1,4 @@
+import { showAlert } from '../../lib/app-alert';
 import React, {
   useCallback,
   useEffect,
@@ -6,7 +7,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  Alert,
   Animated,
   BackHandler,
   Keyboard,
@@ -41,6 +41,12 @@ import {
 import { getNextFolderColor } from '../../entities/folder/color';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePostHog } from 'posthog-react-native';
+import {
+  trackActionFinished,
+  trackUi,
+  UI_EVENTS,
+  useScreenAnalytics,
+} from '../../analytics/uiEvents';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -79,7 +85,6 @@ import {
 import type { BackGestureRegion } from '../../components/navigation/SwipeBackStack';
 
 type MapScreenProps = {
-  bottomNavigationBar?: React.ReactNode;
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   isActive?: boolean;
   isGuest?: boolean;
@@ -101,7 +106,6 @@ const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
 
 export function MapScreen({
-  bottomNavigationBar,
   onBackGestureRegionChange,
   isActive = true,
   isGuest = false,
@@ -111,6 +115,7 @@ export function MapScreen({
   onShowGuestLoginPrompt,
 }: MapScreenProps) {
   const posthog = usePostHog();
+  const analytics = useScreenAnalytics('map');
   const [locationGranted, setLocationGranted] = useState(false);
   const didRequestInitialCurrentLocation = useRef(false);
   useEffect(() => {
@@ -127,9 +132,11 @@ export function MapScreen({
   }, []);
   const handleCurrentLocation = async () => {
     try {
-      if (await ensureLocationPermission())
-        setCurrentLocationRequestId(requestId => requestId + 1);
+      const granted = await ensureLocationPermission();
+      analytics.button('current_location', { permission_granted: granted });
+      if (granted) setCurrentLocationRequestId(requestId => requestId + 1);
     } catch {
+      analytics.button('current_location', { permission_granted: false });
       setMapMessage('위치 권한을 확인하지 못했어요. 다시 시도해 주세요.');
     }
   };
@@ -171,6 +178,8 @@ export function MapScreen({
     bottomInset: 0,
   });
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
+  // 같은 좌표로 다시 옮길 때도 지도가 움직이도록, 좌표와 별개로 이동 요청을 보낸다.
+  const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
@@ -188,6 +197,11 @@ export function MapScreen({
   }, []);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailCameraRef = useRef<MapCamera | null>(null);
+  // 목록에서 연 상세는 열리기 전 카메라 대신 이 카메라의 하단 여백을 씁니다.
+  const listPlaceCameraRef = useRef<{
+    placeId: string;
+    camera: MapCamera;
+  } | null>(null);
   if (!isPlaceDetailVisible) detailCameraRef.current = null;
   const [collapseSignal, setCollapseSignal] = useState(0);
   const [mapPanCollapseSignal, setMapPanCollapseSignal] = useState(0);
@@ -418,20 +432,14 @@ export function MapScreen({
         ),
     );
 
+    trackUi(posthog, UI_EVENTS.mapSearchSubmitted, {
+      result_count: places.length,
+      has_result: places.length > 0,
+      query_length: keyword.length,
+    });
     setSearchedPlaces(places);
     setSearchResultSignal(signal => signal + 1);
-    if (places.length >= 2) {
-      setCameraFitRequestId(requestId => requestId + 1);
-    } else if (
-      places[0]?.latitude !== undefined &&
-      places[0]?.longitude !== undefined
-    ) {
-      setMapCenter({
-        latitude: places[0].latitude,
-        longitude: places[0].longitude,
-      });
-      setMapZoomLevel(16);
-    }
+    focusMapOnPlaces(places);
   };
 
   const focusMapOnPlaces = (places: Place[]) => {
@@ -446,10 +454,35 @@ export function MapScreen({
         longitude: places[0].longitude,
       });
       setMapZoomLevel(16);
+      setCameraMoveRequestId(requestId => requestId + 1);
     }
   };
 
+  const handleListPlaceSelect = (place: Place, sheetVisibleHeight: number) => {
+    if (place.latitude === undefined || place.longitude === undefined) return;
+
+    // 지도는 하단 여백만 받으므로, 위를 덮는 검색창·칩 높이만큼 여백을 줄여
+    // 칩 아래부터 시트 위까지 보이는 영역의 가운데에 장소를 둡니다.
+    const topOverlayHeight =
+      topInset +
+      SEARCH_BAR_TOP_GAP +
+      SEARCH_BAR_HEIGHT +
+      CATEGORY_CHIPS_TOP_GAP +
+      CATEGORY_CHIPS_HEIGHT;
+    listPlaceCameraRef.current = {
+      placeId: place.id,
+      camera: {
+        latitude: place.latitude,
+        longitude: place.longitude,
+        zoomLevel: 16,
+        bottomInset: Math.max(0, sheetVisibleHeight - topOverlayHeight),
+      },
+    };
+    focusMapOnPlaces([place]);
+  };
+
   const handleChangeSheetMode = (mode: SheetMode) => {
+    analytics.selection('sheet_mode', mode);
     setSheetMode(mode);
     setOpenedFolderId(null);
     setSelectedCategory(ALL_CATEGORY);
@@ -461,10 +494,17 @@ export function MapScreen({
     const folder = folders.find(candidate => candidate.id === folderId);
     if (!folder) return;
 
+    analytics.button('open_folder', {
+      place_count: allPlacesWithCoordinates.filter(place =>
+        place.folderIds.includes(folderId),
+      ).length,
+    });
     setOpenedFolderId(folderId);
     setSelectedCategory(ALL_CATEGORY);
     setSearchedPlaces(null);
     setSearchKeyword('');
+    // 끝까지 올린 시트는 지도를 덮으므로, 폴더 장소가 지도에 보이도록 중간 높이로 내린다.
+    if (isSheetExpanded) setCollapseSignal(signal => signal + 1);
     focusMapOnPlaces(
       allPlacesWithCoordinates.filter(place =>
         place.folderIds.includes(folderId),
@@ -472,14 +512,17 @@ export function MapScreen({
     );
   };
 
-  const handleCloseFolder = () => {
+  const handleCloseFolder = useCallback(() => {
+    analytics.button('close_folder');
     setOpenedFolderId(null);
     setSelectedCategory(ALL_CATEGORY);
-  };
+  }, [analytics]);
 
   const handleCreateFolder = () => {
+    analytics.button('create_folder');
     if (folders.length >= MAX_FOLDER_COUNT) {
-      Alert.alert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
+      analytics.modal('folder_limit_reached');
+      showAlert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
       return;
     }
     setFolderDialog({ kind: 'create' });
@@ -494,6 +537,12 @@ export function MapScreen({
         folderDialog?.kind === 'rename'
           ? await updateFolder(folderDialog.folderId, name, color)
           : (await createFolder(name, color)) !== null;
+      trackActionFinished(
+        posthog,
+        folderDialog?.kind === 'rename' ? 'folder_rename' : 'folder_create',
+        succeeded ? 'success' : 'failure',
+        { screen_name: 'map' },
+      );
       // 실패하면 안내를 띄우고 입력 창을 열어 둬 이름을 고쳐 다시 시도할 수 있게 합니다.
       if (succeeded) setFolderDialog(null);
     } finally {
@@ -505,16 +554,28 @@ export function MapScreen({
     const folder = folders.find(candidate => candidate.id === folderId);
     if (!folder) return;
 
-    Alert.alert(
+    analytics.modal('folder_delete_confirm');
+    showAlert(
       `'${folder.name}' 폴더를 삭제할까요?`,
       '폴더만 삭제되고 저장한 장소는 그대로 남아요.',
       [
-        { text: '취소', style: 'cancel' },
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => analytics.button('folder_delete_cancel'),
+        },
         {
           text: '삭제',
           style: 'destructive',
           onPress: () => {
+            analytics.button('folder_delete_confirm');
             deleteFolder(folderId).then(deleted => {
+              trackActionFinished(
+                posthog,
+                'folder_delete',
+                deleted ? 'success' : 'failure',
+                { screen_name: 'map' },
+              );
               if (deleted && openedFolderId === folderId) handleCloseFolder();
             });
           },
@@ -525,6 +586,7 @@ export function MapScreen({
 
   const showFolderActions = (folderId: string) => {
     if (folders.some(candidate => candidate.id === folderId)) {
+      analytics.button('folder_actions');
       setFolderActionId(folderId);
     }
   };
@@ -534,6 +596,7 @@ export function MapScreen({
     if (isPlaceDetailVisible) {
       setBackToPlaceListSignal(signal => signal + 1);
     }
+    analytics.selection('category_filter', category);
     setSelectedCategory(category);
     setSearchedPlaces(null);
     setSearchKeyword('');
@@ -546,6 +609,7 @@ export function MapScreen({
     }
   };
   const handleSearchBack = useCallback(() => {
+    analytics.button('search_back');
     if (isPlaceDetailVisible) {
       setBackToPlaceListSignal(signal => signal + 1);
       setIsSearchFocused(false);
@@ -578,6 +642,8 @@ export function MapScreen({
       Keyboard.dismiss();
     }
   }, [
+    analytics,
+    handleCloseFolder,
     hasActiveSearch,
     isPlaceDetailVisible,
     isSearchFocused,
@@ -625,7 +691,11 @@ export function MapScreen({
     if (page.isDetail && !detailCameraRef.current) {
       // Keep the map padding unchanged while the detail sheet opens.
       const markerCamera =
-        openedMarker.place?.id === page.place?.id ? openedMarker.camera : null;
+        listPlaceCameraRef.current?.placeId === page.place?.id
+          ? listPlaceCameraRef.current?.camera ?? null
+          : openedMarker.place?.id === page.place?.id
+          ? openedMarker.camera
+          : null;
       detailCameraRef.current = {
         ...(markerCamera ?? lastMapCameraRef.current),
       };
@@ -646,6 +716,7 @@ export function MapScreen({
             latitude={pageCamera.latitude}
             longitude={pageCamera.longitude}
             zoomLevel={pageCamera.zoomLevel}
+            cameraMoveRequestId={cameraMoveRequestId}
             cameraFitPointsJson={cameraFitPointsJson}
             cameraFitRequestId={cameraFitRequestId}
             cameraBottomInset={cameraBottomInset}
@@ -697,6 +768,7 @@ export function MapScreen({
                 captureSavedPlaceSelected(posthog, viewContext);
               }
 
+              listPlaceCameraRef.current = null;
               const camera: MapCamera = {
                 latitude: event.nativeEvent.latitude,
                 longitude: event.nativeEvent.longitude,
@@ -820,7 +892,14 @@ export function MapScreen({
         <View pointerEvents="box-none" style={styles.searchOverlay}>
           <View>
             <SearchBar
-              onPress={isGuest ? onShowGuestLoginPrompt : undefined}
+              onPress={
+                isGuest
+                  ? () => {
+                      analytics.button('guest_search');
+                      onShowGuestLoginPrompt?.();
+                    }
+                  : undefined
+              }
               backButtonPosition={
                 (!page.clearsSearch && hasActiveSearch) ||
                 (!page.isBackPreview && isSearchFocused) ||
@@ -865,16 +944,34 @@ export function MapScreen({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="안내 닫기"
-            onPress={() => setMapMessage(null)}
+            onPress={() => {
+              analytics.button('close_message');
+              setMapMessage(null);
+            }}
             style={[styles.mapMessage, { top: topInset + 72 }]}
           >
             <Text style={styles.mapMessageText}>{mapMessage}</Text>
           </Pressable>
         ) : null}
-        {bottomNavigationBar}
       </View>
     );
   };
+
+  const folderSegmentHeader = (
+    <FolderSegmentHeader
+      mode={sheetMode}
+      onChangeMode={handleChangeSheetMode}
+    />
+  );
+  const folderList = (
+    <FolderList
+      folders={folderListItems}
+      bottomPadding={FOLDER_LIST_BOTTOM_PADDING}
+      onOpenFolder={handleOpenFolder}
+      onLongPressFolder={showFolderActions}
+      onCreateFolder={handleCreateFolder}
+    />
+  );
 
   return (
     <View
@@ -906,6 +1003,9 @@ export function MapScreen({
           bottomTabOffset={bottomNavigationOffset}
           places={resultPlaces}
           hasSavedPlaces={savedPlaces.length > 0}
+          // 폴더 안에서 뒤로 스와이프하면 뒤에 돌아갈 폴더 목록이 보여야 한다.
+          backFolderHeader={openedFolder ? folderSegmentHeader : undefined}
+          backFolderContent={openedFolder ? folderList : undefined}
           folderHeader={
             isGuest ? undefined : openedFolder ? (
               <FolderDetailHeader
@@ -915,21 +1015,12 @@ export function MapScreen({
                 onMore={() => showFolderActions(openedFolder.id)}
               />
             ) : (
-              <FolderSegmentHeader
-                mode={sheetMode}
-                onChangeMode={handleChangeSheetMode}
-              />
+              folderSegmentHeader
             )
           }
           folderContent={
             isFolderListVisible ? (
-              <FolderList
-                folders={folderListItems}
-                bottomPadding={FOLDER_LIST_BOTTOM_PADDING}
-                onOpenFolder={handleOpenFolder}
-                onLongPressFolder={showFolderActions}
-                onCreateFolder={handleCreateFolder}
-              />
+              folderList
             ) : activeCategory !== ALL_CATEGORY &&
               placesWithCoordinates.length === 0 ? (
               <View style={styles.folderEmpty}>
@@ -960,6 +1051,7 @@ export function MapScreen({
           collapseSignal={collapseSignal}
           mapPanCollapseSignal={mapPanCollapseSignal}
           onDetailViewChange={handleDetailViewChange}
+          onListPlaceSelect={handleListPlaceSelect}
           guestReelsByPlace={isGuest ? {} : undefined}
           onAuthenticationRequired={onAuthenticationRequired}
           onGuestExpandInteraction={

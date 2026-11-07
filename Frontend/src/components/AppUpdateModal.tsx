@@ -1,12 +1,14 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   Linking,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+
+import { AppModal } from './AppModal';
+import { useScreenAnalytics } from '../analytics/uiEvents';
 
 type AppUpdateModalProps = {
   storeUrl: string;
@@ -19,19 +21,27 @@ type AppUpdateModalProps = {
 export function AppUpdateModal(props: AppUpdateModalProps) {
   const {storeUrl, visible} = props;
   const required = props.mode === 'required';
+  const {button, modal} = useScreenAnalytics(
+    required ? 'app_update_required' : 'app_update_recommended',
+  );
+  useEffect(() => {
+    if (visible) modal('app_update');
+  }, [modal, visible]);
   const openStore = useCallback(() => {
+    button('update');
     Linking.openURL(storeUrl).catch(error => {
       if (__DEV__) {
         console.warn('[AppUpdatePolicy] Unable to open store URL.', error);
       }
     });
-  }, [storeUrl]);
+  }, [button, storeUrl]);
   const dismiss = () => {
+    button('dismiss');
     if (props.mode === 'recommended') props.onDismiss();
   };
 
   return (
-    <Modal
+    <AppModal
       animationType="fade"
       onRequestClose={dismiss}
       statusBarTranslucent
@@ -39,6 +49,9 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
       visible={visible}
     >
       <View style={styles.backdrop}>
+        {!required && (
+          <Pressable accessible={false} onPress={dismiss} style={StyleSheet.absoluteFill} />
+        )}
         <View accessibilityViewIsModal style={styles.dialog}>
           <Text style={styles.title}>
             {required ? '앱 업데이트가 필요해요' : '새 버전이 나왔어요'}
@@ -74,7 +87,7 @@ export function AppUpdateModal(props: AppUpdateModalProps) {
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

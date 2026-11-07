@@ -132,7 +132,7 @@ export type PlaceReelsApiError = {
 };
 
 export type PlaceReelsRepository = {
-  getPlaceReels: (placeId: string) => Promise<PlaceReel[]>;
+  getPlaceReels: (savedPlaceId: string) => Promise<PlaceReel[]>;
 };
 
 export type SavedPlaceInfo = {

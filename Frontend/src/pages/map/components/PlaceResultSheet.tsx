@@ -1,3 +1,4 @@
+import { showAlert } from '../../../lib/app-alert';
 import {
   SwipeBackStack,
   type BackGestureRegion,
@@ -11,20 +12,26 @@ import React, {
   useState,
 } from 'react';
 import {
-  Alert,
   Animated,
   FlatList,
   LayoutAnimation,
   Image,
   PanResponder,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
   type GestureResponderEvent,
+  type PanResponderCallbacks,
 } from 'react-native';
 import { usePostHog } from 'posthog-react-native';
+import {
+  trackActionFinished,
+  useScreenAnalytics,
+} from '../../../analytics/uiEvents';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -85,6 +92,9 @@ type PlaceResultSheetProps = {
   folderHeader?: React.ReactNode;
   /** 지정하면 장소 목록 대신 이 내용을 보여줍니다(폴더 목록). */
   folderContent?: React.ReactNode;
+  /** 뒤로 스와이프할 때 미리 보여줄 이전 화면의 헤더와 내용입니다(폴더 안에서 폴더 목록으로). */
+  backFolderHeader?: React.ReactNode;
+  backFolderContent?: React.ReactNode;
   /** 장소 목록이 비었을 때 기본 안내 대신 보여줄 내용입니다. */
   emptyContent?: React.ReactNode;
   isSavedPlacesLoading?: boolean;
@@ -104,6 +114,8 @@ type PlaceResultSheetProps = {
   openPlaceSignal?: number;
   backToPlaceListSignal?: number;
   onDetailViewChange?: (isDetailView: boolean, placeId: string | null) => void;
+  /** 목록에서 장소를 열 때 호출합니다. 중간 높이 시트가 가리는 높이를 함께 넘깁니다. */
+  onListPlaceSelect?: (place: Place, sheetVisibleHeight: number) => void;
   onAuthenticationRequired?: () => void;
   onGuestExpandInteraction?: () => void;
   onSavedPlaceDeleted?: (savedPlaceId: string) => void;
@@ -122,6 +134,9 @@ const MIDDLE_VISIBLE_RATIO = 0.58;
 const PAGE_MODE_TRIGGER_OFFSET = 72;
 const MIDDLE_TO_EXPANDED_DRAG_THRESHOLD = 48;
 const MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD = 0.35;
+// iOS에서 상세 본문을 맨 위에서 이만큼 당기거나 이 속도(pt/ms)로 놓으면 시트를 한 단계 내립니다.
+const DETAIL_PULL_DOWN_DISTANCE = 48;
+const DETAIL_PULL_DOWN_VELOCITY = 0.5;
 const BOTTOM_TAB_CLEARANCE = 92;
 export const LIST_TOP_GAP = 12;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
@@ -153,6 +168,8 @@ export function PlaceResultSheet({
   hasSavedPlaces = false,
   folderHeader,
   folderContent,
+  backFolderHeader,
+  backFolderContent,
   emptyContent,
   isSavedPlacesLoading = false,
   savedPlacesLoadFailed = false,
@@ -171,6 +188,7 @@ export function PlaceResultSheet({
   openPlaceSignal = 0,
   backToPlaceListSignal = 0,
   onDetailViewChange,
+  onListPlaceSelect,
   onAuthenticationRequired,
   onGuestExpandInteraction,
   onSavedPlaceDeleted,
@@ -182,6 +200,7 @@ export function PlaceResultSheet({
   const canOpenDetailMore =
     guestReelsByPlace === undefined || onDeleteGuestPlaces !== undefined;
   const posthog = usePostHog();
+  const analytics = useScreenAnalytics('map');
   const { width: windowWidth } = useWindowDimensions();
   const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
@@ -253,6 +272,7 @@ export function PlaceResultSheet({
     middleOffset,
     collapsedOffset,
     listTopOffset,
+    hasDetail: selectedPlace !== null,
   });
   const handledCollapseSignal = useRef(collapseSignal);
   const handledMapPanCollapseSignal = useRef(mapPanCollapseSignal);
@@ -272,6 +292,13 @@ export function PlaceResultSheet({
   const completingPageSwipe = useRef(false);
   const [detailTab, setDetailTab] = useState<PlaceTab>('게시물');
   const detailScrollOffset = useRef(0);
+  const detailScrollRef = useRef<ScrollView>(null);
+  // Android에서 끝까지 올린 상세의 본문이 맨 위에 있으면 ScrollView 스크롤을 잠급니다.
+  // 잠그지 않으면 빠르게 쓸어내릴 때 ScrollView가 JS보다 먼저 터치를 가로채 시트가 내려가지 않습니다.
+  // 잠긴 동안 위로 끄는 스크롤은 detailPullDownResponder가 직접 처리합니다.
+  const [isDetailAtTop, setIsDetailAtTop] = useState(true);
+  const isDetailTopLockedRef = useRef(false);
+  const isScrollingLockedDetail = useRef(false);
   const [, refreshBackPreview] = useState(0);
   const dragStartSnapIndex = useRef(activeSnapIndex);
   const [isPageMode, setIsPageMode] = useState(false);
@@ -385,7 +412,7 @@ export function PlaceResultSheet({
     setIsReelsLoading(true);
     setReelsError(null);
     try {
-      setSelectedPlaceReels(await getPlaceReels(selectedPlace.id));
+      setSelectedPlaceReels(await getPlaceReels(selectedPlace.savedPlaceId));
     } catch (error) {
       setReelsError(error as PlaceReelsApiError);
     } finally {
@@ -476,8 +503,10 @@ export function PlaceResultSheet({
     previousSelectedPlaceId.current = nextPlaceId;
     setDetailTab('게시물');
     detailScrollOffset.current = 0;
+    setIsDetailAtTop(true);
   }, [selectedPlace]);
 
+  const hasDetail = selectedPlace !== null;
   useLayoutEffect(() => {
     const previous = previousGeometry.current;
     if (
@@ -493,7 +522,11 @@ export function PlaceResultSheet({
       middleOffset,
       collapsedOffset,
       listTopOffset,
+      hasDetail,
     };
+    // 상세를 열면 시트가 바텀 네비게이션까지 길어져 높이가 바뀐다. 이때 위치를 다시 맞추면
+    // 목록 높이에서 중간 높이로 내려오는 애니메이션이 끊기므로, 여는 쪽이 정한 위치를 그대로 둔다.
+    if (!previous.hasDetail && hasDetail) return;
     // Preserve the logical snap, not a pixel value from a different layout.
     // Do not restore state from stopAnimation's asynchronous native callback:
     // it can arrive after a back action and overwrite its destination height.
@@ -505,6 +538,7 @@ export function PlaceResultSheet({
   }, [
     activeSnapIndex,
     collapsedOffset,
+    hasDetail,
     listTopOffset,
     middleOffset,
     reportVisibleHeight,
@@ -584,103 +618,101 @@ export function PlaceResultSheet({
     snapTo,
   ]);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          !isPageModeRef.current &&
-          Math.abs(gesture.dy) > 4 &&
-          Math.abs(gesture.dy) > Math.abs(gesture.dx),
-        onMoveShouldSetPanResponderCapture: (_, gesture) =>
-          !isPageModeRef.current &&
-          Math.abs(gesture.dy) > 4 &&
-          Math.abs(gesture.dy) > Math.abs(gesture.dx),
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => {
-          const revision = ++sheetDragRevision.current;
-          startedInPageMode.current = isPageModeRef.current;
-          dragStartSnapIndex.current = activeSnapIndex;
-          dragStartOffset.current = currentOffset.current;
-          translateY.stopAnimation(value => {
-            if (sheetDragRevision.current !== revision) return;
-            dragStartOffset.current = value;
-            currentOffset.current = value;
-          });
-        },
-        onPanResponderMove: (_, gesture) => {
-          // Ignore a delayed stopAnimation callback once dragging has moved
-          // the sheet; it must not restore the old middle-height position.
-          sheetDragRevision.current += 1;
-          let nextOffset = Math.max(
-            topOffset,
-            Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
-          );
+  const sheetDragCallbacks = useMemo<PanResponderCallbacks>(
+    () => ({
+      // 끝까지 올린 상세(페이지 모드)에서도 핸들을 끌어 시트를 내릴 수 있어야 하므로 막지 않습니다.
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dy) > 4 &&
+        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onMoveShouldSetPanResponderCapture: (_, gesture) =>
+        Math.abs(gesture.dy) > 4 &&
+        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        const revision = ++sheetDragRevision.current;
+        startedInPageMode.current = isPageModeRef.current;
+        dragStartSnapIndex.current = activeSnapIndex;
+        dragStartOffset.current = currentOffset.current;
+        translateY.stopAnimation(value => {
+          if (sheetDragRevision.current !== revision) return;
+          dragStartOffset.current = value;
+          currentOffset.current = value;
+        });
+      },
+      onPanResponderMove: (_, gesture) => {
+        // Ignore a delayed stopAnimation callback once dragging has moved
+        // the sheet; it must not restore the old middle-height position.
+        sheetDragRevision.current += 1;
+        let nextOffset = Math.max(
+          topOffset,
+          Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
+        );
 
-          // Once the sheet reaches the search bar, it becomes a page and its
-          // actual animated position is reset as well. Keeping both positions
-          // aligned makes repeated open/close drags reliable.
-          if (selectedPlace) {
-            if (isPageModeRef.current) {
-              if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
-                nextOffset = 0;
-              } else {
-                updatePageMode(false);
-              }
-            } else if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
+        // Once the sheet reaches the search bar, it becomes a page and its
+        // actual animated position is reset as well. Keeping both positions
+        // aligned makes repeated open/close drags reliable.
+        if (selectedPlace) {
+          if (isPageModeRef.current) {
+            if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
               nextOffset = 0;
-              updatePageMode(true);
+            } else {
+              updatePageMode(false);
             }
+          } else if (nextOffset <= PAGE_MODE_TRIGGER_OFFSET) {
+            nextOffset = 0;
+            updatePageMode(true);
           }
+        }
 
-          currentOffset.current = nextOffset;
-          // Reaching page mode removes the handle that owns this responder.
-          // Commit the logical snap now, before its release can be lost.
-          if (selectedPlace && nextOffset === 0) setActiveSnapIndex(0);
-          translateY.setValue(nextOffset);
-        },
-        onPanResponderRelease: (_, gesture) => {
-          sheetDragRevision.current += 1;
-          if (gesture.dy < -4 || gesture.vy < -0.35) {
-            onGuestExpandInteraction?.();
-          }
+        currentOffset.current = nextOffset;
+        // Reaching page mode removes the handle that owns this responder.
+        // Commit the logical snap now, before its release can be lost.
+        if (selectedPlace && nextOffset === 0) setActiveSnapIndex(0);
+        translateY.setValue(nextOffset);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        sheetDragRevision.current += 1;
+        if (gesture.dy < -4 || gesture.vy < -0.35) {
+          onGuestExpandInteraction?.();
+        }
 
-          if (Math.abs(gesture.dy) < 3) {
-            snapTo(isExpanded ? collapsedOffset : topOffset);
-            return;
-          }
+        if (Math.abs(gesture.dy) < 3) {
+          snapTo(isExpanded ? collapsedOffset : topOffset);
+          return;
+        }
 
-          const releasedOffset = Math.max(
-            topOffset,
-            Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
-          );
-          if (
-            startedInPageMode.current &&
-            releasedOffset > PAGE_MODE_TRIGGER_OFFSET
-          ) {
-            snapTo(snapOffsets[1]);
-            return;
-          }
+        const releasedOffset = Math.max(
+          topOffset,
+          Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
+        );
+        if (
+          startedInPageMode.current &&
+          releasedOffset > PAGE_MODE_TRIGGER_OFFSET
+        ) {
+          snapTo(snapOffsets[1]);
+          return;
+        }
 
-          if (dragStartSnapIndex.current === 2 && gesture.dy < -4) {
-            snapTo(snapOffsets[1]);
-            return;
-          }
+        if (dragStartSnapIndex.current === 2 && gesture.dy < -4) {
+          snapTo(snapOffsets[1]);
+          return;
+        }
 
-          if (dragStartSnapIndex.current === 1 && gesture.dy < 0) {
-            const shouldExpand =
-              Math.abs(gesture.dy) >= MIDDLE_TO_EXPANDED_DRAG_THRESHOLD ||
-              gesture.vy <= -MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD;
-            snapTo(shouldExpand ? snapOffsets[0] : snapOffsets[1]);
-            return;
-          }
+        if (dragStartSnapIndex.current === 1 && gesture.dy < 0) {
+          const shouldExpand =
+            Math.abs(gesture.dy) >= MIDDLE_TO_EXPANDED_DRAG_THRESHOLD ||
+            gesture.vy <= -MIDDLE_TO_EXPANDED_VELOCITY_THRESHOLD;
+          snapTo(shouldExpand ? snapOffsets[0] : snapOffsets[1]);
+          return;
+        }
 
-          snapTo(releasedOffset);
-        },
-        onPanResponderTerminate: () => {
-          sheetDragRevision.current += 1;
-          snapTo(currentOffset.current);
-        },
-      }),
+        snapTo(releasedOffset);
+      },
+      onPanResponderTerminate: () => {
+        sheetDragRevision.current += 1;
+        snapTo(currentOffset.current);
+      },
+    }),
     [
       activeSnapIndex,
       collapsedOffset,
@@ -694,8 +726,110 @@ export function PlaceResultSheet({
       updatePageMode,
     ],
   );
+  const panResponder = useMemo(
+    () => PanResponder.create(sheetDragCallbacks),
+    [sheetDragCallbacks],
+  );
+  // 펼친 상세는 본문이 스크롤되므로, 본문이 맨 위일 때 아래로 당기면 시트를 끌어내립니다.
+  // Android는 맨 위에서 더 당겨도 본문이 스크롤되지 않으므로 이 드래그가 그대로 시트를 움직입니다.
+  // 이 응답자는 Android에만, 그것도 본문 ScrollView 안쪽에 붙습니다. 바깥에 붙이면 응답자를
+  // 잡은 직후 ScrollView가 터치를 가로채 드래그가 끊깁니다. iOS는 아래 onTopPull 경로를 씁니다.
+  // 끝까지 올린 페이지 모드에서는 iOS처럼 끄는 동안 시트만 따라 내리고, 손을 놓을 때 한 단계
+  // 내릴지 정합니다.
+  const detailPullDownResponder = useMemo(() => {
+    const shouldPullDown: PanResponderCallbacks['onMoveShouldSetPanResponder'] =
+      (_, gesture) => {
+        const isVertical = Math.abs(gesture.dy) > Math.abs(gesture.dx);
+        if (isDetailTopLockedRef.current) {
+          // 스크롤이 잠긴 동안에는 위로 끄는 것도 받아 본문을 직접 스크롤합니다.
+          if (Math.abs(gesture.dy) <= 4 || !isVertical) return false;
+          isScrollingLockedDetail.current = gesture.dy < 0;
+          return true;
+        }
+        isScrollingLockedDetail.current = false;
+        return detailScrollOffset.current <= 0 && gesture.dy > 4 && isVertical;
+      };
+    return PanResponder.create({
+      ...sheetDragCallbacks,
+      onMoveShouldSetPanResponder: shouldPullDown,
+      onMoveShouldSetPanResponderCapture: shouldPullDown,
+      onPanResponderGrant: (event, gesture) => {
+        if (isScrollingLockedDetail.current) return;
+        sheetDragCallbacks.onPanResponderGrant?.(event, gesture);
+      },
+      onPanResponderTerminate: (event, gesture) => {
+        if (isScrollingLockedDetail.current) return;
+        sheetDragCallbacks.onPanResponderTerminate?.(event, gesture);
+      },
+      onPanResponderMove: (event, gesture) => {
+        if (isScrollingLockedDetail.current) {
+          detailScrollRef.current?.scrollTo({
+            y: Math.max(0, -gesture.dy),
+            animated: false,
+          });
+          return;
+        }
+        if (!startedInPageMode.current) {
+          sheetDragCallbacks.onPanResponderMove?.(event, gesture);
+          return;
+        }
+        sheetDragRevision.current += 1;
+        const offset = Math.max(
+          topOffset,
+          Math.min(collapsedOffset, dragStartOffset.current + gesture.dy),
+        );
+        currentOffset.current = offset;
+        translateY.setValue(offset);
+      },
+      onPanResponderRelease: (event, gesture) => {
+        if (isScrollingLockedDetail.current) {
+          // 손을 놓을 때 위로 튕긴 속도만큼 조금 더 스크롤해 관성을 흉내 냅니다.
+          detailScrollRef.current?.scrollTo({
+            y: Math.max(0, -gesture.dy + Math.max(0, -gesture.vy) * 250),
+            animated: true,
+          });
+          return;
+        }
+        if (!startedInPageMode.current) {
+          sheetDragCallbacks.onPanResponderRelease?.(event, gesture);
+          return;
+        }
+        sheetDragRevision.current += 1;
+        const shouldLower =
+          gesture.dy >= DETAIL_PULL_DOWN_DISTANCE ||
+          gesture.vy >= DETAIL_PULL_DOWN_VELOCITY;
+        snapTo(snapOffsets[shouldLower ? 1 : 0]);
+      },
+    });
+  }, [
+    collapsedOffset,
+    sheetDragCallbacks,
+    snapOffsets,
+    snapTo,
+    topOffset,
+    translateY,
+  ]);
+  // iOS는 본문이 튕기며 네이티브 스크롤이 JS 드래그를 취소하므로, 튕긴 거리만큼 시트를 따라 내립니다.
+  const followDetailTopPull = (snapIndex: number, distance: number) => {
+    sheetDragRevision.current += 1;
+    const offset = Math.min(collapsedOffset, snapOffsets[snapIndex] + distance);
+    currentOffset.current = offset;
+    translateY.setValue(offset);
+  };
+  const releaseDetailTopPull = (
+    snapIndex: number,
+    distance: number,
+    velocityY: number,
+  ) => {
+    if (distance <= 0) return;
+    const shouldLower =
+      distance >= DETAIL_PULL_DOWN_DISTANCE ||
+      velocityY <= -DETAIL_PULL_DOWN_VELOCITY;
+    snapTo(snapOffsets[shouldLower ? snapIndex + 1 : snapIndex]);
+  };
 
   const toggleSheet = () => {
+    analytics.button('toggle_sheet');
     if (activeSnapIndex === 2) {
       snapTo(snapOffsets[1]);
       return;
@@ -763,6 +897,9 @@ export function PlaceResultSheet({
     } else {
       setSelectedPlaceViewContext(null);
     }
+
+    // 핀과 달리 목록은 지도를 움직이지 않으므로, 상세가 열릴 중간 높이 위로 장소를 옮겨 보여줍니다.
+    onListPlaceSelect?.(place, sheetHeight - snapOffsets[1]);
 
     if (activeSnapIndex !== 1) {
       snapTo(snapOffsets[1], detailTranslateY);
@@ -832,6 +969,9 @@ export function PlaceResultSheet({
     setDeleteError(null);
     try {
       await deleteSavedPlaces([selectedPlace.savedPlaceId]);
+      trackActionFinished(posthog, 'saved_place_delete', 'success', {
+        source: 'map',
+      });
       onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
       backToPlaceList();
     } catch (nextError) {
@@ -852,6 +992,10 @@ export function PlaceResultSheet({
         }
       }
 
+      trackActionFinished(posthog, 'saved_place_delete', 'failure', {
+        source: 'map',
+        failure_type: apiError.errorCode,
+      });
       setDeleteError(apiError);
       if (
         apiError.errorCode === 'AUTH401_001' ||
@@ -868,6 +1012,7 @@ export function PlaceResultSheet({
     onAuthenticationRequired,
     onDeleteGuestPlaces,
     onSavedPlaceDeleted,
+    posthog,
     selectedPlace,
   ]);
 
@@ -876,28 +1021,34 @@ export function PlaceResultSheet({
     if (isDeleting || !selectedPlace) {
       return;
     }
-    Alert.alert(
+    analytics.modal('delete_confirm');
+    showAlert(
       '선택한 장소를 삭제할까요?',
       '선택한 1곳의 장소가 보관함에서 삭제됩니다.',
       [
-        { text: '취소', style: 'cancel' },
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => analytics.button('delete_confirm_cancel'),
+        },
         {
           text: '삭제',
           style: 'destructive',
           onPress: () => {
+            analytics.button('delete_confirm_ok');
             handleDelete().catch(() => undefined);
           },
         },
       ],
     );
-  }, [handleDelete, isDeleting, selectedPlace]);
+  }, [analytics, handleDelete, isDeleting, selectedPlace]);
 
   // 삭제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
   useEffect(() => {
     if (!deleteError) {
       return;
     }
-    Alert.alert('삭제하지 못했어요', deleteError.message);
+    showAlert('삭제하지 못했어요', deleteError.message);
     setDeleteError(null);
   }, [deleteError]);
 
@@ -905,6 +1056,9 @@ export function PlaceResultSheet({
     selectedPlace !== null &&
     activeSnapIndex === 0 &&
     detailEntrySnapIndex.current !== 0;
+  const isDetailTopLocked =
+    Platform.OS === 'android' && isPageMode && isDetailAtTop;
+  isDetailTopLockedRef.current = isDetailTopLocked;
   const renderDetailContent = (snapIndex: number, preview = false) =>
     selectedPlace ? (
       <View
@@ -916,9 +1070,7 @@ export function PlaceResultSheet({
           {
             height: Math.max(
               0,
-              sheetHeight -
-                snapOffsets[snapIndex] -
-                COLLAPSED_HANDLE_HEIGHT,
+              sheetHeight - snapOffsets[snapIndex] - COLLAPSED_HANDLE_HEIGHT,
             ),
           },
         ]}
@@ -928,6 +1080,7 @@ export function PlaceResultSheet({
             // Keep the detail content mounted across snap changes so its
             // scroll position and header do not jump during expansion.
             key={selectedPlace.id}
+            analyticsScreenName="map"
             activeTab={detailTab}
             onTabChange={setDetailTab}
             initialScrollOffset={
@@ -938,7 +1091,24 @@ export function PlaceResultSheet({
                 ? undefined
                 : offset => {
                     detailScrollOffset.current = offset;
+                    setIsDetailAtTop(offset <= 0);
                   }
+            }
+            onTopPull={
+              Platform.OS === 'ios' && !preview && snapIndex !== 2
+                ? distance => followDetailTopPull(snapIndex, distance)
+                : undefined
+            }
+            onTopPullRelease={
+              Platform.OS === 'ios' && !preview && snapIndex !== 2
+                ? (distance, velocityY) =>
+                    releaseDetailTopPull(snapIndex, distance, velocityY)
+                : undefined
+            }
+            contentPanHandlers={
+              Platform.OS === 'android' && !preview && snapIndex !== 2
+                ? detailPullDownResponder.panHandlers
+                : undefined
             }
             onBack={backToPlaceList}
             place={selectedPlace}
@@ -963,180 +1133,187 @@ export function PlaceResultSheet({
             isDeleting={isDeleting}
             headerTopInset={0}
             compactHeader
-            scrollEnabled={snapIndex !== 2}
+            scrollEnabled={
+              snapIndex !== 2 &&
+              !(snapIndex === 0 && !preview && isDetailTopLocked)
+            }
+            scrollViewRef={preview ? undefined : detailScrollRef}
             contentBottomPadding={
+              // 상세 시트는 화면 끝까지 내려와 바텀 네비게이션에 덮이므로 그 높이만큼 띄웁니다.
               snapIndex === 0
                 ? Math.max(DETAIL_PAGE_BOTTOM_PADDING, bottomTabOffset + 12)
-                : DETAIL_ACTION_BOTTOM_PADDING
+                : bottomTabOffset + DETAIL_ACTION_BOTTOM_PADDING
             }
           />
         </CopyToastProvider>
       </View>
     ) : null;
-  const renderListContent = (snapIndex: number, preview = false) => (
-    <View
-      {...(snapIndex === 2 ? panResponder.panHandlers : {})}
-      onResponderStart={handleCollapsedBodyTouchStart}
-      onResponderEnd={handleCollapsedBodyTouchEnd}
-      style={styles.expansionTapArea}
-    >
-      {folderHeader}
-      {folderContent ?? (
-        <FlatList
-          ref={preview ? undefined : resultsListRef}
-          contentOffset={
-            preview ? { x: 0, y: resultsScrollOffsetRef.current } : undefined
-          }
-          data={
-            preview && !selectedPlace && snapIndex !== 0
-              ? backPlaces ?? places
-              : places
-          }
-          style={styles.resultsScroll}
-          contentContainerStyle={[
-            styles.results,
-            {
-              paddingBottom: BOTTOM_TAB_CLEARANCE + listSnapOffsets[snapIndex],
-            },
-          ]}
-          keyExtractor={place => place.id}
-          getItemLayout={(_, index) => ({
-            length: RESULT_ITEM_HEIGHT,
-            offset: RESULT_ITEM_HEIGHT * index,
-            index,
-          })}
-          contentInsetAdjustmentBehavior="never"
-          scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={snapIndex !== 2}
-          onScrollBeginDrag={event => {
-            isResultsUserScrollingRef.current = true;
-            restoringResultsScrollOffsetRef.current = null;
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-          }}
-          onScroll={event => {
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-          }}
-          scrollEventThrottle={16}
-          onScrollEndDrag={event => {
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-            isResultsUserScrollingRef.current = false;
-          }}
-          onMomentumScrollEnd={event => {
-            if (!preview)
-              recordResultsScroll(event.nativeEvent.contentOffset.y);
-            isResultsUserScrollingRef.current = false;
-          }}
-          onContentSizeChange={preview ? undefined : restoreResultsScroll}
-          renderItem={({ item: place, index }) => (
-            <View style={styles.result}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${place.name} 상세 보기`}
-                onPress={() => selectPlace(place, index + 1)}
-                onPressIn={ignoreCollapsedBodyTapOnPressIn}
-                style={styles.resultCard}
-              >
-                {place.image ? (
-                  <Image
-                    source={place.image}
-                    style={[styles.photo, { width: photoWidth }]}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.photo,
-                      styles.imagePlaceholder,
-                      { width: photoWidth },
-                    ]}
-                  />
-                )}
-                <View style={styles.resultText}>
-                  {getMiddleCategory(place.category) ? (
-                    <View style={styles.titleRow}>
+  const renderListContent = (snapIndex: number, preview = false) => {
+    // 높이만 내려가는 뒤로가기가 아니라 이전 화면으로 돌아가는 뒤로가기의 미리보기입니다.
+    const isPageBackPreview = preview && !selectedPlace && snapIndex !== 0;
+    const showsBackFolder = isPageBackPreview && backFolderHeader !== undefined;
+    return (
+      <View
+        {...(snapIndex === 2 ? panResponder.panHandlers : {})}
+        onResponderStart={handleCollapsedBodyTouchStart}
+        onResponderEnd={handleCollapsedBodyTouchEnd}
+        style={styles.expansionTapArea}
+      >
+        {showsBackFolder ? backFolderHeader : folderHeader}
+        {(showsBackFolder ? backFolderContent : folderContent) ?? (
+          <FlatList
+            ref={preview ? undefined : resultsListRef}
+            contentOffset={
+              preview ? { x: 0, y: resultsScrollOffsetRef.current } : undefined
+            }
+            data={isPageBackPreview ? backPlaces ?? places : places}
+            style={styles.resultsScroll}
+            contentContainerStyle={[
+              styles.results,
+              {
+                paddingBottom:
+                  BOTTOM_TAB_CLEARANCE + listSnapOffsets[snapIndex],
+              },
+            ]}
+            keyExtractor={place => place.id}
+            getItemLayout={(_, index) => ({
+              length: RESULT_ITEM_HEIGHT,
+              offset: RESULT_ITEM_HEIGHT * index,
+              index,
+            })}
+            contentInsetAdjustmentBehavior="never"
+            scrollIndicatorInsets={{ bottom: BOTTOM_TAB_CLEARANCE }}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={snapIndex !== 2}
+            onScrollBeginDrag={event => {
+              isResultsUserScrollingRef.current = true;
+              restoringResultsScrollOffsetRef.current = null;
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+            }}
+            onScroll={event => {
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+            }}
+            scrollEventThrottle={16}
+            onScrollEndDrag={event => {
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+              isResultsUserScrollingRef.current = false;
+            }}
+            onMomentumScrollEnd={event => {
+              if (!preview)
+                recordResultsScroll(event.nativeEvent.contentOffset.y);
+              isResultsUserScrollingRef.current = false;
+            }}
+            onContentSizeChange={preview ? undefined : restoreResultsScroll}
+            renderItem={({ item: place, index }) => (
+              <View style={styles.result}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${place.name} 상세 보기`}
+                  onPress={() => selectPlace(place, index + 1)}
+                  onPressIn={ignoreCollapsedBodyTapOnPressIn}
+                  style={styles.resultCard}
+                >
+                  {place.image ? (
+                    <Image
+                      source={place.image}
+                      style={[styles.photo, { width: photoWidth }]}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.photo,
+                        styles.imagePlaceholder,
+                        { width: photoWidth },
+                      ]}
+                    />
+                  )}
+                  <View style={styles.resultText}>
+                    {getMiddleCategory(place.category) ? (
+                      <View style={styles.titleRow}>
+                        <Text numberOfLines={1} style={styles.name}>
+                          {place.name}
+                        </Text>
+                        <View style={styles.categoryPill}>
+                          <Text style={styles.category}>
+                            {getMiddleCategory(place.category)}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
                       <Text numberOfLines={1} style={styles.name}>
                         {place.name}
                       </Text>
-                      <View style={styles.categoryPill}>
-                        <Text style={styles.category}>
-                          {getMiddleCategory(place.category)}
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <Text numberOfLines={1} style={styles.name}>
-                      {place.name}
+                    )}
+                    <Text style={styles.address}>
+                      {place.fullAddress || place.address}
                     </Text>
-                  )}
-                  <Text style={styles.address}>
-                    {place.fullAddress || place.address}
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View
-              style={[
-                styles.emptyResult,
-                emptyContent ? styles.customEmptyResult : null,
-              ]}
-            >
-              {emptyContent ? (
-                emptyContent
-              ) : isVisibleAreaUpdating ? (
-                <Text style={styles.emptyResultText}>
-                  현재 지도 영역을 확인하고 있어요.
-                </Text>
-              ) : isSavedPlacesLoading ? (
-                <Text style={styles.emptyResultText}>
-                  저장한 장소를 불러오고 있어요.
-                </Text>
-              ) : savedPlacesLoadFailed ? (
-                <Text style={styles.emptyResultText}>
-                  저장한 장소를 불러오지 못했어요.
-                </Text>
-              ) : isSearchActive ? (
-                <>
-                  <Text style={styles.emptyResultTitle}>
-                    검색 결과가 없어요
-                  </Text>
+                  </View>
+                </Pressable>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View
+                style={[
+                  styles.emptyResult,
+                  emptyContent ? styles.customEmptyResult : null,
+                ]}
+              >
+                {emptyContent ? (
+                  emptyContent
+                ) : isVisibleAreaUpdating ? (
                   <Text style={styles.emptyResultText}>
-                    다른 키워드로 다시 검색해보세요.
+                    현재 지도 영역을 확인하고 있어요.
                   </Text>
-                </>
-              ) : !hasSavedPlaces ? (
-                <>
-                  <Image
-                    source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
-                    style={styles.emptyIllustration}
-                  />
-                  <Text style={styles.emptyResultTitle}>
-                    아직 저장한 장소가 없어요
-                  </Text>
+                ) : isSavedPlacesLoading ? (
                   <Text style={styles.emptyResultText}>
-                    장소를 저장하면 지도에서 확인할 수 있어요.
+                    저장한 장소를 불러오고 있어요.
                   </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.emptyResultTitle}>
-                    이 지도 영역에 저장한 장소가 없어요
-                  </Text>
+                ) : savedPlacesLoadFailed ? (
                   <Text style={styles.emptyResultText}>
-                    지도를 움직여 다른 곳도 확인해보세요.
+                    저장한 장소를 불러오지 못했어요.
                   </Text>
-                </>
-              )}
-            </View>
-          }
-        />
-      )}
-    </View>
-  );
+                ) : isSearchActive ? (
+                  <>
+                    <Text style={styles.emptyResultTitle}>
+                      검색 결과가 없어요
+                    </Text>
+                    <Text style={styles.emptyResultText}>
+                      다른 키워드로 다시 검색해보세요.
+                    </Text>
+                  </>
+                ) : !hasSavedPlaces ? (
+                  <>
+                    <Image
+                      source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
+                      style={styles.emptyIllustration}
+                    />
+                    <Text style={styles.emptyResultTitle}>
+                      아직 저장한 장소가 없어요
+                    </Text>
+                    <Text style={styles.emptyResultText}>
+                      장소를 저장하면 지도에서 확인할 수 있어요.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.emptyResultTitle}>
+                      이 지도 영역에 저장한 장소가 없어요
+                    </Text>
+                    <Text style={styles.emptyResultText}>
+                      지도를 움직여 다른 곳도 확인해보세요.
+                    </Text>
+                  </>
+                )}
+              </View>
+            }
+          />
+        )}
+      </View>
+    );
+  };
   const listHeight = Math.max(
     COLLAPSED_HANDLE_HEIGHT + COLLAPSED_CONTENT_VISIBLE_HEIGHT,
     pageHeight - bottomTabOffset,

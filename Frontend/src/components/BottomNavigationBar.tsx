@@ -1,4 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {usePostHog} from 'posthog-react-native';
+
+import {trackButtonPressed} from '../analytics/uiEvents';
 import {
   Platform,
   Pressable,
@@ -83,10 +86,10 @@ const navigationItems: {
   icon: 'bookmark' | 'map' | 'person' | 'history';
   label: string;
 }[] = [
+  { id: 'saved', icon: 'bookmark', label: '보관함' },
   { id: 'map', icon: 'map', label: '지도' },
   // 대기함 흐름을 다시 사용할 때 복원합니다.
   // { id: 'inBox', icon: 'inventory-2', label: '대기함' },
-  { id: 'saved', icon: 'bookmark', label: '보관함' },
   { id: 'history', icon: 'history', label: '히스토리' },
   { id: 'my', icon: 'person', label: '내 정보' },
 ];
@@ -97,6 +100,7 @@ export function BottomNavigationBar({
   onNavigate,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
+  const posthog = usePostHog();
   const [isHistoryUnread, setIsHistoryUnread] = useState(false);
   const activeRef = useRef(active);
   activeRef.current = active;
@@ -165,6 +169,10 @@ export function BottomNavigationBar({
             onPress={() => {
               // 마지막 확인 시점은 히스토리 화면이 첫 페이지를 읽을 때 저장한다.
               if (navigation.id === 'history') setIsHistoryUnread(false);
+              trackButtonPressed(posthog, active, 'bottom_tab', {
+                target_tab: navigation.id,
+                is_same_tab: navigation.id === active,
+              });
               onNavigate(navigation.id);
             }}
             style={({ pressed }) => [

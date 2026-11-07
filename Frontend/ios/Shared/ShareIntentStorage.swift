@@ -646,6 +646,8 @@ enum ShareAnalyticsStore {
     "reel_share_received": [],
     "reel_share_feedback_viewed": ["feedback_type"],
     "reel_share_outcome_viewed": ["outcome", "reason"],
+    "reel_share_action_clicked": ["action", "result"],
+    "reel_share_card_dismissed": ["method", "card_state"],
     "share_local_save_resolved": ["outcome"],
     "share_delivery_status_changed": ["delivery_status", "reason"],
     "extraction_request_started": [],

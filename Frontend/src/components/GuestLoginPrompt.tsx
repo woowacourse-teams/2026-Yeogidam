@@ -1,5 +1,8 @@
-import React from 'react';
-import {Modal, Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {useEffect} from 'react';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
+
+import {AppModal} from './AppModal';
+import {useScreenAnalytics} from '../analytics/uiEvents';
 
 type GuestLoginPromptProps = {
   visible: boolean;
@@ -12,14 +15,22 @@ export function GuestLoginPrompt({
   onLogin,
   onContinueBrowsing,
 }: GuestLoginPromptProps) {
+  const analytics = useScreenAnalytics('guest_login_prompt');
+  const {modal} = analytics;
+
+  useEffect(() => {
+    if (visible) modal('guest_login_prompt');
+  }, [modal, visible]);
+
   return (
-    <Modal
+    <AppModal
       animationType="fade"
       onRequestClose={onContinueBrowsing}
       statusBarTranslucent
       transparent
       visible={visible}>
       <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={onContinueBrowsing} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal style={styles.dialog}>
           <Text style={styles.title}>둘러보니 어떠셨나요?</Text>
           <Text style={styles.message}>
@@ -27,19 +38,25 @@ export function GuestLoginPrompt({
           </Text>
           <Pressable
             accessibilityRole="button"
-            onPress={onLogin}
+            onPress={() => {
+              analytics.button('login');
+              onLogin();
+            }}
             style={({pressed}) => [styles.loginButton, pressed && styles.pressed]}>
             <Text style={styles.loginButtonText}>로그인하기</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            onPress={onContinueBrowsing}
+            onPress={() => {
+              analytics.button('continue_browsing');
+              onContinueBrowsing();
+            }}
             style={({pressed}) => [styles.continueButton, pressed && styles.pressed]}>
             <Text style={styles.continueButtonText}>계속 둘러보기</Text>
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

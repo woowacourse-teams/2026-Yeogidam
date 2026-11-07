@@ -16,6 +16,7 @@ import {
   logoutSpringSession,
   onSpringSessionChange,
   refreshSpringSession,
+  syncStoredSessionToShare,
 } from '../src/lib/auth/spring-session';
 import {
   getShareSession,
@@ -242,4 +243,26 @@ test('AUTH401_005면 공유 익스텐션이 쓴 새 토큰을 기다렸다가 �
   });
   expect(stored).not.toBeNull();
   expect(listener).not.toHaveBeenCalledWith('SIGNED_OUT', expect.anything());
+});
+
+test('앱 시작 시 저장된 세션을 비어 있는 공유 익스텐션에 동기화한다', async () => {
+  const pair = tokens('access-1', 'refresh-1', 60);
+  storeSession(pair);
+
+  await syncStoredSessionToShare();
+
+  expect(nativeSession).toEqual({
+    accessToken: 'access-1',
+    refreshToken: 'refresh-1',
+    expiresAt: Math.floor(Date.parse(pair.expiresAt) / 1000),
+    userId: '7',
+  });
+});
+
+test('저장된 세션이 없거나 회원 ID가 없으면 공유 세션을 건드리지 않는다', async () => {
+  await syncStoredSessionToShare();
+  storeSession(tokens('access-1', 'refresh-1', 60), null);
+  await syncStoredSessionToShare();
+
+  expect(syncShareSession).not.toHaveBeenCalled();
 });

@@ -19,7 +19,7 @@ function findPressables(
   ];
 }
 
-test('권장 업데이트는 나중에 버튼과 뒤로 가기로 닫을 수 있다', async () => {
+test('권장 업데이트는 바깥쪽, 나중에 버튼, 뒤로 가기로 닫을 수 있다', async () => {
   const onDismiss = jest.fn();
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
@@ -34,14 +34,17 @@ test('권장 업데이트는 나중에 버튼과 뒤로 가기로 닫을 수 있
   });
 
   const buttons = findPressables(renderer.root.findByType(Modal).props.children);
-  expect(buttons).toHaveLength(2);
-  await ReactTestRenderer.act(async () => buttons[1].props.onPress());
+  expect(buttons).toHaveLength(3);
+  await ReactTestRenderer.act(async () => buttons[0].props.onPress());
   expect(onDismiss).toHaveBeenCalledTimes(1);
+
+  await ReactTestRenderer.act(async () => buttons[2].props.onPress());
+  expect(onDismiss).toHaveBeenCalledTimes(2);
 
   await ReactTestRenderer.act(async () =>
     renderer.root.findByType(Modal).props.onRequestClose(),
   );
-  expect(onDismiss).toHaveBeenCalledTimes(2);
+  expect(onDismiss).toHaveBeenCalledTimes(3);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

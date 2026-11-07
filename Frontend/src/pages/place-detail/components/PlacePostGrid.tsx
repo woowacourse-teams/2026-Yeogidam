@@ -13,6 +13,7 @@ import type {
   PlaceReelsApiError,
 } from '../../../entities/info/types';
 import { normalizeReelTitle } from '../../../entities/content/title';
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
 
 type PlacePostGridProps = {
   reels: PlaceReel[];
@@ -85,6 +86,7 @@ function PostCard({
   reel: PlaceReel;
   imageWidth: number;
 }) {
+  const { button } = useScreenAnalytics();
   const image = reel.instagramThumbnailUrl
     ? { uri: reel.instagramThumbnailUrl }
     : require('../../../assets/illustrations/empty-illustration.png');
@@ -99,6 +101,7 @@ function PostCard({
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       onPress={() => {
         if (reel.instagramUrl) {
+          button('open_instagram_post');
           Linking.openURL(reel.instagramUrl);
         }
       }}
@@ -137,13 +140,18 @@ function PostState({
   message: string;
   onRetry?: () => void;
 }) {
+  const { button } = useScreenAnalytics();
+
   return (
     <View style={styles.state}>
       <Text style={styles.stateMessage}>{message}</Text>
       {onRetry ? (
         <Pressable
           accessibilityRole="button"
-          onPress={onRetry}
+          onPress={() => {
+            button('retry_posts');
+            onRetry();
+          }}
           style={styles.retryButton}
         >
           <Text style={styles.retryText}>다시 시도</Text>

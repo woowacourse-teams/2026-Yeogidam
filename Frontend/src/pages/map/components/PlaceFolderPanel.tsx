@@ -1,10 +1,7 @@
+import { showAlert } from '../../../lib/app-alert';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +11,10 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 import Svg, { Path, Rect } from 'react-native-svg';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppModal } from '../../../components/AppModal';
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
   getNextFolderColor,
@@ -79,6 +79,8 @@ export function FolderDetailHeader({
   count: number;
   onMore: () => void;
 }) {
+  const { button } = useScreenAnalytics('folder_panel');
+
   return (
     <View style={styles.detailHeader}>
       <View style={styles.detailTitleWrap}>
@@ -92,7 +94,10 @@ export function FolderDetailHeader({
         accessibilityRole="button"
         accessibilityLabel="폴더 더보기"
         hitSlop={8}
-        onPress={onMore}
+        onPress={() => {
+          button('folder_more');
+          onMore();
+        }}
         style={styles.iconButton}
       >
         <MaterialIcons color="#4A4F66" name="more-horiz" size={24} />
@@ -133,7 +138,6 @@ export function FolderList({
       contentContainerStyle={{ paddingBottom: bottomPadding }}
       showsVerticalScrollIndicator={false}
     >
-     
       {folders.map(folder => (
         <Pressable
           key={folder.id}
@@ -158,7 +162,7 @@ export function FolderList({
           <MaterialIcons color="#B8BFE8" name="chevron-right" size={24} />
         </Pressable>
       ))}
-       <Pressable
+      <Pressable
         accessibilityRole="button"
         onPress={onCreateFolder}
         style={styles.row}
@@ -197,8 +201,12 @@ export function FolderNameDialog({
   onSubmit: (name: string, color: string) => void;
   onCancel: () => void;
 }) {
+  const { button, modal } = useScreenAnalytics('folder_panel');
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState(initialColor);
+  useEffect(() => {
+    if (visible) modal('folder_name_dialog');
+  }, [modal, visible]);
   useEffect(() => {
     if (visible) {
       setName(initialName);
@@ -213,11 +221,15 @@ export function FolderNameDialog({
   const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
   return (
-    <Modal transparent animationType="fade" visible={visible}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}
-      >
+    <AppModal
+      avoidKeyboard
+      transparent
+      animationType="fade"
+      visible={visible}
+      onRequestClose={onCancel}
+    >
+      <View style={styles.backdrop}>
+        <Pressable accessible={false} onPress={onCancel} style={StyleSheet.absoluteFill} />
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
           <View style={styles.inputField}>
@@ -233,7 +245,10 @@ export function FolderNameDialog({
               value={name}
             />
             {isDuplicate ? (
-              <Text accessibilityLiveRegion="polite" style={styles.inputErrorText}>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={styles.inputErrorText}
+              >
                 이미 같은 이름의 폴더가 있어요.
               </Text>
             ) : null}
@@ -248,7 +263,10 @@ export function FolderNameDialog({
                   accessibilityLabel={`폴더 색상 ${candidate}`}
                   accessibilityState={{ selected }}
                   hitSlop={4}
-                  onPress={() => setColor(candidate)}
+                  onPress={() => {
+                    button('select_color');
+                    setColor(candidate);
+                  }}
                   style={[
                     styles.colorSwatch,
                     { backgroundColor: candidate },
@@ -263,12 +281,21 @@ export function FolderNameDialog({
             })}
           </View>
           <View style={styles.dialogActions}>
-            <Pressable onPress={onCancel} style={styles.dialogButton}>
+            <Pressable
+              onPress={() => {
+                button('name_dialog_cancel');
+                onCancel();
+              }}
+              style={styles.dialogButton}
+            >
               <Text style={styles.dialogCancel}>취소</Text>
             </Pressable>
             <Pressable
               disabled={!canSubmit}
-              onPress={() => onSubmit(name, color)}
+              onPress={() => {
+                button('name_dialog_submit');
+                onSubmit(name, color);
+              }}
               style={styles.dialogButton}
             >
               <Text
@@ -279,8 +306,8 @@ export function FolderNameDialog({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      </View>
+    </AppModal>
   );
 }
 
@@ -304,6 +331,7 @@ export function PlaceFolderAssignPicker({
   // 새 폴더를 만들고 그 id를 돌려줍니다. 만든 폴더는 바로 체크됩니다. 실패하면 null이고 입력 창이 열려 있습니다.
   onCreateFolder?: (name: string, color: string) => Promise<string | null>;
 }) {
+  const { button } = useScreenAnalytics('folder_panel');
   const [selected, setSelected] = useState<string[]>(selectedFolderIds);
   const [isCreating, setIsCreating] = useState(false);
   // 시트가 열릴 때만 체크 상태를 맞춥니다. 시트 안에서 폴더를 만들면 부모가 다시 그려지며
@@ -315,101 +343,109 @@ export function PlaceFolderAssignPicker({
   }, [selectedFolderIds, visible]);
 
   const startCreating = () => {
+    button('picker_create_folder');
     if (folders.length >= MAX_FOLDER_COUNT) {
-      Alert.alert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
+      showAlert(`폴더는 최대 ${MAX_FOLDER_COUNT}개까지 만들 수 있어요.`);
       return;
     }
     setIsCreating(true);
   };
 
-  const toggle = (folderId: string) =>
+  const toggle = (folderId: string) => {
+    button('picker_toggle_folder');
     setSelected(current =>
       current.includes(folderId)
         ? current.filter(id => id !== folderId)
         : [...current, folderId],
     );
+  };
 
   return (
-    <Modal
+    <AppModal
       animationType="slide"
       presentationStyle="pageSheet"
       visible={visible}
       onRequestClose={onCancel}
     >
-      <View style={styles.pickerContainer}>
-        <View style={styles.pickerHeader}>
-          <Pressable hitSlop={8} onPress={onCancel}>
-            <Text style={styles.dialogCancel}>취소</Text>
-          </Pressable>
-          <Text style={styles.dialogTitle}>폴더 선택</Text>
-          <Pressable hitSlop={8} onPress={() => onSave(selected)}>
-            <Text style={styles.dialogConfirm}>저장</Text>
-          </Pressable>
-        </View>
-        <Text numberOfLines={2} style={styles.assignPlaceName}>
-          '{placeName}'을(를) 담을 폴더를 선택하세요.
-        </Text>
-        <FlatList
-          data={folders}
-          keyExtractor={folder => folder.id}
-          ListFooterComponent={
-            onCreateFolder ? (
-              // 폴더 목록의 새 폴더 만들기(점선 상자 + 파란 글씨)를 이 시트의 행 크기에 맞춘 모양입니다.
-              <Pressable
-                accessibilityRole="button"
-                onPress={startCreating}
-                style={[styles.row, styles.assignRow]}
-              >
-                <View style={[styles.assignCheckbox, styles.createThumb]}>
-                  <MaterialIcons color="#8FA2FF" name="add" size={18} />
-                </View>
-                <Text style={[styles.createText, styles.assignName]}>
-                  새 폴더 만들기
-                </Text>
-              </Pressable>
-            ) : null
-          }
-          ListEmptyComponent={
-            onCreateFolder ? null : (
-              <Text style={styles.hint}>
-                지도의 폴더 탭에서 폴더를 먼저 만들어 주세요.
-              </Text>
-            )
-          }
-          renderItem={({ item }) => {
-            const checked = selected.includes(item.id);
-            return (
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked }}
-                onPress={() => toggle(item.id)}
-                style={[styles.row, styles.assignRow]}
-              >
-                <View
-                  style={[
-                    styles.assignCheckbox,
-                    checked && styles.assignCheckboxChecked,
-                  ]}
+      <SafeAreaProvider>
+        <SafeAreaView edges={['top']} style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Pressable hitSlop={8} onPress={onCancel}>
+              <Text style={styles.dialogCancel}>취소</Text>
+            </Pressable>
+            <Text style={styles.dialogTitle}>폴더 선택</Text>
+            <Pressable hitSlop={8} onPress={() => onSave(selected)}>
+              <Text style={styles.dialogConfirm}>저장</Text>
+            </Pressable>
+          </View>
+          <Text numberOfLines={2} style={styles.assignPlaceName}>
+            '{placeName}'을(를) 담을 폴더를 선택하세요.
+          </Text>
+          <FlatList
+            data={folders}
+            keyExtractor={folder => folder.id}
+            ListFooterComponent={
+              onCreateFolder ? (
+                // 폴더 목록의 새 폴더 만들기(점선 상자 + 파란 글씨)를 이 시트의 행 크기에 맞춘 모양입니다.
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={startCreating}
+                  style={[styles.row, styles.assignRow]}
                 >
-                  {checked ? (
-                    <MaterialIcons color="#ffffff" name="check" size={18} />
-                  ) : null}
-                </View>
-                <View
-                  style={[styles.assignRowDot, { backgroundColor: item.color }]}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.rowName, styles.assignName]}
-                >
-                  {item.name}
+                  <View style={[styles.assignCheckbox, styles.createThumb]}>
+                    <MaterialIcons color="#8FA2FF" name="add" size={18} />
+                  </View>
+                  <Text style={[styles.createText, styles.assignName]}>
+                    새 폴더 만들기
+                  </Text>
+                </Pressable>
+              ) : null
+            }
+            ListEmptyComponent={
+              onCreateFolder ? null : (
+                <Text style={styles.hint}>
+                  지도의 폴더 탭에서 폴더를 먼저 만들어 주세요.
                 </Text>
-                <Text style={styles.assignCount}>장소 {item.count}개</Text>
-              </Pressable>
-            );
-          }}
-        />
-      </View>
+              )
+            }
+            renderItem={({ item }) => {
+              const checked = selected.includes(item.id);
+              return (
+                <Pressable
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked }}
+                  onPress={() => toggle(item.id)}
+                  style={[styles.row, styles.assignRow]}
+                >
+                  <View
+                    style={[
+                      styles.assignCheckbox,
+                      checked && styles.assignCheckboxChecked,
+                    ]}
+                  >
+                    {checked ? (
+                      <MaterialIcons color="#ffffff" name="check" size={18} />
+                    ) : null}
+                  </View>
+                  <View
+                    style={[
+                      styles.assignRowDot,
+                      { backgroundColor: item.color },
+                    ]}
+                  />
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.rowName, styles.assignName]}
+                  >
+                    {item.name}
+                  </Text>
+                  <Text style={styles.assignCount}>장소 {item.count}개</Text>
+                </Pressable>
+              );
+            }}
+          />
+        </SafeAreaView>
+      </SafeAreaProvider>
       {onCreateFolder ? (
         <FolderNameDialog
           visible={isCreating}
@@ -426,7 +462,7 @@ export function PlaceFolderAssignPicker({
           onCancel={() => setIsCreating(false)}
         />
       ) : null}
-    </Modal>
+    </AppModal>
   );
 }
 
@@ -442,8 +478,14 @@ export function FolderActionSheet({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const { button, modal } = useScreenAnalytics('folder_panel');
+  const isOpen = folder !== null;
+  useEffect(() => {
+    if (isOpen) modal('folder_action_sheet');
+  }, [isOpen, modal]);
+
   return (
-    <Modal
+    <AppModal
       animationType="none"
       transparent
       visible={folder !== null}
@@ -469,7 +511,10 @@ export function FolderActionSheet({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="이름·색상 변경"
-            onPress={onEdit}
+            onPress={() => {
+              button('action_sheet_edit');
+              onEdit();
+            }}
             style={styles.actionButton}
           >
             <MaterialIcons color="#000000" name="edit" size={21} />
@@ -478,7 +523,10 @@ export function FolderActionSheet({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="폴더 삭제"
-            onPress={onDelete}
+            onPress={() => {
+              button('action_sheet_delete');
+              onDelete();
+            }}
             style={styles.actionButton}
           >
             <MaterialIcons color="#E5484D" name="delete-outline" size={21} />
@@ -488,7 +536,7 @@ export function FolderActionSheet({
           </Pressable>
         </Pressable>
       </Pressable>
-    </Modal>
+    </AppModal>
   );
 }
 
