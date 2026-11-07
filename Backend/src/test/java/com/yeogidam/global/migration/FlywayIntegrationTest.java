@@ -226,6 +226,32 @@ class FlywayIntegrationTest extends MySqlContainerSupport {
     }
 
     @Test
+    void V5까지_적용한_DB에_V6을_적용하면_기존_장소의_영업시간과_메뉴는_null이다() {
+        // given
+        try (IsolatedDatabase database = new IsolatedDatabase("")) {
+            Flyway.configure().dataSource(database.source).target("5").load().migrate();
+            insertPlaceWithRequiredColumnsOnly(database.jdbc, 71L, "keep-place", "기존 장소", "서울 성동구",
+                    new BigDecimal("37.5"), new BigDecimal("127.0"));
+
+            // when
+            Flyway.configure().dataSource(database.source).target("6").load().migrate();
+
+            // then
+            assertThat(database.jdbc.queryForMap(
+                    "SELECT name, opening_hours, menus FROM places WHERE id = 71"))
+                    .containsEntry("name", "기존 장소")
+                    .containsEntry("opening_hours", null)
+                    .containsEntry("menus", null);
+            assertThat(database.jdbc.queryForList("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE() AND table_name = 'places'
+                      AND data_type = 'json' AND column_name IN ('opening_hours', 'menus')
+                    """, String.class)).containsExactlyInAnyOrder("opening_hours", "menus");
+        }
+    }
+
+    @Test
     void 접속_URL과_다른_DB를_Flyway_대상으로_지정하면_변경_전에_예외가_발생한다() {
         // given
         try (IsolatedDatabase database = new IsolatedDatabase("");
