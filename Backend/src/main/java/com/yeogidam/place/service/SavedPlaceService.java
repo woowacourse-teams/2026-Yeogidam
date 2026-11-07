@@ -6,18 +6,16 @@ import com.yeogidam.media.extraction.repository.MediaPlaceDao;
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
 import com.yeogidam.media.share.repository.SharedMediaDao;
-import com.yeogidam.place.domain.PlaceCategory;
-import com.yeogidam.place.domain.PlaceCategoryClassifier;
 import com.yeogidam.place.dto.request.SavedPlaceCreateRequest;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
-import com.yeogidam.place.dto.response.SavedPlaceResponse;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.place.exception.PlaceException;
 import com.yeogidam.place.repository.SavedPlaceDao;
 import com.yeogidam.place.repository.SavedPlaceFolderProjections;
 import com.yeogidam.place.repository.SavedPlaceMediaProjections;
+import com.yeogidam.place.repository.SavedPlaceProjections;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -42,16 +40,8 @@ public class SavedPlaceService {
      */
     public SavedPlaceResponses readSavedPlaces(Long memberId) {
         SavedPlaceFolderProjections folders = savedPlaceDao.findFolderLinksByMember(memberId);
-        List<SavedPlaceResponse> responses = savedPlaceDao.findAllByMember(memberId)
-                .stream()
-                .map(projection -> {
-                    PlaceCategory category = PlaceCategoryClassifier.classify(projection.category());
-                    String placeThumbnailUrl = mediaThumbnailUrlResolver.resolve(projection.thumbnailKey());
-                    List<Long> folderIds = folders.folderIdsOf(projection.savedPlaceId());
-                    return SavedPlaceResponse.from(projection, placeThumbnailUrl, category, folderIds);
-                })
-                .toList();
-        return SavedPlaceResponses.fromResponses(responses);
+        SavedPlaceProjections places = new SavedPlaceProjections(savedPlaceDao.findAllByMember(memberId));
+        return SavedPlaceResponses.from(places, folders, mediaThumbnailUrlResolver::resolve);
     }
 
     /**

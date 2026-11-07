@@ -20,8 +20,4 @@ public record SavedPlaceResponses(
                 .toList();
         return new SavedPlaceResponses(responses);
     }
-
-    public static SavedPlaceResponses fromResponses(List<SavedPlaceResponse> savedPlaces) {
-        return new SavedPlaceResponses(savedPlaces);
-    }
 }
