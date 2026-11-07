@@ -18,10 +18,13 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 @Import(PlaceDao.class)
+@ImportAutoConfiguration(JacksonAutoConfiguration.class)
 class PlaceDaoTest extends JdbcTestSupport {
 
     @Autowired
