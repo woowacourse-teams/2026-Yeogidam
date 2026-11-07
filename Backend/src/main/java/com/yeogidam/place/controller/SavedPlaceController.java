@@ -44,7 +44,7 @@ public class SavedPlaceController implements SavedPlaceApiDocs {
     @GetMapping("/search")
     public ResponseEntity<SavedPlaceResponses> readSavedPlacesByQuery(
             @LoginMember Long memberId,
-            @Valid @ModelAttribute SavedPlaceSearchRequest request
+            @ModelAttribute SavedPlaceSearchRequest request
     ) {
         SavedPlaceResponses response = savedPlaceSearchService.readSavedPlaces(memberId, request);
         return ResponseEntity.ok()

@@ -12,6 +12,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
+import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import java.math.BigDecimal;
@@ -198,6 +199,56 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
         // then
         assertThat(response)
                 .isEqualTo(Map.of("savedPlaces", List.of()));
+    }
+
+    @Test
+    void 검색어를_보내지_않으면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("place-search-missing-query");
+        PlaceErrorCode errorCode = PlaceErrorCode.INVALID_SEARCH_QUERY;
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(PATH)
+                .then()
+                .statusCode(errorCode.getHttpStatus().value())
+                .body("errorCode", equalTo(errorCode.getCode()))
+                .body("message", equalTo(errorCode.getMessage()));
+    }
+
+    @Test
+    void 검색어가_공백뿐이면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("place-search-blank-query");
+        PlaceErrorCode errorCode = PlaceErrorCode.INVALID_SEARCH_QUERY;
+
+        // when & then
+        givenBearer(login.accessToken())
+                .queryParam("query", "   ")
+                .when()
+                .get(PATH)
+                .then()
+                .statusCode(errorCode.getHttpStatus().value())
+                .body("errorCode", equalTo(errorCode.getCode()))
+                .body("message", equalTo(errorCode.getMessage()));
+    }
+
+    @Test
+    void 검색어가_101자이면_400_예외를_던진다() {
+        // given
+        LoginResult login = loginAsKakao("place-search-long-query");
+        PlaceErrorCode errorCode = PlaceErrorCode.INVALID_SEARCH_QUERY;
+
+        // when & then
+        givenBearer(login.accessToken())
+                .queryParam("query", "가".repeat(101))
+                .when()
+                .get(PATH)
+                .then()
+                .statusCode(errorCode.getHttpStatus().value())
+                .body("errorCode", equalTo(errorCode.getCode()))
+                .body("message", equalTo(errorCode.getMessage()));
     }
 
     @Test

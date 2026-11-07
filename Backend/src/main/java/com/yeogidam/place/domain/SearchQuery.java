@@ -1,5 +1,7 @@
-package com.yeogidam.search.domain;
+package com.yeogidam.place.domain;
 
+import com.yeogidam.place.exception.PlaceErrorCode;
+import com.yeogidam.place.exception.PlaceException;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -27,11 +29,8 @@ public final class SearchQuery {
     }
 
     private void validate(String query) {
-        if (query == null) {
-            throw new IllegalArgumentException("검색어가 필요합니다.");
-        }
-        if (query.isEmpty() || query.length() > MAX_LENGTH) {
-            throw new IllegalArgumentException("검색어는 앞뒤 공백을 제외하고 1자 이상 100자 이하여야 합니다.");
+        if (query == null || query.isEmpty() || query.length() > MAX_LENGTH) {
+            throw new PlaceException(PlaceErrorCode.INVALID_SEARCH_QUERY);
         }
     }
 }

@@ -8,7 +8,7 @@ import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedP
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
-import com.yeogidam.search.domain.SearchQuery;
+import com.yeogidam.place.domain.SearchQuery;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
 import java.time.Instant;

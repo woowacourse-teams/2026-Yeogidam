@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import java.util.List;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
@@ -50,14 +49,15 @@ public interface SavedPlaceApiDocs {
                     @ApiResponse(responseCode = "200", description = "내 저장 장소의 검색 결과",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = SavedPlaceResponses.class))),
-                    @ApiResponse(responseCode = "400", description = "검색어가 비어 있거나 100자를 초과합니다.",
+                    @ApiResponse(responseCode = "400",
+                            description = "검색어가 없거나 앞뒤 공백을 제외한 길이가 1~100자가 아닙니다. (`PLACE400_003`)",
                             content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
                     @ApiResponse(responseCode = "401", description = "로그인이 필요합니다.",
                             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
             })
     ResponseEntity<SavedPlaceResponses> readSavedPlacesByQuery(
             Long memberId,
-            @Valid @ParameterObject SavedPlaceSearchRequest request
+            @ParameterObject SavedPlaceSearchRequest request
     );
 
     @Operation(summary = "보관함 목록 조회",

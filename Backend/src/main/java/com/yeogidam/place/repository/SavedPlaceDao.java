@@ -1,7 +1,7 @@
 package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.SavedPlace;
-import com.yeogidam.search.domain.SearchQuery;
+import com.yeogidam.place.domain.SearchQuery;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
