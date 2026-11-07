@@ -1,5 +1,6 @@
 import {ApiError} from '../../lib/api/errors';
 import {createSpringApiClient} from '../../lib/api/spring-client';
+import {getSavedPlaces} from '../info/api';
 import {toReelApiError, toReelStatus, type SpringShareHistoryItem} from './api';
 import type {
   HistoryCursor,
@@ -44,6 +45,7 @@ export function toHistoryReel(item: SpringShareHistoryItem): HistoryReel {
     failure_reason: item.failureReason,
     save_mode: null,
     created_at: item.createdAt,
+    ...(item.deletedAt != null ? {deleted_from_library: true} : {}),
   };
 }
 
@@ -97,8 +99,8 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
 }
 
 /**
- * 서버에 단건 공유 조회 API가 없어 목록에서 받은 공유 정보를 그대로 씁니다. 장소는
- * 추출에 성공한 공유만 조회합니다(추출 중·실패 공유는 서버가 400을 돌려줍니다).
+ * 상세는 보관함·히스토리에서 같은 공유별 장소 API로 조회합니다. 서버에 단건 공유
+ * 조회 API가 없어 게시물 기본 정보는 진입한 목록에서 받은 값을 사용합니다.
  */
 export async function getHistoryReelDetail(
   reel: HistoryReel,
@@ -108,10 +110,16 @@ export async function getHistoryReelDetail(
   }
 
   let places: SpringShareHistoryPlacesResponse;
+  let savedPlaceIds: Map<string, string>;
   try {
-    places = await client.request<SpringShareHistoryPlacesResponse>(
-      `${SHARES_PATH}/${encodeURIComponent(reel.id)}/places`,
-    );
+    const [historyPlaces, savedPlaces] = await Promise.all([
+      client.request<SpringShareHistoryPlacesResponse>(
+        `${SHARES_PATH}/${encodeURIComponent(reel.id)}/places`,
+      ),
+      getSavedPlaces(),
+    ]);
+    places = historyPlaces;
+    savedPlaceIds = new Map(savedPlaces.map(item => [item.place.id, item.id]));
   } catch (error) {
     throw toReelApiError(error);
   }
@@ -119,7 +127,10 @@ export async function getHistoryReelDetail(
   return {
     ...reel,
     extraction: {
-      extraction_places: (places?.places ?? []).map(toHistoryReelPlace),
+      extraction_places: (places?.places ?? []).map((place, position) => ({
+        ...toHistoryReelPlace(place, position),
+        savedPlaceId: savedPlaceIds.get(String(place.placeId)) ?? null,
+      })),
     },
   };
 }
