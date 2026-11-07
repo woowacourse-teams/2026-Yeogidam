@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -31,15 +32,24 @@ export function SavedPlacesLinkDialog({
   errorMessage = null,
   submitLabel = '저장',
 }: SavedPlacesLinkDialogProps) {
+  const handleBackdropPress = () => {
+    if (Keyboard.isVisible()) {
+      Keyboard.dismiss();
+      return;
+    }
+    onClose();
+  };
+
   return (
     <AppModal
       avoidKeyboard
+      backdropColor="rgba(0, 0, 0, 0.35)"
       animationType="fade"
       transparent
       visible={visible}
       onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <Pressable accessible={false} onPress={onClose} style={StyleSheet.absoluteFill} />
+        <Pressable accessible={false} onPress={handleBackdropPress} style={StyleSheet.absoluteFill} />
         <View style={styles.dialog}>
           <Text style={styles.title}>링크 입력</Text>
           <View style={styles.inputWrapper}>
@@ -74,7 +84,6 @@ export function SavedPlacesLinkDialog({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
