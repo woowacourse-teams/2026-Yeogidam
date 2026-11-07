@@ -1,5 +1,7 @@
 package com.yeogidam.place.domain;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,11 @@ public enum PlaceCategory {
     ETC("기타");
 
     private final String name;
+
+    public static boolean hasAnyNameContaining(List<String> words) {
+        return Arrays.stream(values())
+                .anyMatch(category -> words.stream().anyMatch(category::hasNameContaining));
+    }
 
     public boolean hasNameContaining(String word) {
         return name.replace(" ", "")
