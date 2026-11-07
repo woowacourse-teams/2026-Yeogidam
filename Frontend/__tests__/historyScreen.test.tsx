@@ -285,32 +285,35 @@ test('onOpenReel이 있으면 성공한 항목은 게시물 상세로 넘기고 
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('보관함에서 삭제한 히스토리 항목은 안내만 보여 주고 상세를 열지 않는다', async () => {
-  jest.mocked(getHistoryReels).mockResolvedValue({
-    reels: [{...reel(4), deleted_from_library: true}],
-    nextCursor: null,
-  });
-  const onOpenReel = jest.fn();
-  let renderer!: ReactTestRenderer.ReactTestRenderer;
-  await ReactTestRenderer.act(async () => {
-    renderer = ReactTestRenderer.create(
-      <>
-        <AppAlertHost />
-        <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />
-      </>,
+test.each(['COMPLETED', 'FAILED'] as const)(
+  '보관함에서 삭제한 %s 히스토리 항목은 안내만 보여 주고 상세를 열지 않는다',
+  async status => {
+    jest.mocked(getHistoryReels).mockResolvedValue({
+      reels: [{...reel(4, status), deleted_from_library: true}],
+      nextCursor: null,
+    });
+    const onOpenReel = jest.fn();
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <>
+          <AppAlertHost />
+          <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />
+        </>,
+      );
+    });
+
+    const item = renderer.root.find(
+      node => node.props?.reel?.id === '4' && typeof node.props?.onPress === 'function',
     );
-  });
+    await ReactTestRenderer.act(async () => item.props.onPress());
 
-  const item = renderer.root.find(
-    node => node.props?.reel?.id === '4' && typeof node.props?.onPress === 'function',
-  );
-  await ReactTestRenderer.act(async () => item.props.onPress());
-
-  expect(getCurrentAppAlert()?.title).toBe('보관함에서 삭제한 게시물이에요.');
-  expect(onOpenReel).not.toHaveBeenCalled();
-  expect(getHistoryReelDetail).not.toHaveBeenCalled();
-  await ReactTestRenderer.act(async () => renderer.unmount());
-});
+    expect(getCurrentAppAlert()?.title).toBe('보관함에서 삭제한 게시물이에요.');
+    expect(onOpenReel).not.toHaveBeenCalled();
+    expect(getHistoryReelDetail).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  },
+);
 
 test('onOpenReel이 있으면 처리 중인 항목도 진행 화면으로 넘긴다', async () => {
   jest.mocked(getHistoryReels).mockResolvedValue({
