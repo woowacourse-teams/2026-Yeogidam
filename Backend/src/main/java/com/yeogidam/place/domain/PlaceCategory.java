@@ -2,7 +2,6 @@ package com.yeogidam.place.domain;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -30,12 +29,7 @@ public enum PlaceCategory {
     }
 
     public boolean hasNameContaining(String word) {
-        return name.replace(" ", "")
-                .replace("\t", "")
-                .replace("\r", "")
-                .replace("\n", "")
-                .toLowerCase(Locale.ROOT)
-                .contains(word);
+        return SearchQuery.normalizeForMatching(name).contains(word);
     }
 
     public String getCode() {

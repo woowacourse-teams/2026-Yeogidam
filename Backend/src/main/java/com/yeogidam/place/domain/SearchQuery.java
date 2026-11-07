@@ -10,8 +10,10 @@ import lombok.Getter;
 @Getter
 public final class SearchQuery {
 
+    public static final String WORD_SEPARATORS = " \t\r\n";
+
     private static final int MAX_LENGTH = 100;
-    private static final Pattern WORD_SEPARATOR = Pattern.compile("[ \\t\\r\\n]+");
+    private static final Pattern WORD_SEPARATOR = Pattern.compile("[" + WORD_SEPARATORS + "]+");
 
     private final List<String> words;
 
@@ -19,6 +21,10 @@ public final class SearchQuery {
         String trimmed = trim(query);
         validate(trimmed);
         this.words = List.of(WORD_SEPARATOR.split(trimmed.toLowerCase(Locale.ROOT)));
+    }
+
+    static String normalizeForMatching(String value) {
+        return WORD_SEPARATOR.matcher(value).replaceAll("").toLowerCase(Locale.ROOT);
     }
 
     private String trim(String query) {

@@ -46,7 +46,7 @@ class SavedPlaceSearchDaoTest extends JdbcTestSupport {
 
         // when
         SavedPlaceProjections places = savedPlaceDao.findAllByMemberAndQuery(
-                MEMBER_ID, new SearchQuery("성수 카페"), savedPlaceDao.findCategoriesByMember(MEMBER_ID));
+                MEMBER_ID, new SearchQuery("성수 \t\r\n카페"), savedPlaceDao.findCategoriesByMember(MEMBER_ID));
 
         // then
         assertThat(places.places())
@@ -57,7 +57,7 @@ class SavedPlaceSearchDaoTest extends JdbcTestSupport {
     @Test
     void 실제_영문_상호의_대소문자와_공백이_달라도_찾는다() {
         // given
-        savePlace(1L, "Blue Bottle Coffee", "음식점 > 카페", "서울 성동구 성수동1가 1-1", "서울 성동구 아차산로 7");
+        savePlace(1L, "Blue \tBottle\r\n Coffee", "음식점 > 카페", "서울 성동구 성수동1가 1-1", "서울 성동구 아차산로 7");
         savePlace(2L, "어니언 성수", "음식점 > 카페", "서울 성동구 성수동2가 2-2", null);
 
         // when
@@ -67,7 +67,7 @@ class SavedPlaceSearchDaoTest extends JdbcTestSupport {
         // then
         assertThat(places.places())
                 .extracting(SavedPlaceProjection::name)
-                .containsExactly("Blue Bottle Coffee");
+                .containsExactly("Blue \tBottle\r\n Coffee");
     }
 
     @Test

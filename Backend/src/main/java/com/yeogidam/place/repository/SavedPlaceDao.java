@@ -2,9 +2,11 @@ package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.SavedPlace;
 import com.yeogidam.place.domain.SearchQuery;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -360,8 +362,13 @@ public class SavedPlaceDao {
             SearchQuery query,
             SavedPlaceCategoryProjections categories
     ) {
+        String fieldConditions = List.of("p.name", "p.land_lot_address", "p.road_address", "p.category")
+                .stream()
+                .map(this::searchFieldCondition)
+                .collect(Collectors.joining(" OR "));
         String conditions = query.getWords().stream()
-                .map(word -> placeWordCondition(categories.savedPlaceIdsMatching(word)))
+                .map(word -> "(%s OR %s)".formatted(
+                        fieldConditions, categoryCondition(categories.savedPlaceIdsMatching(word))))
                 .collect(Collectors.joining(" AND "));
         String sql = """
                 SELECT sp.id, p.id AS place_id, p.name, p.category, p.land_lot_address, p.road_address,
@@ -383,18 +390,13 @@ public class SavedPlaceDao {
         return new SavedPlaceProjections(jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, arguments.toArray()));
     }
 
-    private String placeWordCondition(List<Long> categorySavedPlaceIds) {
-        return """
-                (LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.name, ''),
-                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
-                 OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.land_lot_address, ''),
-                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
-                 OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.road_address, ''),
-                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
-                 OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.category, ''),
-                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
-                 OR %s)
-                """.formatted(categoryCondition(categorySavedPlaceIds));
+    private String searchFieldCondition(String column) {
+        String field = "COALESCE(%s, '')".formatted(column);
+        for (int separator : SearchQuery.WORD_SEPARATORS.codePoints().toArray()) {
+            String encoded = HexFormat.of().formatHex(Character.toString(separator).getBytes(StandardCharsets.UTF_8));
+            field = "REPLACE(%s, _utf8mb4 X'%s', '')".formatted(field, encoded);
+        }
+        return "LOWER(%s) LIKE ? ESCAPE '!'".formatted(field);
     }
 
     private String categoryCondition(List<Long> savedPlaceIds) {
