@@ -23,6 +23,7 @@ test('보관함 게시물과 장소 저장 상태를 매핑하고 커서 시각�
       caption: '제목\n본문',
       author: 'author',
       sharedUrl: 'https://www.instagram.com/reel/abc/',
+      reported: true,
       places: [{
         savedPlaceId: null,
         placeId: 42,
@@ -44,7 +45,12 @@ test('보관함 게시물과 장소 저장 상태를 매핑하고 커서 시각�
     query: {cursorCreatedAt: '2026-11-05T01:02:03.123456Z', cursorId: '90'},
   });
   expect(page.nextCursor).toEqual({created_at: '2026-11-04T03:12:45.123456Z', id: '81'});
-  expect(page.reels[0]).toMatchObject({id: '81', processing_status: 'COMPLETED', extracted_place_count: 1});
+  expect(page.reels[0]).toMatchObject({
+    id: '81',
+    processing_status: 'COMPLETED',
+    extracted_place_count: 1,
+    reported: true,
+  });
   expect(page.reels[0]).not.toHaveProperty('saved_media_places');
 });
 

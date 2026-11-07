@@ -80,6 +80,12 @@ test('삭제 시각이 있는 히스토리 항목만 보관함 삭제 상태로 
   expect(toHistoryReel(share(10, 'SUCCEEDED')).deleted_from_library).toBeUndefined();
 });
 
+test('공유 이력의 제보 여부를 게시물에 전달한다', () => {
+  expect(toHistoryReel({...share(8, 'SUCCEEDED'), reported: true}).reported).toBe(true);
+  expect(toHistoryReel({...share(9, 'SUCCEEDED'), reported: false}).reported).toBe(false);
+  expect(toHistoryReel(share(10, 'SUCCEEDED')).reported).toBeUndefined();
+});
+
 test('커서를 cursorCreatedAt과 cursorId로 보내고 마지막 페이지는 null 커서를 돌려준다', async () => {
   mockRequest.mockResolvedValue({sharedMedias: [], nextCursor: null});
 

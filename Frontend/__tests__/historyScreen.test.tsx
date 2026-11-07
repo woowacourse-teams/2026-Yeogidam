@@ -358,6 +358,24 @@ test('onOpenReel이 있어도 실패한 항목은 히스토리의 실패 화면�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('이미 제보한 실패 이력은 제보 완료 상태로 연다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: [{...reel(7, 'FAILED'), reported: true}],
+    nextCursor: null,
+  });
+  const renderer = await render();
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(hasText(renderer, '제보 완료')).toBe(true);
+  expect(renderer.root.findAll(node =>
+    node.props.disabled === true && node.findAll(child => child.props.children === '제보 완료').length > 0,
+  ).length).toBeGreaterThan(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('첫 페이지 밖의 항목도 목록의 공유 정보로 상세를 연다', async () => {
   const firstCursor = {created_at: '2026-10-14T00:00:00Z', id: '3'};
   jest

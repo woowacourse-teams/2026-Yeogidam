@@ -34,6 +34,8 @@ export type HistoryReel = {
   created_at: string;
   /** 게시물에서 추출된 장소 수. 게시물 목록 응답에 포함될 때 사용합니다. */
   extracted_place_count?: number;
+  /** 이 공유 이력을 이미 제보했는지 여부입니다. */
+  reported?: boolean;
   /** 히스토리에 남아 있지만 보관함에서 삭제한 공유입니다. */
   deleted_from_library?: boolean;
   local_thumbnail_source?: ImageSourcePropType;

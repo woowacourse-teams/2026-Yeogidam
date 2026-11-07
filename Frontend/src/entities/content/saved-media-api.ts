@@ -14,6 +14,7 @@ type SpringSavedMedia = {
   sharedUrl: string;
   placeCount?: number | null;
   places?: unknown[] | null;
+  reported?: boolean;
 };
 
 type SpringSavedMediaPage = {
@@ -35,6 +36,7 @@ function toReel(item: SpringSavedMedia): HistoryReel {
     save_mode: null,
     created_at: item.createdAt,
     extracted_place_count: item.placeCount ?? item.places?.length,
+    ...(typeof item.reported === 'boolean' ? {reported: item.reported} : {}),
   };
 }
 

@@ -410,12 +410,14 @@ function HistoryFailureDetail({
   onRetry,
   guestDetail,
   onRequireLogin,
+  onReported,
 }: {
   onBack: () => void;
   reel: HistoryReel;
   onRetry: () => Promise<void>;
   guestDetail?: HistoryReelDetail | null;
   onRequireLogin?: () => void;
+  onReported?: (reelId: string) => void;
 }) {
   const posthog = usePostHog();
   const {button, modal} = useScreenAnalytics('history_detail_failure');
@@ -436,7 +438,10 @@ function HistoryFailureDetail({
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
   }, [posthog, reel.id]);
-  const [reported, setReported] = useState(false);
+  const [reported, setReported] = useState(reel.reported === true);
+  useEffect(() => {
+    setReported(reel.reported === true);
+  }, [reel.id, reel.reported]);
   const [retrying, setRetrying] = useState(false);
   const { detail } = useHistoryReelDetail(reel, guestDetail);
   const displayReel = detail ?? reel;
@@ -575,9 +580,10 @@ function HistoryFailureDetail({
                     button('report_confirm_ok');
                     setReported(true);
                     reportHistoryReel(reel.id)
-                      .then(() =>
-                        trackActionFinished(posthog, 'history_report', 'success'),
-                      )
+                      .then(() => {
+                        onReported?.(reel.id);
+                        trackActionFinished(posthog, 'history_report', 'success');
+                      })
                       .catch(() => {
                         trackActionFinished(posthog, 'history_report', 'failure');
                         setReported(false);
@@ -1069,6 +1075,10 @@ export function HistoryScreen({
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
         onRequireLogin={onRequireLogin}
+        onReported={reelId => {
+          setSelectedReel(current => current?.id === reelId ? {...current, reported: true} : current);
+          setReels(current => current.map(item => item.id === reelId ? {...item, reported: true} : item));
+        }}
         onRetry={async () => {
           if (guestReels !== undefined) {
             onRequireLogin?.();
