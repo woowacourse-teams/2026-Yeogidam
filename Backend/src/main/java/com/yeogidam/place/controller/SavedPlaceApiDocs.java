@@ -30,10 +30,11 @@ public interface SavedPlaceApiDocs {
 
     @Operation(summary = "저장 장소 검색",
             description = """
-                    로그인 회원의 저장 장소를 장소명, 지번, 도로명, 화면에 표시하는 카테고리 이름에서 부분 검색합니다.
+                    로그인 회원의 저장 장소를 장소명, 지번, 도로명, 화면 카테고리 이름, 카카오 카테고리 원문에서 부분 검색합니다.
 
                     - 공백으로 나눈 검색 단어를 모두 포함해야 하며, 각 단어는 서로 다른 필드에 있어도 됩니다.
-                    - 카테고리는 `categoryName`으로 검색합니다. 예를 들어 간식으로 분류된 장소는 `디저트`로 찾습니다.
+                    - 카테고리는 화면 이름(`categoryName`)과 카카오 원문(`category`)을 검색합니다.
+                      원문이 `음식점 > 치킨`이고 화면에 `별미`로 표시되는 장소는 `치킨`과 `별미`로 모두 찾을 수 있습니다.
                     - 영문 대소문자와 공백 차이를 허용하고 입력한 `%`, `_`는 문자 그대로 검색합니다.
                     - 검색어는 앞뒤 공백을 제외하고 1~100자입니다.
                     - 최근 저장 시각과 보관함 항목 ID 내림차순으로 전체 결과를 반환합니다.
@@ -42,7 +43,8 @@ public interface SavedPlaceApiDocs {
                     - 일치하는 장소가 없으면 빈 savedPlaces 배열을 반환합니다.
                     """,
             parameters = @Parameter(name = "query", in = ParameterIn.QUERY, required = true,
-                    description = "장소명, 주소, 화면 카테고리 이름에 포함된 검색어. 앞뒤 공백 제외 최대 100자", example = "잠실 카페"),
+                    description = "장소명, 주소, 화면 카테고리 이름, 카카오 카테고리 원문에 포함된 검색어. 앞뒤 공백 제외 최대 100자",
+                    example = "잠실 치킨"),
             security = @SecurityRequirement(name = "access-token"),
             responses = {
                     @ApiResponse(responseCode = "200", description = "내 저장 장소의 검색 결과",

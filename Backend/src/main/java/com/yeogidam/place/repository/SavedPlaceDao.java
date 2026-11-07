@@ -377,7 +377,7 @@ public class SavedPlaceDao {
         arguments.add(memberId);
         for (String word : query.getWords()) {
             String pattern = searchPattern(word);
-            arguments.addAll(List.of(pattern, pattern, pattern));
+            arguments.addAll(List.of(pattern, pattern, pattern, pattern));
             arguments.addAll(categories.savedPlaceIdsMatching(word));
         }
         return new SavedPlaceProjections(jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, arguments.toArray()));
@@ -390,6 +390,8 @@ public class SavedPlaceDao {
                  OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.land_lot_address, ''),
                     ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
                  OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.road_address, ''),
+                    ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
+                 OR LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.category, ''),
                     ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
                  OR %s)
                 """.formatted(categoryCondition(categorySavedPlaceIds));

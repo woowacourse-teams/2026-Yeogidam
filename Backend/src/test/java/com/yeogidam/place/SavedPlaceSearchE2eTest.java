@@ -21,6 +21,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -89,12 +90,12 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
             String categoryCode,
             String categoryName
     ) {
-        // given: 두 번째 장소는 원문에 디저트가 있어도 화면에서는 카페로 분류된다.
+        // given
         LoginResult login = loginAsKakao("place-search-category-name");
         insertPlace(jdbcTemplate, 1L, "kakao-category-name", "첫 번째 가게", category,
                 "서울 성동구 성수동2가 1-1", "서울 성동구 아차산로 1", new BigDecimal("37.54"),
                 new BigDecimal("127.05"), null, null, null, null);
-        insertPlace(jdbcTemplate, 2L, "kakao-other-category", "두 번째 가게", "음식점 > 카페 > 디저트카페",
+        insertPlace(jdbcTemplate, 2L, "kakao-other-category", "두 번째 가게", "음식점 > 카페",
                 "서울 성동구 성수동2가 2-2", "서울 성동구 아차산로 2", new BigDecimal("37.54"),
                 new BigDecimal("127.05"), null, null, null, null);
         insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, SAVED_AT);
@@ -114,8 +115,8 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 카테고리_원문에만_있는_단어로는_해당_장소를_반환하지_않는다() {
-        // given: 원문에만 간식이 있는 장소와 장소명에 간식이 있는 장소를 구분한다.
+    void 카테고리_원문이나_장소명에_검색어가_포함되면_반환한다() {
+        // given
         LoginResult login = loginAsKakao("place-search-category-original");
         insertPlace(jdbcTemplate, 1L, "kakao-category-original", "첫 번째 가게", "음식점 > 간식 > 제과,베이커리",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 아차산로 1", new BigDecimal("37.54"),
@@ -133,11 +134,12 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
                 .get(PATH)
                 .then()
                 .statusCode(200)
-                .body("savedPlaces.savedPlaceId", contains(12));
+                .body("savedPlaces.savedPlaceId", containsInAnyOrder(11, 12));
     }
 
-    @Test
-    void 주소와_카테고리_이름을_함께_검색하면_둘_다_일치하는_내_장소를_반환한다() {
+    @ParameterizedTest
+    @ValueSource(strings = {"잠실 디저트", "잠실 간식"})
+    void 주소와_카테고리를_함께_검색하면_둘_다_일치하는_내_장소를_반환한다(String query) {
         // given
         LoginResult login = loginAsKakao("place-search-multiple-words");
         LoginResult other = loginAsKakao("place-search-multiple-words-other");
@@ -164,7 +166,7 @@ class SavedPlaceSearchE2eTest extends E2eTestSupport {
 
         // when & then
         givenBearer(login.accessToken())
-                .queryParam("query", "잠실 디저트")
+                .queryParam("query", query)
                 .when()
                 .get(PATH)
                 .then()
