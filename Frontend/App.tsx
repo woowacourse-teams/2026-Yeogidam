@@ -29,6 +29,7 @@ import {
 import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
+import { AppAlertHost } from './src/components/AppAlertHost';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
@@ -62,6 +63,7 @@ import {
 } from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
+import { showAlert } from './src/lib/app-alert';
 import {
   getDismissedRecommendedVersion,
   rememberDismissedRecommendedVersion,
@@ -444,6 +446,7 @@ function App() {
     mainTabHistoryRef.current = [];
   }, [isAuthenticated]);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
+  const [tabRefreshCount, setTabRefreshCount] = useState({saved: 0, map: 0});
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
     AccountDeletionProvider[]
@@ -593,6 +596,15 @@ function App() {
   };
 
   const navigateMainTab = (nextScreen: MainScreen) => {
+    if (flowState.kind === 'main' && flowState.detailSource === null && flowState.activeTab === nextScreen) {
+      if (nextScreen === 'saved' || nextScreen === 'map') {
+        setTabRefreshCount(current => ({...current, [nextScreen]: current[nextScreen] + 1}));
+      } else if (nextScreen === 'my' && isAuthenticated) {
+        handleRetryProfile();
+      }
+      return;
+    }
+
     if (
       flowState.kind === 'main' &&
       flowState.detailSource === null &&
@@ -997,7 +1009,7 @@ function App() {
               getSpringTokens()
                 .then(tokens => {
                   if (tokens) {
-                    Alert.alert(
+                    showAlert(
                       '공유한 게시물을 저장하지 못했어요',
                       '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
                     );
@@ -1005,7 +1017,7 @@ function App() {
                   }
                   loginEntryRef.current = null;
                   setFlowState(INITIAL_FLOW_STATE);
-                  Alert.alert(
+                  showAlert(
                     '로그인이 필요해요',
                     '다시 로그인한 뒤 게시물을 공유해 주세요.',
                   );
@@ -1362,7 +1374,7 @@ function App() {
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
-    Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+    showAlert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
 
   const handleRetryProfile = async () => {
@@ -1451,8 +1463,8 @@ function App() {
         <SavedPlacesScreen
           key={
             isAuthenticated === false
-              ? 'guest-saved'
-              : 'member-saved'
+              ? `guest-saved-${tabRefreshCount.saved}`
+              : `member-saved-${tabRefreshCount.saved}`
           }
           isActive={currentScreen === 'saved' && myPageOverlay === null && reelDetail === null}
           onNestedBackStateChange={reportSavedBackState}
@@ -1499,8 +1511,8 @@ function App() {
           onBackGestureRegionChange={reportMapBackGestureRegion}
           key={
             isAuthenticated === false
-              ? 'guest-map'
-              : 'member-map'
+              ? `guest-map-${tabRefreshCount.map}`
+              : `member-map-${tabRefreshCount.map}`
           }
           isGuest={isAuthenticated === false}
           isActive={currentScreen === 'map' && myPageOverlay === null}
@@ -1798,4 +1810,13 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Sentry.wrap(App);
+function AppWithAlerts() {
+  return (
+    <>
+      <AppAlertHost />
+      <App />
+    </>
+  );
+}
+
+export default Sentry.wrap(AppWithAlerts);
