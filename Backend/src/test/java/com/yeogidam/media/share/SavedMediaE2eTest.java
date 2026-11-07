@@ -381,6 +381,25 @@ class SavedMediaE2eTest extends E2eTestSupport {
     }
 
     @Test
+    void 게시물_탭에서_제보한_게시글은_다시_조회하면_제보한_것으로_돌려준다() {
+        // given: 게시물 21을 공유 1과 3으로 두 번, 게시물 22를 공유 2로 공유했다
+        LoginResult login = loginAsKakao("saved-media-reported-user");
+        insertTwoMediaWithOverlappingPlace(login.memberId());
+
+        // when: 게시물 탭에 보이는 게시물 21의 최신 공유 3을 제보한다
+        givenBearer(login.accessToken())
+                .when().post(SHARES_PATH + "/{sharedMediaId}/reports", 3L)
+                .then().statusCode(201);
+
+        // then: 다시 조회하면 공유 3만 제보한 것으로 돌려준다
+        givenBearer(login.accessToken())
+                .when().get(PATH)
+                .then().statusCode(200)
+                .body("sharedMedia.sharedMediaId", contains(3, 2))
+                .body("sharedMedia.reported", contains(true, false));
+    }
+
+    @Test
     void 게시글을_지워도_제보와_히스토리는_남는다() {
         // given: 장소를 찾지 못한 게시물 31의 공유 1을 제보했다
         LoginResult login = loginAsKakao("saved-media-report-user");

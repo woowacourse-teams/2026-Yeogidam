@@ -68,7 +68,8 @@ public class SharedMediaDao {
                     resultSet.getString("thumbnail_key"),
                     resultSet.getString("caption"),
                     resultSet.getString("author"),
-                    resultSet.getString("shared_url")
+                    resultSet.getString("shared_url"),
+                    resultSet.getBoolean("reported")
             );
 
     private final JdbcTemplate jdbcTemplate;
@@ -274,6 +275,8 @@ public class SharedMediaDao {
      * 보관함 연결(shared_media_saved_places)은 보지 않으므로, 장소를 모두 저장 해제한 게시물도 남는다.
      * 다른 회원의 공유는 읽지 않으므로, 여러 회원이 공유한 게시물이나 같은 게시물을 여러 번 공유한 경우에도 내 공유만큼만 읽는다.
      * 공유 시각이 같으면 ID가 큰 공유를 더 최근으로 본다.
+     * 남긴 공유마다 제보 여부를 함께 읽는다. 제보는 공유마다 받으므로, 같은 게시물의 옛 공유만 제보했으면 false다.
+     * 제보 여부는 SELECT 절의 하위 쿼리라서, MySQL이 정렬과 LIMIT을 마친 페이지 행에만 유니크 인덱스로 한 번씩 실행한다.
      */
     public SavedMediaProjections findSavedMedia(Long memberId) {
         String sql = """
@@ -283,7 +286,12 @@ public class SharedMediaDao {
                        m.thumbnail_key,
                        m.caption,
                        m.author,
-                       latest.shared_url
+                       latest.shared_url,
+                       EXISTS (
+                           SELECT 1
+                           FROM shared_media_reports smr
+                           WHERE smr.shared_media_id = latest.shared_media_id
+                       ) AS reported
                 FROM (
                     SELECT sm.id AS shared_media_id,
                            sm.media_id,
@@ -315,6 +323,7 @@ public class SharedMediaDao {
     /**
      * 커서가 가리키는 공유보다 오래된 보관함 게시물을 다음 페이지로 읽는다.
      * 게시물마다 한 건만 남긴 뒤에 커서를 적용하므로, 다시 공유해서 앞 페이지로 올라간 게시물의 옛 공유는 다시 읽지 않는다.
+     * 제보 여부는 첫 페이지(findSavedMedia)와 같은 규칙으로 읽는다.
      */
     public SavedMediaProjections findSavedMediaBefore(Long memberId, SharedMediaCursor cursor) {
         String sql = """
@@ -324,7 +333,12 @@ public class SharedMediaDao {
                        m.thumbnail_key,
                        m.caption,
                        m.author,
-                       latest.shared_url
+                       latest.shared_url,
+                       EXISTS (
+                           SELECT 1
+                           FROM shared_media_reports smr
+                           WHERE smr.shared_media_id = latest.shared_media_id
+                       ) AS reported
                 FROM (
                     SELECT sm.id AS shared_media_id,
                            sm.media_id,
