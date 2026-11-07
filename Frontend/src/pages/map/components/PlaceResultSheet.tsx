@@ -92,7 +92,7 @@ type PlaceResultSheetProps = {
   folderHeader?: React.ReactNode;
   /** 지정하면 장소 목록 대신 이 내용을 보여줍니다(폴더 목록). */
   folderContent?: React.ReactNode;
-  /** 뒤로 스와이프할 때 미리 보여줄 이전 화면의 헤더와 내용입니다(폴더 안에서 폴더 목록으로). */
+  /** 폴더 상세 뒤에 유지할 폴더 목록 화면의 헤더와 내용입니다. */
   backFolderHeader?: React.ReactNode;
   backFolderContent?: React.ReactNode;
   /** 장소 목록이 비었을 때 기본 안내 대신 보여줄 내용입니다. */
@@ -622,11 +622,9 @@ export function PlaceResultSheet({
     () => ({
       // 끝까지 올린 상세(페이지 모드)에서도 핸들을 끌어 시트를 내릴 수 있어야 하므로 막지 않습니다.
       onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dy) > 4 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
-        Math.abs(gesture.dy) > 4 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         const revision = ++sheetDragRevision.current;
@@ -1147,10 +1145,16 @@ export function PlaceResultSheet({
         </CopyToastProvider>
       </View>
     ) : null;
-  const renderListContent = (snapIndex: number, preview = false) => {
-    // 높이만 내려가는 뒤로가기가 아니라 이전 화면으로 돌아가는 뒤로가기의 미리보기입니다.
-    const isPageBackPreview = preview && !selectedPlace && snapIndex !== 0;
-    const showsBackFolder = isPageBackPreview && backFolderHeader !== undefined;
+  const renderListContent = (
+    snapIndex: number,
+    preview = false,
+    forceBackFolder = false,
+  ) => {
+    // 일반 상태 복귀는 미리보기를 쓰고, 폴더 복귀는 유지 중인 목록 화면을 씁니다.
+    const isPageBackPreview =
+      preview && !selectedPlace && snapIndex !== 0 && !hasFolderDetail;
+    const showsBackFolder =
+      (forceBackFolder || isPageBackPreview) && backFolderHeader !== undefined;
     return (
       <View
         {...(snapIndex === 2 ? panResponder.panHandlers : {})}
@@ -1335,9 +1339,13 @@ export function PlaceResultSheet({
   const backOffset = selectedPlace
     ? snapOffsets[backSnapIndex]
     : listSnapOffsets[backSnapIndex];
+  const folderListOffset = listSnapOffsets[backSnapIndex];
+  const hasFolderDetail =
+    backFolderHeader !== undefined && backFolderContent !== undefined;
   const hasStateBack =
     swipeCollapsesDetail ||
-    (!selectedPlace && (activeSnapIndex === 0 || pageBackAvailable));
+    (!selectedPlace &&
+      (activeSnapIndex === 0 || (!hasFolderDetail && pageBackAvailable)));
   useLayoutEffect(() => {
     if (!selectedPlace) return;
     // Prepare the real retained destination before it can be revealed. This
@@ -1345,7 +1353,7 @@ export function PlaceResultSheet({
     listTranslateY.stopAnimation();
     listTranslateY.setValue(listOffset);
   }, [listOffset, listTranslateY, selectedPlace]);
-  const renderListSheet = (preview = false) => (
+  const renderListSheet = (preview = false, forceBackFolder = false) => (
     <Animated.View
       style={[
         styles.sheet,
@@ -1354,7 +1362,11 @@ export function PlaceResultSheet({
           bottom: bottomTabOffset,
           transform: [
             {
-              translateY: preview ? backOffset : listTranslateY,
+              translateY: preview
+                ? forceBackFolder
+                  ? folderListOffset
+                  : backOffset
+                : listTranslateY,
             },
           ],
         },
@@ -1370,7 +1382,11 @@ export function PlaceResultSheet({
           <View style={styles.pill} />
         </Pressable>
       </View>
-      {renderListContent(preview ? backSnapIndex : listSnapIndex, preview)}
+      {renderListContent(
+        preview ? backSnapIndex : listSnapIndex,
+        preview,
+        forceBackFolder,
+      )}
     </Animated.View>
   );
   const renderDetailSheet = (snapIndex = activeSnapIndex, preview = false) =>
@@ -1414,8 +1430,20 @@ export function PlaceResultSheet({
       <SwipeBackStack
         transparent={!!renderMap}
         gestureRegion={{ top: backGestureTop, bottom: bottomTabOffset }}
-        activeKey={selectedPlace ? 'detail' : 'list'}
-        backKey={hasStateBack ? 'state-back' : selectedPlace ? 'list' : null}
+        activeKey={
+          selectedPlace ? 'detail' : hasFolderDetail ? 'folder-detail' : 'list'
+        }
+        backKey={
+          hasStateBack
+            ? 'state-back'
+            : selectedPlace
+            ? hasFolderDetail
+              ? 'folder-detail'
+              : 'list'
+            : hasFolderDetail
+            ? 'list'
+            : null
+        }
         onSwipeStart={() => refreshBackPreview(revision => revision + 1)}
         transitionKey={`${activeSnapIndex}:${pageBackStateKey}`}
         onBack={() => {
@@ -1455,18 +1483,41 @@ export function PlaceResultSheet({
             : []),
           {
             key: 'list',
-            content: renderPage(renderListSheet(), {
-              isDetail: false,
-              isExpanded: listSnapIndex === 0,
-              place: null,
-              sheetHeight: listHeight,
-              sheetBottomOffset: bottomTabOffset,
-              sheetVisibleHeight: selectedPlace
-                ? listHeight - listOffset
-                : sheetHeight - currentOffset.current,
-              translateY: listTranslateY,
-            }),
+            content: renderPage(
+              renderListSheet(hasFolderDetail, hasFolderDetail),
+              {
+                isBackPreview: hasFolderDetail,
+                isDetail: false,
+                isExpanded:
+                  (hasFolderDetail ? backSnapIndex : listSnapIndex) === 0,
+                place: null,
+                sheetHeight: listHeight,
+                sheetBottomOffset: bottomTabOffset,
+                sheetVisibleHeight: hasFolderDetail
+                  ? listHeight - folderListOffset
+                  : selectedPlace
+                  ? listHeight - listOffset
+                  : sheetHeight - currentOffset.current,
+                translateY: hasFolderDetail ? folderListOffset : listTranslateY,
+              },
+            ),
           },
+          ...(hasFolderDetail
+            ? [
+                {
+                  key: 'folder-detail',
+                  content: renderPage(renderListSheet(), {
+                    isDetail: false,
+                    isExpanded: listSnapIndex === 0,
+                    place: null,
+                    sheetHeight: listHeight,
+                    sheetBottomOffset: bottomTabOffset,
+                    sheetVisibleHeight: sheetHeight - currentOffset.current,
+                    translateY: listTranslateY,
+                  }),
+                },
+              ]
+            : []),
           ...(selectedPlace
             ? [
                 {
