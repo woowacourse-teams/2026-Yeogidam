@@ -2,6 +2,7 @@ import { showAlert } from '../../../lib/app-alert';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -220,16 +221,25 @@ export function FolderNameDialog({
     existingNames.some(existingName => existingName.trim() === trimmedName);
   const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
+  const handleBackdropPress = () => {
+    if (Keyboard.isVisible()) {
+      Keyboard.dismiss();
+      return;
+    }
+    onCancel();
+  };
+
   return (
     <AppModal
       avoidKeyboard
+      backdropColor="rgba(0,0,0,0.4)"
       transparent
       animationType="fade"
       visible={visible}
       onRequestClose={onCancel}
     >
       <View style={styles.backdrop}>
-        <Pressable accessible={false} onPress={onCancel} style={StyleSheet.absoluteFill} />
+        <Pressable accessible={false} onPress={handleBackdropPress} style={StyleSheet.absoluteFill} />
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
           <View style={styles.inputField}>
@@ -760,7 +770,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
