@@ -23,6 +23,7 @@ set -euo pipefail
 ROLE="${1:-current}"
 ENV_FILE=/opt/yeogidam/backend.env
 NAME=yeogidam-backend
+OBSERVABILITY_NETWORK=yeogidam-observability
 IMAGE_NAME=yeogidam/backend
 MEMORY_LIMIT=512m
 MEMORY_SWAP_LIMIT=768m
@@ -81,6 +82,11 @@ LOCK_FILE="${LOCK_DIR}/backend.lock"
 exec 9>>"$LOCK_FILE"
 flock -n 9 || fail "배포 워크플로가 EC2에서 진행 중입니다. Actions에서 Backend CD가 끝난 것을 보고 다시 돌려 주세요."
 
+if ! docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null 2>&1; then
+  docker network create "$OBSERVABILITY_NETWORK" >/dev/null 2>&1 \
+    || docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null
+fi
+
 color_of_port() { if [ "$1" = "$BLUE_PORT" ]; then echo blue; else echo green; fi; }
 other_port()    { if [ "$1" = "$BLUE_PORT" ]; then echo "$GREEN_PORT"; else echo "$BLUE_PORT"; fi; }
 running()       { [ "$(docker container inspect --format '{{.State.Running}}' "$1" 2>/dev/null || true)" = "true" ]; }
@@ -110,6 +116,7 @@ log "시작: ${ROLE} 이미지 $(echo "$IMAGE_ID" | cut -c8-19), 프로필 ${PRO
 docker rm -f "$IDLE_NAME" >/dev/null 2>&1 || true
 docker run --detach \
   --name "$IDLE_NAME" \
+  --network "$OBSERVABILITY_NETWORK" \
   --restart unless-stopped \
   --env-file "$ENV_FILE" \
   --publish "127.0.0.1:${IDLE_PORT}:8080" \
