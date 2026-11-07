@@ -6,6 +6,7 @@ import com.yeogidam.place.dto.response.SavedPlaceCreateResponse;
 import com.yeogidam.place.dto.response.SavedPlaceMediaResponses;
 import com.yeogidam.place.dto.response.SavedPlaceResponses;
 import com.yeogidam.place.service.SavedPlaceSaveResult;
+import com.yeogidam.place.service.SavedPlaceSearchService;
 import com.yeogidam.place.service.SavedPlaceService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -27,11 +28,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class SavedPlaceController implements SavedPlaceApiDocs {
 
     private final SavedPlaceService savedPlaceService;
+    private final SavedPlaceSearchService savedPlaceSearchService;
 
     @Override
     @GetMapping
     public ResponseEntity<SavedPlaceResponses> readSavedPlaces(@LoginMember Long memberId) {
         SavedPlaceResponses response = savedPlaceService.readSavedPlaces(memberId);
+        return ResponseEntity.ok()
+                .body(response);
+    }
+
+    @Override
+    @GetMapping("/search")
+    public ResponseEntity<SavedPlaceResponses> readSavedPlacesByQuery(
+            @LoginMember Long memberId,
+            @RequestParam String query
+    ) {
+        SavedPlaceResponses response = savedPlaceSearchService.readSavedPlaces(memberId, query);
         return ResponseEntity.ok()
                 .body(response);
     }
