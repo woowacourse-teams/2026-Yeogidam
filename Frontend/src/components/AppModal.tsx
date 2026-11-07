@@ -14,12 +14,14 @@ type AppModalProps = ModalProps & {
   // iOS 모달은 키보드에 맞춰 줄어들지 않습니다. Android도 targetSdk 35+에서는 15·16 기기가
   // edge-to-edge를 강제해 adjustResize가 창을 줄이지 않으므로, 두 플랫폼 모두 padding으로 밀어 올립니다.
   avoidKeyboard?: boolean;
+  backdropColor?: string;
 };
 
 // 앱의 모든 모달은 react-native의 Modal 대신 이 컴포넌트를 씁니다.
 // 열려 있는 동안에는 화면 왼쪽 가장자리의 뒤로가기 제스처가 모달 터치를 가져가지 않습니다.
 export function AppModal({
   avoidKeyboard = false,
+  backdropColor,
   children,
   ...modalProps
 }: AppModalProps) {
@@ -29,9 +31,11 @@ export function AppModal({
   return (
     <Modal {...modalProps}>
       {avoidKeyboard ? (
-        <KeyboardAvoidingView behavior="padding" style={styles.container}>
-          {children}
-        </KeyboardAvoidingView>
+        <View style={[styles.container, { backgroundColor: backdropColor }]}>
+          <KeyboardAvoidingView behavior="padding" style={styles.container}>
+            {children}
+          </KeyboardAvoidingView>
+        </View>
       ) : (
         <View style={styles.container}>{children}</View>
       )}
