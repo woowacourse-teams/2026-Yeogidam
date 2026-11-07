@@ -62,9 +62,11 @@ public interface SavedPlaceApiDocs {
     ResponseEntity<SavedPlaceResponses> readSavedPlaces(Long memberId);
 
     @Operation(summary = "장소 관련 릴스 조회",
+            deprecated = true,
             description = """
                     `savedPlaceId`가 가리키는 장소를 저장하게 만든 릴스 목록으로, 장소 상세의 게시물 탭과 지도 바텀시트의 이미지 띠에서 씁니다.
 
+                    - 2.3.0 앱부터는 `GET /api/v1/places/{placeId}/media`를 씁니다. 이 API는 2.2.x 앱이 쓰고 있어 남겨 두며, 앱 필수 업데이트 버전이 2.3.0 이상이 되면 지웁니다(#606).
                     - `createdAt` 내림차순으로 정렬합니다.
                     - 같은 릴스를 여러 번 공유해 여러 번 저장했으면 최신 공유 한 건만 돌려줍니다.
                     - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글은 빠집니다.
