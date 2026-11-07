@@ -186,7 +186,7 @@ public class ShareService {
         if (!sharedMediaDao.existsByMemberIdAndSharedMediaId(memberId, sharedMediaId)) {
             throw new MediaException(MediaErrorCode.SHARED_MEDIA_NOT_FOUND);
         }
-        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(sharedMediaId);
+        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(memberId, sharedMediaId);
         Map<Long, String> placeThumbnailUrls = resolvePlaceThumbnailUrls(places);
         return ShareHistoryPlaceResponses.from(places, placeThumbnailUrls);
     }
