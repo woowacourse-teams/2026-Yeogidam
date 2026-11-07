@@ -12,6 +12,8 @@ type SpringSavedMedia = {
   caption: string | null;
   author: string | null;
   sharedUrl: string;
+  placeCount?: number | null;
+  places?: unknown[] | null;
   reported?: boolean;
 };
 
@@ -33,6 +35,7 @@ function toReel(item: SpringSavedMedia): HistoryReel {
     failure_reason: null,
     save_mode: null,
     created_at: item.createdAt,
+    extracted_place_count: item.placeCount ?? item.places?.length,
     ...(typeof item.reported === 'boolean' ? {reported: item.reported} : {}),
   };
 }
