@@ -3,7 +3,6 @@ package com.yeogidam.media.share.controller;
 import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.media.share.dto.response.SavedMediaResponses;
 import com.yeogidam.media.share.service.SavedMediaService;
-import com.yeogidam.media.share.service.SharedMediaSearchService;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class SavedMediaController implements SavedMediaApiDocs {
 
     private final SavedMediaService savedMediaService;
-    private final SharedMediaSearchService sharedMediaSearchService;
 
     @Override
     @GetMapping
@@ -42,7 +40,7 @@ public class SavedMediaController implements SavedMediaApiDocs {
             @RequestParam(required = false) Instant cursorCreatedAt,
             @RequestParam(required = false) Long cursorId
     ) {
-        SavedMediaResponses response = sharedMediaSearchService.readSharedMedia(
+        SavedMediaResponses response = savedMediaService.searchSavedMedia(
                 memberId, query, cursorCreatedAt, cursorId);
         return ResponseEntity.ok()
                 .body(response);

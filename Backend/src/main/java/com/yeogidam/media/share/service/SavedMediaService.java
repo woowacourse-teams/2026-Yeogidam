@@ -6,6 +6,7 @@ import com.yeogidam.media.extraction.repository.MediaPlaceDao;
 import com.yeogidam.media.extraction.repository.SavedMediaPlaceProjections;
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
+import com.yeogidam.media.share.domain.CaptionSearchQuery;
 import com.yeogidam.media.share.dto.response.SavedMediaResponses;
 import com.yeogidam.media.share.repository.SavedMediaProjections;
 import com.yeogidam.media.share.repository.SharedMediaCursor;
@@ -43,8 +44,20 @@ public class SavedMediaService {
         SavedMediaProjections shares = SharedMediaCursor.fromParameters(cursorCreatedAt, cursorId)
                 .map(cursor -> sharedMediaDao.findSavedMediaBefore(memberId, cursor))
                 .orElseGet(() -> sharedMediaDao.findSavedMedia(memberId));
-        SavedMediaPlaceProjections places = mediaPlaceDao.findSavedMediaPlaces(memberId, shares.pageMediaIds());
-        return SavedMediaResponses.from(shares, places, mediaThumbnailUrlResolver::resolve);
+        return toSavedMediaResponses(memberId, shares);
+    }
+
+    public SavedMediaResponses searchSavedMedia(
+            Long memberId,
+            String query,
+            Instant cursorCreatedAt,
+            Long cursorId
+    ) {
+        CaptionSearchQuery searchQuery = new CaptionSearchQuery(query);
+        SavedMediaProjections shares = SharedMediaCursor.fromParameters(cursorCreatedAt, cursorId)
+                .map(cursor -> sharedMediaDao.findSavedMediaByQueryBefore(memberId, searchQuery, cursor))
+                .orElseGet(() -> sharedMediaDao.findSavedMediaByQuery(memberId, searchQuery));
+        return toSavedMediaResponses(memberId, shares);
     }
 
     /**
@@ -83,5 +96,10 @@ public class SavedMediaService {
             return;
         }
         savedPlaceDao.deleteByMemberAndIds(memberId, unusedIds);
+    }
+
+    private SavedMediaResponses toSavedMediaResponses(Long memberId, SavedMediaProjections shares) {
+        SavedMediaPlaceProjections places = mediaPlaceDao.findSavedMediaPlaces(memberId, shares.pageMediaIds());
+        return SavedMediaResponses.from(shares, places, mediaThumbnailUrlResolver::resolve);
     }
 }
