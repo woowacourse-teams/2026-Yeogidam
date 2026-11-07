@@ -5,6 +5,7 @@ import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.insertReport;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
@@ -47,6 +48,7 @@ class SharedMediaSearchE2eTest extends E2eTestSupport {
         insertMediaPlace(jdbcTemplate, 10L, 1L, 2L);
         insertMediaPlace(jdbcTemplate, 20L, 1L, 3L);
         insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, BASE);
+        insertReport(jdbcTemplate, 1L, 1L, BASE.plusSeconds(1));
 
         // when & then
         givenBearer(login.accessToken())
@@ -62,6 +64,7 @@ class SharedMediaSearchE2eTest extends E2eTestSupport {
                 .body("sharedMedia[0].thumbnailUrl", equalTo("https://img.example.com/search-1.jpg"))
                 .body("sharedMedia[0].author", equalTo("@search"))
                 .body("sharedMedia[0].sharedUrl", equalTo("https://www.instagram.com/reel/fixture-1/"))
+                .body("sharedMedia[0].reported", equalTo(true))
                 .body("sharedMedia[0].places", hasSize(3))
                 .body("sharedMedia[0].places.placeId", contains(2, 3, 1))
                 .body("sharedMedia[0].places.savedPlaceId", contains(nullValue(), nullValue(), equalTo(10)))

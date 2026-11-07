@@ -29,6 +29,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -522,7 +524,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
 
     @Test
     void 다른_회원의_공유는_보관함_게시물로_읽지_않는다() {
-        // given: 회원 30은 게시물 52를 공유 2로 공유했고, 회원 31은 게시물 51을 공유 1로 공유했으며, 두 공유 모두 분석에 성공해 장소가 나왔다
+        // given: 회원 31은 게시물 51뿐 아니라 회원 30의 게시물 52도 더 최근에 공유했다.
         insertSavedMediaMember(30L);
         insertKakaoMember(jdbcTemplate, 31L, "saved-media-member-other", null, null, null);
         insertMedia(jdbcTemplate, 51L, "게시물 51", "51.jpg", "@author");
@@ -532,6 +534,7 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         Instant base = Instant.parse("2026-11-01T03:00:00Z");
         insertSharedMedia(jdbcTemplate, 1L, 31L, 51L, base.plusSeconds(1));
         insertSharedMedia(jdbcTemplate, 2L, 30L, 52L, base);
+        insertSharedMedia(jdbcTemplate, 3L, 31L, 52L, base.plusSeconds(2));
 
         // when
         List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(30L).shares();
@@ -540,6 +543,72 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(2L);
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"EXTRACTING, NULL", "FAILED, UNEXPECTED"}, nullValues = "NULL")
+    void 보관함_게시물은_분석에_성공한_공유_중_최신_공유를_남긴다(
+            ExtractionStatus status,
+            ExtractionFailureReason failureReason
+    ) {
+        // given: 게시물 21은 성공한 이전 공유가 있고, 게시물 22는 성공한 공유가 없다.
+        insertSavedMediaMember(40L);
+        insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 22L, "연남 와인바", "22.jpg", "@yeonnam");
+        insertMediaPlace(jdbcTemplate, 21L, 21L, 1L);
+        insertMediaPlace(jdbcTemplate, 22L, 22L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        ExtractionSnapshot snapshot = new ExtractionSnapshot(status, failureReason, 1, MediaSourceType.EXTRACTED);
+        insertSharedMedia(jdbcTemplate, 1L, 40L, 21L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 40L, 21L, base.plusSeconds(1), snapshot);
+        insertSharedMedia(jdbcTemplate, 3L, 40L, 22L, base.plusSeconds(2), snapshot);
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(40L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void 최신_공유를_지웠으면_이전의_삭제하지_않은_공유를_남긴다() {
+        // given
+        insertSavedMediaMember(41L);
+        insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
+        insertMediaPlace(jdbcTemplate, 21L, 21L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 41L, 21L, base);
+        insertDeletedSharedMedia(jdbcTemplate, 2L, 41L, 21L, base.plusSeconds(1), base.plusSeconds(2));
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(41L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
+    }
+
+    @Test
+    void 미디어가_재분석_중이어도_성공한_공유와_추출_장소가_있으면_보관함에_남긴다() {
+        // given
+        insertSavedMediaMember(42L);
+        insertExtractingMedia(jdbcTemplate, 21L);
+        insertMediaPlace(jdbcTemplate, 21L, 21L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        ExtractionSnapshot succeeded = new ExtractionSnapshot(
+                ExtractionStatus.SUCCEEDED, null, 1, MediaSourceType.EXTRACTED);
+        insertSharedMedia(jdbcTemplate, 1L, 42L, 21L, base, succeeded);
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(42L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId)
+                .containsExactly(1L);
     }
 
     @Test

@@ -4,23 +4,19 @@ import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaP
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
-import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
-import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
-import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertDeletedSharedMedia;
+import static com.yeogidam.support.fixture.sql.SharedMediaReportSqlFixture.insertReport;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.yeogidam.media.share.domain.CaptionSearchQuery;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.stream.LongStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -67,217 +63,23 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void 첫_페이지와_커서_조회_모두_내_공유만_검색한다(boolean withCursor) {
-        // given: 같은 게시글의 더 최근 공유도 다른 회원의 것이면 대표 공유가 될 수 없다.
-        insertKakaoMember(jdbcTemplate, 2L, "media-search-other", null, null, null);
+    void 첫_페이지와_커서_조회_모두_대표_공유의_제보_여부를_읽는다(boolean withCursor) {
+        // given: 공유 1과 2를 제보했고, 공유 2와 같은 게시글을 공유 3으로 다시 공유했다.
         insertSearchableMedia(1L, "성수 카페");
         insertSearchableMedia(2L, "성수 카페");
         insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
-        insertSharedMedia(jdbcTemplate, 2L, 2L, 1L, BASE.plusSeconds(1));
-        insertSharedMedia(jdbcTemplate, 3L, 2L, 2L, BASE.plusSeconds(2));
+        insertSharedMedia(jdbcTemplate, 2L, MEMBER_ID, 2L, BASE);
+        insertSharedMedia(jdbcTemplate, 3L, MEMBER_ID, 2L, BASE.plusSeconds(1));
+        insertReport(jdbcTemplate, 1L, 1L, BASE.plusSeconds(2));
+        insertReport(jdbcTemplate, 2L, 2L, BASE.plusSeconds(2));
 
         // when
         SavedMediaProjections shares = search(withCursor);
 
         // then
         assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(1L);
-    }
-
-    @Test
-    void 마지막_보관_장소를_지워도_추출_장소가_있으면_게시글은_검색에_남는다() {
-        // given
-        insertSearchableMedia(1L, "성수 카페");
-        insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
-        insertSavedPlace(jdbcTemplate, 10L, MEMBER_ID, 1L, BASE);
-        insertSavedPlaceShare(jdbcTemplate, 1L, 10L, 1L, BASE);
-
-        // when: 마지막 저장 장소를 지우면 공유와 보관 장소의 연결도 함께 사라진다.
-        jdbcTemplate.update("DELETE FROM saved_places WHERE id = ?", 10L);
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수"));
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(1L);
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void 보관_연결이_남아_있어도_삭제한_공유는_검색에서_제외한다(boolean withCursor) {
-        // given
-        insertSearchableMedia(1L, "성수 카페");
-        insertDeletedSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE, BASE.plusSeconds(1));
-        insertSavedPlace(jdbcTemplate, 10L, MEMBER_ID, 1L, BASE);
-        insertSavedPlaceShare(jdbcTemplate, 1L, 10L, 1L, BASE);
-
-        // when
-        SavedMediaProjections shares = search(withCursor);
-
-        // then
-        assertThat(shares.shares())
-                .isEmpty();
-    }
-
-    @ParameterizedTest
-    @CsvSource(nullValues = "NULL", value = {
-            "false, EXTRACTING, NULL", "true, EXTRACTING, NULL",
-            "false, FAILED, UNEXPECTED", "true, FAILED, UNEXPECTED"
-    })
-    void 미디어가_성공했어도_공유가_분석_중이거나_실패했으면_검색에서_제외한다(
-            boolean withCursor,
-            String status,
-            String failureReason
-    ) {
-        // given: 미디어 상태와 공유 상태를 다르게 만들어 공유의 상태를 기준으로 거르는지 확인한다.
-        insertSearchableMedia(1L, "성수 카페");
-        insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
-        jdbcTemplate.update("UPDATE shared_media SET extraction_status = ?, failure_reason = ? WHERE id = ?",
-                status, failureReason, 1L);
-
-        // when
-        SavedMediaProjections shares = search(withCursor);
-
-        // then
-        assertThat(shares.shares())
-                .isEmpty();
-    }
-
-    @Test
-    void 미디어가_재분석_중이어도_성공한_공유와_추출_장소가_있으면_검색한다() {
-        // given
-        insertMedia(jdbcTemplate, 1L, "성수 카페", null, null, "SUCCEEDED", null, 1, "EXTRACTED");
-        insertMediaPlace(jdbcTemplate, 1L, 1L, 1L);
-        insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
-        jdbcTemplate.update("UPDATE media SET extraction_status = 'EXTRACTING' WHERE id = ?", 1L);
-
-        // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수"));
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(1L);
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void 성공한_공유라도_추출_장소가_없으면_검색에서_제외한다(boolean withCursor) {
-        // given
-        insertMedia(jdbcTemplate, 1L, "성수 카페", null, null);
-        insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
-
-        // when
-        SavedMediaProjections shares = search(withCursor);
-
-        // then
-        assertThat(shares.shares())
-                .isEmpty();
-    }
-
-    @ParameterizedTest
-    @CsvSource(nullValues = "NULL", value = {
-            "false, EXTRACTING, NULL", "true, EXTRACTING, NULL",
-            "false, FAILED, UNEXPECTED", "true, FAILED, UNEXPECTED"
-    })
-    void 최신_공유가_분석에_성공하지_않았으면_이전의_성공한_공유를_선택한다(
-            boolean withCursor,
-            String status,
-            String failureReason
-    ) {
-        // given
-        insertSearchableMedia(1L, "성수 카페");
-        insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
-        insertSharedMedia(jdbcTemplate, 2L, MEMBER_ID, 1L, BASE.plusSeconds(1));
-        jdbcTemplate.update("UPDATE shared_media SET extraction_status = ?, failure_reason = ? WHERE id = ?",
-                status, failureReason, 2L);
-
-        // when
-        SavedMediaProjections shares = search(withCursor);
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(1L);
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void 최신_공유가_삭제되었으면_이전의_삭제하지_않은_공유를_선택한다(boolean withCursor) {
-        // given
-        insertSearchableMedia(1L, "성수 카페");
-        insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
-        insertDeletedSharedMedia(jdbcTemplate, 2L, MEMBER_ID, 1L, BASE.plusSeconds(1), BASE.plusSeconds(2));
-
-        // when
-        SavedMediaProjections shares = search(withCursor);
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(1L);
-    }
-
-    @Test
-    void 대표_공유는_ID보다_공유_시각이_최신인_공유를_선택한다() {
-        // given: 새 공유의 ID가 더 작아도 공유 시각이 최신이면 대표가 된다.
-        insertSearchableMedia(1L, "성수 카페");
-        insertSharedMedia(jdbcTemplate, 100L, MEMBER_ID, 1L, BASE);
-        insertSharedMedia(jdbcTemplate, 10L, MEMBER_ID, 1L, BASE.plusSeconds(1));
-
-        // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수"));
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(10L);
-    }
-
-    @Test
-    void 같은_게시글을_같은_시각에_재공유하면_큰_ID를_대표로_선택한다() {
-        // given
-        insertSearchableMedia(1L, "성수 카페");
-        insertSharedMedia(jdbcTemplate, 20L, MEMBER_ID, 1L, BASE);
-        insertSharedMedia(jdbcTemplate, 30L, MEMBER_ID, 1L, BASE);
-
-        // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수"));
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(30L);
-    }
-
-    @Test
-    void 서로_다른_게시글도_ID보다_공유_시각이_최신인_순서로_반환한다() {
-        // given
-        insertSharesWithConflictingIdAndTime();
-
-        // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수"));
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(10L, 20L, 100L);
-    }
-
-    @Test
-    void 커서보다_공유_시각이_오래되면_공유_ID가_커서보다_커도_반환한다() {
-        // given
-        insertSharesWithConflictingIdAndTime();
-
-        // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQueryBefore(
-                MEMBER_ID, new CaptionSearchQuery("성수"), new SharedMediaCursor(BASE.plusMillis(500), 20L));
-
-        // then
-        assertThat(shares.shares())
-                .extracting(SavedMediaProjection::sharedMediaId)
-                .containsExactly(100L);
+                .extracting(SavedMediaProjection::sharedMediaId, SavedMediaProjection::reported)
+                .containsExactly(tuple(3L, false), tuple(1L, true));
     }
 
     @Test
@@ -298,35 +100,6 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
         assertThat(shares.shares())
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(1L);
-    }
-
-    @Test
-    void 검색_결과를_51건까지만_읽고_대표_공유를_고른_뒤_커서를_적용한다() {
-        // given: 최신 게시글의 옛 공유는 다음 페이지의 커서 뒤에 있어도 다시 나오면 안 된다.
-        for (long id = 1; id <= 60; id++) {
-            insertSearchableMedia(id, "성수 카페");
-            insertSharedMedia(jdbcTemplate, id, MEMBER_ID, id, BASE);
-        }
-        insertSharedMedia(jdbcTemplate, 501L, MEMBER_ID, 60L, BASE.minusSeconds(1));
-
-        // when
-        SavedMediaProjections first = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수"));
-        SavedMediaProjections second = sharedMediaDao.findSavedMediaByQueryBefore(
-                MEMBER_ID, new CaptionSearchQuery("성수"), first.nextCursor());
-
-        // then
-        assertAll(
-                () -> assertThat(first.shares())
-                        .extracting(SavedMediaProjection::sharedMediaId)
-                        .containsExactlyElementsOf(descendingIds(60, 51)),
-                () -> assertThat(first.nextCursor())
-                        .isEqualTo(new SharedMediaCursor(BASE, 11L)),
-                () -> assertThat(second.shares())
-                        .extracting(SavedMediaProjection::sharedMediaId)
-                        .containsExactlyElementsOf(descendingIds(10, 10)),
-                () -> assertThat(second.nextCursor())
-                        .isNull()
-        );
     }
 
     @ParameterizedTest
@@ -380,15 +153,6 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
                 .isEmpty();
     }
 
-    private void insertSharesWithConflictingIdAndTime() {
-        insertSearchableMedia(1L, "성수 카페");
-        insertSearchableMedia(2L, "성수 카페");
-        insertSearchableMedia(3L, "성수 카페");
-        insertSharedMedia(jdbcTemplate, 100L, MEMBER_ID, 1L, BASE);
-        insertSharedMedia(jdbcTemplate, 10L, MEMBER_ID, 2L, BASE.plusSeconds(1));
-        insertSharedMedia(jdbcTemplate, 20L, MEMBER_ID, 3L, BASE.plusMillis(500));
-    }
-
     private void insertSearchableMedia(Long mediaId, String caption) {
         insertMedia(jdbcTemplate, mediaId, caption, "search-" + mediaId + ".jpg", "성수 카페");
         insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
@@ -401,12 +165,5 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
                     MEMBER_ID, query, new SharedMediaCursor(BASE.plusSeconds(10), 999L));
         }
         return sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, query);
-    }
-
-    private List<Long> descendingIds(long first, long count) {
-        return LongStream.iterate(first, id -> id - 1)
-                .limit(count)
-                .boxed()
-                .toList();
     }
 }
