@@ -1,6 +1,7 @@
 package com.yeogidam.place.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
+import com.yeogidam.place.dto.response.PlaceInfoResponse;
 import com.yeogidam.place.dto.response.PlaceMediaResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,6 +19,35 @@ import org.springframework.http.ResponseEntity;
  */
 @Tag(name = "Place", description = "장소 API입니다.")
 public interface PlaceApiDocs {
+
+    @Operation(summary = "장소 영업시간과 메뉴 조회",
+            description = """
+                    내 보관함에 있는 장소 또는 지우지 않은 내 공유에서 분석에 성공해 나온 장소의
+                    요일별 영업시간과 메뉴 전체를 돌려줍니다.
+
+                    - 영업 구간의 시각은 HH:mm으로 표시합니다. 확인된 휴무일의 periods는 빈 배열입니다.
+                    - 영업시간 정보가 없거나 저장된 형식이 올바르지 않으면 `openingHours`는 `null`입니다.
+                    - 메뉴는 저장한 순서로 돌려줍니다. `menus[].price`는 원 단위이며, 가격을 모르면 `null`입니다.
+                    - 메뉴 정보가 없거나 저장된 형식이 올바르지 않으면 `menus`는 빈 배열(`[]`)입니다.
+                    """,
+            security = @SecurityRequirement(name = "access-token"),
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "장소 영업시간과 메뉴를 조회했습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = PlaceInfoResponse.class))),
+                    @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class))),
+                    @ApiResponse(responseCode = "404", description = "존재하지 않거나 조회할 수 없는 장소입니다.",
+                            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(name = "PLACE404_003", value = """
+                                            {"message": "존재하지 않는 장소입니다.", "errorCode": "PLACE404_003"}
+                                            """)))
+            })
+    ResponseEntity<PlaceInfoResponse> readPlaceInfo(
+            Long memberId,
+            @Parameter(description = "장소 ID(places.id)", example = "1") Long placeId);
 
     @Operation(summary = "장소가 나온 내 게시글 조회",
             description = """
