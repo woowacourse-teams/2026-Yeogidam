@@ -404,6 +404,17 @@ function App() {
   const [myPageOverlay, setMyPageOverlay] = useState<MyPageOverlay>(null);
   // 보관함에서 연 게시물 상세. 내 정보 오버레이처럼 현재 탭 위에 한 겹 더 쌓습니다.
   const [reelDetail, setReelDetail] = useState<HistoryReel | null>(null);
+  const reportedReelIdsRef = useRef(new Set<string>());
+  const openReelDetail = useCallback((reel: HistoryReel) => {
+    setReelDetail(
+      reportedReelIdsRef.current.has(reel.id) && reel.reported !== true
+        ? {...reel, reported: true}
+        : reel,
+    );
+  }, []);
+  useEffect(() => {
+    if (isAuthenticated === false) reportedReelIdsRef.current.clear();
+  }, [isAuthenticated]);
   const { height: windowHeight } = useWindowDimensions();
   useEffect(() => {
     if (flowState.kind !== 'main') setReelDetail(null);
@@ -1404,7 +1415,7 @@ function App() {
           onBack={goBackMainTab}
           isActive={currentScreen === 'history' && myPageOverlay === null}
           onNestedBackStateChange={reportHistoryBackState}
-          onOpenReel={setReelDetail}
+          onOpenReel={openReelDetail}
           onRequireLogin={requestLogin}
         />
       );
@@ -1476,7 +1487,7 @@ function App() {
           onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenHistory={() => openMainScreen('history')}
-          onOpenReel={setReelDetail}
+          onOpenReel={openReelDetail}
           onOpenDetail={(place, context) =>
             openDetailFrom('saved', place, context)
           }
@@ -1693,6 +1704,7 @@ function App() {
               reel={reelDetail}
               isGuest={isAuthenticated === false}
               onBack={() => setReelDetail(null)}
+              onReported={reelId => reportedReelIdsRef.current.add(reelId)}
             />,
             true,
           ),

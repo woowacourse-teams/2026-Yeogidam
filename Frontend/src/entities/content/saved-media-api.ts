@@ -12,6 +12,7 @@ type SpringSavedMedia = {
   caption: string | null;
   author: string | null;
   sharedUrl: string;
+  reported?: boolean;
 };
 
 type SpringSavedMediaPage = {
@@ -32,6 +33,7 @@ function toReel(item: SpringSavedMedia): HistoryReel {
     failure_reason: null,
     save_mode: null,
     created_at: item.createdAt,
+    ...(typeof item.reported === 'boolean' ? {reported: item.reported} : {}),
   };
 }
 

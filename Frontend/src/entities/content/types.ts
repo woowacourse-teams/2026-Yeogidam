@@ -32,6 +32,8 @@ export type HistoryReel = {
   failure_reason: string | null;
   save_mode: string | null;
   created_at: string;
+  /** 이 공유 이력을 이미 제보했는지 여부입니다. */
+  reported?: boolean;
   /** 히스토리에 남아 있지만 보관함에서 삭제한 공유입니다. */
   deleted_from_library?: boolean;
   local_thumbnail_source?: ImageSourcePropType;
