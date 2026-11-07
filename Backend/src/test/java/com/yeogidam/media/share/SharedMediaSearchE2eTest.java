@@ -28,7 +28,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 class SharedMediaSearchE2eTest extends E2eTestSupport {
 
-    private static final String PATH = "/api/v1/shares/search";
+    private static final String PATH = "/api/v1/saved-media/search";
     private static final Instant BASE = Instant.parse("2026-11-01T03:00:00.123456Z");
 
     @Autowired

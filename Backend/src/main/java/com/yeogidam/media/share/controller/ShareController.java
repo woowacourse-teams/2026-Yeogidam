@@ -2,22 +2,18 @@ package com.yeogidam.media.share.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
 import com.yeogidam.media.share.dto.request.ShareRequest;
-import com.yeogidam.media.share.dto.request.SharedMediaSearchRequest;
 import com.yeogidam.media.share.dto.response.ExtractionRetryResponse;
-import com.yeogidam.media.share.dto.response.SavedMediaResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryPlaceResponses;
 import com.yeogidam.media.share.dto.response.ShareHistoryResponses;
 import com.yeogidam.media.share.dto.response.ShareResponse;
 import com.yeogidam.media.share.service.ShareReportService;
 import com.yeogidam.media.share.service.ShareService;
-import com.yeogidam.media.share.service.SharedMediaSearchService;
-import java.time.Instant;
 import jakarta.validation.Valid;
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,7 +28,6 @@ public class ShareController implements ShareApiDocs {
 
     private final ShareService shareService;
     private final ShareReportService shareReportService;
-    private final SharedMediaSearchService sharedMediaSearchService;
 
     @Override
     @PostMapping
@@ -75,17 +70,6 @@ public class ShareController implements ShareApiDocs {
             @RequestParam(required = false) Long cursorId
     ) {
         ShareHistoryResponses response = shareService.readShareHistory(memberId, cursorCreatedAt, cursorId);
-        return ResponseEntity.ok()
-                .body(response);
-    }
-
-    @Override
-    @GetMapping("/search")
-    public ResponseEntity<SavedMediaResponses> readSharedMedia(
-            @LoginMember Long memberId,
-            @Valid @ModelAttribute SharedMediaSearchRequest request
-    ) {
-        SavedMediaResponses response = sharedMediaSearchService.readSharedMedia(memberId, request);
         return ResponseEntity.ok()
                 .body(response);
     }
