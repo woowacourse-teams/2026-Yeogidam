@@ -1,21 +1,17 @@
 package com.yeogidam.media.share.controller;
 
 import com.yeogidam.global.dto.ErrorResponse;
-import com.yeogidam.media.share.dto.request.SharedMediaSearchRequest;
 import com.yeogidam.media.share.dto.response.SavedMediaResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import java.time.Instant;
 import java.util.List;
-import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
@@ -110,23 +106,14 @@ public interface SavedMediaApiDocs {
                     - 링크와 전화번호는 없으면 null입니다. 카드의 장소 수는 `places.length`로 계산합니다.
                     - 검색 결과가 없으면 빈 `sharedMedia` 배열과 `nextCursor: null`을 반환합니다.
                     """,
-            parameters = {
-                    @Parameter(name = "query", in = ParameterIn.QUERY, required = true,
-                            description = "캡션에 포함된 검색어. 앞뒤 공백 제외 최대 100자", example = "성수 카페"),
-                    @Parameter(name = "cursorCreatedAt", in = ParameterIn.QUERY,
-                            description = "이전 응답의 nextCursor.createdAt. cursorId와 함께 전달",
-                            example = "2026-11-01T03:00:00.123456Z"),
-                    @Parameter(name = "cursorId", in = ParameterIn.QUERY,
-                            description = "이전 응답의 nextCursor.id. cursorCreatedAt과 함께 전달", example = "123")
-            },
             security = @SecurityRequirement(name = "access-token"),
             responses = {
                     @ApiResponse(responseCode = "200", description = "게시글 검색 결과와 전체 추출 장소",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = SavedMediaResponses.class))),
                     @ApiResponse(responseCode = "400",
-                            description = "검색어 누락·빈 값은 COMMON400_001, 100자 초과는 COMMON400_005, "
-                                    + "커서 한쪽 누락은 MEDIA400_015입니다.",
+                            description = "검색어 누락은 COMMON400_003, 빈 값이나 100자 초과는 COMMON400_005, "
+                                    + "커서 형식 오류는 COMMON400_004, 커서 한쪽 누락은 MEDIA400_015입니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class))),
                     @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
@@ -135,7 +122,11 @@ public interface SavedMediaApiDocs {
             })
     ResponseEntity<SavedMediaResponses> searchSavedMedia(
             Long memberId,
-            @Valid @ParameterObject SharedMediaSearchRequest request
+            @Parameter(description = "캡션에 포함된 검색어. 앞뒤 공백 제외 1~100자", example = "성수 카페",
+                    required = true) String query,
+            @Parameter(description = "이전 응답의 nextCursor.createdAt. cursorId와 함께 전달",
+                    example = "2026-11-01T03:00:00.123456Z") Instant cursorCreatedAt,
+            @Parameter(description = "이전 응답의 nextCursor.id. cursorCreatedAt과 함께 전달", example = "123") Long cursorId
     );
 
     @Operation(summary = "보관함 게시물 삭제",

@@ -23,6 +23,8 @@ import io.restassured.path.json.JsonPath;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -174,9 +176,44 @@ class SharedMediaSearchE2eTest extends E2eTestSupport {
                 .when()
                 .get(PATH)
                 .then()
-                .statusCode(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getHttpStatus().value())
-                .body("errorCode", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getCode()))
-                .body("message", equalTo(CommonErrorCode.METHOD_ARGUMENT_NOT_VALID.getMessage()));
+                .statusCode(CommonErrorCode.MISSING_REQUEST_PARAMETER.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.MISSING_REQUEST_PARAMETER.getCode()))
+                .body("message", equalTo(CommonErrorCode.MISSING_REQUEST_PARAMETER.getMessage()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"cursorCreatedAt", "cursorId"})
+    void 커서_형식이_올바르지_않으면_목록과_같은_400_예외를_던진다(String cursorParameter) {
+        // given
+        LoginResult login = loginAsKakao("media-search-invalid-cursor");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .queryParam("query", "성수 카페")
+                .queryParam(cursorParameter, "abc")
+                .when()
+                .get(PATH)
+                .then()
+                .statusCode(CommonErrorCode.REQUEST_VALUE_TYPE_MISMATCH.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.REQUEST_VALUE_TYPE_MISMATCH.getCode()))
+                .body("message", equalTo(CommonErrorCode.REQUEST_VALUE_TYPE_MISMATCH.getMessage()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void 빈_검색어를_보내면_잘못된_요청_값으로_응답한다(String query) {
+        // given
+        LoginResult login = loginAsKakao("media-search-blank-query");
+
+        // when & then
+        givenBearer(login.accessToken())
+                .queryParam("query", query)
+                .when()
+                .get(PATH)
+                .then()
+                .statusCode(CommonErrorCode.ILLEGAL_ARGUMENT.getHttpStatus().value())
+                .body("errorCode", equalTo(CommonErrorCode.ILLEGAL_ARGUMENT.getCode()))
+                .body("message", equalTo(CommonErrorCode.ILLEGAL_ARGUMENT.getMessage()));
     }
 
     @Test
