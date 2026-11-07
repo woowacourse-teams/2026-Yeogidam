@@ -2,16 +2,22 @@ package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.domain.PlaceThumbnail;
+import com.yeogidam.place.repository.PlaceInfoProjection.Menu;
+import com.yeogidam.place.repository.PlaceInfoProjection.OpeningDay;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
+@Slf4j
 @Repository
 public class PlaceDao {
 
@@ -30,9 +36,11 @@ public class PlaceDao {
 
     private final JdbcTemplate jdbcTemplate;
     private final SimpleJdbcInsert jdbcInsert;
+    private final JsonMapper jsonMapper;
 
-    public PlaceDao(JdbcTemplate jdbcTemplate) {
+    public PlaceDao(JdbcTemplate jdbcTemplate, JsonMapper jsonMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.jsonMapper = jsonMapper;
         this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
                 .withTableName("places")
                 .usingColumns(
@@ -125,6 +133,57 @@ public class PlaceDao {
                 resultSet.getString("thumbnail_source")), kakaoPlaceId)
                 .stream()
                 .findFirst();
+    }
+
+    public Optional<PlaceInfoProjection> findInfoByMemberAndPlace(Long memberId, Long placeId) {
+        String sql = """
+                SELECT p.opening_hours, p.menus
+                FROM places p
+                WHERE p.id = ?
+                  AND (
+                      EXISTS (
+                          SELECT 1
+                          FROM saved_places sp
+                          WHERE sp.member_id = ?
+                            AND sp.place_id = p.id
+                      )
+                      OR EXISTS (
+                          SELECT 1
+                          FROM shared_media sm
+                          JOIN media_places mp ON mp.media_id = sm.media_id
+                          WHERE sm.member_id = ?
+                            AND sm.deleted_at IS NULL
+                            AND sm.extraction_status = 'SUCCEEDED'
+                            AND mp.place_id = p.id
+                      )
+                  )
+                """;
+        return jdbcTemplate.query(sql, (resultSet, rowNumber) -> new PlaceInfoProjection(
+                        readInfoList(placeId, resultSet.getString("opening_hours"), OpeningDay.class),
+                        readInfoList(placeId, resultSet.getString("menus"), Menu.class)
+                ), placeId, memberId, memberId)
+                .stream()
+                .findFirst();
+    }
+
+    private <T> List<T> readInfoList(
+            Long placeId,
+            String json,
+            Class<T> itemType
+    ) {
+        if (json == null) {
+            return null;
+        }
+        try {
+            List<T> items = jsonMapper.readerForListOf(itemType).readValue(json);
+            if (items != null && items.stream().anyMatch(Objects::isNull)) {
+                throw new IllegalArgumentException("장소 정보 목록에 null 항목이 있습니다.");
+            }
+            return items;
+        } catch (JacksonException | IllegalArgumentException exception) {
+            log.warn("장소 정보 JSON 형식이 올바르지 않습니다. placeId={}, itemType={}", placeId, itemType.getSimpleName());
+            return null;
+        }
     }
 
     /**
