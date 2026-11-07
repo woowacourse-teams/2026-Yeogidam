@@ -148,6 +148,89 @@ test('스와이프 레이어가 지도·검색창·시트·하단 메뉴 전체�
   await act(async () => renderer.unmount());
 });
 
+test('폴더 상세 뒤로 스와이프는 실제 폴더 목록 화면으로 돌아간다', async () => {
+  function FolderFlow() {
+    const [opened, setOpened] = React.useState(true);
+    return (
+      <PlaceResultSheet
+        pageHeight={800}
+        bottomTabOffset={80}
+        places={places}
+        guestReelsByPlace={guestReelsByPlace}
+        renderPage={renderPage}
+        pageBackAvailable={opened}
+        pageBackStateKey={opened ? 'folder-one' : ''}
+        onPageBack={() => setOpened(false)}
+        folderHeader={<Text>{opened ? '폴더 상세' : '폴더 목록'}</Text>}
+        folderContent={opened ? undefined : <Text>폴더 목록 내용</Text>}
+        backFolderHeader={opened ? <Text>폴더 목록</Text> : undefined}
+        backFolderContent={opened ? <Text>폴더 목록 내용</Text> : undefined}
+      />
+    );
+  }
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<FolderFlow />);
+  });
+
+  const stack = renderer.root.findByType(SwipeBackStack);
+  expect(stack.props.activeKey).toBe('folder-detail');
+  expect(stack.props.backKey).toBe('list');
+  const listScreen = renderer.root.findByProps({ testID: 'back-screen-list' });
+  expect(
+    listScreen.findAllByType(Text).map(node => node.props.children),
+  ).toContain('폴더 목록 내용');
+  expect(
+    listScreen.findAllByType(Text).map(node => node.props.children),
+  ).not.toContain('폴더 상세');
+
+  const detailHandle = renderer.root
+    .findByProps({ testID: 'back-screen-folder-detail' })
+    .findByProps({ accessibilityLabel: '검색 결과 펼치기' });
+  await act(async () => detailHandle.props.onPress());
+  expect(renderer.root.findByType(SwipeBackStack).props.backKey).toBe(
+    'state-back',
+  );
+  const heightPreview = renderer.root.findByProps({
+    testID: 'back-screen-state-back',
+  });
+  expect(
+    heightPreview.findAllByType(Text).map(node => node.props.children),
+  ).toContain('폴더 상세');
+  await act(async () =>
+    renderer.root.findByType(SwipeBackStack).props.onBack(),
+  );
+  expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe(
+    'folder-detail',
+  );
+
+  await openDetail(renderer);
+  expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe(
+    'detail',
+  );
+  expect(renderer.root.findByType(SwipeBackStack).props.backKey).toBe(
+    'folder-detail',
+  );
+  await act(async () =>
+    renderer.root.findByType(SwipeBackStack).props.onBack(),
+  );
+  expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe(
+    'folder-detail',
+  );
+
+  await act(async () =>
+    renderer.root.findByType(SwipeBackStack).props.onBack(),
+  );
+  expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('list');
+  expect(renderer.root.findByProps({ testID: 'back-screen-list' })).toBe(
+    listScreen,
+  );
+  expect(
+    renderer.root.findAllByProps({ testID: 'back-screen-folder-detail' }),
+  ).toHaveLength(0);
+  await act(async () => renderer.unmount());
+});
+
 test('중간 높이에서 펼친 상세의 첫 뒤로가기는 기존 <와 동일하게 시트 높이만 복원한다', async () => {
   const renderer = await render();
   await openDetail(renderer);

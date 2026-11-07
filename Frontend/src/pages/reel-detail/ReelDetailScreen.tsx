@@ -36,6 +36,7 @@ import {getMiddleCategory} from '../../entities/place/category';
 type ReelDetailScreenProps = {
   reel: HistoryReel;
   onBack: () => void;
+  onReported?: (reelId: string) => void;
   isGuest?: boolean;
 };
 
@@ -124,7 +125,7 @@ type PlacesState =
   | {status: 'ready'; places: HistoryReelPlace[]};
 
 /** 공유한 게시물 하나의 상세. 원본 이미지 위에 캡션을, 아래 시트에 찾은 장소를 보여 줍니다. */
-export function ReelDetailScreen({reel, onBack, isGuest = false}: ReelDetailScreenProps) {
+export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: ReelDetailScreenProps) {
   const analytics = useScreenAnalytics('reel_detail');
   const insets = useSafeAreaInsets();
   const {height: windowHeight} = useWindowDimensions();
@@ -137,8 +138,12 @@ export function ReelDetailScreen({reel, onBack, isGuest = false}: ReelDetailScre
   const [isCaptionOpen, setIsCaptionOpen] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [savingPlaceIds, setSavingPlaceIds] = useState<Set<string>>(new Set());
-  const [isReported, setIsReported] = useState(false);
+  const [isReported, setIsReported] = useState(reel.reported === true);
   const [isReporting, setIsReporting] = useState(false);
+
+  useEffect(() => {
+    setIsReported(reel.reported === true);
+  }, [reel.id, reel.reported]);
 
   const caption = normalizeReelCaption(reel.instagram_description);
   const author = reel.instagram_author_username
@@ -212,13 +217,16 @@ export function ReelDetailScreen({reel, onBack, isGuest = false}: ReelDetailScre
         onPress: () => {
           setIsReporting(true);
           reportHistoryReel(reel.id)
-            .then(() => setIsReported(true))
+            .then(() => {
+              setIsReported(true);
+              onReported?.(reel.id);
+            })
             .catch(() => showAlert('제보하지 못했어요.', '잠시 후 다시 시도해주세요.'))
             .finally(() => setIsReporting(false));
         },
       },
     ]);
-  }, [isReported, isReporting, reel.id]);
+  }, [isReported, isReporting, onReported, reel.id]);
 
   // 시트 위쪽 y 위치(접힘 collapsedTop ↔ 끌어올림 expandedTop). 오버레이 위치도 이 값에서 계산합니다.
   const sheetTop = useRef(new Animated.Value(collapsedTop)).current;
@@ -542,11 +550,11 @@ export function ReelDetailScreen({reel, onBack, isGuest = false}: ReelDetailScre
                 onPress={confirmReport}
                 style={styles.reportButton}>
                 <MaterialIcons
-                  color="#5868ed"
+                  color={isReported ? '#a5abc4' : '#5868ed'}
                   name="outlined-flag"
                   size={23}
                 />
-                <Text style={styles.reportText}>
+                <Text style={[styles.reportText, isReported && styles.reportTextDisabled]}>
                   {isReported ? '제보 완료' : '제보하기'}
                 </Text>
               </Pressable>
@@ -753,6 +761,9 @@ const styles = StyleSheet.create({
     color: '#5868ed',
     fontSize: 18,
     fontWeight: '700',
+  },
+  reportTextDisabled: {
+    color: '#a5abc4',
   },
   stateText: {
     paddingVertical: 24,

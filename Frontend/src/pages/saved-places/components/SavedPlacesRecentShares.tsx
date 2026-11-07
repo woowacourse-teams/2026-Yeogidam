@@ -32,7 +32,7 @@ type SavedPlacesRecentSharesProps = {
 // 가장 최근에 추가한 릴스 4개와 링크 추가 버튼만 보여 줍니다(공유 목록은 최신순).
 const MAX_RECENT_REELS = 4;
 const RING_SIZE = 56;
-const RING_WIDTH = 4;
+const RING_WIDTH = 2;
 const RING_GAP = 3;
 const THUMBNAIL_SIZE = RING_SIZE - RING_WIDTH * 2 - RING_GAP * 2;
 const ITEM_WIDTH = 64;

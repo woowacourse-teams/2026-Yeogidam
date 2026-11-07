@@ -28,6 +28,8 @@ export type SpringShareHistoryItem = {
   extractionStatus: SpringExtractionStatus;
   failureReason: string | null;
   sharedUrl: string | null;
+  /** 서버가 제공하지 않는 이전 응답에서는 없을 수 있습니다. */
+  reported?: boolean;
   /** 보관함에서 삭제된 시각. 서버가 이 필드를 내려주기 전에는 없을 수 있습니다. */
   deletedAt?: string | null;
 };

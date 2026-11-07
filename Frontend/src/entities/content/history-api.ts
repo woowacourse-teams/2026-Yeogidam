@@ -45,6 +45,7 @@ export function toHistoryReel(item: SpringShareHistoryItem): HistoryReel {
     failure_reason: item.failureReason,
     save_mode: null,
     created_at: item.createdAt,
+    ...(typeof item.reported === 'boolean' ? {reported: item.reported} : {}),
     ...(item.deletedAt != null ? {deleted_from_library: true} : {}),
   };
 }
