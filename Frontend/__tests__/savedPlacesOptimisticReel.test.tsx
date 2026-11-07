@@ -4,6 +4,7 @@ import ReactTestRenderer from 'react-test-renderer';
 
 import {saveContent} from '../src/entities/content/api';
 import {getHistoryReels} from '../src/entities/content/history-api';
+import {showAlert} from '../src/lib/app-alert';
 import type {HistoryReel} from '../src/entities/content/types';
 import {SavedPlacesLinkDialog} from '../src/pages/saved-places/components/SavedPlacesLinkDialog';
 import {SavedPlacesRecentShares} from '../src/pages/saved-places/components/SavedPlacesRecentShares';
@@ -39,6 +40,7 @@ jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
   getHistoryReelDetail: jest.fn(() => Promise.reject(new Error('unused'))),
 }));
+jest.mock('../src/lib/app-alert', () => ({showAlert: jest.fn()}));
 
 const LINK = 'https://www.instagram.com/reel/abc/';
 const places = [{id: '1', name: 'A', address: 'a', fullAddress: 'a'}];
@@ -85,6 +87,7 @@ const rowReels = (renderer: ReactTestRenderer.ReactTestRenderer) =>
 beforeEach(() => {
   jest.useFakeTimers();
   jest.mocked(getHistoryReels).mockReset();
+  jest.mocked(showAlert).mockReset();
   jest.mocked(saveContent).mockReset().mockResolvedValue({
     reelId: '8',
     status: 'PROCESSING',
@@ -172,6 +175,21 @@ describe('최근 공유 링 누르기', () => {
     await press(renderer, 'FAILED');
     expect(onOpenHistory).toHaveBeenCalledTimes(1);
     expect(onOpenReel).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('보관함에서 삭제한 공유는 상세로 들어가지 않고 안내한다', async () => {
+    const {renderer, onOpenReel, onOpenHistory} = await renderWithHandlers();
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(SavedPlacesRecentShares).props.onPressReel({
+        ...serverReel('8'),
+        processing_status: 'COMPLETED',
+        deleted_from_library: true,
+      });
+    });
+    expect(showAlert).toHaveBeenCalledWith('보관함에서 삭제한 게시물이에요.');
+    expect(onOpenReel).not.toHaveBeenCalled();
+    expect(onOpenHistory).not.toHaveBeenCalled();
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
 });

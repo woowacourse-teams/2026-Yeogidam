@@ -542,11 +542,11 @@ export function ReelDetailScreen({reel, onBack, isGuest = false}: ReelDetailScre
                 onPress={confirmReport}
                 style={styles.reportButton}>
                 <MaterialIcons
-                  color="#5868ed"
+                  color={isReported ? '#a5abc4' : '#5868ed'}
                   name="outlined-flag"
                   size={23}
                 />
-                <Text style={styles.reportText}>
+                <Text style={[styles.reportText, isReported && styles.reportTextDisabled]}>
                   {isReported ? '제보 완료' : '제보하기'}
                 </Text>
               </Pressable>
@@ -753,6 +753,9 @@ const styles = StyleSheet.create({
     color: '#5868ed',
     fontSize: 18,
     fontWeight: '700',
+  },
+  reportTextDisabled: {
+    color: '#a5abc4',
   },
   stateText: {
     paddingVertical: 24,
