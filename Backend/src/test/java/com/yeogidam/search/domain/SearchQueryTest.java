@@ -1,10 +1,10 @@
-package com.yeogidam.place.domain;
+package com.yeogidam.search.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.yeogidam.place.exception.PlaceErrorCode;
-import com.yeogidam.place.exception.PlaceException;
+import com.yeogidam.search.exception.SearchErrorCode;
+import com.yeogidam.search.exception.SearchException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -27,13 +27,13 @@ class SearchQueryTest {
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = "   ")
+    @ValueSource(strings = {"   ", "\t\r\n"})
     void 검색어가_없거나_공백뿐이면_예외가_발생한다(String query) {
         // when & then
         assertThatThrownBy(() -> new SearchQuery(query))
-                .isInstanceOf(PlaceException.class)
+                .isInstanceOf(SearchException.class)
                 .extracting("errorCode")
-                .isEqualTo(PlaceErrorCode.INVALID_SEARCH_QUERY);
+                .isEqualTo(SearchErrorCode.INVALID_SEARCH_QUERY);
     }
 
     @Test
@@ -43,8 +43,8 @@ class SearchQueryTest {
 
         // when & then
         assertThatThrownBy(() -> new SearchQuery(query))
-                .isInstanceOf(PlaceException.class)
+                .isInstanceOf(SearchException.class)
                 .extracting("errorCode")
-                .isEqualTo(PlaceErrorCode.INVALID_SEARCH_QUERY);
+                .isEqualTo(SearchErrorCode.INVALID_SEARCH_QUERY);
     }
 }

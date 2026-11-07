@@ -5,9 +5,10 @@ import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
-import com.yeogidam.media.share.domain.CaptionSearchQuery;
 import com.yeogidam.media.share.domain.ExtractionRetrySource;
 import com.yeogidam.media.share.domain.SharedInstagramMedia;
+import com.yeogidam.search.domain.SearchQuery;
+import com.yeogidam.search.repository.SearchSql;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -18,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -366,8 +366,9 @@ public class SharedMediaDao {
      * 보관함 게시물 목록과 같은 적격 공유 중 게시물별 최신 한 건을 먼저 고른 뒤 전체 캡션을 검색한다.
      * 보관 장소와의 연결은 보지 않고, 모든 검색 단어가 포함된 게시물만 페이지 크기보다 한 건 더 읽는다.
      */
-    public SavedMediaProjections findSavedMediaByQuery(Long memberId, CaptionSearchQuery query) {
-        return findLatestSavedMedia(memberId, captionSearchConditions(query), captionSearchArguments(query));
+    public SavedMediaProjections findSavedMediaByQuery(Long memberId, SearchQuery query) {
+        List<String> patterns = query.likePatterns();
+        return findLatestSavedMedia(memberId, captionSearchConditions(patterns.size()), patterns);
     }
 
     /**
@@ -375,12 +376,14 @@ public class SharedMediaDao {
      */
     public SavedMediaProjections findSavedMediaByQueryBefore(
             Long memberId,
-            CaptionSearchQuery query,
+            SearchQuery query,
             SharedMediaCursor cursor
     ) {
-        List<Object> arguments = new ArrayList<>(captionSearchArguments(query));
+        List<String> patterns = query.likePatterns();
+        List<Object> arguments = new ArrayList<>(patterns);
         arguments.addAll(savedMediaCursorArguments(cursor));
-        return findLatestSavedMedia(memberId, captionSearchConditions(query) + savedMediaCursorCondition(), arguments);
+        String conditions = captionSearchConditions(patterns.size()) + savedMediaCursorCondition();
+        return findLatestSavedMedia(memberId, conditions, arguments);
     }
 
     /**
@@ -438,19 +441,8 @@ public class SharedMediaDao {
         return new SavedMediaProjections(jdbcTemplate.query(sql, SAVED_MEDIA_ROW_MAPPER, arguments.toArray()));
     }
 
-    private String captionSearchConditions(CaptionSearchQuery query) {
-        return query.getWords().stream()
-                .map(word -> """
-                        AND LOWER(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.caption, ''),
-                            ' ', ''), CHAR(9), ''), CHAR(13), ''), CHAR(10), '')) LIKE ? ESCAPE '!'
-                        """)
-                .collect(Collectors.joining());
-    }
-
-    private List<String> captionSearchArguments(CaptionSearchQuery query) {
-        return query.getWords().stream()
-                .map(this::searchPattern)
-                .toList();
+    private String captionSearchConditions(int patternCount) {
+        return ("AND " + SearchSql.containsCondition("m.caption") + "\n").repeat(patternCount);
     }
 
     private String savedMediaCursorCondition() {
@@ -463,12 +455,5 @@ public class SharedMediaDao {
     private List<Object> savedMediaCursorArguments(SharedMediaCursor cursor) {
         Timestamp cursorCreatedAt = Timestamp.from(cursor.createdAt());
         return List.of(cursorCreatedAt, cursorCreatedAt, cursor.sharedMediaId());
-    }
-
-    private String searchPattern(String word) {
-        String escaped = word.replace("!", "!!")
-                .replace("%", "!%")
-                .replace("_", "!_");
-        return "%" + escaped + "%";
     }
 }

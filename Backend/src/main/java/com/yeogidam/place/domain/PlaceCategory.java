@@ -1,5 +1,6 @@
 package com.yeogidam.place.domain;
 
+import com.yeogidam.search.domain.SearchQuery;
 import java.util.Arrays;
 import java.util.List;
 import lombok.Getter;

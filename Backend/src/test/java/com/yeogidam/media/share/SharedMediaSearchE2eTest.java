@@ -18,6 +18,7 @@ import static org.hamcrest.Matchers.nullValue;
 import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.media.exception.MediaErrorCode;
+import com.yeogidam.search.exception.SearchErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import io.restassured.path.json.JsonPath;
@@ -214,9 +215,9 @@ class SharedMediaSearchE2eTest extends E2eTestSupport {
                 .when()
                 .get(PATH)
                 .then()
-                .statusCode(CommonErrorCode.ILLEGAL_ARGUMENT.getHttpStatus().value())
-                .body("errorCode", equalTo(CommonErrorCode.ILLEGAL_ARGUMENT.getCode()))
-                .body("message", equalTo(CommonErrorCode.ILLEGAL_ARGUMENT.getMessage()));
+                .statusCode(SearchErrorCode.INVALID_SEARCH_QUERY.getHttpStatus().value())
+                .body("errorCode", equalTo(SearchErrorCode.INVALID_SEARCH_QUERY.getCode()))
+                .body("message", equalTo(SearchErrorCode.INVALID_SEARCH_QUERY.getMessage()));
     }
 
     @Test
@@ -230,9 +231,9 @@ class SharedMediaSearchE2eTest extends E2eTestSupport {
                 .when()
                 .get(PATH)
                 .then()
-                .statusCode(CommonErrorCode.ILLEGAL_ARGUMENT.getHttpStatus().value())
-                .body("errorCode", equalTo(CommonErrorCode.ILLEGAL_ARGUMENT.getCode()))
-                .body("message", equalTo(CommonErrorCode.ILLEGAL_ARGUMENT.getMessage()));
+                .statusCode(SearchErrorCode.INVALID_SEARCH_QUERY.getHttpStatus().value())
+                .body("errorCode", equalTo(SearchErrorCode.INVALID_SEARCH_QUERY.getCode()))
+                .body("message", equalTo(SearchErrorCode.INVALID_SEARCH_QUERY.getMessage()));
     }
 
     private void insertResponsePlaces(Long memberId, Long otherMemberId) {

@@ -6,12 +6,12 @@ import com.yeogidam.media.extraction.repository.MediaPlaceDao;
 import com.yeogidam.media.extraction.repository.SavedMediaPlaceProjections;
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
-import com.yeogidam.media.share.domain.CaptionSearchQuery;
 import com.yeogidam.media.share.dto.response.SavedMediaResponses;
 import com.yeogidam.media.share.repository.SavedMediaProjections;
 import com.yeogidam.media.share.repository.SharedMediaCursor;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import com.yeogidam.place.repository.SavedPlaceDao;
+import com.yeogidam.search.domain.SearchQuery;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -53,7 +53,7 @@ public class SavedMediaService {
             Instant cursorCreatedAt,
             Long cursorId
     ) {
-        CaptionSearchQuery searchQuery = new CaptionSearchQuery(query);
+        SearchQuery searchQuery = new SearchQuery(query);
         SavedMediaProjections shares = SharedMediaCursor.fromParameters(cursorCreatedAt, cursorId)
                 .map(cursor -> sharedMediaDao.findSavedMediaByQueryBefore(memberId, searchQuery, cursor))
                 .orElseGet(() -> sharedMediaDao.findSavedMediaByQuery(memberId, searchQuery));

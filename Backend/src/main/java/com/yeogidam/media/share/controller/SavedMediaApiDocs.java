@@ -112,7 +112,7 @@ public interface SavedMediaApiDocs {
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = SavedMediaResponses.class))),
                     @ApiResponse(responseCode = "400",
-                            description = "검색어 누락은 COMMON400_003, 빈 값이나 100자 초과는 COMMON400_005, "
+                            description = "검색어 누락은 COMMON400_003, 빈 값이나 100자 초과는 SEARCH400_001, "
                                     + "커서 형식 오류는 COMMON400_004, 커서 한쪽 누락은 MEDIA400_015입니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class))),

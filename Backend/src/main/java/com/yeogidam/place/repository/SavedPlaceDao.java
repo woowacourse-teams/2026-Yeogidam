@@ -1,15 +1,16 @@
 package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.SavedPlace;
-import com.yeogidam.place.domain.SearchQuery;
-import java.nio.charset.StandardCharsets;
+import com.yeogidam.search.domain.SearchQuery;
+import com.yeogidam.search.repository.SearchSql;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HexFormat;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -362,14 +363,21 @@ public class SavedPlaceDao {
             SearchQuery query,
             SavedPlaceCategoryProjections categories
     ) {
-        String fieldConditions = List.of("p.name", "p.land_lot_address", "p.road_address", "p.category")
-                .stream()
-                .map(this::searchFieldCondition)
+        List<String> columns = List.of("p.name", "p.land_lot_address", "p.road_address", "p.category");
+        String fieldConditions = columns.stream()
+                .map(SearchSql::containsCondition)
                 .collect(Collectors.joining(" OR "));
-        String conditions = query.getWords().stream()
-                .map(word -> "(%s OR %s)".formatted(
-                        fieldConditions, categoryCondition(categories.savedPlaceIdsMatching(word))))
-                .collect(Collectors.joining(" AND "));
+        List<String> words = query.getWords();
+        List<String> patterns = query.likePatterns();
+        StringJoiner conditions = new StringJoiner(" AND ");
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(memberId);
+        for (int index = 0; index < words.size(); index++) {
+            List<Long> matchingIds = categories.savedPlaceIdsMatching(words.get(index));
+            conditions.add("(%s OR %s)".formatted(fieldConditions, categoryCondition(matchingIds)));
+            arguments.addAll(Collections.nCopies(columns.size(), patterns.get(index)));
+            arguments.addAll(matchingIds);
+        }
         String sql = """
                 SELECT sp.id, p.id AS place_id, p.name, p.category, p.land_lot_address, p.road_address,
                        p.latitude, p.longitude, p.kakao_place_url, p.telephone,
@@ -380,23 +388,7 @@ public class SavedPlaceDao {
                   AND %s
                 ORDER BY sp.last_saved_at DESC, sp.id DESC
                 """.formatted(conditions);
-        List<Object> arguments = new ArrayList<>();
-        arguments.add(memberId);
-        for (String word : query.getWords()) {
-            String pattern = searchPattern(word);
-            arguments.addAll(List.of(pattern, pattern, pattern, pattern));
-            arguments.addAll(categories.savedPlaceIdsMatching(word));
-        }
         return new SavedPlaceProjections(jdbcTemplate.query(sql, PROJECTION_ROW_MAPPER, arguments.toArray()));
-    }
-
-    private String searchFieldCondition(String column) {
-        String field = "COALESCE(%s, '')".formatted(column);
-        for (int separator : SearchQuery.WORD_SEPARATORS.codePoints().toArray()) {
-            String encoded = HexFormat.of().formatHex(Character.toString(separator).getBytes(StandardCharsets.UTF_8));
-            field = "REPLACE(%s, _utf8mb4 X'%s', '')".formatted(field, encoded);
-        }
-        return "LOWER(%s) LIKE ? ESCAPE '!'".formatted(field);
     }
 
     private String categoryCondition(List<Long> savedPlaceIds) {
@@ -407,12 +399,5 @@ public class SavedPlaceDao {
                 .map(id -> "?")
                 .collect(Collectors.joining(", "));
         return "sp.id IN (%s)".formatted(placeholders);
-    }
-
-    private String searchPattern(String word) {
-        String escaped = word.replace("!", "!!")
-                .replace("%", "!%")
-                .replace("_", "!_");
-        return "%" + escaped + "%";
     }
 }

@@ -9,7 +9,7 @@ import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertShare
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
-import com.yeogidam.media.share.domain.CaptionSearchQuery;
+import com.yeogidam.search.domain.SearchQuery;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -53,7 +53,7 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
         insertSharedMedia(jdbcTemplate, 100L, MEMBER_ID, 100L, BASE.minusSeconds(1));
 
         // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수 카페"));
+        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new SearchQuery("성수 카페"));
 
         // then
         assertThat(shares.shares())
@@ -94,7 +94,7 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
 
         // when
         SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQueryBefore(
-                MEMBER_ID, new CaptionSearchQuery("성수 카페"), new SharedMediaCursor(BASE.plusSeconds(1), 3L));
+                MEMBER_ID, new SearchQuery("성수 카페"), new SharedMediaCursor(BASE.plusSeconds(1), 3L));
 
         // then
         assertThat(shares.shares())
@@ -110,7 +110,7 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
         insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
 
         // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery(query));
+        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new SearchQuery(query));
 
         // then
         assertThat(shares.shares())
@@ -131,7 +131,7 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
         }
 
         // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery(query));
+        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new SearchQuery(query));
 
         // then
         assertThat(shares.shares())
@@ -146,7 +146,7 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
         insertSharedMedia(jdbcTemplate, 1L, MEMBER_ID, 1L, BASE);
 
         // when
-        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new CaptionSearchQuery("성수"));
+        SavedMediaProjections shares = sharedMediaDao.findSavedMediaByQuery(MEMBER_ID, new SearchQuery("성수"));
 
         // then
         assertThat(shares.shares())
@@ -159,7 +159,7 @@ class SharedMediaSearchDaoTest extends JdbcTestSupport {
     }
 
     private SavedMediaProjections search(boolean withCursor) {
-        CaptionSearchQuery query = new CaptionSearchQuery("성수");
+        SearchQuery query = new SearchQuery("성수");
         if (withCursor) {
             return sharedMediaDao.findSavedMediaByQueryBefore(
                     MEMBER_ID, query, new SharedMediaCursor(BASE.plusSeconds(10), 999L));
