@@ -13,7 +13,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, {Circle} from 'react-native-svg';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
-import {getHistoryReelDetail} from '../../../entities/content/history-api';
+import {getHistoryReelPlaceCount} from '../../../entities/content/history-api';
 import type {HistoryReel} from '../../../entities/content/types';
 import {
   getPlaceholderGradient,
@@ -65,10 +65,10 @@ function toStoryStatus(status: HistoryReel['processing_status']): StoryStatus {
 }
 
 /**
- * 공유 목록 응답에는 장소 수가 없어서, 완료된 공유마다 한 번만 상세를 읽어 캐시합니다.
+ * 공유 목록 응답에는 장소 수가 없어서, 완료된 공유마다 한 번만 장소 수를 읽어 캐시합니다.
  * 실패하면 다시 시도하지 않고 마커 없이 보여 줍니다(폴링마다 재요청하지 않기 위해).
  */
-function useSavedPlaceCounts(reels: HistoryReel[]) {
+function useExtractedPlaceCounts(reels: HistoryReel[]) {
   const [counts, setCounts] = useState<Record<string, number>>({});
   const requestedIds = useRef(new Set<string>());
   const isMountedRef = useRef(true);
@@ -91,9 +91,8 @@ function useSavedPlaceCounts(reels: HistoryReel[]) {
         requestedIds.current.add(reel.id);
         (async () => {
           try {
-            const detail = await getHistoryReelDetail(reel);
-            const count = detail.extraction?.extraction_places.length;
-            if (isMountedRef.current && typeof count === 'number') {
+            const count = await getHistoryReelPlaceCount(reel.id);
+            if (isMountedRef.current) {
               setCounts(current => ({...current, [reel.id]: count}));
             }
           } catch {
@@ -202,12 +201,12 @@ function StoryRing({
   status,
   reel,
   index,
-  savedCount,
+  extractedCount,
 }: {
   status: StoryStatus;
   reel: HistoryReel;
   index: number;
-  savedCount?: number;
+  extractedCount?: number;
 }) {
   if (status === 'pending') {
     return (
@@ -237,9 +236,9 @@ function StoryRing({
       <View style={styles.thumbnailHolder}>
         <StoryThumbnail index={index} reel={reel} />
       </View>
-      {status === 'done' && savedCount !== undefined ? (
+      {status === 'done' && extractedCount !== undefined ? (
         <View style={styles.countMarker}>
-          <Text style={styles.countMarkerText}>{savedCount}</Text>
+          <Text style={styles.countMarkerText}>{extractedCount}</Text>
         </View>
       ) : null}
     </View>
@@ -253,7 +252,7 @@ export function SavedPlacesRecentShares({
   onPressReel,
 }: SavedPlacesRecentSharesProps) {
   const visibleReels = reels.slice(0, MAX_RECENT_REELS);
-  const counts = useSavedPlaceCounts(visibleReels);
+  const counts = useExtractedPlaceCounts(visibleReels);
 
   if (reels.length === 0) {
     return null;
@@ -283,16 +282,16 @@ export function SavedPlacesRecentShares({
         showsHorizontalScrollIndicator={false}>
         {visibleReels.map((reel, index) => {
           const status = toStoryStatus(reel.processing_status);
-          const savedCount = counts[reel.id];
+          const extractedCount = counts[reel.id];
           const label = getStoryLabel(status);
 
           return (
             <Pressable
               key={reel.id}
               accessibilityLabel={
-                savedCount === undefined || status !== 'done'
+                extractedCount === undefined || status !== 'done'
                   ? `최근 공유 ${label}`
-                  : `최근 공유 ${label}, ${savedCount}곳 저장`
+                  : `최근 공유 ${label}, ${extractedCount}곳 추출`
               }
               accessibilityRole="button"
               onPress={() => onPressReel?.(reel)}
@@ -300,7 +299,7 @@ export function SavedPlacesRecentShares({
               <StoryRing
                 index={index}
                 reel={reel}
-                savedCount={savedCount}
+                extractedCount={extractedCount}
                 status={status}
               />
               <Text

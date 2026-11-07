@@ -3,7 +3,7 @@ import {Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {saveContent} from '../src/entities/content/api';
-import {getHistoryReels} from '../src/entities/content/history-api';
+import {getHistoryReelPlaceCount, getHistoryReels} from '../src/entities/content/history-api';
 import type {HistoryReel} from '../src/entities/content/types';
 import {SavedPlacesLinkDialog} from '../src/pages/saved-places/components/SavedPlacesLinkDialog';
 import {SavedPlacesRecentShares} from '../src/pages/saved-places/components/SavedPlacesRecentShares';
@@ -38,6 +38,7 @@ jest.mock('../src/entities/content/api', () => ({
 jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReels: jest.fn(),
   getHistoryReelDetail: jest.fn(() => Promise.reject(new Error('unused'))),
+  getHistoryReelPlaceCount: jest.fn(),
 }));
 
 const LINK = 'https://www.instagram.com/reel/abc/';
@@ -85,11 +86,56 @@ const rowReels = (renderer: ReactTestRenderer.ReactTestRenderer) =>
 beforeEach(() => {
   jest.useFakeTimers();
   jest.mocked(getHistoryReels).mockReset();
+  jest.mocked(getHistoryReelPlaceCount).mockReset();
   jest.mocked(saveContent).mockReset().mockResolvedValue({
     reelId: '8',
     status: 'PROCESSING',
     reused: false,
   });
+});
+
+test('최근 공유는 완료 항목의 추출 장소 수를 한 번만 조회해 표시한다', async () => {
+  jest.mocked(getHistoryReelPlaceCount).mockResolvedValue(2);
+  const reel = {...serverReel('8'), processing_status: 'COMPLETED' as const};
+  const props = {
+    reels: [reel],
+    onPressAdd: jest.fn(),
+    onPressViewAll: jest.fn(),
+  };
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<SavedPlacesRecentShares {...props} />);
+  });
+
+  expect(getHistoryReelPlaceCount).toHaveBeenCalledTimes(1);
+  expect(getHistoryReelPlaceCount).toHaveBeenCalledWith('8');
+  expect(renderer.root.findAllByType(Text).map(node => node.props.children)).toContain(2);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(<SavedPlacesRecentShares {...props} reels={[{...reel}]} />);
+  });
+  expect(getHistoryReelPlaceCount).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('최근 공유 장소 수 조회 실패 시 완료 항목은 계속 표시하고 재요청하지 않는다', async () => {
+  jest.mocked(getHistoryReelPlaceCount).mockRejectedValue(new Error('network'));
+  const reel = {...serverReel('8'), processing_status: 'COMPLETED' as const};
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <SavedPlacesRecentShares reels={[reel]} onPressAdd={jest.fn()} onPressViewAll={jest.fn()} />,
+    );
+  });
+
+  expect(renderer.root.findAllByType(Text).map(node => node.props.children)).toContain('완료');
+  await ReactTestRenderer.act(async () => {
+    renderer.update(
+      <SavedPlacesRecentShares reels={[{...reel}]} onPressAdd={jest.fn()} onPressViewAll={jest.fn()} />,
+    );
+  });
+  expect(getHistoryReelPlaceCount).toHaveBeenCalledTimes(1);
+  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 afterEach(() => {
