@@ -66,10 +66,7 @@ export function configurePlaceReelsRepository(
   placeReelsRepository = repository;
 }
 
-/** 서버의 미디어 경로는 저장 장소 ID로 조회하므로, 저장하지 않은 장소는 요청하지 않습니다. */
-export async function getPlaceReels(
-  savedPlaceId: string | undefined,
-): Promise<PlaceReel[]> {
-  if (!savedPlaceId) return [];
-  return placeReelsRepository.getPlaceReels(savedPlaceId);
+/** 장소 상세 게시물은 저장 여부와 관계없이 장소 ID로 조회합니다. */
+export async function getPlaceReels(placeId: string): Promise<PlaceReel[]> {
+  return placeReelsRepository.getPlaceReels(placeId);
 }

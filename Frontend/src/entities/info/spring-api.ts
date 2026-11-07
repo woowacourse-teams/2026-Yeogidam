@@ -1,4 +1,3 @@
-import {ApiError} from '../../lib/api/errors';
 import {toScreenApiError} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {SpringMember} from '../../lib/api/spring-auth-api';
@@ -99,18 +98,10 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
 };
 
 export const springPlaceReelsRepository: PlaceReelsRepository = {
-  getPlaceReels: savedPlaceId => withScreenError(async () => {
-    // TODO(#555): 장소 ID로 미디어를 조회하는 API가 생기면 그 API로 옮깁니다.
-    let response: {media: SavedPlaceMediaResponse[]};
-    try {
-      response = await client.request<{media: SavedPlaceMediaResponse[]}>(
-        `/api/v1/saved-places/${encodeURIComponent(savedPlaceId)}/media`,
-      );
-    } catch (error) {
-      // 다른 기기에서 지운 저장 장소(PLACE404_001)는 연결된 릴스가 없는 것과 같으므로 빈 목록입니다.
-      if (error instanceof ApiError && error.errorCode === 'PLACE404_001') return [];
-      throw error;
-    }
+  getPlaceReels: placeId => withScreenError(async () => {
+    const response = await client.request<{media: SavedPlaceMediaResponse[]}>(
+      `/api/v1/places/${encodeURIComponent(placeId)}/media`,
+    );
     return response.media.map(item => ({
       id: String(item.sharedMediaId),
       instagramUrl: item.sharedUrl,
