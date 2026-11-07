@@ -564,7 +564,8 @@ class SharedMediaDaoTest extends JdbcTestSupport {
                 "saved.jpg",
                 "성수 카페 모음",
                 "@saved",
-                "https://www.instagram.com/reel/fixture-1/"
+                "https://www.instagram.com/reel/fixture-1/",
+                false
         ));
     }
 
@@ -827,6 +828,71 @@ class SharedMediaDaoTest extends JdbcTestSupport {
         assertThat(shares)
                 .extracting(SavedMediaProjection::sharedMediaId)
                 .containsExactly(1L);
+    }
+
+    @Test
+    void 게시물_탭은_남긴_공유마다_제보했는지를_읽는다() {
+        // given: 게시물 21과 22를 공유 1과 2로 공유해 둘 다 분석에 성공하고 장소가 나왔으며, 공유 1만 제보했다
+        insertSavedMediaMember(37L);
+        insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
+        insertMedia(jdbcTemplate, 22L, "연남 와인바", "22.jpg", "@yeonnam");
+        insertMediaPlace(jdbcTemplate, 1L, 21L, 1L);
+        insertMediaPlace(jdbcTemplate, 2L, 22L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 37L, 21L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 37L, 22L, base.plusSeconds(1));
+        insertReport(jdbcTemplate, 1L, 1L, base.plusSeconds(2));
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(37L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId, SavedMediaProjection::reported)
+                .containsExactly(tuple(2L, false), tuple(1L, true));
+    }
+
+    @Test
+    void 같은_게시물의_옛_공유만_제보했으면_게시물_탭에_남긴_최근_공유는_제보하지_않은_것으로_읽는다() {
+        // given: 게시물 21을 공유 1과 2로 두 번 공유해 둘 다 분석에 성공했고, 옛 공유 1만 제보했다
+        insertSavedMediaMember(38L);
+        insertMedia(jdbcTemplate, 21L, "성수 카페 모음", "21.jpg", "@seongsu");
+        insertMediaPlace(jdbcTemplate, 1L, 21L, 1L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        insertSharedMedia(jdbcTemplate, 1L, 38L, 21L, base);
+        insertSharedMedia(jdbcTemplate, 2L, 38L, 21L, base.plusSeconds(1));
+        insertReport(jdbcTemplate, 1L, 1L, base.plusSeconds(2));
+
+        // when
+        List<SavedMediaProjection> shares = sharedMediaDao.findSavedMedia(38L).shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId, SavedMediaProjection::reported)
+                .containsExactly(tuple(2L, false));
+    }
+
+    @Test
+    void 게시물_탭_다음_페이지도_첫_페이지처럼_제보_여부를_읽는다() {
+        // given: 게시물 21, 22, 23을 공유 1, 2, 3으로 차례로 공유해 모두 분석에 성공하고 장소가 나왔으며, 공유 1만 제보했다
+        insertSavedMediaMember(39L);
+        Instant base = Instant.parse("2026-11-01T03:00:00Z");
+        for (long mediaId = 21; mediaId <= 23; mediaId++) {
+            insertMedia(jdbcTemplate, mediaId, "게시물 " + mediaId, mediaId + ".jpg", "@author");
+            insertMediaPlace(jdbcTemplate, mediaId, mediaId, 1L);
+            insertSharedMedia(jdbcTemplate, mediaId - 20, 39L, mediaId, base.plusSeconds(mediaId - 21));
+        }
+        insertReport(jdbcTemplate, 1L, 1L, base.plusSeconds(3));
+
+        // when: 공유 3까지 본 뒤 다음 페이지를 읽는다
+        List<SavedMediaProjection> shares = sharedMediaDao
+                .findSavedMediaBefore(39L, new SharedMediaCursor(base.plusSeconds(2), 3L))
+                .shares();
+
+        // then
+        assertThat(shares)
+                .extracting(SavedMediaProjection::sharedMediaId, SavedMediaProjection::reported)
+                .containsExactly(tuple(2L, false), tuple(1L, true));
     }
 
     @Test

@@ -80,6 +80,6 @@ class SavedMediaProjectionsTest {
      * 페이지 규칙은 공유 ID, 게시물 ID, 공유 시각만 보므로 나머지 값은 비워 둔다.
      */
     private static SavedMediaProjection share(long id) {
-        return new SavedMediaProjection(id, id, BASE.plusSeconds(id), null, null, null, null);
+        return new SavedMediaProjection(id, id, BASE.plusSeconds(id), null, null, null, null, false);
     }
 }

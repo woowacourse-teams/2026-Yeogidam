@@ -13,6 +13,7 @@ public record SavedMediaProjection(
         String thumbnailKey,
         String caption,
         String author,
-        String sharedUrl
+        String sharedUrl,
+        boolean reported
 ) {
 }

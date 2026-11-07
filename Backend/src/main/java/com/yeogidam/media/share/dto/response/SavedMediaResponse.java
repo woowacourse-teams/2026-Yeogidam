@@ -16,6 +16,7 @@ public record SavedMediaResponse(
         String caption,
         String author,
         String sharedUrl,
+        boolean reported,
         List<SavedMediaPlaceResponse> places
 ) {
     public static SavedMediaResponse from(
@@ -33,6 +34,7 @@ public record SavedMediaResponse(
                 projection.caption(),
                 projection.author(),
                 projection.sharedUrl(),
+                projection.reported(),
                 placeResponses
         );
     }
