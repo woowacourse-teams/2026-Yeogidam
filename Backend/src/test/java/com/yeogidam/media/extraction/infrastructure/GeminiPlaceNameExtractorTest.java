@@ -2,10 +2,16 @@ package com.yeogidam.media.extraction.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.support.fixture.MutableClock;
@@ -32,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
@@ -56,16 +63,22 @@ class GeminiPlaceNameExtractorTest {
 
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-13T00:00:00Z"));
+    private final Logger logger = (Logger) LoggerFactory.getLogger(GeminiPlaceNameExtractor.class);
+    private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
     private FakeGeminiServer geminiServer;
 
     @BeforeEach
     void setUp() throws IOException {
         geminiServer = new FakeGeminiServer();
+        logs.start();
+        logger.addAppender(logs);
     }
 
     @AfterEach
     void tearDown() {
         geminiServer.close();
+        logger.detachAppender(logs);
+        logs.stop();
     }
 
     @Test
@@ -165,11 +178,20 @@ class GeminiPlaceNameExtractorTest {
         // given
         geminiServer.respondWith(interactionResponse("{\"unexpected\":[]}"));
 
-        // when & then
-        assertThatThrownBy(() -> extractor("test-gemini-key").extract(CAPTION))
-                .isInstanceOf(ExtractionFailedException.class)
-                .extracting(exception -> ((ExtractionFailedException) exception).reason())
-                .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+        ExtractionReport report = new ExtractionReport();
+
+        // when
+        Throwable error = catchThrowable(() -> extractor("test-gemini-key").extract(CAPTION, report));
+
+        // then
+        assertThat(error).isInstanceOf(ExtractionFailedException.class);
+        ExtractionFailedException failure = (ExtractionFailedException) error;
+        assertAll(
+                () -> assertThat(failure.reason()).isEqualTo(ExtractionFailureReason.PROCESSING_FAILED),
+                () -> assertThat(jsonMapper.valueToTree(report.toLogFields()).path("gemini_results").get(0)
+                        .path("raw_json").asString()).isEqualTo("{\"unexpected\":[]}"),
+                () -> assertThat(report.failureStage()).isEqualTo("GEMINI_CAPTION")
+        );
     }
 
     @Test
@@ -187,13 +209,17 @@ class GeminiPlaceNameExtractorTest {
         geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
         geminiServer.respondToKeyWith(FREE_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
 
+        ExtractionReport report = new ExtractionReport();
+
         // when
-        PlaceSearchHints hints = extractor(FREE_KEY, PAID_KEY).extract(CAPTION);
+        PlaceSearchHints hints = extractor(FREE_KEY, PAID_KEY).extract(CAPTION, report);
 
         // then
         assertAll(
                 () -> assertThat(hints.places()).hasSize(2),
-                () -> assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY)
+                () -> assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY),
+                () -> assertThat(jsonMapper.valueToTree(report.toLogFields()).path("gemini_results").get(0)
+                        .path("raw_json").asString()).isEqualTo(EXTRACTED_PLACES)
         );
     }
 
@@ -231,6 +257,9 @@ class GeminiPlaceNameExtractorTest {
 
         // then
         assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY, PAID_KEY);
+        assertThat(logs.list)
+                .extracting(ILoggingEvent::getLevel)
+                .containsExactly(Level.WARN);
     }
 
     @Test
@@ -291,6 +320,20 @@ class GeminiPlaceNameExtractorTest {
         // when & then
         assertThatThrownBy(() -> extractor.extract(CAPTION)).isInstanceOf(ExtractionFailedException.class);
         assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY);
+    }
+
+    @Test
+    void 완료되지_않은_응답도_모델이_생성한_JSON을_보존하고_예외가_발생한다() throws Exception {
+        // given
+        String output = "{\"places\":[]}";
+        geminiServer.respondWith(interactionResponse(output).replace("completed", "in_progress"));
+        ExtractionReport report = new ExtractionReport();
+
+        // when & then
+        assertThatThrownBy(() -> extractor("test-gemini-key").extract(CAPTION, report))
+                .isInstanceOf(ExtractionFailedException.class);
+        assertThat(jsonMapper.valueToTree(report.toLogFields()).path("gemini_results").get(0).path("raw_json").asString())
+                .isEqualTo(output);
     }
 
     private GeminiPlaceNameExtractor extractor(String apiKey) {
