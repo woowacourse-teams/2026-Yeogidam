@@ -892,6 +892,7 @@ export function MapScreen({
         <View pointerEvents="box-none" style={styles.searchOverlay}>
           <View>
             <SearchBar
+              horizontalInset={20}
               onPress={
                 isGuest
                   ? () => {
