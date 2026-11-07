@@ -198,13 +198,15 @@ public interface ShareApiDocs {
             @Parameter(description = "재시도할 실패 이력 ID(shared_media.id)입니다.", example = "10") Long sharedMediaId
     );
 
-    @Operation(summary = "장소 분석 실패 제보",
+    @Operation(summary = "장소 분석 결과 제보",
             description = """
-                    로그인한 회원의 실패한 공유 이력을 제보합니다. 요청 본문은 없습니다.
+                    로그인한 회원의 공유 이력을 제보합니다. 요청 본문은 없습니다.
 
-                    - 공유 이력의 분석 상태가 `FAILED`일 때만 제보할 수 있습니다.
+                    - 분석에 실패한 공유 이력(`FAILED`)과 분석에 성공한 공유 이력(`SUCCEEDED`)을 제보할 수 있고, 분석 중인 공유 이력(`EXTRACTING`)은 `400`으로 응답합니다.
+                    - 성공한 공유 이력의 제보는 추출 결과에 문제가 있다는 신호만 받으며, 어떤 장소가 틀렸는지는 받지 않습니다.
                     - 실패 사유와 분석 버전에 관계없이 제보할 수 있습니다.
-                    - 같은 미디어를 공유한 다른 회원도 각자의 실패 이력을 제보할 수 있습니다.
+                    - 같은 미디어를 공유한 다른 회원도 각자의 공유 이력을 제보할 수 있습니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 제보할 수 있습니다.
                     - 같은 공유 이력은 한 번만 제보할 수 있으며 중복 제보는 `409`로 응답합니다.
                     - 제보해도 분석을 다시 실행하거나 공유 이력을 바꾸지 않습니다.
                     """,
@@ -212,13 +214,13 @@ public interface ShareApiDocs {
             responses = {
                     @ApiResponse(responseCode = "201", description = "제보를 접수했으며 응답 본문은 없습니다.",
                             content = @Content),
-                    @ApiResponse(responseCode = "400", description = "실패하지 않은 공유 이력입니다.",
+                    @ApiResponse(responseCode = "400", description = "장소를 분석 중인 공유 이력입니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = @ExampleObject(name = "MEDIA400_017",
                                             value = """
                                                     {
-                                                      "message": "장소 분석에 실패한 공유만 제보할 수 있습니다.",
+                                                      "message": "장소를 분석 중인 공유는 제보할 수 없습니다.",
                                                       "errorCode": "MEDIA400_017"
                                                     }
                                                     """))),
@@ -252,7 +254,7 @@ public interface ShareApiDocs {
             })
     ResponseEntity<Void> createReport(
             Long memberId,
-            @Parameter(description = "제보할 실패 이력 ID(shared_media.id)입니다.", example = "10") Long sharedMediaId
+            @Parameter(description = "제보할 공유 이력 ID(shared_media.id)입니다.", example = "10") Long sharedMediaId
     );
 
     @Operation(summary = "히스토리 목록 조회",

@@ -11,8 +11,8 @@ public record SharedMediaReport(
         Instant createdAt
 ) {
     public SharedMediaReport {
-        if (extractionStatus != ExtractionStatus.FAILED) {
-            throw new MediaException(MediaErrorCode.REPORT_ON_NON_FAILED);
+        if (extractionStatus == ExtractionStatus.EXTRACTING) {
+            throw new MediaException(MediaErrorCode.REPORT_WHILE_EXTRACTING);
         }
     }
 }
