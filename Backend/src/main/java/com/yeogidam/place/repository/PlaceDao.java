@@ -7,6 +7,7 @@ import com.yeogidam.place.repository.PlaceInfoProjection.OpeningDay;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -15,6 +16,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
@@ -146,8 +148,9 @@ public class PlaceDao {
                 WHERE id = ?
                 """;
         return jdbcTemplate.query(sql, (resultSet, rowNumber) -> new PlaceInfoProjection(
-                        readInfoList(placeId, resultSet.getString("opening_hours"), OpeningDay.class),
-                        readInfoList(placeId, resultSet.getString("menus"), Menu.class)
+                        readInfoList(placeId, resultSet.getString("opening_hours"), OpeningDay.class,
+                                OpeningDay::inWeekOrder),
+                        readInfoList(placeId, resultSet.getString("menus"), Menu.class, UnaryOperator.identity())
                 ), placeId)
                 .stream()
                 .findFirst();
@@ -156,19 +159,26 @@ public class PlaceDao {
     private <T> List<T> readInfoList(
             Long placeId,
             String json,
-            Class<T> itemType
+            Class<T> itemType,
+            UnaryOperator<List<T>> normalizer
     ) {
         if (json == null) {
             return null;
         }
         try {
-            List<T> items = jsonMapper.readerForListOf(itemType).readValue(json);
-            if (items != null && items.stream().anyMatch(Objects::isNull)) {
+            List<T> items = jsonMapper.readerForListOf(itemType)
+                    .without(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
+                    .readValue(json);
+            if (items == null) {
+                return null;
+            }
+            if (items.stream().anyMatch(Objects::isNull)) {
                 throw new IllegalArgumentException("장소 정보 목록에 null 항목이 있습니다.");
             }
-            return items;
+            return normalizer.apply(items);
         } catch (JacksonException | IllegalArgumentException exception) {
-            log.warn("장소 정보 JSON 형식이 올바르지 않습니다. placeId={}, itemType={}", placeId, itemType.getSimpleName());
+            log.warn("장소 정보 JSON 형식이 올바르지 않습니다. placeId={}, itemType={}, reason={}",
+                    placeId, itemType.getSimpleName(), exception.getMessage());
             return null;
         }
     }

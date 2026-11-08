@@ -251,8 +251,8 @@ class PlaceDaoTest extends JdbcTestSupport {
         // given: 장소 1은 누구의 보관함에도 없고 어떤 게시물에서도 추출되지 않았다
         insertPlaceOnly(1L);
         updatePlaceInfo(1L, """
-                [{"dayOfWeek":"MONDAY","periods":[{"opensAt":"11:00","closesAt":"21:00"}]},
-                 {"dayOfWeek":"SUNDAY","periods":[]}]
+                [{"dayOfWeek":"SUNDAY","periods":[]},
+                 {"dayOfWeek":"MONDAY","periods":[{"opensAt":"18:00","closesAt":"02:00"}]}]
                 """, """
                 [{"name":"아메리카노","price":4500}]
                 """);
@@ -271,6 +271,40 @@ class PlaceDaoTest extends JdbcTestSupport {
     @Test
     void 없는_장소의_영업시간과_메뉴는_읽지_않는다() {
         assertThat(placeDao.findInfoById(1L)).isEmpty();
+    }
+
+    @Test
+    void 같은_요일이_두_번_있는_영업시간은_정보_없음으로_읽고_메뉴는_그대로_읽는다() {
+        // given
+        insertPlaceOnly(1L);
+        updatePlaceInfo(1L, """
+                [{"dayOfWeek":"MONDAY","periods":[{"opensAt":"11:00","closesAt":"15:00"}]},
+                 {"dayOfWeek":"MONDAY","periods":[{"opensAt":"17:00","closesAt":"21:00"}]}]
+                """, """
+                [{"name":"아메리카노","price":4500}]
+                """);
+
+        // when
+        PlaceInfoProjection info = placeDao.findInfoById(1L).orElseThrow();
+
+        // then
+        assertThat(info.openingHours()).isNull();
+        assertThat(info.menus()).hasSize(1);
+    }
+
+    @Test
+    void 가격에_소수점이_있는_메뉴는_정보_없음으로_읽는다() {
+        // given
+        insertPlaceOnly(1L);
+        updatePlaceInfo(1L, null, """
+                [{"name":"아메리카노","price":4500.7}]
+                """);
+
+        // when
+        PlaceInfoProjection info = placeDao.findInfoById(1L).orElseThrow();
+
+        // then
+        assertThat(info.menus()).isNull();
     }
 
     private void updatePlaceInfo(Long placeId, String openingHours, String menus) {

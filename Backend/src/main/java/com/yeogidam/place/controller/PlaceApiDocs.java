@@ -25,7 +25,10 @@ public interface PlaceApiDocs {
                     장소의 요일별 영업시간과 메뉴 전체를 돌려줍니다.
                     영업시간과 메뉴는 회원마다 다르지 않은 장소 정보라서, 보관함에 저장하지 않은 장소도 있는 장소면 조회할 수 있습니다.
 
-                    - 영업 구간의 시각은 HH:mm으로 표시합니다. 확인된 휴무일의 periods는 빈 배열입니다.
+                    - `openingHours`는 월요일부터 일요일 순으로 돌려주고, 영업 구간의 시각은 HH:mm입니다.
+                    - 확인된 휴무일의 `periods`는 빈 배열이고, 배열에 없는 요일은 정보가 없는 요일입니다.
+                    - `closesAt`이 `opensAt`보다 이르면 다음 날 `closesAt`에 닫습니다. 월요일 `18:00`~`02:00`은 화요일 02:00에 닫는 월요일 영업입니다.
+                    - `closesAt`에만 `24:00`이 올 수 있고, 24시간 영업은 `00:00`~`24:00`입니다.
                     - 영업시간 정보가 없거나 저장된 형식이 올바르지 않으면 `openingHours`는 `null`입니다.
                     - 메뉴는 저장한 순서로 돌려줍니다. `menus[].price`는 원 단위이며, 가격을 모르면 `null`입니다.
                     - 메뉴 정보가 없거나 저장된 형식이 올바르지 않으면 `menus`는 빈 배열(`[]`)입니다.
@@ -34,7 +37,31 @@ public interface PlaceApiDocs {
             responses = {
                     @ApiResponse(responseCode = "200", description = "장소 영업시간과 메뉴를 조회했습니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                                    schema = @Schema(implementation = PlaceInfoResponse.class))),
+                                    schema = @Schema(implementation = PlaceInfoResponse.class),
+                                    examples = @ExampleObject(name = "성수 카페", value = """
+                                            {
+                                              "openingHours": [
+                                                {
+                                                  "dayOfWeek": "MONDAY",
+                                                  "periods": [
+                                                    { "opensAt": "11:00", "closesAt": "15:00" },
+                                                    { "opensAt": "17:00", "closesAt": "21:00" }
+                                                  ]
+                                                },
+                                                {
+                                                  "dayOfWeek": "FRIDAY",
+                                                  "periods": [
+                                                    { "opensAt": "18:00", "closesAt": "02:00" }
+                                                  ]
+                                                },
+                                                { "dayOfWeek": "SUNDAY", "periods": [] }
+                                              ],
+                                              "menus": [
+                                                { "name": "아메리카노", "price": 4500 },
+                                                { "name": "오늘의 디저트", "price": null }
+                                              ]
+                                            }
+                                            """))),
                     @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class))),
