@@ -35,6 +35,8 @@ type PlaceDetailScreenProps = {
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
   bottomNavigationBar?: ReactNode;
+  /** 지정하면 게시물을 눌렀을 때 인스타그램 대신 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   /** 비회원에게는 폴더 버튼을 보여주지 않습니다. */
   isGuest?: boolean;
 };
@@ -47,6 +49,7 @@ export function PlaceDetailScreen({
   guestReels,
   onDeleteGuestPlaces,
   bottomNavigationBar,
+  onOpenReel,
   isGuest = false,
 }: PlaceDetailScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
@@ -226,6 +229,7 @@ export function PlaceDetailScreen({
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
+        onOpenReel={onOpenReel}
         onPressFolder={
           isGuest
             ? undefined

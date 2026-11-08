@@ -26,7 +26,9 @@ import {getHistoryReelDetail, reportHistoryReel} from '../../entities/content/hi
 import {saveMediaPlace} from '../../entities/content/saved-media-api';
 import {deleteSavedPlaces} from '../../entities/info/api';
 import {showAlert} from '../../lib/app-alert';
+import {historyReelPlaceToPlace} from '../../entities/content/convert';
 import {normalizeReelCaption} from '../../entities/content/title';
+import type {Place} from '../../entities/place/types';
 import type {
   HistoryReel,
   HistoryReelPlace,
@@ -37,6 +39,8 @@ type ReelDetailScreenProps = {
   reel: HistoryReel;
   onBack: () => void;
   onReported?: (reelId: string) => void;
+  /** 지정하면 '찾은 장소' 항목을 눌렀을 때 해당 장소 상세로 이동합니다. */
+  onOpenPlace?: (place: Place) => void;
   isGuest?: boolean;
 };
 
@@ -125,7 +129,7 @@ type PlacesState =
   | {status: 'ready'; places: HistoryReelPlace[]};
 
 /** 공유한 게시물 하나의 상세. 원본 이미지 위에 캡션을, 아래 시트에 찾은 장소를 보여 줍니다. */
-export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: ReelDetailScreenProps) {
+export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest = false}: ReelDetailScreenProps) {
   const analytics = useScreenAnalytics('reel_detail');
   const insets = useSafeAreaInsets();
   const {height: windowHeight} = useWindowDimensions();
@@ -498,7 +502,19 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
               }
               const category = getMiddleCategory(place.category);
               return (
-                <View key={item.id} style={styles.row}>
+                <Pressable
+                  key={item.id}
+                  accessibilityLabel={`${place.name} 장소 상세 보기`}
+                  accessibilityRole="button"
+                  disabled={!onOpenPlace}
+                  onPress={() => {
+                    const detailPlace = historyReelPlaceToPlace(item);
+                    if (detailPlace) {
+                      analytics.button('open_place_detail');
+                      onOpenPlace?.(detailPlace);
+                    }
+                  }}
+                  style={styles.row}>
                   {place.thumbnail_url ? (
                     <Image
                       source={{uri: place.thumbnail_url}}
@@ -536,7 +552,7 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
                       />
                     </Pressable>
                   ) : null}
-                </View>
+                </Pressable>
               );
             })
           )}

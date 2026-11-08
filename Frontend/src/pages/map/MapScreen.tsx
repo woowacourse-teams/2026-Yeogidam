@@ -61,6 +61,7 @@ import {
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import { resolvePlaceCategoryCode } from '../../entities/place/category';
 import type { Place } from '../../entities/place/types';
+import type { PlaceReel } from '../../entities/info/types';
 import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
 import { getSavedPlaces, searchSavedPlaces } from '../../entities/info/api';
 import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
@@ -93,6 +94,8 @@ import {
 } from './mapSearch';
 
 type MapScreenProps = {
+  /** 지정하면 장소 상세의 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   isActive?: boolean;
   isGuest?: boolean;
@@ -114,6 +117,7 @@ const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
 
 export function MapScreen({
+  onOpenReel,
   onBackGestureRegionChange,
   isActive = true,
   isGuest = false,
@@ -1035,6 +1039,7 @@ export function MapScreen({
     >
       {mapHeight > 0 ? (
         <PlaceResultSheet
+          onOpenReel={onOpenReel}
           isActive={isActive}
           onBackGestureRegionChange={onBackGestureRegionChange}
           pageHeight={mapHeight}
