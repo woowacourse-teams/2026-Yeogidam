@@ -415,6 +415,7 @@ function App() {
   useEffect(() => {
     if (isAuthenticated === false) reportedReelIdsRef.current.clear();
   }, [isAuthenticated]);
+  const [historyFailureEntry, setHistoryFailureEntry] = useState<HistoryReel | null>(null);
   const { height: windowHeight } = useWindowDimensions();
   useEffect(() => {
     if (flowState.kind !== 'main') setReelDetail(null);
@@ -589,6 +590,7 @@ function App() {
   };
 
   const openMainScreen = (nextScreen: MainScreen) => {
+    setHistoryFailureEntry(null);
     // 대기함 복원 시 entryType: InboxEntryType = 'direct' 인자를 다시 받습니다.
     if (
       nextScreen === 'history' &&
@@ -628,6 +630,7 @@ function App() {
   };
 
   const goBackMainTab = useCallback(() => {
+    setHistoryFailureEntry(null);
     if (flowState.kind !== 'main' || flowState.detailSource !== null) {
       return false;
     }
@@ -1412,7 +1415,9 @@ function App() {
       return (
         <HistoryScreen
           guestReels={isAuthenticated === false ? [] : undefined}
-          onBack={goBackMainTab}
+          initialFailureReel={historyFailureEntry}
+          onBack={historyFailureEntry ? () => openMainScreen('saved') : goBackMainTab}
+          onInitialFailureExit={() => setHistoryFailureEntry(null)}
           isActive={currentScreen === 'history' && myPageOverlay === null}
           onNestedBackStateChange={reportHistoryBackState}
           onOpenReel={openReelDetail}
@@ -1487,6 +1492,10 @@ function App() {
           onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
           onEditModeChange={setIsSavedPlacesEditing}
           onOpenHistory={() => openMainScreen('history')}
+          onOpenFailedReel={reel => {
+            openMainScreen('history');
+            setHistoryFailureEntry(reel);
+          }}
           onOpenReel={openReelDetail}
           onOpenDetail={(place, context) =>
             openDetailFrom('saved', place, context)
@@ -1642,6 +1651,7 @@ function App() {
     else if (myPageOverlay !== null) setMyPageOverlay(null);
     else if (flowState.kind === 'auth') popAuthScreen();
     else if (flowState.detailSource !== null) closeDetail();
+    else if (currentScreen === 'history' && historyFailureEntry) openMainScreen('saved');
     else goBackMainTab();
   };
 

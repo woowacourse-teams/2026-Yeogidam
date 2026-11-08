@@ -137,6 +137,8 @@ type SavedPlacesScreenProps = {
   onEditModeChange?: (isEditing: boolean) => void;
   /** 최근 공유 '전체보기'와 게시물 카드에서 히스토리 화면으로 이동합니다. */
   onOpenHistory?: () => void;
+  /** 최근 공유의 실패 항목을 눌렀을 때 해당 실패 상세를 엽니다. */
+  onOpenFailedReel?: (reel: HistoryReel) => void;
   /** 게시물 카드를 눌렀을 때 해당 게시물의 상세 페이지를 엽니다. */
   onOpenReel?: (reel: HistoryReel) => void;
   /** Allows previews/tests to provide a fixed list instead of calling the API. */
@@ -160,6 +162,7 @@ export function SavedPlacesScreen({
   onShowGuestLoginPrompt,
   onEditModeChange,
   onOpenHistory,
+  onOpenFailedReel,
   onOpenReel,
   onRequireLogin,
   // onOpenInbox,
@@ -1149,8 +1152,7 @@ export function SavedPlacesScreen({
     [analytics, onOpenHistory, onOpenReel],
   );
 
-  // 방금 공유한 릴스: 성공·처리 중·대기 중인 공유는 상세 화면(처리 중이면 진행 화면)으로,
-  // 실패한 공유는 다시 시도할 수 있는 히스토리로 보냅니다.
+  // 방금 공유한 릴스: 실패한 공유는 해당 실패 상세로 바로 보냅니다.
   const handleOpenRecentReel = useCallback(
     (reel: HistoryReel) => {
       if (reel.deleted_from_library) {
@@ -1161,9 +1163,11 @@ export function SavedPlacesScreen({
         handleOpenReel(reel);
         return;
       }
-      handleOpenHistory();
+      analytics.button('open_reel_detail');
+      if (onOpenFailedReel) onOpenFailedReel(reel);
+      else handleOpenHistory();
     },
-    [handleOpenHistory, handleOpenReel],
+    [analytics, handleOpenHistory, handleOpenReel, onOpenFailedReel],
   );
 
   const enterEditMode = useCallback(() => {
