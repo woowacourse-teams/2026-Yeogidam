@@ -660,10 +660,10 @@ const styles = StyleSheet.create({
   },
   foldButton: {
     position: 'absolute',
-    left: 20,
+    right: 20,
     height: FOLD_BAR_HEIGHT,
     justifyContent: 'center',
-    paddingRight: 24,
+    paddingLeft: 24,
   },
   moreText: {
     color: '#ffffff',
