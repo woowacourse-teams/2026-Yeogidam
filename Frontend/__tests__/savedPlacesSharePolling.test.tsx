@@ -163,6 +163,45 @@ test('인스타그램 공유가 완료되면 보관함이 열려 있어도 게�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('인스타그램 공유의 게시물 반영이 두 번의 조회보다 늦어도 자동으로 갱신한다', async () => {
+  const onSharedResultConsumed = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <SavedPlacesScreen onOpenDetail={jest.fn()} onSharedResultConsumed={onSharedResultConsumed} />,
+    );
+  });
+  jest.mocked(getSavedMedia)
+    .mockResolvedValueOnce({reels: [], nextCursor: null})
+    .mockResolvedValueOnce({reels: [], nextCursor: null})
+    .mockResolvedValue({reels: [historyReel('8', 'COMPLETED')], nextCursor: null});
+
+  await ReactTestRenderer.act(async () => {
+    setSharedSaveState({
+      shareResultId: 'share-8',
+      source: 'instagram_share',
+      url: LINK,
+      status: 'COMPLETED',
+      reel: {
+        id: '8',
+        processing_status: 'COMPLETED',
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date().toISOString(),
+      },
+    });
+  });
+  await tick(700);
+  expect(onSharedResultConsumed).not.toHaveBeenCalled();
+
+  await tick(1500);
+  expect(renderer.root.findByType(SavedPostGrid).props.reels.map(
+    (reel: HistoryReel) => reel.id,
+  )).toEqual(['8']);
+  expect(onSharedResultConsumed).toHaveBeenCalledWith('share-8');
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('링크 저장 뒤 처리 상태는 공용 목록 폴링으로 확인하고, 완료되면 보관함을 다시 읽고 폴링을 멈춘다', async () => {
   jest
     .mocked(getHistoryReels)
@@ -190,6 +229,53 @@ test('링크 저장 뒤 처리 상태는 공용 목록 폴링으로 확인하고
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   // 상태 확인은 단건 조회 없이 목록 폴링으로만 한다.
   expect(getReelProcessingStatus).not.toHaveBeenCalledWith('8');
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('링크가 즉시 완료돼도 게시물 목록 반영이 늦으면 장소와 게시물을 다시 읽는다', async () => {
+  jest.mocked(saveContent).mockResolvedValue({reelId: '8', status: 'COMPLETED', reused: false});
+  jest.mocked(getSavedMedia)
+    .mockResolvedValueOnce({reels: [], nextCursor: null})
+    .mockResolvedValueOnce({reels: [], nextCursor: null})
+    .mockResolvedValue({reels: [historyReel('8', 'COMPLETED')], nextCursor: null});
+  const renderer = await render();
+  const placesBeforeSave = jest.mocked(getSavedPlaces).mock.calls.length;
+
+  await saveLink(renderer);
+  expect(jest.mocked(getSavedMedia).mock.calls.length).toBe(2);
+  await tick(700);
+
+  expect(renderer.root.findByType(SavedPostGrid).props.reels.map(
+    (reel: HistoryReel) => reel.id,
+  )).toEqual(['8']);
+  expect(jest.mocked(getSavedPlaces).mock.calls.length).toBeGreaterThanOrEqual(placesBeforeSave + 2);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('게시물이 먼저 반영돼도 저장 장소가 늦으면 장소를 다시 읽는다', async () => {
+  jest.mocked(saveContent).mockResolvedValue({reelId: '8', status: 'COMPLETED', reused: false});
+  jest.mocked(getSavedMedia).mockResolvedValue({
+    reels: [historyReel('8', 'COMPLETED')], nextCursor: null,
+  });
+  jest.mocked(getSavedPlaces)
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([{
+      id: 'saved-1',
+      createdAt: '2026-11-08T00:00:00Z',
+      place: {id: 'place-1', name: '새 장소', latitude: 37.5, longitude: 127},
+    }] as Awaited<ReturnType<typeof getSavedPlaces>>);
+  const renderer = await render();
+
+  await saveLink(renderer);
+  await tick(700);
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesViewToggle).props.onChangeView('places');
+  });
+
+  expect(renderer.root.findByType(SavedPlaceGrid).props.places.map(
+    (place: {id: string}) => place.id,
+  )).toEqual(['place-1']);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

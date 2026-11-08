@@ -88,6 +88,35 @@ test('첫 공유 목록에 완료 항목이 있으면 저장 장소를 다시 �
   await act(async () => renderer.unmount());
 });
 
+test('완료 직후 장소 목록 반영이 늦어도 지도에서 자동으로 다시 읽는다', async () => {
+  jest.useFakeTimers();
+  jest.mocked(getSavedPlaces)
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([{
+      id: 'saved-1',
+      createdAt: '2026-11-08T00:00:00Z',
+      place: {id: 'place-1', name: '새 장소', latitude: 37.5, longitude: 127},
+    }] as Awaited<ReturnType<typeof getSavedPlaces>>);
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(<MapScreen />);
+  });
+  await act(async () => {
+    renderer.root.findByType(View).props.onLayout?.({nativeEvent: {layout: {height: 800}}});
+  });
+  await showShares([completed('new-reel')]);
+  expect(renderer.root.findByType(PlaceResultSheet).props.emptyState.kind).toBe('noSavedPlaces');
+
+  await act(async () => {
+    jest.advanceTimersByTime(700);
+    await Promise.resolve();
+  });
+  expect(renderer.root.findByType(PlaceResultSheet).props.emptyState.kind).toBe('outOfArea');
+  await act(async () => renderer.unmount());
+  jest.useRealTimers();
+});
+
 test('첫 공유 목록에 완료 항목이 없어도 이후 완료 전환을 감지한다', async () => {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
