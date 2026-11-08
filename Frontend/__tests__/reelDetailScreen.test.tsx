@@ -11,6 +11,7 @@ import {
   getReelBackGestureRegion,
   ReelDetailScreen,
   shouldCaptureSheetDrag,
+  shouldDismissCaptionOnDragEnd,
 } from '../src/pages/reel-detail/ReelDetailScreen';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
@@ -251,6 +252,23 @@ describe('시트 끌기 제스처', () => {
     expect(shouldCaptureSheetDrag({...expanded, startY: 300})).toBe(true); // 손잡이·제목 줄
     expect(shouldCaptureSheetDrag({...expanded, startY: 500})).toBe(false); // 장소 목록 스크롤
     expect(shouldCaptureSheetDrag({...expanded, startY: 100, dy: -40})).toBe(false);
+  });
+});
+
+describe('캡션 스크롤 끌기 종료', () => {
+  test('Android는 맨 위에서 아래로 빠르게 끌었을 때만 닫는다', () => {
+    const base = {platform: 'android', offsetY: 0, velocityY: 0.5};
+    expect(shouldDismissCaptionOnDragEnd(base)).toBe(true);
+    expect(shouldDismissCaptionOnDragEnd({...base, velocityY: 0.1})).toBe(false);
+    expect(shouldDismissCaptionOnDragEnd({...base, velocityY: -0.5})).toBe(false);
+    expect(shouldDismissCaptionOnDragEnd({...base, offsetY: 120})).toBe(false);
+  });
+
+  test('iOS는 맨 위에서 충분히 당겼을 때만 닫는다', () => {
+    const base = {platform: 'ios', offsetY: -80, velocityY: 0};
+    expect(shouldDismissCaptionOnDragEnd(base)).toBe(true);
+    expect(shouldDismissCaptionOnDragEnd({...base, offsetY: -20})).toBe(false);
+    expect(shouldDismissCaptionOnDragEnd({...base, offsetY: 0})).toBe(false);
   });
 });
 

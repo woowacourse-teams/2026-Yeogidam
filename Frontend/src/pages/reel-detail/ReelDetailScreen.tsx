@@ -10,6 +10,7 @@ import {
   Image,
   Linking,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -82,7 +83,8 @@ type SheetDragInput = {
 
 // 펼친 캡션을 아래로 끌어 닫을 최소 거리/속도.
 const CAPTION_DISMISS_DISTANCE = 80;
-const CAPTION_DISMISS_VELOCITY = 0.5;
+const CAPTION_DISMISS_VELOCITY = 0.3;
+const CAPTION_DISMISS_PULL = 60;
 
 /**
  * 세로 끌기를 시트 제스처로 받을지 정합니다.
@@ -116,6 +118,27 @@ export function shouldCaptureSheetDrag({
     return false;
   }
   return !isCaptionOpen || startY >= sheetTop;
+}
+
+/**
+ * 펼친 캡션 스크롤을 놓았을 때 아래로 당겨 닫을지 정합니다. 캡션 스크롤이 네이티브 터치를 가져가면
+ * 시트 제스처(PanResponder)가 취소되므로, 스크롤이 주는 끌기 종료 이벤트로 판단합니다.
+ * - iOS: 맨 위에서 당기면 오프셋이 음수가 됩니다(바운스).
+ * - Android: 오프셋이 0에 머물고, 아래로 끈 손가락 속도가 양수로 옵니다.
+ */
+export function shouldDismissCaptionOnDragEnd({
+  offsetY,
+  velocityY,
+  platform,
+}: {
+  offsetY: number;
+  velocityY: number;
+  platform: string;
+}) {
+  if (platform === 'ios') {
+    return offsetY <= -CAPTION_DISMISS_PULL;
+  }
+  return offsetY <= 0 && velocityY >= CAPTION_DISMISS_VELOCITY;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -451,6 +474,18 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
               captionScrollYRef.current = e.nativeEvent.contentOffset.y;
             }}
             scrollEventThrottle={16}
+            onScrollEndDrag={e => {
+              const {contentOffset, velocity} = e.nativeEvent;
+              if (
+                shouldDismissCaptionOnDragEnd({
+                  offsetY: contentOffset.y,
+                  velocityY: velocity?.y ?? 0,
+                  platform: Platform.OS,
+                })
+              ) {
+                toggleCaption(false);
+              }
+            }}
             showsVerticalScrollIndicator={false}
             style={[
               styles.captionScroll,
