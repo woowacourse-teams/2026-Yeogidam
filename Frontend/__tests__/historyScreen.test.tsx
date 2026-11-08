@@ -105,6 +105,23 @@ test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('방문했던 히스토리 탭을 다시 열면 첫 페이지를 즉시 새로 읽는다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<HistoryScreen onBack={jest.fn()} isActive={false} />);
+  });
+  expect(getHistoryReels).toHaveBeenCalledTimes(1);
+
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([8]), nextCursor: null});
+  await ReactTestRenderer.act(async () => {
+    renderer.update(<HistoryScreen onBack={jest.fn()} isActive />);
+  });
+  expect(getHistoryReels).toHaveBeenCalledTimes(2);
+  expect(renderedIds(renderer)).toEqual(['8']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('iOS 제보 확인창은 바깥쪽을 한 번 누르면 닫힌다', async () => {
   jest.mocked(getHistoryReels).mockResolvedValue({
     reels: page([7], 'FAILED'),
@@ -658,14 +675,22 @@ describe('저장 요청 직후의 처리 중 스켈레톤', () => {
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
 
-  test('이미 끝났거나 실패한 요청은 임시 항목으로 보이지 않는다', async () => {
+  test('서버가 접수한 완료·실패 링크는 보이고 요청 실패는 숨긴다', async () => {
     jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
-    for (const status of ['COMPLETED', 'FAILED'] as const) {
-      sharing(`done-${status}`, status);
-      const renderer = await render();
-      expect(itemsOf(renderer, `done-${status}`)).toHaveLength(0);
-      await ReactTestRenderer.act(async () => renderer.unmount());
-    }
+    sharing('done-COMPLETED', 'COMPLETED');
+    const completedRenderer = await render();
+    expect(itemsOf(completedRenderer, 'done-COMPLETED')).toHaveLength(1);
+    await ReactTestRenderer.act(async () => completedRenderer.unmount());
+
+    sharing('done-FAILED', 'FAILED');
+    const failedRenderer = await render();
+    expect(itemsOf(failedRenderer, 'done-FAILED')).toHaveLength(1);
+    await ReactTestRenderer.act(async () => failedRenderer.unmount());
+
+    sharing('manual-failed-1', 'FAILED');
+    const requestFailedRenderer = await render();
+    expect(itemsOf(requestFailedRenderer, 'manual-failed-1')).toHaveLength(0);
+    await ReactTestRenderer.act(async () => requestFailedRenderer.unmount());
   });
 
   test('보낸 지 오래된 임시 항목은 스켈레톤이 영원히 남지 않게 숨긴다', async () => {

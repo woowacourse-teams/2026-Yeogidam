@@ -3,9 +3,10 @@ import ReactTestRenderer from 'react-test-renderer';
 
 import {saveContent} from '../src/entities/content/api';
 import {getHistoryReels} from '../src/entities/content/history-api';
-import {setSharedSaveState} from '../src/lib/reel-save-state';
+import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {SavedPlacesLinkDialog} from '../src/pages/saved-places/components/SavedPlacesLinkDialog';
+import {SavedPlacesRecentShares} from '../src/pages/saved-places/components/SavedPlacesRecentShares';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
@@ -163,5 +164,85 @@ test('링크를 저장한 뒤 히스토리를 처음 열어도 처리 중 항목
     for (let i = 0; i < 5; i += 1) await Promise.resolve();
   });
   expect(historyItemIds(renderer)).toEqual(['8']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('즉시 완료된 링크도 서버 목록에 나타날 때까지 히스토리에 유지한다', async () => {
+  jest.mocked(saveContent).mockResolvedValue({
+    reelId: '8',
+    status: 'COMPLETED',
+    reused: true,
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <>
+        <SavedPlacesScreen onOpenDetail={jest.fn()} places={places as never} />
+        <HistoryScreen onBack={jest.fn()} />
+      </>,
+    );
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesLinkDialog).props.onChangeValue(LINK);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(SavedPlacesLinkDialog).props.onSubmit();
+  });
+
+  expect(historyItemIds(renderer)).toEqual(['8']);
+  expect(renderer.root.findByType(SavedPlacesRecentShares).props.reels.map(
+    (reel: {id: string}) => reel.id,
+  )).toEqual(['8']);
+  expect(getSharedSaveState()?.status).toBe('COMPLETED');
+
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: [{
+      id: '8',
+      instagram_url: LINK,
+      instagram_title: null,
+      instagram_description: null,
+      instagram_author_username: null,
+      instagram_thumbnail_url: null,
+      processing_status: 'COMPLETED',
+      failure_reason: null,
+      save_mode: null,
+      created_at: new Date().toISOString(),
+    }],
+    nextCursor: null,
+  });
+  await ReactTestRenderer.act(async () => {
+    jest.advanceTimersByTime(3000);
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  });
+  expect(historyItemIds(renderer)).toEqual(['8']);
+  expect(getSharedSaveState()).toBeNull();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('서버가 실패 상태로 접수한 링크도 히스토리에 바로 표시한다', async () => {
+  jest.mocked(saveContent).mockResolvedValue({
+    reelId: '8',
+    status: 'FAILED',
+    reused: false,
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <>
+        <SavedPlacesScreen onOpenDetail={jest.fn()} places={places as never} />
+        <HistoryScreen onBack={jest.fn()} />
+      </>,
+    );
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesLinkDialog).props.onChangeValue(LINK);
+  });
+  await ReactTestRenderer.act(async () => {
+    await renderer.root.findByType(SavedPlacesLinkDialog).props.onSubmit();
+  });
+  expect(historyItemIds(renderer)).toEqual(['8']);
+  expect(renderer.root.findByType(SavedPlacesRecentShares).props.reels.map(
+    (reel: {id: string}) => reel.id,
+  )).toEqual(['8']);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

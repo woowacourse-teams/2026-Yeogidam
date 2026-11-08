@@ -227,7 +227,7 @@ export function MapScreen({
   const [savedPlacesRefreshSignal, setSavedPlacesRefreshSignal] = useState(0);
   const completedReelIdsRef = useRef<Set<string> | null>(null);
 
-  // 지도가 보이는 중에 릴스 저장이 끝나면 새 장소를 읽는다. 첫 결과는 기준값으로만 쓴다.
+  // 첫 공유 목록에 이미 완료된 릴스가 있어도, 첫 장소 조회 이후 완료됐을 수 있다.
   useEffect(() => {
     if (isGuest) {
       completedReelIdsRef.current = null;
@@ -243,7 +243,12 @@ export function MapScreen({
         );
         const previousIds = completedReelIdsRef.current;
         completedReelIdsRef.current = completedIds;
-        if (!previousIds) return;
+        if (!previousIds) {
+          if (completedIds.size > 0) {
+            setSavedPlacesRefreshSignal(signal => signal + 1);
+          }
+          return;
+        }
         for (const id of completedIds) {
           if (!previousIds.has(id)) {
             setSavedPlacesRefreshSignal(signal => signal + 1);

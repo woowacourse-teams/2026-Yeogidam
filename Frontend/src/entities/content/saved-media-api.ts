@@ -40,22 +40,46 @@ function toReel(item: SpringSavedMedia): HistoryReel {
   };
 }
 
+function toCursorQuery(cursor?: HistoryCursor) {
+  return cursor ? {cursorCreatedAt: cursor.created_at, cursorId: cursor.id} : undefined;
+}
+
+function toSavedMediaPage(response: SpringSavedMediaPage): {
+  reels: HistoryReel[];
+  nextCursor: HistoryCursor | null;
+} {
+  return {
+    reels: (response.sharedMedia ?? []).map(toReel),
+    nextCursor: response.nextCursor
+      ? {created_at: response.nextCursor.createdAt, id: String(response.nextCursor.id)}
+      : null,
+  };
+}
+
 export async function getSavedMedia(cursor?: HistoryCursor): Promise<{
   reels: HistoryReel[];
   nextCursor: HistoryCursor | null;
 }> {
   try {
     const response = await client.request<SpringSavedMediaPage>(SAVED_MEDIA_PATH, {
-      query: cursor
-        ? {cursorCreatedAt: cursor.created_at, cursorId: cursor.id}
-        : undefined,
+      query: toCursorQuery(cursor),
     });
-    return {
-      reels: (response.sharedMedia ?? []).map(toReel),
-      nextCursor: response.nextCursor
-        ? {created_at: response.nextCursor.createdAt, id: String(response.nextCursor.id)}
-        : null,
-    };
+    return toSavedMediaPage(response);
+  } catch (error) {
+    throw toReelApiError(error);
+  }
+}
+
+/** 게시물 탭과 같은 목록에서 캡션만 찾고, 목록처럼 커서로 이어 받습니다. */
+export async function searchSavedMedia(query: string, cursor?: HistoryCursor): Promise<{
+  reels: HistoryReel[];
+  nextCursor: HistoryCursor | null;
+}> {
+  try {
+    const response = await client.request<SpringSavedMediaPage>(`${SAVED_MEDIA_PATH}/search`, {
+      query: {query, ...toCursorQuery(cursor)},
+    });
+    return toSavedMediaPage(response);
   } catch (error) {
     throw toReelApiError(error);
   }
