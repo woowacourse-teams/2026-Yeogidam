@@ -27,12 +27,15 @@ type SearchBarProps = {
   placeholder?: string;
   autoFocus?: boolean;
   autoCorrect?: boolean;
+  maxLength?: number;
   onSubmitEditing?: (
     event: NativeSyntheticEvent<TextInputSubmitEditingEventData>,
   ) => void;
   onFocus?: (event: FocusEvent) => void;
   onBlur?: (event: BlurEvent) => void;
   onPressSearchAction?: () => void;
+  /** 누르는 검색창(onPress)에 확정한 검색어(value)가 있을 때 지우기 버튼을 보여 줍니다. */
+  onPressClear?: () => void;
   /** 기존 호출부 호환용 검색 실행 콜백 */
   onSubmit?: () => void;
 };
@@ -52,10 +55,12 @@ export function SearchBar({
   placeholder = '장소, 지역 검색',
   autoFocus = false,
   autoCorrect = true,
+  maxLength,
   onSubmitEditing,
   onFocus,
   onBlur,
   onPressSearchAction,
+  onPressClear,
   onSubmit,
 }: SearchBarProps) {
   const handleSearchAction = onPressSearchAction ?? onSubmit;
@@ -120,9 +125,16 @@ export function SearchBar({
           </Pressable>
         ) : null}
         {onPress ? (
-          <Text style={[styles.inputText, styles.placeholder]}>
-            {placeholder}
-          </Text>
+          // 눌러서 여는 검색창도 입력창과 같은 TextInput으로 그려, 화면이 바뀔 때 글씨 위치가 어긋나지 않게 합니다.
+          <TextInput
+            accessible={false}
+            editable={false}
+            placeholder={placeholder}
+            placeholderTextColor="#a9a9ae"
+            pointerEvents="none"
+            style={[styles.inputText, styles.input, !value && styles.placeholderText]}
+            value={value}
+          />
         ) : (
           <TextInput
             accessibilityLabel="장소, 지역 검색"
@@ -131,22 +143,24 @@ export function SearchBar({
             autoFocus={autoFocus}
             onBlur={onBlur}
             clearButtonMode="while-editing"
+            maxLength={maxLength}
             onChangeText={onChangeText}
             onFocus={onFocus}
             onSubmitEditing={handleSubmitEditing}
             placeholder={placeholder}
             placeholderTextColor="#a9a9ae"
             returnKeyType="search"
-            style={[styles.inputText, styles.input]}
+            style={[styles.inputText, styles.input, !value && styles.placeholderText]}
             value={value}
           />
         )}
-        {!onPress && Platform.OS !== 'ios' && value ? (
+        {value &&
+        (onPress ? onPressClear : Platform.OS !== 'ios') ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="검색어 지우기"
             hitSlop={10}
-            onPress={() => onChangeText?.('')}
+            onPress={onPress ? onPressClear : () => onChangeText?.('')}
             style={styles.clearButton}
           >
             <Text style={styles.clearIcon}>×</Text>
@@ -244,8 +258,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#202124',
   },
-  placeholder: {
-    color: '#a9a9ae',
+  // 안내 문구는 입력한 검색어보다 작고 얇게 보여, 좁은 검색창에서도 한 줄에 들어가게 합니다.
+  placeholderText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
   input: {
     height: SEARCH_BAR_HEIGHT,

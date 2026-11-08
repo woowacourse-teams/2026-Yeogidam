@@ -35,6 +35,9 @@ let savedPlacesRepository: SavedPlacesRepository = {
   async getSavedPlaces() {
     throw unconfiguredRepositoryError('Saved places');
   },
+  async searchSavedPlaces() {
+    throw unconfiguredRepositoryError('Saved places');
+  },
   async deleteSavedPlaces() {
     throw unconfiguredRepositoryError('Saved places');
   },
@@ -48,6 +51,11 @@ export function configureSavedPlacesRepository(
 
 export function getSavedPlaces(): Promise<SavedPlaceListItem[]> {
   return savedPlacesRepository.getSavedPlaces();
+}
+
+/** 서버가 이름·주소·카테고리에서 공백으로 나눈 단어를 모두 포함한 장소를 찾습니다. */
+export function searchSavedPlaces(query: string): Promise<SavedPlaceListItem[]> {
+  return savedPlacesRepository.searchSavedPlaces(query);
 }
 
 export function deleteSavedPlaces(savedPlaceIds: string[]): Promise<void> {
