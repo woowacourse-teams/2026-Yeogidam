@@ -1437,6 +1437,12 @@ export function SavedPlacesScreen({
   const savedPlacesHeader = (
     <SavedPlacesHeader
       onPressSearch={() => {
+        // 지도 검색창처럼 비회원에게는 검색 대신 로그인을 안내합니다.
+        if (isGuest) {
+          analytics.button('guest_search');
+          (onShowGuestLoginPrompt ?? onRequireLogin)?.();
+          return;
+        }
         analytics.button('open_search');
         setIsSearchOpen(true);
       }}
