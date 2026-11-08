@@ -155,6 +155,25 @@ test('접힌 캡션을 누르면 펼치고 접기로 닫는다', async () => {
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('찾은 장소를 누르면 장소 상세로 넘기고, 북마크 버튼은 이동하지 않는다', async () => {
+  const onOpenPlace = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <ReelDetailScreen onBack={jest.fn()} onOpenPlace={onOpenPlace} reel={reel} />,
+    );
+  });
+
+  const row = renderer.root.findAll(
+    node => node.props.accessibilityLabel === '카페 온월 장소 상세 보기',
+  )[0];
+  await ReactTestRenderer.act(async () => row.props.onPress());
+
+  expect(onOpenPlace).toHaveBeenCalledTimes(1);
+  expect(onOpenPlace.mock.calls[0][0]).toMatchObject({id: '1', name: '카페 온월'});
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('상단 원본 버튼은 확인 전에는 이동하지 않고 열기를 누른 뒤 이동한다', async () => {
   const {renderer, onBack} = await render();
 

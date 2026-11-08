@@ -33,7 +33,7 @@ import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { AppAlertHost } from './src/components/AppAlertHost';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
 import { getCurrentProfile } from './src/entities/info/api';
-import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
+import type { PlaceReel, ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
 import {
   withAuthErrorStage,
@@ -98,6 +98,7 @@ import {
   ReelProcessingScreen,
 } from './src/pages/reel-processing/ReelProcessingScreen';
 import type { HistoryReel } from './src/entities/content/types';
+import { placeReelToHistoryReel } from './src/entities/content/convert';
 import { AccountDeletionScreen } from './src/pages/my-page/AccountDeletionScreen';
 import { MyPageScreen } from './src/pages/my-page/MyPageScreen';
 import { TermsAgreementScreen } from './src/pages/my-page/TermsAgreementScreen';
@@ -176,6 +177,17 @@ function captureShareLoginHandoffError(errorCode: string) {
     scope.setFingerprint(['instagram-share', 'login_handoff', Platform.OS, errorCode]);
     Sentry.captureException(error);
   });
+}
+
+/** 게시물 상세와 장소 상세를 서로 오가며 쌓는 화면 한 겹입니다. */
+type DetailLayer =
+  | {kind: 'place'; place: Place}
+  | {kind: 'reel'; reel: HistoryReel};
+
+function getDetailLayerKey(layer: DetailLayer, index: number) {
+  return layer.kind === 'place'
+    ? `detailLayer-${index}-place-${layer.place.id}`
+    : `detailLayer-${index}-reel-${layer.reel.id}`;
 }
 
 const INITIAL_FLOW_STATE: AppFlowState = {
@@ -416,10 +428,32 @@ function App() {
   useEffect(() => {
     if (isAuthenticated === false) reportedReelIdsRef.current.clear();
   }, [isAuthenticated]);
+  // 게시물 상세 ↔ 장소 상세를 오가며 쌓는 화면들입니다. 기존 화면(보관함·지도 등) 위에 한 겹씩 올라가고,
+  // 뒤로가기는 맨 위부터 하나씩 벗겨 냅니다.
+  const [detailLayers, setDetailLayers] = useState<DetailLayer[]>([]);
+  const openPlaceFromReel = useCallback((place: Place) => {
+    setDetailLayers(current => [...current, {kind: 'place', place}]);
+  }, []);
+  const openReelFromPlace = useCallback((placeReel: PlaceReel) => {
+    const reel = placeReelToHistoryReel(placeReel);
+    setDetailLayers(current => [
+      ...current,
+      {
+        kind: 'reel',
+        reel: reportedReelIdsRef.current.has(reel.id) ? {...reel, reported: true} : reel,
+      },
+    ]);
+  }, []);
+  const popDetailLayer = useCallback(() => {
+    setDetailLayers(current => current.slice(0, -1));
+  }, []);
   const [historyFailureEntry, setHistoryFailureEntry] = useState<HistoryReel | null>(null);
   const { height: windowHeight } = useWindowDimensions();
   useEffect(() => {
-    if (flowState.kind !== 'main') setReelDetail(null);
+    if (flowState.kind !== 'main') {
+      setReelDetail(null);
+      setDetailLayers([]);
+    }
   }, [flowState.kind]);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
   const nestedBackStateRef = useRef(false);
@@ -696,6 +730,11 @@ function App() {
           return true;
         }
 
+        if (detailLayers.length > 0) {
+          popDetailLayer();
+          return true;
+        }
+
         if (reelDetail !== null) {
           setReelDetail(null);
           return true;
@@ -729,7 +768,7 @@ function App() {
     );
 
     return () => subscription.remove();
-  }, [closeDetail, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, reelDetail]);
+  }, [closeDetail, detailLayers.length, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, popDetailLayer, reelDetail]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1476,7 +1515,7 @@ function App() {
               ? `guest-saved-${tabRefreshCount.saved}`
               : `member-saved-${tabRefreshCount.saved}`
           }
-          isActive={currentScreen === 'saved' && myPageOverlay === null && reelDetail === null}
+          isActive={currentScreen === 'saved' && myPageOverlay === null && reelDetail === null && detailLayers.length === 0}
           onNestedBackStateChange={reportSavedBackState}
           initialScrollOffset={savedPlacesScrollOffsetRef.current}
           isGuest={isAuthenticated === false}
@@ -1522,6 +1561,7 @@ function App() {
     if (screen === 'map') {
       return (
         <MapScreen
+          onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onBackGestureRegionChange={reportMapBackGestureRegion}
           key={
             isAuthenticated === false
@@ -1529,7 +1569,7 @@ function App() {
               : `member-map-${tabRefreshCount.map}`
           }
           isGuest={isAuthenticated === false}
-          isActive={currentScreen === 'map' && myPageOverlay === null}
+          isActive={currentScreen === 'map' && myPageOverlay === null && detailLayers.length === 0}
           onNestedBackStateChange={reportMapBackState}
           onAuthenticationRequired={requestLogin}
           onShowGuestLoginPrompt={handleShowGuestLoginPrompt}
@@ -1550,6 +1590,7 @@ function App() {
             ) : undefined
           }
           onBack={closeDetail}
+          onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onAuthenticationRequired={requestLogin}
           isGuest={isAuthenticated === false}
           place={selectedPlace}
@@ -1607,18 +1648,40 @@ function App() {
   const previousTab = flowState.kind === 'main'
     ? (flowState.activeTab === 'saved' ? null : 'saved')
     : null;
-  const activeLayerKey = flowState.kind === 'auth'
+  const baseActiveLayerKey = flowState.kind === 'auth'
     ? `auth-${flowState.stack.length - 1}-${currentScreen}`
     : reelDetail !== null ? `reelDetail-${reelDetail.id}`
     : myPageOverlay !== null ? `myPage-${myPageOverlay}`
     : flowState.detailSource !== null ? 'detail' : flowState.activeTab;
-  const backLayerKey = flowState.kind === 'auth'
+  const baseBackLayerKey = flowState.kind === 'auth'
     ? flowState.stack.length > 1
       ? `auth-${flowState.stack.length - 2}-${flowState.stack[flowState.stack.length - 2]}`
       : null
     : reelDetail !== null ? flowState.activeTab
     : myPageOverlay !== null ? flowState.activeTab
     : flowState.detailSource ?? previousTab;
+
+  const topDetailLayerIndex = detailLayers.length - 1;
+  const activeLayerKey =
+    topDetailLayerIndex >= 0
+      ? getDetailLayerKey(detailLayers[topDetailLayerIndex], topDetailLayerIndex)
+      : baseActiveLayerKey;
+  const backLayerKey =
+    topDetailLayerIndex > 0
+      ? getDetailLayerKey(detailLayers[topDetailLayerIndex - 1], topDetailLayerIndex - 1)
+      : topDetailLayerIndex === 0
+        ? baseActiveLayerKey
+        : baseBackLayerKey;
+
+  const renderDetailPlaceLayer = (place: Place) => (
+    <PlaceDetailScreen
+      onBack={popDetailLayer}
+      onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
+      onAuthenticationRequired={requestLogin}
+      isGuest={isAuthenticated === false}
+      place={place}
+    />
+  );
 
   const analyticsScreenName =
     !isAuthReady || isSplashVisible
@@ -1640,7 +1703,8 @@ function App() {
 
   const handleSwipeBack = () => {
     trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');
-    if (reelDetail !== null) setReelDetail(null);
+    if (detailLayers.length > 0) popDetailLayer();
+    else if (reelDetail !== null) setReelDetail(null);
     else if (myPageOverlay !== null) setMyPageOverlay(null);
     else if (flowState.kind === 'auth') popAuthScreen();
     else if (flowState.detailSource !== null) closeDetail();
@@ -1707,10 +1771,33 @@ function App() {
               reel={reelDetail}
               isGuest={isAuthenticated === false}
               onBack={() => setReelDetail(null)}
+              onOpenPlace={isAuthenticated === false ? undefined : openPlaceFromReel}
               onReported={reelId => reportedReelIdsRef.current.add(reelId)}
             />,
             true,
           ),
+    });
+  }
+  if (flowState.kind === 'main') {
+    detailLayers.forEach((layer, index) => {
+      screenLayers.push({
+        key: getDetailLayerKey(layer, index),
+        content:
+          layer.kind === 'place'
+            ? wrapScreen(
+                renderDetailPlaceLayer(layer.place),
+              )
+            : wrapScreen(
+                <ReelDetailScreen
+                  reel={layer.reel}
+                  isGuest={isAuthenticated === false}
+                  onBack={popDetailLayer}
+                  onOpenPlace={openPlaceFromReel}
+                  onReported={reelId => reportedReelIdsRef.current.add(reelId)}
+                />,
+                true,
+              ),
+      });
     });
   }
 
@@ -1758,7 +1845,11 @@ function App() {
         screens={screenLayers}
         activeKey={activeLayerKey}
         gestureRegion={
-          currentScreen === 'map'
+          topDetailLayerIndex >= 0
+            ? detailLayers[topDetailLayerIndex].kind === 'reel'
+              ? getReelBackGestureRegion(windowHeight)
+              : undefined
+            : currentScreen === 'map'
             ? mapBackGestureRegion
             : reelDetail !== null
               ? isReelInProgress(reelDetail)
@@ -1773,7 +1864,8 @@ function App() {
           (!nestedBackStateRef.current ||
             currentScreen === 'detail' ||
             myPageOverlay !== null ||
-            reelDetail !== null)
+            reelDetail !== null ||
+            detailLayers.length > 0)
         }
       />
       {currentScreen === 'detail' ? <SystemNavigationGradient /> : null}

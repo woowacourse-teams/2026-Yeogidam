@@ -29,6 +29,8 @@ type PlaceDetailContentProps = {
   reelsError?: PlaceReelsApiError | null;
   isReelsLoading?: boolean;
   onRetryReels?: () => void;
+  /** 지정하면 게시물 탭에서 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   onBack: () => void;
   onPressMore?: () => void;
   onPressFolder?: () => void;
@@ -73,6 +75,7 @@ export function PlaceDetailContent({
   reelsError = null,
   isReelsLoading = false,
   onRetryReels,
+  onOpenReel,
   onBack,
   onPressMore,
   onPressFolder,
@@ -110,6 +113,7 @@ export function PlaceDetailContent({
         reelsError={reelsError}
         isReelsLoading={isReelsLoading}
         onRetryReels={onRetryReels}
+        onOpenReel={onOpenReel}
         onBack={onBack}
         onPressMore={onPressMore}
         onPressFolder={onPressFolder}
@@ -148,6 +152,7 @@ function PlaceDetailContentBody({
   reelsError = null,
   isReelsLoading = false,
   onRetryReels,
+  onOpenReel,
   onBack,
   onPressMore,
   onPressFolder,
@@ -230,6 +235,7 @@ function PlaceDetailContentBody({
         error={reelsError}
         isLoading={isReelsLoading}
         onRetry={onRetryReels}
+        onOpenReel={onOpenReel}
       />
     ) : null,
     activeTab === '정보' ? (

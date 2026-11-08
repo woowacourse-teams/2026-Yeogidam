@@ -20,6 +20,8 @@ type PlacePostGridProps = {
   error?: PlaceReelsApiError | null;
   isLoading?: boolean;
   onRetry?: () => void;
+  /** 지정하면 게시물을 눌렀을 때 인스타그램 대신 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
 };
 
 const GRID_HORIZONTAL_PADDING = 12;
@@ -30,6 +32,7 @@ export function PlacePostGrid({
   error,
   isLoading = false,
   onRetry,
+  onOpenReel,
 }: PlacePostGridProps) {
   const [gridWidth, setGridWidth] = useState(0);
 
@@ -70,7 +73,12 @@ export function PlacePostGrid({
               style={[styles.column, { width: columnWidth }]}
             >
               {column.map(reel => (
-                <PostCard key={reel.id} reel={reel} imageWidth={columnWidth} />
+                <PostCard
+                  key={reel.id}
+                  reel={reel}
+                  imageWidth={columnWidth}
+                  onOpenReel={onOpenReel}
+                />
               ))}
             </View>
           ))
@@ -82,9 +90,11 @@ export function PlacePostGrid({
 function PostCard({
   reel,
   imageWidth,
+  onOpenReel,
 }: {
   reel: PlaceReel;
   imageWidth: number;
+  onOpenReel?: (reel: PlaceReel) => void;
 }) {
   const { button } = useScreenAnalytics();
   const image = reel.instagramThumbnailUrl
@@ -100,14 +110,25 @@ function PostCard({
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       onPress={() => {
-        if (reel.instagramUrl) {
+        if (onOpenReel) {
+          button('open_reel_detail');
+          onOpenReel(reel);
+        } else if (reel.instagramUrl) {
           button('open_instagram_post');
           Linking.openURL(reel.instagramUrl);
         }
       }}
-      disabled={!reel.instagramUrl}
-      accessibilityRole={reel.instagramUrl ? 'link' : undefined}
-      accessibilityLabel={reel.instagramUrl ? 'Instagram 릴스 열기' : undefined}
+      disabled={!onOpenReel && !reel.instagramUrl}
+      accessibilityRole={
+        onOpenReel ? 'button' : reel.instagramUrl ? 'link' : undefined
+      }
+      accessibilityLabel={
+        onOpenReel
+          ? '게시물 상세 열기'
+          : reel.instagramUrl
+            ? 'Instagram 릴스 열기'
+            : undefined
+      }
     >
       <View
         style={[styles.imageClip, { width: imageWidth, height: imageHeight }]}

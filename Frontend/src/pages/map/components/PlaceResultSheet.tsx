@@ -164,6 +164,8 @@ function PlaceResultEmptyMessage({
 }
 
 type PlaceResultSheetProps = {
+  /** 지정하면 장소 상세의 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   pageHeight: number;
   renderPage: (sheet: React.ReactNode, page: MapSheetPage) => React.ReactNode;
   /** Keep the native map outside the sheet navigation stack. */
@@ -242,6 +244,7 @@ function getMiddleCategory(category?: string) {
 }
 
 export function PlaceResultSheet({
+  onOpenReel,
   pageHeight,
   renderPage,
   renderMap,
@@ -1201,6 +1204,7 @@ export function PlaceResultSheet({
             reelsError={reelsError}
             isReelsLoading={isReelsLoading}
             onRetryReels={loadSelectedPlaceReels}
+            onOpenReel={onOpenReel}
             hideBack
             showTitle={false}
             showMetadata={snapIndex !== 2}
