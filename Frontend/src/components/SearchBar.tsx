@@ -125,7 +125,10 @@ export function SearchBar({
         {onPress ? (
           <Text
             numberOfLines={1}
-            style={[styles.inputText, !value && styles.placeholder]}
+            style={[
+              styles.inputText,
+              !value && [styles.placeholder, styles.placeholderText],
+            ]}
           >
             {value || placeholder}
           </Text>
@@ -143,7 +146,7 @@ export function SearchBar({
             placeholder={placeholder}
             placeholderTextColor="#a9a9ae"
             returnKeyType="search"
-            style={[styles.inputText, styles.input]}
+            style={[styles.inputText, styles.input, !value && styles.placeholderText]}
             value={value}
           />
         )}
@@ -253,6 +256,11 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     color: '#a9a9ae',
+  },
+  // 안내 문구는 입력한 검색어보다 작고 얇게 보여, 좁은 검색창에서도 한 줄에 들어가게 합니다.
+  placeholderText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
   input: {
     height: SEARCH_BAR_HEIGHT,

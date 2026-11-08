@@ -4,6 +4,7 @@ import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import type {SavedPlacesSearchMethod} from '../../../analytics/savedPlaceEvents';
 import {SearchBar} from '../../../components/SearchBar';
+import {SAVED_LIBRARY_SEARCH_PLACEHOLDER} from './SavedPlacesHeader';
 
 type SavedPlacesSearchPanelProps = {
   initialQuery: string;
@@ -41,7 +42,7 @@ export function SavedPlacesSearchPanel({
         onPressBack={onCloseSearch}
         onPressSearchAction={submitSearch}
         onSubmitEditing={submitSearch}
-        placeholder="입력하세요."
+        placeholder={SAVED_LIBRARY_SEARCH_PLACEHOLDER}
         value={query}
       />
       <View style={styles.historySection}>
