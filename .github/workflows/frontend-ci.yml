@@ -128,6 +128,20 @@ jobs:
             sleep $((attempt * 15))
           done
           exit 1
+      # Gradle 배포 파일 다운로드만 재시도한다. 실제 컴파일 오류는 다시 실행하지 않는다.
+      - name: Download Gradle distribution
+        working-directory: Frontend/android
+        run: |
+          for attempt in 1 2 3; do
+            if ./gradlew --version --no-daemon; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "Gradle distribution download failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 15))
+          done
       - name: Build Android release app
         # PR에서는 저장소의 개발용 키로 Release 변형을 서명한다. 배포용 AAB는 만들지 않는다.
         env:
@@ -174,7 +188,17 @@ jobs:
             'API_BASE_URL=https://ci.example.invalid' > .env
       # Podfile에 선언된 iOS 네이티브 라이브러리를 설치해 .xcworkspace를 준비한다.
       - name: Install CocoaPods
-        run: bundle exec pod install --project-directory=ios
+        run: |
+          for attempt in 1 2 3; do
+            if bundle exec pod install --project-directory=ios; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 3 ]]; then
+              echo "CocoaPods install failed after 3 attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 15))
+          done
       # iOS Release 빌드는 fingerprint를 빌드 시점에 다시 계산해 앱에 넣는다.
       # pod install 이후 ios/ 파일이 바뀌어 커밋된 해시와 달라지면, 그 앱은 OTA 번들을 받지 못하므로 빌드 전에 멈춘다.
       - name: Check iOS fingerprint after pod install
