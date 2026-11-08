@@ -615,15 +615,21 @@ export function SavedPlacesScreen({
     };
 
     const refreshAfterExternalShare = async (requestId?: string) => {
-      const firstRefreshSucceeded = await loadSavedPlaces();
+      const [firstRefreshSucceeded] = await Promise.all([
+        loadSavedPlaces(),
+        loadPostPage(),
+      ]);
       if (!firstRefreshSucceeded) {
         return;
       }
 
-      // COMPLETED 직후 읽기에서 새 장소가 아직 보이지 않는 짧은 지연을
-      // 흡수하기 위해 한 번 더 조회한 뒤 공유 결과를 소비합니다.
+      // COMPLETED 직후 읽기에서 새 장소나 게시물이 아직 보이지 않는 짧은 지연을
+      // 흡수하기 위해 둘 다 한 번 더 조회한 뒤 공유 결과를 소비합니다.
       await new Promise<void>(resolve => setTimeout(resolve, 700));
-      const confirmed = await loadSavedPlaces();
+      const [confirmed] = await Promise.all([
+        loadSavedPlaces(),
+        loadPostPage(),
+      ]);
       if (confirmed) {
         await onSharedResultConsumed?.(requestId);
       }
@@ -702,8 +708,10 @@ export function SavedPlacesScreen({
       if (state.status === 'COMPLETED') {
         if (state.source === 'instagram_share') {
           refreshAfterExternalShare(state.shareResultId).catch(() => undefined);
+          setSharedSaveState(null);
         }
-        setSharedSaveState(null);
+        // URL 입력으로 접수한 항목은 히스토리 목록에 나타날 때까지 유지합니다.
+        // 즉시 완료 응답에서 상태를 지우면 목록 반영 전 잠시 카드가 사라집니다.
       }
     };
 
@@ -713,7 +721,7 @@ export function SavedPlacesScreen({
       isActive = false;
       unsubscribe();
     };
-  }, [isGuest, loadSavedPlaces, onSharedResultConsumed]);
+  }, [isGuest, loadPostPage, loadSavedPlaces, onSharedResultConsumed]);
 
   const openDialog = () => {
     if (isGuest) {
@@ -840,7 +848,13 @@ export function SavedPlacesScreen({
     if (response.status === 'COMPLETED') {
       setIsSaveResponseFailure(false);
       setProcessingReelId(null);
-      setProcessingReel(null);
+      setProcessingReel({
+        id: response.reelId,
+        processing_status: 'COMPLETED',
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date().toISOString(),
+      });
       setShowSaveSuccess(source === 'url_input');
       return;
     }
@@ -1080,13 +1094,13 @@ export function SavedPlacesScreen({
     return () => subscription.unsubscribe();
   }, [isGuest]);
 
-  // 방금 저장을 요청한 릴스는 서버 목록에 잡히기 전에도 "최근 공유" 줄에 처리 중으로 바로 보여 줍니다.
-  // 처리 중·대기 상태만 끼워 넣어서, 실패한 요청의 임시 카드가 목록에 남지 않게 합니다.
+  // 방금 저장한 릴스는 서버 목록에 잡히기 전에도 "최근 공유" 줄에 보여 줍니다.
+  // 서버가 접수한 실패 항목은 보여 주되, 요청 자체가 실패한 임시 카드는 숨깁니다.
   const recentRowReels = useMemo(() => {
     if (
       !processingReel ||
-      (processingReel.processing_status !== 'PENDING' &&
-        processingReel.processing_status !== 'PROCESSING') ||
+      (processingReel.processing_status === 'FAILED' &&
+        processingReel.id.startsWith('manual-failed-')) ||
       sharedReels.some(reel => reel.id === processingReel.id)
     ) {
       return sharedReels;

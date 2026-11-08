@@ -14,6 +14,7 @@ import {SavedPlaceGrid} from '../src/pages/saved-places/components/SavedPlaceGri
 import {SavedPlacesViewToggle} from '../src/pages/saved-places/components/SavedPlacesViewToggle';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 import {showAlert} from '../src/lib/app-alert';
+import {setSharedSaveState} from '../src/lib/reel-save-state';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
 jest.mock('react-native-safe-area-context', () => ({
@@ -96,6 +97,7 @@ async function saveLink(renderer: ReactTestRenderer.ReactTestRenderer) {
 
 beforeEach(() => {
   jest.useFakeTimers();
+  setSharedSaveState(null);
   jest.mocked(getSavedPlaces).mockReset().mockResolvedValue([]);
   jest.mocked(deleteSavedPlaces).mockReset().mockResolvedValue(undefined);
   jest.mocked(getReelProcessingStatus).mockReset().mockResolvedValue(null);
@@ -111,8 +113,52 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setSharedSaveState(null);
   jest.clearAllTimers();
   jest.useRealTimers();
+});
+
+test('인스타그램 공유가 완료되면 보관함이 열려 있어도 게시물 목록을 바로 다시 읽는다', async () => {
+  const onSharedResultConsumed = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <SavedPlacesScreen
+        onOpenDetail={jest.fn()}
+        onSharedResultConsumed={onSharedResultConsumed}
+      />,
+    );
+  });
+  const initialPostRequests = jest.mocked(getSavedMedia).mock.calls.length;
+  jest.mocked(getSavedMedia).mockResolvedValue({
+    reels: [historyReel('8', 'COMPLETED')],
+    nextCursor: null,
+  });
+
+  await ReactTestRenderer.act(async () => {
+    setSharedSaveState({
+      shareResultId: 'share-8',
+      source: 'instagram_share',
+      url: LINK,
+      status: 'COMPLETED',
+      reel: {
+        id: '8',
+        processing_status: 'COMPLETED',
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date().toISOString(),
+      },
+    });
+  });
+  expect(jest.mocked(getSavedMedia).mock.calls.length).toBe(initialPostRequests + 1);
+  expect(renderer.root.findByType(SavedPostGrid).props.reels.map(
+    (reel: HistoryReel) => reel.id,
+  )).toEqual(['8']);
+
+  await tick(700);
+  expect(jest.mocked(getSavedMedia).mock.calls.length).toBe(initialPostRequests + 2);
+  expect(onSharedResultConsumed).toHaveBeenCalledWith('share-8');
+  await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
 test('링크 저장 뒤 처리 상태는 공용 목록 폴링으로 확인하고, 완료되면 보관함을 다시 읽고 폴링을 멈춘다', async () => {
