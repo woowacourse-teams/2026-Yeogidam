@@ -33,6 +33,8 @@ type SearchBarProps = {
   onFocus?: (event: FocusEvent) => void;
   onBlur?: (event: BlurEvent) => void;
   onPressSearchAction?: () => void;
+  /** 누르는 검색창(onPress)에 확정한 검색어(value)가 있을 때 지우기 버튼을 보여 줍니다. */
+  onPressClear?: () => void;
   /** 기존 호출부 호환용 검색 실행 콜백 */
   onSubmit?: () => void;
 };
@@ -56,6 +58,7 @@ export function SearchBar({
   onFocus,
   onBlur,
   onPressSearchAction,
+  onPressClear,
   onSubmit,
 }: SearchBarProps) {
   const handleSearchAction = onPressSearchAction ?? onSubmit;
@@ -120,8 +123,11 @@ export function SearchBar({
           </Pressable>
         ) : null}
         {onPress ? (
-          <Text style={[styles.inputText, styles.placeholder]}>
-            {placeholder}
+          <Text
+            numberOfLines={1}
+            style={[styles.inputText, !value && styles.placeholder]}
+          >
+            {value || placeholder}
           </Text>
         ) : (
           <TextInput
@@ -141,12 +147,13 @@ export function SearchBar({
             value={value}
           />
         )}
-        {!onPress && Platform.OS !== 'ios' && value ? (
+        {value &&
+        (onPress ? onPressClear : Platform.OS !== 'ios') ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="검색어 지우기"
             hitSlop={10}
-            onPress={() => onChangeText?.('')}
+            onPress={onPress ? onPressClear : () => onChangeText?.('')}
             style={styles.clearButton}
           >
             <Text style={styles.clearIcon}>×</Text>

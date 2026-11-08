@@ -39,7 +39,9 @@ import { v4 as uuidv4 } from 'uuid';
 
 import {
   captureSavedPlaceSelected,
+  captureSavedPlacesSearchSubmitted,
   captureSavedPlacesViewed,
+  type SavedPlacesSearchMethod,
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
 import {
@@ -70,6 +72,7 @@ import {
   SavedPlacesStickyBar,
 } from './components/SavedPlacesStickyBar';
 import { LIBRARY_GUTTER } from './components/libraryTheme';
+import { useSavedLibrarySearch } from './useSavedLibrarySearch';
 import {
   getReelProcessingStatus,
   normalizeInstagramContentUrl,
@@ -247,10 +250,19 @@ export function SavedPlacesScreen({
     places.length > 0 || postReels.length > 0 || sharedReels.length > 0 || postError !== null;
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const activeCategory = selectedCategory;
+  // 검색어가 있으면 보관함 화면은 그대로 두고 그리드 내용만 검색 결과로 바꿉니다.
+  const librarySearch = useSavedLibrarySearch({ places, isGuest: Boolean(isGuest) });
+  const isSearching = librarySearch.query !== null;
+  const activeSearchIdRef = useRef<string | null>(null);
   const filteredPlaces = useMemo(
-    () => filterPlacesByCategory(places, activeCategory),
-    [places, activeCategory],
+    () =>
+      filterPlacesByCategory(
+        isSearching ? librarySearch.places : places,
+        activeCategory,
+      ),
+    [isSearching, librarySearch.places, places, activeCategory],
   );
+  const visiblePostReels = isSearching ? librarySearch.reels : postReels;
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
 
   useEffect(() => {
@@ -380,12 +392,18 @@ export function SavedPlacesScreen({
     analytics.refreshed();
 
     try {
-      await Promise.all([loadSavedPlaces(), isGuest ? Promise.resolve() : loadPostPage()]);
+      await Promise.all([
+        loadSavedPlaces(),
+        isGuest ? Promise.resolve() : loadPostPage(),
+        librarySearch.query !== null
+          ? librarySearch.search(librarySearch.query)
+          : Promise.resolve(),
+      ]);
     } finally {
       isRefreshingRef.current = false;
       setIsRefreshing(false);
     }
-  }, [analytics, isGuest, loadPostPage, loadSavedPlaces]);
+  }, [analytics, isGuest, librarySearch, loadPostPage, loadSavedPlaces]);
 
   useEffect(() => {
     // Keep the already visible content while revalidating on return. Entering
@@ -1098,7 +1116,7 @@ export function SavedPlacesScreen({
     try {
       await deleteSavedMedia(ids);
       const deletedUrls = new Set(
-        postReels
+        [...postReels, ...librarySearch.reels]
           .filter(reel => selectedPostIds.has(reel.id))
           .map(reel => reel.instagram_url)
           .filter((url): url is string => url != null),
@@ -1109,6 +1127,7 @@ export function SavedPlacesScreen({
           : reel,
       ));
       setPostReels(current => current.filter(reel => !selectedPostIds.has(reel.id)));
+      librarySearch.removeReels(selectedPostIds);
       setSelectedPostIds(new Set());
       setIsEditingPosts(false);
       onEditModeChange?.(false);
@@ -1118,7 +1137,15 @@ export function SavedPlacesScreen({
     } finally {
       setIsDeleting(false);
     }
-  }, [isDeleting, loadPostPage, loadSavedPlaces, onEditModeChange, postReels, selectedPostIds]);
+  }, [
+    isDeleting,
+    librarySearch,
+    loadPostPage,
+    loadSavedPlaces,
+    onEditModeChange,
+    postReels,
+    selectedPostIds,
+  ]);
 
   const confirmDeleteSelectedPosts = useCallback(() => {
     if (isDeleting || selectedPostIds.size === 0) return;
@@ -1200,6 +1227,7 @@ export function SavedPlacesScreen({
       setPlaces(current =>
         current.filter(place => !selectedPlaceIds.has(place.id)),
       );
+      librarySearch.removePlaces(place => selectedPlaceIds.has(place.id));
       onDeleteGuestPlaces?.([...selectedPlaceIds]);
       setSelectedPlaceIds(new Set());
       setIsEditing(false);
@@ -1232,6 +1260,9 @@ export function SavedPlacesScreen({
       const deletedIds = new Set(savedPlaceIds);
       setPlaces(current =>
         current.filter(place => !deletedIds.has(place.savedPlaceId ?? '')),
+      );
+      librarySearch.removePlaces(place =>
+        deletedIds.has(place.savedPlaceId ?? ''),
       );
       setSelectedPlaceIds(new Set());
       setIsEditing(false);
@@ -1272,6 +1303,7 @@ export function SavedPlacesScreen({
   }, [
     isDeleting,
     isGuest,
+    librarySearch,
     loadSavedPlaces,
     onAuthenticationRequired,
     onDeleteGuestPlaces,
@@ -1349,20 +1381,51 @@ export function SavedPlacesScreen({
     [onOpenDetail, posthog],
   );
 
+  const submitSearch = useCallback(
+    (query: string, method: SavedPlacesSearchMethod) => {
+      const searchId = uuidv4();
+      activeSearchIdRef.current = searchId;
+      setIsSearchOpen(false);
+      saveRecentSearch(query);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      librarySearch
+        .search(query)
+        .then(result => {
+          if (!result || activeSearchIdRef.current !== searchId) return;
+          captureSavedPlacesSearchSubmitted(posthog, {
+            searchId,
+            searchMethod: method,
+            resultCount: result.placeCount + result.reelCount,
+          });
+        })
+        .catch(() => undefined);
+    },
+    [librarySearch, posthog, saveRecentSearch],
+  );
+
+  const clearSearch = useCallback(() => {
+    activeSearchIdRef.current = null;
+    librarySearch.clear();
+  }, [librarySearch]);
+
   const closeNestedScreen = useCallback(() => {
     if (isSearchOpen) setIsSearchOpen(false);
     else if (isEditing) handlePressEdit();
     else if (isEditingPosts) handlePressEditPosts();
+    else if (isSearching) clearSearch();
   }, [
+    clearSearch,
     handlePressEdit,
     handlePressEditPosts,
     isEditing,
     isEditingPosts,
     isSearchOpen,
+    isSearching,
   ]);
   useEffect(() => {
     const canGoBack =
-      isScreenActive && (isSearchOpen || isEditing || isEditingPosts);
+      isScreenActive &&
+      (isSearchOpen || isEditing || isEditingPosts || isSearching);
     onNestedBackStateChange?.(canGoBack);
     if (Platform.OS !== 'android' || !canGoBack) {
       return () => onNestedBackStateChange?.(false);
@@ -1384,6 +1447,7 @@ export function SavedPlacesScreen({
     isEditing,
     isEditingPosts,
     isSearchOpen,
+    isSearching,
     onNestedBackStateChange,
   ]);
   const updateBarVisibility = (
@@ -1437,9 +1501,14 @@ export function SavedPlacesScreen({
         style={[styles.header, hasSavedPlaces && styles.headerOverlay]}
       >
         <SavedPlacesHeader
+          query={librarySearch.query}
           onPressSearch={() => {
             analytics.button('open_search');
             setIsSearchOpen(true);
+          }}
+          onClearSearch={() => {
+            analytics.button('clear_search');
+            clearSearch();
           }}
         />
       </View>
@@ -1506,13 +1575,14 @@ export function SavedPlacesScreen({
                 contentHeight: contentSize?.height,
                 viewportHeight: layoutMeasurement?.height,
               });
-              if (
-                libraryView === 'posts' &&
-                postCursor &&
-                !isLoadingMorePostsRef.current &&
-                contentSize.height - (contentOffset.y + layoutMeasurement.height) < 240
-              ) {
-                loadPostPage(postCursor).catch(() => undefined);
+              const isNearBottom =
+                contentSize.height - (contentOffset.y + layoutMeasurement.height) < 240;
+              if (libraryView === 'posts' && isNearBottom) {
+                if (isSearching) {
+                  librarySearch.loadMoreReels();
+                } else if (postCursor && !isLoadingMorePostsRef.current) {
+                  loadPostPage(postCursor).catch(() => undefined);
+                }
               }
             }}
             refreshControl={
@@ -1556,14 +1626,33 @@ export function SavedPlacesScreen({
                   places={filteredPlaces}
                   onLongPressPlace={enterEditMode}
                   onPressPlace={(place, position) =>
-                    openPlaceDetail(place, 'saved_places_grid', position)
+                    isSearching
+                      ? openPlaceDetail(
+                          place,
+                          'saved_places_search',
+                          position,
+                          activeSearchIdRef.current ?? undefined,
+                        )
+                      : openPlaceDetail(place, 'saved_places_grid', position)
                   }
                   onTogglePlaceSelection={togglePlaceSelection}
                   selectedPlaceIds={selectedPlaceIds}
                 />
-                {filteredPlaces.length === 0 ? (
+                {isSearching && librarySearch.isLoadingPlaces ? (
+                  <Text style={styles.categoryEmptyText}>검색하고 있어요.</Text>
+                ) : isSearching && librarySearch.placeError ? (
+                  <Pressable onPress={librarySearch.retryPlaces}>
+                    <Text style={styles.categoryEmptyText}>
+                      {librarySearch.placeError} 다시 시도하기
+                    </Text>
+                  </Pressable>
+                ) : filteredPlaces.length === 0 ? (
                   <Text style={styles.categoryEmptyText}>
-                    {activeCategory} 카테고리에 저장한 장소가 없어요
+                    {isSearching
+                      ? activeCategory === ALL_CATEGORY
+                        ? '검색 결과가 없어요'
+                        : `${activeCategory} 카테고리에 검색 결과가 없어요`
+                      : `${activeCategory} 카테고리에 저장한 장소가 없어요`}
                   </Text>
                 ) : null}
               </>
@@ -1571,12 +1660,24 @@ export function SavedPlacesScreen({
               <>
                 <SavedPostGrid
                   isEditing={isEditingPosts}
-                  reels={postReels}
+                  reels={visiblePostReels}
                   onPressReel={handleOpenReel}
                   onToggleReelSelection={togglePostSelection}
                   selectedReelIds={selectedPostIds}
                 />
-                {isLoadingPosts ? (
+                {isSearching ? (
+                  librarySearch.isLoadingReels ? (
+                    <Text style={styles.categoryEmptyText}>검색하고 있어요.</Text>
+                  ) : librarySearch.reelError ? (
+                    <Pressable onPress={librarySearch.retryReels}>
+                      <Text style={styles.categoryEmptyText}>
+                        {librarySearch.reelError} 다시 시도하기
+                      </Text>
+                    </Pressable>
+                  ) : librarySearch.reels.length === 0 ? (
+                    <Text style={styles.categoryEmptyText}>검색 결과가 없어요</Text>
+                  ) : null
+                ) : isLoadingPosts ? (
                   <Text style={styles.categoryEmptyText}>게시물을 불러오고 있어요.</Text>
                 ) : postError ? (
                   <Pressable onPress={() => loadPostPage(postCursor ?? undefined)}>
@@ -1681,21 +1782,13 @@ export function SavedPlacesScreen({
                   key: 'search',
                   content: (
                     <SavedPlacesSearchPanel
-                      places={places}
+                      initialQuery={librarySearch.query ?? ''}
                       recentSearches={recentSearches}
                       onCloseSearch={() => {
                         analytics.button('close_search');
                         setIsSearchOpen(false);
                       }}
-                      onPressPlace={(place, selection) =>
-                        openPlaceDetail(
-                          place,
-                          'saved_places_search',
-                          selection.position,
-                          selection.searchId,
-                        )
-                      }
-                      onSaveSearchTerm={saveRecentSearch}
+                      onSubmitSearch={submitSearch}
                     />
                   ),
                 },
