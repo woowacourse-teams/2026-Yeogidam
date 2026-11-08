@@ -1,5 +1,5 @@
+import { showAlert } from './app-alert';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
 
 import {
   FOLDER_ERROR_CODES,
@@ -111,7 +111,7 @@ function getFolderErrorMessage(error: unknown): string {
 }
 
 function handleFolderError(error: unknown) {
-  Alert.alert(getFolderErrorMessage(error));
+  showAlert(getFolderErrorMessage(error));
   const errorCode = isScreenApiError(error) ? error.errorCode : null;
   if (
     errorCode === FOLDER_ERROR_CODES.notFound ||
@@ -251,7 +251,7 @@ export function usePlaceFolders(enabled = true) {
     async (place: { savedPlaceId?: string }, folderIds: string[]) => {
       const { savedPlaceId } = place;
       if (!savedPlaceId) {
-        Alert.alert('저장한 장소만 폴더에 담을 수 있어요.');
+        showAlert('저장한 장소만 폴더에 담을 수 있어요.');
         return false;
       }
 

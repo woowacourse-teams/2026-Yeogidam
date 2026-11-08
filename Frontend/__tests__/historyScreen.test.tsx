@@ -7,8 +7,12 @@ import {
   getHistoryReels,
   retryHistoryReelExtraction,
 } from '../src/entities/content/history-api';
+import {ReelApiError} from '../src/entities/content/errors';
 import type {HistoryReel} from '../src/entities/content/types';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
+import {AppAlertHost} from '../src/components/AppAlertHost';
+import {AppModal} from '../src/components/AppModal';
+import {getCurrentAppAlert} from '../src/lib/app-alert';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
 jest.mock('react-native-safe-area-context', () => ({
@@ -96,6 +100,41 @@ test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱�
   await tick(3000);
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('iOS 제보 확인창은 바깥쪽을 한 번 누르면 닫힌다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([7], 'FAILED'),
+    nextCursor: null,
+  });
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <>
+        <AppAlertHost />
+        <HistoryScreen onBack={jest.fn()} />
+      </>,
+    );
+  });
+  const failed = renderer.root.find(
+    node => node.props?.reel?.id === '7' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => failed.props.onPress());
+  const report = renderer.root.find(
+    node =>
+      typeof node.props?.onPress === 'function' &&
+      node.findAll(child => child.props?.children === '제보하기').length > 0,
+  );
+  await ReactTestRenderer.act(async () => report.props.onPress());
+  // 빠르게 연속으로 눌러도 같은 확인창이 두 장 쌓이지 않아야 합니다.
+  await ReactTestRenderer.act(async () => report.props.onPress());
+  expect(getCurrentAppAlert()?.title).toBe('제보할까요?');
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(AppAlertHost).findByType(AppModal).props.children.props.children[0].props.onPress();
+  });
+  expect(getCurrentAppAlert()).toBeNull();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -399,10 +438,77 @@ test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다'
 
   const alertSpy = await openFailureAndRetry(renderer);
 
-  expect(alertSpy).toHaveBeenCalledWith('다시 시도하지 못했어요', '잠시 후 다시 시도해주세요.');
+  expect(alertSpy).toHaveBeenCalledWith(
+    '다시 시도하지 못했어요',
+    '잠시 후 다시 시도해주세요.',
+    undefined,
+    {cancelable: true},
+  );
   expect(
     renderer.root.findAll(node => node.props.children === '장소 분석에 실패했어요ㅠ').length,
   ).toBeGreaterThan(0);
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('같은 분석 버전이라 재시도를 받지 않으면(MEDIA400_016) 안내 없이 처리 중으로 보여 준다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([7], 'FAILED'),
+    nextCursor: null,
+  });
+  jest.mocked(retryHistoryReelExtraction).mockRejectedValue(
+    new ReelApiError({
+      errorCode: 'MEDIA400_016',
+      message: '현재 분석 버전에서는 재시도가 불가능합니다.',
+      status: 400,
+    }),
+  );
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+  const statusOf = () =>
+    renderer.root.find(node => node.props.reel?.id === '7').props.reel.processing_status;
+
+  expect(alertSpy).not.toHaveBeenCalled();
+  expect(
+    renderer.root.findAll(node => node.props.children === '장소 분석에 실패했어요ㅠ'),
+  ).toHaveLength(0);
+  expect(renderedIds(renderer)).toEqual(['7']);
+  expect(statusOf()).toBe('PROCESSING');
+
+  // 폴링이 실패 상태를 다시 읽어도 정해진 시간 동안은 처리 중으로 유지한다.
+  await tick(3000);
+  expect(statusOf()).toBe('PROCESSING');
+
+  // 시간이 지나면 서버 상태(실패)로 돌아온다.
+  await tick(3000);
+  expect(statusOf()).toBe('FAILED');
+  alertSpy.mockRestore();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('MEDIA400_016이 아닌 서버 거절은 기존처럼 서버 문구로 안내한다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: page([7], 'FAILED'),
+    nextCursor: null,
+  });
+  jest.mocked(retryHistoryReelExtraction).mockRejectedValue(
+    new ReelApiError({
+      errorCode: 'MEDIA400_006',
+      message: '추출이 진행 중인 게시물은 다시 시도할 수 없습니다.',
+      status: 400,
+    }),
+  );
+  const renderer = await render();
+
+  const alertSpy = await openFailureAndRetry(renderer);
+
+  expect(alertSpy).toHaveBeenCalledWith(
+    '다시 시도하지 못했어요',
+    '추출이 진행 중인 게시물은 다시 시도할 수 없습니다.',
+    undefined,
+    {cancelable: true},
+  );
   alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });

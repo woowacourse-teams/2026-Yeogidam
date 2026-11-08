@@ -2,6 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
+
 type PlaceDetailHeaderProps = {
   onBack: () => void;
   onPressMore?: () => void;
@@ -33,6 +35,8 @@ export function PlaceDetailHeader({
   topInset = 0,
   compact = false,
 }: PlaceDetailHeaderProps) {
+  const { button } = useScreenAnalytics();
+
   return (
     <View
       style={[
@@ -47,7 +51,10 @@ export function PlaceDetailHeader({
           accessibilityLabel="뒤로 가기"
           hitSlop={12}
           onPressIn={onInteractivePressIn}
-          onPress={onBack}
+          onPress={() => {
+          button('back');
+          onBack();
+        }}
           style={[styles.backButton, compact && styles.compactBackButton]}
         >
           <Text style={[styles.back, compact && styles.compactBack]}>‹</Text>
@@ -68,7 +75,10 @@ export function PlaceDetailHeader({
               accessibilityRole="button"
               hitSlop={6}
               onPressIn={onInteractivePressIn}
-              onPress={onPressFolder}
+              onPress={() => {
+          button('folder');
+          onPressFolder();
+        }}
               style={[styles.iconButton, isInFolder && styles.iconButtonActive]}
             >
               <MaterialIcons
@@ -85,7 +95,10 @@ export function PlaceDetailHeader({
               disabled={isDeleting}
               hitSlop={6}
               onPressIn={onInteractivePressIn}
-              onPress={onPressDelete}
+              onPress={() => {
+          button('delete');
+          onPressDelete();
+        }}
               style={[styles.iconButton, isDeleting && styles.iconButtonDisabled]}
             >
               <MaterialIcons color="#9A9BB0" name="delete-outline" size={20} />
@@ -98,7 +111,10 @@ export function PlaceDetailHeader({
           accessibilityRole="button"
           hitSlop={8}
           onPressIn={onInteractivePressIn}
-          onPress={onPressMore}
+          onPress={() => {
+          button('more');
+          onPressMore();
+        }}
           style={[styles.moreButton, compact && styles.compactMoreButton]}
         >
           <MaterialIcons color="#1a1a2e" name="more-vert" size={24} />

@@ -1,8 +1,11 @@
-import {ANALYTICS_EVENTS} from '../src/analytics/eventNames';
-import {SHARE_EXTRACTION_EVENTS} from '../src/analytics/placeExtractionEvents';
+import { ANALYTICS_EVENTS } from '../src/analytics/eventNames';
+import { SHARE_EXTRACTION_EVENTS } from '../src/analytics/placeExtractionEvents';
+import { UI_EVENTS } from '../src/analytics/uiEvents';
 
 // Node 타입을 쓰지 않으므로 require로 읽습니다. Jest는 프로젝트 루트에서 실행됩니다.
-const fs = require('fs') as {readFileSync: (path: string, encoding: string) => string};
+const fs = require('fs') as {
+  readFileSync: (path: string, encoding: string) => string;
+};
 const read = (relativePath: string) => fs.readFileSync(relativePath, 'utf8');
 
 describe('analytics event names', () => {
@@ -49,6 +52,38 @@ describe('analytics event names', () => {
   test('have unique values', () => {
     const values = Object.values(ANALYTICS_EVENTS);
     expect(new Set(values).size).toBe(values.length);
+  });
+});
+
+describe('UI event names', () => {
+  test('are fixed', () => {
+    expect(UI_EVENTS).toMatchInlineSnapshot(`
+      {
+        "actionFinished": "action_finished",
+        "buttonPressed": "button_pressed",
+        "listRefreshed": "list_refreshed",
+        "mapSearchSubmitted": "map_search_submitted",
+        "modalViewed": "modal_viewed",
+        "screenViewed": "screen_viewed",
+        "selectionChanged": "selection_changed",
+        "stepViewed": "step_viewed",
+      }
+    `);
+  });
+
+  test('do not overlap with the other app events', () => {
+    const appEvents = new Set<string>(Object.values(ANALYTICS_EVENTS));
+    const overlap = Object.values(UI_EVENTS).filter(name =>
+      appEvents.has(name),
+    );
+
+    expect(overlap).toEqual([]);
+  });
+
+  test('are only recorded through the helpers in uiEvents', () => {
+    expect(read('src/analytics/uiEvents.ts')).not.toMatch(
+      /capture\(\s*client,\s*['"`]/,
+    );
   });
 });
 

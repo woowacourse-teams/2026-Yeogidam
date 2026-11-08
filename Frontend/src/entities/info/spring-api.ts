@@ -1,3 +1,4 @@
+import {ApiError} from '../../lib/api/errors';
 import {toScreenApiError} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {SpringMember} from '../../lib/api/spring-auth-api';
@@ -98,15 +99,18 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
 };
 
 export const springPlaceReelsRepository: PlaceReelsRepository = {
-  getPlaceReels: placeId => withScreenError(async () => {
-    // 화면은 장소 ID를 전달하지만 서버의 미디어 경로에는 저장 장소 ID가 필요합니다.
-    const savedPlaces = await springSavedPlacesRepository.getSavedPlaces();
-    const savedPlace = savedPlaces.find(item => item.place.id === placeId);
-    if (!savedPlace) return [];
-
-    const response = await client.request<{media: SavedPlaceMediaResponse[]}>(
-      `/api/v1/saved-places/${encodeURIComponent(savedPlace.id)}/media`,
-    );
+  getPlaceReels: savedPlaceId => withScreenError(async () => {
+    // TODO(#555): 장소 ID로 미디어를 조회하는 API가 생기면 그 API로 옮깁니다.
+    let response: {media: SavedPlaceMediaResponse[]};
+    try {
+      response = await client.request<{media: SavedPlaceMediaResponse[]}>(
+        `/api/v1/saved-places/${encodeURIComponent(savedPlaceId)}/media`,
+      );
+    } catch (error) {
+      // 다른 기기에서 지운 저장 장소(PLACE404_001)는 연결된 릴스가 없는 것과 같으므로 빈 목록입니다.
+      if (error instanceof ApiError && error.errorCode === 'PLACE404_001') return [];
+      throw error;
+    }
     return response.media.map(item => ({
       id: String(item.sharedMediaId),
       instagramUrl: item.sharedUrl,

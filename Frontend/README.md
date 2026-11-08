@@ -23,7 +23,8 @@ APP_ENV=development
 
 PostHog is disabled when either value is missing. The app collects lifecycle,
 entry, and login events; the native share flow and history screen record the
-events in [the share experience contract](docs/POSTHOG_SHARE_EXPERIENCE_PLAN.md). Screen
+events in [the share experience contract](docs/posthog/SHARE_AND_HISTORY_EVENTS.md).
+See [the PostHog overview](docs/posthog/README.md) for every event, identity, and common property. Screen
 and touch autocapture, surveys, and session replay are disabled.
 The Android share component and iOS Share Extension use PostHog values included
 in their build so share events can be sent before the containing app opens.

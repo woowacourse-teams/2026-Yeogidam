@@ -1,8 +1,8 @@
+import { showAlert } from '../../lib/app-alert';
 import {SwipeBackStack} from '../../components/navigation/SwipeBackStack';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   Image,
   Linking,
@@ -16,6 +16,10 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import {usePostHog} from 'posthog-react-native';
+import {
+  trackActionFinished,
+  useScreenAnalytics,
+} from '../../analytics/uiEvents';
 import {v4 as uuidv4} from 'uuid';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {
@@ -290,6 +294,7 @@ function HistorySuccessDetail({
   guestDetail?: HistoryReelDetail | null;
 }) {
   const posthog = usePostHog();
+  const {button} = useScreenAnalytics('history_detail_success');
   const {bottom: bottomInset} = useSafeAreaInsets();
   const detailBottomPadding =
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 24;
@@ -311,7 +316,10 @@ function HistorySuccessDetail({
           accessibilityRole="button"
           accessibilityLabel="히스토리 목록으로 돌아가기"
           hitSlop={12}
-          onPress={onBack}
+          onPress={() => {
+            button('back');
+            onBack();
+          }}
           style={styles.backButton}
         >
           <Text style={styles.back}>‹</Text>
@@ -343,6 +351,7 @@ function HistorySuccessDetail({
           disabled={!originalUrl}
           onPress={() => {
             if (originalUrl) {
+              button('open_original');
               Linking.openURL(originalUrl).catch(() => undefined);
             }
           }}
@@ -402,6 +411,7 @@ function HistoryFailureDetail({
   onRequireLogin?: () => void;
 }) {
   const posthog = usePostHog();
+  const {button, modal} = useScreenAnalytics('history_detail_failure');
   const {bottom: bottomInset} = useSafeAreaInsets();
   const detailBottomPadding =
     BOTTOM_NAVIGATION_BAR_HEIGHT +
@@ -435,7 +445,10 @@ function HistoryFailureDetail({
           accessibilityRole="button"
           accessibilityLabel="히스토리 목록으로 돌아가기"
           hitSlop={12}
-          onPress={onBack}
+          onPress={() => {
+            button('back');
+            onBack();
+          }}
           style={styles.backButton}
         >
           <Text style={styles.back}>‹</Text>
@@ -476,6 +489,7 @@ function HistoryFailureDetail({
           disabled={!originalUrl}
           onPress={() => {
             if (originalUrl) {
+              button('open_original');
               Linking.openURL(originalUrl).catch(() => undefined);
             }
           }}
@@ -493,15 +507,22 @@ function HistoryFailureDetail({
           <Pressable
             disabled={!originalUrl || retrying}
             onPress={() => {
+              button('retry', {is_guest: guestDetail !== undefined});
               if (guestDetail !== undefined) {
                 onRequireLogin?.();
                 return;
               }
-              Alert.alert('다시 시도할까요?', '', [
-                { text: '취소', style: 'cancel' },
+              modal('retry_confirm');
+              showAlert('다시 시도할까요?', '', [
+                {
+                  text: '취소',
+                  style: 'cancel',
+                  onPress: () => button('retry_confirm_cancel'),
+                },
                 {
                   text: '확인',
                   onPress: () => {
+                    button('retry_confirm_ok');
                     // 접수 응답을 기다리는 동안 버튼에 로딩을 보여 준다.
                     setRetrying(true);
                     onRetry()
@@ -529,20 +550,31 @@ function HistoryFailureDetail({
           <Pressable
             disabled={reported}
             onPress={() => {
+              button('report', {is_guest: guestDetail !== undefined});
               if (guestDetail !== undefined) {
                 onRequireLogin?.();
                 return;
               }
-              Alert.alert('제보할까요?', '', [
-                { text: '취소', style: 'cancel' },
+              modal('report_confirm');
+              showAlert('제보할까요?', '', [
+                {
+                  text: '취소',
+                  style: 'cancel',
+                  onPress: () => button('report_confirm_cancel'),
+                },
                 {
                   text: '확인',
                   onPress: () => {
+                    button('report_confirm_ok');
                     setReported(true);
                     reportHistoryReel(reel.id)
+                      .then(() =>
+                        trackActionFinished(posthog, 'history_report', 'success'),
+                      )
                       .catch(() => {
+                        trackActionFinished(posthog, 'history_report', 'failure');
                         setReported(false);
-                        Alert.alert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
+                        showAlert('제보하지 못했어요', '잠시 후 다시 시도해주세요.');
                       });
                   },
                 },
@@ -570,6 +602,15 @@ function HistoryFailureDetail({
 /** 처리 중 항목의 상태도 앱 공용 목록 폴링 하나로 갱신한다(단건 폴링 없음). */
 const LIST_POLL_INTERVAL_MS = 3000;
 
+/**
+ * 서버가 재시도를 받지 않는 같은 분석 버전 실패(MEDIA400_016)를 처리 중으로 보여 주는 시간.
+ * 이 시간이 지나면 서버 상태(실패)로 돌아와 다시 시도한 뒤 또 실패한 것처럼 보인다.
+ */
+const SILENT_RETRY_PROCESSING_MS = 6000;
+
+/** 같은 분석 버전이라 서버가 재시도를 받지 않았다는 오류 코드. 사용자에게는 알리지 않는다. */
+const RETRY_NOT_ELIGIBLE_ERROR_CODE = 'MEDIA400_016';
+
 export function HistoryScreen({
   isActive = true,
   onBack,
@@ -579,6 +620,11 @@ export function HistoryScreen({
   onRequireLogin,
 }: HistoryScreenProps) {
   const posthog = usePostHog();
+  const analytics = useScreenAnalytics('history');
+  const {bottom: bottomInset} = useSafeAreaInsets();
+  // 하단 네비게이션이 목록 위에 겹쳐 있으므로 마지막 카드가 가려지지 않게 그만큼 띄운다.
+  const listBottomPadding =
+    BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset) + 40;
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollOffsetRef = useRef(0);
   const viewportHeightRef = useRef(0);
@@ -602,6 +648,16 @@ export function HistoryScreen({
   const [selectedSuccess, setSelectedSuccess] = useState(false);
   const [selectedFailure, setSelectedFailure] = useState(false);
   const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+  // 같은 분석 버전이라 서버가 재시도를 받지 않은 항목. 잠시 처리 중으로 보여 준다.
+  const [silentRetryIds, setSilentRetryIds] = useState<ReadonlySet<string>>(() => new Set());
+  const silentRetryTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = silentRetryTimersRef.current;
+    return () => {
+      timers.forEach(clearTimeout);
+      timers.clear();
+    };
+  }, []);
 
   const handleDetailBack = useCallback(() => {
     shouldRestoreScrollRef.current = true;
@@ -818,8 +874,30 @@ export function HistoryScreen({
         failureType: toExtractionFailureType(normalized),
         responseStatus: normalized.status,
       });
-      // MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
-      Alert.alert(
+      // 같은 분석 버전이면 서버는 400 + errorCode 'MEDIA400_016'("현재 분석 버전에서는 재시도가
+      // 불가능합니다.")으로 재시도를 받지 않는다. 사용자가 알 필요 없는 내부 사정이라 문구 없이
+      // 목록으로 돌아가 잠시 처리 중으로 보여 준다. 다른 실패는 아래에서 그대로 안내한다.
+      if (normalized.errorCode === RETRY_NOT_ELIGIBLE_ERROR_CODE) {
+        scrollOffsetRef.current = 0;
+        shouldRestoreScrollRef.current = false;
+        setSelectedFailure(false);
+        setSelectedReel(null);
+        const timers = silentRetryTimersRef.current;
+        const previous = timers.get(reel.id);
+        if (previous) clearTimeout(previous);
+        setSilentRetryIds(current => new Set(current).add(reel.id));
+        timers.set(reel.id, setTimeout(() => {
+          timers.delete(reel.id);
+          setSilentRetryIds(current => {
+            const next = new Set(current);
+            next.delete(reel.id);
+            return next;
+          });
+        }, SILENT_RETRY_PROCESSING_MS));
+        return;
+      }
+      // 그 밖의 MEDIA400_xxx(재시도 불가 등)는 서버 문구를 그대로 보여준다.
+      showAlert(
         '다시 시도하지 못했어요',
         normalized.errorCode?.startsWith('MEDIA')
           ? normalized.message
@@ -908,7 +986,13 @@ export function HistoryScreen({
     return () => cancelAnimationFrame(restoreScroll);
   }, [loading, reels.length, selectedFailure, selectedSuccess]);
 
-  const groupedReels = reels.reduce<Record<string, HistoryReel[]>>(
+  // 재시도를 받지 않은 항목은 정해진 시간 동안 처리 중 카드로 그린다(눌러도 상세로 가지 않는다).
+  const displayedReels = silentRetryIds.size === 0
+    ? reels
+    : reels.map(item => (silentRetryIds.has(item.id)
+      ? {...item, processing_status: 'PROCESSING' as const, failure_reason: null}
+      : item));
+  const groupedReels = displayedReels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
       const date = formatHistoryDate(reel.created_at);
       groups[date] = groups[date] ? [...groups[date], reel] : [reel];
@@ -949,7 +1033,10 @@ export function HistoryScreen({
           accessibilityRole="button"
           accessibilityLabel="대기함으로 돌아가기"
           hitSlop={12}
-          onPress={onBack}
+          onPress={() => {
+            analytics.button('back');
+            onBack?.();
+          }}
           style={styles.backButton}
         >
           <Image
@@ -968,6 +1055,7 @@ export function HistoryScreen({
         }}
         contentContainerStyle={[
           styles.content,
+          {paddingBottom: listBottomPadding},
           !loading && reels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
@@ -989,7 +1077,12 @@ export function HistoryScreen({
         ) : error ? (
           <View style={styles.stateBody}>
             <Text style={styles.stateText}>히스토리를 불러오지 못했어요.</Text>
-            <Pressable onPress={() => load()} style={styles.retryButton}>
+            <Pressable
+              onPress={() => {
+                analytics.button('retry_load');
+                load();
+              }}
+              style={styles.retryButton}>
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
           </View>
@@ -1012,7 +1105,10 @@ export function HistoryScreen({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="히스토리 로그인"
-                  onPress={onRequireLogin}
+                  onPress={() => {
+                    analytics.button('empty_login');
+                    onRequireLogin?.();
+                  }}
                   style={({pressed}) => [
                     styles.emptyLoginButton,
                     pressed && styles.emptyLoginButtonPressed,
@@ -1044,11 +1140,13 @@ export function HistoryScreen({
                   onPress={
                     reel.processing_status === 'COMPLETED'
                       ? () => {
+                          analytics.button('open_item', {status: 'completed'});
                           setSelectedReel(reel);
                           setSelectedSuccess(true);
                         }
                       : reel.processing_status === 'FAILED'
                       ? () => {
+                          analytics.button('open_item', {status: 'failed'});
                           setSelectedReel(reel);
                           setSelectedFailure(true);
                         }
@@ -1066,6 +1164,7 @@ export function HistoryScreen({
             <Pressable
               accessibilityRole="button"
               onPress={() => {
+                analytics.button('retry_load_more');
                 load(cursor).catch(() => undefined);
               }}
               style={styles.moreButton}

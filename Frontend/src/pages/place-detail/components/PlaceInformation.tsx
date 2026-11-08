@@ -1,7 +1,7 @@
+import { showAlert } from '../../../lib/app-alert';
 import Clipboard from '@react-native-clipboard/clipboard';
 import React from 'react';
 import {
-  Alert,
   Dimensions,
   Linking,
   Pressable,
@@ -12,6 +12,7 @@ import {
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import type { Place } from '../../../entities/place/types';
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import { useCopyToast } from './CopyToast';
 
 const INFORMATION_MIN_HEIGHT = Dimensions.get('window').height - 162;
@@ -21,16 +22,27 @@ type PlaceInformationProps = {
 };
 
 export function PlaceInformation({ place }: PlaceInformationProps) {
+  const { button, modal } = useScreenAnalytics();
   const confirmCall = () => {
     if (!place.telephone) {
       return;
     }
 
-    Alert.alert('전화 걸기', `${place.telephone}로 전화하시겠어요?`, [
-      { text: '취소', style: 'cancel' },
+    button('call');
+    modal('call_confirm');
+
+    showAlert('전화 걸기', `${place.telephone}로 전화하시겠어요?`, [
+      {
+        text: '취소',
+        style: 'cancel',
+        onPress: () => button('call_cancel'),
+      },
       {
         text: '전화',
-        onPress: () => Linking.openURL(`tel:${place.telephone}`),
+        onPress: () => {
+          button('call_confirm');
+          Linking.openURL(`tel:${place.telephone}`);
+        },
       },
     ]);
   };
@@ -109,8 +121,10 @@ function CopyButton({
   accessibilityLabel: string;
 }) {
   const { showCopyToast } = useCopyToast();
+  const { button } = useScreenAnalytics();
 
   const copy = () => {
+    button('copy_address');
     Clipboard.setString(value);
     showCopyToast(toastMessage);
   };

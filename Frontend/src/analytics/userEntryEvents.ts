@@ -40,12 +40,28 @@ export function trackAppOpened(
   });
 }
 
+/**
+ * 로그인 화면에 들어온 경로입니다. 공유 화면의 [로그인]으로 넘어온 경우만 구분하고,
+ * 그 공유 건의 `share_id`를 함께 남겨 공유 이벤트와 연결합니다.
+ */
+export type LoginEntry = {entry: 'share_login_handoff'; shareId?: string};
+
+function loginEntryProperties(entry: LoginEntry | null | undefined) {
+  if (!entry) return {};
+  return {
+    entry: entry.entry,
+    ...(entry.shareId ? {share_id: entry.shareId} : {}),
+  };
+}
+
 export function trackLoginStarted(
   client: AnalyticsClient | null | undefined,
   provider: LoginProvider,
+  entry?: LoginEntry | null,
 ) {
   capture(client, ANALYTICS_EVENTS.loginStarted, {
     provider,
+    ...loginEntryProperties(entry),
   });
 }
 
@@ -55,6 +71,7 @@ export function trackLoginFinished(
     provider: LoginProvider;
     outcome: LoginOutcome;
     failureType?: LoginFailureType;
+    entry?: LoginEntry | null;
   },
 ) {
   capture(client, ANALYTICS_EVENTS.loginFinished, {
@@ -63,5 +80,6 @@ export function trackLoginFinished(
     ...(params.outcome === 'failure' && params.failureType
       ? {failure_type: params.failureType}
       : {}),
+    ...loginEntryProperties(params.entry),
   });
 }

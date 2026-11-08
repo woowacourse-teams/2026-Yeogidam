@@ -1,6 +1,6 @@
+import { showAlert } from './src/lib/app-alert';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   AppState,
   BackHandler,
   Platform,
@@ -14,6 +14,11 @@ import Config from 'react-native-config';
 
 import { ensureLocationPermission } from './src/lib/location-permission';
 import {setAnalyticsGuestMode} from './src/analytics/analytics';
+import {
+  trackActionFinished,
+  trackButtonPressed,
+  trackScreenViewed,
+} from './src/analytics/uiEvents';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import {
@@ -23,6 +28,8 @@ import {
 import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
+import { EventNoticeModal } from './src/components/EventNoticeModal';
+import { AppAlertHost } from './src/components/AppAlertHost';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
@@ -51,6 +58,7 @@ import {
   getSpringTokens,
   logoutSpringSession,
   onSpringSessionChange,
+  syncStoredSessionToShare,
 } from './src/lib/auth/spring-session';
 import { flushShareAnalytics } from './src/lib/share-intent/posthog-share';
 import { getAppUpdatePolicy, type AppUpdatePolicy } from './src/lib/app-update-policy';
@@ -63,6 +71,7 @@ import {
   trackAppOpened,
   trackLoginFinished,
   trackLoginStarted,
+  type LoginEntry,
 } from './src/analytics/userEntryEvents';
 // import type {InboxEntryType} from './src/analytics/placeSavingEvents';
 import {
@@ -343,6 +352,8 @@ function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
+  const [onboardingBackRequest, setOnboardingBackRequest] = useState(0);
+  const [guideBackRequest, setGuideBackRequest] = useState(0);
   const [requiredUpdateStoreUrl, setRequiredUpdateStoreUrl] = useState<
     string | null
   >(null);
@@ -358,6 +369,9 @@ function App() {
   const [pendingSocialProvider, setPendingSocialProvider] =
     useState<SocialProvider | null>(null);
   const loginAttemptInFlightRef = useRef(false);
+  // 공유 화면의 [로그인]으로 로그인 화면에 온 경우, 로그인 이벤트에 붙일 진입 경로입니다.
+  // 로그인에 성공하거나 다른 경로로 로그인 화면을 열면 비웁니다.
+  const loginEntryRef = useRef<LoginEntry | null>(null);
   const [hasPendingShareLogin, setHasPendingShareLogin] = useState(false);
   const [isGuestLoginPromptVisible, setIsGuestLoginPromptVisible] =
     useState(false);
@@ -404,6 +418,12 @@ function App() {
     );
   }, []);
   const visitedTabsRef = useRef(new Set<MainScreen>(['saved']));
+  const [tabRefreshCounts, setTabRefreshCounts] = useState<Record<MainScreen, number>>({
+    saved: 0,
+    map: 0,
+    history: 0,
+    my: 0,
+  });
   const tabSessionRef = useRef(isAuthenticated);
   if (tabSessionRef.current !== isAuthenticated) {
     visitedTabsRef.current = new Set(['saved']);
@@ -566,6 +586,19 @@ function App() {
     if (
       flowState.kind === 'main' &&
       flowState.detailSource === null &&
+      flowState.activeTab === nextScreen
+    ) {
+      if (nextScreen === 'saved') savedPlacesScrollOffsetRef.current = 0;
+      setTabRefreshCounts(current => ({
+        ...current,
+        [nextScreen]: current[nextScreen] + 1,
+      }));
+      return;
+    }
+
+    if (
+      flowState.kind === 'main' &&
+      flowState.detailSource === null &&
       flowState.activeTab !== nextScreen
     ) {
       mainTabHistoryRef.current.push(flowState.activeTab);
@@ -641,6 +674,16 @@ function App() {
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        if (isOnboardingVisible) {
+          setOnboardingBackRequest(current => current + 1);
+          return true;
+        }
+
+        if (myPageOverlay === 'guide') {
+          setGuideBackRequest(current => current + 1);
+          return true;
+        }
+
         if (myPageOverlay !== null) {
           setMyPageOverlay(null);
           return true;
@@ -669,7 +712,7 @@ function App() {
     );
 
     return () => subscription.remove();
-  }, [closeDetail, flowState, goBackMainTab, myPageOverlay]);
+  }, [closeDetail, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay]);
 
   useEffect(() => {
     let isMounted = true;
@@ -704,7 +747,11 @@ function App() {
 
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
-      resumeWaitingShares().catch(() => undefined);
+      // 공유 익스텐션에 세션이 비어 있을 수 있어 먼저 채운 뒤 대기 중인 공유를 재개합니다.
+      syncStoredSessionToShare()
+        .catch(() => undefined)
+        .then(() => resumeWaitingShares())
+        .catch(() => undefined);
 
       if (!hasTrackedAppOpenedRef.current) {
         trackAppOpened(posthog, true);
@@ -751,6 +798,7 @@ function App() {
       }
 
       if (event === 'SIGNED_OUT') {
+        loginEntryRef.current = null;
         activeUserIdRef.current = null;
         setIsAuthenticated(false);
         setFlowState(INITIAL_FLOW_STATE);
@@ -893,6 +941,7 @@ function App() {
             });
           }
           if (result.transferStatus === 'GUEST_LOGIN_PROMPT') {
+            loginEntryRef.current = {entry: 'share_login_handoff', shareId: result.requestId};
             clearShareResult(result.requestId).catch(() => undefined);
             setSharedSaveState(null);
             setIsGuestLoginPromptVisible(false);
@@ -912,6 +961,7 @@ function App() {
             // 로그인 화면으로 보내는 것으로 이 결과의 역할은 끝난다. 로그인해도 이 공유는 추출하지
             // 않으므로, 로그인 대기 상태로 남겨 두지 않고 정리한다.
             const showLoginForHandoff = () => {
+              loginEntryRef.current = {entry: 'share_login_handoff', shareId: result.requestId};
               clearShareResult(result.requestId).catch(() => undefined);
               setHasPendingShareLogin(false);
               // 둘러보는 중에 넘어왔다면 앱 안에서 연 로그인 화면과 같게 X로 직전 화면에 돌아간다.
@@ -945,14 +995,15 @@ function App() {
               getSpringTokens()
                 .then(tokens => {
                   if (tokens) {
-                    Alert.alert(
+                    showAlert(
                       '공유한 게시물을 저장하지 못했어요',
                       '로그인 정보가 만료됐어요. 게시물을 다시 공유해 주세요.',
                     );
                     return;
                   }
+                  loginEntryRef.current = null;
                   setFlowState(INITIAL_FLOW_STATE);
-                  Alert.alert(
+                  showAlert(
                     '로그인이 필요해요',
                     '다시 로그인한 뒤 게시물을 공유해 주세요.',
                   );
@@ -960,7 +1011,7 @@ function App() {
                 .catch(() => undefined);
               return;
             }
-            Alert.alert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
+            showAlert('장소 추출 실패', '공유한 콘텐츠의 장소를 추출하지 못했어요.');
             return;
           }
           if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK' || result.transferStatus === 'WAITING_FOR_AUTH') {
@@ -1055,7 +1106,7 @@ function App() {
     return () => {
       isMounted = false;
     };
-  }, [flowState.kind, isAuthenticated]);
+  }, [flowState.kind, isAuthenticated, tabRefreshCounts.my]);
 
   const handleContinueWithSocial = async (provider: SocialProvider) => {
     if (pendingSocialProvider || loginAttemptInFlightRef.current) {
@@ -1068,9 +1119,10 @@ function App() {
       google: signInWithGoogle,
     }[provider];
     let signInStarted = false;
+    const loginEntry = loginEntryRef.current;
 
     // 로그인 버튼을 누른 시점에 기록해, 시작 전에 실패해도 로그인 시도로 센다.
-    trackLoginStarted(posthog, provider);
+    trackLoginStarted(posthog, provider, loginEntry);
 
     try {
       // 이전 회원의 공유 세션이 남아 있으면 익스텐션이 엉뚱한 계정으로 저장하지 않게 지웁니다.
@@ -1085,7 +1137,9 @@ function App() {
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
+        entry: loginEntry,
       });
+      loginEntryRef.current = null;
     } catch (error) {
       const normalizedError = withAuthErrorStage(
         error,
@@ -1096,9 +1150,10 @@ function App() {
         provider,
         outcome: 'failure',
         failureType: toLoginFailureType(normalizedError),
+        entry: loginEntry,
       });
       if (!signInStarted) {
-        Alert.alert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
+        showAlert('로그인을 시작하지 못했어요', '잠시 후 다시 시도해 주세요.');
         return;
       }
       setSocialLoginError(normalizedError);
@@ -1109,6 +1164,7 @@ function App() {
   };
 
   const handleCancelShareLogin = async () => {
+    loginEntryRef.current = null;
     const results = await getShareResults();
     await Promise.all(results
       .filter(result => result.transferStatus === 'LOGIN_HANDOFF')
@@ -1119,6 +1175,7 @@ function App() {
   const handleOpenGuestLogin = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
+    loginEntryRef.current = null;
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
     setShowLoginCloseButton(true);
@@ -1128,6 +1185,7 @@ function App() {
   const handleOpenGuestLoginFromMyPage = () => {
     if (flowState.kind !== 'main' || isAuthenticated !== false) return;
 
+    loginEntryRef.current = null;
     setIsGuestLoginPromptVisible(false);
     guestReturnFlowRef.current = flowState;
     setShowLoginCloseButton(true);
@@ -1139,6 +1197,7 @@ function App() {
       handleOpenGuestLogin();
       return;
     }
+    loginEntryRef.current = null;
     setFlowState(INITIAL_FLOW_STATE);
   };
 
@@ -1184,7 +1243,7 @@ function App() {
   };
 
   const showPreparingAlert = (featureName: string) => {
-    Alert.alert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
+    showAlert('준비 중', `${featureName} 기능은 아직 준비 중이에요.`);
   };
 
   const handleLogout = async () => {
@@ -1198,18 +1257,22 @@ function App() {
     // 온보딩을 거쳐 로그인 화면에 간다. 로컬 정리에 실패하면 로그인 상태를 유지하고 다시 시도하게 한다.
     try {
       const result = await logoutSpringSession();
-      if (!result.serverConfirmed) {
-        // TODO(analytics): logout_server_unconfirmed 이벤트 기록 (result.serverError)
-      }
+      // 로그아웃이 끝나면 PostHog 식별이 초기화되므로 그 전에 기록한다.
+      trackActionFinished(posthog, 'logout', 'success', {
+        server_confirmed: result.serverConfirmed,
+      });
       return;
     } catch (error) {
-      if (error instanceof LocalSessionCleanupError) {
-        // TODO(analytics): logout_local_cleanup_failed 이벤트 기록 (error.cause)
-      }
+      trackActionFinished(posthog, 'logout', 'failure', {
+        failure_type:
+          error instanceof LocalSessionCleanupError
+            ? 'local_cleanup_failed'
+            : 'unknown',
+      });
     }
 
     setIsLogoutPending(false);
-    Alert.alert(
+    showAlert(
       '로그아웃 실패',
       '로그아웃하지 못했어요. 잠시 후 다시 시도해주세요.',
     );
@@ -1225,7 +1288,7 @@ function App() {
     const providers = getLinkedDeletionProviders(oauthProvider);
 
     if (providers.length === 0) {
-      Alert.alert(
+      showAlert(
         '로그인이 필요해요',
         '회원탈퇴를 진행하려면 다시 로그인해주세요.',
       );
@@ -1237,21 +1300,35 @@ function App() {
   };
 
   const handleDeleteAccount = async (payload: DeleteAccountRequest) => {
+    let serverSideFailure = false;
     try {
       await deleteAccount(payload);
     } catch (error) {
       // 재인증 문제처럼 사용자가 고칠 수 있는 실패는 탈퇴 화면에서 안내한다.
-      if (!isServerSideDeletionFailure(error)) throw error;
+      if (!isServerSideDeletionFailure(error)) {
+        trackActionFinished(posthog, 'account_deletion', 'failure', {
+          failure_type: 'user_fixable',
+        });
+        throw error;
+      }
+      serverSideFailure = true;
       // 서버·네트워크 실패는 탈퇴된 것처럼 처리하고 운영팀이 서버에서 수동으로 탈퇴를 마무리한다.
       // TODO(sentry): 탈퇴 서버 실패 알림 (회원 ID: activeUserIdRef.current, 제공자: currentProfile?.oauthProvider, error)
     }
+
+    // 세션을 지우면 PostHog 식별이 초기화되므로 그 전에 기록한다.
+    trackActionFinished(posthog, 'account_deletion', 'success', {
+      server_side_failure: serverSideFailure,
+    });
 
     // 서버 회원은 삭제됐거나 수동 삭제 대상이므로 로그아웃 API 없이 앱·공유 익스텐션 세션만 지운다.
     try {
       await clearSpringSession();
     } catch {
-      // TODO(analytics): account_deletion_local_cleanup_failed 이벤트 기록
-      Alert.alert(
+      trackActionFinished(posthog, 'account_deletion', 'failure', {
+        failure_type: 'local_cleanup_failed',
+      });
+      showAlert(
         '회원탈퇴를 마무리하지 못했어요',
         '앱을 완전히 종료한 뒤 다시 실행해 주세요.',
       );
@@ -1264,7 +1341,7 @@ function App() {
     activeUserIdRef.current = null;
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
-    Alert.alert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
+    showAlert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
   };
 
   const handleRetryProfile = async () => {
@@ -1290,6 +1367,7 @@ function App() {
     if (screen === 'history') {
       return (
         <HistoryScreen
+          key={tabRefreshCounts.history}
           guestReels={isAuthenticated === false ? [] : undefined}
           onBack={goBackMainTab}
           isActive={currentScreen === 'history' && myPageOverlay === null}
@@ -1352,8 +1430,8 @@ function App() {
         <SavedPlacesScreen
           key={
             isAuthenticated === false
-              ? 'guest-saved'
-              : 'member-saved'
+              ? `guest-saved-${tabRefreshCounts.saved}`
+              : `member-saved-${tabRefreshCounts.saved}`
           }
           isActive={currentScreen === 'saved' && myPageOverlay === null}
           onNestedBackStateChange={reportSavedBackState}
@@ -1396,13 +1474,10 @@ function App() {
       return (
         <MapScreen
           onBackGestureRegionChange={reportMapBackGestureRegion}
-          bottomNavigationBar={
-            <BottomNavigationBar active="map" isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
-          }
           key={
             isAuthenticated === false
-              ? 'guest-map'
-              : 'member-map'
+              ? `guest-map-${tabRefreshCounts.map}`
+              : `member-map-${tabRefreshCounts.map}`
           }
           isGuest={isAuthenticated === false}
           isActive={currentScreen === 'map' && myPageOverlay === null}
@@ -1436,6 +1511,7 @@ function App() {
 
     return (
       <MyPageScreen
+        key={tabRefreshCounts.my}
         currentProfile={currentProfile}
         isGuest={isAuthenticated === false}
         isProfileLoading={isProfileLoading}
@@ -1469,7 +1545,10 @@ function App() {
 
     if (myPageOverlay === 'guide') {
       return (
-        <AppGuideScreen onComplete={() => setMyPageOverlay(null)} />
+        <AppGuideScreen
+          backRequest={guideBackRequest}
+          onComplete={() => setMyPageOverlay(null)}
+        />
       );
     }
 
@@ -1492,7 +1571,26 @@ function App() {
     : myPageOverlay !== null ? flowState.activeTab
     : flowState.detailSource ?? previousTab;
 
+  const analyticsScreenName =
+    !isAuthReady || isSplashVisible
+      ? 'splash'
+      : isOnboardingVisible
+      ? 'onboarding'
+      : myPageOverlay === 'accountDeletion'
+      ? 'account_deletion'
+      : myPageOverlay === 'guide'
+      ? 'app_guide'
+      : myPageOverlay === 'terms'
+      ? 'terms'
+      : currentScreen === 'emailLogin'
+      ? 'email_login'
+      : currentScreen;
+  useEffect(() => {
+    trackScreenViewed(posthog, analyticsScreenName);
+  }, [posthog, analyticsScreenName]);
+
   const handleSwipeBack = () => {
+    trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');
     if (myPageOverlay !== null) setMyPageOverlay(null);
     else if (flowState.kind === 'auth') popAuthScreen();
     else if (flowState.detailSource !== null) closeDetail();
@@ -1514,7 +1612,7 @@ function App() {
         content: wrapScreen(
           <View style={styles.container}>
             {renderScreen(tab)}
-            {tab !== 'map' && !(tab === 'saved' && isSavedPlacesEditing) ? (
+            {!(tab === 'saved' && isSavedPlacesEditing) ? (
               <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
             ) : null}
           </View>, tab === 'map',
@@ -1544,7 +1642,10 @@ function App() {
           edges={['top', 'left', 'right', 'bottom']}
           style={styles.safeArea}
         >
-          <OnboardingScreen onComplete={() => setIsOnboardingVisible(false)} />
+          <OnboardingScreen
+            backRequest={onboardingBackRequest}
+            onComplete={() => setIsOnboardingVisible(false)}
+          />
         </SafeAreaView>
         {/* 필수 업데이트는 온보딩 중에도 막는다. 권장 업데이트는 온보딩 뒤에 안내한다. */}
         <AppUpdateModal
@@ -1568,9 +1669,14 @@ function App() {
         screens={screenLayers}
         activeKey={activeLayerKey}
         gestureRegion={currentScreen === 'map' ? mapBackGestureRegion : undefined}
-        backKey={backLayerKey}
+        backKey={myPageOverlay === 'guide' ? null : backLayerKey}
         onBack={handleSwipeBack}
-        enabled={!nestedBackStateRef.current || currentScreen === 'detail' || myPageOverlay !== null}
+        enabled={
+          myPageOverlay !== 'guide' &&
+          (!nestedBackStateRef.current ||
+            currentScreen === 'detail' ||
+            myPageOverlay !== null)
+        }
       />
       {currentScreen === 'detail' ? <SystemNavigationGradient /> : null}
       <AppUpdateModal
@@ -1592,6 +1698,15 @@ function App() {
           setRecommendedUpdate(null);
         }}
       />
+      {/* 로그인·회원가입 화면 위에는 띄우지 않고, 메인 화면에 들어온 뒤에 안내한다. */}
+      <EventNoticeModal
+        enabled={
+          flowState.kind === 'main' &&
+          requiredUpdateStoreUrl === null &&
+          recommendedUpdate === null &&
+          !(isGuestLoginPromptVisible && isGuestBrowsing)
+        }
+      />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing}
         onLogin={handleOpenGuestLogin}
@@ -1612,4 +1727,13 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Sentry.wrap(App);
+function AppRoot() {
+  return (
+    <>
+      <AppAlertHost />
+      <App />
+    </>
+  );
+}
+
+export default Sentry.wrap(AppRoot);

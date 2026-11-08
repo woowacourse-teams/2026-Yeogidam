@@ -2,6 +2,7 @@ import React, {useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {AuthScaffold} from './components/AuthScaffold';
+import {useScreenAnalytics} from '../../analytics/uiEvents';
 import {AuthTextField} from './components/AuthTextField';
 
 type EmailLoginScreenProps = {
@@ -17,11 +18,13 @@ export function EmailLoginScreen({
   onOpenTerms,
   onLogin,
 }: EmailLoginScreenProps) {
+  const {button} = useScreenAnalytics('email_login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   return (
     <AuthScaffold
+      screenName="email_login"
       description="이메일로 로그인하고 저장한 장소를 이어서 관리해보세요."
       onBack={onBack}
       title="이메일 로그인"
@@ -45,18 +48,31 @@ export function EmailLoginScreen({
       </View>
 
       <Pressable
-        onPress={onLogin}
+        onPress={() => {
+          button('submit');
+          onLogin();
+        }}
         style={({pressed}) => [styles.primaryButton, pressed && styles.pressed]}>
         <Text style={styles.primaryButtonText}>로그인</Text>
       </Pressable>
 
       <View style={styles.footerRow}>
         <Text style={styles.footerText}>계정이 없으신가요?</Text>
-        <Pressable hitSlop={8} onPress={onOpenSignup}>
+        <Pressable
+          hitSlop={8}
+          onPress={() => {
+            button('signup');
+            onOpenSignup();
+          }}>
           <Text style={styles.footerLink}>회원가입</Text>
         </Pressable>
         <Text style={styles.footerDivider}>|</Text>
-        <Pressable hitSlop={8} onPress={onOpenTerms}>
+        <Pressable
+          hitSlop={8}
+          onPress={() => {
+            button('terms');
+            onOpenTerms();
+          }}>
           <Text style={styles.footerLink}>약관 동의</Text>
         </Pressable>
       </View>
