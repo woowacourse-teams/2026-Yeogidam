@@ -115,6 +115,7 @@ type MapCamera = {
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
+const COMPLETED_PLACE_REFRESH_DELAYS_MS = [0, 700, 1500, 3000, 5000];
 
 export function MapScreen({
   onOpenReel,
@@ -295,10 +296,11 @@ export function MapScreen({
     if (!isActive) return;
     let isMounted = true;
 
-    getSavedPlaces()
-      .then(savedPlaceItems => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const refresh = async (attempt: number) => {
+      try {
+        const savedPlaceItems = await getSavedPlaces();
         if (!isMounted) return;
-
         syncSavedPlaceFolderIds(savedPlaceItems);
         setSavedPlacesLoadFailed(false);
         setSavedPlaces(
@@ -310,21 +312,30 @@ export function MapScreen({
             ).values(),
           ),
         );
-      })
-      .catch(error => {
+      } catch (error) {
         if (isMounted) {
           setSavedPlacesLoadFailed(true);
-          setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
+          setMapMessage((error as Error).message ?? '저장한 장소를 불러오지 못했어요.');
         }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsSavedPlacesLoading(false);
-        }
-      });
+      } finally {
+        if (isMounted) setIsSavedPlacesLoading(false);
+      }
+
+      // 공유 완료 직후에는 자동 저장 장소가 목록에 늦게 반영될 수 있습니다.
+      // 추출 장소가 0건일 수도 있어 짧은 기간만 재조회합니다.
+      if (isMounted && savedPlacesRefreshSignal > 0 &&
+          attempt + 1 < COMPLETED_PLACE_REFRESH_DELAYS_MS.length) {
+        timeoutId = setTimeout(
+          () => refresh(attempt + 1).catch(() => undefined),
+          COMPLETED_PLACE_REFRESH_DELAYS_MS[attempt + 1],
+        );
+      }
+    };
+    refresh(0).catch(() => undefined);
 
     return () => {
       isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [isGuest, isActive, savedPlacesRefreshSignal]);
   // 폴더에 담거나 폴더를 지운 결과가 목록을 다시 읽기 전에도 보이도록 훅의 소속을 씁니다.

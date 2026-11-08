@@ -108,6 +108,7 @@ import {
 const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
 const REEL_POLL_FAILURE_LIMIT = 3;
+const COMPLETED_SAVE_REFRESH_DELAYS_MS = [0, 700, 1500, 3000, 5000];
 const MAX_RECENT_SEARCHES = 10;
 // 검색 헤더 높이(SearchBar header 레이아웃과 같음). 목록이 있을 때 헤더를 내용 위에 겹쳐 둡니다.
 const SAVED_HEADER_HEIGHT = SEARCH_BAR_HEIGHT + SEARCH_BAR_TOP_GAP * 2;
@@ -228,6 +229,13 @@ export function SavedPlacesScreen({
   const [processingReel, setProcessingReel] =
     useState<ReelProcessingStatus | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [completedRefreshIds, setCompletedRefreshIds] = useState<string[]>([]);
+  const completedShareIdsRef = useRef<Set<string> | null>(null);
+  const queueCompletedRefresh = useCallback((reelId: string) => {
+    setCompletedRefreshIds(current =>
+      current.includes(reelId) ? current : [...current, reelId],
+    );
+  }, []);
   const [_statusQueryError, setStatusQueryError] =
     useState<ReelApiError | null>(null);
   const [_isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
@@ -427,6 +435,7 @@ export function SavedPlacesScreen({
         ? [...current, ...page.reels.filter(reel => !current.some(item => item.id === reel.id))]
         : page.reels);
       setPostCursor(page.nextCursor);
+      return page;
     } catch (nextError) {
       if (requestId === postRequestIdRef.current) {
         setPostError((nextError as {message?: string}).message ?? '게시물을 불러오지 못했어요.');
@@ -617,25 +626,26 @@ export function SavedPlacesScreen({
       }
     };
 
-    const refreshAfterExternalShare = async (requestId?: string) => {
-      const [firstRefreshSucceeded] = await Promise.all([
-        loadSavedPlaces(),
-        loadPostPage(),
-      ]);
-      if (!firstRefreshSucceeded) {
-        return;
+    const refreshAfterExternalShare = async (reelId: string, requestId?: string) => {
+      let hasLoadedPlaces = false;
+      for (let attempt = 0; attempt < COMPLETED_SAVE_REFRESH_DELAYS_MS.length; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise<void>(resolve =>
+            setTimeout(resolve, COMPLETED_SAVE_REFRESH_DELAYS_MS[attempt]),
+          );
+        }
+        if (!isActive) return;
+        const [loadedPlaces, page] = await Promise.all([loadSavedPlaces(), loadPostPage()]);
+        if (!isActive) return;
+        hasLoadedPlaces ||= loadedPlaces !== null;
+        // 첫 완료 응답 뒤에도 한 번 더 확인합니다. 두 번째 조회가 아직 비어
+        // 있으면 실제 공유 ID가 게시물 보관함에 나타날 때까지 재시도합니다.
+        if (attempt > 0 && hasLoadedPlaces && page?.reels.some(reel => reel.id === reelId)) {
+          await onSharedResultConsumed?.(requestId);
+          return;
+        }
       }
-
-      // COMPLETED 직후 읽기에서 새 장소나 게시물이 아직 보이지 않는 짧은 지연을
-      // 흡수하기 위해 둘 다 한 번 더 조회한 뒤 공유 결과를 소비합니다.
-      await new Promise<void>(resolve => setTimeout(resolve, 700));
-      const [confirmed] = await Promise.all([
-        loadSavedPlaces(),
-        loadPostPage(),
-      ]);
-      if (confirmed) {
-        await onSharedResultConsumed?.(requestId);
-      }
+      if (hasLoadedPlaces && isActive) await onSharedResultConsumed?.(requestId);
     };
 
     const applySharedState = (state: ReturnType<typeof getSharedSaveState>) => {
@@ -708,9 +718,12 @@ export function SavedPlacesScreen({
       setShowSaveSuccess(
         state.status === 'COMPLETED' && state.source === 'url_input',
       );
+      if (state.status === 'COMPLETED' && state.source === 'url_input') {
+        queueCompletedRefresh(state.reel.id);
+      }
       if (state.status === 'COMPLETED') {
         if (state.source === 'instagram_share') {
-          refreshAfterExternalShare(state.shareResultId).catch(() => undefined);
+          refreshAfterExternalShare(state.reel.id, state.shareResultId).catch(() => undefined);
           setSharedSaveState(null);
         }
         // URL 입력으로 접수한 항목은 히스토리 목록에 나타날 때까지 유지합니다.
@@ -724,7 +737,7 @@ export function SavedPlacesScreen({
       isActive = false;
       unsubscribe();
     };
-  }, [isGuest, loadPostPage, loadSavedPlaces, onSharedResultConsumed]);
+  }, [isGuest, loadPostPage, loadSavedPlaces, onSharedResultConsumed, queueCompletedRefresh]);
 
   const openDialog = () => {
     if (isGuest) {
@@ -859,6 +872,7 @@ export function SavedPlacesScreen({
         created_at: new Date().toISOString(),
       });
       setShowSaveSuccess(source === 'url_input');
+      if (source === 'url_input') queueCompletedRefresh(response.reelId);
       return;
     }
 
@@ -1021,6 +1035,9 @@ export function SavedPlacesScreen({
           if (nextStatus.processing_status === 'COMPLETED') {
             setProcessingReelId(null);
             setShowSaveSuccess(sharedState?.source === 'url_input');
+            if (sharedState?.source === 'url_input') {
+              queueCompletedRefresh(nextStatus.id);
+            }
           }
         }
       } catch (pollError) {
@@ -1081,21 +1098,40 @@ export function SavedPlacesScreen({
     processingReel?.id,
     processingReel?.processing_status,
     processingReelId,
+    queueCompletedRefresh,
     error,
   ]);
 
   useEffect(() => {
     if (isGuest) {
       setSharedReels([]);
+      completedShareIdsRef.current = null;
       return;
     }
-    // 최근 공유 행은 히스토리와 같은 공용 폴러를 씁니다.
+    // 히스토리와 같은 공용 폴러에서 완료 전환을 보면 게시물·장소도 갱신합니다.
     const subscription = subscribeRecentShares({
       intervalMs: RECENT_SHARES_INTERVAL_MS,
-      onResult: ({ reels }) => setSharedReels(reels),
+      onResult: ({ reels }) => {
+        setSharedReels(reels);
+        const completedIds = new Set(
+          reels.filter(reel => reel.processing_status === 'COMPLETED').map(reel => reel.id),
+        );
+        const previousIds = completedShareIdsRef.current;
+        completedShareIdsRef.current = completedIds;
+        const newlyCompleted = previousIds
+          ? reels.filter(reel =>
+              reel.processing_status === 'COMPLETED' && !previousIds.has(reel.id),
+            )
+          : reels.filter(reel => reel.processing_status === 'COMPLETED').slice(0, 1);
+        // 첫 목록에는 과거 완료 항목도 많으므로 최신 한 건만 재확인합니다.
+        newlyCompleted.forEach(reel => queueCompletedRefresh(reel.id));
+      },
     });
-    return () => subscription.unsubscribe();
-  }, [isGuest]);
+    return () => {
+      subscription.unsubscribe();
+      completedShareIdsRef.current = null;
+    };
+  }, [isGuest, queueCompletedRefresh]);
 
   // 방금 저장한 릴스는 서버 목록에 잡히기 전에도 "최근 공유" 줄에 보여 줍니다.
   // 서버가 접수한 실패 항목은 보여 주되, 요청 자체가 실패한 임시 카드는 숨깁니다.
@@ -1124,18 +1160,49 @@ export function SavedPlacesScreen({
   }, [processingReel, sharedReels]);
 
   useEffect(() => {
-    if (!showSaveSuccess) {
+    if (isGuest || !isScreenActive || completedRefreshIds.length === 0) {
       return;
     }
 
-    // 저장 API의 즉시 완료 응답, 상태 폴링 완료, 공유 상태 복원 중 어느
-    // 경로로 완료되더라도 최신 저장 장소를 보관함에 바로 반영합니다.
-    loadSavedPlaces().catch(() => undefined);
-    loadPostPage().catch(() => undefined);
+    // 완료 응답과 보관함 목록 반영 사이에 시차가 있을 수 있습니다.
+    // 게시물은 실제 공유 ID가 나타날 때까지, 장소는 추출 결과가 0건일 수도
+    // 있으므로 짧은 기간 동안 다시 읽습니다.
+    let cancelled = false;
+    const postVisibleIds = new Set<string>();
+    const targetIds = completedRefreshIds;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const refresh = async (attempt: number) => {
+      const [, page] = await Promise.all([
+        loadSavedPlaces(),
+        postVisibleIds.size === targetIds.length
+          ? Promise.resolve(undefined)
+          : loadPostPage(),
+      ]);
+      if (cancelled) return;
+      page?.reels.forEach(reel => {
+        if (targetIds.includes(reel.id)) postVisibleIds.add(reel.id);
+      });
+      if (attempt + 1 < COMPLETED_SAVE_REFRESH_DELAYS_MS.length) {
+        timeoutId = setTimeout(
+          () => refresh(attempt + 1).catch(() => undefined),
+          COMPLETED_SAVE_REFRESH_DELAYS_MS[attempt + 1],
+        );
+      } else {
+        setCompletedRefreshIds(current => current.filter(id => !targetIds.includes(id)));
+      }
+    };
+    refresh(0).catch(() => undefined);
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [completedRefreshIds, isGuest, isScreenActive, loadPostPage, loadSavedPlaces]);
 
+  useEffect(() => {
+    if (!showSaveSuccess) return;
     const timeoutId = setTimeout(() => setShowSaveSuccess(false), 1800);
     return () => clearTimeout(timeoutId);
-  }, [loadPostPage, loadSavedPlaces, showSaveSuccess]);
+  }, [showSaveSuccess]);
 
   const handlePressEdit = useCallback(() => {
     const next = !isEditing;
