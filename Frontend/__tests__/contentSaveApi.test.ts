@@ -52,6 +52,15 @@ test('일반 URL 저장은 정규화한 주소로 공유 API를 호출하고 응
   });
 });
 
+test('사용자가 입력한 릴스 링크의 l 쿼리도 제거해 저장한다', async () => {
+  request.mockResolvedValue({sharedMediaId: 12, extractionStatus: 'SUCCEEDED'});
+  await saveContent('https://www.instagram.com/reel/DeovQjAvwAB/?l=1', 'url_input');
+  expect(request).toHaveBeenCalledWith('/api/v1/shares', {
+    method: 'POST',
+    body: {instagramUrl: 'https://www.instagram.com/reel/DeovQjAvwAB/'},
+  });
+});
+
 test('이미 추출이 끝난 공유는 재사용 완료로 돌려준다', async () => {
   request.mockResolvedValue({sharedMediaId: 3, extractionStatus: 'SUCCEEDED'});
 

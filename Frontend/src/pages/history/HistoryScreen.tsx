@@ -58,7 +58,7 @@ import type {
 } from '../../entities/content/types';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
-import {subscribeSharedSaveState} from '../../lib/reel-save-state';
+import {getSharedSaveState, setSharedSaveState, subscribeSharedSaveState} from '../../lib/reel-save-state';
 
 // 앱이 직접 만든 임시 항목(보낸 직후의 manual-·share- 항목)이 서버 목록에 끝내 안 잡히면
 // 스켈레톤이 영원히 남지 않도록 이 시간이 지나면 숨깁니다.
@@ -746,7 +746,10 @@ export function HistoryScreen({
       if (
         !state ||
         isStale ||
-        (state.status !== 'PENDING' && state.status !== 'PROCESSING')
+        (state.status !== 'PENDING' && state.status !== 'PROCESSING' &&
+          !(state.source === 'url_input' &&
+            !isTemporaryId &&
+            (state.status === 'COMPLETED' || state.status === 'FAILED')))
       ) {
         setPendingShare(null);
         return;
@@ -853,6 +856,14 @@ export function HistoryScreen({
         ...current.filter(item => !refreshedIds.has(item.id)),
       ];
     });
+    const sharedState = getSharedSaveState();
+    if (
+      sharedState?.source === 'url_input' &&
+      (sharedState.status === 'COMPLETED' || sharedState.status === 'FAILED') &&
+      result.reels.some(item => item.id === sharedState.reel.id)
+    ) {
+      setSharedSaveState(null);
+    }
     // 폴링은 첫 페이지만 읽은 목록의 커서만 갱신한다. 더 보기로 이어 읽은 뒤에는
     // 커서가 마지막으로 읽은 페이지를 가리키고, 끝까지 읽어 null이면 그대로 둔다.
     if (replace || !hasLoadedMoreRef.current) setCursor(result.nextCursor);
@@ -1024,6 +1035,8 @@ export function HistoryScreen({
       onError: showErrorIfEmpty,
     });
     sharesSubscriptionRef.current = subscription;
+    // 방문한 탭은 마운트 상태를 유지하므로 다시 열 때 목록을 바로 새로 읽습니다.
+    subscription.refresh().catch(() => undefined);
 
     return () => {
       subscription.unsubscribe();
