@@ -61,7 +61,7 @@ import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import { resolvePlaceCategoryCode } from '../../entities/place/category';
 import type { Place } from '../../entities/place/types';
 import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
-import { getSavedPlaces } from '../../entities/info/api';
+import { getSavedPlaces, searchSavedPlaces } from '../../entities/info/api';
 import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
 import {
   SEARCH_BAR_HEIGHT,
@@ -83,6 +83,12 @@ import {
 } from '../../lib/location-permission';
 
 import type { BackGestureRegion } from '../../components/navigation/SwipeBackStack';
+import { SEARCH_QUERY_MAX_LENGTH } from '../saved-places/useSavedLibrarySearch';
+import {
+  filterPlacesByKeyword,
+  isAuthenticationError,
+  pickSearchedPlaces,
+} from './mapSearch';
 
 type MapScreenProps = {
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
@@ -414,32 +420,44 @@ export function MapScreen({
     [openedFolder, placesWithCoordinates, searchedPlaces],
   );
 
+  // 응답이 오기 전에 검색어가 바뀌거나 지워졌으면(카테고리·폴더 전환 포함) 그 응답은 버립니다.
+  const searchRequestIdRef = useRef(0);
+  const searchKeywordRef = useRef(searchKeyword);
+  searchKeywordRef.current = searchKeyword;
+
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
     if (!keyword) return;
 
-    const normalizedKeyword = keyword
-      .toLocaleLowerCase('ko-KR')
-      .replace(/\s+/g, '');
-    const places = placesWithCoordinates.filter(place =>
-      [place.name, place.category, place.address, place.fullAddress]
-        .filter((value): value is string => Boolean(value))
-        .some(value =>
-          value
-            .toLocaleLowerCase('ko-KR')
-            .replace(/\s+/g, '')
-            .includes(normalizedKeyword),
-        ),
-    );
-
-    trackUi(posthog, UI_EVENTS.mapSearchSubmitted, {
-      result_count: places.length,
-      has_result: places.length > 0,
-      query_length: keyword.length,
-    });
-    setSearchedPlaces(places);
-    setSearchResultSignal(signal => signal + 1);
-    focusMapOnPlaces(places);
+    const requestId = ++searchRequestIdRef.current;
+    const candidatePlaces = placesWithCoordinates;
+    searchSavedPlaces(keyword)
+      .then(results => pickSearchedPlaces(candidatePlaces, results))
+      .catch(error => {
+        if (isAuthenticationError(error)) {
+          onAuthenticationRequired?.();
+          return null;
+        }
+        // 운영 서버에 검색 API가 반영되기 전이나 일시적인 오류에는 기기 안 검색으로 결과를 보여 줍니다.
+        return filterPlacesByKeyword(candidatePlaces, keyword);
+      })
+      .then(places => {
+        if (
+          places === null ||
+          requestId !== searchRequestIdRef.current ||
+          searchKeywordRef.current.trim() !== keyword
+        ) {
+          return;
+        }
+        trackUi(posthog, UI_EVENTS.mapSearchSubmitted, {
+          result_count: places.length,
+          has_result: places.length > 0,
+          query_length: keyword.length,
+        });
+        setSearchedPlaces(places);
+        setSearchResultSignal(signal => signal + 1);
+        focusMapOnPlaces(places);
+      });
   };
 
   const focusMapOnPlaces = (places: Place[]) => {
@@ -911,6 +929,7 @@ export function MapScreen({
                   : 'inside'
               }
               value={page.clearsSearch ? '' : searchKeyword}
+              maxLength={SEARCH_QUERY_MAX_LENGTH}
               onChangeText={handleSearchKeywordChange}
               onFocus={() => setIsSearchFocused(true)}
               onBlur={() => setIsSearchFocused(false)}
