@@ -26,6 +26,7 @@ import {
   BottomNavigationBar,
   SystemNavigationGradient,
 } from './src/components/BottomNavigationBar';
+import {clearRecentShares} from './src/entities/content/recent-shares-poller';
 import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
@@ -745,6 +746,7 @@ function App() {
       }
       if (!tokens) {
         activeUserIdRef.current = null;
+        clearRecentShares();
         setIsAuthenticated(false);
         if (!hasTrackedAppOpenedRef.current) {
           trackAppOpened(posthog, false);
@@ -761,6 +763,7 @@ function App() {
         return;
       }
 
+      if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       // 공유 익스텐션에 세션이 비어 있을 수 있어 먼저 채운 뒤 대기 중인 공유를 재개합니다.
@@ -816,6 +819,7 @@ function App() {
       if (event === 'SIGNED_OUT') {
         loginEntryRef.current = null;
         activeUserIdRef.current = null;
+        clearRecentShares();
         setIsAuthenticated(false);
         setFlowState(INITIAL_FLOW_STATE);
         setIsOnboardingVisible(true);
@@ -827,6 +831,7 @@ function App() {
       }
 
       setSocialLoginError(null);
+      if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       setIsOnboardingVisible(false);
@@ -1374,6 +1379,7 @@ function App() {
     setProfileError(null);
     setMyPageOverlay(null);
     activeUserIdRef.current = null;
+        clearRecentShares();
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
     showAlert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');

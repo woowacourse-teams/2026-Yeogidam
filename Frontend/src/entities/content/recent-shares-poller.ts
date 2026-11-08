@@ -26,6 +26,22 @@ let inFlight: Promise<RecentSharesSnapshot> | null = null;
 /** 예약된 차례의 요청이 진행 중이면 끝난 뒤 schedule()이 다음 차례를 잡습니다. */
 let isScheduledFetchRunning = false;
 let appStateSubscription: {remove: () => void} | null = null;
+/** 마지막으로 받은 목록입니다. 화면이 다시 마운트돼도 다음 폴링 전까지 이 값을 보여 줍니다. */
+let lastSnapshot: RecentSharesSnapshot | null = null;
+/** 캐시를 비울 때 올려, 비우기 전에 보낸 요청의 응답이 캐시를 되살리지 못하게 합니다. */
+let cacheGeneration = 0;
+
+/** 마지막으로 받은 공유 목록입니다. 아직 받은 적이 없거나 비워졌으면 null입니다. */
+export function getRecentSharesSnapshot(): RecentSharesSnapshot | null {
+  return lastSnapshot;
+}
+
+/** 로그아웃·탈퇴·계정 변경 때 호출해 이전 계정의 목록이 남지 않게 합니다. */
+export function clearRecentShares() {
+  lastSnapshot = null;
+  cacheGeneration += 1;
+  inFlight = null;
+}
 
 function currentIntervalMs(): number | null {
   let interval: number | null = null;
@@ -38,8 +54,11 @@ function currentIntervalMs(): number | null {
 function fetchRecentShares(): Promise<RecentSharesSnapshot> {
   if (inFlight) return inFlight;
 
+  const generation = cacheGeneration;
   const request = getHistoryReels().then(
     snapshot => {
+      if (generation !== cacheGeneration) return snapshot;
+      lastSnapshot = snapshot;
       subscribers.forEach(subscriber => subscriber.onResult(snapshot));
       return snapshot;
     },

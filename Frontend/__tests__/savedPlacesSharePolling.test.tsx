@@ -5,6 +5,7 @@ import {ScrollView} from 'react-native';
 import {getReelProcessingStatus, saveContent} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {getHistoryReels} from '../src/entities/content/history-api';
+import {clearRecentShares} from '../src/entities/content/recent-shares-poller';
 import {deleteSavedMedia, getSavedMedia} from '../src/entities/content/saved-media-api';
 import type {HistoryReel} from '../src/entities/content/types';
 import {deleteSavedPlaces, getSavedPlaces} from '../src/entities/info/api';
@@ -106,6 +107,7 @@ beforeEach(() => {
     status: 'PROCESSING',
     reused: false,
   });
+  clearRecentShares();
   jest.mocked(getHistoryReels).mockReset();
   jest.mocked(getSavedMedia).mockReset().mockResolvedValue({reels: [], nextCursor: null});
   jest.mocked(deleteSavedMedia).mockReset().mockResolvedValue(undefined);
