@@ -84,6 +84,85 @@ export type PlaceResultEmptyState =
   | { kind: 'noSavedPlaces'; category: string | null }
   | { kind: 'outOfArea'; isSearch: boolean };
 
+/** 빈 안내가 바뀔 때 새 안내를 서서히 보여 줘, 칩을 넘길 때 그림이 툭 바뀌지 않게 합니다. */
+function FadeInOnChange({ children }: { children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [opacity]);
+  return (
+    <Animated.View style={[styles.emptyMessage, { opacity }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function PlaceResultEmptyMessage({
+  emptyState,
+}: {
+  emptyState: PlaceResultEmptyState;
+}) {
+  return emptyState.kind === 'noSearchResults' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-search-no-results-cropped.png')}
+        style={styles.searchEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
+      <Text style={styles.emptyResultText}>
+        다른 키워드로 다시 검색해보세요.
+      </Text>
+    </>
+  ) : emptyState.kind === 'noSearchResultsInCategory' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-category-cropped.png')}
+        style={styles.categoryEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category} 카테고리에 검색 결과가 없어요
+      </Text>
+      <Text style={styles.emptyResultText}>다른 카테고리를 골라보세요.</Text>
+    </>
+  ) : emptyState.kind === 'noSavedPlaces' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
+        style={styles.emptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category
+          ? `${emptyState.category} 카테고리에 저장한 장소가 없어요`
+          : '아직 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        {emptyState.category
+          ? '다른 카테고리를 골라보세요.'
+          : '장소를 저장하면 지도에서 확인할 수 있어요.'}
+      </Text>
+    </>
+  ) : (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-looking-around-cropped.png')}
+        style={styles.areaEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.isSearch
+          ? '이 지도 영역에 검색 결과가 없어요'
+          : '이 지도 영역에 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        지도를 움직여 다른 곳도 확인해보세요.
+      </Text>
+    </>
+  );
+}
+
 type PlaceResultSheetProps = {
   pageHeight: number;
   renderPage: (sheet: React.ReactNode, page: MapSheetPage) => React.ReactNode;
@@ -1286,64 +1365,10 @@ export function PlaceResultSheet({
                   <Text style={styles.emptyResultText}>
                     저장한 장소를 불러오지 못했어요.
                   </Text>
-                ) : emptyState.kind === 'noSearchResults' ? (
-                  <>
-                    <Image
-                      source={require('../../../assets/illustrations/dami-search-no-results-cropped.png')}
-                      style={styles.searchEmptyIllustration}
-                    />
-                    <Text style={styles.emptyResultTitle}>
-                      검색 결과가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      다른 키워드로 다시 검색해보세요.
-                    </Text>
-                  </>
-                ) : emptyState.kind === 'noSearchResultsInCategory' ? (
-                  <>
-                    <Image
-                      source={require('../../../assets/illustrations/dami-empty-category-cropped.png')}
-                      style={styles.categoryEmptyIllustration}
-                    />
-                    <Text style={styles.emptyResultTitle}>
-                      {emptyState.category} 카테고리에 검색 결과가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      다른 카테고리를 골라보세요.
-                    </Text>
-                  </>
-                ) : emptyState.kind === 'noSavedPlaces' ? (
-                  <>
-                    <Image
-                      source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
-                      style={styles.emptyIllustration}
-                    />
-                    <Text style={styles.emptyResultTitle}>
-                      {emptyState.category
-                        ? `${emptyState.category} 카테고리에 저장한 장소가 없어요`
-                        : '아직 저장한 장소가 없어요'}
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      {emptyState.category
-                        ? '다른 카테고리를 골라보세요.'
-                        : '장소를 저장하면 지도에서 확인할 수 있어요.'}
-                    </Text>
-                  </>
                 ) : (
-                  <>
-                    <Image
-                      source={require('../../../assets/illustrations/dami-looking-around-cropped.png')}
-                      style={styles.areaEmptyIllustration}
-                    />
-                    <Text style={styles.emptyResultTitle}>
-                      {emptyState.isSearch
-                        ? '이 지도 영역에 검색 결과가 없어요'
-                        : '이 지도 영역에 저장한 장소가 없어요'}
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      지도를 움직여 다른 곳도 확인해보세요.
-                    </Text>
-                  </>
+                  <FadeInOnChange key={JSON.stringify(emptyState)}>
+                    <PlaceResultEmptyMessage emptyState={emptyState} />
+                  </FadeInOnChange>
                 )}
               </View>
             }
@@ -1634,6 +1659,9 @@ const styles = StyleSheet.create({
   emptyResult: {
     paddingTop: 34,
     paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  emptyMessage: {
     alignItems: 'center',
   },
   // 화면이 넘긴 빈 상태(예: 빈 폴더)는 위 헤더에 붙여 보여줍니다.
