@@ -11,6 +11,7 @@ import {
   getReelBackGestureRegion,
   ReelDetailScreen,
   shouldCaptureSheetDrag,
+  shouldDismissCaptionOnDragEnd,
 } from '../src/pages/reel-detail/ReelDetailScreen';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
@@ -238,12 +239,36 @@ describe('시트 끌기 제스처', () => {
     expect(shouldCaptureSheetDrag({...base, isCaptionOpen: true, startY: 650})).toBe(true);
   });
 
+  test('캡션이 맨 위일 때만 아래로 끌어 닫는 제스처를 받는다', () => {
+    const open = {...base, isCaptionOpen: true, dy: 40, startY: 300};
+    expect(shouldCaptureSheetDrag({...open, captionScrollY: 0})).toBe(true);
+    expect(shouldCaptureSheetDrag({...open, captionScrollY: 120})).toBe(false);
+    expect(shouldCaptureSheetDrag(open)).toBe(false);
+  });
+
   test('펼친 상태에서는 시트 윗부분·이미지 영역의 아래로 끌기만 받는다', () => {
     const expanded = {...base, isExpanded: true, sheetTop: 250, dy: 40};
     expect(shouldCaptureSheetDrag({...expanded, startY: 100})).toBe(true); // 이미지 영역
     expect(shouldCaptureSheetDrag({...expanded, startY: 300})).toBe(true); // 손잡이·제목 줄
     expect(shouldCaptureSheetDrag({...expanded, startY: 500})).toBe(false); // 장소 목록 스크롤
     expect(shouldCaptureSheetDrag({...expanded, startY: 100, dy: -40})).toBe(false);
+  });
+});
+
+describe('캡션 스크롤 끌기 종료', () => {
+  test('Android는 맨 위에서 아래로 빠르게 끌었을 때만 닫는다', () => {
+    const base = {platform: 'android', offsetY: 0, velocityY: 0.5};
+    expect(shouldDismissCaptionOnDragEnd(base)).toBe(true);
+    expect(shouldDismissCaptionOnDragEnd({...base, velocityY: 0.1})).toBe(false);
+    expect(shouldDismissCaptionOnDragEnd({...base, velocityY: -0.5})).toBe(false);
+    expect(shouldDismissCaptionOnDragEnd({...base, offsetY: 120})).toBe(false);
+  });
+
+  test('iOS는 맨 위에서 충분히 당겼을 때만 닫는다', () => {
+    const base = {platform: 'ios', offsetY: -80, velocityY: 0};
+    expect(shouldDismissCaptionOnDragEnd(base)).toBe(true);
+    expect(shouldDismissCaptionOnDragEnd({...base, offsetY: -20})).toBe(false);
+    expect(shouldDismissCaptionOnDragEnd({...base, offsetY: 0})).toBe(false);
   });
 });
 
