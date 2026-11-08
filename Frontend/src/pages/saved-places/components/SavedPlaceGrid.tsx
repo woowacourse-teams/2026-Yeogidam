@@ -1,8 +1,16 @@
 import React, {useRef} from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
+import {getMiddleCategory} from '../../../entities/place/category';
 import type {Place} from '../../../entities/place/types';
+import {LIBRARY_GUTTER} from './libraryTheme';
 
 type SavedPlaceGridProps = {
   isEditing?: boolean;
@@ -13,6 +21,11 @@ type SavedPlaceGridProps = {
   selectedPlaceIds?: ReadonlySet<string>;
 };
 
+// 지도 화면의 장소 리스트(PlaceResultSheet)와 같은 행 크기입니다.
+const ROW_HEIGHT = 116;
+const PHOTO_HEIGHT = 92;
+
+/** 보관함의 장소 목록. 지도 화면의 리스트처럼 사진·이름·카테고리·주소를 한 행에 보여 줍니다. */
 export function SavedPlaceGrid({
   isEditing = false,
   places,
@@ -22,101 +35,155 @@ export function SavedPlaceGrid({
   selectedPlaceIds,
 }: SavedPlaceGridProps) {
   const didLongPressRef = useRef(false);
+  const {width: windowWidth} = useWindowDimensions();
+  const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
 
   return (
-    <View style={styles.grid}>
-      {places.map((place, index) => (
-        <View key={`${place.id}-${index}`} style={styles.card}>
-          <Pressable
-            accessibilityLabel={
-              isEditing
-                ? `${place.name} ${selectedPlaceIds?.has(place.id) ? '선택 해제' : '선택'}`
-                : place.name
-            }
-            accessibilityRole="button"
-            onLongPress={() => {
-              if (!isEditing) {
-                didLongPressRef.current = true;
-                onLongPressPlace?.();
+    <View style={styles.list}>
+      {places.map((place, index) => {
+        const selected = selectedPlaceIds?.has(place.id) ?? false;
+        const middleCategory = getMiddleCategory(place.category);
+
+        return (
+          <View key={`${place.id}-${index}`} style={styles.row}>
+            <Pressable
+              accessibilityLabel={
+                isEditing
+                  ? `${place.name} ${selected ? '선택 해제' : '선택'}`
+                  : place.name
               }
-            }}
-            onPress={() => {
-              if (didLongPressRef.current) {
+              accessibilityRole="button"
+              onLongPress={() => {
+                if (!isEditing) {
+                  didLongPressRef.current = true;
+                  onLongPressPlace?.();
+                }
+              }}
+              onPress={() => {
+                if (didLongPressRef.current) {
+                  didLongPressRef.current = false;
+                  return;
+                }
+
+                if (isEditing) {
+                  onTogglePlaceSelection?.(place.id);
+                  return;
+                }
+
+                onPressPlace(place, index + 1);
+              }}
+              onPressIn={() => {
                 didLongPressRef.current = false;
-                return;
-              }
-
-              if (isEditing) {
-                onTogglePlaceSelection?.(place.id);
-                return;
-              }
-
-              onPressPlace(place, index + 1);
-            }}
-            onPressIn={() => {
-              didLongPressRef.current = false;
-            }}
-            style={styles.cardBody}>
-            {place.image ? (
-              <Image source={place.image} style={styles.image} />
-            ) : (
-              <View style={styles.imagePlaceholder} />
-            )}
-            <LinearGradient
-              colors={[
-                'rgba(0, 0, 0, 0)',
-                'rgba(0, 0, 0, 0.22)',
-                'rgba(0, 0, 0, 0.58)',
-                'rgba(0, 0, 0, 0.86)',
-              ]}
-              locations={[0, 0.38, 0.72, 1]}
-              pointerEvents="none"
-              style={styles.dim}
-            />
-            <View style={styles.label}>
-              <Text style={styles.name}>{place.name}</Text>
-              <Text style={styles.address}>{place.address}</Text>
-            </View>
-            {isEditing ? (
-              <View
-                style={[
-                  styles.selectionIndicator,
-                  selectedPlaceIds?.has(place.id) && styles.selectionIndicatorSelected,
-                ]}>
-                {selectedPlaceIds?.has(place.id) ? (
-                  <Text style={styles.selectionCheck}>✓</Text>
+              }}
+              style={({pressed}) => [styles.card, pressed && styles.pressed]}>
+              <View style={{width: photoWidth}}>
+                {place.image ? (
+                  <Image source={place.image} style={styles.photo} />
+                ) : (
+                  <View style={[styles.photo, styles.photoPlaceholder]} />
+                )}
+                {isEditing ? (
+                  <View
+                    style={[
+                      styles.selectionIndicator,
+                      selected && styles.selectionIndicatorSelected,
+                    ]}>
+                    {selected ? (
+                      <Text style={styles.selectionCheck}>✓</Text>
+                    ) : null}
+                  </View>
                 ) : null}
               </View>
-            ) : null}
-          </Pressable>
-        </View>
-      ))}
+              <View style={styles.text}>
+                {middleCategory ? (
+                  <View style={styles.titleRow}>
+                    <Text numberOfLines={1} style={styles.name}>
+                      {place.name}
+                    </Text>
+                    <View style={styles.categoryPill}>
+                      <Text style={styles.category}>{middleCategory}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text numberOfLines={1} style={styles.name}>
+                    {place.name}
+                  </Text>
+                )}
+                <Text style={styles.address}>
+                  {place.fullAddress || place.address}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: {
-    padding: 12,
+  list: {
+    paddingHorizontal: LIBRARY_GUTTER,
     paddingBottom: 130,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  },
+  row: {
+    height: ROW_HEIGHT,
+    paddingVertical: 12,
   },
   card: {
-    width: '48.5%',
-    height: 248,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#eeeeee',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    minHeight: PHOTO_HEIGHT,
   },
-  cardBody: {
+  pressed: {
+    opacity: 0.72,
+  },
+  photo: {
+    width: '100%',
+    height: PHOTO_HEIGHT,
+    borderRadius: 4,
+    resizeMode: 'cover',
+  },
+  photoPlaceholder: {
+    backgroundColor: '#F1F3FB',
+  },
+  text: {
     flex: 1,
+    paddingLeft: 14,
+    paddingTop: 3,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  name: {
+    flexShrink: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1a1a2e',
+  },
+  categoryPill: {
+    borderWidth: 1.5,
+    borderColor: '#C9C9CE',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  category: {
+    color: '#77777D',
+    fontSize: 12,
+  },
+  address: {
+    fontSize: 12,
+    color: '#8e8e93',
+    lineHeight: 18,
+    marginTop: 7,
   },
   selectionIndicator: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 6,
+    left: 6,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -135,38 +202,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     lineHeight: 18,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#d8dffe',
-  },
-  dim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 100,
-  },
-  label: {
-    position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: 10,
-  },
-  name: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  address: {
-    color: '#ffffff',
-    fontSize: 10,
-    marginTop: 2,
   },
 });

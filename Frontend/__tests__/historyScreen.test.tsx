@@ -13,6 +13,7 @@ import {HistoryScreen} from '../src/pages/history/HistoryScreen';
 import {AppAlertHost} from '../src/components/AppAlertHost';
 import {AppModal} from '../src/components/AppModal';
 import {getCurrentAppAlert} from '../src/lib/app-alert';
+import {setSharedSaveState} from '../src/lib/reel-save-state';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
 jest.mock('react-native-safe-area-context', () => ({
@@ -85,6 +86,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  setSharedSaveState(null);
   jest.clearAllTimers();
   jest.useRealTimers();
 });
@@ -100,6 +102,23 @@ test('처리 중 항목도 단건 조회 없이 3초 목록 폴링으로만 갱�
   await tick(3000);
   expect(getHistoryReels).toHaveBeenCalledTimes(2);
   expect(getHistoryReelDetail).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('방문했던 히스토리 탭을 다시 열면 첫 페이지를 즉시 새로 읽는다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<HistoryScreen onBack={jest.fn()} isActive={false} />);
+  });
+  expect(getHistoryReels).toHaveBeenCalledTimes(1);
+
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([8]), nextCursor: null});
+  await ReactTestRenderer.act(async () => {
+    renderer.update(<HistoryScreen onBack={jest.fn()} isActive />);
+  });
+  expect(getHistoryReels).toHaveBeenCalledTimes(2);
+  expect(renderedIds(renderer)).toEqual(['8']);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -258,6 +277,139 @@ test('더 보기 중에 폴링이 끝나도 같은 커서로 다시 요청하지
     resolveMore({reels: page([2, 1]), nextCursor: null});
   });
   expect(renderedIds(renderer)).toEqual(['5', '4', '3', '2', '1']);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('onOpenReel이 있으면 성공한 항목은 게시물 상세로 넘기고 히스토리 안 결과 화면은 열지 않는다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([5, 4]), nextCursor: null});
+  const onOpenReel = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />,
+    );
+  });
+
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '4' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(onOpenReel).toHaveBeenCalledWith(
+    expect.objectContaining({id: '4', processing_status: 'COMPLETED'}),
+  );
+  expect(getHistoryReelDetail).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test.each(['COMPLETED', 'FAILED'] as const)(
+  '보관함에서 삭제한 %s 히스토리 항목은 안내만 보여 주고 상세를 열지 않는다',
+  async status => {
+    jest.mocked(getHistoryReels).mockResolvedValue({
+      reels: [{...reel(4, status), deleted_from_library: true}],
+      nextCursor: null,
+    });
+    const onOpenReel = jest.fn();
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <>
+          <AppAlertHost />
+          <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />
+        </>,
+      );
+    });
+
+    const item = renderer.root.find(
+      node => node.props?.reel?.id === '4' && typeof node.props?.onPress === 'function',
+    );
+    await ReactTestRenderer.act(async () => item.props.onPress());
+
+    expect(getCurrentAppAlert()?.title).toBe('보관함에서 삭제한 게시물이에요.');
+    expect(onOpenReel).not.toHaveBeenCalled();
+    expect(getHistoryReelDetail).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  },
+);
+
+test('onOpenReel이 있으면 처리 중인 항목도 진행 화면으로 넘긴다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: [{...reel(9, 'PROCESSING'), instagram_thumbnail_url: 'https://cdn.example.com/9.jpg'}],
+    nextCursor: null,
+  });
+  const onOpenReel = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />,
+    );
+  });
+
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '9' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(onOpenReel).toHaveBeenCalledWith(
+    expect.objectContaining({id: '9', processing_status: 'PROCESSING'}),
+  );
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('onOpenReel이 있어도 실패한 항목은 히스토리의 실패 화면을 연다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([7], 'FAILED'), nextCursor: null});
+  const onOpenReel = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={jest.fn()} onOpenReel={onOpenReel} />,
+    );
+  });
+
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(onOpenReel).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('이미 제보한 실패 이력은 제보 완료 상태로 연다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({
+    reels: [{...reel(7, 'FAILED'), reported: true}],
+    nextCursor: null,
+  });
+  const renderer = await render();
+  const item = renderer.root.find(
+    node => node.props.reel?.id === '7' && typeof node.props.onPress === 'function',
+  );
+  await ReactTestRenderer.act(async () => item.props.onPress());
+
+  expect(hasText(renderer, '제보 완료')).toBe(true);
+  expect(renderer.root.findAll(node =>
+    node.props.disabled === true && node.findAll(child => child.props.children === '제보 완료').length > 0,
+  ).length).toBeGreaterThan(0);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('보관함에서 선택한 실패 항목은 상세를 바로 열고 뒤로 가면 보관함으로 돌아간다', async () => {
+  jest.mocked(getHistoryReels).mockResolvedValue({reels: page([7], 'FAILED'), nextCursor: null});
+  const onBack = jest.fn();
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <HistoryScreen onBack={onBack} />,
+    );
+  });
+
+  await ReactTestRenderer.act(async () => {
+    renderer.update(<HistoryScreen initialFailureReel={reel(7, 'FAILED')} onBack={onBack} />);
+  });
+
+  const back = renderer.root.findByProps({accessibilityLabel: '보관함으로 돌아가기'});
+  await ReactTestRenderer.act(async () => back.props.onPress());
+  expect(onBack).toHaveBeenCalledTimes(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -449,6 +601,128 @@ test('재시도 접수에 실패하면 실패 상세에 머문 채 안내한다'
   ).toBeGreaterThan(0);
   alertSpy.mockRestore();
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+describe('저장 요청 직후의 처리 중 스켈레톤', () => {
+  const sharing = (
+    id: string,
+    status: HistoryReel['processing_status'] = 'PROCESSING',
+  ) =>
+    setSharedSaveState({
+      url: 'https://www.instagram.com/reel/abc/',
+      status,
+      source: 'url_input',
+      reel: {
+        id,
+        processing_status: status,
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date().toISOString(),
+      },
+    });
+
+  const itemsOf = (renderer: ReactTestRenderer.ReactTestRenderer, id: string) =>
+    renderer.root.findAll(
+      node => node.props.reel?.id === id && typeof node.props.onLayout === 'function',
+    );
+
+  test('서버 목록이 비어 있어도 요청 직후 처리 중 항목을 바로 보여 준다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    sharing('manual-1');
+    const renderer = await render();
+
+    const items = itemsOf(renderer, 'manual-1');
+    expect(items.length).toBeGreaterThan(0);
+    expect(items[0].props.reel).toMatchObject({
+      processing_status: 'PROCESSING',
+      instagram_thumbnail_url: null,
+      instagram_description: null,
+    });
+    // 썸네일·제목이 아직 없으니 눌리지 않는 스켈레톤 카드다.
+    expect(items[0].props.onPress).toBeUndefined();
+    expect(hasText(renderer, '아직 공유된 콘텐츠가 없어요')).toBe(false);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('요청 뒤에 상태가 생기면 열려 있는 히스토리에도 바로 나타난다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    const renderer = await render();
+    expect(itemsOf(renderer, 'manual-2')).toHaveLength(0);
+
+    await ReactTestRenderer.act(async () => sharing('manual-2'));
+    expect(itemsOf(renderer, 'manual-2').length).toBeGreaterThan(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('서버 목록에 같은 공유가 오면 임시 항목과 겹치지 않는다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: page([9], 'PROCESSING'), nextCursor: null});
+    sharing('9');
+    const renderer = await render();
+
+    const ids = renderer.root
+      .findAll(node => typeof node.props.onLayout === 'function' && node.props.reel)
+      .map(node => node.props.reel.id as string);
+    expect(new Set(ids)).toEqual(new Set(['9']));
+    expect(
+      renderer.root.findAll(
+        node =>
+          node.props.reel?.id === '9' &&
+          node.props.reel?.instagram_url === 'https://www.instagram.com/reel/9/',
+      ).length,
+    ).toBeGreaterThan(0); // 서버 쪽 항목이 쓰였다
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('서버가 접수한 완료·실패 링크는 보이고 요청 실패는 숨긴다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    sharing('done-COMPLETED', 'COMPLETED');
+    const completedRenderer = await render();
+    expect(itemsOf(completedRenderer, 'done-COMPLETED')).toHaveLength(1);
+    await ReactTestRenderer.act(async () => completedRenderer.unmount());
+
+    sharing('done-FAILED', 'FAILED');
+    const failedRenderer = await render();
+    expect(itemsOf(failedRenderer, 'done-FAILED')).toHaveLength(1);
+    await ReactTestRenderer.act(async () => failedRenderer.unmount());
+
+    sharing('manual-failed-1', 'FAILED');
+    const requestFailedRenderer = await render();
+    expect(itemsOf(requestFailedRenderer, 'manual-failed-1')).toHaveLength(0);
+    await ReactTestRenderer.act(async () => requestFailedRenderer.unmount());
+  });
+
+  test('보낸 지 오래된 임시 항목은 스켈레톤이 영원히 남지 않게 숨긴다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels: [], nextCursor: null});
+    setSharedSaveState({
+      url: 'https://www.instagram.com/reel/abc/',
+      status: 'PENDING',
+      source: 'instagram_share',
+      reel: {
+        id: 'share-old',
+        processing_status: 'PENDING',
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+      },
+    });
+    const renderer = await render();
+    expect(itemsOf(renderer, 'share-old')).toHaveLength(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('비회원 히스토리에는 임시 항목을 끼워 넣지 않는다', async () => {
+    sharing('manual-3');
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <HistoryScreen guestReels={[]} onBack={jest.fn()} />,
+      );
+    });
+    expect(itemsOf(renderer, 'manual-3')).toHaveLength(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
 });
 
 test('같은 분석 버전이라 재시도를 받지 않으면(MEDIA400_016) 안내 없이 처리 중으로 보여 준다', async () => {

@@ -90,7 +90,7 @@ export function PlaceDetailHeader({
           ) : null}
           {onPressDelete ? (
             <Pressable
-              accessibilityLabel="장소 삭제하기"
+              accessibilityLabel="장소 북마크 해제하기"
               accessibilityRole="button"
               disabled={isDeleting}
               hitSlop={6}
@@ -101,7 +101,7 @@ export function PlaceDetailHeader({
         }}
               style={[styles.iconButton, isDeleting && styles.iconButtonDisabled]}
             >
-              <MaterialIcons color="#9A9BB0" name="delete-outline" size={20} />
+              <MaterialIcons color="#7186ed" name="bookmark" size={20} />
             </Pressable>
           ) : null}
         </View>

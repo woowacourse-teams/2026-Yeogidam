@@ -74,7 +74,98 @@ export type MapSheetPage = {
   translateY: Animated.Value | number;
 };
 
+/**
+ * 장소 목록이 비었을 때의 안내입니다. 보관함과 같은 기준(검색 결과 없음, 카테고리에만 없음, 저장한 장소 없음)에
+ * 장소는 있지만 지금 지도 영역에 없는 경우를 더했습니다.
+ */
+export type PlaceResultEmptyState =
+  | { kind: 'noSearchResults' }
+  | { kind: 'noSearchResultsInCategory'; category: string }
+  | { kind: 'noSavedPlaces'; category: string | null }
+  | { kind: 'outOfArea'; isSearch: boolean };
+
+/** 빈 안내가 바뀔 때 새 안내를 서서히 보여 줘, 칩을 넘길 때 그림이 툭 바뀌지 않게 합니다. */
+function FadeInOnChange({ children }: { children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [opacity]);
+  return (
+    <Animated.View style={[styles.emptyMessage, { opacity }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function PlaceResultEmptyMessage({
+  emptyState,
+}: {
+  emptyState: PlaceResultEmptyState;
+}) {
+  return emptyState.kind === 'noSearchResults' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-search-no-results-cropped.png')}
+        style={styles.searchEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
+      <Text style={styles.emptyResultText}>
+        다른 키워드로 다시 검색해보세요.
+      </Text>
+    </>
+  ) : emptyState.kind === 'noSearchResultsInCategory' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-category-cropped.png')}
+        style={styles.categoryEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category} 카테고리에 검색 결과가 없어요
+      </Text>
+      <Text style={styles.emptyResultText}>다른 카테고리를 골라보세요.</Text>
+    </>
+  ) : emptyState.kind === 'noSavedPlaces' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
+        style={styles.emptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category
+          ? `${emptyState.category} 카테고리에 저장한 장소가 없어요`
+          : '아직 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        {emptyState.category
+          ? '다른 카테고리를 골라보세요.'
+          : '장소를 저장하면 지도에서 확인할 수 있어요.'}
+      </Text>
+    </>
+  ) : (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-looking-around-cropped.png')}
+        style={styles.areaEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.isSearch
+          ? '이 지도 영역에 검색 결과가 없어요'
+          : '이 지도 영역에 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        지도를 움직여 다른 곳도 확인해보세요.
+      </Text>
+    </>
+  );
+}
+
 type PlaceResultSheetProps = {
+  /** 지정하면 장소 상세의 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   pageHeight: number;
   renderPage: (sheet: React.ReactNode, page: MapSheetPage) => React.ReactNode;
   /** Keep the native map outside the sheet navigation stack. */
@@ -86,13 +177,12 @@ type PlaceResultSheetProps = {
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   backPlaces?: Place[];
   places: Place[];
-  isSearchActive?: boolean;
-  hasSavedPlaces?: boolean;
+  emptyState?: PlaceResultEmptyState;
   /** 목록 위에 고정되는 폴더 전환/폴더 상세 헤더입니다. */
   folderHeader?: React.ReactNode;
   /** 지정하면 장소 목록 대신 이 내용을 보여줍니다(폴더 목록). */
   folderContent?: React.ReactNode;
-  /** 뒤로 스와이프할 때 미리 보여줄 이전 화면의 헤더와 내용입니다(폴더 안에서 폴더 목록으로). */
+  /** 폴더 상세 뒤에 유지할 폴더 목록 화면의 헤더와 내용입니다. */
   backFolderHeader?: React.ReactNode;
   backFolderContent?: React.ReactNode;
   /** 장소 목록이 비었을 때 기본 안내 대신 보여줄 내용입니다. */
@@ -154,6 +244,7 @@ function getMiddleCategory(category?: string) {
 }
 
 export function PlaceResultSheet({
+  onOpenReel,
   pageHeight,
   renderPage,
   renderMap,
@@ -164,8 +255,7 @@ export function PlaceResultSheet({
   onBackGestureRegionChange,
   backPlaces,
   places,
-  isSearchActive = false,
-  hasSavedPlaces = false,
+  emptyState = { kind: 'noSavedPlaces', category: null },
   folderHeader,
   folderContent,
   backFolderHeader,
@@ -412,7 +502,7 @@ export function PlaceResultSheet({
     setIsReelsLoading(true);
     setReelsError(null);
     try {
-      setSelectedPlaceReels(await getPlaceReels(selectedPlace.savedPlaceId));
+      setSelectedPlaceReels(await getPlaceReels(selectedPlace.id));
     } catch (error) {
       setReelsError(error as PlaceReelsApiError);
     } finally {
@@ -622,11 +712,9 @@ export function PlaceResultSheet({
     () => ({
       // 끝까지 올린 상세(페이지 모드)에서도 핸들을 끌어 시트를 내릴 수 있어야 하므로 막지 않습니다.
       onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dy) > 4 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
-        Math.abs(gesture.dy) > 4 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         const revision = ++sheetDragRevision.current;
@@ -1016,15 +1104,15 @@ export function PlaceResultSheet({
     selectedPlace,
   ]);
 
-  // 삭제 전에 보관함과 같은 문구로 한 번 더 확인합니다.
+  // 북마크 해제 전에 보관함과 같은 문구로 한 번 더 확인합니다.
   const confirmDelete = useCallback(() => {
     if (isDeleting || !selectedPlace) {
       return;
     }
     analytics.modal('delete_confirm');
     showAlert(
-      '선택한 장소를 삭제할까요?',
-      '선택한 1곳의 장소가 보관함에서 삭제됩니다.',
+      '이 장소의 북마크를 해제할까요?',
+      '장소 보관함과 지도에서 사라져요. 해당 게시물에서 다시 북마크할 수 있어요.',
       [
         {
           text: '취소',
@@ -1032,8 +1120,7 @@ export function PlaceResultSheet({
           onPress: () => analytics.button('delete_confirm_cancel'),
         },
         {
-          text: '삭제',
-          style: 'destructive',
+          text: '북마크 해제',
           onPress: () => {
             analytics.button('delete_confirm_ok');
             handleDelete().catch(() => undefined);
@@ -1043,12 +1130,12 @@ export function PlaceResultSheet({
     );
   }, [analytics, handleDelete, isDeleting, selectedPlace]);
 
-  // 삭제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
+  // 해제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
   useEffect(() => {
     if (!deleteError) {
       return;
     }
-    showAlert('삭제하지 못했어요', deleteError.message);
+    showAlert('북마크를 해제하지 못했어요', deleteError.message);
     setDeleteError(null);
   }, [deleteError]);
 
@@ -1117,6 +1204,7 @@ export function PlaceResultSheet({
             reelsError={reelsError}
             isReelsLoading={isReelsLoading}
             onRetryReels={loadSelectedPlaceReels}
+            onOpenReel={onOpenReel}
             hideBack
             showTitle={false}
             showMetadata={snapIndex !== 2}
@@ -1148,10 +1236,16 @@ export function PlaceResultSheet({
         </CopyToastProvider>
       </View>
     ) : null;
-  const renderListContent = (snapIndex: number, preview = false) => {
-    // 높이만 내려가는 뒤로가기가 아니라 이전 화면으로 돌아가는 뒤로가기의 미리보기입니다.
-    const isPageBackPreview = preview && !selectedPlace && snapIndex !== 0;
-    const showsBackFolder = isPageBackPreview && backFolderHeader !== undefined;
+  const renderListContent = (
+    snapIndex: number,
+    preview = false,
+    forceBackFolder = false,
+  ) => {
+    // 일반 상태 복귀는 미리보기를 쓰고, 폴더 복귀는 유지 중인 목록 화면을 씁니다.
+    const isPageBackPreview =
+      preview && !selectedPlace && snapIndex !== 0 && !hasFolderDetail;
+    const showsBackFolder =
+      (forceBackFolder || isPageBackPreview) && backFolderHeader !== undefined;
     return (
       <View
         {...(snapIndex === 2 ? panResponder.panHandlers : {})}
@@ -1275,37 +1369,10 @@ export function PlaceResultSheet({
                   <Text style={styles.emptyResultText}>
                     저장한 장소를 불러오지 못했어요.
                   </Text>
-                ) : isSearchActive ? (
-                  <>
-                    <Text style={styles.emptyResultTitle}>
-                      검색 결과가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      다른 키워드로 다시 검색해보세요.
-                    </Text>
-                  </>
-                ) : !hasSavedPlaces ? (
-                  <>
-                    <Image
-                      source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
-                      style={styles.emptyIllustration}
-                    />
-                    <Text style={styles.emptyResultTitle}>
-                      아직 저장한 장소가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      장소를 저장하면 지도에서 확인할 수 있어요.
-                    </Text>
-                  </>
                 ) : (
-                  <>
-                    <Text style={styles.emptyResultTitle}>
-                      이 지도 영역에 저장한 장소가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      지도를 움직여 다른 곳도 확인해보세요.
-                    </Text>
-                  </>
+                  <FadeInOnChange key={JSON.stringify(emptyState)}>
+                    <PlaceResultEmptyMessage emptyState={emptyState} />
+                  </FadeInOnChange>
                 )}
               </View>
             }
@@ -1336,9 +1403,13 @@ export function PlaceResultSheet({
   const backOffset = selectedPlace
     ? snapOffsets[backSnapIndex]
     : listSnapOffsets[backSnapIndex];
+  const folderListOffset = listSnapOffsets[backSnapIndex];
+  const hasFolderDetail =
+    backFolderHeader !== undefined && backFolderContent !== undefined;
   const hasStateBack =
     swipeCollapsesDetail ||
-    (!selectedPlace && (activeSnapIndex === 0 || pageBackAvailable));
+    (!selectedPlace &&
+      (activeSnapIndex === 0 || (!hasFolderDetail && pageBackAvailable)));
   useLayoutEffect(() => {
     if (!selectedPlace) return;
     // Prepare the real retained destination before it can be revealed. This
@@ -1346,7 +1417,7 @@ export function PlaceResultSheet({
     listTranslateY.stopAnimation();
     listTranslateY.setValue(listOffset);
   }, [listOffset, listTranslateY, selectedPlace]);
-  const renderListSheet = (preview = false) => (
+  const renderListSheet = (preview = false, forceBackFolder = false) => (
     <Animated.View
       style={[
         styles.sheet,
@@ -1355,7 +1426,11 @@ export function PlaceResultSheet({
           bottom: bottomTabOffset,
           transform: [
             {
-              translateY: preview ? backOffset : listTranslateY,
+              translateY: preview
+                ? forceBackFolder
+                  ? folderListOffset
+                  : backOffset
+                : listTranslateY,
             },
           ],
         },
@@ -1371,7 +1446,11 @@ export function PlaceResultSheet({
           <View style={styles.pill} />
         </Pressable>
       </View>
-      {renderListContent(preview ? backSnapIndex : listSnapIndex, preview)}
+      {renderListContent(
+        preview ? backSnapIndex : listSnapIndex,
+        preview,
+        forceBackFolder,
+      )}
     </Animated.View>
   );
   const renderDetailSheet = (snapIndex = activeSnapIndex, preview = false) =>
@@ -1415,8 +1494,20 @@ export function PlaceResultSheet({
       <SwipeBackStack
         transparent={!!renderMap}
         gestureRegion={{ top: backGestureTop, bottom: bottomTabOffset }}
-        activeKey={selectedPlace ? 'detail' : 'list'}
-        backKey={hasStateBack ? 'state-back' : selectedPlace ? 'list' : null}
+        activeKey={
+          selectedPlace ? 'detail' : hasFolderDetail ? 'folder-detail' : 'list'
+        }
+        backKey={
+          hasStateBack
+            ? 'state-back'
+            : selectedPlace
+            ? hasFolderDetail
+              ? 'folder-detail'
+              : 'list'
+            : hasFolderDetail
+            ? 'list'
+            : null
+        }
         onSwipeStart={() => refreshBackPreview(revision => revision + 1)}
         transitionKey={`${activeSnapIndex}:${pageBackStateKey}`}
         onBack={() => {
@@ -1456,18 +1547,41 @@ export function PlaceResultSheet({
             : []),
           {
             key: 'list',
-            content: renderPage(renderListSheet(), {
-              isDetail: false,
-              isExpanded: listSnapIndex === 0,
-              place: null,
-              sheetHeight: listHeight,
-              sheetBottomOffset: bottomTabOffset,
-              sheetVisibleHeight: selectedPlace
-                ? listHeight - listOffset
-                : sheetHeight - currentOffset.current,
-              translateY: listTranslateY,
-            }),
+            content: renderPage(
+              renderListSheet(hasFolderDetail, hasFolderDetail),
+              {
+                isBackPreview: hasFolderDetail,
+                isDetail: false,
+                isExpanded:
+                  (hasFolderDetail ? backSnapIndex : listSnapIndex) === 0,
+                place: null,
+                sheetHeight: listHeight,
+                sheetBottomOffset: bottomTabOffset,
+                sheetVisibleHeight: hasFolderDetail
+                  ? listHeight - folderListOffset
+                  : selectedPlace
+                  ? listHeight - listOffset
+                  : sheetHeight - currentOffset.current,
+                translateY: hasFolderDetail ? folderListOffset : listTranslateY,
+              },
+            ),
           },
+          ...(hasFolderDetail
+            ? [
+                {
+                  key: 'folder-detail',
+                  content: renderPage(renderListSheet(), {
+                    isDetail: false,
+                    isExpanded: listSnapIndex === 0,
+                    place: null,
+                    sheetHeight: listHeight,
+                    sheetBottomOffset: bottomTabOffset,
+                    sheetVisibleHeight: sheetHeight - currentOffset.current,
+                    translateY: listTranslateY,
+                  }),
+                },
+              ]
+            : []),
           ...(selectedPlace
             ? [
                 {
@@ -1551,6 +1665,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
   },
+  emptyMessage: {
+    alignItems: 'center',
+  },
   // 화면이 넘긴 빈 상태(예: 빈 폴더)는 위 헤더에 붙여 보여줍니다.
   customEmptyResult: {
     paddingTop: 12,
@@ -1560,6 +1677,26 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 18,
     transform: [{ translateX: -8 }],
+    marginBottom: 12,
+  },
+  // 빈 상자 일러스트(96)는 위 투명 여백 약 16을 빼면 그림 높이가 약 80입니다.
+  // 여백 없는 일러스트도 그림 높이 80에 원본 비율로 맞추고, 위에 16을 두어 그림과 제목 위치를 같게 합니다.
+  searchEmptyIllustration: {
+    width: 75,
+    height: 80,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  areaEmptyIllustration: {
+    width: 92,
+    height: 80,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  categoryEmptyIllustration: {
+    width: 95,
+    height: 80,
+    marginTop: 16,
     marginBottom: 12,
   },
   emptyResultTitle: {

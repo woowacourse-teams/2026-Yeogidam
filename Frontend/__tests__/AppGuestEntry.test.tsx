@@ -27,12 +27,16 @@ import {LoginScreen} from '../src/pages/login/LoginScreen';
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 import {MapScreen} from '../src/pages/map/MapScreen';
 import {HistoryScreen} from '../src/pages/history/HistoryScreen';
+import {ReelDetailScreen} from '../src/pages/reel-detail/ReelDetailScreen';
+import {ReelProcessingScreen} from '../src/pages/reel-processing/ReelProcessingScreen';
+import {getHistoryReels} from '../src/entities/content/history-api';
+import type {HistoryReel} from '../src/entities/content/types';
 import {AccountDeletionScreen} from '../src/pages/my-page/AccountDeletionScreen';
 import {MyPageScreen} from '../src/pages/my-page/MyPageScreen';
 import {deleteAccount, getLinkedDeletionProviders} from '../src/lib/auth/deleteAccount';
 import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {clearShareResult, getShareResults, resumeWaitingShares} from '../src/lib/share-intent';
-import {setSharedSaveState} from '../src/lib/reel-save-state';
+import {getSharedSaveState, setSharedSaveState} from '../src/lib/reel-save-state';
 import {getAppUpdatePolicy} from '../src/lib/app-update-policy';
 import {AppUpdateModal} from '../src/components/AppUpdateModal';
 import {GuestLoginPrompt} from '../src/components/GuestLoginPrompt';
@@ -125,6 +129,11 @@ jest.mock('../src/pages/history/HistoryScreen', () => ({
 
 jest.mock('../src/pages/my-page/MyPageScreen', () => ({
   MyPageScreen: () => null,
+}));
+
+jest.mock('../src/entities/content/history-api', () => ({
+  getHistoryReels: jest.fn(() => Promise.resolve({reels: [], nextCursor: null})),
+  getHistoryReelDetail: jest.fn(() => Promise.resolve({extraction: {extraction_places: []}})),
 }));
 
 jest.mock('../src/pages/my-page/AccountDeletionScreen', () => ({
@@ -506,6 +515,7 @@ test('비회원 지도는 로그인 취소 후 다시 보이고 탭 이동 중�
   expect(renderer.root.findByType(MapScreen).props).toMatchObject({
     isGuest: true,
   });
+  expect(activeBar(renderer).props.active).toBe('map');
   expect(renderer.root.findByType(MapScreen).props.guestPlaces).toBeUndefined();
 
   await ReactTestRenderer.act(async () => {
@@ -582,6 +592,37 @@ test('현재 탭을 다시 누르면 네비게이션은 유지하고 화면만 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+test('보관함과 히스토리의 성공 게시물은 같은 릴스 상세 화면을 연다', async () => {
+  const completedReel: HistoryReel = {
+    id: '81',
+    instagram_url: 'https://www.instagram.com/reel/abc/',
+    instagram_title: null,
+    instagram_description: '성수 카페',
+    instagram_author_username: 'yeogidam',
+    instagram_thumbnail_url: null,
+    processing_status: 'COMPLETED',
+    failure_reason: null,
+    save_mode: null,
+    created_at: '2026-11-07T00:00:00Z',
+  };
+  const renderer = await renderGuestMain();
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenReel(completedReel);
+  });
+  expect(renderer.root.findByType(ReelDetailScreen).props.reel).toBe(completedReel);
+
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(ReelDetailScreen).props.onBack();
+    renderer.root.findByType(SavedPlacesScreen).props.onOpenHistory();
+  });
+  await ReactTestRenderer.act(async () => {
+    renderer.root.findByType(HistoryScreen).props.onOpenReel(completedReel);
+  });
+  expect(renderer.root.findByType(ReelDetailScreen).props.reel).toBe(completedReel);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
 test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async () => {
   const renderer = await renderGuestMain();
 
@@ -589,7 +630,14 @@ test('비회원도 히스토리와 내 정보 화면을 열 수 있다', async (
     activeBar(renderer).props.onNavigate('history');
   });
   expect(renderer.root.findAllByType(LoginScreen)).toHaveLength(0);
-  expect(activeBar(renderer).props.isGuest).toBe(true);
+  // 히스토리는 하단 탭이 아니라 보관함의 '전체보기'로 들어오는 화면이라 탭 바를 숨긴다.
+  const historyStack = renderer.root.findByType(SwipeBackStack);
+  expect(historyStack.props.activeKey).toBe('history');
+  expect(
+    renderer.root
+      .findByProps({testID: 'back-screen-history'})
+      .findAllByType(BottomNavigationBar),
+  ).toHaveLength(0);
   const historyProps = renderer.root.findByType(HistoryScreen).props;
   expect(historyProps.guestReels).toEqual([]);
   expect(historyProps.guestDetails).toBeUndefined();
@@ -851,4 +899,114 @@ test('재인증 문제로 회원탈퇴가 실패하면 탈퇴 화면에 오류�
   expect(clearSpringSession).not.toHaveBeenCalled();
   expect(renderer.root.findAllByType(AccountDeletionScreen)).toHaveLength(1);
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+describe('처리 중인 릴스 열기', () => {
+  const sharedReel = (
+    status: HistoryReel['processing_status'],
+  ): HistoryReel => ({
+    id: '8',
+    instagram_url: 'https://www.instagram.com/reel/abc/',
+    instagram_title: null,
+    instagram_description: '야장 타코',
+    instagram_author_username: 'yeogidam',
+    instagram_thumbnail_url: null,
+    processing_status: status,
+    failure_reason: null,
+    save_mode: null,
+    created_at: new Date().toISOString(),
+  });
+
+  async function openFromLibrary(
+    serverStatus: HistoryReel['processing_status'],
+  ) {
+    jest.mocked(getHistoryReels).mockReset().mockResolvedValue({
+      reels: [sharedReel(serverStatus)],
+      nextCursor: null,
+    });
+    const renderer = await renderGuestMain();
+    await ReactTestRenderer.act(async () => {
+      renderer.root
+        .findByType(SavedPlacesScreen)
+        .props.onOpenReel(sharedReel('PROCESSING'));
+    });
+    return renderer;
+  }
+
+  test('서버에서도 처리 중이면 히스토리가 아니라 진행 화면이 나온다', async () => {
+    const renderer = await openFromLibrary('PROCESSING');
+
+    expect(renderer.root.findAllByType(ReelProcessingScreen)).toHaveLength(1);
+    expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(0);
+    expect(renderer.root.findAllByType(ReelDetailScreen)).toHaveLength(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('분석이 끝나면 진행 화면이 게시물 상세로 바뀐다', async () => {
+    const renderer = await openFromLibrary('COMPLETED');
+
+    expect(renderer.root.findAllByType(ReelDetailScreen)).toHaveLength(1);
+    expect(renderer.root.findAllByType(ReelProcessingScreen)).toHaveLength(0);
+    expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('분석에 실패해도 히스토리로 몰래 가지 않고, 안내의 버튼을 눌러야 히스토리로 간다', async () => {
+    const renderer = await openFromLibrary('FAILED');
+
+    expect(renderer.root.findAllByType(ReelProcessingScreen)).toHaveLength(1);
+    expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(0);
+
+    await ReactTestRenderer.act(async () =>
+      renderer.root
+        .findByProps({accessibilityLabel: '히스토리에서 확인하기'})
+        .props.onPress(),
+    );
+    expect(renderer.root.findAllByType(ReelProcessingScreen)).toHaveLength(0);
+    expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(1);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+});
+
+describe('인스타그램 공유 직후(서버로 가는 중)', () => {
+  afterEach(() => setSharedSaveState(null));
+
+  const shareResult = (transferStatus: string) => ({
+    requestId: 'req-1',
+    url: 'https://www.instagram.com/reel/abc/',
+    status: 'PENDING',
+    transferStatus,
+    retryable: false,
+    updatedAt: Date.now(),
+  });
+
+  test.each(['SAVED', 'WAITING_FOR_NETWORK'])(
+    '%s 단계에서도 대기 중 항목으로 바로 보이게 하고 화면은 옮기지 않는다',
+    async transferStatus => {
+      restoreSpringSession();
+      (getShareResults as jest.Mock).mockResolvedValue([shareResult(transferStatus)]);
+
+      const renderer = await renderAfterSplash();
+
+      expect(getSharedSaveState()).toMatchObject({
+        source: 'instagram_share',
+        status: 'PENDING',
+        shareResultId: 'req-1',
+        reel: {id: 'share-req-1', processing_status: 'PENDING'},
+      });
+      // 사용자가 보던 화면(보관함)은 그대로이고 히스토리가 열리지 않는다.
+      expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(0);
+      await ReactTestRenderer.act(async () => renderer.unmount());
+    },
+  );
+
+  test('로그인 대기(WAITING_FOR_AUTH) 중인 공유는 항목으로 보이지 않는다', async () => {
+    restoreSpringSession();
+    (getShareResults as jest.Mock).mockResolvedValue([shareResult('WAITING_FOR_AUTH')]);
+
+    const renderer = await renderAfterSplash();
+
+    expect(getSharedSaveState()).toBeNull();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
 });

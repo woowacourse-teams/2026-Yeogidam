@@ -35,6 +35,8 @@ type PlaceDetailScreenProps = {
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
   bottomNavigationBar?: ReactNode;
+  /** 지정하면 게시물을 눌렀을 때 인스타그램 대신 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   /** 비회원에게는 폴더 버튼을 보여주지 않습니다. */
   isGuest?: boolean;
 };
@@ -47,6 +49,7 @@ export function PlaceDetailScreen({
   guestReels,
   onDeleteGuestPlaces,
   bottomNavigationBar,
+  onOpenReel,
   isGuest = false,
 }: PlaceDetailScreenProps) {
   const { bottom: bottomInset } = useSafeAreaInsets();
@@ -100,7 +103,7 @@ export function PlaceDetailScreen({
     setIsReelsLoading(true);
     setError(null);
     try {
-      setReels(await getPlaceReels(place.savedPlaceId));
+      setReels(await getPlaceReels(place.id));
     } catch (nextError) {
       const apiError = nextError as PlaceReelsApiError;
       setError(apiError);
@@ -110,7 +113,7 @@ export function PlaceDetailScreen({
     } finally {
       setIsReelsLoading(false);
     }
-  }, [guestReels, onAuthenticationRequired, place.savedPlaceId]);
+  }, [guestReels, onAuthenticationRequired, place.id]);
 
   useEffect(() => {
     loadPosts();
@@ -184,15 +187,14 @@ export function PlaceDetailScreen({
     }
 
     analytics.modal('delete_confirm');
-    showAlert('선택한 장소를 삭제할까요?', '선택한 장소가 보관함에서 삭제됩니다.', [
+    showAlert('이 장소의 북마크를 해제할까요?', '장소 보관함과 지도에서 사라져요. 해당 게시물에서 다시 북마크할 수 있어요.', [
       {
         text: '취소',
         style: 'cancel',
         onPress: () => analytics.button('delete_confirm_cancel'),
       },
       {
-        text: '삭제',
-        style: 'destructive',
+        text: '북마크 해제',
         onPress: () => {
           analytics.button('delete_confirm_ok');
           handleDelete().catch(() => undefined);
@@ -201,12 +203,12 @@ export function PlaceDetailScreen({
     ]);
   }, [analytics, handleDelete, isDeleting]);
 
-  // 더보기 시트가 없으므로 삭제에 실패하면 알림 창으로 알립니다.
+  // 더보기 시트가 없으므로 해제에 실패하면 알림 창으로 알립니다.
   useEffect(() => {
     if (!deleteError) {
       return;
     }
-    showAlert('삭제하지 못했어요', deleteError.message);
+    showAlert('북마크를 해제하지 못했어요', deleteError.message);
     setDeleteError(null);
   }, [deleteError]);
 
@@ -227,6 +229,7 @@ export function PlaceDetailScreen({
         reelsError={error}
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
+        onOpenReel={onOpenReel}
         onPressFolder={
           isGuest
             ? undefined

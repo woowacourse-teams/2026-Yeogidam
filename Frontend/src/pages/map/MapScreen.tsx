@@ -9,6 +9,7 @@ import React, {
 import {
   Animated,
   BackHandler,
+  Image,
   Keyboard,
   Platform,
   Pressable,
@@ -60,8 +61,9 @@ import {
 import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import { resolvePlaceCategoryCode } from '../../entities/place/category';
 import type { Place } from '../../entities/place/types';
+import type { PlaceReel } from '../../entities/info/types';
 import { ONBOARDING_MAP_CENTER } from '../../entities/onboarding/data';
-import { getSavedPlaces } from '../../entities/info/api';
+import { getSavedPlaces, searchSavedPlaces } from '../../entities/info/api';
 import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
 import {
   SEARCH_BAR_HEIGHT,
@@ -73,6 +75,7 @@ import {
   LIST_TOP_GAP,
   PlaceResultSheet,
   type MapSheetPage,
+  type PlaceResultEmptyState,
 } from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 
@@ -83,8 +86,16 @@ import {
 } from '../../lib/location-permission';
 
 import type { BackGestureRegion } from '../../components/navigation/SwipeBackStack';
+import { SEARCH_QUERY_MAX_LENGTH } from '../saved-places/useSavedLibrarySearch';
+import {
+  filterPlacesByKeyword,
+  isAuthenticationError,
+  pickSearchedPlaces,
+} from './mapSearch';
 
 type MapScreenProps = {
+  /** 지정하면 장소 상세의 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   isActive?: boolean;
   isGuest?: boolean;
@@ -104,8 +115,10 @@ type MapCamera = {
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
+const COMPLETED_PLACE_REFRESH_DELAYS_MS = [0, 700, 1500, 3000, 5000];
 
 export function MapScreen({
+  onOpenReel,
   onBackGestureRegionChange,
   isActive = true,
   isGuest = false,
@@ -144,7 +157,8 @@ export function MapScreen({
   const [mapHeight, setMapHeight] = useState(0);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  const [searchedPlaces, setSearchedPlaces] = useState<Place[] | null>(null);
+  // 서버 검색 결과는 폴더·좌표 조건까지만 걸러 두고, 카테고리는 바뀔 때마다 다시 적용합니다.
+  const [searchMatches, setSearchMatches] = useState<Place[] | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const [sheetMode, setSheetMode] = useState<SheetMode>('places');
   const [openedFolderId, setOpenedFolderId] = useState<string | null>(null);
@@ -227,7 +241,7 @@ export function MapScreen({
   const [savedPlacesRefreshSignal, setSavedPlacesRefreshSignal] = useState(0);
   const completedReelIdsRef = useRef<Set<string> | null>(null);
 
-  // 지도가 보이는 중에 릴스 저장이 끝나면 새 장소를 읽는다. 첫 결과는 기준값으로만 쓴다.
+  // 첫 공유 목록에 이미 완료된 릴스가 있어도, 첫 장소 조회 이후 완료됐을 수 있다.
   useEffect(() => {
     if (isGuest) {
       completedReelIdsRef.current = null;
@@ -243,7 +257,12 @@ export function MapScreen({
         );
         const previousIds = completedReelIdsRef.current;
         completedReelIdsRef.current = completedIds;
-        if (!previousIds) return;
+        if (!previousIds) {
+          if (completedIds.size > 0) {
+            setSavedPlacesRefreshSignal(signal => signal + 1);
+          }
+          return;
+        }
         for (const id of completedIds) {
           if (!previousIds.has(id)) {
             setSavedPlacesRefreshSignal(signal => signal + 1);
@@ -277,10 +296,11 @@ export function MapScreen({
     if (!isActive) return;
     let isMounted = true;
 
-    getSavedPlaces()
-      .then(savedPlaceItems => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const refresh = async (attempt: number) => {
+      try {
+        const savedPlaceItems = await getSavedPlaces();
         if (!isMounted) return;
-
         syncSavedPlaceFolderIds(savedPlaceItems);
         setSavedPlacesLoadFailed(false);
         setSavedPlaces(
@@ -292,21 +312,30 @@ export function MapScreen({
             ).values(),
           ),
         );
-      })
-      .catch(error => {
+      } catch (error) {
         if (isMounted) {
           setSavedPlacesLoadFailed(true);
-          setMapMessage(error.message ?? '저장한 장소를 불러오지 못했어요.');
+          setMapMessage((error as Error).message ?? '저장한 장소를 불러오지 못했어요.');
         }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsSavedPlacesLoading(false);
-        }
-      });
+      } finally {
+        if (isMounted) setIsSavedPlacesLoading(false);
+      }
+
+      // 공유 완료 직후에는 자동 저장 장소가 목록에 늦게 반영될 수 있습니다.
+      // 추출 장소가 0건일 수도 있어 짧은 기간만 재조회합니다.
+      if (isMounted && savedPlacesRefreshSignal > 0 &&
+          attempt + 1 < COMPLETED_PLACE_REFRESH_DELAYS_MS.length) {
+        timeoutId = setTimeout(
+          () => refresh(attempt + 1).catch(() => undefined),
+          COMPLETED_PLACE_REFRESH_DELAYS_MS[attempt + 1],
+        );
+      }
+    };
+    refresh(0).catch(() => undefined);
 
     return () => {
       isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [isGuest, isActive, savedPlacesRefreshSignal]);
   // 폴더에 담거나 폴더를 지운 결과가 목록을 다시 읽기 전에도 보이도록 훅의 소속을 씁니다.
@@ -383,7 +412,29 @@ export function MapScreen({
     () => filterPlacesByCategory(folderScopedPlaces, activeCategory),
     [folderScopedPlaces, activeCategory],
   );
+  const searchedPlaces = useMemo(
+    () =>
+      searchMatches && filterPlacesByCategory(searchMatches, activeCategory),
+    [searchMatches, activeCategory],
+  );
   const hasActiveSearch = searchKeyword.trim().length > 0;
+  // 결과 목록이 비었을 때의 안내입니다. 검색 결과 → 고른 카테고리 → 저장한 장소 순으로 비었는지 보고,
+  // 보여 줄 장소는 있는데 지금 지도 영역에만 없으면 지도를 움직여 보라고 안내합니다.
+  const resultEmptyState: PlaceResultEmptyState = (() => {
+    const category = activeCategory === ALL_CATEGORY ? null : activeCategory;
+    if (searchMatches !== null) {
+      if (searchMatches.length === 0) return { kind: 'noSearchResults' };
+      if (category && searchedPlaces?.length === 0) {
+        return { kind: 'noSearchResultsInCategory', category };
+      }
+      return { kind: 'outOfArea', isSearch: true };
+    }
+    if (savedPlaces.length === 0) return { kind: 'noSavedPlaces', category: null };
+    if (placesWithCoordinates.length === 0) {
+      return { kind: 'noSavedPlaces', category };
+    }
+    return { kind: 'outOfArea', isSearch: false };
+  })();
   const resultPlaces = useMemo(() => {
     const candidatePlaces = searchedPlaces ?? placesWithCoordinates;
     // 폴더 안에서는 지도 범위와 상관없이 폴더의 모든 장소를 보여줍니다.
@@ -414,32 +465,45 @@ export function MapScreen({
     [openedFolder, placesWithCoordinates, searchedPlaces],
   );
 
+  // 응답이 오기 전에 검색어가 바뀌거나 지워졌으면(카테고리·폴더 전환 포함) 그 응답은 버립니다.
+  const searchRequestIdRef = useRef(0);
+  const searchKeywordRef = useRef(searchKeyword);
+  searchKeywordRef.current = searchKeyword;
+
   const handleSearch = () => {
     const keyword = searchKeyword.trim();
     if (!keyword) return;
 
-    const normalizedKeyword = keyword
-      .toLocaleLowerCase('ko-KR')
-      .replace(/\s+/g, '');
-    const places = placesWithCoordinates.filter(place =>
-      [place.name, place.category, place.address, place.fullAddress]
-        .filter((value): value is string => Boolean(value))
-        .some(value =>
-          value
-            .toLocaleLowerCase('ko-KR')
-            .replace(/\s+/g, '')
-            .includes(normalizedKeyword),
-        ),
-    );
-
-    trackUi(posthog, UI_EVENTS.mapSearchSubmitted, {
-      result_count: places.length,
-      has_result: places.length > 0,
-      query_length: keyword.length,
-    });
-    setSearchedPlaces(places);
-    setSearchResultSignal(signal => signal + 1);
-    focusMapOnPlaces(places);
+    const requestId = ++searchRequestIdRef.current;
+    const candidatePlaces = folderScopedPlaces;
+    searchSavedPlaces(keyword)
+      .then(results => pickSearchedPlaces(candidatePlaces, results))
+      .catch(error => {
+        if (isAuthenticationError(error)) {
+          onAuthenticationRequired?.();
+          return null;
+        }
+        // 운영 서버에 검색 API가 반영되기 전이나 일시적인 오류에는 기기 안 검색으로 결과를 보여 줍니다.
+        return filterPlacesByKeyword(candidatePlaces, keyword);
+      })
+      .then(places => {
+        if (
+          places === null ||
+          requestId !== searchRequestIdRef.current ||
+          searchKeywordRef.current.trim() !== keyword
+        ) {
+          return;
+        }
+        const visiblePlaces = filterPlacesByCategory(places, activeCategory);
+        trackUi(posthog, UI_EVENTS.mapSearchSubmitted, {
+          result_count: visiblePlaces.length,
+          has_result: visiblePlaces.length > 0,
+          query_length: keyword.length,
+        });
+        setSearchMatches(places);
+        setSearchResultSignal(signal => signal + 1);
+        focusMapOnPlaces(visiblePlaces);
+      });
   };
 
   const focusMapOnPlaces = (places: Place[]) => {
@@ -486,7 +550,7 @@ export function MapScreen({
     setSheetMode(mode);
     setOpenedFolderId(null);
     setSelectedCategory(ALL_CATEGORY);
-    setSearchedPlaces(null);
+    setSearchMatches(null);
     setSearchKeyword('');
   };
 
@@ -501,7 +565,7 @@ export function MapScreen({
     });
     setOpenedFolderId(folderId);
     setSelectedCategory(ALL_CATEGORY);
-    setSearchedPlaces(null);
+    setSearchMatches(null);
     setSearchKeyword('');
     // 끝까지 올린 시트는 지도를 덮으므로, 폴더 장소가 지도에 보이도록 중간 높이로 내린다.
     if (isSheetExpanded) setCollapseSignal(signal => signal + 1);
@@ -598,14 +662,16 @@ export function MapScreen({
     }
     analytics.selection('category_filter', category);
     setSelectedCategory(category);
-    setSearchedPlaces(null);
-    setSearchKeyword('');
+    // 보관함처럼 검색은 유지하고, 검색 결과를 새 카테고리로 다시 걸러 지도를 맞춥니다.
+    if (searchMatches) {
+      focusMapOnPlaces(filterPlacesByCategory(searchMatches, category));
+    }
   };
 
   const handleSearchKeywordChange = (value: string) => {
     setSearchKeyword(value);
     if (!value.trim()) {
-      setSearchedPlaces(null);
+      setSearchMatches(null);
     }
   };
   const handleSearchBack = useCallback(() => {
@@ -631,7 +697,7 @@ export function MapScreen({
 
     if (hasActiveSearch) {
       setSearchKeyword('');
-      setSearchedPlaces(null);
+      setSearchMatches(null);
       setIsSearchFocused(false);
       Keyboard.dismiss();
       return;
@@ -784,6 +850,8 @@ export function MapScreen({
             }}
             onMapPanStarted={() => {
               if (!isCurrentPage) return;
+              // 지도를 탭할 때처럼 끌거나 확대해도 검색 키보드를 내립니다.
+              Keyboard.dismiss();
               setMapPanCollapseSignal(signal => signal + 1);
             }}
             onCameraChanged={event => {
@@ -892,6 +960,7 @@ export function MapScreen({
         <View pointerEvents="box-none" style={styles.searchOverlay}>
           <View>
             <SearchBar
+              horizontalInset={20}
               onPress={
                 isGuest
                   ? () => {
@@ -910,6 +979,7 @@ export function MapScreen({
                   : 'inside'
               }
               value={page.clearsSearch ? '' : searchKeyword}
+              maxLength={SEARCH_QUERY_MAX_LENGTH}
               onChangeText={handleSearchKeywordChange}
               onFocus={() => setIsSearchFocused(true)}
               onBlur={() => setIsSearchFocused(false)}
@@ -980,6 +1050,7 @@ export function MapScreen({
     >
       {mapHeight > 0 ? (
         <PlaceResultSheet
+          onOpenReel={onOpenReel}
           isActive={isActive}
           onBackGestureRegionChange={onBackGestureRegionChange}
           pageHeight={mapHeight}
@@ -1002,7 +1073,6 @@ export function MapScreen({
           topInset={topInset}
           bottomTabOffset={bottomNavigationOffset}
           places={resultPlaces}
-          hasSavedPlaces={savedPlaces.length > 0}
           // 폴더 안에서 뒤로 스와이프하면 뒤에 돌아갈 폴더 목록이 보여야 한다.
           backFolderHeader={openedFolder ? folderSegmentHeader : undefined}
           backFolderContent={openedFolder ? folderList : undefined}
@@ -1021,18 +1091,15 @@ export function MapScreen({
           folderContent={
             isFolderListVisible ? (
               folderList
-            ) : activeCategory !== ALL_CATEGORY &&
-              placesWithCoordinates.length === 0 ? (
-              <View style={styles.folderEmpty}>
-                <Text style={styles.folderEmptyTitle}>
-                  {activeCategory} 카테고리에 저장한 장소가 없어요
-                </Text>
-              </View>
             ) : undefined
           }
           emptyContent={
             openedFolder && folderScopedPlaces.length === 0 ? (
               <View style={[styles.folderEmpty, styles.folderEmptyInList]}>
+                <Image
+                  source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}
+                  style={styles.folderEmptyIllustration}
+                />
                 <Text style={styles.folderEmptyTitle}>폴더가 비어 있어요</Text>
                 <Text style={styles.folderEmptyHint}>
                   장소 상세의 더보기에서 이 폴더에 담을 수 있어요.
@@ -1042,7 +1109,7 @@ export function MapScreen({
           }
           isSavedPlacesLoading={isSavedPlacesLoading}
           savedPlacesLoadFailed={savedPlacesLoadFailed}
-          isSearchActive={hasActiveSearch}
+          emptyState={resultEmptyState}
           expandSignal={searchResultSignal}
           openPlace={openedMarker.place}
           openPlaceContext={openedMarker.viewContext}
@@ -1159,6 +1226,12 @@ const styles = StyleSheet.create({
   // 장소 목록의 빈 상태 영역이 이미 위 여백을 주므로 겹치지 않게 뺍니다.
   folderEmptyInList: {
     paddingTop: 0,
+  },
+  // 빈 폴더 안내 일러스트. 결과 시트의 '아직 저장한 장소가 없어요'와 같은 크기·위치 보정입니다.
+  folderEmptyIllustration: {
+    width: 132,
+    height: 96,
+    transform: [{ translateX: -8 }],
   },
   folderEmptyTitle: {
     fontSize: 16,

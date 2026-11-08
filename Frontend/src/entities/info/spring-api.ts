@@ -1,10 +1,10 @@
-import {ApiError} from '../../lib/api/errors';
 import {toScreenApiError} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {SpringMember} from '../../lib/api/spring-auth-api';
 import type {
   CurrentProfileRepository,
   PlaceReelsRepository,
+  SavedPlaceListItem,
   SavedPlacesRepository,
 } from './types';
 
@@ -62,32 +62,44 @@ export const springProfileRepository: CurrentProfileRepository = {
     }),
 };
 
+function toSavedPlaceListItem(item: SavedPlaceResponse): SavedPlaceListItem {
+  return {
+    id: String(item.savedPlaceId),
+    thumbnailUrl: item.thumbnailUrl,
+    createdAt: item.lastSavedAt,
+    lastSavedAt: item.lastSavedAt,
+    folderIds: (item.folderIds ?? []).map(String),
+    place: {
+      id: String(item.placeId),
+      name: item.name,
+      category: item.category,
+      categoryCode: item.categoryCode,
+      categoryName: item.categoryName,
+      sourceAddress: item.landLotAddress,
+      address: item.landLotAddress,
+      roadAddress: item.roadAddress,
+      latitude: item.latitude,
+      longitude: item.longitude,
+      kakaoPlaceUrl: item.kakaoPlaceUrl,
+      thumbnailUrl: item.thumbnailUrl,
+    },
+  };
+}
+
 export const springSavedPlacesRepository: SavedPlacesRepository = {
   getSavedPlaces: () => withScreenError(async () => {
     const response = await client.request<{savedPlaces: SavedPlaceResponse[]}>(
       '/api/v1/saved-places',
     );
-    return response.savedPlaces.map(item => ({
-      id: String(item.savedPlaceId),
-      thumbnailUrl: item.thumbnailUrl,
-      createdAt: item.lastSavedAt,
-      lastSavedAt: item.lastSavedAt,
-      folderIds: (item.folderIds ?? []).map(String),
-      place: {
-        id: String(item.placeId),
-        name: item.name,
-        category: item.category,
-        categoryCode: item.categoryCode,
-        categoryName: item.categoryName,
-        sourceAddress: item.landLotAddress,
-        address: item.landLotAddress,
-        roadAddress: item.roadAddress,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        kakaoPlaceUrl: item.kakaoPlaceUrl,
-        thumbnailUrl: item.thumbnailUrl,
-      },
-    }));
+    return response.savedPlaces.map(toSavedPlaceListItem);
+  }),
+  // 목록과 같은 모양을 페이지 없이 한 번에 받습니다.
+  searchSavedPlaces: query => withScreenError(async () => {
+    const response = await client.request<{savedPlaces: SavedPlaceResponse[]}>(
+      '/api/v1/saved-places/search',
+      {query: {query}},
+    );
+    return response.savedPlaces.map(toSavedPlaceListItem);
   }),
   deleteSavedPlaces: savedPlaceIds => withScreenError(async () => {
     if (savedPlaceIds.length === 0) return;
@@ -99,18 +111,10 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
 };
 
 export const springPlaceReelsRepository: PlaceReelsRepository = {
-  getPlaceReels: savedPlaceId => withScreenError(async () => {
-    // TODO(#555): 장소 ID로 미디어를 조회하는 API가 생기면 그 API로 옮깁니다.
-    let response: {media: SavedPlaceMediaResponse[]};
-    try {
-      response = await client.request<{media: SavedPlaceMediaResponse[]}>(
-        `/api/v1/saved-places/${encodeURIComponent(savedPlaceId)}/media`,
-      );
-    } catch (error) {
-      // 다른 기기에서 지운 저장 장소(PLACE404_001)는 연결된 릴스가 없는 것과 같으므로 빈 목록입니다.
-      if (error instanceof ApiError && error.errorCode === 'PLACE404_001') return [];
-      throw error;
-    }
+  getPlaceReels: placeId => withScreenError(async () => {
+    const response = await client.request<{media: SavedPlaceMediaResponse[]}>(
+      `/api/v1/places/${encodeURIComponent(placeId)}/media`,
+    );
     return response.media.map(item => ({
       id: String(item.sharedMediaId),
       instagramUrl: item.sharedUrl,

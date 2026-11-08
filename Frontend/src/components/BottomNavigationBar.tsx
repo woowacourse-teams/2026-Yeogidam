@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useEffect} from 'react';
 import {usePostHog} from 'posthog-react-native';
 
 import {trackButtonPressed} from '../analytics/uiEvents';
@@ -15,15 +15,11 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { subscribeRecentShares } from '../entities/content/recent-shares-poller';
-import type { HistoryReel } from '../entities/content/types';
-import {
-  getLastSeenHistorySnapshot,
-  setLastSeenHistorySnapshot,
-} from '../lib/history-notification-storage';
 
 import type { MainScreen } from '../types/navigation';
 
-const HISTORY_NOTIFICATION_INTERVAL_MS = 5000;
+// 보관함의 최근 공유 행이 읽는 공유 목록(앱 공용 폴러)을 로그인 상태에서 계속 갱신해 둡니다.
+const RECENT_SHARES_INTERVAL_MS = 5000;
 
 type BottomNavigationBarProps = {
   active: MainScreen;
@@ -83,14 +79,14 @@ export const bottomNavigationBarContainerStyle: ViewStyle = {
 
 const navigationItems: {
   id: MainScreen;
-  icon: 'bookmark' | 'map' | 'person' | 'history';
+  icon: 'bookmark' | 'map' | 'person';
   label: string;
 }[] = [
+  // 보관함이 앱의 시작 화면이라 가장 앞에 둡니다.
   { id: 'saved', icon: 'bookmark', label: '보관함' },
-  { id: 'map', icon: 'map', label: '지도' },
   // 대기함 흐름을 다시 사용할 때 복원합니다.
   // { id: 'inBox', icon: 'inventory-2', label: '대기함' },
-  { id: 'history', icon: 'history', label: '히스토리' },
+  { id: 'map', icon: 'map', label: '지도' },
   { id: 'my', icon: 'person', label: '내 정보' },
 ];
 
@@ -101,53 +97,21 @@ export function BottomNavigationBar({
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
   const posthog = usePostHog();
-  const [isHistoryUnread, setIsHistoryUnread] = useState(false);
-  const activeRef = useRef(active);
-  activeRef.current = active;
-
-  const syncHistoryNotification = useCallback(async (reels: HistoryReel[]) => {
-    // 히스토리 화면이 같은 결과로 마지막 확인 시점을 갱신하므로 그 화면에서는 판단하지 않는다.
-    if (activeRef.current === 'history') {
-      setIsHistoryUnread(false);
-      return;
-    }
-    const latest = reels[0];
-    if (!latest) {
-      setIsHistoryUnread(false);
-      return;
-    }
-    const lastSeen = await getLastSeenHistorySnapshot();
-    if (lastSeen === null) {
-      await setLastSeenHistorySnapshot({
-        id: latest.id,
-        status: latest.processing_status,
-      });
-      setIsHistoryUnread(false);
-      return;
-    }
-    setIsHistoryUnread(
-      lastSeen.id !== latest.id ||
-        lastSeen.status !== latest.processing_status,
-    );
-  }, []);
 
   useEffect(() => {
     if (isGuest) {
-      setIsHistoryUnread(false);
       return;
     }
-    // 앱 공용 폴러를 5초 주기로 구독한다. 히스토리 등 더 짧은 구독자가 있으면 그 주기를 따른다.
-    // 포그라운드 복귀 시 다시 읽는 것도 폴러가 맡는다.
+    // 앱 공용 폴러를 구독해 첫 조회와 주기 갱신을 이어 둡니다. 결과는 폴러를 구독한
+    // 화면(보관함 최근 공유 등)이 받아 씁니다. 포그라운드 복귀 시 다시 읽는 것도 폴러가 맡습니다.
     const subscription = subscribeRecentShares({
-      intervalMs: HISTORY_NOTIFICATION_INTERVAL_MS,
-      onResult: ({reels}) => {
-        // Keep the navigation usable if the history request fails.
-        syncHistoryNotification(reels).catch(() => undefined);
-      },
+      intervalMs: RECENT_SHARES_INTERVAL_MS,
+      onResult: () => undefined,
     });
+    // 조회가 실패해도 탭 이동은 그대로 쓸 수 있어야 합니다.
     subscription.refresh().catch(() => undefined);
     return () => subscription.unsubscribe();
-  }, [isGuest, syncHistoryNotification]);
+  }, [isGuest]);
 
   return (
     <View
@@ -167,8 +131,6 @@ export function BottomNavigationBar({
             accessibilityLabel={navigation.label}
             accessibilityState={{selected: active === navigation.id}}
             onPress={() => {
-              // 마지막 확인 시점은 히스토리 화면이 첫 페이지를 읽을 때 저장한다.
-              if (navigation.id === 'history') setIsHistoryUnread(false);
               trackButtonPressed(posthog, active, 'bottom_tab', {
                 target_tab: navigation.id,
                 is_same_tab: navigation.id === active,
@@ -208,49 +170,6 @@ export function BottomNavigationBar({
                     strokeWidth={0.3}
                   />
                 </Svg>
-              ) : navigation.id === 'history' ? (
-                <View>
-                  <Svg height={24} viewBox="0 0 24 24" width={24}>
-                    {active === navigation.id ? (
-                      <>
-                        <Path
-                          d="M12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15Z"
-                          fill="#000000"
-                          stroke="#000000"
-                          strokeWidth={2}
-                        />
-                        <Path
-                          fill="none"
-                          d="M12 8v4.3l3 1.8"
-                          stroke="#ffffff"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.8}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <Path
-                          d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Z"
-                          fill="none"
-                          stroke="#666b79"
-                          strokeWidth={2}
-                        />
-                        <Path
-                          d="M12 7.5v4.8l3.2 1.9"
-                          fill="none"
-                          stroke="#666b79"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        />
-                      </>
-                    )}
-                  </Svg>
-                  {isHistoryUnread && active !== navigation.id ? (
-                    <View style={styles.historyBadge} />
-                  ) : null}
-                </View>
               ) : (
                 <MaterialIcons
                   color={active === navigation.id ? '#1f2238' : '#666b79'}
@@ -320,17 +239,6 @@ const styles = StyleSheet.create({
   navigationText: {
     fontSize: 10,
     color: '#666b79',
-  },
-  historyBadge: {
-    position: 'absolute',
-    right: -2,
-    top: -1,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#f04438',
-    borderWidth: 1,
-    borderColor: '#ffffff',
   },
   activeText: {
     color: '#1f2238',
