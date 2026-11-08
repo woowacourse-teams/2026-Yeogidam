@@ -1,5 +1,6 @@
 import React from 'react';
 import TestRenderer, {act} from 'react-test-renderer';
+import {View} from 'react-native';
 
 import {subscribeRecentShares} from '../src/entities/content/recent-shares-poller';
 import {getSavedPlaces} from '../src/entities/info/api';
@@ -117,7 +118,7 @@ test('완료 결과로 다시 읽는 동안 이전 장소 조회가 늦게 끝�
     renderer = TestRenderer.create(<MapScreen />);
   });
   await act(async () => {
-    renderer.root.findByType('View').props.onLayout?.({nativeEvent: {layout: {height: 800}}});
+    renderer.root.findByType(View).props.onLayout?.({nativeEvent: {layout: {height: 800}}});
   });
 
   await showShares([completed('new-reel')]);
