@@ -313,7 +313,8 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
           const captured = shouldCaptureSheetDrag({
             dx: gesture.dx,
             dy: gesture.dy,
-            startY: gesture.y0,
+            // y0은 제스처를 넘겨받은 뒤에야 채워져 이 시점엔 항상 0이므로, 현재 위치에서 이동 거리를 빼 시작 위치를 구합니다.
+            startY: gesture.moveY - gesture.dy,
             sheetTop: sheetTopRef.current,
             isExpanded: isSheetExpandedRef.current,
             isCaptionOpen: isCaptionOpenRef.current,
