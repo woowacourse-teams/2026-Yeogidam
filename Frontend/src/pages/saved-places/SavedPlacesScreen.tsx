@@ -635,9 +635,9 @@ export function SavedPlacesScreen({
           );
         }
         if (!isActive) return;
-        const [places, page] = await Promise.all([loadSavedPlaces(), loadPostPage()]);
+        const [loadedPlaces, page] = await Promise.all([loadSavedPlaces(), loadPostPage()]);
         if (!isActive) return;
-        hasLoadedPlaces ||= places !== null;
+        hasLoadedPlaces ||= loadedPlaces !== null;
         // 첫 완료 응답 뒤에도 한 번 더 확인합니다. 두 번째 조회가 아직 비어
         // 있으면 실제 공유 ID가 게시물 보관함에 나타날 때까지 재시도합니다.
         if (attempt > 0 && hasLoadedPlaces && page?.reels.some(reel => reel.id === reelId)) {
@@ -1098,6 +1098,7 @@ export function SavedPlacesScreen({
     processingReel?.id,
     processingReel?.processing_status,
     processingReelId,
+    queueCompletedRefresh,
     error,
   ]);
 
