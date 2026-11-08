@@ -835,6 +835,8 @@ export function MapScreen({
             }}
             onMapPanStarted={() => {
               if (!isCurrentPage) return;
+              // 지도를 탭할 때처럼 끌거나 확대해도 검색 키보드를 내립니다.
+              Keyboard.dismiss();
               setMapPanCollapseSignal(signal => signal + 1);
             }}
             onCameraChanged={event => {
