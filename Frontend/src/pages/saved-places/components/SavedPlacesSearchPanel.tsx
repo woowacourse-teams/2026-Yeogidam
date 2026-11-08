@@ -5,6 +5,7 @@ import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 import type {SavedPlacesSearchMethod} from '../../../analytics/savedPlaceEvents';
 import {SearchBar} from '../../../components/SearchBar';
 import {SAVED_LIBRARY_SEARCH_PLACEHOLDER} from './SavedPlacesHeader';
+import {LIBRARY_GUTTER} from './libraryTheme';
 
 type SavedPlacesSearchPanelProps = {
   initialQuery: string;
@@ -33,18 +34,20 @@ export function SavedPlacesSearchPanel({
 
   return (
     <View style={styles.container}>
-      <SearchBar
-        autoCorrect={false}
-        autoFocus
-        backButtonPosition="leading"
-        layout="embedded"
-        onChangeText={setQuery}
-        onPressBack={onCloseSearch}
-        onPressSearchAction={submitSearch}
-        onSubmitEditing={submitSearch}
-        placeholder={SAVED_LIBRARY_SEARCH_PLACEHOLDER}
-        value={query}
-      />
+      <View style={styles.searchBarWrap}>
+        <SearchBar
+          autoCorrect={false}
+          autoFocus
+          backButtonPosition="leading"
+          layout="embedded"
+          onChangeText={setQuery}
+          onPressBack={onCloseSearch}
+          onPressSearchAction={submitSearch}
+          onSubmitEditing={submitSearch}
+          placeholder={SAVED_LIBRARY_SEARCH_PLACEHOLDER}
+          value={query}
+        />
+      </View>
       <View style={styles.historySection}>
         <Text style={styles.historyTitle}>검색 기록</Text>
         {recentSearches.length > 0 ? (
@@ -74,6 +77,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  // 보관함 상단 검색창과 같은 좌우 여백(20)에 맞춰, 검색창을 눌렀을 때 폭이 바뀌지 않게 합니다.
+  searchBarWrap: {
+    marginHorizontal: -(24 - LIBRARY_GUTTER),
   },
   historySection: {
     paddingTop: 24,

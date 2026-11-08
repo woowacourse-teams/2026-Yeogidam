@@ -123,15 +123,16 @@ export function SearchBar({
           </Pressable>
         ) : null}
         {onPress ? (
-          <Text
-            numberOfLines={1}
-            style={[
-              styles.inputText,
-              !value && [styles.placeholder, styles.placeholderText],
-            ]}
-          >
-            {value || placeholder}
-          </Text>
+          // 눌러서 여는 검색창도 입력창과 같은 TextInput으로 그려, 화면이 바뀔 때 글씨 위치가 어긋나지 않게 합니다.
+          <TextInput
+            accessible={false}
+            editable={false}
+            placeholder={placeholder}
+            placeholderTextColor="#a9a9ae"
+            pointerEvents="none"
+            style={[styles.inputText, styles.input, !value && styles.placeholderText]}
+            value={value}
+          />
         ) : (
           <TextInput
             accessibilityLabel="장소, 지역 검색"
@@ -253,9 +254,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '800',
     color: '#202124',
-  },
-  placeholder: {
-    color: '#a9a9ae',
   },
   // 안내 문구는 입력한 검색어보다 작고 얇게 보여, 좁은 검색창에서도 한 줄에 들어가게 합니다.
   placeholderText: {
