@@ -135,33 +135,20 @@ public class PlaceDao {
                 .findFirst();
     }
 
-    public Optional<PlaceInfoProjection> findInfoByMemberAndPlace(Long memberId, Long placeId) {
+    /**
+     * 장소 상세의 영업시간과 메뉴로, 영업시간과 메뉴는 회원마다 다르지 않은 장소 정보라서 장소 ID로만 읽는다.
+     * 형식이 올바르지 않은 컬럼은 해당 컬럼만 정보 없음(null)으로 읽고 다른 컬럼은 그대로 읽는다.
+     */
+    public Optional<PlaceInfoProjection> findInfoById(Long placeId) {
         String sql = """
-                SELECT p.opening_hours, p.menus
-                FROM places p
-                WHERE p.id = ?
-                  AND (
-                      EXISTS (
-                          SELECT 1
-                          FROM saved_places sp
-                          WHERE sp.member_id = ?
-                            AND sp.place_id = p.id
-                      )
-                      OR EXISTS (
-                          SELECT 1
-                          FROM shared_media sm
-                          JOIN media_places mp ON mp.media_id = sm.media_id
-                          WHERE sm.member_id = ?
-                            AND sm.deleted_at IS NULL
-                            AND sm.extraction_status = 'SUCCEEDED'
-                            AND mp.place_id = p.id
-                      )
-                  )
+                SELECT opening_hours, menus
+                FROM places
+                WHERE id = ?
                 """;
         return jdbcTemplate.query(sql, (resultSet, rowNumber) -> new PlaceInfoProjection(
                         readInfoList(placeId, resultSet.getString("opening_hours"), OpeningDay.class),
                         readInfoList(placeId, resultSet.getString("menus"), Menu.class)
-                ), placeId, memberId, memberId)
+                ), placeId)
                 .stream()
                 .findFirst();
     }

@@ -21,8 +21,8 @@ public class PlaceService {
     private final PlaceDao placeDao;
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
 
-    public PlaceInfoResponse readPlaceInfo(Long memberId, Long placeId) {
-        PlaceInfoProjection projection = placeDao.findInfoByMemberAndPlace(memberId, placeId)
+    public PlaceInfoResponse readPlaceInfo(Long placeId) {
+        PlaceInfoProjection projection = placeDao.findInfoById(placeId)
                 .orElseThrow(() -> new PlaceException(PlaceErrorCode.PLACE_NOT_FOUND));
         return PlaceInfoResponse.from(projection);
     }

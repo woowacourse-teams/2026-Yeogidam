@@ -22,8 +22,8 @@ public interface PlaceApiDocs {
 
     @Operation(summary = "장소 영업시간과 메뉴 조회",
             description = """
-                    내 보관함에 있는 장소 또는 지우지 않은 내 공유에서 분석에 성공해 나온 장소의
-                    요일별 영업시간과 메뉴 전체를 돌려줍니다.
+                    장소의 요일별 영업시간과 메뉴 전체를 돌려줍니다.
+                    영업시간과 메뉴는 회원마다 다르지 않은 장소 정보라서, 보관함에 저장하지 않은 장소도 있는 장소면 조회할 수 있습니다.
 
                     - 영업 구간의 시각은 HH:mm으로 표시합니다. 확인된 휴무일의 periods는 빈 배열입니다.
                     - 영업시간 정보가 없거나 저장된 형식이 올바르지 않으면 `openingHours`는 `null`입니다.
@@ -38,7 +38,7 @@ public interface PlaceApiDocs {
                     @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class))),
-                    @ApiResponse(responseCode = "404", description = "존재하지 않거나 조회할 수 없는 장소입니다.",
+                    @ApiResponse(responseCode = "404", description = "존재하지 않는 장소입니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = @ExampleObject(name = "PLACE404_003", value = """
@@ -46,7 +46,6 @@ public interface PlaceApiDocs {
                                             """)))
             })
     ResponseEntity<PlaceInfoResponse> readPlaceInfo(
-            Long memberId,
             @Parameter(description = "장소 ID(places.id)", example = "1") Long placeId);
 
     @Operation(summary = "장소가 나온 내 게시글 조회",

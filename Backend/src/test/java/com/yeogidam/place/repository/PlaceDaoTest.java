@@ -14,6 +14,7 @@ import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -243,6 +244,41 @@ class PlaceDaoTest extends JdbcTestSupport {
         assertThat(shares)
                 .extracting(PlaceMediaProjection::sharedMediaId)
                 .containsExactly(1L);
+    }
+
+    @Test
+    void 영업시간과_메뉴는_보관함이나_공유와_관계없이_장소_ID로_읽는다() {
+        // given: 장소 1은 누구의 보관함에도 없고 어떤 게시물에서도 추출되지 않았다
+        insertPlaceOnly(1L);
+        updatePlaceInfo(1L, """
+                [{"dayOfWeek":"MONDAY","periods":[{"opensAt":"11:00","closesAt":"21:00"}]},
+                 {"dayOfWeek":"SUNDAY","periods":[]}]
+                """, """
+                [{"name":"아메리카노","price":4500}]
+                """);
+
+        // when
+        PlaceInfoProjection info = placeDao.findInfoById(1L).orElseThrow();
+
+        // then
+        assertThat(info.openingHours())
+                .extracting(PlaceInfoProjection.OpeningDay::dayOfWeek)
+                .containsExactly(DayOfWeek.MONDAY, DayOfWeek.SUNDAY);
+        assertThat(info.menus())
+                .containsExactly(new PlaceInfoProjection.Menu("아메리카노", 4500));
+    }
+
+    @Test
+    void 없는_장소의_영업시간과_메뉴는_읽지_않는다() {
+        assertThat(placeDao.findInfoById(1L)).isEmpty();
+    }
+
+    private void updatePlaceInfo(Long placeId, String openingHours, String menus) {
+        jdbcTemplate.update("""
+                UPDATE places
+                SET opening_hours = ?, menus = ?
+                WHERE id = ?
+                """, openingHours, menus, placeId);
     }
 
     /**

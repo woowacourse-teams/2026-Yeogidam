@@ -20,9 +20,8 @@ public class PlaceController implements PlaceApiDocs {
 
     @Override
     @GetMapping("/{placeId}/info")
-    public ResponseEntity<PlaceInfoResponse> readPlaceInfo(@LoginMember Long memberId,
-                                                           @PathVariable Long placeId) {
-        PlaceInfoResponse response = placeService.readPlaceInfo(memberId, placeId);
+    public ResponseEntity<PlaceInfoResponse> readPlaceInfo(@PathVariable Long placeId) {
+        PlaceInfoResponse response = placeService.readPlaceInfo(placeId);
         return ResponseEntity.ok()
                 .body(response);
     }

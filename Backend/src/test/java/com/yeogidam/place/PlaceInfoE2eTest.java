@@ -15,10 +15,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
 import com.yeogidam.auth.exception.AuthErrorCode;
-import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
-import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
-import com.yeogidam.media.extraction.domain.ExtractionStatus;
-import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
@@ -153,49 +149,25 @@ class PlaceInfoE2eTest extends E2eTestSupport {
     }
 
     @Test
-    void 다른_회원의_보관함과_공유에만_있는_장소를_조회하면_404_예외를_던진다() {
-        // given
+    void 내_보관함과_공유에_없는_장소도_있는_장소면_영업시간과_메뉴를_반환한다() {
+        // given: 장소 1은 다른 회원만 저장했고, 요청한 회원은 같은 게시물을 공유했다가 지웠다
         LoginResult requester = loginAsKakao("place-info-requester");
         LoginResult owner = loginAsKakao("place-info-owner");
         insertCafePost();
         insertSavedPlace(jdbcTemplate, 1L, owner.memberId(), PLACE_ID, SHARED_AT);
-        insertSharedMedia(jdbcTemplate, SHARED_MEDIA_ID, owner.memberId(), MEDIA_ID, SHARED_AT);
+        insertDeletedSharedMedia(jdbcTemplate, SHARED_MEDIA_ID, requester.memberId(), MEDIA_ID, SHARED_AT, SHARED_AT);
+        updatePlaceInfo("""
+                [{"dayOfWeek":"SUNDAY","periods":[]}]
+                """, """
+                [{"name":"아메리카노","price":4500}]
+                """);
 
         // when & then
         givenBearer(requester.accessToken())
                 .when().get(PATH, PLACE_ID)
-                .then().statusCode(PlaceErrorCode.PLACE_NOT_FOUND.getHttpStatus().value())
-                .body("errorCode", equalTo(PlaceErrorCode.PLACE_NOT_FOUND.getCode()));
-    }
-
-    @Test
-    void 내_삭제된_공유에만_있는_장소를_조회하면_404_예외를_던진다() {
-        // given
-        LoginResult login = loginAsKakao("place-info-deleted-user");
-        insertCafePost();
-        insertDeletedSharedMedia(jdbcTemplate, SHARED_MEDIA_ID, login.memberId(), MEDIA_ID, SHARED_AT, SHARED_AT);
-
-        // when & then
-        givenBearer(login.accessToken())
-                .when().get(PATH, PLACE_ID)
-                .then().statusCode(PlaceErrorCode.PLACE_NOT_FOUND.getHttpStatus().value())
-                .body("errorCode", equalTo(PlaceErrorCode.PLACE_NOT_FOUND.getCode()));
-    }
-
-    @Test
-    void 내_분석_실패_공유에만_있는_장소를_조회하면_404_예외를_던진다() {
-        // given: 게시물에는 장소가 추출됐지만, 요청한 회원의 공유는 분석 실패로 남아 있다.
-        LoginResult login = loginAsKakao("place-info-failed-user");
-        insertCafePost();
-        insertSharedMedia(jdbcTemplate, SHARED_MEDIA_ID, login.memberId(), MEDIA_ID, SHARED_AT,
-                new ExtractionSnapshot(ExtractionStatus.FAILED, ExtractionFailureReason.PLACE_NOT_EXTRACTED,
-                        1, MediaSourceType.EXTRACTED));
-
-        // when & then
-        givenBearer(login.accessToken())
-                .when().get(PATH, PLACE_ID)
-                .then().statusCode(PlaceErrorCode.PLACE_NOT_FOUND.getHttpStatus().value())
-                .body("errorCode", equalTo(PlaceErrorCode.PLACE_NOT_FOUND.getCode()));
+                .then().statusCode(HttpStatus.OK.value())
+                .body("openingHours.dayOfWeek", contains("SUNDAY"))
+                .body("menus.name", contains("아메리카노"));
     }
 
     @Test
