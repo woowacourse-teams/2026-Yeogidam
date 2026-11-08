@@ -186,8 +186,34 @@ jobs:
           node-version-file: Frontend/.nvmrc
           cache: npm
           cache-dependency-path: Frontend/package-lock.json
-      # Gemfile.lock에 기록된 Ruby/Bundler 환경과 CocoaPods gem을 준비한다.
-      - uses: ruby/setup-ruby@v1
+      # Ruby 배포 파일 다운로드가 일시적으로 504를 반환하면 다시 시도한다.
+      # 앞선 시도는 계속 진행 가능하게 두고, 마지막 시도 실패는 job 실패로 남긴다.
+      - name: Set up Ruby (first attempt)
+        id: setup-ruby-first
+        continue-on-error: true
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0.1'
+          bundler-cache: true
+          working-directory: Frontend
+      - name: Wait before retrying Ruby setup
+        if: steps.setup-ruby-first.outcome == 'failure'
+        run: sleep 30
+      - name: Set up Ruby (second attempt)
+        if: steps.setup-ruby-first.outcome == 'failure'
+        id: setup-ruby-second
+        continue-on-error: true
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0.1'
+          bundler-cache: true
+          working-directory: Frontend
+      - name: Wait before final Ruby setup attempt
+        if: steps.setup-ruby-second.outcome == 'failure'
+        run: sleep 60
+      - name: Set up Ruby (final attempt)
+        if: steps.setup-ruby-second.outcome == 'failure'
+        uses: ruby/setup-ruby@v1
         with:
           ruby-version: '4.0.1'
           bundler-cache: true
