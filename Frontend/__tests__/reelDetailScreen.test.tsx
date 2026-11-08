@@ -299,3 +299,16 @@ test('성공 게시물 제보는 확인 뒤 한 번 호출하고 완료 상태�
   expect(renderer.root.findByProps({accessibilityLabel: '제보 완료'}).props.disabled).toBe(true);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
+
+test('이미 제보한 게시물을 다시 열면 제보 완료 상태로 시작한다', async () => {
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(
+      <ReelDetailScreen onBack={jest.fn()} reel={{...reel, reported: true}} />,
+    );
+  });
+
+  expect(renderer.root.findByProps({accessibilityLabel: '제보 완료'}).props.disabled).toBe(true);
+  expect(reportHistoryReel).not.toHaveBeenCalled();
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});

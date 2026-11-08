@@ -1097,6 +1097,17 @@ export function SavedPlacesScreen({
     setDeleteError(null);
     try {
       await deleteSavedMedia(ids);
+      const deletedUrls = new Set(
+        postReels
+          .filter(reel => selectedPostIds.has(reel.id))
+          .map(reel => reel.instagram_url)
+          .filter((url): url is string => url != null),
+      );
+      setSharedReels(current => current.map(reel =>
+        selectedPostIds.has(reel.id) || (reel.instagram_url != null && deletedUrls.has(reel.instagram_url))
+          ? {...reel, deleted_from_library: true}
+          : reel,
+      ));
       setPostReels(current => current.filter(reel => !selectedPostIds.has(reel.id)));
       setSelectedPostIds(new Set());
       setIsEditingPosts(false);
@@ -1107,7 +1118,7 @@ export function SavedPlacesScreen({
     } finally {
       setIsDeleting(false);
     }
-  }, [isDeleting, loadPostPage, loadSavedPlaces, onEditModeChange, selectedPostIds]);
+  }, [isDeleting, loadPostPage, loadSavedPlaces, onEditModeChange, postReels, selectedPostIds]);
 
   const confirmDeleteSelectedPosts = useCallback(() => {
     if (isDeleting || selectedPostIds.size === 0) return;
@@ -1144,6 +1155,10 @@ export function SavedPlacesScreen({
   // 방금 공유한 릴스: 실패한 공유는 해당 실패 상세로 바로 보냅니다.
   const handleOpenRecentReel = useCallback(
     (reel: HistoryReel) => {
+      if (reel.deleted_from_library) {
+        showAlert('보관함에서 삭제한 게시물이에요.');
+        return;
+      }
       if (reel.processing_status !== 'FAILED') {
         handleOpenReel(reel);
         return;

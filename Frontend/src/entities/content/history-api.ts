@@ -45,6 +45,7 @@ export function toHistoryReel(item: SpringShareHistoryItem): HistoryReel {
     failure_reason: item.failureReason,
     save_mode: null,
     created_at: item.createdAt,
+    ...(typeof item.reported === 'boolean' ? {reported: item.reported} : {}),
     ...(item.deletedAt != null ? {deleted_from_library: true} : {}),
   };
 }
@@ -96,6 +97,18 @@ export async function getHistoryReels(cursor?: HistoryCursor): Promise<{
       ? {created_at: nextCursor.createdAt, id: String(nextCursor.id)}
       : null,
   };
+}
+
+/** 최근 공유 링에 표시할 추출 장소 수만 조회합니다. */
+export async function getHistoryReelPlaceCount(reelId: string): Promise<number> {
+  try {
+    const response = await client.request<SpringShareHistoryPlacesResponse>(
+      `${SHARES_PATH}/${encodeURIComponent(reelId)}/places`,
+    );
+    return (response?.places ?? []).length;
+  } catch (error) {
+    throw toReelApiError(error);
+  }
 }
 
 /**

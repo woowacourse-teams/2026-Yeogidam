@@ -2,6 +2,7 @@ import type {SpringExtractionStatus} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {
   getHistoryReelDetail,
+  getHistoryReelPlaceCount,
   getHistoryReels,
   reportHistoryReel,
   retryHistoryReelExtraction,
@@ -80,6 +81,12 @@ test('삭제 시각이 있는 히스토리 항목만 보관함 삭제 상태로 
   expect(toHistoryReel(share(10, 'SUCCEEDED')).deleted_from_library).toBeUndefined();
 });
 
+test('공유 이력의 제보 여부를 게시물에 전달한다', () => {
+  expect(toHistoryReel({...share(8, 'SUCCEEDED'), reported: true}).reported).toBe(true);
+  expect(toHistoryReel({...share(9, 'SUCCEEDED'), reported: false}).reported).toBe(false);
+  expect(toHistoryReel(share(10, 'SUCCEEDED')).reported).toBeUndefined();
+});
+
 test('커서를 cursorCreatedAt과 cursorId로 보내고 마지막 페이지는 null 커서를 돌려준다', async () => {
   mockRequest.mockResolvedValue({sharedMedias: [], nextCursor: null});
 
@@ -142,6 +149,20 @@ test('추출 성공 공유의 상세는 목록을 다시 읽지 않고 장소 �
     },
     expect.objectContaining({id: '32', position: 1}),
   ]);
+});
+
+test('최근 공유 장소 수는 공유별 장소 응답만으로 계산한다', async () => {
+  mockRequest.mockResolvedValueOnce({places: [{placeId: 31}, {placeId: 32}]});
+
+  await expect(getHistoryReelPlaceCount('8')).resolves.toBe(2);
+  expect(mockRequest).toHaveBeenCalledTimes(1);
+  expect(mockRequest).toHaveBeenCalledWith('/api/v1/shares/8/places');
+  expect(getSavedPlaces).not.toHaveBeenCalled();
+});
+
+test('공유별 장소가 null이면 장소 수는 0이다', async () => {
+  mockRequest.mockResolvedValueOnce({places: null});
+  await expect(getHistoryReelPlaceCount('8')).resolves.toBe(0);
 });
 
 test('보관함 게시물도 히스토리와 같은 상세 조회 경로를 사용한다', async () => {
