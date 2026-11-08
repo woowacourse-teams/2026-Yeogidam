@@ -392,9 +392,26 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
         />
       )}
       <LinearGradient
-        colors={['rgba(0, 0, 0, 0)', 'rgba(13, 13, 31, 0.62)']}
+        // 시트의 둥근 모서리 뒤로 밝은 원본 이미지가 비치지 않게, 그라데이션을 모서리 높이만큼
+        // 더 같은 어둡기로 이어서 시트 윗선 아래까지 덮습니다.
+        colors={[
+          'rgba(0, 0, 0, 0)',
+          'rgba(13, 13, 31, 0.62)',
+          'rgba(13, 13, 31, 0.62)',
+        ]}
+        locations={[
+          0,
+          (windowHeight * 0.355) / (windowHeight * 0.355 + SHEET_RADIUS),
+          1,
+        ]}
         pointerEvents="none"
-        style={[styles.shade, {top: windowHeight * 0.355, height: windowHeight * 0.355}]}
+        style={[
+          styles.shade,
+          {
+            top: windowHeight * 0.355,
+            height: windowHeight * 0.355 + SHEET_RADIUS,
+          },
+        ]}
       />
 
       {/* 이미지 영역을 누르면 원본 이동을 확인합니다. 시트나 캡션이 펼쳐진 동안은 받지 않습니다. */}
