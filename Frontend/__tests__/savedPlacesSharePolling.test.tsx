@@ -5,7 +5,7 @@ import {ScrollView} from 'react-native';
 import {getReelProcessingStatus, saveContent} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
 import {getHistoryReels} from '../src/entities/content/history-api';
-import {clearRecentShares} from '../src/entities/content/recent-shares-poller';
+import {clearRecentShares, subscribeRecentShares} from '../src/entities/content/recent-shares-poller';
 import {deleteSavedMedia, getSavedMedia} from '../src/entities/content/saved-media-api';
 import type {HistoryReel} from '../src/entities/content/types';
 import {deleteSavedPlaces, getSavedPlaces} from '../src/entities/info/api';
@@ -199,6 +199,33 @@ test('인스타그램 공유의 게시물 반영이 두 번의 조회보다 늦�
     (reel: HistoryReel) => reel.id,
   )).toEqual(['8']);
   expect(onSharedResultConsumed).toHaveBeenCalledWith('share-8');
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+test('히스토리의 처리 중 공유가 완료되면 보관함의 게시물과 장소를 갱신한다', async () => {
+  jest.mocked(getHistoryReels)
+    .mockResolvedValueOnce({reels: [historyReel('8', 'PROCESSING')], nextCursor: null})
+    .mockResolvedValueOnce({reels: [historyReel('8', 'COMPLETED')], nextCursor: null});
+  const renderer = await render();
+  const subscription = subscribeRecentShares({intervalMs: 60_000, onResult: () => undefined});
+  await ReactTestRenderer.act(async () => {
+    await subscription.refresh();
+  });
+  const postRequestsBeforeCompletion = jest.mocked(getSavedMedia).mock.calls.length;
+  const placeRequestsBeforeCompletion = jest.mocked(getSavedPlaces).mock.calls.length;
+  jest.mocked(getSavedMedia).mockResolvedValue({
+    reels: [historyReel('8', 'COMPLETED')], nextCursor: null,
+  });
+
+  await ReactTestRenderer.act(async () => {
+    await subscription.refresh();
+  });
+  expect(jest.mocked(getSavedMedia).mock.calls.length).toBeGreaterThan(postRequestsBeforeCompletion);
+  expect(jest.mocked(getSavedPlaces).mock.calls.length).toBeGreaterThan(placeRequestsBeforeCompletion);
+  expect(renderer.root.findByType(SavedPostGrid).props.reels.map(
+    (reel: HistoryReel) => reel.id,
+  )).toEqual(['8']);
+  subscription.unsubscribe();
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

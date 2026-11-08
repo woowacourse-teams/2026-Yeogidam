@@ -229,7 +229,13 @@ export function SavedPlacesScreen({
   const [processingReel, setProcessingReel] =
     useState<ReelProcessingStatus | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [completedUrlReelId, setCompletedUrlReelId] = useState<string | null>(null);
+  const [completedRefreshIds, setCompletedRefreshIds] = useState<string[]>([]);
+  const completedShareIdsRef = useRef<Set<string> | null>(null);
+  const queueCompletedRefresh = useCallback((reelId: string) => {
+    setCompletedRefreshIds(current =>
+      current.includes(reelId) ? current : [...current, reelId],
+    );
+  }, []);
   const [_statusQueryError, setStatusQueryError] =
     useState<ReelApiError | null>(null);
   const [_isSaveResponseFailure, setIsSaveResponseFailure] = useState(false);
@@ -713,7 +719,7 @@ export function SavedPlacesScreen({
         state.status === 'COMPLETED' && state.source === 'url_input',
       );
       if (state.status === 'COMPLETED' && state.source === 'url_input') {
-        setCompletedUrlReelId(state.reel.id);
+        queueCompletedRefresh(state.reel.id);
       }
       if (state.status === 'COMPLETED') {
         if (state.source === 'instagram_share') {
@@ -731,7 +737,7 @@ export function SavedPlacesScreen({
       isActive = false;
       unsubscribe();
     };
-  }, [isGuest, loadPostPage, loadSavedPlaces, onSharedResultConsumed]);
+  }, [isGuest, loadPostPage, loadSavedPlaces, onSharedResultConsumed, queueCompletedRefresh]);
 
   const openDialog = () => {
     if (isGuest) {
@@ -778,7 +784,6 @@ export function SavedPlacesScreen({
     setStatusQueryError(null);
     setIsSaveResponseFailure(false);
     setShowSaveSuccess(false);
-    setCompletedUrlReelId(null);
     setSharedSaveState({
       url: normalizedUrl,
       status: 'PROCESSING',
@@ -867,7 +872,7 @@ export function SavedPlacesScreen({
         created_at: new Date().toISOString(),
       });
       setShowSaveSuccess(source === 'url_input');
-      if (source === 'url_input') setCompletedUrlReelId(response.reelId);
+      if (source === 'url_input') queueCompletedRefresh(response.reelId);
       return;
     }
 
@@ -1031,7 +1036,7 @@ export function SavedPlacesScreen({
             setProcessingReelId(null);
             setShowSaveSuccess(sharedState?.source === 'url_input');
             if (sharedState?.source === 'url_input') {
-              setCompletedUrlReelId(nextStatus.id);
+              queueCompletedRefresh(nextStatus.id);
             }
           }
         }
@@ -1099,15 +1104,33 @@ export function SavedPlacesScreen({
   useEffect(() => {
     if (isGuest) {
       setSharedReels([]);
+      completedShareIdsRef.current = null;
       return;
     }
-    // 최근 공유 행은 히스토리와 같은 공용 폴러를 씁니다.
+    // 히스토리와 같은 공용 폴러에서 완료 전환을 보면 게시물·장소도 갱신합니다.
     const subscription = subscribeRecentShares({
       intervalMs: RECENT_SHARES_INTERVAL_MS,
-      onResult: ({ reels }) => setSharedReels(reels),
+      onResult: ({ reels }) => {
+        setSharedReels(reels);
+        const completedIds = new Set(
+          reels.filter(reel => reel.processing_status === 'COMPLETED').map(reel => reel.id),
+        );
+        const previousIds = completedShareIdsRef.current;
+        completedShareIdsRef.current = completedIds;
+        const newlyCompleted = previousIds
+          ? reels.filter(reel =>
+              reel.processing_status === 'COMPLETED' && !previousIds.has(reel.id),
+            )
+          : reels.filter(reel => reel.processing_status === 'COMPLETED').slice(0, 1);
+        // 첫 목록에는 과거 완료 항목도 많으므로 최신 한 건만 재확인합니다.
+        newlyCompleted.forEach(reel => queueCompletedRefresh(reel.id));
+      },
     });
-    return () => subscription.unsubscribe();
-  }, [isGuest]);
+    return () => {
+      subscription.unsubscribe();
+      completedShareIdsRef.current = null;
+    };
+  }, [isGuest, queueCompletedRefresh]);
 
   // 방금 저장한 릴스는 서버 목록에 잡히기 전에도 "최근 공유" 줄에 보여 줍니다.
   // 서버가 접수한 실패 항목은 보여 주되, 요청 자체가 실패한 임시 카드는 숨깁니다.
@@ -1136,7 +1159,7 @@ export function SavedPlacesScreen({
   }, [processingReel, sharedReels]);
 
   useEffect(() => {
-    if (isGuest || !isScreenActive || !completedUrlReelId) {
+    if (isGuest || !isScreenActive || completedRefreshIds.length === 0) {
       return;
     }
 
@@ -1144,22 +1167,27 @@ export function SavedPlacesScreen({
     // 게시물은 실제 공유 ID가 나타날 때까지, 장소는 추출 결과가 0건일 수도
     // 있으므로 짧은 기간 동안 다시 읽습니다.
     let cancelled = false;
-    let postVisible = false;
+    const postVisibleIds = new Set<string>();
+    const targetIds = completedRefreshIds;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     const refresh = async (attempt: number) => {
       const [, page] = await Promise.all([
         loadSavedPlaces(),
-        postVisible ? Promise.resolve(undefined) : loadPostPage(),
+        postVisibleIds.size === targetIds.length
+          ? Promise.resolve(undefined)
+          : loadPostPage(),
       ]);
       if (cancelled) return;
-      if (page?.reels.some(reel => reel.id === completedUrlReelId)) {
-        postVisible = true;
-      }
+      page?.reels.forEach(reel => {
+        if (targetIds.includes(reel.id)) postVisibleIds.add(reel.id);
+      });
       if (attempt + 1 < COMPLETED_SAVE_REFRESH_DELAYS_MS.length) {
         timeoutId = setTimeout(
           () => refresh(attempt + 1).catch(() => undefined),
           COMPLETED_SAVE_REFRESH_DELAYS_MS[attempt + 1],
         );
+      } else {
+        setCompletedRefreshIds(current => current.filter(id => !targetIds.includes(id)));
       }
     };
     refresh(0).catch(() => undefined);
@@ -1167,7 +1195,7 @@ export function SavedPlacesScreen({
       cancelled = true;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [completedUrlReelId, isGuest, isScreenActive, loadPostPage, loadSavedPlaces]);
+  }, [completedRefreshIds, isGuest, isScreenActive, loadPostPage, loadSavedPlaces]);
 
   useEffect(() => {
     if (!showSaveSuccess) return;
