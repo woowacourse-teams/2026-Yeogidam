@@ -74,6 +74,95 @@ export type MapSheetPage = {
   translateY: Animated.Value | number;
 };
 
+/**
+ * 장소 목록이 비었을 때의 안내입니다. 보관함과 같은 기준(검색 결과 없음, 카테고리에만 없음, 저장한 장소 없음)에
+ * 장소는 있지만 지금 지도 영역에 없는 경우를 더했습니다.
+ */
+export type PlaceResultEmptyState =
+  | { kind: 'noSearchResults' }
+  | { kind: 'noSearchResultsInCategory'; category: string }
+  | { kind: 'noSavedPlaces'; category: string | null }
+  | { kind: 'outOfArea'; isSearch: boolean };
+
+/** 빈 안내가 바뀔 때 새 안내를 서서히 보여 줘, 칩을 넘길 때 그림이 툭 바뀌지 않게 합니다. */
+function FadeInOnChange({ children }: { children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [opacity]);
+  return (
+    <Animated.View style={[styles.emptyMessage, { opacity }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function PlaceResultEmptyMessage({
+  emptyState,
+}: {
+  emptyState: PlaceResultEmptyState;
+}) {
+  return emptyState.kind === 'noSearchResults' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-search-no-results-cropped.png')}
+        style={styles.searchEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
+      <Text style={styles.emptyResultText}>
+        다른 키워드로 다시 검색해보세요.
+      </Text>
+    </>
+  ) : emptyState.kind === 'noSearchResultsInCategory' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-category-cropped.png')}
+        style={styles.categoryEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category} 카테고리에 검색 결과가 없어요
+      </Text>
+      <Text style={styles.emptyResultText}>다른 카테고리를 골라보세요.</Text>
+    </>
+  ) : emptyState.kind === 'noSavedPlaces' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
+        style={styles.emptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category
+          ? `${emptyState.category} 카테고리에 저장한 장소가 없어요`
+          : '아직 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        {emptyState.category
+          ? '다른 카테고리를 골라보세요.'
+          : '장소를 저장하면 지도에서 확인할 수 있어요.'}
+      </Text>
+    </>
+  ) : (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-looking-around-cropped.png')}
+        style={styles.areaEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.isSearch
+          ? '이 지도 영역에 검색 결과가 없어요'
+          : '이 지도 영역에 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        지도를 움직여 다른 곳도 확인해보세요.
+      </Text>
+    </>
+  );
+}
+
 type PlaceResultSheetProps = {
   pageHeight: number;
   renderPage: (sheet: React.ReactNode, page: MapSheetPage) => React.ReactNode;
@@ -86,8 +175,7 @@ type PlaceResultSheetProps = {
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   backPlaces?: Place[];
   places: Place[];
-  isSearchActive?: boolean;
-  hasSavedPlaces?: boolean;
+  emptyState?: PlaceResultEmptyState;
   /** 목록 위에 고정되는 폴더 전환/폴더 상세 헤더입니다. */
   folderHeader?: React.ReactNode;
   /** 지정하면 장소 목록 대신 이 내용을 보여줍니다(폴더 목록). */
@@ -164,8 +252,7 @@ export function PlaceResultSheet({
   onBackGestureRegionChange,
   backPlaces,
   places,
-  isSearchActive = false,
-  hasSavedPlaces = false,
+  emptyState = { kind: 'noSavedPlaces', category: null },
   folderHeader,
   folderContent,
   backFolderHeader,
@@ -1278,37 +1365,10 @@ export function PlaceResultSheet({
                   <Text style={styles.emptyResultText}>
                     저장한 장소를 불러오지 못했어요.
                   </Text>
-                ) : isSearchActive ? (
-                  <>
-                    <Text style={styles.emptyResultTitle}>
-                      검색 결과가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      다른 키워드로 다시 검색해보세요.
-                    </Text>
-                  </>
-                ) : !hasSavedPlaces ? (
-                  <>
-                    <Image
-                      source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
-                      style={styles.emptyIllustration}
-                    />
-                    <Text style={styles.emptyResultTitle}>
-                      아직 저장한 장소가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      장소를 저장하면 지도에서 확인할 수 있어요.
-                    </Text>
-                  </>
                 ) : (
-                  <>
-                    <Text style={styles.emptyResultTitle}>
-                      이 지도 영역에 저장한 장소가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      지도를 움직여 다른 곳도 확인해보세요.
-                    </Text>
-                  </>
+                  <FadeInOnChange key={JSON.stringify(emptyState)}>
+                    <PlaceResultEmptyMessage emptyState={emptyState} />
+                  </FadeInOnChange>
                 )}
               </View>
             }
@@ -1601,6 +1661,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
   },
+  emptyMessage: {
+    alignItems: 'center',
+  },
   // 화면이 넘긴 빈 상태(예: 빈 폴더)는 위 헤더에 붙여 보여줍니다.
   customEmptyResult: {
     paddingTop: 12,
@@ -1610,6 +1673,26 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 18,
     transform: [{ translateX: -8 }],
+    marginBottom: 12,
+  },
+  // 빈 상자 일러스트(96)는 위 투명 여백 약 16을 빼면 그림 높이가 약 80입니다.
+  // 여백 없는 일러스트도 그림 높이 80에 원본 비율로 맞추고, 위에 16을 두어 그림과 제목 위치를 같게 합니다.
+  searchEmptyIllustration: {
+    width: 75,
+    height: 80,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  areaEmptyIllustration: {
+    width: 92,
+    height: 80,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  categoryEmptyIllustration: {
+    width: 95,
+    height: 80,
+    marginTop: 16,
     marginBottom: 12,
   },
   emptyResultTitle: {
