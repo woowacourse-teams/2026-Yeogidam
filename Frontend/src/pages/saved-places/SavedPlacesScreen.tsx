@@ -252,7 +252,11 @@ export function SavedPlacesScreen({
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
   const activeCategory = selectedCategory;
   // 검색어가 있으면 보관함 화면은 그대로 두고 그리드 내용만 검색 결과로 바꿉니다.
-  const librarySearch = useSavedLibrarySearch({ places, isGuest: Boolean(isGuest) });
+  const librarySearch = useSavedLibrarySearch({
+    places,
+    isGuest: Boolean(isGuest),
+    onAuthenticationRequired,
+  });
   const isSearching = librarySearch.query !== null;
   const activeSearchIdRef = useRef<string | null>(null);
   const filteredPlaces = useMemo(

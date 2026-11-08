@@ -7,9 +7,17 @@ import {toSavedPlaceDisplayPlace} from '../../entities/place/api';
 import type {Place} from '../../entities/place/types';
 
 const SEARCH_ERROR_MESSAGE = '검색하지 못했어요.';
+/** 서버는 앞뒤 공백을 뺀 검색어가 100자를 넘으면 400(SEARCH400_001)으로 거절합니다. */
+export const SEARCH_QUERY_MAX_LENGTH = 100;
 
 function toErrorMessage(error: unknown) {
   return (error as {message?: string}).message ?? SEARCH_ERROR_MESSAGE;
+}
+
+/** 장소·게시물 API 모두 401을 AUTH401_001로 바꿔 던집니다. */
+function isAuthenticationError(error: unknown) {
+  const {status, errorCode} = error as {status?: number | null; errorCode?: string | null};
+  return status === 401 || errorCode === 'AUTH401_001';
 }
 
 /** 서버에 저장하지 않은 게스트 장소는 기기 안에서 이름·주소로 거릅니다. */
@@ -29,13 +37,19 @@ export function filterPlacesByKeyword(places: Place[], query: string) {
 type UseSavedLibrarySearchOptions = {
   places: Place[];
   isGuest: boolean;
+  /** 로그인이 만료돼 검색하지 못하면 부릅니다. */
+  onAuthenticationRequired?: () => void;
 };
 
 /**
  * 보관함 검색어와 결과를 관리합니다. 장소 탭은 장소 검색, 게시물 탭은 캡션 검색 결과를 씁니다.
  * 검색어가 바뀌면 이전 요청의 응답은 버립니다.
  */
-export function useSavedLibrarySearch({places, isGuest}: UseSavedLibrarySearchOptions) {
+export function useSavedLibrarySearch({
+  places,
+  isGuest,
+  onAuthenticationRequired,
+}: UseSavedLibrarySearchOptions) {
   const [query, setQuery] = useState<string | null>(null);
   const [placeResults, setPlaceResults] = useState<Place[]>([]);
   const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
@@ -48,6 +62,13 @@ export function useSavedLibrarySearch({places, isGuest}: UseSavedLibrarySearchOp
   const isLoadingMoreReelsRef = useRef(false);
   const placesRef = useRef(places);
   placesRef.current = places;
+  const onAuthenticationRequiredRef = useRef(onAuthenticationRequired);
+  onAuthenticationRequiredRef.current = onAuthenticationRequired;
+
+  const handleError = useCallback((error: unknown, requestId: number) => {
+    if (isAuthenticationError(error)) onAuthenticationRequiredRef.current?.();
+    return requestId === requestIdRef.current ? toErrorMessage(error) : null;
+  }, []);
 
   const searchPlaces = useCallback(
     async (nextQuery: string, requestId: number) => {
@@ -61,13 +82,14 @@ export function useSavedLibrarySearch({places, isGuest}: UseSavedLibrarySearchOp
         setPlaceResults(results);
         return results.length;
       } catch (error) {
-        if (requestId === requestIdRef.current) setPlaceError(toErrorMessage(error));
+        const message = handleError(error, requestId);
+        if (message !== null) setPlaceError(message);
         return 0;
       } finally {
         if (requestId === requestIdRef.current) setIsLoadingPlaces(false);
       }
     },
-    [isGuest],
+    [handleError, isGuest],
   );
 
   const searchReels = useCallback(
@@ -86,7 +108,8 @@ export function useSavedLibrarySearch({places, isGuest}: UseSavedLibrarySearchOp
         setReelCursor(page.nextCursor);
         return page.reels.length;
       } catch (error) {
-        if (requestId === requestIdRef.current) setReelError(toErrorMessage(error));
+        const message = handleError(error, requestId);
+        if (message !== null) setReelError(message);
         return 0;
       } finally {
         if (requestId === requestIdRef.current) {
@@ -95,7 +118,7 @@ export function useSavedLibrarySearch({places, isGuest}: UseSavedLibrarySearchOp
         }
       }
     },
-    [isGuest],
+    [handleError, isGuest],
   );
 
   /** 두 검색이 끝나면 결과 수를 돌려주고, 그사이 검색어가 바뀌었으면 null을 돌려줍니다. */

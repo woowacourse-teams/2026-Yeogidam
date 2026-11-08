@@ -27,6 +27,7 @@ type SearchBarProps = {
   placeholder?: string;
   autoFocus?: boolean;
   autoCorrect?: boolean;
+  maxLength?: number;
   onSubmitEditing?: (
     event: NativeSyntheticEvent<TextInputSubmitEditingEventData>,
   ) => void;
@@ -54,6 +55,7 @@ export function SearchBar({
   placeholder = '장소, 지역 검색',
   autoFocus = false,
   autoCorrect = true,
+  maxLength,
   onSubmitEditing,
   onFocus,
   onBlur,
@@ -141,6 +143,7 @@ export function SearchBar({
             autoFocus={autoFocus}
             onBlur={onBlur}
             clearButtonMode="while-editing"
+            maxLength={maxLength}
             onChangeText={onChangeText}
             onFocus={onFocus}
             onSubmitEditing={handleSubmitEditing}

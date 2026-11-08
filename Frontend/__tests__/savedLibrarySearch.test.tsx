@@ -28,10 +28,14 @@ const localPlaces = [
 
 type Search = ReturnType<typeof useSavedLibrarySearch>;
 
-async function renderSearch(isGuest = false) {
+async function renderSearch(isGuest = false, onAuthenticationRequired?: () => void) {
   const result: {current: Search} = {current: null as never};
   function Harness() {
-    result.current = useSavedLibrarySearch({places: localPlaces, isGuest});
+    result.current = useSavedLibrarySearch({
+      places: localPlaces,
+      isGuest,
+      onAuthenticationRequired,
+    });
     return null;
   }
   await ReactTestRenderer.act(async () => {
@@ -112,6 +116,22 @@ test('검색어가 바뀌면 이전 검색의 늦은 응답은 버린다', async
   expect(firstCounts).toBeNull();
   expect(search.current.query).toBe('망원');
   expect(search.current.places.map(place => place.name)).toEqual(['망원 식당']);
+});
+
+test('로그인이 만료돼 검색하지 못하면 로그인 요청을 알리고 오류 문구를 남긴다', async () => {
+  const authError = {status: 401, errorCode: 'AUTH401_001', message: '로그인이 필요해요.'};
+  mockSearchSavedPlaces.mockRejectedValue(authError);
+  mockSearchSavedMedia.mockRejectedValue(authError);
+  const onAuthenticationRequired = jest.fn();
+  const search = await renderSearch(false, onAuthenticationRequired);
+
+  await ReactTestRenderer.act(async () => {
+    await search.current.search('성수');
+  });
+
+  expect(onAuthenticationRequired).toHaveBeenCalled();
+  expect(search.current.placeError).toBe('로그인이 필요해요.');
+  expect(search.current.reelError).toBe('로그인이 필요해요.');
 });
 
 test('게스트는 서버를 부르지 않고 기기 안의 장소를 이름·주소로 거른다', async () => {

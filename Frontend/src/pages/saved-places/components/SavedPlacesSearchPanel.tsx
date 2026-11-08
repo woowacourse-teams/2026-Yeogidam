@@ -6,6 +6,7 @@ import type {SavedPlacesSearchMethod} from '../../../analytics/savedPlaceEvents'
 import {SearchBar} from '../../../components/SearchBar';
 import {SAVED_LIBRARY_SEARCH_PLACEHOLDER} from './SavedPlacesHeader';
 import {LIBRARY_GUTTER} from './libraryTheme';
+import {SEARCH_QUERY_MAX_LENGTH} from '../useSavedLibrarySearch';
 
 type SavedPlacesSearchPanelProps = {
   initialQuery: string;
@@ -40,6 +41,7 @@ export function SavedPlacesSearchPanel({
           autoFocus
           backButtonPosition="leading"
           layout="embedded"
+          maxLength={SEARCH_QUERY_MAX_LENGTH}
           onChangeText={setQuery}
           onPressBack={onCloseSearch}
           onPressSearchAction={submitSearch}
