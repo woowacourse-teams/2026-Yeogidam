@@ -36,9 +36,12 @@
 | `GET /api/v1/places/999/info` (없는 장소) | `YeogidamException` | 404 | 존재하지 않는 장소입니다. | `PLACE404_003` | `INFO [요청 거부] PLACE404_003` |
 | `GET /api/v1/saved-places` (토큰 없음) | `YeogidamException` | 401 | 로그인이 필요한 요청입니다. | `AUTH401_004` | `WARN [인증 거부] AUTH401_004` |
 | `POST /api/v1/auth/token-refreshes` (교체된 직전 리프레시 토큰을 교체 뒤 10초 안에 다시 보냄) | `YeogidamException` | 401 | 이미 교체된 리프레시 토큰입니다. 새 토큰으로 다시 시도해 주세요. | `AUTH401_005` | `WARN [인증 거부] AUTH401_005` |
+| `GET /api/v1/places/1/blogs` (네이버 블로그 검색 오류, 3초 시간 초과, 읽을 수 없는 응답) | `YeogidamException` | 502 | 블로그 검색 결과를 가져오지 못했습니다. | `PLACE502_001` | `ERROR [요청 실패] PLACE502_001` |
 | 그 밖의 예외 | `Exception` 폴백 | 500 | 예기치 못한 예외가 발생했습니다. | `COMMON500_001` | `ERROR [예기치 못한 오류] GET /경로` + 스택 |
 
 이미 쓴 리프레시 토큰이 다시 오면 세션을 폐기하고 `AUTH401_003`을 내지만, 교체된 직전 토큰이 교체 뒤 10초 안에 오면 앱과 공유 확장의 동시 재발급으로 보고 세션은 그대로 둔 채 `AUTH401_005`만 낸다. 유예 기록은 서버 메모리에만 있어 재기동하면 비어 있다.
+
+블로그 검색이 실패하면 `NaverBlogSearcher`가 사유를 한 줄 먼저 남긴다. 네이버가 오류를 주면 `ERROR [블로그 검색 실패] status=429`처럼 상태를, 시간 초과, 연결 실패, 읽을 수 없는 본문이면 `ERROR [블로그 검색 실패] exception=ResourceAccessException`(본문은 `UnknownContentTypeException`, `RestClientException`)처럼 예외 이름을, 응답에 `items` 배열이 없으면 `ERROR [블로그 검색 실패] 응답에 items 배열이 없습니다.`를, 키에 헤더로 보낼 수 없는 글자가 섞이면 키 값 없이 `ERROR [블로그 검색 실패] 키를 헤더로 보낼 수 없습니다.`를 남긴다. E2E는 네이버 대신 가짜 검색기를 써서 사유 줄이 남지 않으므로 표의 로그 칸에는 넣지 않았다.
 
 ## 3. 공통 코드와 도메인 코드가 갈리는 기준
 
