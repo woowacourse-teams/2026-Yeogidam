@@ -3,6 +3,7 @@ import {
   deleteSavedMedia,
   getSavedMedia,
   saveMediaPlace,
+  searchSavedMedia,
 } from '../src/entities/content/saved-media-api';
 
 jest.mock('../src/lib/api/spring-client', () => ({
@@ -52,6 +53,36 @@ test('보관함 게시물과 장소 저장 상태를 매핑하고 커서 시각�
     reported: true,
   });
   expect(page.reels[0]).not.toHaveProperty('saved_media_places');
+});
+
+test('게시물 캡션 검색은 검색어와 커서를 함께 보내고 목록과 같은 모델로 변환한다', async () => {
+  request
+    .mockResolvedValueOnce({
+      sharedMedia: [{
+        sharedMediaId: 81,
+        createdAt: '2026-11-04T03:12:45.123456Z',
+        thumbnailUrl: null,
+        caption: '성수 카페 투어',
+        author: 'author',
+        sharedUrl: 'https://www.instagram.com/reel/abc/',
+        places: [],
+      }],
+      nextCursor: {createdAt: '2026-11-04T03:12:45.123456Z', id: 81},
+    })
+    .mockResolvedValueOnce({sharedMedia: [], nextCursor: null});
+
+  const first = await searchSavedMedia('카페');
+  expect(request).toHaveBeenLastCalledWith('/api/v1/saved-media/search', {
+    query: {query: '카페'},
+  });
+  expect(first.reels[0]).toMatchObject({id: '81', instagram_description: '성수 카페 투어'});
+  expect(first.nextCursor).toEqual({created_at: '2026-11-04T03:12:45.123456Z', id: '81'});
+
+  const next = await searchSavedMedia('카페', first.nextCursor!);
+  expect(request).toHaveBeenLastCalledWith('/api/v1/saved-media/search', {
+    query: {query: '카페', cursorCreatedAt: '2026-11-04T03:12:45.123456Z', cursorId: '81'},
+  });
+  expect(next).toEqual({reels: [], nextCursor: null});
 });
 
 test('게시물 삭제와 장소 북마크가 서버 계약을 사용한다', async () => {
