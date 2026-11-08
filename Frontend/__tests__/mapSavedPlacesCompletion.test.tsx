@@ -122,9 +122,10 @@ test('완료 결과로 다시 읽는 동안 이전 장소 조회가 늦게 끝�
   });
 
   await showShares([completed('new-reel')]);
-  expect(renderer.root.findByType(PlaceResultSheet).props.hasSavedPlaces).toBe(true);
+  // 저장 장소가 하나라도 있으면 빈 목록 안내가 'noSavedPlaces'가 아니라 'outOfArea'가 된다.
+  expect(renderer.root.findByType(PlaceResultSheet).props.emptyState.kind).toBe('outOfArea');
 
   await act(async () => resolveFirst([]));
-  expect(renderer.root.findByType(PlaceResultSheet).props.hasSavedPlaces).toBe(true);
+  expect(renderer.root.findByType(PlaceResultSheet).props.emptyState.kind).toBe('outOfArea');
   await act(async () => renderer.unmount());
 });
