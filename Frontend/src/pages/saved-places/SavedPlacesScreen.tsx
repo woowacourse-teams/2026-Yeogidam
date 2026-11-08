@@ -58,7 +58,10 @@ import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
 import { SavedPlaceGrid } from './components/SavedPlaceGrid';
 import { SavedPlacesHeader } from './components/SavedPlacesHeader';
 import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
-import { SavedPlacesSearchEmpty } from './components/SavedPlacesSearchEmpty';
+import {
+  SavedPlacesEmptyResult,
+  type SavedPlacesEmptyResultVariant,
+} from './components/SavedPlacesEmptyResult';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
 import { SavedPlacesRecentShares } from './components/SavedPlacesRecentShares';
@@ -268,16 +271,62 @@ export function SavedPlacesScreen({
     [isSearching, librarySearch.places, places, activeCategory],
   );
   const visiblePostReels = isSearching ? librarySearch.reels : postReels;
-  // 검색 결과가 없으면 빈 그리드 대신 안내를 남은 화면 가운데에 둡니다.
-  const isSearchResultEmpty =
-    isSearching &&
-    (libraryView === 'places'
-      ? !librarySearch.isLoadingPlaces &&
-        !librarySearch.placeError &&
-        filteredPlaces.length === 0
-      : !librarySearch.isLoadingReels &&
-        !librarySearch.reelError &&
-        librarySearch.reels.length === 0);
+  // 그리드에 보여 줄 항목이 없으면 빈 그리드 대신 안내를 남은 화면 가운데에 둡니다.
+  // 검색 결과가 아예 없으면 검색, 검색 결과가 고른 카테고리에만 없으면 카테고리, 담은 것이 없으면 빈 보관함 안내입니다.
+  const emptyResult = ((): {
+    variant: SavedPlacesEmptyResultVariant;
+    title: string;
+    description: string;
+  } | null => {
+    if (libraryView === 'places') {
+      if (isSearching) {
+        if (librarySearch.isLoadingPlaces || librarySearch.placeError) return null;
+        if (librarySearch.places.length === 0) {
+          return {
+            variant: 'search',
+            title: '검색 결과가 없어요',
+            description: '다른 키워드로 다시 검색해보세요.',
+          };
+        }
+      } else if (places.length === 0) {
+        return {
+          variant: 'empty',
+          title: '아직 저장한 장소가 없어요',
+          description: '릴스를 공유하고 마음에 드는 장소를 담아보세요.',
+        };
+      }
+      if (filteredPlaces.length > 0) return null;
+      return isSearching
+        ? {
+            variant: 'category',
+            title: `${activeCategory} 카테고리에 검색 결과가 없어요`,
+            description: '다른 카테고리를 골라보세요.',
+          }
+        : {
+            variant: 'empty',
+            title: `${activeCategory} 카테고리에 저장한 장소가 없어요`,
+            description: '다른 카테고리를 골라보세요.',
+          };
+    }
+    if (isSearching) {
+      return librarySearch.isLoadingReels ||
+        librarySearch.reelError ||
+        librarySearch.reels.length > 0
+        ? null
+        : {
+            variant: 'search',
+            title: '검색 결과가 없어요',
+            description: '다른 키워드로 다시 검색해보세요.',
+          };
+    }
+    return isLoadingPosts || postError || postReels.length > 0
+      ? null
+      : {
+          variant: 'empty',
+          title: '담긴 게시물이 아직 없어요',
+          description: '릴스를 공유하고 게시물을 담아보세요.',
+        };
+  })();
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
 
   useEffect(() => {
@@ -1580,7 +1629,7 @@ export function SavedPlacesScreen({
               styles.scrollContent,
               // 헤더가 내용 위에 떠 있으므로, 배너가 없을 때만 헤더 높이만큼 비워 둡니다.
               !(error || deleteError) && { paddingTop: SAVED_HEADER_HEIGHT },
-              isSearchResultEmpty && styles.scrollContentFill,
+              emptyResult !== null && styles.scrollContentFill,
             ]}
             onScroll={event => {
               const { contentOffset, contentSize, layoutMeasurement } =
@@ -1635,13 +1684,11 @@ export function SavedPlacesScreen({
             >
               {libraryBar}
             </View>
-            {isSearchResultEmpty ? (
-              <SavedPlacesSearchEmpty
-                title={
-                  libraryView === 'places' && activeCategory !== ALL_CATEGORY
-                    ? `${activeCategory} 카테고리에 검색 결과가 없어요`
-                    : '검색 결과가 없어요'
-                }
+            {emptyResult !== null ? (
+              <SavedPlacesEmptyResult
+                description={emptyResult.description}
+                title={emptyResult.title}
+                variant={emptyResult.variant}
               />
             ) : libraryView === 'places' ? (
               <>
@@ -1670,10 +1717,6 @@ export function SavedPlacesScreen({
                       {librarySearch.placeError} 다시 시도하기
                     </Text>
                   </Pressable>
-                ) : filteredPlaces.length === 0 ? (
-                  <Text style={styles.categoryEmptyText}>
-                    {activeCategory} 카테고리에 저장한 장소가 없어요
-                  </Text>
                 ) : null}
               </>
             ) : (
@@ -1701,10 +1744,6 @@ export function SavedPlacesScreen({
                   <Pressable onPress={() => loadPostPage(postCursor ?? undefined)}>
                     <Text style={styles.categoryEmptyText}>{postError} 다시 시도하기</Text>
                   </Pressable>
-                ) : postReels.length === 0 ? (
-                  <Text style={styles.categoryEmptyText}>
-                    담긴 게시물이 아직 없어요
-                  </Text>
                 ) : null}
               </>
             )}
