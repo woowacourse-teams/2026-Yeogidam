@@ -2,6 +2,8 @@ import {AppState} from 'react-native';
 
 import {getHistoryReels} from '../src/entities/content/history-api';
 import {
+  clearRecentShares,
+  getRecentSharesSnapshot,
   subscribeRecentShares,
   type RecentSharesSubscription,
 } from '../src/entities/content/recent-shares-poller';
@@ -38,6 +40,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  clearRecentShares();
   subscriptions.splice(0).forEach(subscription => subscription.unsubscribe());
   jest.clearAllTimers();
   jest.useRealTimers();
@@ -117,4 +120,32 @@ test('백그라운드에서는 읽지 않는다', async () => {
   setAppState('active');
   await tick(3000);
   expect(getHistoryReels).toHaveBeenCalledTimes(1);
+});
+
+test('마지막으로 받은 목록을 저장해 두고, 비우면 null로 돌아간다', async () => {
+  expect(getRecentSharesSnapshot()).toBeNull();
+  subscribe(3000);
+
+  await tick(3000);
+  expect(getRecentSharesSnapshot()).toBe(snapshot);
+
+  clearRecentShares();
+  expect(getRecentSharesSnapshot()).toBeNull();
+});
+
+test('캐시를 비우기 전에 보낸 요청의 응답은 캐시를 되살리지 않는다', async () => {
+  let resolveRequest: (value: typeof snapshot) => void = () => undefined;
+  jest.mocked(getHistoryReels).mockReturnValueOnce(
+    new Promise(resolve => {
+      resolveRequest = resolve;
+    }),
+  );
+  const {subscription} = subscribe(3000);
+  const pending = subscription.refresh();
+
+  clearRecentShares();
+  resolveRequest({reels: [], nextCursor: null});
+  await pending;
+
+  expect(getRecentSharesSnapshot()).toBeNull();
 });

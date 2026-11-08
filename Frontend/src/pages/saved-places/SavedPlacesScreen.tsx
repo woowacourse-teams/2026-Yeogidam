@@ -84,7 +84,7 @@ import {
   saveContent,
 } from '../../entities/content/api';
 import {deleteSavedMedia, getSavedMedia} from '../../entities/content/saved-media-api';
-import { subscribeRecentShares } from '../../entities/content/recent-shares-poller';
+import { getRecentSharesSnapshot, subscribeRecentShares } from '../../entities/content/recent-shares-poller';
 import type {
   HistoryReel,
   HistoryCursor,
@@ -191,7 +191,10 @@ export function SavedPlacesScreen({
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [sharedReels, setSharedReels] = useState<HistoryReel[]>([]);
+  // 탭을 다시 눌러 화면이 새로 마운트돼도 최근 공유 줄이 비지 않도록 폴러의 마지막 결과로 시작합니다.
+  const [sharedReels, setSharedReels] = useState<HistoryReel[]>(
+    () => (isGuest ? [] : getRecentSharesSnapshot()?.reels ?? []),
+  );
   const [postReels, setPostReels] = useState<HistoryReel[]>([]);
   const [postCursor, setPostCursor] = useState<HistoryCursor | null>(null);
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
