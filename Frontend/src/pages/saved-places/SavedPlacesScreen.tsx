@@ -58,6 +58,7 @@ import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
 import { SavedPlaceGrid } from './components/SavedPlaceGrid';
 import { SavedPlacesHeader } from './components/SavedPlacesHeader';
 import { SavedPlacesLinkDialog } from './components/SavedPlacesLinkDialog';
+import { SavedPlacesSearchEmpty } from './components/SavedPlacesSearchEmpty';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
 import { SavedPlacesRecentShares } from './components/SavedPlacesRecentShares';
@@ -263,6 +264,16 @@ export function SavedPlacesScreen({
     [isSearching, librarySearch.places, places, activeCategory],
   );
   const visiblePostReels = isSearching ? librarySearch.reels : postReels;
+  // 검색 결과가 없으면 빈 그리드 대신 안내를 남은 화면 가운데에 둡니다.
+  const isSearchResultEmpty =
+    isSearching &&
+    (libraryView === 'places'
+      ? !librarySearch.isLoadingPlaces &&
+        !librarySearch.placeError &&
+        filteredPlaces.length === 0
+      : !librarySearch.isLoadingReels &&
+        !librarySearch.reelError &&
+        librarySearch.reels.length === 0);
   const bottomActionOffset = getBottomNavigationBarOffset(bottomInset);
 
   useEffect(() => {
@@ -1565,6 +1576,7 @@ export function SavedPlacesScreen({
               styles.scrollContent,
               // 헤더가 내용 위에 떠 있으므로, 배너가 없을 때만 헤더 높이만큼 비워 둡니다.
               !(error || deleteError) && { paddingTop: SAVED_HEADER_HEIGHT },
+              isSearchResultEmpty && styles.scrollContentFill,
             ]}
             onScroll={event => {
               const { contentOffset, contentSize, layoutMeasurement } =
@@ -1619,7 +1631,15 @@ export function SavedPlacesScreen({
             >
               {libraryBar}
             </View>
-            {libraryView === 'places' ? (
+            {isSearchResultEmpty ? (
+              <SavedPlacesSearchEmpty
+                title={
+                  libraryView === 'places' && activeCategory !== ALL_CATEGORY
+                    ? `${activeCategory} 카테고리에 검색 결과가 없어요`
+                    : '검색 결과가 없어요'
+                }
+              />
+            ) : libraryView === 'places' ? (
               <>
                 <SavedPlaceGrid
                   isEditing={isEditing}
@@ -1648,11 +1668,7 @@ export function SavedPlacesScreen({
                   </Pressable>
                 ) : filteredPlaces.length === 0 ? (
                   <Text style={styles.categoryEmptyText}>
-                    {isSearching
-                      ? activeCategory === ALL_CATEGORY
-                        ? '검색 결과가 없어요'
-                        : `${activeCategory} 카테고리에 검색 결과가 없어요`
-                      : `${activeCategory} 카테고리에 저장한 장소가 없어요`}
+                    {activeCategory} 카테고리에 저장한 장소가 없어요
                   </Text>
                 ) : null}
               </>
@@ -1674,8 +1690,6 @@ export function SavedPlacesScreen({
                         {librarySearch.reelError} 다시 시도하기
                       </Text>
                     </Pressable>
-                  ) : librarySearch.reels.length === 0 ? (
-                    <Text style={styles.categoryEmptyText}>검색 결과가 없어요</Text>
                   ) : null
                 ) : isLoadingPosts ? (
                   <Text style={styles.categoryEmptyText}>게시물을 불러오고 있어요.</Text>
@@ -1895,6 +1909,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     gap: 16,
     paddingTop: 0,
+  },
+  scrollContentFill: {
+    flexGrow: 1,
   },
   listArea: {
     flex: 1,
