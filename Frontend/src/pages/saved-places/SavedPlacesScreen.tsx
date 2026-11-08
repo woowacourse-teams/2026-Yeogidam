@@ -1075,6 +1075,14 @@ export function SavedPlacesScreen({
     onEditModeChange?.(next);
   }, [analytics, isEditingPosts, onEditModeChange]);
 
+  // 장소 탭처럼 게시물을 길게 누르면 편집을 시작합니다.
+  const enterPostEditMode = useCallback(() => {
+    analytics.button('post_edit_long_press');
+    setIsEditingPosts(true);
+    setSelectedPostIds(new Set());
+    onEditModeChange?.(true);
+  }, [analytics, onEditModeChange]);
+
   const togglePostSelection = useCallback(
     (reelId: string) => {
       analytics.button('toggle_post_selection');
@@ -1593,6 +1601,7 @@ export function SavedPlacesScreen({
                 <SavedPostGrid
                   isEditing={isEditingPosts}
                   reels={postReels}
+                  onLongPressReel={enterPostEditMode}
                   onPressReel={handleOpenReel}
                   onToggleReelSelection={togglePostSelection}
                   selectedReelIds={selectedPostIds}
