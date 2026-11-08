@@ -238,6 +238,13 @@ describe('시트 끌기 제스처', () => {
     expect(shouldCaptureSheetDrag({...base, isCaptionOpen: true, startY: 650})).toBe(true);
   });
 
+  test('캡션이 맨 위일 때만 아래로 끌어 닫는 제스처를 받는다', () => {
+    const open = {...base, isCaptionOpen: true, dy: 40, startY: 300};
+    expect(shouldCaptureSheetDrag({...open, captionScrollY: 0})).toBe(true);
+    expect(shouldCaptureSheetDrag({...open, captionScrollY: 120})).toBe(false);
+    expect(shouldCaptureSheetDrag(open)).toBe(false);
+  });
+
   test('펼친 상태에서는 시트 윗부분·이미지 영역의 아래로 끌기만 받는다', () => {
     const expanded = {...base, isExpanded: true, sheetTop: 250, dy: 40};
     expect(shouldCaptureSheetDrag({...expanded, startY: 100})).toBe(true); // 이미지 영역

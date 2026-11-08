@@ -76,7 +76,13 @@ type SheetDragInput = {
   sheetTop: number;
   isExpanded: boolean;
   isCaptionOpen: boolean;
+  /** 펼친 캡션 스크롤 위치. 0 이하(맨 위)일 때만 아래로 끌어 캡션을 닫습니다. */
+  captionScrollY?: number;
 };
+
+// 펼친 캡션을 아래로 끌어 닫을 최소 거리/속도.
+const CAPTION_DISMISS_DISTANCE = 80;
+const CAPTION_DISMISS_VELOCITY = 0.5;
 
 /**
  * 세로 끌기를 시트 제스처로 받을지 정합니다.
@@ -92,9 +98,16 @@ export function shouldCaptureSheetDrag({
   sheetTop,
   isExpanded,
   isCaptionOpen,
+  captionScrollY,
 }: SheetDragInput) {
   if (Math.abs(dy) < 6 || Math.abs(dy) < Math.abs(dx) * 1.5) {
     return false;
+  }
+  if (isCaptionOpen && !isExpanded && dy > 0) {
+    // 캡션 맨 위에서 아래로 끌면 캡션을 닫는 제스처로 받습니다.
+    return (
+      captionScrollY !== undefined && captionScrollY <= 0 && startY < sheetTop
+    );
   }
   if (isExpanded) {
     return dy > 0 && startY < sheetTop + SHEET_DRAG_AREA_HEIGHT;
@@ -257,6 +270,9 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
 
   const isCaptionOpenRef = useRef(isCaptionOpen);
   isCaptionOpenRef.current = isCaptionOpen;
+  const captionScrollYRef = useRef(0);
+  // 이번 끌기가 캡션 닫기 제스처인지(시트 제스처와 구분).
+  const isCaptionDismissDragRef = useRef(false);
   const sheetTopRef = useRef(collapsedTop);
   useEffect(() => {
     const id = sheetTop.addListener(({value}) => {
@@ -270,25 +286,46 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponderCapture: (_, gesture) =>
-          shouldCaptureSheetDrag({
+        onMoveShouldSetPanResponderCapture: (_, gesture) => {
+          const captured = shouldCaptureSheetDrag({
             dx: gesture.dx,
             dy: gesture.dy,
             startY: gesture.y0,
             sheetTop: sheetTopRef.current,
             isExpanded: isSheetExpandedRef.current,
             isCaptionOpen: isCaptionOpenRef.current,
-          }),
+            captionScrollY: captionScrollYRef.current,
+          });
+          isCaptionDismissDragRef.current =
+            captured && isCaptionOpenRef.current && !isSheetExpandedRef.current && gesture.dy > 0;
+          return captured;
+        },
         onPanResponderGrant: () => {
+          if (isCaptionDismissDragRef.current) {
+            return;
+          }
           sheetTop.stopAnimation(value => {
             dragStartTopRef.current = value;
           });
         },
         onPanResponderMove: (_, gesture) => {
+          if (isCaptionDismissDragRef.current) {
+            return;
+          }
           const {collapsedTop: low, expandedTop: high} = layoutRef.current;
           sheetTop.setValue(clamp(dragStartTopRef.current + gesture.dy, high, low));
         },
         onPanResponderRelease: (_, gesture) => {
+          if (isCaptionDismissDragRef.current) {
+            isCaptionDismissDragRef.current = false;
+            if (
+              gesture.dy > CAPTION_DISMISS_DISTANCE ||
+              gesture.vy > CAPTION_DISMISS_VELOCITY
+            ) {
+              toggleCaptionRef.current(false);
+            }
+            return;
+          }
           const {collapsedTop: low, expandedTop: high} = layoutRef.current;
           const current = clamp(dragStartTopRef.current + gesture.dy, high, low);
           const shouldExpand =
@@ -319,10 +356,13 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
   const toggleCaption = useCallback(
     (open: boolean) => {
       analytics.button(open ? 'caption_open' : 'caption_close');
+      captionScrollYRef.current = 0;
       setIsCaptionOpen(open);
     },
     [analytics],
   );
+  const toggleCaptionRef = useRef(toggleCaption);
+  toggleCaptionRef.current = toggleCaption;
 
   // 시트를 끌어올릴수록 캡션은 사라집니다.
   const captionOpacity = sheetTop.interpolate({
@@ -390,6 +430,10 @@ export function ReelDetailScreen({reel, onBack, onReported, isGuest = false}: Re
         <View style={styles.scrim}>
           <ScrollView
             contentContainerStyle={styles.captionContent}
+            onScroll={e => {
+              captionScrollYRef.current = e.nativeEvent.contentOffset.y;
+            }}
+            scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
             style={[
               styles.captionScroll,
