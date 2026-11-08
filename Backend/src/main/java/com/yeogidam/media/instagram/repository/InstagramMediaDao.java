@@ -11,10 +11,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Repository;
@@ -43,6 +46,7 @@ public class InstagramMediaDao {
     }
 
     private final JdbcTemplate jdbcTemplate;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     public MediaSaveResult saveIfAbsent(InstagramMedia instagramMedia, int pipelineVersion) {
         Optional<Long> createdMediaId = insertIfAbsent(instagramMedia, pipelineVersion);
@@ -126,6 +130,21 @@ public class InstagramMediaDao {
                 FOR UPDATE
                 """;
         return jdbcTemplate.queryForObject(sql, EXTRACTION_SNAPSHOT_ROW_MAPPER, mediaId);
+    }
+
+    /**
+     * 고른 게시물(media)을 ID 순서로 잠근다.
+     * 게시글 삭제와 장소 다시 저장이 공유 접수, 추출 완료와 같은 순서로 게시물부터 잠가서, 게시글을 지우는 사이에 추출이 끝나거나 장소를 다시 저장해도 지운 공유에 장소가 붙지 않는다.
+     */
+    public void lockByIds(List<Long> mediaIds) {
+        String sql = """
+                SELECT id
+                FROM media
+                WHERE id IN (:mediaIds)
+                ORDER BY id
+                FOR UPDATE
+                """;
+        namedParameterJdbcTemplate.queryForList(sql, Map.of("mediaIds", mediaIds), Long.class);
     }
 
     public boolean succeedExtractionIfInProgress(Long mediaId) {

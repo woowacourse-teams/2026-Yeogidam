@@ -1,13 +1,16 @@
 package com.yeogidam.global.migration;
 
+import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.global.seed.LocalDataSeeder;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.global.seed.LocalMemberSeeder;
 import com.yeogidam.support.MySqlContainerSupport;
 import java.math.BigDecimal;
@@ -201,6 +204,50 @@ class FlywayIntegrationTest extends MySqlContainerSupport {
                     """))
                     .isInstanceOf(DataAccessException.class)
                     .hasMessageContaining("chk_folders_color");
+        }
+    }
+
+    @Test
+    void V4까지_적용한_DB에_V5를_적용해도_기존_공유는_지운_게시글이_되지_않는다() {
+        // given: 운영에는 deleted_at 컬럼이 생기기 전에 쌓인 공유가 있다.
+        try (IsolatedDatabase database = new IsolatedDatabase("")) {
+            Flyway.configure().dataSource(database.source).target("4").load().migrate();
+            insertKakaoMember(database.jdbc, 41L, "keep-share", "기존 회원", null, null);
+            insertMedia(database.jdbc, 51L, 1, ExtractionStatus.SUCCEEDED);
+            insertSharedMedia(database.jdbc, 61L, 41L, 51L, Instant.parse("2026-11-05T00:00:00.123456Z"));
+
+            // when
+            Flyway.configure().dataSource(database.source).load().migrate();
+
+            // then
+            assertThat(database.jdbc.queryForObject("SELECT deleted_at FROM shared_media WHERE id = 61",
+                    Timestamp.class)).isNull();
+        }
+    }
+
+    @Test
+    void V5까지_적용한_DB에_V6을_적용하면_기존_장소의_영업시간과_메뉴는_null이다() {
+        // given
+        try (IsolatedDatabase database = new IsolatedDatabase("")) {
+            Flyway.configure().dataSource(database.source).target("5").load().migrate();
+            insertPlaceWithRequiredColumnsOnly(database.jdbc, 71L, "keep-place", "기존 장소", "서울 성동구",
+                    new BigDecimal("37.5"), new BigDecimal("127.0"));
+
+            // when
+            Flyway.configure().dataSource(database.source).target("6").load().migrate();
+
+            // then
+            assertThat(database.jdbc.queryForMap(
+                    "SELECT name, opening_hours, menus FROM places WHERE id = 71"))
+                    .containsEntry("name", "기존 장소")
+                    .containsEntry("opening_hours", null)
+                    .containsEntry("menus", null);
+            assertThat(database.jdbc.queryForList("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE() AND table_name = 'places'
+                      AND data_type = 'json' AND column_name IN ('opening_hours', 'menus')
+                    """, String.class)).containsExactlyInAnyOrder("opening_hours", "menus");
         }
     }
 

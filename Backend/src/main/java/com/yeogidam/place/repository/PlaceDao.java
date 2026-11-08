@@ -2,6 +2,7 @@ package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.domain.PlaceThumbnail;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
@@ -16,6 +17,16 @@ public class PlaceDao {
 
     private static final RowMapper<Long> PLACE_ID_ROW_MAPPER = (resultSet, rowNumber) ->
             resultSet.getLong("id");
+
+    private static final RowMapper<PlaceMediaProjection> MEDIA_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
+            new PlaceMediaProjection(
+                    resultSet.getLong("shared_media_id"),
+                    resultSet.getString("thumbnail_key"),
+                    resultSet.getString("author"),
+                    resultSet.getString("caption"),
+                    resultSet.getString("shared_url"),
+                    resultSet.getTimestamp("created_at").toInstant()
+            );
 
     private final JdbcTemplate jdbcTemplate;
     private final SimpleJdbcInsert jdbcInsert;
@@ -114,6 +125,46 @@ public class PlaceDao {
                 resultSet.getString("thumbnail_source")), kakaoPlaceId)
                 .stream()
                 .findFirst();
+    }
+
+    /**
+     * 장소 상세 목록에 보여 줄 공유로, 해당 장소가 추출된 게시물의 내 공유를 게시물마다 가장 최근 한 건씩 최신순으로 읽는다.
+     * 지우지 않았고 분석에 성공한 내 공유만 읽으며, 보관함에 장소를 저장했는지와 공유 연결은 보지 않는다.
+     * 공유 시각이 같으면 ID가 큰 공유를 더 최근으로 본다.
+     */
+    public List<PlaceMediaProjection> findMediaByMemberAndPlace(Long memberId, Long placeId) {
+        String sql = """
+                SELECT latest.shared_media_id,
+                       m.thumbnail_key,
+                       m.author,
+                       m.caption,
+                       latest.shared_url,
+                       latest.created_at
+                FROM (
+                    SELECT sm.id AS shared_media_id,
+                           sm.media_id,
+                           sm.created_at,
+                           sm.shared_url,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY sm.media_id
+                               ORDER BY sm.created_at DESC, sm.id DESC
+                           ) AS recency_rank
+                    FROM shared_media sm
+                    WHERE sm.member_id = ?
+                      AND sm.deleted_at IS NULL
+                      AND sm.extraction_status = 'SUCCEEDED'
+                      AND EXISTS (
+                          SELECT 1
+                          FROM media_places mp
+                          WHERE mp.media_id = sm.media_id
+                            AND mp.place_id = ?
+                      )
+                ) latest
+                JOIN media m ON m.id = latest.media_id
+                WHERE latest.recency_rank = 1
+                ORDER BY latest.created_at DESC, latest.shared_media_id DESC
+                """;
+        return jdbcTemplate.query(sql, MEDIA_PROJECTION_ROW_MAPPER, memberId, placeId);
     }
 
     private Optional<Long> findIdByKakaoPlaceIdForUpdate(String kakaoPlaceId) {

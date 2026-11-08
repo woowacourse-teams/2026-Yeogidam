@@ -9,20 +9,31 @@ import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertDeletedSharedMedia;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
+import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
+import com.yeogidam.media.extraction.domain.ExtractionStatus;
+import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.place.domain.SavedPlace;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 보관함 저장·조회·삭제와 공유 연결이 실제 MySQL에서 동작하는지 검증한다.
@@ -36,6 +47,9 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void 처음_저장하는_장소면_보관함에_장소가_생성된다() {
@@ -88,6 +102,21 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
     }
 
     @Test
+    void 이미_보관함에_있는_장소를_다시_저장하면_새로_넣지_않은_것으로_돌려준다() {
+        // given: 보관함 11은 이미 장소 1을 저장했다
+        insertMember(1L, "save-existing-owner");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00.123456Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+
+        // when
+        boolean isCreated = savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, previous.plusSeconds(10)));
+
+        // then
+        assertThat(isCreated).isFalse();
+    }
+
+    @Test
     void 회원과_장소가_모두_일치하는_보관함_ID를_조회한다() {
         // given
         insertMember(1L, "saved-id-owner");
@@ -100,13 +129,63 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
 
         // when & then
         assertAll(
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 1L))
-                        .isEqualTo(11L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(1L, 2L))
-                        .isEqualTo(12L),
-                () -> assertThat(savedPlaceDao.getIdByMemberAndPlace(2L, 1L))
-                        .isEqualTo(21L)
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L))
+                        .contains(11L),
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 2L))
+                        .contains(12L),
+                () -> assertThat(savedPlaceDao.findIdByMemberAndPlaceForUpdate(2L, 1L))
+                        .contains(21L)
         );
+    }
+
+    @Test
+    void 다른_회원만_저장한_장소의_보관함_ID는_읽지_않는다() {
+        // given: 장소 1은 회원 2만 저장했다
+        insertMember(1L, "saved-id-empty-owner");
+        insertMember(2L, "saved-id-empty-other");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-10-01T10:00:00Z"));
+
+        // when
+        Optional<Long> savedPlaceId = savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L);
+
+        // then
+        assertThat(savedPlaceId).isEmpty();
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void 다른_트랜잭션이_지운_장소를_다시_저장하면_새_보관함_ID를_읽는다() {
+        // given
+        insertMember(1L, "saved-id-stale-owner");
+        insertThreePlaces();
+        Instant previous = Instant.parse("2026-10-01T10:00:00Z");
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, previous);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        TransactionTemplate otherTransaction = new TransactionTemplate(transactionManager);
+        otherTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        try {
+            // when
+            Long savedPlaceId = transaction.execute(status -> {
+                assertThat(savedPlaceDao.findAllByMember(1L)).hasSize(1);
+                otherTransaction.executeWithoutResult(otherStatus ->
+                        savedPlaceDao.deleteByMemberAndIds(1L, List.of(11L)));
+                savedPlaceDao.saveOrUpdate(new SavedPlace(1L, 1L, previous.plusSeconds(60)));
+                return savedPlaceDao.findIdByMemberAndPlaceForUpdate(1L, 1L).orElseThrow();
+            });
+
+            // then: 스냅숏에 남은 옛 ID 11이 아니라 지금 남은 항목의 ID를 읽는다
+            assertAll(
+                    () -> assertThat(savedPlaceId).isNotEqualTo(11L),
+                    () -> assertThat(savedPlaceId).isEqualTo(readSavedPlaceId(1L, 1L))
+            );
+        } finally {
+            jdbcTemplate.update("DELETE FROM saved_places WHERE member_id = ?", 1L);
+            jdbcTemplate.update("DELETE FROM places WHERE id IN (1, 2, 3)");
+            jdbcTemplate.update("DELETE FROM members WHERE id = ?", 1L);
+        }
     }
 
     @Test
@@ -464,6 +543,175 @@ class SavedPlaceDaoTest extends JdbcTestSupport {
                 () -> assertThat(count("saved_places WHERE id = 12")).isEqualTo(1),
                 () -> assertThat(count("saved_places WHERE id = 21")).isEqualTo(1)
         );
+    }
+
+    @Test
+    void 고른_보관함_항목_가운데_내_항목의_장소_ID만_읽는다() {
+        // given: 보관함 11(장소 2), 12(장소 1)는 회원 1의 것이고, 21(장소 3)은 회원 2의 것이다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 2L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 1L, Instant.parse("2026-09-15T00:00:05Z"));
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 3L, Instant.parse("2026-09-15T00:00:10Z"));
+
+        // when: 내 항목 11과 12, 없는 id 999, 남의 항목 21을 함께 보낸다
+        List<Long> placeIds = savedPlaceDao.findPlaceIdsByMemberAndIds(1L, List.of(11L, 12L, 999L, 21L));
+
+        // then: 내 항목의 장소만 장소 ID 순서로 읽는다
+        assertThat(placeIds).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void 장소의_관련_릴스에서_지운_공유는_빠진다() {
+        // given: 보관함 11은 공유 100과 102에서 저장했고, 공유 100은 보관함에서 지웠다
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-09-15T00:00:00Z"));
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 20L, "연남 와인바", "reel20.jpg", "@yeonnam");
+        insertDeletedSharedMedia(jdbcTemplate, 100L, 1L, 10L, Instant.parse("2026-09-10T10:00:00Z"),
+                Instant.parse("2026-11-05T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 102L, 1L, 20L, Instant.parse("2026-09-12T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-09-10T12:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 11L, 102L, Instant.parse("2026-09-12T12:00:00Z"));
+
+        // when
+        SavedPlaceMediaProjections media = savedPlaceDao.findMediaBySavedPlace(11L);
+
+        // then
+        assertThat(media.shares()).extracting(SavedPlaceMediaProjection::sharedMediaId)
+                .containsExactly(102L);
+    }
+
+    @Test
+    void 지울_후보로_게시물의_공유에_연결된_장소를_한_번씩_읽는다() {
+        // given: 회원 1은 게시물 10을 공유 100(지움)과 101로, 게시물 20을 공유 200으로 공유했고, 회원 2는 게시물 10을 공유 300으로 공유했다
+        insertMember(1L, "user-1");
+        insertMember(2L, "user-2");
+        insertThreePlaces();
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 20L, "연남 와인바", "reel20.jpg", "@yeonnam");
+        insertDeletedSharedMedia(jdbcTemplate, 100L, 1L, 10L, Instant.parse("2026-11-01T10:00:00Z"),
+                Instant.parse("2026-11-05T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 101L, 1L, 10L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 200L, 1L, 20L, Instant.parse("2026-11-03T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 300L, 2L, 10L, Instant.parse("2026-11-04T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 13L, 1L, 3L, Instant.parse("2026-11-03T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 21L, 2L, 1L, Instant.parse("2026-11-04T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 12L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 3L, 12L, 101L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 4L, 13L, 200L, Instant.parse("2026-11-03T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 5L, 21L, 300L, Instant.parse("2026-11-04T10:00:00Z"));
+
+        // when
+        List<Long> placeIds = savedPlaceDao.findPlaceIdsByMemberAndMediaIds(1L, List.of(10L));
+
+        // then: 지운 공유 100의 연결도 읽고, 두 공유에 연결된 장소 2는 한 번만, 다른 게시물의 장소 3과 회원 2의 보관함은 읽지 않는다
+        assertThat(placeIds).containsExactly(1L, 2L);
+    }
+
+    @Test
+    void 지울_후보로_게시물에서_추출된_장소도_보관함에_있으면_읽는다() {
+        // given: 게시물 10에서 장소 1과 2가 추출됐고, 회원 1은 장소 1과 3을 다른 게시물 20의 공유 200에서만 저장했다
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 20L, "연남 와인바", "reel20.jpg", "@yeonnam");
+        insertMediaPlace(jdbcTemplate, 1L, 10L, 1L);
+        insertMediaPlace(jdbcTemplate, 2L, 10L, 2L);
+        insertSharedMedia(jdbcTemplate, 100L, 1L, 10L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 200L, 1L, 20L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 13L, 1L, 3L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 200L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 13L, 200L, Instant.parse("2026-11-02T10:00:00Z"));
+
+        // when
+        List<Long> placeIds = savedPlaceDao.findPlaceIdsByMemberAndMediaIds(1L, List.of(10L));
+
+        // then: 게시물 10에서 나온 장소 1은 읽고, 보관함에 없는 장소 2와 게시물 10에서 나오지 않은 장소 3은 읽지 않는다
+        assertThat(placeIds).containsExactly(1L);
+    }
+
+    @Test
+    void 남은_공유와_연결된_장소는_지울_대상에서_빼고_폴더에_담긴_장소는_지울_대상에_넣는다() {
+        // given: 장소 1, 2, 3을 지운 공유 100에서 저장했고, 장소 2는 남아 있는 공유 200에서도 저장했으며, 장소 3은 폴더 31에 담았다
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 20L, "연남 와인바", "reel20.jpg", "@yeonnam");
+        insertDeletedSharedMedia(jdbcTemplate, 100L, 1L, 10L, Instant.parse("2026-11-01T10:00:00Z"),
+                Instant.parse("2026-11-05T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 200L, 1L, 20L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 13L, 1L, 3L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 12L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 3L, 12L, 200L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 4L, 13L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertFolder(jdbcTemplate, 31L, 1L, "데이트", "RED");
+        insertFolderSavedPlace(jdbcTemplate, 1L, 31L, 13L);
+
+        // when
+        List<Long> unusedIds = savedPlaceDao.findUnusedIdsByMemberAndPlaceIds(1L, List.of(1L, 2L, 3L));
+
+        // then: 장소 1(보관함 11)과 폴더에 담은 장소 3(보관함 13)은 읽고, 공유 200에서도 저장한 장소 2(보관함 12)는 읽지 않는다
+        assertThat(unusedIds).containsExactly(11L, 13L);
+    }
+
+    @Test
+    void 분석에_성공한_남은_게시글에_있는_장소는_공유_연결이_없어도_지울_대상에서_뺀다() {
+        // given: 장소 1과 2를 지운 공유 100에서만 저장했고, 장소 2는 남은 성공 공유 200의 게시물 20에서도 추출됐다
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 20L, "연남 와인바", "reel20.jpg", "@yeonnam");
+        insertMediaPlace(jdbcTemplate, 1L, 20L, 2L);
+        insertDeletedSharedMedia(jdbcTemplate, 100L, 1L, 10L, Instant.parse("2026-11-01T10:00:00Z"),
+                Instant.parse("2026-11-05T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 200L, 1L, 20L, Instant.parse("2026-11-02T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 11L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 12L, 1L, 2L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 11L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 2L, 12L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+
+        // when
+        List<Long> unusedIds = savedPlaceDao.findUnusedIdsByMemberAndPlaceIds(1L, List.of(1L, 2L));
+
+        // then: 게시물 20의 상세에 체크로 보이는 장소 2(보관함 12)는 빼고, 장소 1(보관함 11)만 읽는다
+        assertThat(unusedIds).containsExactly(11L);
+    }
+
+    @Test
+    void 분석에_실패한_남은_게시글에서_추출된_장소는_지울_대상에서_빼지_않는다() {
+        // given: 장소 3을 지운 공유 100에서만 저장했고, 장소 3은 분석에 실패한 내 공유 300의 게시물 30에서도 추출됐다
+        insertMember(1L, "user-1");
+        insertThreePlaces();
+        insertMedia(jdbcTemplate, 10L, "성수 카페 투어", "reel10.jpg", "@seongsu_life");
+        insertMedia(jdbcTemplate, 30L, "망원 빵집", "reel30.jpg", "@mangwon");
+        insertMediaPlace(jdbcTemplate, 1L, 30L, 3L);
+        insertDeletedSharedMedia(jdbcTemplate, 100L, 1L, 10L, Instant.parse("2026-11-01T10:00:00Z"),
+                Instant.parse("2026-11-05T10:00:00Z"));
+        insertSharedMedia(jdbcTemplate, 300L, 1L, 30L, Instant.parse("2026-11-03T10:00:00Z"), new ExtractionSnapshot(
+                ExtractionStatus.FAILED, ExtractionFailureReason.PROCESSING_FAILED, 1, MediaSourceType.EXTRACTED));
+        insertSavedPlace(jdbcTemplate, 13L, 1L, 3L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlaceShare(jdbcTemplate, 1L, 13L, 100L, Instant.parse("2026-11-01T10:00:00Z"));
+
+        // when
+        List<Long> unusedIds = savedPlaceDao.findUnusedIdsByMemberAndPlaceIds(1L, List.of(3L));
+
+        // then: 실패한 게시글은 게시물 탭에 나오지 않아 체크가 보이지 않으므로, 장소 3(보관함 13)을 읽는다
+        assertThat(unusedIds).containsExactly(13L);
+    }
+
+    private Long readSavedPlaceId(Long memberId, Long placeId) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM saved_places WHERE member_id = ? AND place_id = ?", Long.class, memberId, placeId);
     }
 
     private Instant readSavedAt(Long savedPlaceId) {

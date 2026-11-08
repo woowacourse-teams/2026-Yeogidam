@@ -41,6 +41,7 @@ class SavedMediaPlaceProjectionsTest {
      * 묶는 규칙은 게시물 ID와 장소 ID만 보므로 나머지 값은 비워 둔다.
      */
     private SavedMediaPlaceProjection place(Long mediaId, Long placeId) {
-        return new SavedMediaPlaceProjection(mediaId, placeId, null, null, null, null, null, null);
+        return new SavedMediaPlaceProjection(mediaId, placeId, null, null, null, null, null, null,
+                null, null, null, null);
     }
 }

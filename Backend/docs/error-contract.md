@@ -24,12 +24,15 @@
 | `GET /api/v1/saved-places/abc/media` | `MethodArgumentTypeMismatch` | 400 | 요청 값의 형식이 올바르지 않습니다. | `COMMON400_004` | `INFO [요청 거부] COMMON400_004` |
 | `DELETE /api/v1/saved-places?savedPlaceIds=abc` | `MethodArgumentTypeMismatch` | 400 | 요청 값의 형식이 올바르지 않습니다. | `COMMON400_004` | `INFO [요청 거부] COMMON400_004` |
 | 도메인 객체가 값을 거부(2단계부터) | `IllegalArgument` | 400 | 요청 값이 올바르지 않습니다. | `COMMON400_005` | `WARN [요청 거부] COMMON400_005 장소 이름이 비어 있습니다.` + 스택 |
-| `POST /api/v1/saved-places` | `HttpRequestMethodNotSupported` | 405 | 지원하지 않는 요청 메서드입니다. | `COMMON405_001` | 없음. `Allow` 헤더를 함께 내린다 |
+| `GET /api/v1/auth/logins/kakao` | `HttpRequestMethodNotSupported` | 405 | 지원하지 않는 요청 메서드입니다. | `COMMON405_001` | 없음. `Allow` 헤더를 함께 내린다 |
 | `GET /nope` | `NoResourceFound` | 404 | 요청한 경로를 찾을 수 없습니다. | `COMMON404_001` | `INFO [요청 거부] COMMON404_001` |
 | `GET /api/v1/app-update-policies?platform=web&appVersion=1.1.0` | `YeogidamException` | 400 | platform은 ios 또는 android여야 합니다. | `APP400_001` | `INFO [요청 거부] APP400_001` |
 | `DELETE /api/v1/saved-places?savedPlaceIds=` | `YeogidamException` | 400 | 삭제할 보관함 항목이 없습니다. | `PLACE400_001` | `INFO [요청 거부] PLACE400_001` |
+| `DELETE /api/v1/saved-media?sharedMediaIds=` | `YeogidamException` | 400 | 삭제할 게시글이 없습니다. | `MEDIA400_018` | `INFO [요청 거부] MEDIA400_018` |
 | `GET /oauth/kakao/callback?code=abc&state=forged` (위조, 만료. state가 아예 없으면 `COMMON400_003`) | `YeogidamException` | 400 | 소셜 로그인 요청이 만료되었거나 유효하지 않습니다. 다시 로그인해 주세요. | `AUTH400_001` | `INFO [요청 거부] AUTH400_001` |
 | `GET /api/v1/saved-places/999/media` (남의 항목) | `YeogidamException` | 404 | 저장된 장소가 아닙니다. | `PLACE404_001` | `INFO [요청 거부] PLACE404_001` |
+| `POST /api/v1/saved-places` 본문 `{"sharedMediaId": 1, "placeId": 1}` (지운 게시글의 공유) | `YeogidamException` | 404 | 존재하지 않는 공유입니다. | `MEDIA404_002` | `INFO [요청 거부] MEDIA404_002` |
+| `POST /api/v1/saved-places` 본문 `{"sharedMediaId": 1, "placeId": 3}` (게시물에서 추출되지 않은 장소) | `YeogidamException` | 404 | 게시물에서 추출된 장소가 아닙니다. | `PLACE404_002` | `INFO [요청 거부] PLACE404_002` |
 | `GET /api/v1/saved-places` (토큰 없음) | `YeogidamException` | 401 | 로그인이 필요한 요청입니다. | `AUTH401_004` | `WARN [인증 거부] AUTH401_004` |
 | `POST /api/v1/auth/token-refreshes` (교체된 직전 리프레시 토큰을 교체 뒤 10초 안에 다시 보냄) | `YeogidamException` | 401 | 이미 교체된 리프레시 토큰입니다. 새 토큰으로 다시 시도해 주세요. | `AUTH401_005` | `WARN [인증 거부] AUTH401_005` |
 | 그 밖의 예외 | `Exception` 폴백 | 500 | 예기치 못한 예외가 발생했습니다. | `COMMON500_001` | `ERROR [예기치 못한 오류] GET /경로` + 스택 |

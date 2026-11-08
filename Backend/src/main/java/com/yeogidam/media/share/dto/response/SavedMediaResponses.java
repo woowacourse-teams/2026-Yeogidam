@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
- * 보관함 게시물 탭의 한 페이지를 히스토리 목록과 같은 sharedMedias, nextCursor 모양으로 내린다.
+ * 보관함 게시물 탭의 한 페이지를 sharedMedia 키와 다음 커서(nextCursor)로 내린다.
  */
 public record SavedMediaResponses(
-        List<SavedMediaResponse> sharedMedias,
+        List<SavedMediaResponse> sharedMedia,
         SharedMediaCursorResponse nextCursor
 ) {
     public static SavedMediaResponses from(

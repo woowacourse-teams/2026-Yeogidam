@@ -117,6 +117,7 @@ public interface ShareApiDocs {
                     - 이전 분석 버전의 실패는 실패 사유에 관계없이 재시도할 수 있습니다.
                     - 운영이 시드 데이터로 넣은 게시물(`source_type = SEEDED`)은 추출 파이프라인을 타지 않아서 재시도할 수 없습니다.
                     - 요청 회원이 같은 미디어의 분석 중인 이력을 이미 갖고 있으면 해당 이력 ID를 돌려줍니다.
+                    - 보관함 게시물 삭제로 지운 분석 중 이력은 이어받지 않고 새 이력을 만들어, 분석이 끝나면 장소를 보관함에 다시 담습니다.
                     - 요청 회원의 분석 중인 이력이 없으면 새 이력을 만들어 해당 분석에 합류합니다.
                     - 분석 중인 이력을 대상으로 요청할 수 없습니다.
                     - 본인 실패 후 다른 회원이 성공한 미디어를 재시도하면 재공유처럼 새 성공 이력을 만들고 장소를 바로 저장합니다.
@@ -197,13 +198,15 @@ public interface ShareApiDocs {
             @Parameter(description = "재시도할 실패 이력 ID(shared_media.id)입니다.", example = "10") Long sharedMediaId
     );
 
-    @Operation(summary = "장소 분석 실패 제보",
+    @Operation(summary = "장소 분석 결과 제보",
             description = """
-                    로그인한 회원의 실패한 공유 이력을 제보합니다. 요청 본문은 없습니다.
+                    로그인한 회원의 공유 이력을 제보합니다. 요청 본문은 없습니다.
 
-                    - 공유 이력의 분석 상태가 `FAILED`일 때만 제보할 수 있습니다.
+                    - 분석에 실패한 공유 이력(`FAILED`)과 분석에 성공한 공유 이력(`SUCCEEDED`)을 제보할 수 있고, 분석 중인 공유 이력(`EXTRACTING`)은 `400`으로 응답합니다.
+                    - 성공한 공유 이력의 제보는 추출 결과에 문제가 있다는 신호만 받으며, 어떤 장소가 틀렸는지는 받지 않습니다.
                     - 실패 사유와 분석 버전에 관계없이 제보할 수 있습니다.
-                    - 같은 미디어를 공유한 다른 회원도 각자의 실패 이력을 제보할 수 있습니다.
+                    - 같은 미디어를 공유한 다른 회원도 각자의 공유 이력을 제보할 수 있습니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 제보할 수 있습니다.
                     - 같은 공유 이력은 한 번만 제보할 수 있으며 중복 제보는 `409`로 응답합니다.
                     - 제보해도 분석을 다시 실행하거나 공유 이력을 바꾸지 않습니다.
                     """,
@@ -211,13 +214,13 @@ public interface ShareApiDocs {
             responses = {
                     @ApiResponse(responseCode = "201", description = "제보를 접수했으며 응답 본문은 없습니다.",
                             content = @Content),
-                    @ApiResponse(responseCode = "400", description = "실패하지 않은 공유 이력입니다.",
+                    @ApiResponse(responseCode = "400", description = "장소를 분석 중인 공유 이력입니다.",
                             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = @ExampleObject(name = "MEDIA400_017",
                                             value = """
                                                     {
-                                                      "message": "장소 분석에 실패한 공유만 제보할 수 있습니다.",
+                                                      "message": "장소를 분석 중인 공유는 제보할 수 없습니다.",
                                                       "errorCode": "MEDIA400_017"
                                                     }
                                                     """))),
@@ -251,7 +254,7 @@ public interface ShareApiDocs {
             })
     ResponseEntity<Void> createReport(
             Long memberId,
-            @Parameter(description = "제보할 실패 이력 ID(shared_media.id)입니다.", example = "10") Long sharedMediaId
+            @Parameter(description = "제보할 공유 이력 ID(shared_media.id)입니다.", example = "10") Long sharedMediaId
     );
 
     @Operation(summary = "히스토리 목록 조회",
@@ -268,6 +271,11 @@ public interface ShareApiDocs {
                       `PROCESSING_FAILED`, `UNEXPECTED` 중 하나입니다.
                     - 게시물에 접근하지 못한 공유 이력은 `thumbnailUrl`, `caption`, `author`가 null일 수 있습니다.
                     - `sharedUrl`은 게시물 접근 성공 여부와 관계없이 돌려줍니다.
+                    - `reported`는 공유 이력을 제보했으면 `true`, 제보하지 않았으면 `false`를 돌려줍니다.
+                    - 제보는 공유 이력마다 받으므로, 재시도나 다시 공유로 만든 새 공유 이력은 제보하기 전까지 `false`를 돌려줍니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 목록에 남고 `reported`를 지우기 전과 같게 돌려줍니다.
+                    - `deletedAt`은 보관함 게시물 삭제로 지운 공유 이력이면 지운 시각을 돌려주고, 지우지 않은 공유 이력이면 null을 돌려줍니다.
+                    - 지운 게시글은 보관함에 없고 장소 저장(`POST /api/v1/saved-places`)도 404를 돌려주므로, 앱은 `deletedAt`으로 지운 공유 이력을 가려 릴스 상세로 들어가지 않게 합니다.
                     - 공유 이력이 없으면 빈 `sharedMedias` 배열을 돌려줍니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
@@ -319,6 +327,12 @@ public interface ShareApiDocs {
 
                     - 장소는 릴스 추출 결과 순서로 돌려줍니다.
                     - 장소마다 `landLotAddress`와 `roadAddress`를 모두 제공합니다.
+                    - `savedPlaceId`는 로그인한 회원의 보관함 항목 ID를 돌려주고, 보관함에 없는 장소면 null을 돌려줍니다.
+                    - `categoryCode`와 `categoryName`은 `/api/v1/place-categories`의 코드와 이름에 대응합니다.
+                    - `category` 원문이 없거나 분류 규칙에 맞지 않으면 `ETC`, `기타`를 돌려줍니다.
+                    - `latitude`, `longitude`, `kakaoPlaceUrl`, `telephone`은 보관함 게시물 목록(`GET /api/v1/saved-media`)의 장소와 같은 값이라, 저장하지 않은 장소도 장소 상세의 지도 위치, 카카오 링크, 전화번호를 히스토리 응답의 값으로 채울 수 있습니다.
+                    - `latitude`와 `longitude`는 늘 값이 있고, `kakaoPlaceUrl`과 `telephone`은 장소에 값이 없으면 null을 돌려줍니다.
+                    - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 같은 방식으로 장소를 돌려줍니다.
                     - 존재하지 않거나 다른 회원의 공유 이력이면 조회할 수 없습니다.
                     """,
             security = @SecurityRequirement(name = "access-token"),
