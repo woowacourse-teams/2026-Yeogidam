@@ -26,6 +26,7 @@ import {
   BottomNavigationBar,
   SystemNavigationGradient,
 } from './src/components/BottomNavigationBar';
+import {clearRecentShares} from './src/entities/content/recent-shares-poller';
 import {SwipeBackStack, type BackScreen, type BackGestureRegion} from './src/components/navigation/SwipeBackStack';
 import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
@@ -421,7 +422,6 @@ function App() {
     if (flowState.kind !== 'main') setReelDetail(null);
   }, [flowState.kind]);
   const historyReturnScreenRef = useRef<MainScreen>('saved');
-  const mainTabHistoryRef = useRef<MainScreen[]>([]);
   const nestedBackStateRef = useRef(false);
   const [mapBackGestureRegion, setMapBackGestureRegion] = useState<BackGestureRegion>({top: Number.MAX_SAFE_INTEGER, bottom: 0});
   const reportMapBackGestureRegion = useCallback((region: BackGestureRegion) => {
@@ -454,9 +454,6 @@ function App() {
     tabSessionRef.current = isAuthenticated;
   }
   if (flowState.kind === 'main') visitedTabsRef.current.add(flowState.activeTab);
-  useEffect(() => {
-    mainTabHistoryRef.current = [];
-  }, [isAuthenticated]);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
   const [tabRefreshCount, setTabRefreshCount] = useState({saved: 0, map: 0});
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
@@ -618,14 +615,7 @@ function App() {
       return;
     }
 
-    if (
-      flowState.kind === 'main' &&
-      flowState.detailSource === null &&
-      flowState.activeTab !== nextScreen
-    ) {
-      mainTabHistoryRef.current.push(flowState.activeTab);
-    }
-
+    // 탭 이동은 스택에 쌓지 않고 현재 탭을 교체(replace)합니다.
     openMainScreen(nextScreen);
   };
 
@@ -635,9 +625,8 @@ function App() {
       return false;
     }
 
-    const previousTab =
-      mainTabHistoryRef.current.pop() ??
-      (flowState.activeTab === 'saved' ? null : 'saved');
+    // 탭 이동 기록이 없으므로 보관함이 아닌 탭에서는 보관함으로, 보관함에서는 앱 종료로 처리합니다.
+    const previousTab = flowState.activeTab === 'saved' ? null : 'saved';
     if (!previousTab) {
       return false;
     }
@@ -757,6 +746,7 @@ function App() {
       }
       if (!tokens) {
         activeUserIdRef.current = null;
+        clearRecentShares();
         setIsAuthenticated(false);
         if (!hasTrackedAppOpenedRef.current) {
           trackAppOpened(posthog, false);
@@ -773,6 +763,7 @@ function App() {
         return;
       }
 
+      if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       // 공유 익스텐션에 세션이 비어 있을 수 있어 먼저 채운 뒤 대기 중인 공유를 재개합니다.
@@ -828,6 +819,7 @@ function App() {
       if (event === 'SIGNED_OUT') {
         loginEntryRef.current = null;
         activeUserIdRef.current = null;
+        clearRecentShares();
         setIsAuthenticated(false);
         setFlowState(INITIAL_FLOW_STATE);
         setIsOnboardingVisible(true);
@@ -839,6 +831,7 @@ function App() {
       }
 
       setSocialLoginError(null);
+      if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setIsAuthenticated(true);
       setIsOnboardingVisible(false);
@@ -1386,6 +1379,7 @@ function App() {
     setProfileError(null);
     setMyPageOverlay(null);
     activeUserIdRef.current = null;
+        clearRecentShares();
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
     showAlert('회원탈퇴 완료', '회원탈퇴가 완료되었어요.');
@@ -1611,8 +1605,7 @@ function App() {
 
   const isMapScreen = currentScreen === 'map';
   const previousTab = flowState.kind === 'main'
-    ? mainTabHistoryRef.current[mainTabHistoryRef.current.length - 1] ??
-      (flowState.activeTab === 'saved' ? null : 'saved')
+    ? (flowState.activeTab === 'saved' ? null : 'saved')
     : null;
   const activeLayerKey = flowState.kind === 'auth'
     ? `auth-${flowState.stack.length - 1}-${currentScreen}`

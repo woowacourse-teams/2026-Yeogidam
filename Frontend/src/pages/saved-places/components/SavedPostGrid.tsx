@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useRef} from 'react';
 import {
   Image,
   Pressable,
@@ -21,6 +21,7 @@ import {
 type SavedPostGridProps = {
   isEditing?: boolean;
   reels: HistoryReel[];
+  onLongPressReel?: () => void;
   onPressReel: (reel: HistoryReel) => void;
   onToggleReelSelection?: (reelId: string) => void;
   selectedReelIds?: ReadonlySet<string>;
@@ -34,10 +35,13 @@ function getPostTitle(reel: HistoryReel) {
 export function SavedPostGrid({
   isEditing = false,
   reels,
+  onLongPressReel,
   onPressReel,
   onToggleReelSelection,
   selectedReelIds,
 }: SavedPostGridProps) {
+  // 길게 눌러 편집을 시작한 뒤 손을 뗄 때 이어지는 누름은 상세로 넘기지 않습니다.
+  const didLongPressRef = useRef(false);
   const {width} = useWindowDimensions();
   const cardWidth = (width - LIBRARY_GUTTER * 2 - LIBRARY_GRID_GAP) / 2;
 
@@ -55,9 +59,28 @@ export function SavedPostGrid({
               isEditing ? `${title} ${selected ? '선택 해제' : '선택'}` : title
             }
             accessibilityRole="button"
-            onPress={() =>
-              isEditing ? onToggleReelSelection?.(reel.id) : onPressReel(reel)
-            }
+            onLongPress={() => {
+              if (!isEditing) {
+                didLongPressRef.current = true;
+                onLongPressReel?.();
+              }
+            }}
+            onPress={() => {
+              if (didLongPressRef.current) {
+                didLongPressRef.current = false;
+                return;
+              }
+
+              if (isEditing) {
+                onToggleReelSelection?.(reel.id);
+                return;
+              }
+
+              onPressReel(reel);
+            }}
+            onPressIn={() => {
+              didLongPressRef.current = false;
+            }}
             style={[styles.card, {width: cardWidth}]}>
             {reel.instagram_thumbnail_url ? (
               <Image
