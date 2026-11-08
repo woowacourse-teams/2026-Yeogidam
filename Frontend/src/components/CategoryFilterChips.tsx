@@ -12,6 +12,7 @@ import type { Place } from '../entities/place/types';
 export const ALL_CATEGORY = '전체';
 export const CATEGORY_CHIPS_HEIGHT = 34;
 export const CATEGORY_CHIPS_TOP_GAP = 8;
+const CHIP_SHADOW_SPACE = 8;
 
 // 칩은 서버 범주 이름으로 그리고, 장소는 범주 코드의 이름과 맞춰 거릅니다.
 // 서버 칩 목록 API 연동 전까지는 앱에 고정한 목록을 씁니다.
@@ -50,6 +51,7 @@ export function CategoryFilterChips({
     <View style={[styles.wrapper, style]}>
       <ScrollView
         horizontal
+        style={styles.scroll}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -80,8 +82,14 @@ const styles = StyleSheet.create({
   wrapper: {
     height: CATEGORY_CHIPS_HEIGHT,
   },
+  scroll: {
+    flexGrow: 0,
+    height: CATEGORY_CHIPS_HEIGHT + CHIP_SHADOW_SPACE * 2,
+    marginVertical: -CHIP_SHADOW_SPACE,
+  },
   content: {
     paddingHorizontal: 24,
+    paddingVertical: CHIP_SHADOW_SPACE,
     gap: 8,
     alignItems: 'center',
   },

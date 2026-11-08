@@ -71,6 +71,7 @@ import {
 } from './components/SavedPlacesViewToggle';
 import { SavedPostGrid } from './components/SavedPostGrid';
 import {
+  INITIAL_BAR_REVEAL,
   INITIAL_BAR_SCROLL_STATE,
   reduceBarScroll,
   SavedPlacesStickyBar,
@@ -238,9 +239,9 @@ export function SavedPlacesScreen({
     height: number;
   } | null>(null);
   // 바는 아래로 스크롤하면 가려지고, 위로 살짝만 올리면 바로 다시 나타납니다(1=보임, 0=숨김).
-  const barReveal = useRef(new Animated.Value(1)).current;
+  const barReveal = useRef(new Animated.Value(INITIAL_BAR_REVEAL)).current;
   const barScrollStateRef = useRef(INITIAL_BAR_SCROLL_STATE);
-  const barRevealTargetRef = useRef(1);
+  const barRevealTargetRef = useRef(INITIAL_BAR_REVEAL);
   // 화면이 사라진 뒤에 바 숨김/표시 애니메이션이 남아 돌지 않게 멈춥니다.
   useEffect(() => () => barReveal.stopAnimation(), [barReveal]);
   const hasCapturedViewRef = useRef(false);
@@ -1558,24 +1559,44 @@ export function SavedPlacesScreen({
     </View>
   );
   const stickOffset = error || deleteError ? 0 : SAVED_HEADER_HEIGHT;
+  // 검색 헤더와 바는 붙은 채로 함께 숨고 나타나므로, 둘 다 헤더와 바를 더한 높이만큼 숨깁니다.
+  const libraryHideDistance =
+    stickOffset + (libraryBarLayout?.height ?? 0);
+  const savedPlacesHeader = (
+    <SavedPlacesHeader
+      query={librarySearch.query}
+      onPressSearch={() => {
+        analytics.button('open_search');
+        setIsSearchOpen(true);
+      }}
+      onClearSearch={() => {
+        analytics.button('clear_search');
+        clearSearch();
+      }}
+    />
+  );
 
   const renderListContent = () => (
     <View style={styles.container}>
-      <View
-        style={[styles.header, hasSavedPlaces && styles.headerOverlay]}
-      >
-        <SavedPlacesHeader
-          query={librarySearch.query}
-          onPressSearch={() => {
-            analytics.button('open_search');
-            setIsSearchOpen(true);
-          }}
-          onClearSearch={() => {
-            analytics.button('clear_search');
-            clearSearch();
-          }}
-        />
-      </View>
+      {/* 배너가 있을 때는 헤더가 사라지면 배너 위가 비므로 고정합니다. */}
+      {hasSavedPlaces && stickOffset > 0 && libraryBarLayout !== null ? (
+        <SavedPlacesStickyBar
+          hideDistance={libraryHideDistance}
+          naturalTop={0}
+          reveal={barReveal}
+          scrollY={scrollY}
+          stickOffset={0}
+          style={[styles.header, styles.headerOverlay]}
+        >
+          {savedPlacesHeader}
+        </SavedPlacesStickyBar>
+      ) : (
+        <View
+          style={[styles.header, hasSavedPlaces && styles.headerOverlay]}
+        >
+          {savedPlacesHeader}
+        </View>
+      )}
       {error && hasSavedPlaces ? (
         <View
           style={[
@@ -1750,7 +1771,7 @@ export function SavedPlacesScreen({
           </ScrollView>
           {libraryBarLayout !== null ? (
             <SavedPlacesStickyBar
-              barHeight={libraryBarLayout.height}
+              hideDistance={libraryHideDistance}
               naturalTop={libraryBarLayout.top}
               reveal={barReveal}
               scrollY={scrollY}

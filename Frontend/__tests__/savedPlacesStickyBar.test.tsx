@@ -45,14 +45,22 @@ const scrollTo = (state: BarScrollState, y: number, metrics?: Parameters<typeof 
   reduceBarScroll(state, y, metrics);
 
 describe('reduceBarScroll', () => {
-  test('맨 위에서는 항상 보인다', () => {
-    const hidden = {...INITIAL_BAR_SCROLL_STATE, lastY: 200, visible: false};
-    expect(scrollTo(hidden, 0).visible).toBe(true);
-    expect(scrollTo(hidden, -30).visible).toBe(true); // 당겨서 새로고침
+  test('맨 위에서는 원래 자리를 따라가도록 숨김으로 둔다', () => {
+    const shown = {...INITIAL_BAR_SCROLL_STATE, lastY: 200, visible: true};
+    expect(scrollTo(shown, 0).visible).toBe(false);
+    expect(scrollTo(shown, -30).visible).toBe(false); // 당겨서 새로고침
+  });
+
+  test('맨 위에서 내리기 시작해도 꺼내지 않는다', () => {
+    let state = INITIAL_BAR_SCROLL_STATE;
+    for (const y of [1, 3, 6, 10]) {
+      state = scrollTo(state, y);
+      expect(state.visible).toBe(false);
+    }
   });
 
   test('아래로 충분히 내리면 숨기고, 위로 살짝만 올려도 바로 보여 준다', () => {
-    let state: BarScrollState = {...INITIAL_BAR_SCROLL_STATE, lastY: 100};
+    let state: BarScrollState = {...INITIAL_BAR_SCROLL_STATE, lastY: 100, visible: true};
     state = scrollTo(state, 100 + BAR_HIDE_DOWN_DISTANCE);
     expect(state.visible).toBe(false);
 
@@ -64,12 +72,12 @@ describe('reduceBarScroll', () => {
   });
 
   test('아주 조금 아래로 움직인 정도로는 숨기지 않는다', () => {
-    const state = scrollTo({...INITIAL_BAR_SCROLL_STATE, lastY: 100}, 105);
+    const state = scrollTo({...INITIAL_BAR_SCROLL_STATE, lastY: 100, visible: true}, 105);
     expect(state.visible).toBe(true);
   });
 
   test('방향이 바뀌면 누적을 새로 시작한다', () => {
-    let state: BarScrollState = {...INITIAL_BAR_SCROLL_STATE, lastY: 100};
+    let state: BarScrollState = {...INITIAL_BAR_SCROLL_STATE, lastY: 100, visible: true};
     state = scrollTo(state, 108); // 아래로 8 (숨김 기준 미만)
     state = scrollTo(state, 106); // 위로 2 → 새로 시작
     expect(state.accumulated).toBe(-2);
@@ -78,7 +86,7 @@ describe('reduceBarScroll', () => {
 
   test('한 번에 크게 튄 스크롤(위치 복원)은 방향으로 보지 않는다', () => {
     const state = scrollTo({...INITIAL_BAR_SCROLL_STATE, lastY: 0}, 800);
-    expect(state.visible).toBe(true);
+    expect(state.visible).toBe(false);
     expect(state.accumulated).toBe(0);
   });
 
