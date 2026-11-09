@@ -61,7 +61,7 @@ describe('usePlaceBookmark', () => {
 
     expect(deleteSavedPlaces).toHaveBeenCalledWith(['7']);
     expect(bookmark.isBookmarked).toBe(false);
-    expect(bookmark.notice?.message).toBe('북마크를 해제했어요.');
+    expect(bookmark.notice?.message).toBe('보관함과 지도에서 뺐어요');
   });
 
   test('다시 누르면 장소의 게시물 ID로 저장한다', async () => {
@@ -71,7 +71,7 @@ describe('usePlaceBookmark', () => {
 
     expect(saveMediaPlace).toHaveBeenCalledWith('81', '42');
     expect(bookmark.isBookmarked).toBe(true);
-    expect(bookmark.notice?.message).toBe('북마크에 저장했어요.');
+    expect(bookmark.notice?.message).toBe('보관함과 지도에서 표시했어요');
   });
 
   test('다시 저장 뒤 해제에는 새 저장 ID를 쓴다', async () => {

@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 12,
     backgroundColor: '#1B1B1B',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
     zIndex: 20,
     elevation: 20,
@@ -139,6 +139,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
-    textAlign: 'center',
+    textAlign: 'left',
   },
 });

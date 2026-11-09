@@ -7,7 +7,11 @@ import {deleteSavedPlaces, getSavedPlaces} from '../../entities/info/api';
 import type {PlaceReel, SavedPlacesApiError} from '../../entities/info/types';
 import type {Place} from '../../entities/place/types';
 import {showAlert} from '../../lib/app-alert';
-import {notifySavedPlaceChanged} from '../../lib/saved-place-events';
+import {
+  notifySavedPlaceChanged,
+  PLACE_SAVED_MESSAGE,
+  PLACE_UNSAVED_MESSAGE,
+} from '../../lib/saved-place-events';
 
 export type BookmarkNotice = {id: number; message: string};
 
@@ -72,14 +76,14 @@ export function usePlaceBookmark({
       try {
         await deleteSavedPlaces([currentId]);
         trackActionFinished(posthog, event, 'success', {source: analyticsSource});
-        commit(null, '북마크를 해제했어요.');
+        commit(null, PLACE_UNSAVED_MESSAGE);
       } catch (nextError) {
         const apiError = nextError as SavedPlacesApiError;
         if (apiError.errorCode === 'CLIENT000_002') {
           try {
             const savedPlaces = await getSavedPlaces();
             if (!savedPlaces.some(item => item.id === currentId)) {
-              commit(null, '북마크를 해제했어요.');
+              commit(null, PLACE_UNSAVED_MESSAGE);
               return;
             }
           } catch {
@@ -102,7 +106,7 @@ export function usePlaceBookmark({
   const save = useCallback(
     async (sharedMediaId: string, targetPlaceId: string) => {
       try {
-        commit(await saveMediaPlace(sharedMediaId, targetPlaceId), '북마크에 저장했어요.');
+        commit(await saveMediaPlace(sharedMediaId, targetPlaceId), PLACE_SAVED_MESSAGE);
       } catch (error) {
         showAlert('북마크에 저장하지 못했어요', (error as {message?: string}).message);
       }

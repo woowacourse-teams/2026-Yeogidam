@@ -1,6 +1,9 @@
 type SavedPlaceChange = {placeId: string; savedPlaceId: string | null};
 type SavedPlaceListener = (change: SavedPlaceChange) => void;
 
+export const PLACE_SAVED_MESSAGE = '보관함과 지도에서 표시했어요';
+export const PLACE_UNSAVED_MESSAGE = '보관함과 지도에서 뺐어요';
+
 const listeners = new Set<SavedPlaceListener>();
 
 /** 장소 상세에서 북마크가 바뀐 것을 뒤에 유지된 화면(게시물 상세 등)에 알립니다. */
