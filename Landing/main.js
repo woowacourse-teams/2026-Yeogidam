@@ -1,6 +1,7 @@
 // 랜딩 페이지 스크립트. 히어로 데모, 스토어 링크, QR, 기술 섹션, 품질 섹션을 붙인다
 import { track } from './shared/analytics.js';
 import { reduceMotion as reduce } from './shared/motion.js';
+import { playUrl, tagPlayLinks, trackStoreClicks, loadQrCodes } from './shared/store-links.js';
 import { initTech } from './tech/tech.js';
 import { initJourney } from './journey/journey.js';
 
@@ -117,13 +118,6 @@ function mark(step){
   if (reached[step]) return; reached[step]=true;
   if (STEPS.indexOf(step) > STEPS.indexOf(furthest)) furthest=step;
   track('demo_step', {step: step, mode: auto ? 'auto' : 'tap'});
-}
-function placementOf(a){
-  if (a.closest('#endcard')) return 'demo_end';
-  if (a.closest('.hero')) return 'hero';
-  if (a.closest('#start')) return 'start';
-  if (a.closest('.foot')) return 'footer';
-  return 'other';
 }
 
 /* ---------- 릴스 준비 ---------- */
@@ -402,20 +396,9 @@ REELS.forEach(function(r){
   chips.appendChild(c);
 });
 
-/* ---------- 스토어 링크 꼬리표: 랜딩에 들어온 채널을 스토어 통계에서도 나눠 보려고 Google Play 링크에 옮겨 붙인다 ---------- */
-var IOS_URL='https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=landing_store&mt=8';
-var PLAY_URL=(function(){
-  var q=new URLSearchParams(location.search);
-  var ref='utm_source='+encodeURIComponent(q.get('utm_source')||'landing')+'&utm_medium='+encodeURIComponent(q.get('utm_medium')||'web')+'&utm_campaign=landing_store';
-  return 'https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer='+encodeURIComponent(ref);
-})();
-Array.prototype.forEach.call(document.querySelectorAll('a[href*="play.google.com"]'), function(a){ a.href=PLAY_URL; });
-
-document.addEventListener('click', function(e){
-  var a=e.target.closest && e.target.closest('a[href*="apps.apple.com"], a[href*="play.google.com"]');
-  if (!a) return;
-  track('store_click', {store: a.href.indexOf('apps.apple.com')>-1 ? 'app_store' : 'google_play', placement: placementOf(a), demo_progress: furthest});
-});
+var PLAY_URL=playUrl(location.search);
+tagPlayLinks(PLAY_URL);
+trackStoreClicks(function(){ return furthest; });
 
 if (window.ResizeObserver) new ResizeObserver(fit).observe(phoneWrap.parentNode);
 window.addEventListener('resize', fit);
@@ -424,22 +407,7 @@ fit();
 window.addEventListener('resize', function(){ if (hintTarget) showHint(hintTarget, hintText.textContent, hint.classList.contains('left')?'left':(hint.classList.contains('bottom')?'bottom':'top')); });
 reset(REELS[0]);
 
-/* ---------- QR (데스크톱에서만 라이브러리를 뒤늦게 불러온다) ---------- */
-function makeQR(){
-  try {
-    if (typeof qrcode !== 'function') return;
-    var make=function(el, url){ var q=qrcode(0,'M'); q.addData(url); q.make(); el.innerHTML=q.createSvgTag({cellSize:3, margin:0, scalable:true}); };
-    make($('qrIos'), IOS_URL);
-    make($('qrAndroid'), PLAY_URL);
-    $('qrRow').classList.add('ready');
-  } catch (e) {}
-}
-if (window.matchMedia && window.matchMedia('(min-width:900px)').matches){
-  var qs=document.createElement('script');
-  qs.src='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-  qs.async=true; qs.onload=makeQR;
-  document.head.appendChild(qs);
-}
+loadQrCodes(PLAY_URL);
 
 initTech();
 initJourney();
