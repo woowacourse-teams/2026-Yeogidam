@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
-import { useScreenAnalytics } from '../../analytics/uiEvents';
+import { trackActionFinished, useScreenAnalytics } from '../../analytics/uiEvents';
 
 import {
   captureSavedPlaceOpened,
