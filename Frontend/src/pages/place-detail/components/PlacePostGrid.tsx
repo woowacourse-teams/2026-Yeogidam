@@ -155,12 +155,14 @@ function PostCard({
   );
 }
 
-function PostState({
+export function PostState({
   message,
   onRetry,
+  retryEventName = 'retry_posts',
 }: {
   message: string;
   onRetry?: () => void;
+  retryEventName?: string;
 }) {
   const { button } = useScreenAnalytics();
 
@@ -171,7 +173,7 @@ function PostState({
         <Pressable
           accessibilityRole="button"
           onPress={() => {
-            button('retry_posts');
+            button(retryEventName);
             onRetry();
           }}
           style={styles.retryButton}

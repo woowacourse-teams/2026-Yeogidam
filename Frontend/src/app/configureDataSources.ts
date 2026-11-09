@@ -1,9 +1,11 @@
 import {
   configureCurrentProfileRepository,
+  configurePlaceDetailRepository,
   configurePlaceReelsRepository,
   configureSavedPlacesRepository,
 } from '../entities/info/api';
 import {
+  springPlaceDetailRepository,
   springPlaceReelsRepository,
   springProfileRepository,
   springSavedPlacesRepository,
@@ -17,4 +19,5 @@ export function configureDataSources() {
   configureCurrentProfileRepository(springProfileRepository);
   configureSavedPlacesRepository(springSavedPlacesRepository);
   configurePlaceReelsRepository(springPlaceReelsRepository);
+  configurePlaceDetailRepository(springPlaceDetailRepository);
 }

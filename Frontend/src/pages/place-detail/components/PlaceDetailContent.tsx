@@ -7,6 +7,8 @@ import {
 } from 'react-native';
 
 import type {
+  PlaceBlogSearchResult,
+  PlaceDetailInfo,
   PlaceReel,
   PlaceReelsApiError,
 } from '../../../entities/info/types';
@@ -16,6 +18,13 @@ import {
   AnalyticsScreenContext,
   useScreenAnalytics,
 } from '../../../analytics/uiEvents';
+import {
+  toBlogListItems,
+  toMenuItems,
+  toMenuPriceRange,
+  toWeeklyHours,
+} from '../placeDetailFormat';
+import type { PlaceResource } from '../usePlaceDetailData';
 import { PlaceBlogList } from './PlaceBlogList';
 import { PlaceDetailHeader } from './PlaceDetailHeader';
 import { PlaceInformation } from './PlaceInformation';
@@ -32,6 +41,8 @@ type PlaceDetailContentProps = {
   onRetryReels?: () => void;
   /** 지정하면 게시물 탭에서 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
   onOpenReel?: (reel: PlaceReel) => void;
+  placeInfo?: PlaceResource<PlaceDetailInfo>;
+  placeBlogs?: PlaceResource<PlaceBlogSearchResult>;
   onBack: () => void;
   onPressMore?: () => void;
   onPressFolder?: () => void;
@@ -105,6 +116,8 @@ export function PlaceDetailContent({
   contentPanHandlers,
   scrollViewRef,
   analyticsScreenName = 'place_detail',
+  placeInfo,
+  placeBlogs,
 }: PlaceDetailContentProps) {
   return (
     <AnalyticsScreenContext.Provider value={analyticsScreenName}>
@@ -142,6 +155,8 @@ export function PlaceDetailContent({
         onTopPullRelease={onTopPullRelease}
         contentPanHandlers={contentPanHandlers}
         scrollViewRef={scrollViewRef}
+        placeInfo={placeInfo}
+        placeBlogs={placeBlogs}
       />
     </AnalyticsScreenContext.Provider>
   );
@@ -181,6 +196,8 @@ function PlaceDetailContentBody({
   onTopPullRelease,
   contentPanHandlers,
   scrollViewRef,
+  placeInfo,
+  placeBlogs,
 }: Omit<PlaceDetailContentProps, 'analyticsScreenName'>) {
   // 손을 뗀 뒤 본문이 제자리로 튕겨 돌아오는 스크롤은 당김으로 보지 않습니다.
   const isDraggingRef = useRef(false);
@@ -316,9 +333,24 @@ function PlaceDetailContentBody({
                 />
               ) : null}
               {activeTab === '정보' ? (
-                <PlaceInformation onMenuToggled={scrollToMenu} />
+                <PlaceInformation
+                  weeklyHours={toWeeklyHours(placeInfo?.data?.openingHours ?? null)}
+                  menuPriceRange={toMenuPriceRange(placeInfo?.data?.menus ?? [])}
+                  menuItems={toMenuItems(placeInfo?.data?.menus ?? [])}
+                  isLoading={placeInfo?.isLoading}
+                  error={placeInfo?.error}
+                  onRetry={placeInfo?.retry}
+                  onMenuToggled={scrollToMenu}
+                />
               ) : null}
-              {activeTab === '블로그' ? <PlaceBlogList /> : null}
+              {activeTab === '블로그' ? (
+                <PlaceBlogList
+                  posts={toBlogListItems(placeBlogs?.data ?? null)}
+                  isLoading={placeBlogs?.isLoading}
+                  error={placeBlogs?.error}
+                  onRetry={placeBlogs?.retry}
+                />
+              ) : null}
             </View>
           </View>
         </ScrollView>
