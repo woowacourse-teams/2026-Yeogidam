@@ -1135,11 +1135,13 @@ export function SavedPlacesScreen({
 
   // 방금 저장한 릴스는 서버 목록에 잡히기 전에도 "최근 공유" 줄에 보여 줍니다.
   // 서버가 접수한 실패 항목은 보여 주되, 요청 자체가 실패한 임시 카드는 숨깁니다.
+  // 공유 확장의 실패 결과는 기기에 남아 앱을 켤 때 복원되므로 서버 목록에 있을 때만 보여 줍니다.
   const recentRowReels = useMemo(() => {
     if (
       !processingReel ||
       (processingReel.processing_status === 'FAILED' &&
-        processingReel.id.startsWith('manual-failed-')) ||
+        (processingReel.id.startsWith('manual-failed-') ||
+          getSharedSaveState()?.source !== 'url_input')) ||
       sharedReels.some(reel => reel.id === processingReel.id)
     ) {
       return sharedReels;

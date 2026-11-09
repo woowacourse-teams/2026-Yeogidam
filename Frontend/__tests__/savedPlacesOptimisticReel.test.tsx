@@ -4,7 +4,9 @@ import ReactTestRenderer from 'react-test-renderer';
 
 import {saveContent} from '../src/entities/content/api';
 import {getHistoryReelPlaceCount, getHistoryReels} from '../src/entities/content/history-api';
+import {clearRecentShares} from '../src/entities/content/recent-shares-poller';
 import {showAlert} from '../src/lib/app-alert';
+import {setSharedSaveState} from '../src/lib/reel-save-state';
 import type {HistoryReel} from '../src/entities/content/types';
 import {SavedPlacesLinkDialog} from '../src/pages/saved-places/components/SavedPlacesLinkDialog';
 import {SavedPlacesRecentShares} from '../src/pages/saved-places/components/SavedPlacesRecentShares';
@@ -173,6 +175,56 @@ test('서버 목록에 같은 항목이 오면 임시 항목과 겹치지 않는
   expect(reels).toHaveLength(1);
   expect(reels[0].instagram_thumbnail_url).toBe('https://cdn.example.com/8.jpg');
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+describe('기기에 남은 실패 공유', () => {
+  const completed = (id: string) => ({...serverReel(id), processing_status: 'COMPLETED' as const});
+
+  async function renderWithFailedShare(reels: HistoryReel[]) {
+    jest.mocked(getHistoryReels).mockResolvedValue({reels, nextCursor: null});
+    let renderer!: ReactTestRenderer.ReactTestRenderer;
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <SavedPlacesScreen onOpenDetail={jest.fn()} places={places as never} />,
+      );
+    });
+    await tick(60_000); // 최근 공유 목록을 가져온다
+    await ReactTestRenderer.act(async () => {
+      setSharedSaveState({
+        url: LINK,
+        status: 'FAILED',
+        source: 'instagram_share',
+        reel: {
+          id: 'old-failed',
+          processing_status: 'FAILED',
+          failure_reason: 'IG_FETCH_FAILED',
+          instagram_thumbnail_url: null,
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      });
+    });
+    return renderer;
+  }
+
+  afterEach(() => {
+    setSharedSaveState(null);
+    clearRecentShares();
+  });
+
+  test('서버 목록에 없으면 최근 공유 맨 앞에 끼워 넣지 않는다', async () => {
+    const renderer = await renderWithFailedShare(['1', '2', '3', '4'].map(completed));
+
+    expect(rowReels(renderer).map(reel => reel.id)).toEqual(['1', '2', '3', '4']);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('서버 목록에 있으면 서버 순서대로 보여 준다', async () => {
+    const failed = {...serverReel('old-failed'), processing_status: 'FAILED' as const};
+    const renderer = await renderWithFailedShare([completed('1'), failed]);
+
+    expect(rowReels(renderer).map(reel => reel.id)).toEqual(['1', 'old-failed']);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
 });
 
 describe('최근 공유 링 누르기', () => {
