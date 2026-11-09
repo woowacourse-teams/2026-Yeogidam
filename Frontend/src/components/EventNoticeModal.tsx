@@ -28,6 +28,8 @@ type EventNoticeModalProps = {
   // 업데이트 안내처럼 먼저 보여야 하는 모달이 있으면 false로 미룬다.
   enabled: boolean;
   now?: () => Date;
+  // 이 안내가 떠 있거나 뜰지 아직 모르는 동안 true. 뒤에 띄울 모달을 미룰 때 쓴다.
+  onBlockingChange?: (blocking: boolean) => void;
 };
 
 const getCurrentDate = () => new Date();
@@ -127,6 +129,7 @@ function isWithinNoticePeriod(date: Date) {
 export function EventNoticeModal({
   enabled,
   now = getCurrentDate,
+  onBlockingChange,
 }: EventNoticeModalProps) {
   const [isDismissed, setIsDismissed] = useState<boolean | null>(null);
   const [isInPeriod, setIsInPeriod] = useState(() => isWithinNoticePeriod(now()));
@@ -167,15 +170,21 @@ export function EventNoticeModal({
     });
   }, [dismiss]);
 
+  const visible =
+    enabled && isInPeriod && isDismissed === false && !isHiddenForSession;
+  const blocking = visible || (isInPeriod && isDismissed === null);
+
+  useEffect(() => {
+    onBlockingChange?.(blocking);
+  }, [blocking, onBlockingChange]);
+
   return (
     <AppModal
       animationType="fade"
       onRequestClose={() => setIsHiddenForSession(true)}
       statusBarTranslucent
       transparent
-      visible={
-        enabled && isInPeriod && isDismissed === false && !isHiddenForSession
-      }
+      visible={visible}
     >
       <View style={styles.backdrop}>
         <Pressable accessible={false} onPress={dismiss} style={StyleSheet.absoluteFill} />

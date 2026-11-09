@@ -22,4 +22,10 @@ export const ANALYTICS_EVENTS = {
   pendingPlaceSaveFinished: 'pending_place_save_finished',
   pendingPlaceDiscardFinished: 'pending_place_discard_finished',
   pendingResolutionCompleted: 'pending_resolution_completed',
+  /** PMF 설문 모달이 보였습니다. `survey_id` */
+  pmfSurveyViewed: 'pmf_survey_viewed',
+  /** PMF 설문을 답하지 않고 닫았습니다. `survey_id`, `method` */
+  pmfSurveyDismissed: 'pmf_survey_dismissed',
+  /** PMF 설문에 답했습니다. `survey_id`, `answer` */
+  pmfSurveyAnswered: 'pmf_survey_answered',
 } as const;

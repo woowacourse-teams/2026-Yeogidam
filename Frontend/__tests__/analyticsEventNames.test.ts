@@ -26,6 +26,9 @@ describe('analytics event names', () => {
         "pendingPlacesViewed": "pending_places_viewed",
         "pendingResolutionCompleted": "pending_resolution_completed",
         "placeMapViewed": "place_map_viewed",
+        "pmfSurveyAnswered": "pmf_survey_answered",
+        "pmfSurveyDismissed": "pmf_survey_dismissed",
+        "pmfSurveyViewed": "pmf_survey_viewed",
         "savedPlaceOpened": "saved_place_opened",
         "savedPlaceSelected": "saved_place_selected",
         "savedPlacesSearchSubmitted": "saved_places_search_submitted",
@@ -40,6 +43,7 @@ describe('analytics event names', () => {
       'placeExtractionEvents',
       'placeSavingEvents',
       'savedPlaceEvents',
+      'pmfSurveyEvents',
     ];
 
     for (const file of files) {
