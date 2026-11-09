@@ -18,6 +18,7 @@ import {setAnalyticsGuestMode} from './src/analytics/analytics';
 import {
   trackActionFinished,
   trackButtonPressed,
+  trackGesturePerformed,
   trackScreenViewed,
 } from './src/analytics/uiEvents';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
@@ -347,6 +348,8 @@ configureDataSources();
 
 function App() {
   const posthog = usePostHog();
+  // 하드웨어 뒤로가기 리스너가 화면 이름을 계산하기 전에 등록되므로 ref로 최신 값을 읽습니다.
+  const analyticsScreenNameRef = useRef('unknown');
 
   useEffect(() => {
     syncShareAnalyticsConfiguration().catch(() => undefined);
@@ -722,9 +725,7 @@ function App() {
       return;
     }
 
-    const subscription = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
+    const handleHardwareBack = (): boolean => {
         if (isOnboardingVisible) {
           setOnboardingBackRequest(current => current + 1);
           return true;
@@ -769,11 +770,25 @@ function App() {
         }
 
         return goBackMainTab();
+    };
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        const handled = handleHardwareBack();
+        // handled가 false면 앱이 백그라운드로 나갑니다.
+        trackGesturePerformed(
+          posthog,
+          analyticsScreenNameRef.current,
+          'hardware_back',
+          { handled },
+        );
+        return handled;
       },
     );
 
     return () => subscription.remove();
-  }, [closeDetail, detailLayers.length, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, popDetailLayer, reelDetail]);
+  }, [closeDetail, detailLayers.length, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, popDetailLayer, posthog, reelDetail]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1707,6 +1722,7 @@ function App() {
       : currentScreen === 'emailLogin'
       ? 'email_login'
       : currentScreen;
+  analyticsScreenNameRef.current = analyticsScreenName;
   useEffect(() => {
     trackScreenViewed(posthog, analyticsScreenName);
   }, [posthog, analyticsScreenName]);

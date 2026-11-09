@@ -302,6 +302,9 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const isSheetExpandedRef = useRef(isSheetExpanded);
   isSheetExpandedRef.current = isSheetExpanded;
 
+  // 끌기 응답자는 한 번만 만들므로 최신 analytics를 ref로 읽습니다.
+  const analyticsRef = useRef(analytics);
+  analyticsRef.current = analytics;
   const isCaptionOpenRef = useRef(isCaptionOpen);
   isCaptionOpenRef.current = isCaptionOpen;
   const captionScrollYRef = useRef(0);
@@ -366,6 +369,10 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
           const shouldExpand =
             gesture.vy < -0.3 ||
             (Math.abs(gesture.vy) <= 0.3 && current < (low + high) / 2);
+          analyticsRef.current.gesture('sheet_drag', {
+            direction: gesture.dy < 0 ? 'up' : 'down',
+            result: shouldExpand ? 'expanded' : 'collapsed',
+          });
           snapSheetRef.current(shouldExpand);
         },
         onPanResponderTerminationRequest: () => false,

@@ -707,6 +707,7 @@ export function HistoryScreen({
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        analytics.gesture('hardware_back', {handled: true});
         handleDetailBack();
         return true;
       },
@@ -717,6 +718,7 @@ export function HistoryScreen({
       onNestedBackStateChange?.(false);
     };
   }, [
+    analytics,
     handleDetailBack,
     isActive,
     onNestedBackStateChange,
@@ -1156,7 +1158,14 @@ export function HistoryScreen({
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
           // 실패했으면 스크롤마다 다시 요청하지 않고 다시 불러오기 버튼을 기다린다.
-          if (reachedBottom && cursor && !loadingMore && !loadMoreFailed) {
+          if (
+            reachedBottom &&
+            cursor &&
+            !loadingMore &&
+            !loadingMoreRef.current &&
+            !loadMoreFailed
+          ) {
+            analytics.gesture('load_more');
             load(cursor).catch(() => undefined);
           }
         }}

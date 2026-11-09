@@ -65,6 +65,7 @@ describe('UI event names', () => {
       {
         "actionFinished": "action_finished",
         "buttonPressed": "button_pressed",
+        "gesturePerformed": "gesture_performed",
         "listRefreshed": "list_refreshed",
         "mapSearchSubmitted": "map_search_submitted",
         "modalViewed": "modal_viewed",

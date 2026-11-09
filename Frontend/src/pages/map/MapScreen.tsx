@@ -736,6 +736,7 @@ export function MapScreen({
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        analytics.gesture('hardware_back', { handled: true });
         handleSearchBack();
         return true;
       },
@@ -746,6 +747,7 @@ export function MapScreen({
       onNestedBackStateChange?.(false);
     };
   }, [
+    analytics,
     handleSearchBack,
     isActive,
     hasActiveSearch,

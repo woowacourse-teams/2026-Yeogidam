@@ -27,6 +27,11 @@ export const UI_EVENTS = {
   stepViewed: 'step_viewed',
   /** 당겨서 새로고침했습니다. `screen_name` */
   listRefreshed: 'list_refreshed',
+  /**
+   * 버튼이 아닌 손동작(시트 끌기, 하드웨어 뒤로가기, 끝까지 스크롤해 더 불러오기 등)을 했습니다.
+   * `screen_name`, `gesture_name`
+   */
+  gesturePerformed: 'gesture_performed',
   /** 지도 검색을 제출했습니다. `has_result`, `result_count`, `query_length` */
   mapSearchSubmitted: 'map_search_submitted',
   /** 로그아웃·회원탈퇴·프로필 수정 같은 기능의 결과입니다. `action_name`, `outcome` */
@@ -89,6 +94,19 @@ export function trackSelectionChanged(
   });
 }
 
+export function trackGesturePerformed(
+  client: AnalyticsClient | null | undefined,
+  screenName: string,
+  gestureName: string,
+  properties: AnalyticsProperties = {},
+) {
+  trackUi(client, UI_EVENTS.gesturePerformed, {
+    screen_name: screenName,
+    gesture_name: gestureName,
+    ...properties,
+  });
+}
+
 export function trackActionFinished(
   client: AnalyticsClient | null | undefined,
   actionName: string,
@@ -142,11 +160,16 @@ export function useScreenAnalytics(screenNameOverride?: string) {
       trackUi(posthog, UI_EVENTS.listRefreshed, {screen_name: screenName}),
     [posthog, screenName],
   );
+  const gesture = useCallback(
+    (gestureName: string, properties?: AnalyticsProperties) =>
+      trackGesturePerformed(posthog, screenName, gestureName, properties),
+    [posthog, screenName],
+  );
 
   // 화면들이 이 객체를 훅 의존성으로 쓰므로, 렌더마다 새로 만들면 effect가 매번 다시 실행된다.
   return useMemo(
-    () => ({button, selection, modal, refreshed}),
-    [button, selection, modal, refreshed],
+    () => ({button, selection, modal, refreshed, gesture}),
+    [button, selection, modal, refreshed, gesture],
   );
 }
 

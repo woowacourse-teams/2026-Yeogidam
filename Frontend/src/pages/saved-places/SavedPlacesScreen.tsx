@@ -1599,6 +1599,7 @@ export function SavedPlacesScreen({
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        analytics.gesture('hardware_back', { handled: true });
         closeNestedScreen();
         return true;
       },
@@ -1608,6 +1609,7 @@ export function SavedPlacesScreen({
       onNestedBackStateChange?.(false);
     };
   }, [
+    analytics,
     closeNestedScreen,
     isScreenActive,
     isEditing,
@@ -1772,8 +1774,11 @@ export function SavedPlacesScreen({
                 contentSize.height - (contentOffset.y + layoutMeasurement.height) < 240;
               if (libraryView === 'posts' && isNearBottom) {
                 if (isSearching) {
-                  librarySearch.loadMoreReels();
+                  if (librarySearch.loadMoreReels()) {
+                    analytics.gesture('load_more', { list: 'search_posts' });
+                  }
                 } else if (postCursor && !isLoadingMorePostsRef.current) {
+                  analytics.gesture('load_more', { list: 'posts' });
                   loadPostPage(postCursor).catch(() => undefined);
                 }
               }
