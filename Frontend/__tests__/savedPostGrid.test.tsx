@@ -1,4 +1,5 @@
 import React from 'react';
+import {Image, StyleSheet, useWindowDimensions} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import type {HistoryReel} from '../src/entities/content/types';
@@ -25,6 +26,47 @@ async function renderGrid(props: Partial<React.ComponentProps<typeof SavedPostGr
     node => typeof node.props.onLongPress === 'function',
   )[0];
 }
+
+describe('게시물 사진 비율', () => {
+  function WidthProbe({onWidth}: {onWidth: (width: number) => void}) {
+    onWidth(useWindowDimensions().width);
+    return null;
+  }
+
+  async function columnWidth() {
+    let width = 0;
+    await ReactTestRenderer.act(async () => {
+      ReactTestRenderer.create(<WidthProbe onWidth={value => (width = value)} />);
+    });
+    return (width - 20 * 2 - 16) / 2;
+  }
+
+  const imageHeight = (card: ReactTestRenderer.ReactTestInstance) =>
+    card.findAll(
+      node =>
+        typeof node.type === 'string' &&
+        StyleSheet.flatten(node.props.style)?.borderRadius === 14,
+    )[0].props.style;
+
+  test.each([
+    ['릴스는 세로 상한까지만 늘어난다', 1920, 1.4],
+    ['캐러셀은 실제 비율로 보여 준다', 1350, 1.25],
+    ['정사각형은 실제 비율로 보여 준다', 1080, 1],
+  ])('%s', async (_, height, ratio) => {
+    const width = await columnWidth();
+    const card = await renderGrid({
+      reels: [{...reel, instagram_thumbnail_url: 'https://cdn.example.com/81.jpg'}],
+    });
+
+    await ReactTestRenderer.act(async () => {
+      card.findByType(Image).props.onLoad({
+        nativeEvent: {source: {width: 1080, height}},
+      });
+    });
+
+    expect(StyleSheet.flatten(imageHeight(card)).height).toBeCloseTo(width * ratio);
+  });
+});
 
 test('게시물을 길게 누르면 편집을 시작하고, 손을 뗄 때 상세로 넘어가지 않는다', async () => {
   const onLongPressReel = jest.fn();

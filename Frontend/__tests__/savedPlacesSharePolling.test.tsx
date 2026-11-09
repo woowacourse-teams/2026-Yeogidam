@@ -18,6 +18,10 @@ import {showAlert} from '../src/lib/app-alert';
 import {setSharedSaveState} from '../src/lib/reel-save-state';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
+jest.mock(
+  '../src/assets/icons/place-detail/instagram-outline.svg',
+  () => 'InstagramIcon',
+);
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({top: 0, right: 0, bottom: 0, left: 0}),
 }));
@@ -372,17 +376,13 @@ test('게시물 탭은 saved-media 목록을 그리고 다음 커서로 이어 �
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('게시물 썸네일에 추출된 장소 수를 편집 모드에서도 표시한다', async () => {
+test('게시물 썸네일에 추출된 장소 수를 표시하지 않는다', async () => {
   jest.mocked(getSavedMedia).mockResolvedValue({
     reels: [{...historyReel('81', 'COMPLETED'), extracted_place_count: 3}],
     nextCursor: null,
   });
   const renderer = await render();
-  expect(renderer.root.findByProps({accessibilityLabel: '추출된 장소 3곳'})).toBeTruthy();
-  await ReactTestRenderer.act(async () => {
-    renderer.root.findByType(SavedPlacesViewToggle).props.onPressEdit();
-  });
-  expect(renderer.root.findByProps({accessibilityLabel: '추출된 장소 3곳'})).toBeTruthy();
+  expect(renderer.root.findAllByProps({accessibilityLabel: '추출된 장소 3곳'})).toHaveLength(0);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
