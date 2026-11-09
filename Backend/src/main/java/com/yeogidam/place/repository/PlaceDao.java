@@ -2,16 +2,24 @@ package com.yeogidam.place.repository;
 
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.domain.PlaceThumbnail;
+import com.yeogidam.place.repository.PlaceInfoProjection.Menu;
+import com.yeogidam.place.repository.PlaceInfoProjection.OpeningDay;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
+@Slf4j
 @Repository
 public class PlaceDao {
 
@@ -30,9 +38,11 @@ public class PlaceDao {
 
     private final JdbcTemplate jdbcTemplate;
     private final SimpleJdbcInsert jdbcInsert;
+    private final JsonMapper jsonMapper;
 
-    public PlaceDao(JdbcTemplate jdbcTemplate) {
+    public PlaceDao(JdbcTemplate jdbcTemplate, JsonMapper jsonMapper) {
         this.jdbcTemplate = jdbcTemplate;
+        this.jsonMapper = jsonMapper;
         this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
                 .withTableName("places")
                 .usingColumns(
@@ -125,6 +135,52 @@ public class PlaceDao {
                 resultSet.getString("thumbnail_source")), kakaoPlaceId)
                 .stream()
                 .findFirst();
+    }
+
+    /**
+     * 장소 상세의 영업시간과 메뉴로, 영업시간과 메뉴는 회원마다 다르지 않은 장소 정보라서 장소 ID로만 읽는다.
+     * 형식이 올바르지 않은 컬럼은 해당 컬럼만 정보 없음(null)으로 읽고 다른 컬럼은 그대로 읽는다.
+     */
+    public Optional<PlaceInfoProjection> findInfoById(Long placeId) {
+        String sql = """
+                SELECT opening_hours, menus
+                FROM places
+                WHERE id = ?
+                """;
+        return jdbcTemplate.query(sql, (resultSet, rowNumber) -> new PlaceInfoProjection(
+                        readInfoList(placeId, resultSet.getString("opening_hours"), OpeningDay.class,
+                                OpeningDay::inWeekOrder),
+                        readInfoList(placeId, resultSet.getString("menus"), Menu.class, UnaryOperator.identity())
+                ), placeId)
+                .stream()
+                .findFirst();
+    }
+
+    private <T> List<T> readInfoList(
+            Long placeId,
+            String json,
+            Class<T> itemType,
+            UnaryOperator<List<T>> normalizer
+    ) {
+        if (json == null) {
+            return null;
+        }
+        try {
+            List<T> items = jsonMapper.readerForListOf(itemType)
+                    .without(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
+                    .readValue(json);
+            if (items == null) {
+                return null;
+            }
+            if (items.stream().anyMatch(Objects::isNull)) {
+                throw new IllegalArgumentException("장소 정보 목록에 null 항목이 있습니다.");
+            }
+            return normalizer.apply(items);
+        } catch (JacksonException | IllegalArgumentException exception) {
+            log.warn("장소 정보 JSON 형식이 올바르지 않습니다. placeId={}, itemType={}, reason={}",
+                    placeId, itemType.getSimpleName(), exception.getMessage());
+            return null;
+        }
     }
 
     /**

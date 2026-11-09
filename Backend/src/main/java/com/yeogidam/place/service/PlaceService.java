@@ -1,8 +1,12 @@
 package com.yeogidam.place.service;
 
 import com.yeogidam.media.instagram.infrastructure.MediaThumbnailUrlResolver;
+import com.yeogidam.place.dto.response.PlaceInfoResponse;
 import com.yeogidam.place.dto.response.PlaceMediaResponses;
+import com.yeogidam.place.exception.PlaceErrorCode;
+import com.yeogidam.place.exception.PlaceException;
 import com.yeogidam.place.repository.PlaceDao;
+import com.yeogidam.place.repository.PlaceInfoProjection;
 import com.yeogidam.place.repository.PlaceMediaProjection;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +20,12 @@ public class PlaceService {
 
     private final PlaceDao placeDao;
     private final MediaThumbnailUrlResolver mediaThumbnailUrlResolver;
+
+    public PlaceInfoResponse readPlaceInfo(Long placeId) {
+        PlaceInfoProjection projection = placeDao.findInfoById(placeId)
+                .orElseThrow(() -> new PlaceException(PlaceErrorCode.PLACE_NOT_FOUND));
+        return PlaceInfoResponse.from(projection);
+    }
 
     /**
      * 장소 상세에 보여 줄 내 게시글 목록으로, 보관함 저장 여부와 관계없이 해당 장소가 추출된 내 게시글을 읽는다.

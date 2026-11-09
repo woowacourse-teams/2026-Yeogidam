@@ -1,6 +1,7 @@
 package com.yeogidam.place.controller;
 
 import com.yeogidam.auth.resolver.LoginMember;
+import com.yeogidam.place.dto.response.PlaceInfoResponse;
 import com.yeogidam.place.dto.response.PlaceMediaResponses;
 import com.yeogidam.place.service.PlaceService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlaceController implements PlaceApiDocs {
 
     private final PlaceService placeService;
+
+    @Override
+    @GetMapping("/{placeId}/info")
+    public ResponseEntity<PlaceInfoResponse> readPlaceInfo(@PathVariable Long placeId) {
+        PlaceInfoResponse response = placeService.readPlaceInfo(placeId);
+        return ResponseEntity.ok()
+                .body(response);
+    }
 
     @Override
     @GetMapping("/{placeId}/media")
