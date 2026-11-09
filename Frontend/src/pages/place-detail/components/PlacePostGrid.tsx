@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, type ReactNode } from 'react';
 import {
   Image,
   Linking,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type PressableProps,
 } from 'react-native';
 import InstagramIcon from '../../../assets/icons/place-detail/instagram-outline.svg';
 import type {
@@ -14,6 +15,10 @@ import type {
 } from '../../../entities/info/types';
 import { normalizeReelTitle } from '../../../entities/content/title';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
+import {
+  LIBRARY_GRID_GAP,
+  LIBRARY_GUTTER,
+} from '../../saved-places/components/libraryTheme';
 import { PlaceTabEmptyState } from './PlaceTabEmptyState';
 
 type PlacePostGridProps = {
@@ -25,8 +30,10 @@ type PlacePostGridProps = {
   onOpenReel?: (reel: PlaceReel) => void;
 };
 
-const GRID_HORIZONTAL_PADDING = 12;
-const COLUMN_GAP = 10;
+// 사진을 불러오기 전 높이입니다. 가장 흔한 캐러셀 비율(4:5)로 두어 로드 후 움직임을 줄입니다.
+const DEFAULT_POST_IMAGE_RATIO = 1.25;
+// 릴스 하나가 화면을 너무 많이 차지하지 않도록 세로/가로 비율을 제한합니다.
+const MAX_POST_IMAGE_RATIO = 1.4;
 
 export function PlacePostGrid({
   reels,
@@ -55,7 +62,7 @@ export function PlacePostGrid({
   }
 
   const columnWidth =
-    (gridWidth - GRID_HORIZONTAL_PADDING * 2 - COLUMN_GAP) / 2;
+    (gridWidth - LIBRARY_GUTTER * 2 - LIBRARY_GRID_GAP) / 2;
 
   const columns = [
     reels.filter((_, index) => index % 2 === 0),
@@ -74,7 +81,7 @@ export function PlacePostGrid({
               style={[styles.column, { width: columnWidth }]}
             >
               {column.map(reel => (
-                <PostCard
+                <PlaceReelCard
                   key={reel.id}
                   reel={reel}
                   imageWidth={columnWidth}
@@ -88,7 +95,7 @@ export function PlacePostGrid({
   );
 }
 
-function PostCard({
+function PlaceReelCard({
   reel,
   imageWidth,
   onOpenReel,
@@ -98,18 +105,13 @@ function PostCard({
   onOpenReel?: (reel: PlaceReel) => void;
 }) {
   const { button } = useScreenAnalytics();
-  const image = reel.instagramThumbnailUrl
-    ? { uri: reel.instagramThumbnailUrl }
-    : require('../../../assets/illustrations/empty-illustration.png');
-  const asset = Image.resolveAssetSource(image);
-  const imageHeight =
-    imageWidth *
-    (asset.width && asset.height ? asset.height / asset.width : 1.25);
-  const captionPreview = normalizeReelTitle(reel.instagramDescription, null);
 
   return (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+    <PostCard
+      thumbnailUrl={reel.instagramThumbnailUrl}
+      authorUsername={reel.instagramAuthorUsername}
+      title={normalizeReelTitle(reel.instagramDescription, null)}
+      imageWidth={imageWidth}
       onPress={() => {
         if (onOpenReel) {
           button('open_reel_detail');
@@ -130,17 +132,66 @@ function PostCard({
             ? 'Instagram 릴스 열기'
             : undefined
       }
+    />
+  );
+}
+
+/** 장소 상세와 보관함이 함께 쓰는 게시물 카드입니다. 화면별 표시는 imageOverlay로 사진 위에 얹습니다. */
+export function PostCard({
+  thumbnailUrl,
+  authorUsername,
+  title,
+  imageWidth,
+  imageOverlay,
+  ...pressableProps
+}: {
+  thumbnailUrl?: string | null;
+  authorUsername?: string | null;
+  title: string;
+  imageWidth: number;
+  imageOverlay?: ReactNode;
+} & Pick<
+  PressableProps,
+  | 'accessibilityLabel'
+  | 'accessibilityRole'
+  | 'disabled'
+  | 'onLongPress'
+  | 'onPress'
+  | 'onPressIn'
+>) {
+  const image = thumbnailUrl
+    ? { uri: thumbnailUrl }
+    : require('../../../assets/illustrations/empty-illustration.png');
+  // 인터넷 이미지는 불러온 뒤에야 크기를 알 수 있어 로드 시점에 비율을 맞춥니다.
+  const [imageRatio, setImageRatio] = useState(DEFAULT_POST_IMAGE_RATIO);
+  const imageHeight = imageWidth * imageRatio;
+
+  return (
+    <Pressable
+      {...pressableProps}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
       <View
         style={[styles.imageClip, { width: imageWidth, height: imageHeight }]}
       >
-        <Image source={image} style={styles.image} resizeMode="cover" />
+        <Image
+          onLoad={event => {
+            const { width, height } = event.nativeEvent.source;
+            if (width > 0) {
+              setImageRatio(Math.min(height / width, MAX_POST_IMAGE_RATIO));
+            }
+          }}
+          source={image}
+          style={styles.image}
+          resizeMode="cover"
+        />
+        {imageOverlay}
       </View>
-      {reel.instagramAuthorUsername ? (
+      {authorUsername ? (
         <View style={styles.accountRow}>
           <InstagramIcon width={18} height={18} />
           <Text style={styles.account} numberOfLines={1}>
-            @{reel.instagramAuthorUsername.replace(/^@/, '')}
+            @{authorUsername.replace(/^@/, '')}
           </Text>
         </View>
       ) : null}
@@ -149,7 +200,7 @@ function PostCard({
         numberOfLines={1}
         ellipsizeMode="tail"
       >
-        {captionPreview}
+        {title}
       </Text>
     </Pressable>
   );
@@ -187,7 +238,7 @@ export function PostState({
 
 const styles = StyleSheet.create({
   grid: {
-    paddingHorizontal: 12,
+    paddingHorizontal: LIBRARY_GUTTER,
     paddingTop: 14,
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -218,14 +269,14 @@ const styles = StyleSheet.create({
   },
   account: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 12,
+    lineHeight: 18,
     color: '#8e8e93',
   },
   title: {
     marginTop: 5,
-    fontSize: 15,
-    lineHeight: 21,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: '700',
     color: '#1a1a2e',
   },
