@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Image,
   Linking,
@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { InAppBrowser } from 'react-native-inappbrowser-reborn';
 
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import type { PlaceDetailApiError } from '../usePlaceDetailData';
@@ -28,6 +29,32 @@ type PlaceBlogListProps = {
   onRetry?: () => void;
 };
 
+async function openBlogPost(url: string) {
+  try {
+    if (await InAppBrowser.isAvailable()) {
+      await InAppBrowser.open(url, {
+        // 옵션을 넘기면 라이브러리 기본값이 빠지므로 표시 방식을 직접 지정합니다.
+        animated: true,
+        modalEnabled: true,
+        modalPresentationStyle: 'fullScreen',
+        modalTransitionStyle: 'coverVertical',
+        dismissButtonStyle: 'close',
+        preferredBarTintColor: '#ffffff',
+        preferredControlTintColor: '#121212',
+        showTitle: true,
+        toolbarColor: '#ffffff',
+        navigationBarColor: '#ffffff',
+        navigationBarDividerColor: '#e4e4e7',
+      });
+      return;
+    }
+  } catch {
+    // 인앱 브라우저를 띄우지 못하면 아래에서 외부 브라우저로 엽니다.
+  }
+
+  await Linking.openURL(url);
+}
+
 export function PlaceBlogList({
   posts = [],
   isLoading = false,
@@ -35,6 +62,8 @@ export function PlaceBlogList({
   onRetry,
 }: PlaceBlogListProps) {
   const { button } = useScreenAnalytics();
+  // 브라우저가 떠 있는 동안 또 열면 iOS가 거절해 외부 브라우저까지 열리므로 한 번만 엽니다.
+  const isOpeningRef = useRef(false);
 
   if (isLoading) {
     return <PostState message="블로그 글을 불러오는 중이에요." />;
@@ -63,8 +92,14 @@ export function PlaceBlogList({
             accessibilityRole="link"
             accessibilityLabel={`${post.title} 블로그 글 열기`}
             onPress={() => {
+              if (isOpeningRef.current) return;
+              isOpeningRef.current = true;
               button('open_blog_post');
-              Linking.openURL(post.link).catch(() => undefined);
+              openBlogPost(post.link)
+                .catch(() => undefined)
+                .finally(() => {
+                  isOpeningRef.current = false;
+                });
             }}
             style={({ pressed }) => [
               styles.card,
