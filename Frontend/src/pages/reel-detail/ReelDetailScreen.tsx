@@ -442,15 +442,6 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
         ]}
       />
 
-      {/* 이미지 영역을 누르면 원본 이동을 확인합니다. 시트나 캡션이 펼쳐진 동안은 받지 않습니다. */}
-      <Pressable
-        accessibilityLabel="원본 게시물 열기"
-        accessibilityRole="button"
-        disabled={!reel.instagram_url || isSheetExpanded || isCaptionOpen}
-        onPress={openOriginal}
-        style={styles.imageTapArea}
-      />
-
       <Animated.View
         pointerEvents={isSheetExpanded || isCaptionOpen ? 'none' : 'box-none'}
         style={[
@@ -699,13 +690,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-  },
-  imageTapArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   infoWrap: {
     position: 'absolute',
