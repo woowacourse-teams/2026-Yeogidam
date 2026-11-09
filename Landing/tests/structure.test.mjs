@@ -45,3 +45,13 @@ test('섹션 CSS가 쓰는 애니메이션은 같은 파일이나 shared/base.cs
   }
   assert.deepEqual(wrong, []);
 });
+
+test('index.html은 페이지가 쓰는 모듈을 모두 미리 받고, 미리 받는 모듈은 모두 있다', async () => {
+  const html = await readFile(join(LANDING_DIR, 'index.html'), 'utf8');
+  const preloaded = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)">/g)].map((m) => m[1]).sort();
+  const modules = ['main.js'];
+  for (const dir of ['shared', ...SECTION_DIRS]) {
+    for (const name of await readdir(join(LANDING_DIR, dir))) if (name.endsWith('.js')) modules.push(`${dir}/${name}`);
+  }
+  assert.deepEqual(preloaded, modules.sort());
+});

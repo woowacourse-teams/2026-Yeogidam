@@ -121,6 +121,7 @@ npm run verify
 - `og:url`과 `og:image`는 https://yeogidam.vercel.app 기준 절대 주소라서 사이트 주소가 바뀌면 같이 고친다. 미리보기 이미지는 아직 앱 아이콘(192px)이라 1200x630 이미지를 따로 만들면 더 좋다.
 - 외부 리소스는 Pretendard(jsDelivr), qrcode-generator(cdnjs), Google 태그(googletagmanager.com)이고 모두 받지 못해도 페이지는 깨지지 않는다.
 - 데모 단계나 스토어 버튼 위치를 바꾸면 방문 통계 절의 이벤트 값, `demo/demo.js`의 `STEPS`와 `mark()` 호출, `shared/store-links.js`의 `placementOf()`, `tests/`의 기대값을 같이 고친다.
+- JS 모듈을 더하거나 지우면 `index.html` 머리의 `modulepreload` 목록도 같이 고친다. 모듈은 import를 따라 차례로 받아서, 미리 받지 않으면 첫 화면이 늦게 갖춰진다(`tests/structure.test.mjs`가 목록을 확인한다).
 - 데모 화면을 앱의 새 버전에 맞출 때는 fe-release 코드의 화면 문구와 크기를 기준으로 하고, `demo/categories.js`의 범주와 `demo/timing.js`의 기다림 시간을 먼저 본다.
 - 저장소가 공개이므로 운영 주소, 비밀값, 개인정보를 Landing 폴더에 두지 않는다.
 

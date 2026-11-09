@@ -126,7 +126,7 @@ export async function launchBrowser() {
   };
 }
 
-async function openPage(connection, url, { width = 1280, height = 900, reducedMotion = false, initScript = '' } = {}) {
+async function openPage(connection, url, { width = 1280, height = 900, reducedMotion = false, initScript = '', javaScript = true } = {}) {
   const { targetId } = await connection.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await connection.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => connection.send(method, params, sessionId);
@@ -138,6 +138,8 @@ async function openPage(connection, url, { width = 1280, height = 900, reducedMo
   await send('Network.setBlockedURLs', { urls: BLOCKED_URLS });
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   if (reducedMotion) await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+  // 스크립트가 돌기 전 첫 화면을 보려면 페이지 스크립트를 끈다(DevTools의 eval은 그대로 돈다)
+  if (!javaScript) await send('Emulation.setScriptExecutionDisabled', { value: true });
   await send('Page.addScriptToEvaluateOnNewDocument', { source: BLOCK_EXTERNAL_NAVIGATION });
   // 페이지 스크립트보다 먼저 돌아야 하는 테스트 준비(외부 라이브러리 대역 등)
   if (initScript) await send('Page.addScriptToEvaluateOnNewDocument', { source: initScript });
