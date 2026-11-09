@@ -65,6 +65,12 @@ describe('히어로 데모', { concurrency: true }, () => {
     await page.waitFor(`document.getElementById('shareRing').dataset.state === 'done'`, { what: '링이 완료로 바뀐다' });
     assert.equal(await page.text('#ringLabel'), '완료');
     assert.equal(await page.text('#ringCount'), '5');
+    // 링 안 사진은 세로가 긴 원본이어도 원 크기에 꽉 맞아야 한다(그리드 칸에서 세로로 늘어나 원 밖으로 나간 적이 있다)
+    assert.equal(await page.eval(`(() => {
+      const pic = document.querySelector('#shareRing .ring-pic').getBoundingClientRect();
+      const img = document.querySelector('#shareRing .ring-pic img').getBoundingClientRect();
+      return Math.abs(img.width - pic.width) < 0.5 && Math.abs(img.height - pic.height) < 0.5;
+    })()`), true);
     assert.equal(await page.text('#posts .post-card b'), '군자역 디저트 저장각 🍰');
     assert.equal(await page.text('#posts .post-count'), '5');
     assert.equal(await page.isVisible('#libEmpty'), false);
