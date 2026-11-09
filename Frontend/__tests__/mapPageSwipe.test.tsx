@@ -346,7 +346,7 @@ test('접힌 목록에서 마커 상세를 열어도 뒤 목록은 복귀 높이
   await act(async () => renderer.unmount());
 });
 
-test('장소 상세의 북마크 해제 버튼은 바로 해제하지 않고 안내 창을 먼저 띄운다', async () => {
+test('장소 상세의 북마크 해제 버튼은 안내 창 없이 바로 해제한다', async () => {
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   const onDeleteGuestPlaces = jest.fn();
   const renderer = await render({ onDeleteGuestPlaces });
@@ -354,8 +354,6 @@ test('장소 상세의 북마크 해제 버튼은 바로 해제하지 않고 안
   const detail = renderer.root.findAllByType(PlaceDetailContent)[0];
   expect(detail.props.onPressDelete).toBeDefined();
   await act(async () => detail.props.onPressDelete());
-  expect(alert).toHaveBeenCalledTimes(1);
-  expect(alert.mock.calls[0][0]).toBe('이 장소의 북마크를 해제할까요?');
-  expect(alert.mock.calls[0][1]).toContain('장소 보관함과 지도에서 사라져요.');
-  expect(onDeleteGuestPlaces).not.toHaveBeenCalled();
+  expect(alert).not.toHaveBeenCalled();
+  expect(onDeleteGuestPlaces).toHaveBeenCalledWith([place.id]);
 });

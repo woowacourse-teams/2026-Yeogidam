@@ -201,20 +201,15 @@ test('상단 원본 버튼은 확인 전에는 이동하지 않고 열기를 누
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('이미지 영역도 확인 후 원본 게시물로 넘어가고 재생 버튼은 없다', async () => {
+test('이미지 영역에는 원본 이동 터치가 없고 재생 버튼도 없다', async () => {
   const {renderer} = await render();
 
   expect(
     renderer.root.findAllByProps({name: 'play-arrow'}),
   ).toHaveLength(0);
-
-  await ReactTestRenderer.act(async () =>
-    renderer.root.findByProps({accessibilityLabel: '원본 게시물 열기'}).props.onPress(),
-  );
-  expect(Linking.openURL).not.toHaveBeenCalled();
-  const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
-  await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
-  expect(Linking.openURL).toHaveBeenCalledWith(reel.instagram_url);
+  expect(
+    renderer.root.findAllByProps({accessibilityLabel: '원본 게시물 열기'}),
+  ).toHaveLength(0);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

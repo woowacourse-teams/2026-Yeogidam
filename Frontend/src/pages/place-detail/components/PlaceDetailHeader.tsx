@@ -10,7 +10,7 @@ type PlaceDetailHeaderProps = {
   /** 지정하면 케밥 대신 폴더·삭제 버튼을 보여줍니다. */
   onPressFolder?: () => void;
   onPressDelete?: () => void;
-  /** 장소가 하나 이상의 폴더에 담겨 있으면 폴더 버튼을 채워서 보여줍니다. */
+  /** 장소가 하나 이상의 폴더에 담겨 있으면 폴더 아이콘을 채워서 강조색으로 보여줍니다. */
   isInFolder?: boolean;
   isDeleting?: boolean;
   onInteractivePressIn?: () => void;
@@ -79,10 +79,10 @@ export function PlaceDetailHeader({
           button('folder');
           onPressFolder();
         }}
-              style={[styles.iconButton, isInFolder && styles.iconButtonActive]}
+              style={styles.iconButton}
             >
               <MaterialIcons
-                color={isInFolder ? '#ffffff' : '#9A9BB0'}
+                color={isInFolder ? '#7186ed' : '#9A9BB0'}
                 name={isInFolder ? 'folder' : 'folder-open'}
                 size={19}
               />
@@ -199,10 +199,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
-  },
-  iconButtonActive: {
-    borderColor: '#8FA2FF',
-    backgroundColor: '#8FA2FF',
   },
   iconButtonDisabled: {
     opacity: 0.4,

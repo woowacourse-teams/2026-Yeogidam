@@ -7,13 +7,14 @@ import {
   Text,
   View,
 } from 'react-native';
-import InstagramIcon from '../../../assets/icons/social/instagram.svg';
+import InstagramIcon from '../../../assets/icons/place-detail/instagram-outline.svg';
 import type {
   PlaceReel,
   PlaceReelsApiError,
 } from '../../../entities/info/types';
 import { normalizeReelTitle } from '../../../entities/content/title';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
+import { PlaceTabEmptyState } from './PlaceTabEmptyState';
 
 type PlacePostGridProps = {
   reels: PlaceReel[];
@@ -50,7 +51,7 @@ export function PlacePostGrid({
   }
 
   if (reels.length === 0) {
-    return <PostState message="아직 관련 릴스가 없어요." />;
+    return <PlaceTabEmptyState message="아직 관련 릴스가 없어요" />;
   }
 
   const columnWidth =
@@ -137,7 +138,7 @@ function PostCard({
       </View>
       {reel.instagramAuthorUsername ? (
         <View style={styles.accountRow}>
-          <InstagramIcon width={18} height={18} opacity={0.45} />
+          <InstagramIcon width={18} height={18} />
           <Text style={styles.account} numberOfLines={1}>
             @{reel.instagramAuthorUsername.replace(/^@/, '')}
           </Text>
@@ -201,6 +202,7 @@ const styles = StyleSheet.create({
   imageClip: {
     borderRadius: 14,
     overflow: 'hidden',
+    backgroundColor: '#d9dce8',
   },
   image: {
     width: '100%',
@@ -215,6 +217,7 @@ const styles = StyleSheet.create({
   account: {
     flex: 1,
     fontSize: 14,
+    lineHeight: 20,
     color: '#8e8e93',
   },
   title: {
