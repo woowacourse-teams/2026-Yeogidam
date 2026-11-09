@@ -32,6 +32,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 네이버 블로그 검색 결과를 약관대로(순서와 내용을 바꾸지 않고) 옮기는지와, 네이버 오류를 502로 바꿀 예외로 알리는지 확인한다.
@@ -160,6 +161,21 @@ class NaverBlogSearcherTest {
                 .containsExactly("https://blog.naver.com/diary/2", "https://blog.naver.com/diary/5");
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"text/plain;charset=UTF-8", "application/json;charset=UTF-8"})
+    void JSON_본문이면_Content_Type과_상관없이_검색_결과를_읽는다(String contentType) {
+        // given: NAVER API HUB는 JSON 본문에 text/plain을 붙여 보낸다
+        naverServer.respondWithContentType(contentType,
+                items(item("카페 온월 후기", "카페 일기", "20261030", "https://blog.naver.com/diary/2")));
+
+        // when
+        List<BlogPost> posts = searcher().search("카페 온월 성수동", 5).posts();
+
+        // then
+        assertThat(posts).extracting(BlogPost::link)
+                .containsExactly("https://blog.naver.com/diary/2");
+    }
+
     @Test
     void 검색_결과가_없으면_빈_목록을_돌려준다() {
         // given
@@ -203,7 +219,8 @@ class NaverBlogSearcherTest {
         // given: 복사한 키 끝에 보이지 않는 폭 없는 공백이 붙었다. 헤더 값은 운영 설정의 JDK 클라이언트가 검사한다.
         NaverApiHubProperties properties = new NaverApiHubProperties("test-key-id", "secret-blog-key\u200B");
         RestClient restClient = new PlaceBlogConfig().naverApiHubRestClient(RestClient.builder());
-        NaverBlogSearcher searcher = new NaverBlogSearcher(restClient, properties, naverServer.endpoint());
+        NaverBlogSearcher searcher = new NaverBlogSearcher(
+                restClient, properties, JsonMapper.builder().build(), naverServer.endpoint());
 
         // when & then
         assertBlogSearchFailed(() -> searcher.search("카페 온월 성수동", 5));
@@ -243,7 +260,7 @@ class NaverBlogSearcherTest {
 
     private NaverBlogSearcher searcher(RestClient restClient) {
         NaverApiHubProperties properties = new NaverApiHubProperties("test-key-id", "test-key");
-        return new NaverBlogSearcher(restClient, properties, naverServer.endpoint());
+        return new NaverBlogSearcher(restClient, properties, JsonMapper.builder().build(), naverServer.endpoint());
     }
 
     private String items(String... items) {
@@ -266,7 +283,8 @@ class NaverBlogSearcherTest {
         private Map<String, String> parameters = new HashMap<>();
         private Map<String, String> headers = new HashMap<>();
         private int status = 200;
-        private String contentType = "application/json";
+        // 실제 NAVER API HUB처럼 JSON 본문에 text/plain을 붙여 보낸다.
+        private String contentType = "text/plain;charset=UTF-8";
         private String body = "{\"items\":[]}";
         private Duration delay = Duration.ZERO;
 

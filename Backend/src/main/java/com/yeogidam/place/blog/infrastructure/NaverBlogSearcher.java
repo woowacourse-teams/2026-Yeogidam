@@ -23,7 +23,9 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.HtmlUtils;
 import org.springframework.web.util.UriComponentsBuilder;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * NAVER API HUB 블로그 검색으로 글을 찾는다. 네이버 검색 API 약관 2.2에 따라 결과의 순서와 내용은 바꾸지 않고,
@@ -46,14 +48,16 @@ public class NaverBlogSearcher implements BlogSearcher {
 
     private final RestClient restClient;
     private final NaverApiHubProperties properties;
+    private final JsonMapper jsonMapper;
     private final URI apiEndpoint;
 
     @Autowired
     public NaverBlogSearcher(
             @Qualifier("naverApiHubRestClient") RestClient restClient,
-            NaverApiHubProperties properties
+            NaverApiHubProperties properties,
+            JsonMapper jsonMapper
     ) {
-        this(restClient, properties, API_ENDPOINT);
+        this(restClient, properties, jsonMapper, API_ENDPOINT);
     }
 
     @Override
@@ -79,13 +83,19 @@ public class NaverBlogSearcher implements BlogSearcher {
                 .encode()
                 .buildAndExpand(query)
                 .toUri();
+        return readJson(fetch(uri));
+    }
+
+    // HUB는 JSON 본문에 Content-Type text/plain을 붙여서, Content-Type으로 변환기를 고르는 body(JsonNode.class)로는 읽지 못한다.
+    // 그래서 본문은 바이트로 받고 JSON은 readJson에서 직접 읽는다.
+    private byte[] fetch(URI uri) {
         try {
             return restClient.get()
                     .uri(uri)
                     .header(KEY_ID_HEADER, properties.keyId())
                     .header(KEY_HEADER, properties.key())
                     .retrieve()
-                    .body(JsonNode.class);
+                    .body(byte[].class);
         } catch (RestClientResponseException exception) {
             log.error("[블로그 검색 실패] status={}", exception.getStatusCode().value());
             throw new PlaceBlogException(PlaceBlogErrorCode.BLOG_SEARCH_FAILED, exception);
@@ -96,6 +106,18 @@ public class NaverBlogSearcher implements BlogSearcher {
             // 키에 헤더로 보낼 수 없는 글자가 섞이면 JDK가 키 값을 담은 메시지로 던지므로, 메시지도 원인 예외도 남기지 않는다.
             log.error("[블로그 검색 실패] 키를 헤더로 보낼 수 없습니다.");
             throw new PlaceBlogException(PlaceBlogErrorCode.BLOG_SEARCH_FAILED);
+        }
+    }
+
+    private JsonNode readJson(byte[] body) {
+        if (body == null) {
+            return null;
+        }
+        try {
+            return jsonMapper.readTree(body);
+        } catch (JacksonException exception) {
+            log.error("[블로그 검색 실패] exception={}", exception.getClass().getSimpleName());
+            throw new PlaceBlogException(PlaceBlogErrorCode.BLOG_SEARCH_FAILED, exception);
         }
     }
 
