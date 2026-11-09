@@ -234,14 +234,24 @@ export class Page {
     return this.eval(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
   }
 
+  // 요소를 화면 가운데로 옮긴 뒤 좌표를 잰다. 페이지가 부드럽게 스크롤하거나 요소가 움직이는 중이면
+  // 50ms 간격으로 두 번 잰 값이 같아질 때까지 기다려서, 움직이는 동안 엉뚱한 곳을 누르지 않게 한다
   async center(selector) {
-    const box = await this.eval(`(() => {
+    const measure = () => this.eval(`(() => {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return null;
-      el.scrollIntoView({ block: 'center', inline: 'center' });
       const r = el.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2, width: r.width, height: r.height };
     })()`);
+    await this.eval(`document.querySelector(${JSON.stringify(selector)})?.scrollIntoView({ block: 'center', inline: 'center' })`);
+    let box = await measure();
+    for (let i = 0; i < 40 && box; i++) {
+      await sleep(50);
+      const next = await measure();
+      const settled = next && next.x === box.x && next.y === box.y && next.width === box.width && next.height === box.height;
+      box = next;
+      if (settled) break;
+    }
     if (!box || !box.width || !box.height) throw new Error(`${selector} 요소를 화면에서 찾지 못했다.`);
     return box;
   }
