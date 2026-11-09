@@ -774,9 +774,14 @@ export function PlaceResultSheet({
         }
 
         if (Math.abs(gesture.dy) < 3) {
+          analytics.button('sheet_handle_tap');
           snapTo(isExpanded ? collapsedOffset : topOffset);
           return;
         }
+        analytics.gesture('sheet_drag', {
+          direction: gesture.dy < 0 ? 'up' : 'down',
+          from_snap: dragStartSnapIndex.current,
+        });
 
         const releasedOffset = Math.max(
           topOffset,
@@ -812,6 +817,7 @@ export function PlaceResultSheet({
     }),
     [
       activeSnapIndex,
+      analytics,
       collapsedOffset,
       isExpanded,
       selectedPlace,
@@ -892,6 +898,7 @@ export function PlaceResultSheet({
           return;
         }
         sheetDragRevision.current += 1;
+        analytics.gesture('sheet_drag', {direction: 'down', from_snap: 0});
         const shouldLower =
           gesture.dy >= DETAIL_PULL_DOWN_DISTANCE ||
           gesture.vy >= DETAIL_PULL_DOWN_VELOCITY;
@@ -899,6 +906,7 @@ export function PlaceResultSheet({
       },
     });
   }, [
+    analytics,
     collapsedOffset,
     sheetDragCallbacks,
     snapOffsets,
@@ -919,6 +927,7 @@ export function PlaceResultSheet({
     velocityY: number,
   ) => {
     if (distance <= 0) return;
+    analytics.gesture('sheet_drag', {direction: 'down', from_snap: snapIndex});
     const shouldLower =
       distance >= DETAIL_PULL_DOWN_DISTANCE ||
       velocityY <= -DETAIL_PULL_DOWN_VELOCITY;

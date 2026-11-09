@@ -148,7 +148,10 @@ export function MapScreen({
   }, []);
   const handleCurrentLocation = async () => {
     try {
-      const granted = await ensureLocationPermission();
+      const granted = await ensureLocationPermission(false, event => {
+        if (event === 'shown') analytics.modal('location_settings');
+        else analytics.button(`location_settings_${event}`);
+      });
       analytics.button('current_location', { permission_granted: granted });
       if (granted) setCurrentLocationRequestId(requestId => requestId + 1);
     } catch {
@@ -737,6 +740,7 @@ export function MapScreen({
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        analytics.gesture('hardware_back', { handled: true });
         handleSearchBack();
         return true;
       },
@@ -747,6 +751,7 @@ export function MapScreen({
       onNestedBackStateChange?.(false);
     };
   }, [
+    analytics,
     handleSearchBack,
     isActive,
     hasActiveSearch,
@@ -1206,12 +1211,25 @@ export function MapScreen({
               folderAssignPlace ? getPlaceFolderIds(folderAssignPlace) : []
             }
             onSave={folderIds => {
+              analytics.button('folder_picker_save', {
+                folder_count: folderIds.length,
+              });
               if (folderAssignPlace) {
-                setPlaceFolderIds(folderAssignPlace, folderIds);
+                setPlaceFolderIds(folderAssignPlace, folderIds).then(saved =>
+                  trackActionFinished(
+                    posthog,
+                    'place_folder_assign',
+                    saved ? 'success' : 'failure',
+                    { screen_name: 'map', folder_count: folderIds.length },
+                  ),
+                );
               }
               setFolderAssignPlace(null);
             }}
-            onCancel={() => setFolderAssignPlace(null)}
+            onCancel={() => {
+              analytics.button('folder_picker_cancel');
+              setFolderAssignPlace(null);
+            }}
             onCreateFolder={async (name, color) =>
               (await createFolder(name, color))?.id ?? null
             }

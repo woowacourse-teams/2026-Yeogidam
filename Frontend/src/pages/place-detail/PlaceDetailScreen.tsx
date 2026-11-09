@@ -240,7 +240,14 @@ export function PlaceDetailScreen({
             analytics.button('folder_picker_save', {
               folder_count: folderIds.length,
             });
-            setPlaceFolderIds(place, folderIds);
+            setPlaceFolderIds(place, folderIds).then(saved =>
+              trackActionFinished(
+                posthog,
+                'place_folder_assign',
+                saved ? 'success' : 'failure',
+                {screen_name: 'place_detail', folder_count: folderIds.length},
+              ),
+            );
             setIsFolderPickerVisible(false);
           }}
           onCancel={() => {

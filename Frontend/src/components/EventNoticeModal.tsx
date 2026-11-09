@@ -11,6 +11,7 @@ import {
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { AppModal } from './AppModal';
+import { useScreenAnalytics } from '../analytics/uiEvents';
 import {
   hasDismissedEventNotice,
   rememberDismissedEventNotice,
@@ -135,6 +136,7 @@ export function EventNoticeModal({
   const [isInPeriod, setIsInPeriod] = useState(() => isWithinNoticePeriod(now()));
   // 안드로이드 뒤로가기는 실수로 누를 수 있어 이번 실행에서만 숨기고 닫은 기록은 남기지 않는다.
   const [isHiddenForSession, setIsHiddenForSession] = useState(false);
+  const { button } = useScreenAnalytics('event_notice');
 
   useEffect(() => {
     let cancelled = false;
@@ -162,13 +164,19 @@ export function EventNoticeModal({
   }, []);
 
   const openLink = useCallback(() => {
+    button('open_link', { notice_id: OPEN_EVENT_WINNER_NOTICE.id });
     dismiss();
     Linking.openURL(OPEN_EVENT_WINNER_NOTICE.linkUrl).catch(error => {
       if (__DEV__) {
         console.warn('[EventNotice] Unable to open link.', error);
       }
     });
-  }, [dismiss]);
+  }, [button, dismiss]);
+
+  const pressDismiss = useCallback(() => {
+    button('dismiss', { notice_id: OPEN_EVENT_WINNER_NOTICE.id });
+    dismiss();
+  }, [button, dismiss]);
 
   const visible =
     enabled && isInPeriod && isDismissed === false && !isHiddenForSession;
@@ -208,7 +216,7 @@ export function EventNoticeModal({
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            onPress={dismiss}
+            onPress={pressDismiss}
             style={styles.dismissButton}
             testID="event-notice-dismiss-button"
           >
