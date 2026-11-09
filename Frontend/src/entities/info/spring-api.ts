@@ -3,6 +3,9 @@ import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {SpringMember} from '../../lib/api/spring-auth-api';
 import type {
   CurrentProfileRepository,
+  PlaceBlogPost,
+  PlaceDetailInfo,
+  PlaceDetailRepository,
   PlaceReelsRepository,
   SavedPlaceListItem,
   SavedPlacesRepository,
@@ -107,6 +110,20 @@ export const springSavedPlacesRepository: SavedPlacesRepository = {
       method: 'DELETE',
       query: {savedPlaceIds},
     });
+  }),
+};
+
+export const springPlaceDetailRepository: PlaceDetailRepository = {
+  getPlaceInfo: placeId => withScreenError(() =>
+    client.request<PlaceDetailInfo>(
+      `/api/v1/places/${encodeURIComponent(placeId)}/info`,
+    ),
+  ),
+  getPlaceBlogs: placeId => withScreenError(async () => {
+    const response = await client.request<{source: string; items: PlaceBlogPost[]}>(
+      `/api/v1/places/${encodeURIComponent(placeId)}/blogs`,
+    );
+    return {source: response.source, posts: response.items};
   }),
 };
 

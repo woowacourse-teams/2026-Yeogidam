@@ -1,5 +1,8 @@
 import type {
   CurrentProfileRepository,
+  PlaceBlogSearchResult,
+  PlaceDetailInfo,
+  PlaceDetailRepository,
   PlaceReel,
   PlaceReelsRepository,
   ProfileInfo,
@@ -77,4 +80,30 @@ export function configurePlaceReelsRepository(
 /** 장소 상세 게시물은 저장 여부와 관계없이 장소 ID로 조회합니다. */
 export async function getPlaceReels(placeId: string): Promise<PlaceReel[]> {
   return placeReelsRepository.getPlaceReels(placeId);
+}
+
+let placeDetailRepository: PlaceDetailRepository = {
+  async getPlaceInfo() {
+    throw unconfiguredRepositoryError('Place detail');
+  },
+  async getPlaceBlogs() {
+    throw unconfiguredRepositoryError('Place detail');
+  },
+};
+
+export function configurePlaceDetailRepository(
+  repository: PlaceDetailRepository,
+) {
+  placeDetailRepository = repository;
+}
+
+export async function getPlaceInfo(placeId: string): Promise<PlaceDetailInfo> {
+  return placeDetailRepository.getPlaceInfo(placeId);
+}
+
+/** 서버가 요청마다 네이버를 호출하므로 블로그 탭을 열 때만 부릅니다. */
+export async function getPlaceBlogs(
+  placeId: string,
+): Promise<PlaceBlogSearchResult> {
+  return placeDetailRepository.getPlaceBlogs(placeId);
 }
