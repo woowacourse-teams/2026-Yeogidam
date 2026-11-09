@@ -185,6 +185,18 @@ type DetailLayer =
   | {kind: 'place'; place: Place}
   | {kind: 'reel'; reel: HistoryReel};
 
+const MAIN_TAB_KEYS: ReadonlySet<string> = new Set<MainScreen>([
+  'saved',
+  'map',
+  'my',
+  'history',
+]);
+
+// 탭 이동은 전환 없이 바꾸고, 그 위에 쌓이는 화면만 페이드로 열고 닫습니다.
+function isStackedScreenKey(key: string) {
+  return !MAIN_TAB_KEYS.has(key);
+}
+
 function getDetailLayerKey(layer: DetailLayer, index: number) {
   return layer.kind === 'place'
     ? `detailLayer-${index}-place-${layer.place.id}`
@@ -1730,10 +1742,13 @@ function App() {
         content: wrapScreen(
           <View style={styles.container}>
             {renderScreen(tab)}
-            {tab !== 'history' &&
-            !(tab === 'saved' && isSavedPlacesEditing) &&
-            !(tab === 'map' && isMapPlaceDetailVisible) ? (
-              <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+            {tab !== 'history' && !(tab === 'saved' && isSavedPlacesEditing) ? (
+              <BottomNavigationBar
+                active={tab}
+                hidden={tab === 'map' && isMapPlaceDetailVisible}
+                isGuest={isAuthenticated === false}
+                onNavigate={navigateMainTab}
+              />
             ) : null}
           </View>, tab === 'map',
         ),
@@ -1849,6 +1864,7 @@ function App() {
         key={`${flowState.kind}-${isAuthenticated}`}
         screens={screenLayers}
         activeKey={activeLayerKey}
+        animateRoute={isStackedScreenKey}
         gestureRegion={
           topDetailLayerIndex >= 0
             ? detailLayers[topDetailLayerIndex].kind === 'reel'

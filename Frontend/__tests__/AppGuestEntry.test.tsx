@@ -962,7 +962,8 @@ describe('처리 중인 릴스 열기', () => {
         .findByProps({accessibilityLabel: '히스토리에서 확인하기'})
         .props.onPress(),
     );
-    expect(renderer.root.findAllByType(ReelProcessingScreen)).toHaveLength(0);
+    // 닫히는 화면은 전환 애니메이션 동안 남아 있으므로 현재 화면으로 확인한다.
+    expect(renderer.root.findByType(SwipeBackStack).props.activeKey).toBe('history');
     expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(1);
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
