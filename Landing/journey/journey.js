@@ -1,7 +1,20 @@
 // 품질 섹션: 섹션까지 내려온 방문자와 버전 내용을 처음 본 방문자를 세고, 버전 번호로 아래 내용을 바꾼다
 import { track } from '../shared/analytics.js';
 
+// 참여한 사람 수가 10명까지면 점을 한 줄에, 넘으면 두 줄로 나눠 놓는다
+export function dotColumns(total) {
+  return total <= 10 ? total : Math.ceil(total / 2);
+}
+
+// 마크업에는 사람 수(data-total)와 기준을 넘은 사람 수(data-filled)만 두고, 점은 여기서 그린다
+function drawDots(row) {
+  var total = Number(row.dataset.total), filled = Number(row.dataset.filled);
+  row.style.setProperty('--cols', String(dotColumns(total)));
+  row.innerHTML = Array.from({ length: total }, function(_, i){ return i < filled ? '<i class="on"></i>' : '<i></i>'; }).join('');
+}
+
 export function initJourney() {
+  Array.prototype.forEach.call(document.querySelectorAll('.jr-dots[data-total]'), drawDots);
   var journey = document.getElementById('journey');
   if (journey){
     if ('IntersectionObserver' in window){
