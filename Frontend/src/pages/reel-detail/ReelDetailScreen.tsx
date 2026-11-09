@@ -52,6 +52,19 @@ const PHOTO_WIDTH = 100;
 const PHOTO_HEIGHT = 92;
 const ROW_HEIGHT = 116;
 const COLLAPSED_CAPTION_LINES = 2;
+const CAPTION_SCRIM_COLOR = 'rgba(13, 13, 31, 0.72)';
+const CAPTION_SHADE_SOLID_START = 0.6;
+const CAPTION_TRANSITION_DURATION_MS = 200;
+const BACKDROP_BLUR_RADIUS = 24;
+// 릴스(9:16)가 좌우 여백 없이 가로에 꽉 차는 높이입니다. 아래 일부는 시트 뒤로 들어갑니다.
+const REEL_HEIGHT_RATIO = 16 / 9;
+// 이보다 세로로 긴 사진만 릴스로 보고 가로에 꽉 채웁니다.
+const TALL_POST_MIN_RATIO = 1.6;
+// 둘째 줄이 줄바꿈으로 끝나면 기본 말줄임이 붙지 않아 직접 붙입니다.
+const CAPTION_ELLIPSIS = '...';
+// 말줄임이 차지하는 폭보다 조금 넉넉하게 잡아 다음 줄로 밀리지 않게 합니다.
+const CAPTION_ELLIPSIS_WIDTH = 24;
+const CAPTION_SIDE_PADDING = 20;
 const FOLD_BAR_HEIGHT = 44;
 
 // 이전 버튼이 있는 위쪽 띠(상태 표시줄 + 상단 버튼). 스와이프 뒤로가기 구역에서 뺍니다.
@@ -130,6 +143,38 @@ export function shouldCaptureSheetDrag({
  * - iOS: 맨 위에서 당기면 오프셋이 음수가 됩니다(바운스).
  * - Android: 오프셋이 0에 머물고, 아래로 끈 손가락 속도가 양수로 옵니다.
  */
+/**
+ * 잘리는 캡션을 말줄임이 들어갈 만큼만 남깁니다. 접힌 줄 수 안에 다 들어가면 null입니다.
+ */
+export function getCollapsedCaptionPreview(
+  lines: {text: string; width: number}[],
+  maxWidth: number,
+) {
+  if (lines.length <= COLLAPSED_CAPTION_LINES) {
+    return null;
+  }
+
+  const visibleLines = lines.slice(0, COLLAPSED_CAPTION_LINES);
+  const lastLine = visibleLines[visibleLines.length - 1];
+  // 이모지가 반쪽으로 잘리지 않도록 글자 단위로 나눕니다.
+  const lastCharacters = Array.from(lastLine.text.trimEnd());
+  const overflow = lastLine.width + CAPTION_ELLIPSIS_WIDTH - maxWidth;
+  const removeCount =
+    overflow > 0 && lastLine.width > 0
+      ? Math.ceil((lastCharacters.length * overflow) / lastLine.width)
+      : 0;
+
+  // 끝이 빈 줄이어도 말줄임이 마지막 글자에 바로 이어지도록 끝의 공백과 줄바꿈을 지웁니다.
+  return [
+    ...visibleLines.slice(0, -1).map(line => line.text),
+    lastCharacters
+      .slice(0, Math.max(0, lastCharacters.length - removeCount))
+      .join(''),
+  ]
+    .join('')
+    .trimEnd();
+}
+
 export function shouldDismissCaptionOnDragEnd({
   offsetY,
   velocityY,
@@ -168,7 +213,7 @@ type PlacesState =
 export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest = false}: ReelDetailScreenProps) {
   const analytics = useScreenAnalytics('reel_detail');
   const insets = useSafeAreaInsets();
-  const {height: windowHeight} = useWindowDimensions();
+  const {height: windowHeight, width: windowWidth} = useWindowDimensions();
   const collapsedTop = Math.round(windowHeight * COLLAPSED_RATIO);
   const expandedTop = Math.round(windowHeight * EXPANDED_RATIO);
 
@@ -273,6 +318,27 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const layoutRef = useRef({collapsedTop, expandedTop});
   layoutRef.current = {collapsedTop, expandedTop};
   const dragStartTopRef = useRef(collapsedTop);
+  // 접히는 동안에도 페이드가 보이도록 애니메이션이 끝날 때까지 펼친 캡션을 유지합니다.
+  const [isCaptionRendered, setIsCaptionRendered] = useState(false);
+  const captionProgress = useRef(new Animated.Value(0)).current;
+  const [captionPreview, setCaptionPreview] = useState<string | null>(null);
+  const [postImageRatio, setPostImageRatio] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isCaptionOpen) {
+      setIsCaptionRendered(true);
+    }
+    // sheetTop과 함께 접힌 캡션의 투명도를 계산하므로 같은 JS 드라이버를 씁니다.
+    Animated.timing(captionProgress, {
+      toValue: isCaptionOpen ? 1 : 0,
+      duration: CAPTION_TRANSITION_DURATION_MS,
+      useNativeDriver: false,
+    }).start(({finished}) => {
+      if (finished && !isCaptionOpen) {
+        setIsCaptionRendered(false);
+      }
+    });
+  }, [captionProgress, isCaptionOpen]);
 
   const snapSheet = useCallback(
     (expanded: boolean) => {
@@ -399,10 +465,25 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
     extrapolate: 'clamp',
   });
   // 캡션이 펼쳐진 동안은 접힌 캡션이 어두운 막 뒤로 비쳐 겹쳐 보이지 않게 숨깁니다.
-  const infoOpacity = isCaptionOpen ? 0 : captionOpacity;
+  const infoOpacity = Animated.multiply(
+    captionOpacity,
+    captionProgress.interpolate({inputRange: [0, 1], outputRange: [1, 0]}),
+  );
   const overlayBottom = Animated.subtract(windowHeight, sheetTop);
   const sheetTranslateY = Animated.subtract(sheetTop, expandedTop);
   const sheetHeight = windowHeight - expandedTop;
+
+  // 릴스는 가로에 꽉 채우고, 그보다 짧은 사진은 아래 빈 공간이 없도록 시트 윗선에 붙입니다.
+  const isTallPost =
+    postImageRatio !== null && postImageRatio >= TALL_POST_MIN_RATIO;
+  const shortPostHeight =
+    postImageRatio === null
+      ? collapsedTop
+      : Math.min(collapsedTop, windowWidth * postImageRatio);
+  const postImageHeight = isTallPost
+    ? Math.max(collapsedTop, windowWidth * REEL_HEIGHT_RATIO)
+    : shortPostHeight;
+  const postImageTop = isTallPost ? 0 : collapsedTop - shortPostHeight;
 
   const placesCount =
     placesState.status === 'ready' ? placesState.places.length : 0;
@@ -410,7 +491,25 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       {thumbnail ? (
-        <Image source={thumbnail} style={styles.backdrop} />
+        <>
+          {/* 게시물 비율과 관계없이 잘리지 않게 전체를 보여 주고, 남는 공간은 같은 사진을 흐려 채웁니다. */}
+          <Image
+            blurRadius={BACKDROP_BLUR_RADIUS}
+            source={thumbnail}
+            style={styles.backdrop}
+          />
+          <Image
+            onLoad={event => {
+              const {width, height} = event.nativeEvent.source;
+              setPostImageRatio(height / width);
+            }}
+            source={thumbnail}
+            style={[
+              styles.postImage,
+              {top: postImageTop, height: postImageHeight},
+            ]}
+          />
+        </>
       ) : (
         <LinearGradient
           colors={['#b9c2ff', '#e6e9ff']}
@@ -420,18 +519,10 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
         />
       )}
       <LinearGradient
-        // 시트의 둥근 모서리 뒤로 밝은 원본 이미지가 비치지 않게, 그라데이션을 모서리 높이만큼
-        // 더 같은 어둡기로 이어서 시트 윗선 아래까지 덮습니다.
-        colors={[
-          'rgba(0, 0, 0, 0)',
-          'rgba(13, 13, 31, 0.62)',
-          'rgba(13, 13, 31, 0.62)',
-        ]}
-        locations={[
-          0,
-          (windowHeight * 0.355) / (windowHeight * 0.355 + SHEET_RADIUS),
-          1,
-        ]}
+        // 접힌 캡션이 시작되는 높이부터 펼친 캡션의 배경과 같은 어둡기로 이어 글씨가 잘 보이게 하고,
+        // 시트의 둥근 모서리 뒤로 밝은 원본 이미지가 비치지 않도록 시트 윗선 아래까지 덮습니다.
+        colors={['rgba(0, 0, 0, 0)', CAPTION_SCRIM_COLOR, CAPTION_SCRIM_COLOR]}
+        locations={[0, CAPTION_SHADE_SOLID_START, 1]}
         pointerEvents="none"
         style={[
           styles.shade,
@@ -455,15 +546,34 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
             accessibilityLabel="캡션 펼치기"
             accessibilityRole="button"
             onPress={() => toggleCaption(true)}>
-            <Text numberOfLines={COLLAPSED_CAPTION_LINES} style={styles.caption}>
+            {/* 전체 줄바꿈을 재기 위한 숨은 글자입니다. 화면 폭이 같아야 결과가 맞습니다. */}
+            <Text
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              onTextLayout={event =>
+                setCaptionPreview(
+                  getCollapsedCaptionPreview(
+                    event.nativeEvent.lines,
+                    windowWidth - CAPTION_SIDE_PADDING * 2,
+                  ),
+                )
+              }
+              style={[styles.caption, styles.captionMeasure]}>
               {caption}
+            </Text>
+            <Text numberOfLines={COLLAPSED_CAPTION_LINES} style={styles.caption}>
+              {captionPreview !== null
+                ? `${captionPreview}${CAPTION_ELLIPSIS}`
+                : caption}
             </Text>
           </Pressable>
         ) : null}
       </Animated.View>
 
-      {isCaptionOpen ? (
-        <View style={styles.scrim}>
+      {isCaptionOpen || isCaptionRendered ? (
+        <Animated.View
+          pointerEvents={isCaptionOpen ? 'auto' : 'none'}
+          style={[styles.scrim, {opacity: captionProgress}]}>
           <ScrollView
             contentContainerStyle={styles.captionContent}
             onScroll={e => {
@@ -495,7 +605,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
                 .filter(Boolean)
                 .join(' · ')}
             </Text>
-            <Text style={styles.captionFull}>{caption}</Text>
+            <Text style={styles.caption}>{caption}</Text>
           </ScrollView>
           {/* 스크롤 영역 밖에 고정해 긴 캡션에서도 항상 보이고 바로 눌립니다. */}
           <Pressable
@@ -509,7 +619,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
             ]}>
             <Text style={styles.moreText}>접기</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       ) : null}
 
       <View style={[styles.topBar, {top: insets.top + 4}]}>
@@ -691,10 +801,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
+  postImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    resizeMode: 'contain',
+  },
   infoWrap: {
     position: 'absolute',
-    left: 20,
-    right: 20,
+    left: CAPTION_SIDE_PADDING,
+    right: CAPTION_SIDE_PADDING,
     gap: 6,
     paddingBottom: 18,
   },
@@ -704,12 +821,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     opacity: 0.9,
   },
-  // 펼친 캡션(captionFull)과 같은 글자 크기·줄간격입니다.
   caption: {
     color: '#ffffff',
     fontSize: 16,
     lineHeight: 26,
-    fontWeight: '700',
+  },
+  captionMeasure: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    opacity: 0,
   },
   foldButton: {
     position: 'absolute',
@@ -730,7 +851,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(13, 13, 31, 0.72)',
+    backgroundColor: CAPTION_SCRIM_COLOR,
   },
   captionScroll: {
     position: 'absolute',
@@ -745,11 +866,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     opacity: 0.9,
-  },
-  captionFull: {
-    color: '#ffffff',
-    fontSize: 16,
-    lineHeight: 26,
   },
   topBar: {
     position: 'absolute',
