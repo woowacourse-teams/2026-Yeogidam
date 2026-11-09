@@ -22,7 +22,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
   type GestureResponderEvent,
   type PanResponderCallbacks,
@@ -62,6 +61,10 @@ import {
 } from '../../../components/CategoryFilterChips';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
 import { usePlaceDetailData } from '../../place-detail/usePlaceDetailData';
+import {
+  PLACE_LIST_ROW_HEIGHT,
+  PlaceListRow,
+} from '../../../components/place/PlaceListRow';
 
 export type MapSheetPage = {
   isBackPreview?: boolean;
@@ -234,17 +237,6 @@ const BOTTOM_TAB_CLEARANCE = 92;
 export const LIST_TOP_GAP = 12;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
 const DETAIL_ACTION_BOTTOM_PADDING = 24;
-const RESULT_ITEM_HEIGHT = 116;
-
-function getMiddleCategory(category?: string) {
-  if (!category) return undefined;
-
-  const categories = category
-    .split('>')
-    .map(item => item.trim())
-    .filter(Boolean);
-  return categories[1] ?? categories[0];
-}
 
 export function PlaceResultSheet({
   onOpenReel,
@@ -295,8 +287,6 @@ export function PlaceResultSheet({
     guestReelsByPlace === undefined || onDeleteGuestPlaces !== undefined;
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('map');
-  const { width: windowWidth } = useWindowDimensions();
-  const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
@@ -1260,8 +1250,8 @@ export function PlaceResultSheet({
             ]}
             keyExtractor={place => place.id}
             getItemLayout={(_, index) => ({
-              length: RESULT_ITEM_HEIGHT,
-              offset: RESULT_ITEM_HEIGHT * index,
+              length: PLACE_LIST_ROW_HEIGHT,
+              offset: PLACE_LIST_ROW_HEIGHT * index,
               index,
             })}
             contentInsetAdjustmentBehavior="never"
@@ -1291,51 +1281,16 @@ export function PlaceResultSheet({
             }}
             onContentSizeChange={preview ? undefined : restoreResultsScroll}
             renderItem={({ item: place, index }) => (
-              <View style={styles.result}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${place.name} 상세 보기`}
-                  onPress={() => selectPlace(place, index + 1)}
-                  onPressIn={ignoreCollapsedBodyTapOnPressIn}
-                  style={styles.resultCard}
-                >
-                  {place.image ? (
-                    <Image
-                      source={place.image}
-                      style={[styles.photo, { width: photoWidth }]}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.photo,
-                        styles.imagePlaceholder,
-                        { width: photoWidth },
-                      ]}
-                    />
-                  )}
-                  <View style={styles.resultText}>
-                    {getMiddleCategory(place.category) ? (
-                      <View style={styles.titleRow}>
-                        <Text numberOfLines={1} style={styles.name}>
-                          {place.name}
-                        </Text>
-                        <View style={styles.categoryPill}>
-                          <Text style={styles.category}>
-                            {getMiddleCategory(place.category)}
-                          </Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <Text numberOfLines={1} style={styles.name}>
-                        {place.name}
-                      </Text>
-                    )}
-                    <Text style={styles.address}>
-                      {place.fullAddress || place.address}
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
+              <PlaceListRow
+                accessibilityRole="button"
+                accessibilityLabel={`${place.name} 상세 보기`}
+                address={place.fullAddress || place.address}
+                category={place.category}
+                image={place.image}
+                name={place.name}
+                onPress={() => selectPlace(place, index + 1)}
+                onPressIn={ignoreCollapsedBodyTapOnPressIn}
+              />
             )}
             ListEmptyComponent={
               <View
@@ -1645,10 +1600,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  result: {
-    height: RESULT_ITEM_HEIGHT,
-    paddingVertical: 12,
-  },
   emptyResult: {
     paddingTop: 34,
     paddingHorizontal: 16,
@@ -1699,51 +1650,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8e8e93',
     textAlign: 'center',
-  },
-  resultCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    minHeight: 92,
-  },
-  resultText: {
-    flex: 1,
-    paddingLeft: 14,
-    paddingTop: 3,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  name: {
-    flexShrink: 1,
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1a1a2e',
-  },
-  categoryPill: {
-    borderWidth: 1.5,
-    borderColor: '#C9C9CE',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  category: {
-    color: '#77777D',
-    fontSize: 12,
-  },
-  address: {
-    fontSize: 12,
-    color: '#8e8e93',
-    lineHeight: 18,
-    marginTop: 7,
-  },
-  photo: {
-    height: 92,
-    borderRadius: 4,
-    resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    backgroundColor: '#F1F3FB',
   },
 });

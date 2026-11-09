@@ -34,7 +34,7 @@ import type {
   HistoryReel,
   HistoryReelPlace,
 } from '../../entities/content/types';
-import {getMiddleCategory} from '../../entities/place/category';
+import {PlaceListRow} from '../../components/place/PlaceListRow';
 
 type ReelDetailScreenProps = {
   reel: HistoryReel;
@@ -48,9 +48,6 @@ type ReelDetailScreenProps = {
 const COLLAPSED_RATIO = 600 / 844;
 const EXPANDED_RATIO = 250 / 844;
 const SHEET_RADIUS = 28;
-const PHOTO_WIDTH = 100;
-const PHOTO_HEIGHT = 92;
-const ROW_HEIGHT = 116;
 const COLLAPSED_CAPTION_LINES = 2;
 const FOLD_BAR_HEIGHT = 44;
 
@@ -588,13 +585,16 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
               if (!place) {
                 return null;
               }
-              const category = getMiddleCategory(place.category);
               return (
-                <Pressable
+                <PlaceListRow
                   key={item.id}
                   accessibilityLabel={`${place.name} 장소 상세 보기`}
                   accessibilityRole="button"
+                  address={place.road_address ?? place.address ?? ''}
+                  category={place.category}
                   disabled={!onOpenPlace}
+                  image={place.thumbnail_url ? {uri: place.thumbnail_url} : undefined}
+                  name={place.name}
                   onPress={() => {
                     const detailPlace = historyReelPlaceToPlace(item);
                     if (detailPlace) {
@@ -602,45 +602,23 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
                       onOpenPlace?.(detailPlace);
                     }
                   }}
-                  style={styles.row}>
-                  {place.thumbnail_url ? (
-                    <Image
-                      source={{uri: place.thumbnail_url}}
-                      style={styles.photo}
-                    />
-                  ) : (
-                    <View style={[styles.photo, styles.photoPlaceholder]} />
-                  )}
-                  <View style={styles.rowText}>
-                    <View style={styles.nameRow}>
-                      <Text numberOfLines={1} style={styles.name}>
-                        {place.name}
-                      </Text>
-                      {category ? (
-                        <View style={styles.categoryPill}>
-                          <Text style={styles.category}>{category}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.address}>
-                      {place.road_address ?? place.address ?? ''}
-                    </Text>
-                  </View>
-                  {reel.processing_status === 'COMPLETED' && !isGuest ? (
-                    <Pressable
-                      accessibilityLabel={`${place.name} ${item.savedPlaceId ? '북마크 해제' : '북마크하기'}`}
-                      accessibilityRole="button"
-                      disabled={savingPlaceIds.has(place.id)}
-                      onPress={() => toggleSavedPlace(item)}
-                      style={styles.savePlaceButton}>
-                      <MaterialIcons
-                        color={item.savedPlaceId ? '#7186ed' : '#8b8e99'}
-                        name={item.savedPlaceId ? 'bookmark' : 'bookmark-border'}
-                        size={25}
-                      />
-                    </Pressable>
-                  ) : null}
-                </Pressable>
+                  trailing={
+                    reel.processing_status === 'COMPLETED' && !isGuest ? (
+                      <Pressable
+                        accessibilityLabel={`${place.name} ${item.savedPlaceId ? '북마크 해제' : '북마크하기'}`}
+                        accessibilityRole="button"
+                        disabled={savingPlaceIds.has(place.id)}
+                        onPress={() => toggleSavedPlace(item)}
+                        style={styles.savePlaceButton}>
+                        <MaterialIcons
+                          color={item.savedPlaceId ? '#7186ed' : '#8b8e99'}
+                          name={item.savedPlaceId ? 'bookmark' : 'bookmark-border'}
+                          size={25}
+                        />
+                      </Pressable>
+                    ) : null
+                  }
+                />
               );
             })
           )}
@@ -868,57 +846,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  row: {
-    height: ROW_HEIGHT,
-    flexDirection: 'row',
-    gap: 14,
-    paddingVertical: 12,
-  },
-  photo: {
-    width: PHOTO_WIDTH,
-    height: PHOTO_HEIGHT,
-    borderRadius: 4,
-    resizeMode: 'cover',
-  },
-  photoPlaceholder: {
-    backgroundColor: '#F1F3FB',
-  },
-  rowText: {
-    flex: 1,
-    gap: 7,
-    paddingTop: 3,
-  },
   savePlaceButton: {
     width: 36,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  name: {
-    flexShrink: 1,
-    color: '#1a1a2e',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  categoryPill: {
-    borderWidth: 1.5,
-    borderColor: '#c9c9ce',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-  },
-  category: {
-    color: '#77777d',
-    fontSize: 12,
-  },
-  address: {
-    color: '#8e8e93',
-    fontSize: 12,
-    lineHeight: 18,
   },
 });
