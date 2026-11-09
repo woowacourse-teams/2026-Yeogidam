@@ -115,7 +115,7 @@
               <div class="scrim" id="scrim"></div>
               <div class="sheet" id="sheet" role="dialog" aria-label="공유 시트">
                 <div class="handle"></div>
-                <div class="sheet-head"><div class="sheet-thumb tile t1" id="sheetThumb">🍰</div><div><b>릴스</b><small id="sheetLink">instagram.com/p/Db4gRWqkuUg</small></div></div>
+                <div class="sheet-head"><div class="sheet-thumb" id="sheetThumb"></div><div><b id="sheetTitle"></b><small>instagram.com</small></div></div>
                 <div class="apps">
                   <button type="button" class="app-ic me" id="btnYeogidam"><img src="assets/app-icon.png" alt="">여기담</button>
                   <button type="button" class="app-ic"><i style="background:#34c759">💬</i>메시지</button>
@@ -127,80 +127,81 @@
                 <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>링크 복사</div>
                 <div class="sheet-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg>저장</div>
               </div>
-              <div class="scrim-dark" id="rwrap" hidden><div class="rcard"><div id="rtext">공유한 내용을 확인하고 있어요.</div></div></div>
+              <!-- 공유 카드: 앱의 공유 확장처럼 화면 아래에서 올라오고, 누르지 않으면 4초 뒤 스스로 닫힌다 -->
+              <div class="share-dim" id="shareDim" hidden></div>
+              <div class="share-card" id="shareCard" role="status" hidden>
+                <img src="assets/share-mascot.png" alt=""><b>공유 완료!</b><button type="button" id="btnOpenApp">앱에서 보기</button>
+              </div>
               <div class="launch" id="launch" hidden><button type="button" class="launch-btn" id="btnLaunch"><img src="assets/app-icon.png" alt="">여기담</button></div>
             </div>
 
-            <!-- 여기담 앱 -->
+            <!-- 여기담 앱: 하단 탭은 보관함, 지도, 내 정보 -->
             <div class="scr app" id="scrApp" hidden>
-              <div class="app-head" id="appHead">
-                <img src="assets/app-icon.png" alt="" id="headAvatar">
-                <button type="button" class="hback" id="btnMapBack" aria-label="목록으로" hidden>&#8249;</button>
-                <div class="search"><span>여기담 검색</span><span class="sact"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m19.5 19.5-3.2-3.2"/></svg></span></div>
-              </div>
-              <div class="app-body">
-                <!-- 보관함 -->
-                <div class="lib" id="lib">
-                  <div class="lib-tools" id="libTools" hidden>편집</div>
-                  <div class="empty" id="empty"><img src="assets/character.png" alt=""><b>아직 저장된 장소가 없어요</b><p>인스타그램 릴스에서 공유하기로<br>여기담에 저장해 보세요.</p></div>
-                  <div class="grid" id="grid"></div>
-                </div>
-                <!-- 히스토리 -->
-                <div class="histv" id="histList" hidden>
-                  <div class="hist-title">히스토리</div>
-                  <div class="hist-date" id="hiDate">2026.10.12</div>
-                  <button type="button" class="hist-item" id="histItem">
-                    <span class="thumb" id="hiThumb"></span>
-                    <span class="hist-text"><span class="badge wait" id="hiBadge">처리중</span><b id="hiTitle">군자역 디저트 저장각 🍰</b></span>
-                    <span class="hist-chev" id="hiChev" hidden>&#8250;</span>
-                  </button>
-                </div>
-                <div class="histv hist" id="histDetail" hidden>
-                  <div class="hist-head"><button type="button" class="chev-btn" id="btnHistBack" aria-label="뒤로">&#8249;</button>히스토리</div>
-                  <div class="hist-hero"><span class="thumb hist-thumb" id="hdThumb"></span><b id="hdTitle">장소 분석이 완료되었어요!</b><small id="hdSub">총 5개의 장소를 찾았어요</small></div>
-                  <a class="hist-orig" id="hdOrig" href="https://www.instagram.com/p/Db4gRWqkuUg/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ig2" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#8a3ab9"/></linearGradient></defs><path fill="url(#ig2)" d="M12 8.8335C10.2883 8.8335 8.83337 10.2885 8.83337 12.0002C8.83337 13.7119 10.2883 15.1668 12 15.1668C13.7118 15.1668 15.1667 13.7119 15.1667 12.0002C15.1667 10.2885 13.7118 8.8335 12 8.8335Z"/><path fill="url(#ig2)" d="M16.0591 2.5H8.02727C4.91818 2.5 2.5 4.91818 2.5 7.94091V15.9727C2.5 19.0818 4.91818 21.5 8.02727 21.5H16.0591C19.0818 21.5 21.5 19.0818 21.5 15.9727V7.94091C21.5 4.91818 19.0818 2.5 16.0591 2.5ZM12 17.0091C9.23636 17.0091 7.07727 14.7636 7.07727 12.0864C7.07727 9.40909 9.23636 7.07727 12 7.07727C14.7636 7.07727 16.9227 9.32273 16.9227 12C16.9227 14.6773 14.7636 17.0091 12 17.0091ZM17.0955 8.11364C16.4909 8.11364 15.9727 7.59545 15.9727 6.99091C15.9727 6.38636 16.4909 5.86818 17.0955 5.86818C17.7 5.86818 18.2182 6.38636 18.2182 6.99091C18.2182 7.59545 17.7 8.11364 17.0955 8.11364Z"/></svg><span class="lbl">원본 릴스로 이동</span><span class="chev2">&#8250;</span></a>
-                  <div class="hist-fail" id="hdFail" hidden>
-                    <button type="button" id="btnRetry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>다시 시도하기</button>
-                    <button type="button" id="btnReport"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></svg>제보하기</button>
+              <!-- 보관함 -->
+              <div class="lib" id="lib">
+                <div class="app-head"><img class="brand-mark" src="assets/brand-mark.png" alt=""><div class="search"><span>장소, 지역, 게시물 검색</span><span class="sact"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.51 14.04Q11.39 14.04 12.7 12.72Q14.02 11.41 14.02 9.53Q14.02 7.65 12.7 6.34Q11.39 5.02 9.51 5.02Q7.63 5.02 6.32 6.34Q5 7.65 5 9.53Q5 11.41 6.32 12.72Q7.63 14.04 9.51 14.04ZM15.52 14.04L20.5 19.02L19 20.52L14.02 15.54L14.02 14.74L13.74 14.46Q11.95 16.01 9.51 16.01Q6.79 16.01 4.88 14.13Q2.98 12.26 2.98 9.53Q2.98 6.81 4.88 4.9Q6.79 3 9.51 3Q12.23 3 14.11 4.9Q15.99 6.81 15.99 9.53Q15.99 10.52 15.52 11.76Q15.05 13.01 14.44 13.76L14.72 14.04L15.52 14.04Z"/></svg></span></div></div>
+                <div class="recent">
+                  <div class="recent-head"><b>최근 공유</b><button type="button" class="recent-more">전체보기<svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.98 6.01L15.99 12.02L9.98 18.03L8.57 16.62L13.17 12.02L8.57 7.42L9.98 6.01Z"/></svg></button></div>
+                  <div class="rings">
+                    <button type="button" class="ring" id="shareRing" data-state="pending"><span class="ring-pic"><img id="ringThumb" alt=""></span><span class="ring-count" id="ringCount"></span><small id="ringLabel">대기 중</small></button>
+                    <button type="button" class="ring add" id="btnAddLink"><span class="ring-pic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13.01L12.99 13.01L12.99 19.02L11.01 19.02L11.01 13.01L5 13.01L5 11.03L11.01 11.03L11.01 5.02L12.99 5.02L12.99 11.03L19 11.03L19 13.01Z"/></svg></span><small>링크 추가</small></button>
                   </div>
-                  <div class="hist-label" id="hdFound">발견한 장소</div>
-                  <div class="hist-row" id="hdRow"></div>
                 </div>
-                <!-- 지도 -->
-                <div class="map" id="mapScr" hidden>
-                  <div id="mapSvg"></div>
-                  <div id="pins"></div>
-                  <button type="button" class="locbtn" aria-label="내 위치로 이동"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke-linecap="round"/></svg></button>
-                  <div class="msheet" id="msheet"><div class="handle"></div><div class="list" id="mlist"></div><div class="mdetail" id="mdetail" hidden></div></div>
-                  <button type="button" class="finish-in map-finish" id="btnFinishMap" hidden>데모 마치기</button>
+                <div class="lib-bar">
+                  <div class="lib-toggle" role="tablist" aria-label="보관함 보기"><button type="button" class="on" role="tab" aria-selected="true" data-view="posts" id="viewPosts">게시물</button><button type="button" role="tab" aria-selected="false" data-view="places" id="viewPlaces">장소</button></div>
+                  <button type="button" class="lib-edit">편집</button>
                 </div>
-                <!-- 내 정보 -->
-                <div class="profile" id="profile" hidden>
-                  <div class="pavatar">담</div>
-                  <div class="pname">담이 3432</div>
-                  <button type="button" class="pedit">프로필 수정하기</button>
-                  <div class="plist"><div>사용 가이드<span>›</span></div><div>약관 동의<span>›</span></div><div>문의하기<span>›</span></div><div>로그아웃<span>›</span></div></div>
-                </div>
+                <div class="cat-chips" id="libChips" hidden></div>
+                <div class="posts" id="posts"></div>
+                <div class="places" id="places" hidden></div>
+                <div class="empty-result" id="libEmpty"><img src="assets/empty-box.png" alt=""><b id="libEmptyTitle">담긴 게시물이 아직 없어요</b><p id="libEmptyText">릴스를 공유하고 게시물을 담아보세요.</p></div>
               </div>
-              <button type="button" class="fab" id="fab" aria-label="링크로 직접 추가">+</button>
-              <div class="confirm" id="confirm" hidden><div class="cbox"><b id="confirmTitle">다시 시도할까요?</b><div class="cbtns"><button type="button" id="confirmNo">취소</button><button type="button" id="confirmYes">확인</button></div></div></div>
+              <!-- 지도 -->
+              <div class="map" id="mapScr" hidden>
+                <div id="mapSvg"></div>
+                <div id="pins"></div>
+                <div class="map-top">
+                  <div class="app-head"><img class="brand-mark" id="mapAvatar" src="assets/brand-mark.png" alt=""><button type="button" class="hback" id="btnMapBack" aria-label="목록으로" hidden>&#8249;</button><div class="search"><span>장소, 지역 검색</span><span class="sact"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.51 14.04Q11.39 14.04 12.7 12.72Q14.02 11.41 14.02 9.53Q14.02 7.65 12.7 6.34Q11.39 5.02 9.51 5.02Q7.63 5.02 6.32 6.34Q5 7.65 5 9.53Q5 11.41 6.32 12.72Q7.63 14.04 9.51 14.04ZM15.52 14.04L20.5 19.02L19 20.52L14.02 15.54L14.02 14.74L13.74 14.46Q11.95 16.01 9.51 16.01Q6.79 16.01 4.88 14.13Q2.98 12.26 2.98 9.53Q2.98 6.81 4.88 4.9Q6.79 3 9.51 3Q12.23 3 14.11 4.9Q15.99 6.81 15.99 9.53Q15.99 10.52 15.52 11.76Q15.05 13.01 14.44 13.76L14.72 14.04L15.52 14.04Z"/></svg></span></div></div>
+                  <div class="cat-chips" id="mapChips"></div>
+                </div>
+                <button type="button" class="locbtn" aria-label="내 위치로 이동"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+                <div class="msheet" id="msheet"><div class="handle"></div><div class="seg" id="mapSeg"><button type="button" class="on">장소</button><button type="button">폴더</button></div><div class="list" id="mlist"></div><div class="mdetail" id="mdetail" hidden></div></div>
+                <button type="button" class="finish-in map-finish" id="btnFinishMap" hidden>데모 마치기</button>
+              </div>
+              <!-- 내 정보 -->
+              <div class="profile" id="profile" hidden>
+                <div class="pavatar">담</div>
+                <div class="pname">담이 3432</div>
+                <div class="plist"><div>사용 가이드<span>›</span></div><div>약관 동의<span>›</span></div><div>문의하기<span>›</span></div><div>회원탈퇴<span>›</span></div><div>로그아웃<span>›</span></div></div>
+              </div>
             </div>
 
-            <!-- 장소 상세(보관함에서 들어온 전체 화면) -->
+            <!-- 게시물 상세: 공유한 릴스의 원본 사진 위에 찾은 장소 목록을 올린다 -->
+            <div class="scr post" id="scrPost" hidden>
+              <div class="post-bg"><img id="postImg" alt=""></div>
+              <div class="post-top"><button type="button" class="post-back" id="btnPostBack" aria-label="보관함으로 돌아가기"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.43 7.42L10.83 12.02L15.43 16.62L14.02 18.03L8.01 12.02L14.02 6.01L15.43 7.42Z"/></svg></button><a class="post-orig" id="postOrig" href="#" target="_blank" rel="noopener"><img src="assets/instagram-logo.png" alt="">원본<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8.99 5.02L8.99 6.99L15.62 6.99L3.97 18.64L5.38 20.05L17.03 8.4L17.03 15.03L19 15.03L19 5.02L8.99 5.02Z"/></svg></a></div>
+              <div class="post-cap"><small id="postAccount"></small><p id="postCaption"></p></div>
+              <div class="psheet">
+                <div class="handle"></div>
+                <div class="psheet-head">찾은 장소 <em id="postCount"></em></div>
+                <div class="post-places" id="postPlaces"></div>
+                <div class="report"><p>장소가 빠졌거나 잘못 찾았나요?</p><button type="button" id="btnReport"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.01 14.04L18.01 8.03L12.99 8.03L12 6.01L6.97 6.01L6.97 12.02L12.99 12.02L14.02 14.04L18.01 14.04ZM14.02 6.01L20.03 6.01L20.03 16.01L12.99 16.01L12 14.04L6.97 14.04L6.97 21.04L5 21.04L5 3.99L12.99 3.99L14.02 6.01Z"/></svg><span id="reportLabel">제보하기</span></button></div>
+              </div>
+            </div>
+
+            <!-- 장소 상세(전체 화면): 보관함 장소 목록이나 게시물 상세에서 연다 -->
             <div class="scr detail" id="scrDetail" hidden>
-              <div class="dhead"><button type="button" id="btnBack" aria-label="뒤로">&#8249;</button><b id="dname">윤숲 후르츠산도점</b><button type="button" id="btnMore" aria-label="더 보기"><svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button></div>
+              <div class="dhead"><button type="button" id="btnBack" aria-label="뒤로 가기">&#8249;</button><b id="dname"></b><span class="dicons"><button type="button" class="dic" aria-label="폴더에 담기"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.03 18.03L20.03 8.03L3.97 8.03L3.97 18.03L20.03 18.03ZM20.03 6.01Q20.83 6.01 21.42 6.62Q22.01 7.23 22.01 8.03L22.01 18.03Q22.01 18.83 21.42 19.44Q20.83 20.05 20.03 20.05L3.97 20.05Q3.17 20.05 2.58 19.44Q1.99 18.83 1.99 18.03L1.99 6.01Q1.99 5.21 2.58 4.6Q3.17 3.99 3.97 3.99L9.98 3.99L12 6.01L20.03 6.01Z"/></svg></button><button type="button" class="dic bm" aria-label="장소 북마크 해제하기"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.03 3Q17.83 3 18.41 3.61Q19 4.22 19 5.02L19 21.04L12 18.03L5 21.04L5 5.02Q5 4.22 5.59 3.61Q6.17 3 6.97 3L17.03 3Z"/></svg></button></span></div>
               <div class="dbody" id="dbody"></div>
               <button type="button" class="finish-in" id="btnFinishIn">데모 마치기</button>
             </div>
 
-            <!-- 하단 탭 바(앱 화면과 장소 상세에서 보인다) -->
+            <!-- 하단 탭 바: 보관함, 지도, 내 정보. 게시물 상세와 거기서 연 장소 상세에서는 숨긴다 -->
             <div class="tabbar" id="tabbar" hidden>
-              <button type="button" class="tab" data-tab="history" id="tabHistory"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><svg class="f" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="currentColor"/><path d="M12 7v5l3 2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>히스토리</button>
-              <button type="button" class="tab on" data-tab="lib" id="tabLib"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4z"/></svg><svg class="f" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z" fill="currentColor"/></svg>보관함</button>
-              <button type="button" class="tab" data-tab="map" id="tabMap"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg><svg class="f" viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="currentColor"/><path d="M9 4v14M15 6v14" stroke="#fff" stroke-width="1.5"/></svg>지도</button>
-              <button type="button" class="tab" data-tab="profile"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" stroke-linecap="round"/></svg><svg class="f" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M4 21a8 8 0 0 1 16 0z" fill="currentColor"/></svg>내 정보</button>
+              <button type="button" class="tab on" data-tab="lib" id="tabLib"><svg class="o" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width=".3"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15-5-2.18L7 18V5h10v13z"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><path d="M17.03 3Q17.83 3 18.41 3.61Q19 4.22 19 5.02L19 21.04L12 18.03L5 21.04L5 5.02Q5 4.22 5.59 3.61Q6.17 3 6.97 3L17.03 3Z"/></svg>보관함</button>
+              <button type="button" class="tab" data-tab="map" id="tabMap"><svg class="o" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 5 9 3.2l6 1.9 5.5-1.8v15.4L15 20.8l-6-1.9-5.5 1.8V5ZM9 3.2v15.7m6-13.8v15.7"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><path d="M15.01 19.02L15.01 7.13L8.99 5.02L8.99 16.91L15.01 19.02ZM20.5 3Q21.02 3 21.02 3.52L21.02 18.64Q21.02 19.02 20.64 19.11L15.01 21.04L8.99 18.93L3.64 20.99L3.5 21.04Q2.98 21.04 2.98 20.52L2.98 5.4Q2.98 5.02 3.36 4.93L8.99 3L15.01 5.11L20.36 3.05L20.5 3Z"/></svg>지도</button>
+              <button type="button" class="tab" data-tab="profile" id="tabProfile"><svg class="o" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0-6c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 7c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4zm6 5H6v-.99c.2-.72 3.3-2.01 6-2.01s5.8 1.29 6 2v1z"/></svg><svg class="f" viewBox="0 0 24 24" fill="currentColor"><path d="M20.03 18.03L20.03 20.05L3.97 20.05L3.97 18.03Q3.97 16.25 6.71 15.14Q9.46 14.04 12 14.04Q14.54 14.04 17.29 15.14Q20.03 16.25 20.03 18.03ZM12 12.02Q10.36 12.02 9.18 10.85Q8.01 9.67 8.01 8.03Q8.01 6.38 9.18 5.18Q10.36 3.99 12 3.99Q13.64 3.99 14.82 5.18Q15.99 6.38 15.99 8.03Q15.99 9.67 14.82 10.85Q13.64 12.02 12 12.02Z"/></svg>내 정보</button>
             </div>
-
             <div class="endcard" id="endcard" hidden>
               <div class="ecard">
                 <img class="char" src="assets/character.png" alt="">
@@ -215,6 +216,7 @@
             </div>
 
             <div class="ptoast" id="ptoast" role="status" aria-live="polite"></div>
+            <div class="confirm" id="confirm" hidden><div class="cbox"><b id="confirmTitle"></b><div class="cbtns"><button type="button" id="confirmNo">취소</button><button type="button" id="confirmYes">확인</button></div></div></div>
             <div class="hint top" id="hint"><span class="hint-ring"></span><span class="hint-bubble" id="hintText"></span></div>
           </div>
         </div>
