@@ -25,6 +25,8 @@ import { PlaceFolderAssignPicker } from '../map/components/PlaceFolderPanel';
 import { usePlaceFolders } from '../../lib/usePlaceFolders';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
+import type { PlaceTab } from './components/PlaceTabs';
+import { usePlaceDetailData } from './usePlaceDetailData';
 
 type PlaceDetailScreenProps = {
   onBack: () => void;
@@ -60,6 +62,11 @@ export function PlaceDetailScreen({
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
   const [isFolderPickerVisible, setIsFolderPickerVisible] = useState(false);
+  const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
+  const { placeInfo, placeBlogs } = usePlaceDetailData(
+    isGuest || guestReels !== undefined ? null : place.id,
+    activeTab,
+  );
   const { folders, getPlaceFolderIds, createFolder, setPlaceFolderIds } =
     usePlaceFolders(!isGuest);
   const folderListItems = useMemo(
@@ -208,6 +215,10 @@ export function PlaceDetailScreen({
         isReelsLoading={isReelsLoading}
         onRetryReels={loadPosts}
         onOpenReel={onOpenReel}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        placeInfo={placeInfo}
+        placeBlogs={placeBlogs}
         onPressFolder={
           isGuest
             ? undefined

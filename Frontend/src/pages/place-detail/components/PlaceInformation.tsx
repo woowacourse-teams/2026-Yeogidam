@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
+import type { PlaceDetailApiError } from '../usePlaceDetailData';
+import { PostState } from './PlacePostGrid';
 import { PlaceTabEmptyState } from './PlaceTabEmptyState';
 
 const MENU_PREVIEW_COUNT = 3;
@@ -20,10 +22,12 @@ export type PlaceMenuItem = {
 };
 
 type PlaceInformationProps = {
-  // TODO(API 연동): 영업시간·메뉴 API가 생기면 값을 넘깁니다. 그 전에는 빈 화면을 보여줍니다.
   weeklyHours?: PlaceWeeklyHours[];
   menuPriceRange?: string;
   menuItems?: PlaceMenuItem[];
+  isLoading?: boolean;
+  error?: PlaceDetailApiError | null;
+  onRetry?: () => void;
   /** 메뉴를 펼치거나 접은 뒤 호출합니다. 정보 탭 안에서 메뉴 섹션의 y 위치를 넘깁니다. */
   onMenuToggled?: (menuTop: number) => void;
 };
@@ -32,6 +36,9 @@ export function PlaceInformation({
   weeklyHours = [],
   menuPriceRange,
   menuItems = [],
+  isLoading = false,
+  error = null,
+  onRetry,
   onMenuToggled,
 }: PlaceInformationProps) {
   const { button } = useScreenAnalytics();
@@ -43,6 +50,20 @@ export function PlaceInformation({
     : menuItems.slice(0, MENU_PREVIEW_COUNT);
   const hasWeeklyHours = weeklyHours.length > 0;
   const hasMenu = menuItems.length > 0;
+
+  if (isLoading) {
+    return <PostState message="장소 정보를 불러오는 중이에요." />;
+  }
+
+  if (error) {
+    return (
+      <PostState
+        message={error.message}
+        onRetry={error.retryable ? onRetry : undefined}
+        retryEventName="retry_place_info"
+      />
+    );
+  }
 
   if (!hasWeeklyHours && !hasMenu) {
     return <PlaceTabEmptyState message="아직 등록된 정보가 없어요" />;
@@ -64,6 +85,7 @@ export function PlaceInformation({
                 <Text
                   style={[
                     styles.dayText,
+                    styles.hoursText,
                     isToday && styles.todayText,
                     isClosed && styles.closedText,
                   ]}
@@ -96,7 +118,7 @@ export function PlaceInformation({
           <View style={styles.menuList}>
             {visibleMenuItems.map((item, index) => (
               <View
-                key={item.name}
+                key={`${item.name}-${index}`}
                 style={[
                   styles.menuItem,
                   index < visibleMenuItems.length - 1 && styles.menuItemDivider,
@@ -171,6 +193,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#66666f',
+  },
+  hoursText: {
+    textAlign: 'right',
   },
   todayText: {
     fontWeight: '700',

@@ -1,20 +1,55 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
+import type { PlaceDetailApiError } from '../usePlaceDetailData';
+import { PostState } from './PlacePostGrid';
 import { PlaceTabEmptyState } from './PlaceTabEmptyState';
 
-export type PlaceBlogPost = {
+export type PlaceBlogListItem = {
   id: string;
   title: string;
   meta: string;
+  link: string;
+  isNaver: boolean;
 };
 
 type PlaceBlogListProps = {
-  // TODO(API 연동): 블로그 글 API가 생기면 값을 넘깁니다. 그 전에는 빈 화면을 보여줍니다.
-  posts?: PlaceBlogPost[];
+  posts?: PlaceBlogListItem[];
+  isLoading?: boolean;
+  error?: PlaceDetailApiError | null;
+  onRetry?: () => void;
 };
 
-export function PlaceBlogList({ posts = [] }: PlaceBlogListProps) {
+export function PlaceBlogList({
+  posts = [],
+  isLoading = false,
+  error = null,
+  onRetry,
+}: PlaceBlogListProps) {
+  const { button } = useScreenAnalytics();
+
+  if (isLoading) {
+    return <PostState message="블로그 글을 불러오는 중이에요." />;
+  }
+
+  if (error) {
+    return (
+      <PostState
+        message={error.message}
+        onRetry={error.retryable ? onRetry : undefined}
+        retryEventName="retry_blogs"
+      />
+    );
+  }
+
   if (posts.length === 0) {
     return <PlaceTabEmptyState message="아직 등록된 블로그 글이 없어요" />;
   }
@@ -23,21 +58,38 @@ export function PlaceBlogList({ posts = [] }: PlaceBlogListProps) {
     <View style={styles.container}>
       <View style={styles.list}>
         {posts.map((post, index) => (
-          <View
+          <Pressable
             key={post.id}
-            style={[
+            accessibilityRole="link"
+            accessibilityLabel={`${post.title} 블로그 글 열기`}
+            onPress={() => {
+              button('open_blog_post');
+              Linking.openURL(post.link).catch(() => undefined);
+            }}
+            style={({ pressed }) => [
               styles.card,
               index < posts.length - 1 && styles.cardDivider,
+              pressed && styles.pressed,
             ]}
           >
-            <View style={styles.text}>
-              <Text style={styles.title}>{post.title}</Text>
-              <Text style={styles.meta} numberOfLines={1}>
-                {post.meta}
+            <View style={styles.titleRow}>
+              {post.isNaver ? (
+                <Image
+                  source={require('../../../assets/icons/naver-blog-logo.png')}
+                  style={styles.sourceMark}
+                />
+              ) : null}
+              <Text style={styles.title} numberOfLines={1}>
+                {post.title}
               </Text>
             </View>
-            <View style={styles.thumbnail} />
-          </View>
+            <Text
+              style={[styles.meta, post.isNaver && styles.metaBesideMark]}
+              numberOfLines={1}
+            >
+              {post.meta}
+            </Text>
+          </Pressable>
         ))}
       </View>
     </View>
@@ -56,20 +108,23 @@ const styles = StyleSheet.create({
   },
   card: {
     paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    gap: 4,
   },
   cardDivider: {
     borderBottomWidth: 1,
     borderBottomColor: '#ececf0',
   },
-  text: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4,
+  pressed: {
+    opacity: 0.55,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
   },
   title: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 14,
     lineHeight: 21,
     fontWeight: '500',
@@ -80,10 +135,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: '#8e8e93',
   },
-  thumbnail: {
-    width: 64,
-    height: 64,
-    borderRadius: 10,
-    backgroundColor: '#d9dce8',
+  // 로고 너비(24)와 제목과의 간격(12)만큼 들여 제목과 왼쪽을 맞춥니다.
+  metaBesideMark: {
+    paddingLeft: 36,
+  },
+  // TODO(BI): 출처를 확인할 수 없는 임시 파일입니다. 공식 마크와 사용 가능 여부를 확인한 뒤 교체합니다.
+  sourceMark: {
+    width: 24,
+    height: 24,
+    tintColor: '#03C75A',
   },
 });

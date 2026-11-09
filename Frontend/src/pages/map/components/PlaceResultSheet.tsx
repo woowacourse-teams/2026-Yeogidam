@@ -61,6 +61,7 @@ import {
   CATEGORY_CHIPS_TOP_GAP,
 } from '../../../components/CategoryFilterChips';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
+import { usePlaceDetailData } from '../../place-detail/usePlaceDetailData';
 
 export type MapSheetPage = {
   isBackPreview?: boolean;
@@ -381,6 +382,10 @@ export function PlaceResultSheet({
   const detailEntrySnapIndex = useRef(activeSnapIndex);
   const completingPageSwipe = useRef(false);
   const [detailTab, setDetailTab] = useState<PlaceTab>('게시물');
+  const { placeInfo, placeBlogs } = usePlaceDetailData(
+    guestReelsByPlace !== undefined ? null : selectedPlace?.id ?? null,
+    detailTab,
+  );
   const detailScrollOffset = useRef(0);
   const detailScrollRef = useRef<ScrollView>(null);
   // Android에서 끝까지 올린 상세의 본문이 맨 위에 있으면 ScrollView 스크롤을 잠급니다.
@@ -1144,6 +1149,8 @@ export function PlaceResultSheet({
             analyticsScreenName="map"
             activeTab={detailTab}
             onTabChange={setDetailTab}
+            placeInfo={placeInfo}
+            placeBlogs={placeBlogs}
             initialScrollOffset={
               preview ? detailScrollOffset.current : undefined
             }
