@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
@@ -9,7 +9,6 @@ import {
   MOCK_WEEKLY_HOURS,
 } from './placeDetailMock';
 
-export const PLACE_TAB_CONTENT_MIN_HEIGHT = Dimensions.get('window').height - 162;
 const MENU_PREVIEW_COUNT = 3;
 
 type PlaceInformationProps = {
@@ -110,7 +109,6 @@ export function PlaceInformation({ onMenuToggled }: PlaceInformationProps) {
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: PLACE_TAB_CONTENT_MIN_HEIGHT,
     backgroundColor: '#ffffff',
   },
   section: {

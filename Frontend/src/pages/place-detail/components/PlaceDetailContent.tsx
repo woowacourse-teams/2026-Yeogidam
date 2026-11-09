@@ -186,8 +186,11 @@ function PlaceDetailContentBody({
   const isDraggingRef = useRef(false);
   const localScrollRef = useRef<ScrollView>(null);
   useImperativeHandle(scrollViewRef, () => localScrollRef.current as ScrollView, []);
-  const headerHeightRef = useRef(0);
-  const informationTopRef = useRef(0);
+  const tabsTopRef = useRef(0);
+  const scrollOffsetRef = useRef(initialScrollOffset ?? 0);
+  const [isTabsPinned, setIsTabsPinned] = useState(false);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [tabsHeight, setTabsHeight] = useState(0);
   const { selection } = useScreenAnalytics();
   const [localTab, setActiveTab] = useState<PlaceTab>('게시물');
   const activeTab = controlledTab ?? localTab;
@@ -196,126 +199,145 @@ function PlaceDetailContentBody({
     selection('place_tab', tab);
     setActiveTab(tab);
     onTabChange?.(tab);
+    // 이미 고정된 상태에서는 내용만 바뀐 것처럼 보이도록 애니메이션 없이 옮깁니다.
+    localScrollRef.current?.scrollTo({
+      y: tabsTopRef.current,
+      animated: !isTabsPinned,
+    });
   };
 
   const hasStickyHeader = stickyHeader && !hideHeader;
 
   const scrollToMenu = (menuTop: number) => {
-    const stickyOffset = hasStickyHeader ? headerHeightRef.current : 0;
     localScrollRef.current?.scrollTo({
-      y: Math.max(0, informationTopRef.current + menuTop - stickyOffset),
+      y: tabsTopRef.current + menuTop,
       animated: true,
     });
   };
 
-  // stickyHeaderIndices가 첫 자식을 헤더로 보므로 Fragment로 묶지 않고 배열로 둡니다.
-  const body = [
-    hideHeader ? (
-      <View key="header" style={{ height: headerTopInset }} />
-    ) : (
-      <View
-        key="header"
-        onLayout={event => {
-          headerHeightRef.current = event.nativeEvent.layout.height;
-        }}
-      >
-        <PlaceDetailHeader
-          onBack={onBack}
-          onPressMore={onPressMore}
-          onPressFolder={onPressFolder}
-          onPressDelete={onPressDelete}
-          isInFolder={isInFolder}
-          isDeleting={isDeleting}
-          onInteractivePressIn={onInteractivePressIn}
-          hideBack={hideBack}
-          title={place.name}
-          titleInHeader={titleInHeader}
-          topInset={headerTopInset}
-          compact={compactHeader}
-        />
-      </View>
-    ),
-    <View key="info">
-      <PlaceInfo
-        place={place}
-        showTitle={showTitle}
-        showCategory={showMetadata}
-        showAddress={showMetadata}
-        actionsUnderTitle={actionsUnderTitle}
-        viewContext={viewContext}
-        onInteractivePressIn={onInteractivePressIn}
-      />
-    </View>,
-    <View key="tabs" style={styles.tabsContainer}>
-      <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />
-    </View>,
-    activeTab === '게시물' ? (
-      <PlacePostGrid
-        key="posts"
-        reels={reels}
-        error={reelsError}
-        isLoading={isReelsLoading}
-        onRetry={onRetryReels}
-        onOpenReel={onOpenReel}
-      />
-    ) : null,
-    activeTab === '정보' ? (
-      <View
-        key="info-tab"
-        onLayout={event => {
-          informationTopRef.current = event.nativeEvent.layout.y;
-        }}
-      >
-        <PlaceInformation onMenuToggled={scrollToMenu} />
-      </View>
-    ) : null,
-    activeTab === '블로그' ? <PlaceBlogList key="blog-tab" /> : null,
-  ];
+  const updateTabsPinned = (offset: number) => {
+    const tabsTop = tabsTopRef.current;
+    setIsTabsPinned(tabsTop > 0 && Math.ceil(offset) >= Math.floor(tabsTop));
+  };
+
+  const tabs = <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />;
+  // 내용이 짧아도 탭이 상단에 딱 붙는 지점까지만 스크롤되는 높이입니다.
+  const tabContentMinHeight = Math.max(
+    0,
+    scrollViewHeight - tabsHeight - contentBottomPadding,
+  );
+
+  const header = hideHeader ? null : (
+    <PlaceDetailHeader
+      onBack={onBack}
+      onPressMore={onPressMore}
+      onPressFolder={onPressFolder}
+      onPressDelete={onPressDelete}
+      isInFolder={isInFolder}
+      isDeleting={isDeleting}
+      onInteractivePressIn={onInteractivePressIn}
+      hideBack={hideBack}
+      title={place.name}
+      titleInHeader={titleInHeader}
+      topInset={headerTopInset}
+      compact={compactHeader}
+    />
+  );
 
   return (
-    <ScrollView
-      ref={localScrollRef}
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: contentBottomPadding },
-      ]}
-      contentOffset={
-        initialScrollOffset === undefined
-          ? undefined
-          : { x: 0, y: initialScrollOffset }
-      }
-      onScroll={
-        onScrollOffsetChange || onTopPull
-          ? event => {
-              const offset = event.nativeEvent.contentOffset.y;
-              onScrollOffsetChange?.(offset);
-              if (isDraggingRef.current) onTopPull?.(Math.max(0, -offset));
-            }
-          : undefined
-      }
-      onScrollBeginDrag={() => {
-        isDraggingRef.current = true;
-      }}
-      onScrollEndDrag={event => {
-        isDraggingRef.current = false;
-        const { contentOffset, velocity } = event.nativeEvent;
-        onTopPullRelease?.(Math.max(0, -contentOffset.y), velocity?.y ?? 0);
-      }}
-      scrollEventThrottle={16}
-      scrollEnabled={scrollEnabled}
-      nestedScrollEnabled
-      stickyHeaderIndices={hasStickyHeader ? [0] : undefined}
-      showsVerticalScrollIndicator={false}
-    >
-      {contentPanHandlers ? (
-        <View {...contentPanHandlers} style={styles.content}>
-          {body}
+    <View style={styles.container}>
+      {hasStickyHeader ? header : null}
+      <View style={styles.container}>
+        <ScrollView
+          ref={localScrollRef}
+          style={styles.container}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: contentBottomPadding },
+          ]}
+          contentOffset={
+            initialScrollOffset === undefined
+              ? undefined
+              : { x: 0, y: initialScrollOffset }
+          }
+          onLayout={event => {
+            setScrollViewHeight(event.nativeEvent.layout.height);
+          }}
+          onScroll={event => {
+            const offset = event.nativeEvent.contentOffset.y;
+            scrollOffsetRef.current = offset;
+            updateTabsPinned(offset);
+            onScrollOffsetChange?.(offset);
+            if (isDraggingRef.current) onTopPull?.(Math.max(0, -offset));
+          }}
+          onScrollBeginDrag={() => {
+            isDraggingRef.current = true;
+          }}
+          onScrollEndDrag={event => {
+            isDraggingRef.current = false;
+            const { contentOffset, velocity } = event.nativeEvent;
+            onTopPullRelease?.(Math.max(0, -contentOffset.y), velocity?.y ?? 0);
+          }}
+          scrollEventThrottle={16}
+          scrollEnabled={scrollEnabled}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+        >
+          <View {...contentPanHandlers} style={styles.content}>
+            {hideHeader ? <View style={{ height: headerTopInset }} /> : null}
+            {hasStickyHeader ? null : header}
+            <PlaceInfo
+              place={place}
+              showTitle={showTitle}
+              showCategory={showMetadata}
+              showAddress={showMetadata}
+              actionsUnderTitle={actionsUnderTitle}
+              viewContext={viewContext}
+              onInteractivePressIn={onInteractivePressIn}
+            />
+            <View
+              style={styles.tabsContainer}
+              onLayout={event => {
+                tabsTopRef.current = event.nativeEvent.layout.y;
+                setTabsHeight(event.nativeEvent.layout.height);
+                updateTabsPinned(scrollOffsetRef.current);
+              }}
+            >
+              {tabs}
+            </View>
+            <View style={[styles.content, { minHeight: tabContentMinHeight }]}>
+              {activeTab === '게시물' ? (
+                <PlacePostGrid
+                  reels={reels}
+                  error={reelsError}
+                  isLoading={isReelsLoading}
+                  onRetry={onRetryReels}
+                  onOpenReel={onOpenReel}
+                />
+              ) : null}
+              {activeTab === '정보' ? (
+                <PlaceInformation onMenuToggled={scrollToMenu} />
+              ) : null}
+              {activeTab === '블로그' ? <PlaceBlogList /> : null}
+            </View>
+          </View>
+        </ScrollView>
+        {/*
+          RN stickyHeaderIndices는 내용 높이가 바뀌면 탭 위치가 어긋나므로 스크롤 밖에 겹쳐 둡니다.
+          선택 표시 위치를 유지하도록 숨길 때도 마운트해 둡니다.
+        */}
+        <View
+          accessibilityElementsHidden={!isTabsPinned}
+          importantForAccessibility={
+            isTabsPinned ? 'auto' : 'no-hide-descendants'
+          }
+          pointerEvents={isTabsPinned ? 'auto' : 'none'}
+          style={[styles.pinnedTabs, !isTabsPinned && styles.pinnedTabsHidden]}
+        >
+          {tabs}
         </View>
-      ) : (
-        body
-      )}
-    </ScrollView>
+      </View>
+    </View>
   );
 }
 
@@ -330,5 +352,15 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     backgroundColor: '#ffffff',
+  },
+  pinnedTabs: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#ffffff',
+  },
+  pinnedTabsHidden: {
+    opacity: 0,
   },
 });

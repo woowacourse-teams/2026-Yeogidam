@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { PLACE_TAB_CONTENT_MIN_HEIGHT } from './PlaceInformation';
 import { MOCK_BLOG_POSTS } from './placeDetailMock';
 
 export function PlaceBlogList() {
@@ -32,7 +31,6 @@ export function PlaceBlogList() {
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: PLACE_TAB_CONTENT_MIN_HEIGHT,
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 20,
