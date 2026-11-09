@@ -1,6 +1,7 @@
 import React, {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -17,15 +18,18 @@ const CopyToastContext = createContext<CopyToastContextValue | null>(null);
 export function CopyToastProvider({
   children,
   bottomOffset = 16,
+  notice,
 }: {
   children: ReactNode;
   bottomOffset?: number;
+  /** Provider 바깥에서 띄울 토스트입니다. id가 바뀔 때마다 한 번씩 보여줍니다. */
+  notice?: { id: number; message: string } | null;
 }) {
   const [message, setMessage] = useState('');
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showCopyToast = (nextMessage: string) => {
+  const showCopyToast = useCallback((nextMessage: string) => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
@@ -33,7 +37,13 @@ export function CopyToastProvider({
     setMessage(nextMessage);
     setVisible(true);
     timerRef.current = setTimeout(() => setVisible(false), 1800);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (notice) {
+      showCopyToast(notice.message);
+    }
+  }, [notice, showCopyToast]);
 
   useEffect(() => {
     return () => {

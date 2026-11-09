@@ -35,6 +35,7 @@ import type {
   HistoryReelPlace,
 } from '../../entities/content/types';
 import {PlaceListRow} from '../../components/place/PlaceListRow';
+import {subscribeSavedPlaceChanged} from '../../lib/saved-place-events';
 
 type ReelDetailScreenProps = {
   reel: HistoryReel;
@@ -192,6 +193,24 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
     : reel.instagram_thumbnail_url
       ? {uri: reel.instagram_thumbnail_url}
       : null;
+
+  // 이 화면 위에 연 장소 상세에서 북마크를 바꾸면 돌아왔을 때 아이콘이 맞도록 반영합니다.
+  useEffect(
+    () =>
+      subscribeSavedPlaceChanged(({placeId, savedPlaceId}) => {
+        setPlacesState(current =>
+          current.status !== 'ready'
+            ? current
+            : {
+                ...current,
+                places: current.places.map(item =>
+                  item.place?.id === placeId ? {...item, savedPlaceId} : item,
+                ),
+              },
+        );
+      }),
+    [],
+  );
 
   useEffect(() => {
     let isMounted = true;

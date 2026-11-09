@@ -9,7 +9,9 @@ type PlaceDetailHeaderProps = {
   onPressMore?: () => void;
   /** 지정하면 케밥 대신 폴더·삭제 버튼을 보여줍니다. */
   onPressFolder?: () => void;
+  /** 북마크 버튼을 누를 때 호출합니다. isBookmarked에 따라 저장하거나 해제합니다. */
   onPressDelete?: () => void;
+  isBookmarked?: boolean;
   /** 장소가 하나 이상의 폴더에 담겨 있으면 폴더 아이콘을 채워서 강조색으로 보여줍니다. */
   isInFolder?: boolean;
   isDeleting?: boolean;
@@ -26,6 +28,7 @@ export function PlaceDetailHeader({
   onPressMore,
   onPressFolder,
   onPressDelete,
+  isBookmarked = true,
   isInFolder = false,
   isDeleting = false,
   onInteractivePressIn,
@@ -90,18 +93,23 @@ export function PlaceDetailHeader({
           ) : null}
           {onPressDelete ? (
             <Pressable
-              accessibilityLabel="장소 북마크 해제하기"
+              accessibilityLabel={isBookmarked ? '장소 북마크 해제하기' : '장소 북마크하기'}
               accessibilityRole="button"
+              accessibilityState={{ selected: isBookmarked }}
               disabled={isDeleting}
               hitSlop={6}
               onPressIn={onInteractivePressIn}
               onPress={() => {
-          button('delete');
+          button(isBookmarked ? 'delete' : 'bookmark');
           onPressDelete();
         }}
               style={[styles.iconButton, isDeleting && styles.iconButtonDisabled]}
             >
-              <MaterialIcons color="#7186ed" name="bookmark" size={20} />
+              <MaterialIcons
+                color={isBookmarked ? '#7186ed' : '#9A9BB0'}
+                name={isBookmarked ? 'bookmark' : 'bookmark-border'}
+                size={20}
+              />
             </Pressable>
           ) : null}
         </View>

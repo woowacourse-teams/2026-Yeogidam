@@ -47,6 +47,7 @@ type PlaceDetailContentProps = {
   onPressMore?: () => void;
   onPressFolder?: () => void;
   onPressDelete?: () => void;
+  isBookmarked?: boolean;
   isInFolder?: boolean;
   isDeleting?: boolean;
   onInteractivePressIn?: () => void;
@@ -118,6 +119,7 @@ export function PlaceDetailContent({
   analyticsScreenName = 'place_detail',
   placeInfo,
   placeBlogs,
+  isBookmarked,
 }: PlaceDetailContentProps) {
   return (
     <AnalyticsScreenContext.Provider value={analyticsScreenName}>
@@ -157,6 +159,7 @@ export function PlaceDetailContent({
         scrollViewRef={scrollViewRef}
         placeInfo={placeInfo}
         placeBlogs={placeBlogs}
+        isBookmarked={isBookmarked}
       />
     </AnalyticsScreenContext.Provider>
   );
@@ -198,6 +201,7 @@ function PlaceDetailContentBody({
   scrollViewRef,
   placeInfo,
   placeBlogs,
+  isBookmarked,
 }: Omit<PlaceDetailContentProps, 'analyticsScreenName'>) {
   // 손을 뗀 뒤 본문이 제자리로 튕겨 돌아오는 스크롤은 당김으로 보지 않습니다.
   const isDraggingRef = useRef(false);
@@ -250,6 +254,7 @@ function PlaceDetailContentBody({
       onPressMore={onPressMore}
       onPressFolder={onPressFolder}
       onPressDelete={onPressDelete}
+      isBookmarked={isBookmarked}
       isInFolder={isInFolder}
       isDeleting={isDeleting}
       onInteractivePressIn={onInteractivePressIn}
