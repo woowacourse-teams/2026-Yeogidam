@@ -52,6 +52,8 @@ const PHOTO_WIDTH = 100;
 const PHOTO_HEIGHT = 92;
 const ROW_HEIGHT = 116;
 const COLLAPSED_CAPTION_LINES = 2;
+const CAPTION_SCRIM_COLOR = 'rgba(13, 13, 31, 0.72)';
+const CAPTION_SHADE_SOLID_START = 0.6;
 const FOLD_BAR_HEIGHT = 44;
 
 // 이전 버튼이 있는 위쪽 띠(상태 표시줄 + 상단 버튼). 스와이프 뒤로가기 구역에서 뺍니다.
@@ -420,18 +422,10 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
         />
       )}
       <LinearGradient
-        // 시트의 둥근 모서리 뒤로 밝은 원본 이미지가 비치지 않게, 그라데이션을 모서리 높이만큼
-        // 더 같은 어둡기로 이어서 시트 윗선 아래까지 덮습니다.
-        colors={[
-          'rgba(0, 0, 0, 0)',
-          'rgba(13, 13, 31, 0.62)',
-          'rgba(13, 13, 31, 0.62)',
-        ]}
-        locations={[
-          0,
-          (windowHeight * 0.355) / (windowHeight * 0.355 + SHEET_RADIUS),
-          1,
-        ]}
+        // 접힌 캡션이 시작되는 높이부터 펼친 캡션의 배경과 같은 어둡기로 이어 글씨가 잘 보이게 하고,
+        // 시트의 둥근 모서리 뒤로 밝은 원본 이미지가 비치지 않도록 시트 윗선 아래까지 덮습니다.
+        colors={['rgba(0, 0, 0, 0)', CAPTION_SCRIM_COLOR, CAPTION_SCRIM_COLOR]}
+        locations={[0, CAPTION_SHADE_SOLID_START, 1]}
         pointerEvents="none"
         style={[
           styles.shade,
@@ -495,7 +489,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
                 .filter(Boolean)
                 .join(' · ')}
             </Text>
-            <Text style={styles.captionFull}>{caption}</Text>
+            <Text style={styles.caption}>{caption}</Text>
           </ScrollView>
           {/* 스크롤 영역 밖에 고정해 긴 캡션에서도 항상 보이고 바로 눌립니다. */}
           <Pressable
@@ -704,12 +698,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     opacity: 0.9,
   },
-  // 펼친 캡션(captionFull)과 같은 글자 크기·줄간격입니다.
   caption: {
     color: '#ffffff',
     fontSize: 16,
     lineHeight: 26,
-    fontWeight: '700',
   },
   foldButton: {
     position: 'absolute',
@@ -730,7 +722,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(13, 13, 31, 0.72)',
+    backgroundColor: CAPTION_SCRIM_COLOR,
   },
   captionScroll: {
     position: 'absolute',
@@ -745,11 +737,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     opacity: 0.9,
-  },
-  captionFull: {
-    color: '#ffffff',
-    fontSize: 16,
-    lineHeight: 26,
   },
   topBar: {
     position: 'absolute',
