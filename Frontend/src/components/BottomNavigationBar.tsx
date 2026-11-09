@@ -1,8 +1,10 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useRef} from 'react';
 import {usePostHog} from 'posthog-react-native';
 
 import {trackButtonPressed} from '../analytics/uiEvents';
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -20,11 +22,14 @@ import type { MainScreen } from '../types/navigation';
 
 // 보관함의 최근 공유 행이 읽는 공유 목록(앱 공용 폴러)을 로그인 상태에서 계속 갱신해 둡니다.
 const RECENT_SHARES_INTERVAL_MS = 5000;
+const HIDE_ANIMATION_DURATION_MS = 220;
 
 type BottomNavigationBarProps = {
   active: MainScreen;
   isGuest: boolean;
   onNavigate: (screen: MainScreen) => void;
+  /** true면 아래로 내려가며 숨습니다. 위 화면의 전환과 끊겨 보이지 않도록 마운트는 유지합니다. */
+  hidden?: boolean;
 };
 
 export const BOTTOM_NAVIGATION_BAR_HEIGHT = 64;
@@ -94,9 +99,20 @@ export function BottomNavigationBar({
   active,
   isGuest,
   onNavigate,
+  hidden = false,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
   const posthog = usePostHog();
+  const hideProgress = useRef(new Animated.Value(hidden ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(hideProgress, {
+      toValue: hidden ? 1 : 0,
+      duration: HIDE_ANIMATION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [hidden, hideProgress]);
 
   useEffect(() => {
     if (isGuest) {
@@ -114,11 +130,22 @@ export function BottomNavigationBar({
   }, [isGuest]);
 
   return (
-    <View
+    <Animated.View
+      accessibilityElementsHidden={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      pointerEvents={hidden ? 'none' : 'auto'}
       style={[
         styles.navigationBar,
         {
           paddingBottom: bottom,
+          transform: [
+            {
+              translateY: hideProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, BOTTOM_NAVIGATION_BAR_HEIGHT + bottom],
+              }),
+            },
+          ],
         },
       ]}
     >
@@ -189,7 +216,7 @@ export function BottomNavigationBar({
           </Pressable>
         ))}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

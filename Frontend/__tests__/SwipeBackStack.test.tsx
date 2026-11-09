@@ -54,6 +54,13 @@ function translation(renderer: TestRenderer.ReactTestRenderer, key: string) {
   })[0];
   return StyleSheet.flatten(animated.props.style).transform[0].translateX;
 }
+function routeOpacity(renderer: TestRenderer.ReactTestRenderer, key: string) {
+  const screen = renderer.root.findByProps({ testID: `back-screen-${key}` });
+  const animated = screen.findAll(node =>
+    StyleSheet.flatten(node.props.style)?.transform !== undefined,
+  )[0];
+  return StyleSheet.flatten(animated.props.style).opacity;
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -311,6 +318,149 @@ test('상세를 닫은 뒤 다른 상세를 열면 이전 네이티브 이동값
     renderer.root.findByProps({ testID: 'back-screen-map' }).props
       .pointerEvents,
   ).toBe('auto');
+  await act(async () => renderer.unmount());
+});
+
+describe('버튼으로 화면을 열고 닫을 때의 전환', () => {
+  const finishers: (() => void)[] = [];
+  const animateMap = (key: string) => key === 'map';
+  const routes = (key: 'saved' | 'map') => (
+    <SwipeBackStack
+      screens={key === 'map' ? screens : [screens[0]]}
+      activeKey={key}
+      backKey={key === 'map' ? 'saved' : null}
+      onBack={jest.fn()}
+      animateRoute={animateMap}
+    />
+  );
+  const mountedMapScreens = (renderer: TestRenderer.ReactTestRenderer) =>
+    renderer.root.findAll(
+      node =>
+        typeof node.type === 'string' && node.props.testID === 'back-screen-map',
+    );
+  const finishAnimations = () =>
+    act(async () => {
+      finishers.splice(0).forEach(finish => finish());
+    });
+
+  beforeEach(() => {
+    finishers.length = 0;
+    jest.mocked(Animated.timing).mockImplementation((value, config) => ({
+      start: callback => {
+        finishers.push(() => {
+          (value as Animated.Value).setValue(config.toValue as number);
+          callback?.({ finished: true });
+        });
+      },
+      stop: jest.fn(),
+      reset: jest.fn(),
+    }));
+  });
+
+  async function renderRoute(key: 'saved' | 'map') {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(routes(key));
+    });
+    return renderer;
+  }
+
+  test('새 화면은 제자리에서 투명하게 시작해 나타난다', async () => {
+    const renderer = await renderRoute('saved');
+    await act(async () => renderer.update(routes('map')));
+
+    expect(translation(renderer, 'map').__getValue()).toBe(0);
+    expect(routeOpacity(renderer, 'map').__getValue()).toBe(0);
+    await finishAnimations();
+    expect(routeOpacity(renderer, 'map').__getValue()).toBe(1);
+    await act(async () => renderer.unmount());
+  });
+
+  test('닫힌 화면은 애니메이션이 끝날 때까지 유지한 뒤 제거한다', async () => {
+    const renderer = await renderRoute('map');
+    await act(async () => renderer.update(routes('saved')));
+
+    expect(
+      mountedMapScreens(renderer),
+    ).toHaveLength(1);
+    expect(unmounts).not.toHaveBeenCalledWith('map');
+    await finishAnimations();
+    expect(
+      mountedMapScreens(renderer),
+    ).toHaveLength(0);
+    await act(async () => renderer.unmount());
+  });
+
+  test('닫히는 중에 같은 화면을 다시 열어도 화면이 겹치지 않는다', async () => {
+    const renderer = await renderRoute('map');
+    await act(async () => renderer.update(routes('saved')));
+    await act(async () => renderer.update(routes('map')));
+
+    expect(
+      mountedMapScreens(renderer),
+    ).toHaveLength(1);
+    await finishAnimations();
+    expect(
+      mountedMapScreens(renderer),
+    ).toHaveLength(1);
+    await act(async () => renderer.unmount());
+  });
+
+  test('대상이 아닌 화면은 전환 없이 바로 바뀐다', async () => {
+    const renderer = await renderRoute('map');
+    await act(async () =>
+      renderer.update(
+        <SwipeBackStack
+          screens={[screens[0]]}
+          activeKey="saved"
+          onBack={jest.fn()}
+          animateRoute={() => false}
+        />,
+      ),
+    );
+
+    expect(Animated.timing).not.toHaveBeenCalled();
+    expect(
+      mountedMapScreens(renderer),
+    ).toHaveLength(0);
+    await act(async () => renderer.unmount());
+  });
+});
+
+test('스와이프로 닫은 화면은 닫힘 전환을 다시 하지 않는다', async () => {
+  const onBack = jest.fn();
+  let renderer!: TestRenderer.ReactTestRenderer;
+  await act(async () => {
+    renderer = TestRenderer.create(
+      <SwipeBackStack
+        screens={screens}
+        activeKey="map"
+        backKey="saved"
+        onBack={onBack}
+        animateRoute={() => true}
+      />,
+    );
+  });
+  const handlers = jest.mocked(PanResponder.create).mock.calls[0][0];
+  onBack.mockImplementation(() => {
+    renderer.update(
+      <SwipeBackStack
+        screens={[screens[0]]}
+        activeKey="saved"
+        onBack={onBack}
+        animateRoute={() => true}
+      />,
+    );
+  });
+  await act(async () => {
+    handlers.onPanResponderGrant?.(event, gesture(10));
+    handlers.onPanResponderMove?.(event, gesture(250));
+    handlers.onPanResponderRelease?.(event, gesture(250));
+  });
+
+  expect(
+    renderer.root.findAllByProps({ testID: 'back-screen-map' }),
+  ).toHaveLength(0);
   await act(async () => renderer.unmount());
 });
 

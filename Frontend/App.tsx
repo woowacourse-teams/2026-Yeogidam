@@ -185,6 +185,18 @@ type DetailLayer =
   | {kind: 'place'; place: Place}
   | {kind: 'reel'; reel: HistoryReel};
 
+const MAIN_TAB_KEYS: ReadonlySet<string> = new Set<MainScreen>([
+  'saved',
+  'map',
+  'my',
+  'history',
+]);
+
+// 탭 이동은 전환 없이 바꾸고, 그 위에 쌓이는 화면만 페이드로 열고 닫습니다.
+function isStackedScreenKey(key: string) {
+  return !MAIN_TAB_KEYS.has(key);
+}
+
 function getDetailLayerKey(layer: DetailLayer, index: number) {
   return layer.kind === 'place'
     ? `detailLayer-${index}-place-${layer.place.id}`
@@ -494,6 +506,7 @@ function App() {
   }
   if (flowState.kind === 'main') visitedTabsRef.current.add(flowState.activeTab);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
+  const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [tabRefreshCount, setTabRefreshCount] = useState({saved: 0, map: 0});
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -1573,6 +1586,7 @@ function App() {
         <MapScreen
           onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onBackGestureRegionChange={reportMapBackGestureRegion}
+          onPlaceDetailVisibleChange={setIsMapPlaceDetailVisible}
           key={
             isAuthenticated === false
               ? `guest-map-${tabRefreshCount.map}`
@@ -1590,15 +1604,6 @@ function App() {
     if (screen === 'detail' && selectedPlace) {
       return (
         <PlaceDetailScreen
-          bottomNavigationBar={
-            flowState.kind === 'main' && flowState.detailSource !== null ? (
-              <BottomNavigationBar
-                active={flowState.activeTab}
-                isGuest={isAuthenticated === false}
-                onNavigate={navigateMainTab}
-              />
-            ) : undefined
-          }
           onBack={closeDetail}
           onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onAuthenticationRequired={requestLogin}
@@ -1738,7 +1743,12 @@ function App() {
           <View style={styles.container}>
             {renderScreen(tab)}
             {tab !== 'history' && !(tab === 'saved' && isSavedPlacesEditing) ? (
-              <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+              <BottomNavigationBar
+                active={tab}
+                hidden={tab === 'map' && isMapPlaceDetailVisible}
+                isGuest={isAuthenticated === false}
+                onNavigate={navigateMainTab}
+              />
             ) : null}
           </View>, tab === 'map',
         ),
@@ -1854,6 +1864,7 @@ function App() {
         key={`${flowState.kind}-${isAuthenticated}`}
         screens={screenLayers}
         activeKey={activeLayerKey}
+        animateRoute={isStackedScreenKey}
         gestureRegion={
           topDetailLayerIndex >= 0
             ? detailLayers[topDetailLayerIndex].kind === 'reel'

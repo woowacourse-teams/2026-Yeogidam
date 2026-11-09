@@ -194,6 +194,8 @@ type PlaceResultSheetProps = {
   translateY?: Animated.Value;
   topInset?: number;
   bottomTabOffset?: number;
+  /** 장소 상세에는 바텀 네비게이션이 없어 하단 안전 영역만큼만 띄웁니다. */
+  detailBottomOffset?: number;
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
@@ -268,6 +270,7 @@ export function PlaceResultSheet({
   translateY: sharedTranslateY,
   topInset = 0,
   bottomTabOffset = 0,
+  detailBottomOffset = 0,
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
@@ -307,7 +310,7 @@ export function PlaceResultSheet({
   const collapsedHeight =
     COLLAPSED_HANDLE_HEIGHT +
     COLLAPSED_CONTENT_VISIBLE_HEIGHT +
-    (selectedPlace ? bottomTabOffset : 0);
+    (selectedPlace ? detailBottomOffset : 0);
   const sheetHeight = Math.max(
     collapsedHeight,
     pageHeight - (selectedPlace ? 0 : bottomTabOffset),
@@ -400,12 +403,13 @@ export function PlaceResultSheet({
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
   const isExpanded = activeSnapIndex === 0;
   const backGestureTop = Math.max(0, snapOffsets[activeSnapIndex]);
+  const backGestureBottom = selectedPlace ? detailBottomOffset : bottomTabOffset;
   useLayoutEffect(() => {
     onBackGestureRegionChange?.({
       top: backGestureTop,
-      bottom: bottomTabOffset,
+      bottom: backGestureBottom,
     });
-  }, [backGestureTop, bottomTabOffset, onBackGestureRegionChange]);
+  }, [backGestureBottom, backGestureTop, onBackGestureRegionChange]);
   // Both the preview and the committed back action use this destination.
   const backSnapIndex = selectedPlace
     ? detailEntrySnapIndex.current
@@ -1141,7 +1145,7 @@ export function PlaceResultSheet({
           },
         ]}
       >
-        <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
+        <CopyToastProvider bottomOffset={detailBottomOffset + 16}>
           <PlaceDetailContent
             // Keep the detail content mounted across snap changes so its
             // scroll position and header do not jump during expansion.
@@ -1212,10 +1216,10 @@ export function PlaceResultSheet({
             }
             scrollViewRef={preview ? undefined : detailScrollRef}
             contentBottomPadding={
-              // 상세 시트는 화면 끝까지 내려와 바텀 네비게이션에 덮이므로 그 높이만큼 띄웁니다.
+              // 상세 시트는 화면 끝까지 내려오므로 하단 안전 영역만큼 띄웁니다.
               snapIndex === 0
-                ? Math.max(DETAIL_PAGE_BOTTOM_PADDING, bottomTabOffset + 12)
-                : bottomTabOffset + DETAIL_ACTION_BOTTOM_PADDING
+                ? Math.max(DETAIL_PAGE_BOTTOM_PADDING, detailBottomOffset + 12)
+                : detailBottomOffset + DETAIL_ACTION_BOTTOM_PADDING
             }
           />
         </CopyToastProvider>
@@ -1478,7 +1482,7 @@ export function PlaceResultSheet({
       })}
       <SwipeBackStack
         transparent={!!renderMap}
-        gestureRegion={{ top: backGestureTop, bottom: bottomTabOffset }}
+        gestureRegion={{ top: backGestureTop, bottom: backGestureBottom }}
         activeKey={
           selectedPlace ? 'detail' : hasFolderDetail ? 'folder-detail' : 'list'
         }
