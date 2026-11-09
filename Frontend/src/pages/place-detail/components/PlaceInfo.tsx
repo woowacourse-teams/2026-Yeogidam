@@ -286,8 +286,10 @@ const styles = StyleSheet.create({
   imageContainer: {
     marginHorizontal: 24,
     marginTop: 6,
+    marginBottom: 16,
     overflow: 'hidden',
     borderRadius: 16,
+    backgroundColor: '#d9dce8',
   },
   image: {
     width: '100%',

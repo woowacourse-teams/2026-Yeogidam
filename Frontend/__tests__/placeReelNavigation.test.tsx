@@ -11,9 +11,11 @@ import type {PlaceReel} from '../src/entities/info/types';
 import {PlacePostGrid} from '../src/pages/place-detail/components/PlacePostGrid';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
-jest.mock('../src/assets/icons/social/instagram.svg', () => 'InstagramIcon', {
-  virtual: true,
-});
+jest.mock(
+  '../src/assets/icons/place-detail/instagram-outline.svg',
+  () => 'InstagramIcon',
+  {virtual: true},
+);
 
 const placeReel: PlaceReel = {
   id: '81',

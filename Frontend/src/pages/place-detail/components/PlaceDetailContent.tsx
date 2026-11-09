@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useImperativeHandle, useRef, useState } from 'react';
 import {
   type GestureResponderHandlers,
   ScrollView,
@@ -16,6 +16,7 @@ import {
   AnalyticsScreenContext,
   useScreenAnalytics,
 } from '../../../analytics/uiEvents';
+import { PlaceBlogList } from './PlaceBlogList';
 import { PlaceDetailHeader } from './PlaceDetailHeader';
 import { PlaceInformation } from './PlaceInformation';
 import { PlaceInfo } from './PlaceInfo';
@@ -183,6 +184,10 @@ function PlaceDetailContentBody({
 }: Omit<PlaceDetailContentProps, 'analyticsScreenName'>) {
   // 손을 뗀 뒤 본문이 제자리로 튕겨 돌아오는 스크롤은 당김으로 보지 않습니다.
   const isDraggingRef = useRef(false);
+  const localScrollRef = useRef<ScrollView>(null);
+  useImperativeHandle(scrollViewRef, () => localScrollRef.current as ScrollView, []);
+  const headerHeightRef = useRef(0);
+  const informationTopRef = useRef(0);
   const { selection } = useScreenAnalytics();
   const [localTab, setActiveTab] = useState<PlaceTab>('게시물');
   const activeTab = controlledTab ?? localTab;
@@ -193,26 +198,42 @@ function PlaceDetailContentBody({
     onTabChange?.(tab);
   };
 
+  const hasStickyHeader = stickyHeader && !hideHeader;
+
+  const scrollToMenu = (menuTop: number) => {
+    const stickyOffset = hasStickyHeader ? headerHeightRef.current : 0;
+    localScrollRef.current?.scrollTo({
+      y: Math.max(0, informationTopRef.current + menuTop - stickyOffset),
+      animated: true,
+    });
+  };
+
   // stickyHeaderIndices가 첫 자식을 헤더로 보므로 Fragment로 묶지 않고 배열로 둡니다.
   const body = [
     hideHeader ? (
       <View key="header" style={{ height: headerTopInset }} />
     ) : (
-      <PlaceDetailHeader
+      <View
         key="header"
-        onBack={onBack}
-        onPressMore={onPressMore}
-        onPressFolder={onPressFolder}
-        onPressDelete={onPressDelete}
-        isInFolder={isInFolder}
-        isDeleting={isDeleting}
-        onInteractivePressIn={onInteractivePressIn}
-        hideBack={hideBack}
-        title={place.name}
-        titleInHeader={titleInHeader}
-        topInset={headerTopInset}
-        compact={compactHeader}
-      />
+        onLayout={event => {
+          headerHeightRef.current = event.nativeEvent.layout.height;
+        }}
+      >
+        <PlaceDetailHeader
+          onBack={onBack}
+          onPressMore={onPressMore}
+          onPressFolder={onPressFolder}
+          onPressDelete={onPressDelete}
+          isInFolder={isInFolder}
+          isDeleting={isDeleting}
+          onInteractivePressIn={onInteractivePressIn}
+          hideBack={hideBack}
+          title={place.name}
+          titleInHeader={titleInHeader}
+          topInset={headerTopInset}
+          compact={compactHeader}
+        />
+      </View>
     ),
     <View key="info">
       <PlaceInfo
@@ -239,13 +260,21 @@ function PlaceDetailContentBody({
       />
     ) : null,
     activeTab === '정보' ? (
-      <PlaceInformation key="info-tab" place={place} />
+      <View
+        key="info-tab"
+        onLayout={event => {
+          informationTopRef.current = event.nativeEvent.layout.y;
+        }}
+      >
+        <PlaceInformation onMenuToggled={scrollToMenu} />
+      </View>
     ) : null,
+    activeTab === '블로그' ? <PlaceBlogList key="blog-tab" /> : null,
   ];
 
   return (
     <ScrollView
-      ref={scrollViewRef}
+      ref={localScrollRef}
       style={styles.container}
       contentContainerStyle={[
         styles.content,
@@ -276,7 +305,7 @@ function PlaceDetailContentBody({
       scrollEventThrottle={16}
       scrollEnabled={scrollEnabled}
       nestedScrollEnabled
-      stickyHeaderIndices={stickyHeader && !hideHeader ? [0] : undefined}
+      stickyHeaderIndices={hasStickyHeader ? [0] : undefined}
       showsVerticalScrollIndicator={false}
     >
       {contentPanHandlers ? (

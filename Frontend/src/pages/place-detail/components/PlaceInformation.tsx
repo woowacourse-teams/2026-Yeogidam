@@ -1,241 +1,191 @@
-import { showAlert } from '../../../lib/app-alert';
-import Clipboard from '@react-native-clipboard/clipboard';
-import React from 'react';
-import {
-  Dimensions,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import React, { useRef, useState } from 'react';
+import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
-import type { Place } from '../../../entities/place/types';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
-import { useCopyToast } from './CopyToast';
+import {
+  MOCK_MENU_ITEMS,
+  MOCK_MENU_PRICE_RANGE,
+  MOCK_WEEKLY_HOURS,
+} from './placeDetailMock';
 
-const INFORMATION_MIN_HEIGHT = Dimensions.get('window').height - 162;
+export const PLACE_TAB_CONTENT_MIN_HEIGHT = Dimensions.get('window').height - 162;
+const MENU_PREVIEW_COUNT = 3;
 
 type PlaceInformationProps = {
-  place: Place;
+  /** 메뉴를 펼치거나 접은 뒤 호출합니다. 정보 탭 안에서 메뉴 섹션의 y 위치를 넘깁니다. */
+  onMenuToggled?: (menuTop: number) => void;
 };
 
-export function PlaceInformation({ place }: PlaceInformationProps) {
-  const { button, modal } = useScreenAnalytics();
-  const confirmCall = () => {
-    if (!place.telephone) {
-      return;
-    }
-
-    button('call');
-    modal('call_confirm');
-
-    showAlert('전화 걸기', `${place.telephone}로 전화하시겠어요?`, [
-      {
-        text: '취소',
-        style: 'cancel',
-        onPress: () => button('call_cancel'),
-      },
-      {
-        text: '전화',
-        onPress: () => {
-          button('call_confirm');
-          Linking.openURL(`tel:${place.telephone}`);
-        },
-      },
-    ]);
-  };
+export function PlaceInformation({ onMenuToggled }: PlaceInformationProps) {
+  const { button } = useScreenAnalytics();
+  const [isMenuExpanded, setIsMenuExpanded] = useState(false);
+  // 늘어난 높이가 스크롤 범위에 반영된 뒤에 올려야 끝에서 잘리지 않아, 레이아웃 완료 시점까지 기다립니다.
+  const isMenuToggledRef = useRef(false);
+  const visibleMenuItems = isMenuExpanded
+    ? MOCK_MENU_ITEMS
+    : MOCK_MENU_ITEMS.slice(0, MENU_PREVIEW_COUNT);
 
   return (
     <View style={styles.container}>
-      <View style={styles.infoRow}>
-        <InfoIcon type="location" />
-        <View style={styles.addressList}>
-          <AddressLine
-            label="도로명"
-            address={place.fullAddress}
-            toastMessage="도로명 주소가 복사되었습니다."
-          />
-          <AddressLine
-            label="지번"
-            address={place.address}
-            toastMessage="지번 주소가 복사되었습니다."
-          />
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>영업시간</Text>
+        </View>
+        <View style={styles.weeklyHours}>
+          {MOCK_WEEKLY_HOURS.map(({ day, hours, isToday, isClosed }) => (
+            <View key={day} style={styles.dayRow}>
+              <Text style={[styles.dayText, isToday && styles.todayText]}>
+                {isToday ? `${day}  오늘` : day}
+              </Text>
+              <Text
+                style={[
+                  styles.dayText,
+                  isToday && styles.todayText,
+                  isClosed && styles.closedText,
+                ]}
+              >
+                {hours}
+              </Text>
+            </View>
+          ))}
         </View>
       </View>
 
-      {place.telephone ? (
-        <View style={styles.infoRow}>
-          <InfoIcon type="phone" />
-          <Pressable
-            onPress={confirmCall}
-            style={({ pressed }) => [styles.value, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel={`${place.telephone}로 전화하기`}
-          >
-            <Text style={styles.linkValue}>{place.telephone}</Text>
-          </Pressable>
-          <CopyButton
-            value={place.telephone}
-            toastMessage="전화번호가 복사되었습니다."
-            accessibilityLabel="전화번호 복사"
-          />
+      <View style={styles.sectionDivider} />
+
+      <View
+        style={styles.section}
+        onLayout={event => {
+          if (!isMenuToggledRef.current) return;
+          isMenuToggledRef.current = false;
+          onMenuToggled?.(event.nativeEvent.layout.y);
+        }}
+      >
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>메뉴</Text>
         </View>
-      ) : null}
-    </View>
-  );
-}
-
-function AddressLine({
-  label,
-  address,
-  toastMessage,
-}: {
-  label: string;
-  address: string;
-  toastMessage: string;
-}) {
-  return (
-    <View style={styles.addressLine}>
-      <Text style={styles.addressLabel}>{label}</Text>
-      <Text style={styles.address} numberOfLines={1}>
-        {address}
-      </Text>
-      <CopyButton
-        value={address}
-        toastMessage={toastMessage}
-        accessibilityLabel={`${label} 주소 복사`}
-      />
-    </View>
-  );
-}
-
-function CopyButton({
-  value,
-  toastMessage,
-  accessibilityLabel,
-}: {
-  value: string;
-  toastMessage: string;
-  accessibilityLabel: string;
-}) {
-  const { showCopyToast } = useCopyToast();
-  const { button } = useScreenAnalytics();
-
-  const copy = () => {
-    button('copy_address');
-    Clipboard.setString(value);
-    showCopyToast(toastMessage);
-  };
-
-  return (
-    <Pressable
-      onPress={copy}
-      hitSlop={10}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-    >
-      <Text style={styles.actionText}>복사</Text>
-    </Pressable>
-  );
-}
-
-function InfoIcon({ type }: { type: 'location' | 'phone' }) {
-  return (
-    <View style={styles.iconContainer}>
-      <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-        {type === 'location' ? (
-          <>
-            <Path
-              d="M20 10c0 5.2-8 11-8 11s-8-5.8-8-11a8 8 0 1 1 16 0Z"
-              stroke="#1A1A2E"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+        <Text style={styles.priceRange}>{MOCK_MENU_PRICE_RANGE}</Text>
+        <View style={styles.menuList}>
+          {visibleMenuItems.map((item, index) => (
+            <View
+              key={item.name}
+              style={[
+                styles.menuItem,
+                index < visibleMenuItems.length - 1 && styles.menuItemDivider,
+              ]}
+            >
+              <Text style={styles.menuName}>{item.name}</Text>
+              <Text style={styles.menuPrice}>{item.price}</Text>
+            </View>
+          ))}
+        </View>
+        {MOCK_MENU_ITEMS.length > MENU_PREVIEW_COUNT ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isMenuExpanded ? '메뉴 접기' : '메뉴 펼치기'}
+            accessibilityState={{ expanded: isMenuExpanded }}
+            hitSlop={10}
+            onPress={() => {
+              button('toggle_menu');
+              isMenuToggledRef.current = true;
+              setIsMenuExpanded(expanded => !expanded);
+            }}
+            style={({ pressed }) => [
+              styles.moreButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <MaterialIcons
+              color="#1D1B20"
+              name={isMenuExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+              size={24}
             />
-            <Circle
-              cx={12}
-              cy={10}
-              r={2.5}
-              stroke="#1A1A2E"
-              strokeWidth={1.8}
-            />
-          </>
-        ) : (
-          <Path
-            d="M7.2 3.5 4.8 5.9c-.8.8-.9 2-.3 3 2.5 4.3 6.1 7.9 10.4 10.4 1 .6 2.2.5 3-.3l2.4-2.4-4.2-3.1-2.1 2.1a16 16 0 0 1-5.5-5.5l2.1-2.1-3.4-4.5Z"
-            stroke="#1A1A2E"
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
-      </Svg>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    minHeight: INFORMATION_MIN_HEIGHT,
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 32,
+    minHeight: PLACE_TAB_CONTENT_MIN_HEIGHT,
     backgroundColor: '#ffffff',
   },
-  infoRow: {
-    minHeight: 58,
+  section: {
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 20,
+    gap: 8,
+  },
+  sectionHeader: {
+    paddingBottom: 4,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'space-between',
   },
-  iconContainer: {
-    width: 34,
-    height: 34,
-    marginRight: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  sectionTitle: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontWeight: '700',
+    color: '#1a1a2e',
   },
-  addressList: {
-    flex: 1,
-    gap: 7,
+  weeklyHours: {
+    paddingTop: 8,
+    gap: 12,
   },
-  addressLine: {
-    minHeight: 24,
+  dayRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  addressLabel: {
-    marginRight: 8,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#D7D9DF',
-    fontSize: 11,
-    color: '#8E8E93',
-  },
-  address: {
-    flex: 1,
-    minWidth: 0,
+  dayText: {
     fontSize: 14,
-    color: '#27272E',
+    lineHeight: 20,
+    color: '#66666f',
   },
-  value: {
-    flex: 1,
-    minWidth: 0,
-    fontSize: 15,
-    lineHeight: 21,
-    color: '#27272E',
+  todayText: {
+    fontWeight: '700',
+    color: '#1a1a2e',
   },
-  linkValue: {
-    color: '#5F6FC7',
+  closedText: {
+    color: '#d64545',
   },
-  actionText: {
-    marginLeft: 6,
+  sectionDivider: {
+    height: 8,
+    backgroundColor: '#f5f5f8',
+  },
+  priceRange: {
     fontSize: 13,
-    fontWeight: '400',
-    color: '#5F6FC7',
+    lineHeight: 18,
+    color: '#8e8e93',
+  },
+  menuList: {
+    paddingTop: 4,
+  },
+  menuItem: {
+    paddingVertical: 12,
+    gap: 2,
+  },
+  menuItemDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#ececf0',
+  },
+  menuName: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '500',
+    color: '#1a1a2e',
+  },
+  menuPrice: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '700',
+    color: '#1a1a2e',
+  },
+  moreButton: {
+    alignSelf: 'center',
   },
   pressed: {
     opacity: 0.55,
