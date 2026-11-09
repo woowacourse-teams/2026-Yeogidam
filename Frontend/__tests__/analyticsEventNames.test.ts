@@ -14,6 +14,7 @@ describe('analytics event names', () => {
     expect(ANALYTICS_EVENTS).toMatchInlineSnapshot(`
       {
         "appOpened": "app_opened",
+        "extractionCompleted": "extraction_completed",
         "extractionRequestFinished": "extraction_request_finished",
         "extractionRequestStarted": "extraction_request_started",
         "historyContentDetailViewed": "history_content_detail_viewed",
@@ -65,9 +66,11 @@ describe('UI event names', () => {
       {
         "actionFinished": "action_finished",
         "buttonPressed": "button_pressed",
+        "gesturePerformed": "gesture_performed",
         "listRefreshed": "list_refreshed",
         "mapSearchSubmitted": "map_search_submitted",
         "modalViewed": "modal_viewed",
+        "screenLeft": "screen_left",
         "screenViewed": "screen_viewed",
         "selectionChanged": "selection_changed",
         "stepViewed": "step_viewed",

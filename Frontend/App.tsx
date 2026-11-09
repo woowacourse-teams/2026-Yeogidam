@@ -18,8 +18,10 @@ import {setAnalyticsGuestMode} from './src/analytics/analytics';
 import {
   trackActionFinished,
   trackButtonPressed,
-  trackScreenViewed,
+  trackGesturePerformed,
 } from './src/analytics/uiEvents';
+import {useScreenTimeTracking} from './src/analytics/useScreenTimeTracking';
+import {setLoginPersonProperties} from './src/analytics/personProperties';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import {
@@ -359,6 +361,8 @@ configureDataSources();
 
 function App() {
   const posthog = usePostHog();
+  // 하드웨어 뒤로가기 리스너가 화면 이름을 계산하기 전에 등록되므로 ref로 최신 값을 읽습니다.
+  const analyticsScreenNameRef = useRef('unknown');
 
   useEffect(() => {
     syncShareAnalyticsConfiguration().catch(() => undefined);
@@ -735,9 +739,7 @@ function App() {
       return;
     }
 
-    const subscription = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
+    const handleHardwareBack = (): boolean => {
         if (isOnboardingVisible) {
           setOnboardingBackRequest(current => current + 1);
           return true;
@@ -782,11 +784,25 @@ function App() {
         }
 
         return goBackMainTab();
+    };
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        const handled = handleHardwareBack();
+        // handled가 false면 앱이 백그라운드로 나갑니다.
+        trackGesturePerformed(
+          posthog,
+          analyticsScreenNameRef.current,
+          'hardware_back',
+          { handled },
+        );
+        return handled;
       },
     );
 
     return () => subscription.remove();
-  }, [closeDetail, detailLayers.length, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, popDetailLayer, reelDetail]);
+  }, [closeDetail, detailLayers.length, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, popDetailLayer, posthog, reelDetail]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1234,11 +1250,17 @@ function App() {
       setSocialLoginError(null);
       setPendingSocialProvider(provider);
       signInStarted = true;
-      await signIn();
+      const loginResponse = await signIn();
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
         entry: loginEntry,
+        isNewMember: loginResponse?.isNewMember,
+      });
+      // SIGNED_IN 알림에서 회원으로 식별된 뒤라 회원 프로필에 붙습니다.
+      setLoginPersonProperties(posthog, {
+        provider,
+        isNewMember: loginResponse?.isNewMember,
       });
       loginEntryRef.current = null;
     } catch (error) {
@@ -1698,11 +1720,21 @@ function App() {
     />
   );
 
+  // 화면 위에 겹쳐 뜨는 상세(장소·릴 레이어, 릴 상세, 히스토리 상세)도 하나의 화면으로 셉니다.
+  // 그래야 체류 시간이 밑에 깔린 탭으로 잘못 잡히지 않습니다. 장소 상세는 기존 이름인 'detail'을 씁니다.
+  const topDetailLayer =
+    flowState.kind === 'main' && topDetailLayerIndex >= 0
+      ? detailLayers[topDetailLayerIndex]
+      : null;
   const analyticsScreenName =
     !isAuthReady || isSplashVisible
       ? 'splash'
       : isOnboardingVisible
       ? 'onboarding'
+      : topDetailLayer
+      ? topDetailLayer.kind === 'reel' ? 'reel_detail' : 'detail'
+      : flowState.kind === 'main' && reelDetail !== null
+      ? 'reel_detail'
       : myPageOverlay === 'accountDeletion'
       ? 'account_deletion'
       : myPageOverlay === 'guide'
@@ -1711,10 +1743,15 @@ function App() {
       ? 'terms'
       : currentScreen === 'emailLogin'
       ? 'email_login'
+      : currentScreen === 'history' && nestedBackStates.history
+      ? 'history_detail'
       : currentScreen;
-  useEffect(() => {
-    trackScreenViewed(posthog, analyticsScreenName);
-  }, [posthog, analyticsScreenName]);
+  analyticsScreenNameRef.current = analyticsScreenName;
+  useScreenTimeTracking(
+    posthog,
+    analyticsScreenName,
+    `${analyticsScreenName}:${activeLayerKey}`,
+  );
 
   const handleSwipeBack = () => {
     trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');

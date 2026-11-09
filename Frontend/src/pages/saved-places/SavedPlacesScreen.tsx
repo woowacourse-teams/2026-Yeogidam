@@ -44,6 +44,7 @@ import {
   type SavedPlacesSearchMethod,
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
+import { setLibraryPersonProperties } from '../../analytics/personProperties';
 import {
   bottomNavigationBarContainerStyle,
   getBottomNavigationBarOffset,
@@ -351,7 +352,11 @@ export function SavedPlacesScreen({
       placeCount: places.length,
       entryType: 'direct',
     });
-  }, [error, isLoading, places.length, posthog]);
+    // 비회원 보관함은 예시 장소라 회원 프로필 속성으로 남기지 않습니다.
+    if (!isGuest) {
+      setLibraryPersonProperties(posthog, {savedPlaceCount: places.length});
+    }
+  }, [error, isGuest, isLoading, places.length, posthog]);
 
   useEffect(() => {
     if (
@@ -1272,8 +1277,13 @@ export function SavedPlacesScreen({
     const ids = [...selectedPostIds];
     setIsDeleting(true);
     setDeleteError(null);
+    let deleted = false;
     try {
       await deleteSavedMedia(ids);
+      deleted = true;
+      trackActionFinished(posthog, 'saved_posts_delete', 'success', {
+        count: ids.length,
+      });
       const deletedUrls = new Set(
         [...postReels, ...librarySearch.reels]
           .filter(reel => selectedPostIds.has(reel.id))
@@ -1292,6 +1302,13 @@ export function SavedPlacesScreen({
       onEditModeChange?.(false);
       await Promise.all([loadPostPage(), loadSavedPlaces()]);
     } catch (nextError) {
+      // 삭제 뒤 목록을 다시 불러오다 실패한 경우는 삭제 실패로 세지 않습니다.
+      if (!deleted) {
+        trackActionFinished(posthog, 'saved_posts_delete', 'failure', {
+          count: ids.length,
+          failure_type: (nextError as SavedPlacesApiError).errorCode ?? 'unknown',
+        });
+      }
       setDeleteError(nextError as SavedPlacesApiError);
     } finally {
       setIsDeleting(false);
@@ -1303,23 +1320,31 @@ export function SavedPlacesScreen({
     loadSavedPlaces,
     onEditModeChange,
     postReels,
+    posthog,
     selectedPostIds,
   ]);
 
   const confirmDeleteSelectedPosts = useCallback(() => {
     if (isDeleting || selectedPostIds.size === 0) return;
     const count = selectedPostIds.size;
+    analytics.button('post_delete_selected', {count});
+    analytics.modal('post_delete_confirm', {count});
     showAlert(
       '선택한 게시물을 삭제할까요?',
       `선택한 ${count}개의 게시물이 보관함에서 삭제됩니다. 이 게시물에만 담긴 장소는 장소 보관함과 지도에서 사라져요.`,
       [
-        {text: '취소', style: 'cancel'},
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => analytics.button('post_delete_confirm_cancel', {count}),
+        },
         {text: '삭제', style: 'destructive', onPress: () => {
+          analytics.button('post_delete_confirm_ok', {count});
           handleDeleteSelectedPosts().catch(() => undefined);
         }},
       ],
     );
-  }, [handleDeleteSelectedPosts, isDeleting, selectedPostIds.size]);
+  }, [analytics, handleDeleteSelectedPosts, isDeleting, selectedPostIds.size]);
 
   const handleOpenHistory = useCallback(() => {
     analytics.button('open_history');
@@ -1592,6 +1617,7 @@ export function SavedPlacesScreen({
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        analytics.gesture('hardware_back', { handled: true });
         closeNestedScreen();
         return true;
       },
@@ -1601,6 +1627,7 @@ export function SavedPlacesScreen({
       onNestedBackStateChange?.(false);
     };
   }, [
+    analytics,
     closeNestedScreen,
     isScreenActive,
     isEditing,
@@ -1765,8 +1792,11 @@ export function SavedPlacesScreen({
                 contentSize.height - (contentOffset.y + layoutMeasurement.height) < 240;
               if (libraryView === 'posts' && isNearBottom) {
                 if (isSearching) {
-                  librarySearch.loadMoreReels();
+                  if (librarySearch.loadMoreReels()) {
+                    analytics.gesture('load_more', { list: 'search_posts' });
+                  }
                 } else if (postCursor && !isLoadingMorePostsRef.current) {
+                  analytics.gesture('load_more', { list: 'posts' });
                   loadPostPage(postCursor).catch(() => undefined);
                 }
               }
@@ -1833,7 +1863,11 @@ export function SavedPlacesScreen({
                 {isSearching && librarySearch.isLoadingPlaces ? (
                   <Text style={styles.categoryEmptyText}>검색하고 있어요.</Text>
                 ) : isSearching && librarySearch.placeError ? (
-                  <Pressable onPress={librarySearch.retryPlaces}>
+                  <Pressable
+                    onPress={() => {
+                      analytics.button('retry_search_places');
+                      librarySearch.retryPlaces();
+                    }}>
                     <Text style={styles.categoryEmptyText}>
                       {librarySearch.placeError} 다시 시도하기
                     </Text>
@@ -1854,7 +1888,11 @@ export function SavedPlacesScreen({
                   librarySearch.isLoadingReels ? (
                     <Text style={styles.categoryEmptyText}>검색하고 있어요.</Text>
                   ) : librarySearch.reelError ? (
-                    <Pressable onPress={librarySearch.retryReels}>
+                    <Pressable
+                      onPress={() => {
+                        analytics.button('retry_search_posts');
+                        librarySearch.retryReels();
+                      }}>
                       <Text style={styles.categoryEmptyText}>
                         {librarySearch.reelError} 다시 시도하기
                       </Text>
@@ -1863,7 +1901,11 @@ export function SavedPlacesScreen({
                 ) : isLoadingPosts ? (
                   <Text style={styles.categoryEmptyText}>게시물을 불러오고 있어요.</Text>
                 ) : postError ? (
-                  <Pressable onPress={() => loadPostPage(postCursor ?? undefined)}>
+                  <Pressable
+                    onPress={() => {
+                      analytics.button('retry_load_posts');
+                      loadPostPage(postCursor ?? undefined);
+                    }}>
                     <Text style={styles.categoryEmptyText}>{postError} 다시 시도하기</Text>
                   </Pressable>
                 ) : null}
