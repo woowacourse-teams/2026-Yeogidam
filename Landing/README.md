@@ -174,7 +174,7 @@ npm run verify
 | 랜딩페이지 버튼 | `https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=landing_store&mt=8` | `https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dlanding%26utm_medium%3Dweb%26utm_campaign%3Dlanding_store` (방문 주소에 꼬리표가 있으면 `utm_source`와 `utm_medium`이 바뀐다) |
 
 - 배포 뒤에는 GA4 보고서의 실시간 개요에서 이벤트 이름별 이벤트 수 카드에 `demo_step`, `store_click`, `tech_view`가 보이는지 확인한다. 표준 보고서는 하루 이틀 늦게 채워진다.
-- 로컬 서버로 열어도 같은 속성으로 이벤트가 가므로, 보고서를 볼 때 호스트 이름이 localhost인 방문은 빼고 본다.
+- `index.html`의 GA 태그는 내 컴퓨터 주소(localhost, 127.0.0.1, [::1])와 `file://`에서 `ga-disable-G-V0G6SC57DV`를 켜서 이벤트를 보내지 않는다. 그 전(2026-11-09까지)에 로컬에서 보낸 이벤트는 GA에 남아 있으므로 보고서를 볼 때 호스트 이름이 localhost나 127.0.0.1인 방문은 빼고 본다.
 - 데스크톱 QR 코드로 스토어에 간 방문과 광고 차단기를 쓰는 브라우저의 방문은 GA4에 잡히지 않는다. QR에도 스토어 버튼과 같은 꼬리표를 넣어서 설치는 스토어 통계에서 볼 수 있다.
 - 푸터에 Google 애널리틱스 쿠키 안내 문장이 있다. 앱 개인정보 처리방침(`Frontend/docs/terms-and-privacy.md`)은 아직 앱의 PostHog만 다룬다.
 
