@@ -181,28 +181,6 @@ export function PlaceDetailScreen({
     place.savedPlaceId,
   ]);
 
-  const confirmDelete = useCallback(() => {
-    if (isDeleting) {
-      return;
-    }
-
-    analytics.modal('delete_confirm');
-    showAlert('이 장소의 북마크를 해제할까요?', '장소 보관함과 지도에서 사라져요. 해당 게시물에서 다시 북마크할 수 있어요.', [
-      {
-        text: '취소',
-        style: 'cancel',
-        onPress: () => analytics.button('delete_confirm_cancel'),
-      },
-      {
-        text: '북마크 해제',
-        onPress: () => {
-          analytics.button('delete_confirm_ok');
-          handleDelete().catch(() => undefined);
-        },
-      },
-    ]);
-  }, [analytics, handleDelete, isDeleting]);
-
   // 더보기 시트가 없으므로 해제에 실패하면 알림 창으로 알립니다.
   useEffect(() => {
     if (!deleteError) {
@@ -238,7 +216,9 @@ export function PlaceDetailScreen({
                 setIsFolderPickerVisible(true);
               }
         }
-        onPressDelete={canDelete ? confirmDelete : undefined}
+        onPressDelete={
+          canDelete ? () => handleDelete().catch(() => undefined) : undefined
+        }
         isInFolder={placeFolderIds.length > 0}
         isDeleting={isDeleting}
       />
