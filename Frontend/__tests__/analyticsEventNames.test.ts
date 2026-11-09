@@ -14,6 +14,7 @@ describe('analytics event names', () => {
     expect(ANALYTICS_EVENTS).toMatchInlineSnapshot(`
       {
         "appOpened": "app_opened",
+        "extractionCompleted": "extraction_completed",
         "extractionRequestFinished": "extraction_request_finished",
         "extractionRequestStarted": "extraction_request_started",
         "historyContentDetailViewed": "history_content_detail_viewed",

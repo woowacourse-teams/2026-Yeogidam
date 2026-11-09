@@ -12,6 +12,8 @@ export const ANALYTICS_EVENTS = {
   historyContentDetailViewed: 'history_content_detail_viewed',
   extractionRequestStarted: 'extraction_request_started',
   extractionRequestFinished: 'extraction_request_finished',
+  /** 공유한 게시물의 장소 추출이 끝났습니다(앱이 공유 목록에서 확인한 시점). `result`, `place_count` */
+  extractionCompleted: 'extraction_completed',
   savedPlacesViewed: 'saved_places_viewed',
   savedPlacesSearchSubmitted: 'saved_places_search_submitted',
   savedPlaceSelected: 'saved_place_selected',
