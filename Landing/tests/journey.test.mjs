@@ -11,7 +11,7 @@ const shownPanels = (page) => page.eval(`[...document.querySelectorAll('.jr-pane
 describe('품질 섹션', { concurrency: true }, () => {
   test('처음에는 2.0을 보여 주고, 섹션이 보이면 journey_view를 한 번 남긴다', async (t) => {
     const page = await landing.open(t);
-    assert.deepEqual(await page.eval(`[...document.querySelectorAll('.jr-tab')].map((tab) => tab.dataset.v)`), ['1.0', '1.1', '2.0', '2.1', '2.2', '다음']);
+    assert.deepEqual(await page.eval(`[...document.querySelectorAll('.jr-tab')].map((tab) => tab.dataset.v)`), ['1.0', '1.1', '2.0', '2.1', '2.2', '2.3', '다음']);
     assert.equal(await selectedVersion(page), '2.0');
     assert.deepEqual(await shownPanels(page), ['jr-p-20']);
     assert.deepEqual(await page.events('journey_view'), []);
@@ -55,7 +55,7 @@ describe('품질 섹션', { concurrency: true }, () => {
     assert.equal(await selectedVersion(page), '1.0');
     assert.equal(await page.eval(`document.activeElement.id`), 'jr-t-10');
     assert.deepEqual(await page.eval(`[...document.querySelectorAll('.jr-tab')].map((tab) => [tab.id, tab.tabIndex])`),
-      [['jr-t-10', 0], ['jr-t-11', -1], ['jr-t-20', -1], ['jr-t-21', -1], ['jr-t-22', -1], ['jr-t-next', -1]]);
+      [['jr-t-10', 0], ['jr-t-11', -1], ['jr-t-20', -1], ['jr-t-21', -1], ['jr-t-22', -1], ['jr-t-23', -1], ['jr-t-next', -1]]);
     assert.deepEqual(page.problems, []);
   });
 
@@ -74,7 +74,8 @@ describe('품질 섹션', { concurrency: true }, () => {
       ['jr-p-11', [{ cols: '10', total: 19, filled: 1 }]],
       ['jr-p-20', [{ cols: '5', total: 5, filled: 2 }, { cols: '5', total: 5, filled: 4 }]],
       ['jr-p-21', [{ cols: '5', total: 5, filled: 5 }]],
-      ['jr-p-22', [{ cols: '9', total: 9, filled: 0 }]],
+      ['jr-p-22', [{ cols: '4', total: 4, filled: 3 }]],
+      ['jr-p-23', [{ cols: '5', total: 5, filled: 4 }]],
       ['jr-p-next', []],
     ]);
   });
