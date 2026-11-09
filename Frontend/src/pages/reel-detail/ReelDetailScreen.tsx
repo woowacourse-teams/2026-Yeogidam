@@ -55,6 +55,11 @@ const COLLAPSED_CAPTION_LINES = 2;
 const CAPTION_SCRIM_COLOR = 'rgba(13, 13, 31, 0.72)';
 const CAPTION_SHADE_SOLID_START = 0.6;
 const CAPTION_TRANSITION_DURATION_MS = 200;
+const BACKDROP_BLUR_RADIUS = 24;
+// 릴스(9:16)가 좌우 여백 없이 가로에 꽉 차는 높이입니다. 아래 일부는 시트 뒤로 들어갑니다.
+const REEL_HEIGHT_RATIO = 16 / 9;
+// 이보다 세로로 긴 사진만 릴스로 보고 가로에 꽉 채웁니다.
+const TALL_POST_MIN_RATIO = 1.6;
 // 둘째 줄이 줄바꿈으로 끝나면 기본 말줄임이 붙지 않아 직접 붙입니다.
 const CAPTION_ELLIPSIS = '...';
 // 말줄임이 차지하는 폭보다 조금 넉넉하게 잡아 다음 줄로 밀리지 않게 합니다.
@@ -317,6 +322,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const [isCaptionRendered, setIsCaptionRendered] = useState(false);
   const captionProgress = useRef(new Animated.Value(0)).current;
   const [captionPreview, setCaptionPreview] = useState<string | null>(null);
+  const [postImageRatio, setPostImageRatio] = useState<number | null>(null);
 
   useEffect(() => {
     if (isCaptionOpen) {
@@ -467,13 +473,43 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const sheetTranslateY = Animated.subtract(sheetTop, expandedTop);
   const sheetHeight = windowHeight - expandedTop;
 
+  // 릴스는 가로에 꽉 채우고, 그보다 짧은 사진은 아래 빈 공간이 없도록 시트 윗선에 붙입니다.
+  const isTallPost =
+    postImageRatio !== null && postImageRatio >= TALL_POST_MIN_RATIO;
+  const shortPostHeight =
+    postImageRatio === null
+      ? collapsedTop
+      : Math.min(collapsedTop, windowWidth * postImageRatio);
+  const postImageHeight = isTallPost
+    ? Math.max(collapsedTop, windowWidth * REEL_HEIGHT_RATIO)
+    : shortPostHeight;
+  const postImageTop = isTallPost ? 0 : collapsedTop - shortPostHeight;
+
   const placesCount =
     placesState.status === 'ready' ? placesState.places.length : 0;
 
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       {thumbnail ? (
-        <Image source={thumbnail} style={styles.backdrop} />
+        <>
+          {/* 게시물 비율과 관계없이 잘리지 않게 전체를 보여 주고, 남는 공간은 같은 사진을 흐려 채웁니다. */}
+          <Image
+            blurRadius={BACKDROP_BLUR_RADIUS}
+            source={thumbnail}
+            style={styles.backdrop}
+          />
+          <Image
+            onLoad={event => {
+              const {width, height} = event.nativeEvent.source;
+              setPostImageRatio(height / width);
+            }}
+            source={thumbnail}
+            style={[
+              styles.postImage,
+              {top: postImageTop, height: postImageHeight},
+            ]}
+          />
+        </>
       ) : (
         <LinearGradient
           colors={['#b9c2ff', '#e6e9ff']}
@@ -764,6 +800,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+  },
+  postImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    resizeMode: 'contain',
   },
   infoWrap: {
     position: 'absolute',
