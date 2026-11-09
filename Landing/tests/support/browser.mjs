@@ -126,7 +126,7 @@ export async function launchBrowser() {
   };
 }
 
-async function openPage(connection, url, { width = 1280, height = 900, reducedMotion = false } = {}) {
+async function openPage(connection, url, { width = 1280, height = 900, reducedMotion = false, initScript = '' } = {}) {
   const { targetId } = await connection.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await connection.send('Target.attachToTarget', { targetId, flatten: true });
   const send = (method, params) => connection.send(method, params, sessionId);
@@ -139,6 +139,8 @@ async function openPage(connection, url, { width = 1280, height = 900, reducedMo
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   if (reducedMotion) await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await send('Page.addScriptToEvaluateOnNewDocument', { source: BLOCK_EXTERNAL_NAVIGATION });
+  // 페이지 스크립트보다 먼저 돌아야 하는 테스트 준비(외부 라이브러리 대역 등)
+  if (initScript) await send('Page.addScriptToEvaluateOnNewDocument', { source: initScript });
   const loaded = page.nextEvent('Page.loadEventFired');
   await send('Page.navigate', { url });
   await loaded;
