@@ -33,6 +33,7 @@
 | `GET /api/v1/saved-places/999/media` (남의 항목) | `YeogidamException` | 404 | 저장된 장소가 아닙니다. | `PLACE404_001` | `INFO [요청 거부] PLACE404_001` |
 | `POST /api/v1/saved-places` 본문 `{"sharedMediaId": 1, "placeId": 1}` (지운 게시글의 공유) | `YeogidamException` | 404 | 존재하지 않는 공유입니다. | `MEDIA404_002` | `INFO [요청 거부] MEDIA404_002` |
 | `POST /api/v1/saved-places` 본문 `{"sharedMediaId": 1, "placeId": 3}` (게시물에서 추출되지 않은 장소) | `YeogidamException` | 404 | 게시물에서 추출된 장소가 아닙니다. | `PLACE404_002` | `INFO [요청 거부] PLACE404_002` |
+| `GET /api/v1/places/999/info` (없는 장소) | `YeogidamException` | 404 | 존재하지 않는 장소입니다. | `PLACE404_003` | `INFO [요청 거부] PLACE404_003` |
 | `GET /api/v1/saved-places` (토큰 없음) | `YeogidamException` | 401 | 로그인이 필요한 요청입니다. | `AUTH401_004` | `WARN [인증 거부] AUTH401_004` |
 | `POST /api/v1/auth/token-refreshes` (교체된 직전 리프레시 토큰을 교체 뒤 10초 안에 다시 보냄) | `YeogidamException` | 401 | 이미 교체된 리프레시 토큰입니다. 새 토큰으로 다시 시도해 주세요. | `AUTH401_005` | `WARN [인증 거부] AUTH401_005` |
 | 그 밖의 예외 | `Exception` 폴백 | 500 | 예기치 못한 예외가 발생했습니다. | `COMMON500_001` | `ERROR [예기치 못한 오류] GET /경로` + 스택 |
