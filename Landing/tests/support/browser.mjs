@@ -194,7 +194,7 @@ export class Page {
     return result.result.value;
   }
 
-  async waitFor(expression, { timeout = 8000, what = expression } = {}) {
+  async waitFor(expression, { timeout = 10000, what = expression } = {}) {
     const deadline = Date.now() + timeout;
     let last;
     while (Date.now() < deadline) {

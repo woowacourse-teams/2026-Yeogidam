@@ -8,9 +8,6 @@
 .hero h1{font-size:clamp(30px,6.4vw,50px);font-weight:800;margin-top:0}
 .hero h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--brand) 62%)}
 .hero .lead{margin-top:18px;font-size:clamp(16px,2vw,19px);color:var(--ink-2);max-width:34em}
-.hero-note{margin-top:14px;font-size:14px;color:var(--muted)}
-.hero-note a{color:var(--brand-ink);font-weight:600}
-.hero-char{position:relative;display:none}
 @media (max-width:959px){
   .hero-copy{text-align:center}
   .hero .lead{margin-inline:auto}

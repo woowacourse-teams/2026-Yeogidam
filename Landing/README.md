@@ -72,12 +72,9 @@ python3 -m http.server 8000
 | `assets/character.png` | 피그마 화면 명세 파일의 `character` 심벌 원본(투명 배경) |
 | `assets/marker.png`, `assets/marker-selected.png` | fe-dev의 `map_marker.png`, `map_marker_selected.png`(기본 핀과 선택 핀)를 96px로 줄인 것 |
 | `assets/app-icon.png` | 앱 아이콘(fe-dev의 `AppIcon.appiconset`과 같은 그림). 내비 로고와 192px 파비콘으로 쓴다 |
-| `favicon.ico`, `assets/favicon-16.png`, `assets/favicon-32.png`, `assets/apple-touch-icon.png` | 같은 앱 아이콘을 줄인 파비콘. 브라우저 탭과 iOS 홈 화면 아이콘용 |
+| `favicon.ico`, `assets/favicon-32.png`, `assets/apple-touch-icon.png` | 같은 앱 아이콘을 줄인 파비콘. 브라우저 탭과 iOS 홈 화면 아이콘용 |
 | `assets/app-store-badge.svg` | Apple 배지 생성기에서 받은 한국어 공식 배지 |
 | `assets/google-play-badge.png` | Google Play 한국어 공식 배지 |
-| `assets/screen-library.jpg` | fe-dev `src/assets/guide/intro-library.png`를 줄인 실제 보관함 화면. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
-| `assets/guide-share-sheet.jpg` | fe-dev `src/assets/guide/2page.png`(앱 사용 가이드의 iPhone 공유 시트)를 잘라 줄인 것. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
-| `assets/screen-map.jpg`, `assets/screen-sheet.jpg` | App Store에 올라간 1.1.0 스크린샷. 사용법 섹션을 뺀 뒤로 페이지에서 쓰지 않는다 |
 | `assets/place-<카카오 장소 id>.jpg` 13장, `assets/reel-gunja.jpg`, `assets/reel-chabap.jpg` | 군자역 5곳은 운영 S3 썸네일, 차밥열끼 8곳은 카카오 장소 페이지 미리보기 이미지, 릴스 썸네일 둘은 여기담 계정 게시물의 표지(480px로 줄임). 장소 사진은 카카오 장소 사진이라 앱 밖에서 오래 쓸 때는 저작권을 한 번 더 확인한다 |
 
 공식 배지는 비율과 색을 바꾸지 않고 App Store 배지를 먼저 두며 푸터에는 Apple과 Google 상표 표기가 있다.
