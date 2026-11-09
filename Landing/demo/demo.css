@@ -98,7 +98,8 @@
 .ring{width:64px;flex:none;border:0;background:none;padding:0;display:flex;flex-direction:column;align-items:center;gap:8px;position:relative}
 .ring-pic{position:relative;width:46px;height:46px;margin:5px;border-radius:50%;background:#E3E5F2;display:grid;place-items:center}
 .ring-pic::before{content:"";position:absolute;inset:-5px;border-radius:50%;border:2px solid #DCDFF0}
-.ring-pic img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+/* 그리드 칸 안에서는 height:100%가 풀리지 않아 사진이 원래 비율로 늘어나므로, 칸에 꽉 맞게 절대 위치로 둔다 */
+.ring-pic img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
 .ring small{font-size:12px;font-weight:500;color:#8e8e93;white-space:nowrap}
 .ring[data-state="pending"] .ring-pic img{display:none}
 .ring[data-state="pending"] .ring-pic::before{border-style:dashed}
