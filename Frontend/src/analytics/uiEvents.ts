@@ -17,6 +17,11 @@ import {
 export const UI_EVENTS = {
   /** 화면이 열렸습니다. `screen_name` */
   screenViewed: 'screen_viewed',
+  /**
+   * 화면을 떠났습니다. 체류 시간 측정용입니다. 앱이 백그라운드에 있던 시간은 빠집니다.
+   * `screen_name`, `duration_ms`, `exit_reason`(navigate | background)
+   */
+  screenLeft: 'screen_left',
   /** 버튼·링크·아이콘을 눌렀습니다. `screen_name`, `button_name` */
   buttonPressed: 'button_pressed',
   /** 탭·필터·토글 같은 선택이 바뀌었습니다. `screen_name`, `selection_name`, `value` */
@@ -63,6 +68,21 @@ export function trackScreenViewed(
   trackUi(client, UI_EVENTS.screenViewed, {
     screen_name: screenName,
     ...properties,
+  });
+}
+
+export type ScreenExitReason = 'navigate' | 'background';
+
+export function trackScreenLeft(
+  client: AnalyticsClient | null | undefined,
+  screenName: string,
+  durationMs: number,
+  exitReason: ScreenExitReason,
+) {
+  trackUi(client, UI_EVENTS.screenLeft, {
+    screen_name: screenName,
+    duration_ms: Math.max(0, Math.round(durationMs)),
+    exit_reason: exitReason,
   });
 }
 

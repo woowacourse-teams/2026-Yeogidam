@@ -69,6 +69,7 @@ describe('UI event names', () => {
         "listRefreshed": "list_refreshed",
         "mapSearchSubmitted": "map_search_submitted",
         "modalViewed": "modal_viewed",
+        "screenLeft": "screen_left",
         "screenViewed": "screen_viewed",
         "selectionChanged": "selection_changed",
         "stepViewed": "step_viewed",

@@ -19,8 +19,8 @@ import {
   trackActionFinished,
   trackButtonPressed,
   trackGesturePerformed,
-  trackScreenViewed,
 } from './src/analytics/uiEvents';
+import {useScreenTimeTracking} from './src/analytics/useScreenTimeTracking';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import {
@@ -1708,11 +1708,21 @@ function App() {
     />
   );
 
+  // 화면 위에 겹쳐 뜨는 상세(장소·릴 레이어, 릴 상세, 히스토리 상세)도 하나의 화면으로 셉니다.
+  // 그래야 체류 시간이 밑에 깔린 탭으로 잘못 잡히지 않습니다. 장소 상세는 기존 이름인 'detail'을 씁니다.
+  const topDetailLayer =
+    flowState.kind === 'main' && topDetailLayerIndex >= 0
+      ? detailLayers[topDetailLayerIndex]
+      : null;
   const analyticsScreenName =
     !isAuthReady || isSplashVisible
       ? 'splash'
       : isOnboardingVisible
       ? 'onboarding'
+      : topDetailLayer
+      ? topDetailLayer.kind === 'reel' ? 'reel_detail' : 'detail'
+      : flowState.kind === 'main' && reelDetail !== null
+      ? 'reel_detail'
       : myPageOverlay === 'accountDeletion'
       ? 'account_deletion'
       : myPageOverlay === 'guide'
@@ -1721,11 +1731,15 @@ function App() {
       ? 'terms'
       : currentScreen === 'emailLogin'
       ? 'email_login'
+      : currentScreen === 'history' && nestedBackStates.history
+      ? 'history_detail'
       : currentScreen;
   analyticsScreenNameRef.current = analyticsScreenName;
-  useEffect(() => {
-    trackScreenViewed(posthog, analyticsScreenName);
-  }, [posthog, analyticsScreenName]);
+  useScreenTimeTracking(
+    posthog,
+    analyticsScreenName,
+    `${analyticsScreenName}:${activeLayerKey}`,
+  );
 
   const handleSwipeBack = () => {
     trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');
