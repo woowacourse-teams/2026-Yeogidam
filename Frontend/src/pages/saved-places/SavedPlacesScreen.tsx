@@ -44,6 +44,7 @@ import {
   type SavedPlacesSearchMethod,
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
+import { setLibraryPersonProperties } from '../../analytics/personProperties';
 import {
   bottomNavigationBarContainerStyle,
   getBottomNavigationBarOffset,
@@ -351,7 +352,11 @@ export function SavedPlacesScreen({
       placeCount: places.length,
       entryType: 'direct',
     });
-  }, [error, isLoading, places.length, posthog]);
+    // 비회원 보관함은 예시 장소라 회원 프로필 속성으로 남기지 않습니다.
+    if (!isGuest) {
+      setLibraryPersonProperties(posthog, {savedPlaceCount: places.length});
+    }
+  }, [error, isGuest, isLoading, places.length, posthog]);
 
   useEffect(() => {
     if (
@@ -1272,8 +1277,13 @@ export function SavedPlacesScreen({
     const ids = [...selectedPostIds];
     setIsDeleting(true);
     setDeleteError(null);
+    let deleted = false;
     try {
       await deleteSavedMedia(ids);
+      deleted = true;
+      trackActionFinished(posthog, 'saved_posts_delete', 'success', {
+        count: ids.length,
+      });
       const deletedUrls = new Set(
         [...postReels, ...librarySearch.reels]
           .filter(reel => selectedPostIds.has(reel.id))
@@ -1292,6 +1302,13 @@ export function SavedPlacesScreen({
       onEditModeChange?.(false);
       await Promise.all([loadPostPage(), loadSavedPlaces()]);
     } catch (nextError) {
+      // 삭제 뒤 목록을 다시 불러오다 실패한 경우는 삭제 실패로 세지 않습니다.
+      if (!deleted) {
+        trackActionFinished(posthog, 'saved_posts_delete', 'failure', {
+          count: ids.length,
+          failure_type: (nextError as SavedPlacesApiError).errorCode ?? 'unknown',
+        });
+      }
       setDeleteError(nextError as SavedPlacesApiError);
     } finally {
       setIsDeleting(false);
@@ -1303,6 +1320,7 @@ export function SavedPlacesScreen({
     loadSavedPlaces,
     onEditModeChange,
     postReels,
+    posthog,
     selectedPostIds,
   ]);
 

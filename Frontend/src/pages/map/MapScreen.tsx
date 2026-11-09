@@ -1210,7 +1210,14 @@ export function MapScreen({
                 folder_count: folderIds.length,
               });
               if (folderAssignPlace) {
-                setPlaceFolderIds(folderAssignPlace, folderIds);
+                setPlaceFolderIds(folderAssignPlace, folderIds).then(saved =>
+                  trackActionFinished(
+                    posthog,
+                    'place_folder_assign',
+                    saved ? 'success' : 'failure',
+                    { screen_name: 'map', folder_count: folderIds.length },
+                  ),
+                );
               }
               setFolderAssignPlace(null);
             }}

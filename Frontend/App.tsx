@@ -21,6 +21,7 @@ import {
   trackGesturePerformed,
 } from './src/analytics/uiEvents';
 import {useScreenTimeTracking} from './src/analytics/useScreenTimeTracking';
+import {setLoginPersonProperties} from './src/analytics/personProperties';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import {
@@ -1236,11 +1237,17 @@ function App() {
       setSocialLoginError(null);
       setPendingSocialProvider(provider);
       signInStarted = true;
-      await signIn();
+      const loginResponse = await signIn();
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
         entry: loginEntry,
+        isNewMember: loginResponse?.isNewMember,
+      });
+      // SIGNED_IN 알림에서 회원으로 식별된 뒤라 회원 프로필에 붙습니다.
+      setLoginPersonProperties(posthog, {
+        provider,
+        isNewMember: loginResponse?.isNewMember,
       });
       loginEntryRef.current = null;
     } catch (error) {

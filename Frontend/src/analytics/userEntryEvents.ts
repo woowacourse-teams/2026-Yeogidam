@@ -72,6 +72,8 @@ export function trackLoginFinished(
     outcome: LoginOutcome;
     failureType?: LoginFailureType;
     entry?: LoginEntry | null;
+    /** 성공했을 때 서버가 알려 준 신규 가입 여부입니다. 서버가 내리지 않으면 비웁니다. */
+    isNewMember?: boolean;
   },
 ) {
   capture(client, ANALYTICS_EVENTS.loginFinished, {
@@ -79,6 +81,9 @@ export function trackLoginFinished(
     outcome: params.outcome,
     ...(params.outcome === 'failure' && params.failureType
       ? {failure_type: params.failureType}
+      : {}),
+    ...(params.outcome === 'success' && typeof params.isNewMember === 'boolean'
+      ? {is_new_member: params.isNewMember}
       : {}),
     ...loginEntryProperties(params.entry),
   });

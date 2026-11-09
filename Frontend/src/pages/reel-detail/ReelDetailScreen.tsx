@@ -22,7 +22,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
-import {useScreenAnalytics} from '../../analytics/uiEvents';
+import {usePostHog} from 'posthog-react-native';
+import {trackActionFinished, useScreenAnalytics} from '../../analytics/uiEvents';
 import {getHistoryReelDetail, reportHistoryReel} from '../../entities/content/history-api';
 import {saveMediaPlace} from '../../entities/content/saved-media-api';
 import {deleteSavedPlaces} from '../../entities/info/api';
@@ -167,6 +168,7 @@ type PlacesState =
 /** 공유한 게시물 하나의 상세. 원본 이미지 위에 캡션을, 아래 시트에 찾은 장소를 보여 줍니다. */
 export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest = false}: ReelDetailScreenProps) {
   const analytics = useScreenAnalytics('reel_detail');
+  const posthog = usePostHog();
   const insets = useSafeAreaInsets();
   const {height: windowHeight} = useWindowDimensions();
   const collapsedTop = Math.round(windowHeight * COLLAPSED_RATIO);
@@ -223,6 +225,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
     const placeId = item.place?.id;
     if (!placeId || savingPlaceIds.has(placeId)) return;
     setSavingPlaceIds(current => new Set(current).add(placeId));
+    const actionName = item.savedPlaceId ? 'reel_place_unbookmark' : 'reel_place_bookmark';
     try {
       let savedPlaceId: string | null;
       if (item.savedPlaceId) {
@@ -231,6 +234,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
       } else {
         savedPlaceId = await saveMediaPlace(reel.id, placeId);
       }
+      trackActionFinished(posthog, actionName, 'success');
       setPlacesState(current => current.status !== 'ready' ? current : {
         ...current,
         places: current.places.map(place => place.place?.id === placeId
@@ -238,6 +242,9 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
           : place),
       });
     } catch (error) {
+      trackActionFinished(posthog, actionName, 'failure', {
+        failure_type: (error as {errorCode?: string}).errorCode ?? 'unknown',
+      });
       showAlert('장소를 저장하지 못했어요.', (error as {message?: string}).message);
     } finally {
       setSavingPlaceIds(current => {
@@ -246,7 +253,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
         return next;
       });
     }
-  }, [reel.id, savingPlaceIds]);
+  }, [posthog, reel.id, savingPlaceIds]);
 
   const confirmReport = useCallback(() => {
     if (isReported || isReporting) return;
@@ -265,15 +272,24 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
           setIsReporting(true);
           reportHistoryReel(reel.id)
             .then(() => {
+              // 히스토리 상세의 제보와 같은 이름으로 남기고 화면으로 구분합니다.
+              trackActionFinished(posthog, 'history_report', 'success', {
+                screen_name: 'reel_detail',
+              });
               setIsReported(true);
               onReported?.(reel.id);
             })
-            .catch(() => showAlert('제보하지 못했어요.', '잠시 후 다시 시도해주세요.'))
+            .catch(() => {
+              trackActionFinished(posthog, 'history_report', 'failure', {
+                screen_name: 'reel_detail',
+              });
+              showAlert('제보하지 못했어요.', '잠시 후 다시 시도해주세요.');
+            })
             .finally(() => setIsReporting(false));
         },
       },
     ]);
-  }, [analytics, isReported, isReporting, onReported, reel.id]);
+  }, [analytics, isReported, isReporting, onReported, posthog, reel.id]);
 
   // 시트 위쪽 y 위치(접힘 collapsedTop ↔ 끌어올림 expandedTop). 오버레이 위치도 이 값에서 계산합니다.
   const sheetTop = useRef(new Animated.Value(collapsedTop)).current;
