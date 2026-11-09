@@ -1309,17 +1309,24 @@ export function SavedPlacesScreen({
   const confirmDeleteSelectedPosts = useCallback(() => {
     if (isDeleting || selectedPostIds.size === 0) return;
     const count = selectedPostIds.size;
+    analytics.button('post_delete_selected', {count});
+    analytics.modal('post_delete_confirm', {count});
     showAlert(
       '선택한 게시물을 삭제할까요?',
       `선택한 ${count}개의 게시물이 보관함에서 삭제됩니다. 이 게시물에만 담긴 장소는 장소 보관함과 지도에서 사라져요.`,
       [
-        {text: '취소', style: 'cancel'},
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => analytics.button('post_delete_confirm_cancel', {count}),
+        },
         {text: '삭제', style: 'destructive', onPress: () => {
+          analytics.button('post_delete_confirm_ok', {count});
           handleDeleteSelectedPosts().catch(() => undefined);
         }},
       ],
     );
-  }, [handleDeleteSelectedPosts, isDeleting, selectedPostIds.size]);
+  }, [analytics, handleDeleteSelectedPosts, isDeleting, selectedPostIds.size]);
 
   const handleOpenHistory = useCallback(() => {
     analytics.button('open_history');
@@ -1833,7 +1840,11 @@ export function SavedPlacesScreen({
                 {isSearching && librarySearch.isLoadingPlaces ? (
                   <Text style={styles.categoryEmptyText}>검색하고 있어요.</Text>
                 ) : isSearching && librarySearch.placeError ? (
-                  <Pressable onPress={librarySearch.retryPlaces}>
+                  <Pressable
+                    onPress={() => {
+                      analytics.button('retry_search_places');
+                      librarySearch.retryPlaces();
+                    }}>
                     <Text style={styles.categoryEmptyText}>
                       {librarySearch.placeError} 다시 시도하기
                     </Text>
@@ -1854,7 +1865,11 @@ export function SavedPlacesScreen({
                   librarySearch.isLoadingReels ? (
                     <Text style={styles.categoryEmptyText}>검색하고 있어요.</Text>
                   ) : librarySearch.reelError ? (
-                    <Pressable onPress={librarySearch.retryReels}>
+                    <Pressable
+                      onPress={() => {
+                        analytics.button('retry_search_posts');
+                        librarySearch.retryReels();
+                      }}>
                       <Text style={styles.categoryEmptyText}>
                         {librarySearch.reelError} 다시 시도하기
                       </Text>
@@ -1863,7 +1878,11 @@ export function SavedPlacesScreen({
                 ) : isLoadingPosts ? (
                   <Text style={styles.categoryEmptyText}>게시물을 불러오고 있어요.</Text>
                 ) : postError ? (
-                  <Pressable onPress={() => loadPostPage(postCursor ?? undefined)}>
+                  <Pressable
+                    onPress={() => {
+                      analytics.button('retry_load_posts');
+                      loadPostPage(postCursor ?? undefined);
+                    }}>
                     <Text style={styles.categoryEmptyText}>{postError} 다시 시도하기</Text>
                   </Pressable>
                 ) : null}

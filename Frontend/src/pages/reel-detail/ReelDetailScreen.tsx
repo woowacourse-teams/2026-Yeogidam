@@ -250,11 +250,18 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
 
   const confirmReport = useCallback(() => {
     if (isReported || isReporting) return;
+    analytics.button('report');
+    analytics.modal('report_confirm');
     showAlert('제보할까요?', '', [
-      {text: '취소', style: 'cancel'},
+      {
+        text: '취소',
+        style: 'cancel',
+        onPress: () => analytics.button('report_confirm_cancel'),
+      },
       {
         text: '확인',
         onPress: () => {
+          analytics.button('report_confirm_ok');
           setIsReporting(true);
           reportHistoryReel(reel.id)
             .then(() => {
@@ -266,7 +273,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
         },
       },
     ]);
-  }, [isReported, isReporting, onReported, reel.id]);
+  }, [analytics, isReported, isReporting, onReported, reel.id]);
 
   // 시트 위쪽 y 위치(접힘 collapsedTop ↔ 끌어올림 expandedTop). 오버레이 위치도 이 값에서 계산합니다.
   const sheetTop = useRef(new Animated.Value(collapsedTop)).current;
@@ -369,8 +376,13 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const openOriginal = useCallback(() => {
     if (!reel.instagram_url) return;
     const url = reel.instagram_url;
+    analytics.modal('open_original_confirm');
     showAlert('인스타그램에서 원본 게시물을 볼까요?', '인스타그램 앱 또는 웹사이트로 이동해요.', [
-      {text: '취소', style: 'cancel'},
+      {
+        text: '취소',
+        style: 'cancel',
+        onPress: () => analytics.button('open_original_cancel'),
+      },
       {
         text: '열기',
         onPress: () => {
@@ -553,7 +565,10 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
         <Pressable
           accessibilityLabel={isSheetExpanded ? '찾은 장소 접기' : '찾은 장소 펼치기'}
           accessibilityRole="button"
-          onPress={() => snapSheet(!isSheetExpanded)}
+          onPress={() => {
+            analytics.button(isSheetExpanded ? 'sheet_collapse' : 'sheet_expand');
+            snapSheet(!isSheetExpanded);
+          }}
           style={styles.sheetDragArea}>
           <View style={styles.handle} />
           <View style={styles.sheetHeader}>
@@ -631,7 +646,12 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
                       accessibilityLabel={`${place.name} ${item.savedPlaceId ? '북마크 해제' : '북마크하기'}`}
                       accessibilityRole="button"
                       disabled={savingPlaceIds.has(place.id)}
-                      onPress={() => toggleSavedPlace(item)}
+                      onPress={() => {
+                        analytics.button(
+                          item.savedPlaceId ? 'unbookmark_place' : 'bookmark_place',
+                        );
+                        toggleSavedPlace(item);
+                      }}
                       style={styles.savePlaceButton}>
                       <MaterialIcons
                         color={item.savedPlaceId ? '#7186ed' : '#8b8e99'}
