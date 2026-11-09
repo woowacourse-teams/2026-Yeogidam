@@ -1,6 +1,8 @@
 // 랜딩 페이지 스크립트. 히어로 데모, 스토어 링크, QR, 기술 섹션, 품질 섹션을 붙인다
+import { track } from './shared/analytics.js';
+import { reduceMotion as reduce } from './shared/motion.js';
+
 var $ = function(id){ return document.getElementById(id); };
-var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- 데모 데이터 ---------- */
 var REELS = [
@@ -109,7 +111,6 @@ function askConfirm(title, fn){ confirmTitle.textContent=title; confirmYes=fn; c
 
 /* ---------- 방문 통계(GA4): 데모 단계는 페이지를 열 때마다 단계별로 한 번만 보낸다 ---------- */
 var STEPS=['share','send','open_app','result','library','map','detail','end'], reached={}, furthest='none';
-function track(name, params){ try { if (typeof gtag==='function') gtag('event', name, params); } catch (e) {} }
 function mark(step){
   if (reached[step]) return; reached[step]=true;
   if (STEPS.indexOf(step) > STEPS.indexOf(furthest)) furthest=step;
