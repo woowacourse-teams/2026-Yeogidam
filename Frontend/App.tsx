@@ -494,6 +494,7 @@ function App() {
   }
   if (flowState.kind === 'main') visitedTabsRef.current.add(flowState.activeTab);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
+  const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [tabRefreshCount, setTabRefreshCount] = useState({saved: 0, map: 0});
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -1573,6 +1574,7 @@ function App() {
         <MapScreen
           onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onBackGestureRegionChange={reportMapBackGestureRegion}
+          onPlaceDetailVisibleChange={setIsMapPlaceDetailVisible}
           key={
             isAuthenticated === false
               ? `guest-map-${tabRefreshCount.map}`
@@ -1590,15 +1592,6 @@ function App() {
     if (screen === 'detail' && selectedPlace) {
       return (
         <PlaceDetailScreen
-          bottomNavigationBar={
-            flowState.kind === 'main' && flowState.detailSource !== null ? (
-              <BottomNavigationBar
-                active={flowState.activeTab}
-                isGuest={isAuthenticated === false}
-                onNavigate={navigateMainTab}
-              />
-            ) : undefined
-          }
           onBack={closeDetail}
           onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onAuthenticationRequired={requestLogin}
@@ -1737,7 +1730,9 @@ function App() {
         content: wrapScreen(
           <View style={styles.container}>
             {renderScreen(tab)}
-            {tab !== 'history' && !(tab === 'saved' && isSavedPlacesEditing) ? (
+            {tab !== 'history' &&
+            !(tab === 'saved' && isSavedPlacesEditing) &&
+            !(tab === 'map' && isMapPlaceDetailVisible) ? (
               <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
             ) : null}
           </View>, tab === 'map',

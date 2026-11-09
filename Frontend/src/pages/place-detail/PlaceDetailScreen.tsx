@@ -1,6 +1,5 @@
 import { showAlert } from '../../lib/app-alert';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
 import {
@@ -19,7 +18,6 @@ import type {
   SavedPlacesApiError,
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
-import { BOTTOM_NAVIGATION_BAR_HEIGHT } from '../../components/BottomNavigationBar';
 import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
 import { PlaceFolderAssignPicker } from '../map/components/PlaceFolderPanel';
 import { usePlaceFolders } from '../../lib/usePlaceFolders';
@@ -34,7 +32,6 @@ type PlaceDetailScreenProps = {
   guestReels?: PlaceReel[];
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
-  bottomNavigationBar?: ReactNode;
   /** 지정하면 게시물을 눌렀을 때 인스타그램 대신 앱 안의 게시물 상세로 이동합니다. */
   onOpenReel?: (reel: PlaceReel) => void;
   /** 비회원에게는 폴더 버튼을 보여주지 않습니다. */
@@ -48,7 +45,6 @@ export function PlaceDetailScreen({
   onAuthenticationRequired,
   guestReels,
   onDeleteGuestPlaces,
-  bottomNavigationBar,
   onOpenReel,
   isGuest = false,
 }: PlaceDetailScreenProps) {
@@ -193,7 +189,7 @@ export function PlaceDetailScreen({
   const canDelete = guestReels === undefined || onDeleteGuestPlaces !== undefined;
 
   return (
-    <CopyToastProvider bottomOffset={BOTTOM_NAVIGATION_BAR_HEIGHT + bottomInset + 16}>
+    <CopyToastProvider bottomOffset={bottomInset + 16}>
       <PlaceDetailContent
         onBack={onBack}
         place={place}
@@ -203,6 +199,7 @@ export function PlaceDetailScreen({
         titleInHeader
         compactHeader
         headerTopInset={SEARCH_BAR_TOP_GAP}
+        contentBottomPadding={bottomInset + 24}
         reels={reels}
         reelsError={error}
         isReelsLoading={isReelsLoading}
@@ -245,7 +242,6 @@ export function PlaceDetailScreen({
           }}
         />
       )}
-      {bottomNavigationBar}
     </CopyToastProvider>
   );
 }

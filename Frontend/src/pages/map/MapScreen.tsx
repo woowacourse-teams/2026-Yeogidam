@@ -97,6 +97,8 @@ type MapScreenProps = {
   /** 지정하면 장소 상세의 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
   onOpenReel?: (reel: PlaceReel) => void;
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
+  /** 장소 상세가 열리면 바텀 네비게이션을 숨기도록 알립니다. */
+  onPlaceDetailVisibleChange?: (isVisible: boolean) => void;
   isActive?: boolean;
   isGuest?: boolean;
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
@@ -120,6 +122,7 @@ const COMPLETED_PLACE_REFRESH_DELAYS_MS = [0, 700, 1500, 3000, 5000];
 export function MapScreen({
   onOpenReel,
   onBackGestureRegionChange,
+  onPlaceDetailVisibleChange,
   isActive = true,
   isGuest = false,
   onDeleteGuestPlaces,
@@ -203,12 +206,13 @@ export function MapScreen({
   }>({ place: null, viewContext: null, camera: null, signal: 0 });
   const handleDetailViewChange = useCallback((isDetailView: boolean) => {
     setIsPlaceDetailVisible(isDetailView);
+    onPlaceDetailVisibleChange?.(isDetailView);
     if (!isDetailView) {
       setOpenedMarker(current =>
         current.camera ? { ...current, camera: null } : current,
       );
     }
-  }, []);
+  }, [onPlaceDetailVisibleChange]);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const detailCameraRef = useRef<MapCamera | null>(null);
   // 목록에서 연 상세는 열리기 전 카메라 대신 이 카메라의 하단 여백을 씁니다.
@@ -1072,6 +1076,7 @@ export function MapScreen({
           translateY={sheetTranslateY}
           topInset={topInset}
           bottomTabOffset={bottomNavigationOffset}
+          detailBottomOffset={getBottomNavigationBarOffset(bottomInset)}
           places={resultPlaces}
           // 폴더 안에서 뒤로 스와이프하면 뒤에 돌아갈 폴더 목록이 보여야 한다.
           backFolderHeader={openedFolder ? folderSegmentHeader : undefined}
