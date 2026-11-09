@@ -9,11 +9,11 @@ const selectedVersion = (page) => page.eval(`document.querySelector('.jr-tab[ari
 const shownPanels = (page) => page.eval(`[...document.querySelectorAll('.jr-panel.on')].map((panel) => panel.id)`);
 
 describe('품질 섹션', { concurrency: true }, () => {
-  test('처음에는 2.0을 보여 주고, 섹션이 보이면 journey_view를 한 번 남긴다', async (t) => {
+  test('처음에는 가장 최근 버전인 2.3을 보여 주고, 섹션이 보이면 journey_view를 한 번 남긴다', async (t) => {
     const page = await landing.open(t);
     assert.deepEqual(await page.eval(`[...document.querySelectorAll('.jr-tab')].map((tab) => tab.dataset.v)`), ['1.0', '1.1', '2.0', '2.1', '2.2', '2.3', '다음']);
-    assert.equal(await selectedVersion(page), '2.0');
-    assert.deepEqual(await shownPanels(page), ['jr-p-20']);
+    assert.equal(await selectedVersion(page), '2.3');
+    assert.deepEqual(await shownPanels(page), ['jr-p-23']);
     assert.deepEqual(await page.events('journey_view'), []);
 
     await page.eval(`document.getElementById('journey').scrollIntoView({ block: 'center' })`);
