@@ -38,4 +38,10 @@ describe('레이아웃', { concurrency: true }, () => {
       .filter((id) => id && !document.getElementById(id))`);
     assert.deepEqual(missing, []);
   });
+
+  test('내 컴퓨터 주소(127.0.0.1)에서 열면 GA 전송을 끄고, 이벤트는 dataLayer에만 쌓는다', async (t) => {
+    const page = await landing.open(t);
+    assert.equal(await page.eval(`window['ga-disable-G-V0G6SC57DV']`), true);
+    assert.ok((await page.eval('window.dataLayer.length')) > 0);
+  });
 });

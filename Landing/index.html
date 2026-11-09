@@ -14,6 +14,8 @@
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-V0G6SC57DV"></script>
 <script>
+  // 로컬 미리보기와 테스트에서 보낸 이벤트가 운영 방문 통계에 섞이지 않게, 내 컴퓨터 주소에서는 GA 전송을 끈다
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) || location.protocol === 'file:') window['ga-disable-G-V0G6SC57DV'] = true;
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
