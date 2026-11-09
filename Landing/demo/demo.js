@@ -47,7 +47,8 @@ export function initDemo(reels) {
   // feed, sheet, card, launcher, home, post, map, mapDetail, detail, profile, end
   let state = 'feed';
   let analysed = false;
-  let tab = 'lib';
+  // 이번 회차에 게시물 상세를 열었는지. 보관함에 돌아왔을 때 다음 안내를 고르는 데 쓴다
+  let postSeen = false;
   let libView = 'posts';
   let libCode = ALL;
   let mapCode = ALL;
@@ -97,7 +98,7 @@ export function initDemo(reels) {
   function hideHint() { hint.classList.remove('on'); hintTarget = null; }
 
   function showHint(target, text, pos) {
-    if (!target || target.hidden || !target.getClientRects().length) return;
+    if (!target || target.hidden || !target.getClientRects().length) { hideHint(); return; }
     hintTarget = target;
     hintText.textContent = text;
     hint.className = `hint ${pos || 'top'}`;
@@ -166,6 +167,7 @@ export function initDemo(reels) {
     clearTimers();
     hideHint();
     analysed = false;
+    postSeen = false;
     detailFrom = null;
     libCode = ALL;
     mapCode = ALL;
@@ -265,8 +267,8 @@ export function initDemo(reels) {
     launch.hidden = true;
     showScreen('app');
     showTab('lib', true);
-    laterIn(DELAY.ringPending, 'home', () => setRing('processing'));
     const id = run;
+    later(DELAY.ringPending, () => { if (id === run && !analysed) setRing('processing'); });
     later(DELAY.ringPending + DELAY.ringProcessing, () => { if (id === run) analysisDone(); });
   }
 
@@ -284,10 +286,25 @@ export function initDemo(reels) {
     renderPlaces();
     renderPostPlaces();
     setStep(STEP.library);
-    if (state !== 'home') return;
-    const card = posts.querySelector('.post-card');
-    laterIn(DELAY.hintPost, 'home', () => { if (libView === 'posts') showHint(card, '방금 공유한 게시물을 눌러 보세요', 'top'); });
-    autoLater(DELAY.autoPost, () => { if (state === 'home') openPost(); });
+    guideLibrary();
+  }
+
+  // 보관함에 들어올 때마다 지금 보기와 분석 상태로 다음에 누를 곳을 가리키고, 자동 재생이면 다음 단계를 예약한다.
+  // 분석 중에 다른 탭에 다녀오거나 「장소」를 먼저 눌러도 흐름이 끊기지 않게 한곳에서 정한다
+  function guideLibrary() {
+    if (state !== 'home' || !analysed) return;
+    hideHint();
+    if (libView === 'places') {
+      mark('library');
+      laterIn(DELAY.hintMapTab, 'home', () => { if (libView === 'places') showHint($('tabMap'), '지도 탭을 눌러 보세요', 'top'); });
+      autoLater(DELAY.autoMapTab, () => { if (state === 'home') showTab('map'); });
+    } else if (!postSeen) {
+      laterIn(DELAY.hintPost, 'home', () => { if (libView === 'posts') showHint(posts.querySelector('.post-card'), '방금 공유한 게시물을 눌러 보세요', 'top'); });
+      autoLater(DELAY.autoPost, () => { if (state === 'home' && libView === 'posts') openPost(); });
+    } else {
+      laterIn(DELAY.hintPlacesView, 'home', () => { if (libView === 'posts') showHint(viewPlaces, '장소만 모아 볼 수도 있어요', 'bottom'); });
+      autoLater(DELAY.autoPlacesView, () => { if (state === 'home') setLibView('places'); });
+    }
   }
 
   function renderPosts() {
@@ -304,6 +321,7 @@ export function initDemo(reels) {
 
   function renderPlaces() {
     places.innerHTML = '';
+    if (!analysed) { updateLibEmpty(); return; }
     placesIn(reel.places, libCode).forEach((p) => {
       const row = document.createElement('button');
       row.type = 'button';
@@ -347,7 +365,7 @@ export function initDemo(reels) {
 
   function renderChips(box, selected, onPick) {
     box.innerHTML = [{ code: ALL, name: '전체' }, ...CATEGORIES]
-      .map((c) => `<button type="button" class="cat-chip${c.code === selected ? ' on' : ''}" data-code="${c.code}">${esc(c.name)}</button>`)
+      .map((c) => `<button type="button" class="cat-chip${c.code === selected ? ' on' : ''}" data-code="${c.code}" aria-pressed="${c.code === selected}">${esc(c.name)}</button>`)
       .join('');
     box.onclick = (e) => {
       const chip = e.target.closest('.cat-chip');
@@ -367,11 +385,7 @@ export function initDemo(reels) {
     libChips.hidden = view !== 'places';
     if (view === 'places') renderChips(libChips, libCode, pickLibCategory);
     updateLibEmpty();
-    if (silent || view !== 'places' || !analysed) return;
-    mark('library');
-    hideHint();
-    laterIn(DELAY.hintMapTab, 'home', () => showHint($('tabMap'), '지도 탭을 눌러 보세요', 'top'));
-    autoLater(DELAY.autoMapTab, () => { if (state === 'home') showTab('map'); });
+    if (!silent) guideLibrary();
   }
 
   function pickLibCategory(code) {
@@ -383,6 +397,7 @@ export function initDemo(reels) {
   function openPost() {
     if (!analysed || state !== 'home') return;
     state = 'post';
+    postSeen = true;
     mark('result');
     hideHint();
     showScreen('post');
@@ -396,13 +411,10 @@ export function initDemo(reels) {
     hideHint();
     showScreen('app');
     showTab('lib', true);
-    if (libView === 'places') return;
-    laterIn(DELAY.hintPlacesView, 'home', () => showHint(viewPlaces, '장소만 모아 볼 수도 있어요', 'bottom'));
-    autoLater(DELAY.autoPlacesView, () => { if (state === 'home') setLibView('places'); });
+    guideLibrary();
   }
 
   function showTab(name, silent) {
-    tab = name;
     lib.hidden = name !== 'lib';
     mapScr.hidden = name !== 'map';
     profile.hidden = name !== 'profile';
@@ -417,6 +429,7 @@ export function initDemo(reels) {
       renderMap();
     } else if (name === 'lib') {
       state = 'home';
+      guideLibrary();
     } else {
       state = 'profile';
     }
@@ -424,6 +437,7 @@ export function initDemo(reels) {
 
   /* ---------- 지도 ---------- */
   function renderMap() {
+    leaveMapDetail();
     mapSvg.innerHTML = mapSVG(reel);
     renderChips(mapChips, mapCode, pickMapCategory);
     drawPins(true);
@@ -434,7 +448,10 @@ export function initDemo(reels) {
       const first = pins.querySelector('.pin');
       if (first) showHint(first, '핀을 눌러 보세요', 'top');
     });
-    autoLater(DELAY.autoPin + reel.places.length * DELAY.pinStagger, () => { if (state === 'map') openMapDetail(reel.places[0]); });
+    autoLater(DELAY.autoPin + reel.places.length * DELAY.pinStagger, () => {
+      const first = placesIn(reel.places, mapCode)[0];
+      if (state === 'map' && first) openMapDetail(first);
+    });
   }
 
   function drawPins(drop) {
@@ -464,6 +481,7 @@ export function initDemo(reels) {
   }
 
   function pickMapCategory(code) {
+    hideHint();
     mapCode = code;
     renderChips(mapChips, mapCode, pickMapCategory);
     if (state === 'mapDetail') { leaveMapDetail(); state = 'map'; }
@@ -554,6 +572,7 @@ export function initDemo(reels) {
       state = 'home';
       showScreen('app');
       showTab('lib', true);
+      guideLibrary();
     }
   }
 

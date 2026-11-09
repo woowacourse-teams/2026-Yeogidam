@@ -29,7 +29,7 @@ export const REELS = [
       {name:'수족관', code:'KOREAN', cat:'음식점 > 한식 > 해물,생선', road:'서울 강남구 도산대로37길 30', lot:'서울 강남구 신사동', url:'https://place.map.kakao.com/969282150', img:'assets/place-969282150.jpg', x:52, y:33},
       {name:'쿠노카츠', code:'JAPANESE', cat:'음식점 > 일식 > 돈까스,우동', road:'서울 서초구 서운로 226', lot:'서울 서초구 서초동', url:'https://place.map.kakao.com/1513233857', img:'assets/place-1513233857.jpg', x:30, y:37},
       {name:'보영만두 북문본점', code:'BUNSIK', cat:'음식점 > 분식', road:'경기 수원시 장안구 팔달로 271', lot:'경기 수원시 장안구 영화동 282-3', url:'https://place.map.kakao.com/27135707', img:'assets/place-27135707.jpg', x:18, y:43},
-      {name:'태양옥김빠', code:'BUNSIK', cat:'음식점 > 분식', road:'서울 강동구 성내로 42', lot:'서울 강동구 성내동 550-5', url:'https://place.map.kakao.com/1583503104', img:'assets/place-1583503104.jpg', x:86, y:27}
+      {name:'태양옥김빠', code:'BUNSIK', cat:'음식점 > 분식', road:'서울 강동구 성내로 42', lot:'서울 강동구 성내동 550-5', url:'https://place.map.kakao.com/1583503104', img:'assets/place-1583503104.jpg', x:78, y:30}
     ]
   }
 ];

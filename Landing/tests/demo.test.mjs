@@ -237,3 +237,76 @@ describe('히어로 데모', { concurrency: true }, () => {
     assert.equal(await ringState(page), 'pending');
   });
 });
+
+describe('히어로 데모의 갈래 흐름', { concurrency: true }, () => {
+  test('분석 중에 내 정보에 다녀와도 링은 계속 바뀌고, 보관함에 돌아오면 게시물 안내가 이어진다', async (t) => {
+    const page = await landing.open(t);
+    await shareAndOpenApp(page);
+    await page.click('#tabProfile');
+    await page.waitForVisible('#profile');
+    await page.waitFor(`document.getElementById('shareRing').dataset.state === 'processing'`, { what: '내 정보에 있어도 링이 장소 찾는 중으로 바뀐다' });
+    await page.waitFor(`document.getElementById('shareRing').dataset.state === 'done'`, { what: '링이 완료로 바뀐다' });
+
+    await page.click('#tabLib');
+    await waitForHint(page, '방금 공유한 게시물을 눌러 보세요');
+    assert.deepEqual(page.problems, []);
+  });
+
+  test('분석 전에 장소 보기로 가면 장소를 보여 주지 않고, 분석이 끝나면 library를 남기고 지도 탭을 가리킨다', async (t) => {
+    const page = await landing.open(t);
+    await shareAndOpenApp(page);
+    await page.click('#viewPlaces');
+    await page.click('#libChips .cat-chip[data-code="ALL"]');
+    assert.equal(await page.count('#places .prow'), 0);
+    assert.equal(await page.text('#libEmptyTitle'), '아직 저장한 장소가 없어요');
+
+    await page.waitFor(`document.getElementById('shareRing').dataset.state === 'done'`, { what: '링이 완료로 바뀐다' });
+    assert.equal(await page.count('#places .prow'), 5);
+    await waitForHint(page, '지도 탭을 눌러 보세요');
+    assert.deepEqual(await demoSteps(page), ['share', 'send', 'open_app', 'library'].map((step) => ({ step, mode: 'tap' })));
+  });
+
+  test('지도 칩을 바꾸면 남아 있던 힌트를 지우고, 상세를 연 채 지도 탭을 다시 누르면 상세를 닫는다', async (t) => {
+    const page = await landing.open(t);
+    await shareAndOpenApp(page);
+    await page.waitFor(`document.getElementById('shareRing').dataset.state === 'done'`, { what: '링이 완료로 바뀐다' });
+    await page.click('#tabMap');
+    await waitForHint(page, '핀을 눌러 보세요');
+
+    await page.click('#mapChips .cat-chip[data-code="DESSERT"]');
+    assert.equal(await page.count('#pins .pin'), 0);
+    assert.equal(await page.eval(`document.getElementById('hint').classList.contains('on')`), false);
+    assert.equal(await page.eval(`document.querySelector('#mapChips .cat-chip.on').getAttribute('aria-pressed')`), 'true');
+    await page.click('#mapChips .cat-chip[data-code="ALL"]');
+    await page.click('#pins .pin');
+    await page.waitForVisible('#mdetail');
+
+    await page.click('#tabMap');
+    await page.waitFor(`document.getElementById('mdetail').hidden`, { what: '지도 상세가 닫힌다' });
+    assert.equal(await page.isVisible('#mlist'), true);
+    assert.equal(await page.isVisible('#btnMapBack'), false);
+  });
+
+  for (const reelId of ['gunja', 'chabap']) {
+    test(`${reelId} 지도의 핀은 상세를 연 뒤에도 검색창, 칩, 버튼, 시트에 가리지 않는다`, async (t) => {
+      const page = await landing.open(t);
+      await page.waitForVisible('#scrReel');
+      await page.click(`#chips .chip[data-id="${reelId}"]`);
+      await shareAndOpenApp(page);
+      await page.waitFor(`document.getElementById('shareRing').dataset.state === 'done'`, { what: '링이 완료로 바뀐다' });
+      await page.click('#tabMap');
+      await page.waitFor(`[...document.querySelectorAll('#pins .pin')].every((pin) => pin.classList.contains('drop'))`, { what: '핀이 모두 나타난다' });
+      await page.waitFor(`document.getElementById('msheet').classList.contains('on')`, { what: '시트가 올라온다' });
+      await sleep(400);
+      await page.click('#pins .pin');
+      await page.waitForVisible('#btnFinishMap');
+      await sleep(400);
+      const covered = await page.eval(`[...document.querySelectorAll('#pins .pin')].filter((pin) => {
+        pin.scrollIntoView({ block: 'center' });
+        const r = pin.getBoundingClientRect();
+        return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('.pin') !== pin;
+      }).map((pin) => pin.dataset.name)`);
+      assert.deepEqual(covered, []);
+    });
+  }
+});
