@@ -150,7 +150,7 @@
                   </div>
                 </div>
                 <div class="lib-bar">
-                  <div class="lib-toggle" role="tablist" aria-label="보관함 보기"><button type="button" class="on" role="tab" aria-selected="true" data-view="posts" id="viewPosts">게시물</button><button type="button" role="tab" aria-selected="false" data-view="places" id="viewPlaces">장소</button></div>
+                  <div class="lib-toggle" role="tablist" aria-label="보관함 보기"><button type="button" class="on" role="tab" aria-selected="true" data-view="posts" id="viewPosts" aria-controls="posts">게시물</button><button type="button" role="tab" aria-selected="false" data-view="places" id="viewPlaces" aria-controls="places">장소</button></div>
                   <button type="button" class="lib-edit">편집</button>
                 </div>
                 <div class="cat-chips" id="libChips" hidden></div>
@@ -167,7 +167,7 @@
                   <div class="cat-chips" id="mapChips"></div>
                 </div>
                 <button type="button" class="locbtn" aria-label="내 위치로 이동"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
-                <div class="msheet" id="msheet"><div class="handle"></div><div class="seg" id="mapSeg"><button type="button" class="on">장소</button><button type="button">폴더</button></div><div class="list" id="mlist"></div><div class="mdetail" id="mdetail" hidden></div></div>
+                <div class="msheet" id="msheet"><div class="handle"></div><div class="seg" id="mapSeg"><button type="button" class="on" aria-pressed="true">장소</button><button type="button" aria-pressed="false">폴더</button></div><div class="list" id="mlist"></div><div class="mdetail" id="mdetail" hidden></div></div>
                 <button type="button" class="finish-in map-finish" id="btnFinishMap" hidden>데모 마치기</button>
               </div>
               <!-- 내 정보 -->
