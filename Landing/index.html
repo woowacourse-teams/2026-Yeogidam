@@ -52,6 +52,17 @@
 <link rel="stylesheet" href="demo/demo.css">
 <link rel="stylesheet" href="tech/tech.css">
 <link rel="stylesheet" href="journey/journey.css">
+<!-- 모듈은 import를 따라 차례로 받으므로, 첫 화면이 늦지 않게 한꺼번에 미리 받는다(새 모듈을 더하면 여기에도 더한다) -->
+<link rel="modulepreload" href="main.js">
+<link rel="modulepreload" href="shared/analytics.js">
+<link rel="modulepreload" href="shared/motion.js">
+<link rel="modulepreload" href="shared/store-links.js">
+<link rel="modulepreload" href="demo/demo.js">
+<link rel="modulepreload" href="demo/reels.js">
+<link rel="modulepreload" href="demo/categories.js">
+<link rel="modulepreload" href="demo/timing.js">
+<link rel="modulepreload" href="tech/tech.js">
+<link rel="modulepreload" href="journey/journey.js">
 </head>
 <body>
 
@@ -98,7 +109,7 @@
 
             <!-- 릴스 -->
             <div class="scr reel" id="scrReel">
-              <div class="reel-bg pink" id="reelBg"></div>
+              <div class="reel-bg photo" id="reelBg"><img class="blur" src="assets/reel-gunja.jpg" alt=""><img class="fit" src="assets/reel-gunja.jpg" alt=""></div>
               <div class="reel-shade"></div>
               <div class="reel-top"><span>릴스</span>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v12H4z"/><circle cx="12" cy="13" r="3.5"/></svg>

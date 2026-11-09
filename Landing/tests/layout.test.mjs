@@ -45,3 +45,17 @@ describe('레이아웃', { concurrency: true }, () => {
     assert.ok((await page.eval('window.dataLayer.length')) > 0);
   });
 });
+
+describe('스크립트가 돌기 전 첫 화면', { concurrency: true }, () => {
+  for (const [width, height] of [[1280, 900], [1280, 700], [390, 844]]) {
+    test(`${width}x${height}에서 스크립트 전에도 릴스 사진이 보이고, 스크립트가 돈 뒤에도 폰 칸 크기가 그대로다`, async (t) => {
+      const before = await landing.open(t, '/', { width, height, javaScript: false });
+      await before.waitFor(`document.querySelector('#reelBg img.fit')?.naturalWidth > 0`, { what: '릴스 사진을 받는다' });
+      assert.equal(await before.isVisible('#reelBg img.fit'), true);
+      const size = `(() => { const r = document.getElementById('phoneWrap').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; })()`;
+      const after = await landing.open(t, '/', { width, height });
+      await after.waitForVisible('#chips .chip');
+      assert.deepEqual(await before.eval(size), await after.eval(size));
+    });
+  }
+});
