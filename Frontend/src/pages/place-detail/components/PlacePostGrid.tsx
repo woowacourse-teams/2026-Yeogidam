@@ -14,6 +14,7 @@ import type {
 } from '../../../entities/info/types';
 import { normalizeReelTitle } from '../../../entities/content/title';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
+import { PlaceTabEmptyState } from './PlaceTabEmptyState';
 
 type PlacePostGridProps = {
   reels: PlaceReel[];
@@ -50,7 +51,7 @@ export function PlacePostGrid({
   }
 
   if (reels.length === 0) {
-    return <PostState message="아직 관련 릴스가 없어요." />;
+    return <PlaceTabEmptyState message="아직 관련 릴스가 없어요" />;
   }
 
   const columnWidth =

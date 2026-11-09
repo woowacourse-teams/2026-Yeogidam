@@ -3,106 +3,135 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
-import {
-  MOCK_MENU_ITEMS,
-  MOCK_MENU_PRICE_RANGE,
-  MOCK_WEEKLY_HOURS,
-} from './placeDetailMock';
+import { PlaceTabEmptyState } from './PlaceTabEmptyState';
 
 const MENU_PREVIEW_COUNT = 3;
 
+export type PlaceWeeklyHours = {
+  day: string;
+  hours: string;
+  isToday?: boolean;
+  isClosed?: boolean;
+};
+
+export type PlaceMenuItem = {
+  name: string;
+  price: string;
+};
+
 type PlaceInformationProps = {
+  // TODO(API 연동): 영업시간·메뉴 API가 생기면 값을 넘깁니다. 그 전에는 빈 화면을 보여줍니다.
+  weeklyHours?: PlaceWeeklyHours[];
+  menuPriceRange?: string;
+  menuItems?: PlaceMenuItem[];
   /** 메뉴를 펼치거나 접은 뒤 호출합니다. 정보 탭 안에서 메뉴 섹션의 y 위치를 넘깁니다. */
   onMenuToggled?: (menuTop: number) => void;
 };
 
-export function PlaceInformation({ onMenuToggled }: PlaceInformationProps) {
+export function PlaceInformation({
+  weeklyHours = [],
+  menuPriceRange,
+  menuItems = [],
+  onMenuToggled,
+}: PlaceInformationProps) {
   const { button } = useScreenAnalytics();
   const [isMenuExpanded, setIsMenuExpanded] = useState(false);
   // 늘어난 높이가 스크롤 범위에 반영된 뒤에 올려야 끝에서 잘리지 않아, 레이아웃 완료 시점까지 기다립니다.
   const isMenuToggledRef = useRef(false);
   const visibleMenuItems = isMenuExpanded
-    ? MOCK_MENU_ITEMS
-    : MOCK_MENU_ITEMS.slice(0, MENU_PREVIEW_COUNT);
+    ? menuItems
+    : menuItems.slice(0, MENU_PREVIEW_COUNT);
+  const hasWeeklyHours = weeklyHours.length > 0;
+  const hasMenu = menuItems.length > 0;
+
+  if (!hasWeeklyHours && !hasMenu) {
+    return <PlaceTabEmptyState message="아직 등록된 정보가 없어요" />;
+  }
 
   return (
     <View style={styles.container}>
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>영업시간</Text>
+      {hasWeeklyHours ? (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>영업시간</Text>
+          </View>
+          <View style={styles.weeklyHours}>
+            {weeklyHours.map(({ day, hours, isToday, isClosed }) => (
+              <View key={day} style={styles.dayRow}>
+                <Text style={[styles.dayText, isToday && styles.todayText]}>
+                  {isToday ? `${day}  오늘` : day}
+                </Text>
+                <Text
+                  style={[
+                    styles.dayText,
+                    isToday && styles.todayText,
+                    isClosed && styles.closedText,
+                  ]}
+                >
+                  {hours}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-        <View style={styles.weeklyHours}>
-          {MOCK_WEEKLY_HOURS.map(({ day, hours, isToday, isClosed }) => (
-            <View key={day} style={styles.dayRow}>
-              <Text style={[styles.dayText, isToday && styles.todayText]}>
-                {isToday ? `${day}  오늘` : day}
-              </Text>
-              <Text
+      ) : null}
+
+      {hasWeeklyHours && hasMenu ? <View style={styles.sectionDivider} /> : null}
+
+      {hasMenu ? (
+        <View
+          style={styles.section}
+          onLayout={event => {
+            if (!isMenuToggledRef.current) return;
+            isMenuToggledRef.current = false;
+            onMenuToggled?.(event.nativeEvent.layout.y);
+          }}
+        >
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>메뉴</Text>
+          </View>
+          {menuPriceRange ? (
+            <Text style={styles.priceRange}>{menuPriceRange}</Text>
+          ) : null}
+          <View style={styles.menuList}>
+            {visibleMenuItems.map((item, index) => (
+              <View
+                key={item.name}
                 style={[
-                  styles.dayText,
-                  isToday && styles.todayText,
-                  isClosed && styles.closedText,
+                  styles.menuItem,
+                  index < visibleMenuItems.length - 1 && styles.menuItemDivider,
                 ]}
               >
-                {hours}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.sectionDivider} />
-
-      <View
-        style={styles.section}
-        onLayout={event => {
-          if (!isMenuToggledRef.current) return;
-          isMenuToggledRef.current = false;
-          onMenuToggled?.(event.nativeEvent.layout.y);
-        }}
-      >
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>메뉴</Text>
-        </View>
-        <Text style={styles.priceRange}>{MOCK_MENU_PRICE_RANGE}</Text>
-        <View style={styles.menuList}>
-          {visibleMenuItems.map((item, index) => (
-            <View
-              key={item.name}
-              style={[
-                styles.menuItem,
-                index < visibleMenuItems.length - 1 && styles.menuItemDivider,
+                <Text style={styles.menuName}>{item.name}</Text>
+                <Text style={styles.menuPrice}>{item.price}</Text>
+              </View>
+            ))}
+          </View>
+          {menuItems.length > MENU_PREVIEW_COUNT ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={isMenuExpanded ? '메뉴 접기' : '메뉴 펼치기'}
+              accessibilityState={{ expanded: isMenuExpanded }}
+              hitSlop={10}
+              onPress={() => {
+                button('toggle_menu');
+                isMenuToggledRef.current = true;
+                setIsMenuExpanded(expanded => !expanded);
+              }}
+              style={({ pressed }) => [
+                styles.moreButton,
+                pressed && styles.pressed,
               ]}
             >
-              <Text style={styles.menuName}>{item.name}</Text>
-              <Text style={styles.menuPrice}>{item.price}</Text>
-            </View>
-          ))}
+              <MaterialIcons
+                color="#1D1B20"
+                name={isMenuExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+                size={24}
+              />
+            </Pressable>
+          ) : null}
         </View>
-        {MOCK_MENU_ITEMS.length > MENU_PREVIEW_COUNT ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={isMenuExpanded ? '메뉴 접기' : '메뉴 펼치기'}
-            accessibilityState={{ expanded: isMenuExpanded }}
-            hitSlop={10}
-            onPress={() => {
-              button('toggle_menu');
-              isMenuToggledRef.current = true;
-              setIsMenuExpanded(expanded => !expanded);
-            }}
-            style={({ pressed }) => [
-              styles.moreButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <MaterialIcons
-              color="#1D1B20"
-              name={isMenuExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
-              size={24}
-            />
-          </Pressable>
-        ) : null}
-      </View>
+      ) : null}
     </View>
   );
 }

@@ -1,18 +1,33 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { MOCK_BLOG_POSTS } from './placeDetailMock';
+import { PlaceTabEmptyState } from './PlaceTabEmptyState';
 
-export function PlaceBlogList() {
+export type PlaceBlogPost = {
+  id: string;
+  title: string;
+  meta: string;
+};
+
+type PlaceBlogListProps = {
+  // TODO(API 연동): 블로그 글 API가 생기면 값을 넘깁니다. 그 전에는 빈 화면을 보여줍니다.
+  posts?: PlaceBlogPost[];
+};
+
+export function PlaceBlogList({ posts = [] }: PlaceBlogListProps) {
+  if (posts.length === 0) {
+    return <PlaceTabEmptyState message="아직 등록된 블로그 글이 없어요" />;
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.list}>
-        {MOCK_BLOG_POSTS.map((post, index) => (
+        {posts.map((post, index) => (
           <View
             key={post.id}
             style={[
               styles.card,
-              index < MOCK_BLOG_POSTS.length - 1 && styles.cardDivider,
+              index < posts.length - 1 && styles.cardDivider,
             ]}
           >
             <View style={styles.text}>
