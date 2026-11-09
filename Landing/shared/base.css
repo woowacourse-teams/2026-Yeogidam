@@ -48,6 +48,9 @@ p{margin:0}
 .btn-sm{padding:9px 14px;font-size:14px;min-height:44px}
 @media (min-width:860px){.nav-links{display:flex}}
 
+/* ---------- 여러 섹션이 같이 쓰는 애니메이션(기술 섹션 스피너, 데모의 장소 찾는 중 링) ---------- */
+@keyframes spin{to{transform:rotate(360deg)}}
+
 /* ---------- 스토어 배지 ---------- */
 .badges{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:26px}
 .badges a{display:inline-flex;border-radius:8px;transition:transform .15s ease}

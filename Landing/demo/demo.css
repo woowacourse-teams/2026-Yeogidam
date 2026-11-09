@@ -112,7 +112,6 @@
 .ring.add .ring-pic{background:#fff;color:#4A4FC9}
 .ring.add .ring-pic::before{border:1.5px dashed #C9C6DC}
 .ring.add svg{width:26px;height:26px}
-@keyframes spin{to{transform:rotate(360deg)}}
 .lib-bar{display:flex;align-items:center;justify-content:space-between;margin:18px 20px 14px}
 .lib-toggle{display:flex;gap:2px;background:#eef0fb;border-radius:16px;padding:3px}
 .lib-toggle button{border:0;background:none;border-radius:13px;padding:6px 18px;font-size:14px;font-weight:500;color:#8e8e93}
