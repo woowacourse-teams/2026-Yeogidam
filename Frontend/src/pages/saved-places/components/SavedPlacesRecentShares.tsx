@@ -262,22 +262,24 @@ export function SavedPlacesRecentShares({
     <View style={styles.section}>
       <View style={styles.header}>
         {/*
-          스크린 리더에서 제목 단위로 건너뛰어 바로 올 수 있게 제목으로 표시하고,
+          스크린 리더에서 머리말 단위로 건너뛰어 바로 올 수 있게 머리말로 표시하고,
           가로 목록 끝의 '링크 추가'까지 가지 않아도 위아래로 쓸어 바로 실행할 수 있게 동작을 붙입니다.
+          iOS에서 Text에 붙인 동작은 VoiceOver에 전달되지 않아 View로 감쌉니다.
         */}
-        <Text
+        <View
+          accessible
           accessibilityActions={[
             {name: 'addLink', label: '링크 추가'},
             {name: 'viewAll', label: '전체보기'},
           ]}
+          accessibilityLabel="최근 공유"
           accessibilityRole="header"
           onAccessibilityAction={event => {
             if (event.nativeEvent.actionName === 'addLink') onPressAdd();
             if (event.nativeEvent.actionName === 'viewAll') onPressViewAll();
-          }}
-          style={styles.title}>
-          최근 공유
-        </Text>
+          }}>
+          <Text style={styles.title}>최근 공유</Text>
+        </View>
         <Pressable
           accessibilityLabel="최근 공유 전체보기"
           accessibilityRole="button"

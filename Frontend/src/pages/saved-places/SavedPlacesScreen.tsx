@@ -65,6 +65,10 @@ import {
 } from './components/SavedPlacesEmptyResult';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
+import {
+  useScreenReaderEnabled,
+  visuallyHiddenTextStyle,
+} from '../../lib/accessibility';
 import { SavedPlacesRecentShares } from './components/SavedPlacesRecentShares';
 import {
   type SavedLibraryView,
@@ -246,6 +250,7 @@ export function SavedPlacesScreen({
   const scrollViewRef = useRef<ScrollView>(null);
   // 토글·카테고리 칩 바를 고정하기 위한 스크롤 위치와 바의 원래 y 위치입니다.
   const scrollY = useRef(new Animated.Value(0)).current;
+  const screenReaderEnabled = useScreenReaderEnabled();
   const [libraryBarLayout, setLibraryBarLayout] = useState<{
     top: number;
     height: number;
@@ -1659,7 +1664,7 @@ export function SavedPlacesScreen({
   const libraryBar = (
     <View style={styles.libraryBar}>
       {/* 화면에는 보이지 않는 스크린 리더용 제목입니다. 제목 단위 이동으로 '최근 공유'에서 바로 이곳으로 옵니다. */}
-      <Text accessibilityRole="header" style={styles.visuallyHidden}>
+      <Text accessibilityRole="header" style={visuallyHiddenTextStyle}>
         보관함 목록
       </Text>
       <SavedPlacesViewToggle
@@ -1835,7 +1840,13 @@ export function SavedPlacesScreen({
                 })
               }
               pointerEvents={libraryBarLayout !== null ? 'none' : 'auto'}
-              style={libraryBarLayout !== null && styles.libraryBarPlaceholder}
+              // 평소에는 위에 겹친 바와 겹쳐 보이지 않도록 투명하게 둡니다. VoiceOver는 투명도 0인 요소를 건너뛰므로
+              // 스크린 리더가 켜져 있으면 보이게 둡니다(겹친 바와 헤더가 같은 자리를 덮어 화면은 거의 같아요).
+              style={
+                libraryBarLayout !== null &&
+                !screenReaderEnabled &&
+                styles.libraryBarPlaceholder
+              }
             >
               {libraryBar}
             </View>
@@ -2139,13 +2150,6 @@ const styles = StyleSheet.create({
   },
   libraryBarPlaceholder: {
     opacity: 0,
-  },
-  visuallyHidden: {
-    position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
-    overflow: 'hidden',
   },
   // 칩 목록의 기본 좌우 여백(24)을 시안의 20에 맞춥니다.
   categoryChips: {

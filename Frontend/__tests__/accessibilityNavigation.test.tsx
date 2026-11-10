@@ -1,12 +1,18 @@
 import React from 'react';
+import {StyleSheet, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
+import {BottomNavigationBar} from '../src/components/BottomNavigationBar';
 import {CategoryFilterChips} from '../src/components/CategoryFilterChips';
 import {PlaceTabs} from '../src/pages/place-detail/components/PlaceTabs';
 import {SavedPlacesRecentShares} from '../src/pages/saved-places/components/SavedPlacesRecentShares';
 import {SavedPlacesViewToggle} from '../src/pages/saved-places/components/SavedPlacesViewToggle';
 import type {HistoryReel} from '../src/entities/content/types';
 
+jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({top: 47, right: 0, bottom: 34, left: 0}),
+}));
 jest.mock('../src/entities/content/history-api', () => ({
   getHistoryReelPlaceCount: jest.fn(() => Promise.resolve(2)),
 }));
@@ -87,6 +93,9 @@ describe('최근 공유', () => {
     );
 
     const title = renderer.root.findByProps({accessibilityRole: 'header'});
+    // iOS에서 Text에 붙인 동작은 VoiceOver에 전달되지 않으므로 View에 붙여야 한다.
+    expect(title.type).not.toBe(Text);
+    expect(title.props.accessibilityLabel).toBe('최근 공유');
     expect(title.props.accessibilityActions).toEqual([
       {name: 'addLink', label: '링크 추가'},
       {name: 'viewAll', label: '전체보기'},
@@ -112,22 +121,47 @@ describe('탭', () => {
       />,
     );
 
-    const tabs = renderer.root.findAllByProps({accessibilityRole: 'tab'});
-    tabs[tabs.length - 1].props.onAccessibilityTap();
+    const postsTab = renderer.root.findByProps({accessibilityLabel: '게시물 탭'});
+    expect(postsTab.props.accessibilityValue).toEqual({text: '선택됨'});
+    const placesTab = renderer.root.findByProps({accessibilityLabel: '장소 탭'});
+    expect(placesTab.props.accessibilityValue).toBeUndefined();
+    placesTab.props.onAccessibilityTap();
     expect(onChangeView).toHaveBeenCalledWith('places');
     renderer.root.findByProps({accessibilityLabel: '보관함 편집'}).props.onAccessibilityTap();
     expect(onPressEdit).toHaveBeenCalledTimes(1);
   });
 
-  test('장소 상세 탭은 tablist로 묶이고 두 번 탭을 바로 처리한다', async () => {
+  test('장소 상세 탭은 "게시물 탭, 선택됨" 순서로 읽고 두 번 탭을 바로 처리한다', async () => {
     const onTabPress = jest.fn();
     const renderer = await render(
       <PlaceTabs activeTab="게시물" onTabPress={onTabPress} />,
     );
 
     expect(renderer.root.findAllByProps({accessibilityRole: 'tablist'}).length).toBeGreaterThan(0);
-    const tabs = renderer.root.findAllByProps({accessibilityRole: 'tab'});
-    tabs[tabs.length - 1].props.onAccessibilityTap();
+    expect(
+      renderer.root.findByProps({accessibilityLabel: '게시물 탭'}).props.accessibilityValue,
+    ).toEqual({text: '선택됨'});
+    const blogTab = renderer.root.findByProps({accessibilityLabel: '블로그 탭'});
+    expect(blogTab.props.accessibilityValue).toBeUndefined();
+    blogTab.props.onAccessibilityTap();
     expect(onTabPress).toHaveBeenCalledWith('블로그');
+  });
+});
+
+describe('머리말 이동', () => {
+  test('하단 메뉴 앞에 스크린 리더용 머리말이 있다', async () => {
+    const renderer = await render(
+      <BottomNavigationBar active="saved" isGuest onNavigate={jest.fn()} />,
+    );
+
+    const headers = renderer.root.findAll(
+      node => node.props.accessibilityRole === 'header' && node.props.children === '하단 메뉴',
+    );
+    expect(headers.length).toBeGreaterThan(0);
+    // VoiceOver는 투명도 0인 요소를 건너뛰므로(기기에서 확인) opacity로 숨기면 안 된다.
+    const style = StyleSheet.flatten(headers[0].props.style);
+    expect(style.opacity).not.toBe(0);
+    expect(style.color).toBe('transparent');
+    await ReactTestRenderer.act(async () => renderer.unmount());
   });
 });
