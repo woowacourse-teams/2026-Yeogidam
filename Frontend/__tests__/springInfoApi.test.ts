@@ -4,6 +4,7 @@ import {
   getPlaceReels,
 } from '../src/entities/info/api';
 import {
+  springPlaceDetailRepository,
   springPlaceReelsRepository,
   springProfileRepository,
   springSavedPlacesRepository,
@@ -47,6 +48,43 @@ test('장소 조회 함수가 장소 ID를 그대로 전달한다', async () => 
   request.mockResolvedValueOnce({media: []});
   await expect(getPlaceReels('42')).resolves.toEqual([]);
   expect(request).toHaveBeenCalledWith('/api/v1/places/42/media');
+});
+
+test('장소 영업시간과 메뉴를 장소 ID로 조회한다', async () => {
+  const info = {
+    openingHours: [
+      {dayOfWeek: 'MONDAY', periods: [{opensAt: '18:00', closesAt: '02:00'}]},
+      {dayOfWeek: 'SUNDAY', periods: []},
+    ],
+    menus: [{name: '오늘의 디저트', price: null}],
+  };
+  request.mockResolvedValueOnce(info);
+
+  await expect(springPlaceDetailRepository.getPlaceInfo('42')).resolves.toEqual(info);
+  expect(request).toHaveBeenCalledWith('/api/v1/places/42/info');
+});
+
+test('영업시간 정보가 없는 장소는 null을 그대로 돌려준다', async () => {
+  request.mockResolvedValueOnce({openingHours: null, menus: []});
+
+  await expect(springPlaceDetailRepository.getPlaceInfo('42')).resolves.toEqual({
+    openingHours: null,
+    menus: [],
+  });
+});
+
+test('장소 블로그 글을 검색 결과 순서대로 돌려준다', async () => {
+  const items = [
+    {title: '첫 글', bloggerName: null, postDate: null, link: 'https://blog.naver.com/a/1'},
+    {title: '둘째 글', bloggerName: '산책', postDate: '2026-11-02', link: 'https://blog.naver.com/b/2'},
+  ];
+  request.mockResolvedValueOnce({source: 'NAVER', items});
+
+  await expect(springPlaceDetailRepository.getPlaceBlogs('42')).resolves.toEqual({
+    source: 'NAVER',
+    posts: items,
+  });
+  expect(request).toHaveBeenCalledWith('/api/v1/places/42/blogs');
 });
 
 test('저장 장소 검색은 검색어를 쿼리로 보내고 목록과 같은 모델로 변환한다', async () => {

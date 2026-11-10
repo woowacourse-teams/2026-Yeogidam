@@ -17,6 +17,11 @@ import {
 export const UI_EVENTS = {
   /** 화면이 열렸습니다. `screen_name` */
   screenViewed: 'screen_viewed',
+  /**
+   * 화면을 떠났습니다. 체류 시간 측정용입니다. 앱이 백그라운드에 있던 시간은 빠집니다.
+   * `screen_name`, `duration_ms`, `exit_reason`(navigate | background)
+   */
+  screenLeft: 'screen_left',
   /** 버튼·링크·아이콘을 눌렀습니다. `screen_name`, `button_name` */
   buttonPressed: 'button_pressed',
   /** 탭·필터·토글 같은 선택이 바뀌었습니다. `screen_name`, `selection_name`, `value` */
@@ -27,6 +32,11 @@ export const UI_EVENTS = {
   stepViewed: 'step_viewed',
   /** 당겨서 새로고침했습니다. `screen_name` */
   listRefreshed: 'list_refreshed',
+  /**
+   * 버튼이 아닌 손동작(시트 끌기, 하드웨어 뒤로가기, 끝까지 스크롤해 더 불러오기 등)을 했습니다.
+   * `screen_name`, `gesture_name`
+   */
+  gesturePerformed: 'gesture_performed',
   /** 지도 검색을 제출했습니다. `has_result`, `result_count`, `query_length` */
   mapSearchSubmitted: 'map_search_submitted',
   /** 로그아웃·회원탈퇴·프로필 수정 같은 기능의 결과입니다. `action_name`, `outcome` */
@@ -61,6 +71,21 @@ export function trackScreenViewed(
   });
 }
 
+export type ScreenExitReason = 'navigate' | 'background';
+
+export function trackScreenLeft(
+  client: AnalyticsClient | null | undefined,
+  screenName: string,
+  durationMs: number,
+  exitReason: ScreenExitReason,
+) {
+  trackUi(client, UI_EVENTS.screenLeft, {
+    screen_name: screenName,
+    duration_ms: Math.max(0, Math.round(durationMs)),
+    exit_reason: exitReason,
+  });
+}
+
 export function trackButtonPressed(
   client: AnalyticsClient | null | undefined,
   screenName: string,
@@ -85,6 +110,19 @@ export function trackSelectionChanged(
     screen_name: screenName,
     selection_name: selectionName,
     value,
+    ...properties,
+  });
+}
+
+export function trackGesturePerformed(
+  client: AnalyticsClient | null | undefined,
+  screenName: string,
+  gestureName: string,
+  properties: AnalyticsProperties = {},
+) {
+  trackUi(client, UI_EVENTS.gesturePerformed, {
+    screen_name: screenName,
+    gesture_name: gestureName,
     ...properties,
   });
 }
@@ -142,11 +180,16 @@ export function useScreenAnalytics(screenNameOverride?: string) {
       trackUi(posthog, UI_EVENTS.listRefreshed, {screen_name: screenName}),
     [posthog, screenName],
   );
+  const gesture = useCallback(
+    (gestureName: string, properties?: AnalyticsProperties) =>
+      trackGesturePerformed(posthog, screenName, gestureName, properties),
+    [posthog, screenName],
+  );
 
   // 화면들이 이 객체를 훅 의존성으로 쓰므로, 렌더마다 새로 만들면 effect가 매번 다시 실행된다.
   return useMemo(
-    () => ({button, selection, modal, refreshed}),
-    [button, selection, modal, refreshed],
+    () => ({button, selection, modal, refreshed, gesture}),
+    [button, selection, modal, refreshed, gesture],
   );
 }
 

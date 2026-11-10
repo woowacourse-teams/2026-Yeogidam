@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-const tabs = ['게시물', '정보'] as const;
+const tabs = ['게시물', '정보', '블로그'] as const;
 
 export type PlaceTab = (typeof tabs)[number];
 
@@ -52,12 +52,12 @@ export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
           style={[
             styles.activeIndicator,
             {
-              width: tabWidth - 44,
+              width: tabWidth,
               transform: [
                 {
                   translateX: indicatorPosition.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [22, tabWidth + 22],
+                    inputRange: tabs.map((_, index) => index),
+                    outputRange: tabs.map((_, index) => index * tabWidth),
                   }),
                 },
               ],
@@ -71,13 +71,13 @@ export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
 
 const styles = StyleSheet.create({
   container: {
-    height: 62,
+    height: 56,
     backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e5ea',
+    borderBottomColor: '#ececf0',
     zIndex: 1,
   },
   tabItem: {
@@ -86,23 +86,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    paddingTop: 2,
   },
   activeTab: {
     fontSize: 14,
-    fontWeight: '800',
+    lineHeight: 20,
+    fontWeight: '700',
     color: '#1a1a2e',
   },
   inactiveTab: {
     fontSize: 14,
+    lineHeight: 20,
     color: '#aeaeb2',
   },
   activeIndicator: {
     position: 'absolute',
     left: 0,
-    bottom: 0,
+    bottom: -1,
     height: 2,
-    borderRadius: 4,
     backgroundColor: '#1a1a2e',
   },
 });

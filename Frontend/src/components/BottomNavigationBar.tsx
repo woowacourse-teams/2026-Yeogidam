@@ -1,8 +1,10 @@
-import React, {useEffect} from 'react';
+import React, {useEffect, useRef} from 'react';
 import {usePostHog} from 'posthog-react-native';
 
 import {trackButtonPressed} from '../analytics/uiEvents';
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -15,16 +17,22 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { subscribeRecentShares } from '../entities/content/recent-shares-poller';
+import { getHistoryReelPlaceCount } from '../entities/content/history-api';
+import { reportExtractionResults } from '../analytics/extractionCompletion';
+import { getSpringMemberId } from '../lib/auth/spring-session';
 
 import type { MainScreen } from '../types/navigation';
 
 // 보관함의 최근 공유 행이 읽는 공유 목록(앱 공용 폴러)을 로그인 상태에서 계속 갱신해 둡니다.
 const RECENT_SHARES_INTERVAL_MS = 5000;
+const HIDE_ANIMATION_DURATION_MS = 220;
 
 type BottomNavigationBarProps = {
   active: MainScreen;
   isGuest: boolean;
   onNavigate: (screen: MainScreen) => void;
+  /** true면 아래로 내려가며 숨습니다. 위 화면의 전환과 끊겨 보이지 않도록 마운트는 유지합니다. */
+  hidden?: boolean;
 };
 
 export const BOTTOM_NAVIGATION_BAR_HEIGHT = 64;
@@ -94,9 +102,20 @@ export function BottomNavigationBar({
   active,
   isGuest,
   onNavigate,
+  hidden = false,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
   const posthog = usePostHog();
+  const hideProgress = useRef(new Animated.Value(hidden ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(hideProgress, {
+      toValue: hidden ? 1 : 0,
+      duration: HIDE_ANIMATION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [hidden, hideProgress]);
 
   useEffect(() => {
     if (isGuest) {
@@ -106,19 +125,41 @@ export function BottomNavigationBar({
     // 화면(보관함 최근 공유 등)이 받아 씁니다. 포그라운드 복귀 시 다시 읽는 것도 폴러가 맡습니다.
     const subscription = subscribeRecentShares({
       intervalMs: RECENT_SHARES_INTERVAL_MS,
-      onResult: () => undefined,
+      // 회원이면 항상 떠 있는 탭 바가 공유 목록을 받는 곳이라, 여기서 추출이 끝난 공유를 기록합니다.
+      onResult: snapshot => {
+        getSpringMemberId()
+          .then(memberId =>
+            reportExtractionResults(snapshot.reels, {
+              client: posthog,
+              memberId,
+              getPlaceCount: getHistoryReelPlaceCount,
+            }),
+          )
+          .catch(() => undefined);
+      },
     });
     // 조회가 실패해도 탭 이동은 그대로 쓸 수 있어야 합니다.
     subscription.refresh().catch(() => undefined);
     return () => subscription.unsubscribe();
-  }, [isGuest]);
+  }, [isGuest, posthog]);
 
   return (
-    <View
+    <Animated.View
+      accessibilityElementsHidden={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      pointerEvents={hidden ? 'none' : 'auto'}
       style={[
         styles.navigationBar,
         {
           paddingBottom: bottom,
+          transform: [
+            {
+              translateY: hideProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, BOTTOM_NAVIGATION_BAR_HEIGHT + bottom],
+              }),
+            },
+          ],
         },
       ]}
     >
@@ -189,7 +230,7 @@ export function BottomNavigationBar({
           </Pressable>
         ))}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

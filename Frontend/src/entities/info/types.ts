@@ -135,6 +135,56 @@ export type PlaceReelsRepository = {
   getPlaceReels: (placeId: string) => Promise<PlaceReel[]>;
 };
 
+export type PlaceDayOfWeek =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY';
+
+/** 시각은 HH:mm입니다. `closesAt`이 `opensAt`보다 이르면 다음 날 닫고, `closesAt`에만 24:00이 올 수 있습니다. */
+export type PlaceOpeningPeriod = {
+  opensAt: string;
+  closesAt: string;
+};
+
+/** `periods`가 빈 배열이면 확인된 휴무일입니다. 목록에 없는 요일은 정보가 없는 요일입니다. */
+export type PlaceOpeningDay = {
+  dayOfWeek: PlaceDayOfWeek;
+  periods: PlaceOpeningPeriod[];
+};
+
+export type PlaceMenu = {
+  name: string;
+  price: number | null;
+};
+
+export type PlaceDetailInfo = {
+  /** 영업시간 정보가 없으면 null입니다. */
+  openingHours: PlaceOpeningDay[] | null;
+  menus: PlaceMenu[];
+};
+
+export type PlaceBlogPost = {
+  title: string;
+  bloggerName: string | null;
+  /** yyyy-MM-dd */
+  postDate: string | null;
+  link: string;
+};
+
+export type PlaceBlogSearchResult = {
+  source: string;
+  posts: PlaceBlogPost[];
+};
+
+export type PlaceDetailRepository = {
+  getPlaceInfo: (placeId: string) => Promise<PlaceDetailInfo>;
+  getPlaceBlogs: (placeId: string) => Promise<PlaceBlogSearchResult>;
+};
+
 export type SavedPlaceInfo = {
   id: string;
   userId: string;

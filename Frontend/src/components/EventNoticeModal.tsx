@@ -11,6 +11,7 @@ import {
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { AppModal } from './AppModal';
+import { useScreenAnalytics } from '../analytics/uiEvents';
 import {
   hasDismissedEventNotice,
   rememberDismissedEventNotice,
@@ -28,6 +29,8 @@ type EventNoticeModalProps = {
   // 업데이트 안내처럼 먼저 보여야 하는 모달이 있으면 false로 미룬다.
   enabled: boolean;
   now?: () => Date;
+  // 이 안내가 떠 있거나 뜰지 아직 모르는 동안 true. 뒤에 띄울 모달을 미룰 때 쓴다.
+  onBlockingChange?: (blocking: boolean) => void;
 };
 
 const getCurrentDate = () => new Date();
@@ -127,11 +130,13 @@ function isWithinNoticePeriod(date: Date) {
 export function EventNoticeModal({
   enabled,
   now = getCurrentDate,
+  onBlockingChange,
 }: EventNoticeModalProps) {
   const [isDismissed, setIsDismissed] = useState<boolean | null>(null);
   const [isInPeriod, setIsInPeriod] = useState(() => isWithinNoticePeriod(now()));
   // 안드로이드 뒤로가기는 실수로 누를 수 있어 이번 실행에서만 숨기고 닫은 기록은 남기지 않는다.
   const [isHiddenForSession, setIsHiddenForSession] = useState(false);
+  const { button } = useScreenAnalytics('event_notice');
 
   useEffect(() => {
     let cancelled = false;
@@ -159,13 +164,27 @@ export function EventNoticeModal({
   }, []);
 
   const openLink = useCallback(() => {
+    button('open_link', { notice_id: OPEN_EVENT_WINNER_NOTICE.id });
     dismiss();
     Linking.openURL(OPEN_EVENT_WINNER_NOTICE.linkUrl).catch(error => {
       if (__DEV__) {
         console.warn('[EventNotice] Unable to open link.', error);
       }
     });
-  }, [dismiss]);
+  }, [button, dismiss]);
+
+  const pressDismiss = useCallback(() => {
+    button('dismiss', { notice_id: OPEN_EVENT_WINNER_NOTICE.id });
+    dismiss();
+  }, [button, dismiss]);
+
+  const visible =
+    enabled && isInPeriod && isDismissed === false && !isHiddenForSession;
+  const blocking = visible || (isInPeriod && isDismissed === null);
+
+  useEffect(() => {
+    onBlockingChange?.(blocking);
+  }, [blocking, onBlockingChange]);
 
   return (
     <AppModal
@@ -173,9 +192,7 @@ export function EventNoticeModal({
       onRequestClose={() => setIsHiddenForSession(true)}
       statusBarTranslucent
       transparent
-      visible={
-        enabled && isInPeriod && isDismissed === false && !isHiddenForSession
-      }
+      visible={visible}
     >
       <View style={styles.backdrop}>
         <Pressable accessible={false} onPress={dismiss} style={StyleSheet.absoluteFill} />
@@ -199,7 +216,7 @@ export function EventNoticeModal({
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            onPress={dismiss}
+            onPress={pressDismiss}
             style={styles.dismissButton}
             testID="event-notice-dismiss-button"
           >

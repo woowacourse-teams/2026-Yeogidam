@@ -18,8 +18,10 @@ import {setAnalyticsGuestMode} from './src/analytics/analytics';
 import {
   trackActionFinished,
   trackButtonPressed,
-  trackScreenViewed,
+  trackGesturePerformed,
 } from './src/analytics/uiEvents';
+import {useScreenTimeTracking} from './src/analytics/useScreenTimeTracking';
+import {setLoginPersonProperties} from './src/analytics/personProperties';
 import type {SavedPlaceViewContext} from './src/analytics/savedPlaceEvents';
 import { configureDataSources } from './src/app/configureDataSources';
 import {
@@ -32,6 +34,7 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { AppAlertHost } from './src/components/AppAlertHost';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
+import { PmfSurveyModal } from './src/components/PmfSurveyModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import type { PlaceReel, ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
@@ -183,6 +186,18 @@ function captureShareLoginHandoffError(errorCode: string) {
 type DetailLayer =
   | {kind: 'place'; place: Place}
   | {kind: 'reel'; reel: HistoryReel};
+
+const MAIN_TAB_KEYS: ReadonlySet<string> = new Set<MainScreen>([
+  'saved',
+  'map',
+  'my',
+  'history',
+]);
+
+// 탭 이동은 전환 없이 바꾸고, 그 위에 쌓이는 화면만 페이드로 열고 닫습니다.
+function isStackedScreenKey(key: string) {
+  return !MAIN_TAB_KEYS.has(key);
+}
 
 function getDetailLayerKey(layer: DetailLayer, index: number) {
   return layer.kind === 'place'
@@ -346,6 +361,8 @@ configureDataSources();
 
 function App() {
   const posthog = usePostHog();
+  // 하드웨어 뒤로가기 리스너가 화면 이름을 계산하기 전에 등록되므로 ref로 최신 값을 읽습니다.
+  const analyticsScreenNameRef = useRef('unknown');
 
   useEffect(() => {
     syncShareAnalyticsConfiguration().catch(() => undefined);
@@ -374,6 +391,10 @@ function App() {
     setAnalyticsGuestMode(isAuthenticated === null ? null : !isAuthenticated);
   }, [isAuthenticated]);
   const activeUserIdRef = useRef<string | null>(null);
+  // PMF 설문처럼 회원별로 보여 줄 UI가 다시 그려지도록 상태로도 둔다.
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  // 이벤트 안내가 먼저 뜨도록, 뜰지 확인되기 전까지는 막혀 있다고 본다.
+  const [isEventNoticeBlocking, setIsEventNoticeBlocking] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
@@ -489,6 +510,7 @@ function App() {
   }
   if (flowState.kind === 'main') visitedTabsRef.current.add(flowState.activeTab);
   const [isSavedPlacesEditing, setIsSavedPlacesEditing] = useState(false);
+  const [isMapPlaceDetailVisible, setIsMapPlaceDetailVisible] = useState(false);
   const [tabRefreshCount, setTabRefreshCount] = useState({saved: 0, map: 0});
   // const [isInBoxSelecting, setIsInBoxSelecting] = useState(false);
   const [linkedDeletionProviders, setLinkedDeletionProviders] = useState<
@@ -717,9 +739,7 @@ function App() {
       return;
     }
 
-    const subscription = BackHandler.addEventListener(
-      'hardwareBackPress',
-      () => {
+    const handleHardwareBack = (): boolean => {
         if (isOnboardingVisible) {
           setOnboardingBackRequest(current => current + 1);
           return true;
@@ -764,11 +784,25 @@ function App() {
         }
 
         return goBackMainTab();
+    };
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        const handled = handleHardwareBack();
+        // handled가 false면 앱이 백그라운드로 나갑니다.
+        trackGesturePerformed(
+          posthog,
+          analyticsScreenNameRef.current,
+          'hardware_back',
+          { handled },
+        );
+        return handled;
       },
     );
 
     return () => subscription.remove();
-  }, [closeDetail, detailLayers.length, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, popDetailLayer, reelDetail]);
+  }, [closeDetail, detailLayers.length, flowState, goBackMainTab, isOnboardingVisible, myPageOverlay, popDetailLayer, posthog, reelDetail]);
 
   useEffect(() => {
     let isMounted = true;
@@ -785,6 +819,7 @@ function App() {
       }
       if (!tokens) {
         activeUserIdRef.current = null;
+        setActiveUserId(null);
         clearRecentShares();
         setIsAuthenticated(false);
         if (!hasTrackedAppOpenedRef.current) {
@@ -804,6 +839,7 @@ function App() {
 
       if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
+      setActiveUserId(memberId);
       setIsAuthenticated(true);
       // 공유 익스텐션에 세션이 비어 있을 수 있어 먼저 채운 뒤 대기 중인 공유를 재개합니다.
       syncStoredSessionToShare()
@@ -858,6 +894,7 @@ function App() {
       if (event === 'SIGNED_OUT') {
         loginEntryRef.current = null;
         activeUserIdRef.current = null;
+        setActiveUserId(null);
         clearRecentShares();
         setIsAuthenticated(false);
         setFlowState(INITIAL_FLOW_STATE);
@@ -872,6 +909,7 @@ function App() {
       setSocialLoginError(null);
       if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
+      setActiveUserId(memberId);
       setIsAuthenticated(true);
       setIsOnboardingVisible(false);
       setSelectedPlace(null);
@@ -1212,11 +1250,17 @@ function App() {
       setSocialLoginError(null);
       setPendingSocialProvider(provider);
       signInStarted = true;
-      await signIn();
+      const loginResponse = await signIn();
       trackLoginFinished(posthog, {
         provider,
         outcome: 'success',
         entry: loginEntry,
+        isNewMember: loginResponse?.isNewMember,
+      });
+      // SIGNED_IN 알림에서 회원으로 식별된 뒤라 회원 프로필에 붙습니다.
+      setLoginPersonProperties(posthog, {
+        provider,
+        isNewMember: loginResponse?.isNewMember,
       });
       loginEntryRef.current = null;
     } catch (error) {
@@ -1418,6 +1462,7 @@ function App() {
     setProfileError(null);
     setMyPageOverlay(null);
     activeUserIdRef.current = null;
+    setActiveUserId(null);
         clearRecentShares();
     setIsAuthenticated(false);
     setFlowState(INITIAL_FLOW_STATE);
@@ -1563,6 +1608,7 @@ function App() {
         <MapScreen
           onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onBackGestureRegionChange={reportMapBackGestureRegion}
+          onPlaceDetailVisibleChange={setIsMapPlaceDetailVisible}
           key={
             isAuthenticated === false
               ? `guest-map-${tabRefreshCount.map}`
@@ -1580,15 +1626,6 @@ function App() {
     if (screen === 'detail' && selectedPlace) {
       return (
         <PlaceDetailScreen
-          bottomNavigationBar={
-            flowState.kind === 'main' && flowState.detailSource !== null ? (
-              <BottomNavigationBar
-                active={flowState.activeTab}
-                isGuest={isAuthenticated === false}
-                onNavigate={navigateMainTab}
-              />
-            ) : undefined
-          }
           onBack={closeDetail}
           onOpenReel={isAuthenticated === false ? undefined : openReelFromPlace}
           onAuthenticationRequired={requestLogin}
@@ -1683,11 +1720,21 @@ function App() {
     />
   );
 
+  // 화면 위에 겹쳐 뜨는 상세(장소·릴 레이어, 릴 상세, 히스토리 상세)도 하나의 화면으로 셉니다.
+  // 그래야 체류 시간이 밑에 깔린 탭으로 잘못 잡히지 않습니다. 장소 상세는 기존 이름인 'detail'을 씁니다.
+  const topDetailLayer =
+    flowState.kind === 'main' && topDetailLayerIndex >= 0
+      ? detailLayers[topDetailLayerIndex]
+      : null;
   const analyticsScreenName =
     !isAuthReady || isSplashVisible
       ? 'splash'
       : isOnboardingVisible
       ? 'onboarding'
+      : topDetailLayer
+      ? topDetailLayer.kind === 'reel' ? 'reel_detail' : 'detail'
+      : flowState.kind === 'main' && reelDetail !== null
+      ? 'reel_detail'
       : myPageOverlay === 'accountDeletion'
       ? 'account_deletion'
       : myPageOverlay === 'guide'
@@ -1696,10 +1743,15 @@ function App() {
       ? 'terms'
       : currentScreen === 'emailLogin'
       ? 'email_login'
+      : currentScreen === 'history' && nestedBackStates.history
+      ? 'history_detail'
       : currentScreen;
-  useEffect(() => {
-    trackScreenViewed(posthog, analyticsScreenName);
-  }, [posthog, analyticsScreenName]);
+  analyticsScreenNameRef.current = analyticsScreenName;
+  useScreenTimeTracking(
+    posthog,
+    analyticsScreenName,
+    `${analyticsScreenName}:${activeLayerKey}`,
+  );
 
   const handleSwipeBack = () => {
     trackButtonPressed(posthog, analyticsScreenName, 'swipe_back');
@@ -1728,7 +1780,12 @@ function App() {
           <View style={styles.container}>
             {renderScreen(tab)}
             {tab !== 'history' && !(tab === 'saved' && isSavedPlacesEditing) ? (
-              <BottomNavigationBar active={tab} isGuest={isAuthenticated === false} onNavigate={navigateMainTab} />
+              <BottomNavigationBar
+                active={tab}
+                hidden={tab === 'map' && isMapPlaceDetailVisible}
+                isGuest={isAuthenticated === false}
+                onNavigate={navigateMainTab}
+              />
             ) : null}
           </View>, tab === 'map',
         ),
@@ -1844,6 +1901,7 @@ function App() {
         key={`${flowState.kind}-${isAuthenticated}`}
         screens={screenLayers}
         activeKey={activeLayerKey}
+        animateRoute={isStackedScreenKey}
         gestureRegion={
           topDetailLayerIndex >= 0
             ? detailLayers[topDetailLayerIndex].kind === 'reel'
@@ -1896,6 +1954,18 @@ function App() {
           recommendedUpdate === null &&
           !(isGuestLoginPromptVisible && isGuestBrowsing)
         }
+        onBlockingChange={setIsEventNoticeBlocking}
+      />
+      {/* 업데이트·이벤트 안내가 모두 닫힌 뒤, 로그인한 회원에게만 묻는다. */}
+      <PmfSurveyModal
+        enabled={
+          flowState.kind === 'main' &&
+          isAuthenticated === true &&
+          requiredUpdateStoreUrl === null &&
+          recommendedUpdate === null &&
+          !isEventNoticeBlocking
+        }
+        memberId={activeUserId}
       />
       <GuestLoginPrompt
         visible={isGuestLoginPromptVisible && isGuestBrowsing}

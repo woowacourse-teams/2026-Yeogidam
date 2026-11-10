@@ -8,6 +8,7 @@ import {deleteSavedPlaces} from '../src/entities/info/api';
 import {showAlert} from '../src/lib/app-alert';
 import type {HistoryReel} from '../src/entities/content/types';
 import {
+  getCollapsedCaptionPreview,
   getReelBackGestureRegion,
   ReelDetailScreen,
   shouldCaptureSheetDrag,
@@ -138,6 +139,52 @@ test('캡션 앞의 군더더기와 끝의 따옴표를 걷어내고 보여 준�
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
+describe('접힌 캡션 말줄임', () => {
+  const line = (text: string, width: number) => ({text, width});
+
+  test('두 줄 안에 들어가면 말줄임을 붙이지 않는다', () => {
+    expect(
+      getCollapsedCaptionPreview([line('첫 줄', 100), line('둘째 줄', 100)], 335),
+    ).toBeNull();
+  });
+
+  test('둘째 줄이 꽉 차면 말줄임이 들어갈 만큼 뒤를 잘라낸다', () => {
+    expect(
+      getCollapsedCaptionPreview(
+        [line('첫 줄 ', 330), line('12345678901234567890', 330), line('셋째 줄', 50)],
+        335,
+      ),
+    ).toBe('첫 줄 123456789012345678');
+  });
+
+  test('둘째 줄에 여유가 있으면 자르지 않고 줄 끝 공백만 정리한다', () => {
+    expect(
+      getCollapsedCaptionPreview(
+        [line('첫 줄\n', 60), line('둘째 줄\n', 70), line('셋째 줄', 50)],
+        335,
+      ),
+    ).toBe('첫 줄\n둘째 줄');
+  });
+
+  test('둘째 줄이 비어 있으면 말줄임을 첫 줄 끝에 바로 잇는다', () => {
+    expect(
+      getCollapsedCaptionPreview(
+        [line('샌드위치 맛집 모음 10 🥪\n', 200), line('\n', 0), line('셋째 줄', 50)],
+        335,
+      ),
+    ).toBe('샌드위치 맛집 모음 10 🥪');
+  });
+
+  test('자를 때 이모지를 반쪽으로 끊지 않는다', () => {
+    const preview = getCollapsedCaptionPreview(
+      [line('첫 줄 ', 330), line('가나다라마바사아자🥪', 334), line('셋째 줄', 50)],
+      335,
+    );
+
+    expect(preview).toBe('첫 줄 가나다라마바사아자');
+  });
+});
+
 test('접힌 캡션을 누르면 펼치고 접기로 닫는다', async () => {
   const {renderer} = await render();
   expect(texts(renderer)).not.toContain('접기');
@@ -150,6 +197,11 @@ test('접힌 캡션을 누르면 펼치고 접기로 닫는다', async () => {
 
   await ReactTestRenderer.act(async () =>
     renderer.root.findByProps({accessibilityLabel: '캡션 접기'}).props.onPress(),
+  );
+  // 페이드가 끝날 때까지 펼친 캡션을 유지한다.
+  expect(texts(renderer)).toContain('접기');
+  await ReactTestRenderer.act(
+    () => new Promise<void>(resolve => setTimeout(resolve, 300)),
   );
   expect(texts(renderer)).not.toContain('접기');
   await ReactTestRenderer.act(async () => renderer.unmount());
@@ -201,20 +253,15 @@ test('상단 원본 버튼은 확인 전에는 이동하지 않고 열기를 누
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
-test('이미지 영역도 확인 후 원본 게시물로 넘어가고 재생 버튼은 없다', async () => {
+test('이미지 영역에는 원본 이동 터치가 없고 재생 버튼도 없다', async () => {
   const {renderer} = await render();
 
   expect(
     renderer.root.findAllByProps({name: 'play-arrow'}),
   ).toHaveLength(0);
-
-  await ReactTestRenderer.act(async () =>
-    renderer.root.findByProps({accessibilityLabel: '원본 게시물 열기'}).props.onPress(),
-  );
-  expect(Linking.openURL).not.toHaveBeenCalled();
-  const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
-  await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
-  expect(Linking.openURL).toHaveBeenCalledWith(reel.instagram_url);
+  expect(
+    renderer.root.findAllByProps({accessibilityLabel: '원본 게시물 열기'}),
+  ).toHaveLength(0);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -316,10 +363,12 @@ test('장소 북마크 버튼은 savedPlaceId로 표시하고 활성화와 해�
     renderer.root.findByProps({accessibilityLabel: '카페 온월 북마크하기'}).props.onPress();
   });
   expect(saveMediaPlace).toHaveBeenCalledWith('8', '1');
+  expect(texts(renderer)).toContain('보관함과 지도에서 표시했어요');
   await ReactTestRenderer.act(async () => {
     renderer.root.findByProps({accessibilityLabel: '카페 온월 북마크 해제'}).props.onPress();
   });
   expect(deleteSavedPlaces).toHaveBeenCalledWith(['99']);
+  expect(texts(renderer)).toContain('보관함과 지도에서 뺐어요');
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

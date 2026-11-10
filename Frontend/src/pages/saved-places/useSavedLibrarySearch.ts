@@ -138,9 +138,13 @@ export function useSavedLibrarySearch({
     [searchPlaces, searchReels],
   );
 
+  /** 다음 페이지 요청을 실제로 보냈으면 true를 돌려줍니다. 분석 기록을 중복 없이 남길 때 씁니다. */
   const loadMoreReels = useCallback(() => {
-    if (query === null || !reelCursor || isLoadingMoreReelsRef.current) return;
+    if (query === null || !reelCursor || isLoadingMoreReelsRef.current) {
+      return false;
+    }
     searchReels(query, requestIdRef.current, reelCursor).catch(() => undefined);
+    return true;
   }, [query, reelCursor, searchReels]);
 
   const retryPlaces = useCallback(() => {

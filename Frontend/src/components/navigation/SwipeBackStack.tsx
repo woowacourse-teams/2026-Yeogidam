@@ -15,6 +15,7 @@ import {
 import { isAnyModalOpen } from '../modalPresence';
 
 const BACK_EDGE_WIDTH = 40;
+const ROUTE_TRANSITION_DURATION_MS = 200;
 
 export type BackGestureRegion = { top: number; bottom: number };
 
@@ -25,6 +26,7 @@ type ScreenMotion = {
   clipTranslation: Animated.Value;
   radius: Animated.Value;
   shade: Animated.Value;
+  routeOpacity: Animated.Value;
 };
 
 function createScreenMotion(): ScreenMotion {
@@ -33,6 +35,7 @@ function createScreenMotion(): ScreenMotion {
     clipTranslation: new Animated.Value(0),
     radius: new Animated.Value(0),
     shade: new Animated.Value(0),
+    routeOpacity: new Animated.Value(1),
   };
 }
 
@@ -51,6 +54,7 @@ export function SwipeBackStack({
   onSwipeStart,
   gestureRegion,
   transparent = false,
+  animateRoute,
 }: {
   screens: BackScreen[];
   activeKey: string;
@@ -64,6 +68,8 @@ export function SwipeBackStack({
   gestureRegion?: BackGestureRegion;
   /** Allow a shared native map behind the navigated sheets to receive touches. */
   transparent?: boolean;
+  /** true를 돌려주는 화면은 버튼으로 열고 닫을 때 페이드로 전환됩니다. */
+  animateRoute?: (key: string) => boolean;
 }) {
   const { width } = useWindowDimensions();
   const containerRef = useRef<View>(null);
@@ -76,14 +82,46 @@ export function SwipeBackStack({
   };
   const motions = useRef(new Map<string, ScreenMotion>()).current;
   const presentKeys = new Set(screens.map(screen => screen.key));
+  const previousActiveKey = useRef(activeKey);
+  const renderedScreens = useRef(new Map<string, BackScreen>());
+  const pushingKey = useRef<string | null>(null);
+  // 닫히는 화면은 목록에서 빠져도 애니메이션이 끝날 때까지 마운트를 유지합니다.
+  const exitingScreen = useRef<BackScreen | null>(null);
+  const isExitAnimating = useRef(false);
+  const backSwipeCommitted = useRef(false);
+  const [, refreshExitingScreen] = useState(0);
+  const previousKey = previousActiveKey.current;
+  if (animateRoute && previousKey !== activeKey && !backSwipeCommitted.current) {
+    const closedScreen = renderedScreens.current.get(previousKey);
+    if (closedScreen && !presentKeys.has(previousKey) && animateRoute(previousKey)) {
+      exitingScreen.current = closedScreen;
+    } else if (
+      animateRoute(activeKey) &&
+      !motions.has(activeKey) &&
+      backKey === previousKey &&
+      presentKeys.has(previousKey)
+    ) {
+      pushingKey.current = activeKey;
+    }
+  }
+  // 같은 화면을 다시 열면 키가 겹치므로 닫히던 화면은 바로 정리합니다.
+  if (exitingScreen.current && presentKeys.has(exitingScreen.current.key)) {
+    exitingScreen.current = null;
+    isExitAnimating.current = false;
+  }
+  const retainedExitKey = exitingScreen.current?.key;
   for (const key of motions.keys()) {
     // A popped detail is unmounted. Never give its old native animation nodes
     // to the next detail with the same route key: asynchronous native detach
     // callbacks can write the old offscreen value back after it was reset.
-    if (!presentKeys.has(key)) motions.delete(key);
+    if (!presentKeys.has(key) && key !== retainedExitKey) motions.delete(key);
   }
   for (const screen of screens) {
-    if (!motions.has(screen.key)) motions.set(screen.key, createScreenMotion());
+    if (!motions.has(screen.key)) {
+      const motion = createScreenMotion();
+      if (pushingKey.current === screen.key) motion.routeOpacity.setValue(0);
+      motions.set(screen.key, motion);
+    }
   }
   const busy = useRef(false);
   const [dragging, setDragging] = useState(false);
@@ -114,12 +152,25 @@ export function SwipeBackStack({
   } | null>(null);
   const mounted = useRef(true);
 
+  // 닫힐 때 직전 내용으로 남도록 커밋마다 마지막 화면을 기억합니다.
+  useLayoutEffect(() => {
+    renderedScreens.current = new Map(
+      screens.map(screen => [screen.key, screen]),
+    );
+  });
+
   useLayoutEffect(() => {
     // The destination has already arrived at zero BEFORE onBack changes routes.
     // It must never inherit the outgoing screen's completed translateX (width).
     const current = motions.get(activeKey);
+    const isPushing = pushingKey.current === activeKey;
+    pushingKey.current = null;
     current?.translation.stopAnimation();
     current?.translation.setValue(0);
+    if (!isPushing) {
+      current?.routeOpacity.stopAnimation();
+      current?.routeOpacity.setValue(1);
+    }
     current?.clipTranslation.stopAnimation();
     current?.clipTranslation.setValue(0);
     current?.radius.setValue(0);
@@ -137,11 +188,50 @@ export function SwipeBackStack({
       motion.clipTranslation.setValue(-width);
     }
 
+    previousActiveKey.current = activeKey;
+    backSwipeCommitted.current = false;
+
+    const transitionConfig = {
+      duration: ROUTE_TRANSITION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    };
+    if (isPushing && current) {
+      // 나타나는 동안 뒤로 스와이프가 시작되면 반투명한 화면이 끌려가므로 끝날 때까지 막습니다.
+      busy.current = true;
+      Animated.timing(current.routeOpacity, {
+        ...transitionConfig,
+        toValue: 1,
+      }).start(() => {
+        if (latest.current.activeKey === activeKey) busy.current = false;
+      });
+    }
+    const exiting = exitingScreen.current;
+    const exitingMotion = exiting ? motions.get(exiting.key) : undefined;
+    if (exiting && exitingMotion && !isExitAnimating.current) {
+      isExitAnimating.current = true;
+      Animated.timing(exitingMotion.routeOpacity, {
+        ...transitionConfig,
+        toValue: 0,
+      }).start(() => {
+        if (!mounted.current || exitingScreen.current !== exiting) return;
+        exitingScreen.current = null;
+        isExitAnimating.current = false;
+        motions.delete(exiting.key);
+        refreshExitingScreen(count => count + 1);
+      });
+    }
+
     // Reset outgoing/hidden views only after the visibility change was committed.
     // Resetting the foreground at the same time as the pop can flash it at x=0.
     const cleanupFrame = requestAnimationFrame(() => {
       for (const [key, motion] of motions) {
-        if (key === activeKey || key === gestureRef.current?.to) continue;
+        if (
+          key === activeKey ||
+          key === gestureRef.current?.to ||
+          key === exitingScreen.current?.key
+        )
+          continue;
         motion.translation.stopAnimation();
         motion.translation.setValue(0);
         motion.radius.setValue(0);
@@ -160,6 +250,7 @@ export function SwipeBackStack({
         motion.clipTranslation.stopAnimation();
         motion.radius.stopAnimation();
         motion.shade.stopAnimation();
+        motion.routeOpacity.stopAnimation();
       }
     };
   }, [motions]);
@@ -334,6 +425,8 @@ export function SwipeBackStack({
           gestureRef.current = null;
           setDragging(false);
           Keyboard.dismiss();
+          // 스와이프로 이미 화면 밖까지 밀었으므로 닫힘 애니메이션을 다시 하지 않습니다.
+          backSwipeCommitted.current = true;
           latest.current.onBack();
         });
       },
@@ -362,12 +455,17 @@ export function SwipeBackStack({
       style={[styles.container, transparent && styles.transparent]}
       {...responder.panHandlers}
     >
-      {screens.map(screen => (
+      {/* 닫히는 화면을 다른 위치에 그리면 React가 다시 마운트하므로 같은 목록에 둡니다. */}
+      {(exitingScreen.current
+        ? [...screens, exitingScreen.current]
+        : screens
+      ).map(screen => (
         <RetainedBackScreen
           key={screen.key}
           screen={screen}
           active={screen.key === activeKey}
           behind={screen.key === backKey}
+          exiting={screen.key === exitingScreen.current?.key}
           dragging={dragging}
           motion={motions.get(screen.key)!}
           transparent={transparent}
@@ -391,6 +489,7 @@ function RetainedBackScreen({
   screen,
   active,
   behind,
+  exiting = false,
   dragging,
   motion,
   transparent,
@@ -398,6 +497,7 @@ function RetainedBackScreen({
   screen: BackScreen;
   active: boolean;
   behind: boolean;
+  exiting?: boolean;
   dragging: boolean;
   motion: ScreenMotion;
   transparent: boolean;
@@ -420,7 +520,13 @@ function RetainedBackScreen({
       importantForAccessibility={active ? 'auto' : 'no-hide-descendants'}
       style={[
         styles.screen,
-        active ? styles.active : behind ? styles.behind : styles.hidden,
+        exiting
+          ? styles.exiting
+          : active
+          ? styles.active
+          : behind
+          ? styles.behind
+          : styles.hidden,
         transparent && {
           overflow: 'hidden',
           transform: [{ translateX: motion.clipTranslation }],
@@ -433,6 +539,7 @@ function RetainedBackScreen({
           styles.animatedScreen,
           active && dragging ? styles.shadow : null,
           {
+            opacity: motion.routeOpacity,
             transform: [
               {
                 translateX: transparent
@@ -476,6 +583,7 @@ const styles = StyleSheet.create({
   },
   screen: { ...StyleSheet.absoluteFill },
   animatedScreen: { flex: 1 },
+  exiting: { opacity: 1, zIndex: 3 },
   active: { opacity: 1, zIndex: 2 },
   behind: { opacity: 1, zIndex: 1 },
   hidden: { opacity: 0, zIndex: 0 },
