@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
+import { focusAccessibility } from '../../../lib/accessibility';
+
+// 화면 전환이 끝난 뒤 장소 이름으로 스크린 리더 포커스를 옮깁니다.
+const TITLE_FOCUS_DELAY_MS = 500;
 
 type PlaceDetailHeaderProps = {
   onBack: () => void;
@@ -39,6 +43,14 @@ export function PlaceDetailHeader({
   compact = false,
 }: PlaceDetailHeaderProps) {
   const { button } = useScreenAnalytics();
+  const titleRef = useRef<Text>(null);
+  const hasTitle = titleInHeader && Boolean(title);
+
+  // 들어올 때마다 첫 포커스가 달라지지 않도록 장소 이름부터 읽게 합니다.
+  useEffect(() => {
+    if (!hasTitle) return undefined;
+    return focusAccessibility(titleRef, TITLE_FOCUS_DELAY_MS);
+  }, [hasTitle, title]);
 
   return (
     <View
@@ -64,7 +76,13 @@ export function PlaceDetailHeader({
         </Pressable>
       )}
       {titleInHeader && title ? (
-        <Text numberOfLines={1} style={styles.title}>
+        <Text
+          ref={titleRef}
+          accessibilityLabel={`장소 이름, ${title}`}
+          accessibilityRole="header"
+          numberOfLines={1}
+          style={styles.title}
+        >
           {title}
         </Text>
       ) : hideBack ? (

@@ -37,9 +37,14 @@ export function focusAccessibility(
   delayMs = 0,
 ) {
   const timer = setTimeout(() => {
-    const node = ref.current ? findNodeHandle(ref.current) : null;
-    if (node) {
-      AccessibilityInfo.setAccessibilityFocus(node);
+    // 기다리는 사이 화면이 닫히는 등 요소를 찾지 못해도 앱 동작에는 영향이 없도록 조용히 넘깁니다.
+    try {
+      const node = ref.current ? findNodeHandle(ref.current) : null;
+      if (node) {
+        AccessibilityInfo.setAccessibilityFocus(node);
+      }
+    } catch {
+      // 포커스 이동은 보조 기능이라 실패해도 무시합니다.
     }
   }, delayMs);
   return () => clearTimeout(timer);

@@ -18,6 +18,7 @@ import { AppModal } from '../../../components/AppModal';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
+  getFolderColorName,
   getNextFolderColor,
 } from '../../../entities/folder/color';
 import {
@@ -263,15 +264,16 @@ export function FolderNameDialog({
               </Text>
             ) : null}
           </View>
-          <View style={styles.colorRow}>
+          <View accessibilityRole="radiogroup" style={styles.colorRow}>
             {FOLDER_COLORS.map(candidate => {
               const selected = candidate === color;
               return (
                 <Pressable
                   key={candidate}
                   accessibilityRole="radio"
-                  accessibilityLabel={`폴더 색상 ${candidate}`}
-                  accessibilityState={{ selected }}
+                  // 색상 코드 대신 색 이름을 읽고, '선택됨'은 이름 뒤에 읽도록 checked로 전달합니다.
+                  accessibilityLabel={`폴더 색상 ${getFolderColorName(candidate)}`}
+                  accessibilityState={{ checked: selected || undefined }}
                   hitSlop={4}
                   onPress={() => {
                     button('select_color');

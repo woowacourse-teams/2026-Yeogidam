@@ -2,6 +2,7 @@ import React, {useRef} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import {PlaceListRow} from '../../../components/place/PlaceListRow';
+import {getMiddleCategory} from '../../../entities/place/category';
 import type {Place} from '../../../entities/place/types';
 import {LIBRARY_GUTTER} from './libraryTheme';
 
@@ -29,14 +30,19 @@ export function SavedPlaceGrid({
     <View style={styles.list}>
       {places.map((place, index) => {
         const selected = selectedPlaceIds?.has(place.id) ?? false;
+        // 게시물인지 장소인지 구분되도록 종류를 먼저 읽고, 같은 이름을 구분할 카테고리를 함께 읽습니다.
+        const category = getMiddleCategory(place.category);
+        const description = ['장소', place.name, category]
+          .filter(Boolean)
+          .join(', ');
 
         return (
           <PlaceListRow
             key={`${place.id}-${index}`}
             accessibilityLabel={
               isEditing
-                ? `${place.name} ${selected ? '선택 해제' : '선택'}`
-                : place.name
+                ? `${description}, ${selected ? '선택 해제' : '선택'}`
+                : description
             }
             accessibilityRole="button"
             address={place.fullAddress || place.address}

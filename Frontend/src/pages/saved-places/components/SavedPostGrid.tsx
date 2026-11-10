@@ -44,12 +44,23 @@ export function SavedPostGrid({
           {column.map(reel => {
             const title = getPostTitle(reel);
             const selected = selectedReelIds?.has(reel.id) ?? false;
+            // 게시물인지 장소인지 구분되도록 종류를 먼저 읽고, 작성자도 '골뱅이' 없이 읽습니다.
+            const author = reel.instagram_author_username?.replace(/^@/, '');
+            const description = [
+              '게시물',
+              title,
+              author ? `작성자 ${author}` : null,
+            ]
+              .filter(Boolean)
+              .join(', ');
 
             return (
               <PostCard
                 key={reel.id}
                 accessibilityLabel={
-                  isEditing ? `${title} ${selected ? '선택 해제' : '선택'}` : title
+                  isEditing
+                    ? `${description}, ${selected ? '선택 해제' : '선택'}`
+                    : description
                 }
                 accessibilityRole="button"
                 authorUsername={reel.instagram_author_username}
