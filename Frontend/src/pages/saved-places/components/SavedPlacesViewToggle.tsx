@@ -32,8 +32,12 @@ export function SavedPlacesViewToggle({
           return (
             <Pressable
               key={segment.id}
-              accessibilityRole="tab"
-              accessibilityState={{selected}}
+              // "게시물 탭, 선택됨" / "장소 탭" 순서로 읽습니다. iOS의 선택 상태(selected)는 "선택됨"을 이름보다
+              // 먼저 읽어서, 선택 여부는 값(value)으로 전달합니다.
+              accessibilityLabel={`${segment.label} 탭`}
+              accessibilityValue={selected ? {text: '선택됨'} : undefined}
+              // 두 번 탭을 화면 위치의 터치로 바꾸지 않고 바로 처리합니다. 겹쳐 그린 바가 다른 곳에 있어도 동작해요.
+              onAccessibilityTap={() => onChangeView(segment.id)}
               onPress={() => onChangeView(segment.id)}
               style={[styles.segment, selected && styles.segmentSelected]}>
               <Text style={[styles.label, selected && styles.labelSelected]}>
@@ -48,6 +52,7 @@ export function SavedPlacesViewToggle({
           accessibilityLabel={isEditing ? '보관함 편집 취소' : '보관함 편집'}
           accessibilityRole="button"
           hitSlop={8}
+          onAccessibilityTap={onPressEdit}
           onPress={onPressEdit}
           style={({pressed}) => pressed && styles.pressed}>
           <Text style={styles.editText}>{isEditing ? '취소' : '편집'}</Text>

@@ -65,6 +65,10 @@ import {
 } from './components/SavedPlacesEmptyResult';
 import { SavedPlacesSearchPanel } from './components/SavedPlacesSearchPanel';
 import { SavedPlacesSkeleton } from './components/SavedPlacesSkeleton';
+import {
+  useScreenReaderEnabled,
+  visuallyHiddenTextStyle,
+} from '../../lib/accessibility';
 import { SavedPlacesRecentShares } from './components/SavedPlacesRecentShares';
 import {
   type SavedLibraryView,
@@ -85,6 +89,15 @@ import {
   saveContent,
 } from '../../entities/content/api';
 import {deleteSavedMedia, getSavedMedia} from '../../entities/content/saved-media-api';
+import { getHistoryReelPlaceCount } from '../../entities/content/history-api';
+import { announce } from '../../lib/accessibility';
+import {
+  getShareCompletedMessage,
+  SHARE_ACCEPTED_MESSAGE,
+  SHARE_FAILED_MESSAGE,
+  SHARE_PROCESSING_MESSAGE,
+  SHARE_STILL_PROCESSING_MESSAGE,
+} from './shareStatusMessages';
 import { getRecentSharesSnapshot, subscribeRecentShares } from '../../entities/content/recent-shares-poller';
 import type {
   HistoryReel,
@@ -116,6 +129,10 @@ const SAVED_HEADER_HEIGHT = SEARCH_BAR_HEIGHT + SEARCH_BAR_TOP_GAP * 2;
 // 공용 폴러는 구독자 중 가장 짧은 주기를 따릅니다. 최근 공유 행은 하단 탭 바(5초)나
 // 링크 처리 폴링(3초)이 읽은 결과를 받아 쓰면 되므로, 자체 주기는 길게 잡아 요청을 늘리지 않습니다.
 const RECENT_SHARES_INTERVAL_MS = 60_000;
+// 공유 시트에서 앱으로 돌아온 직후 VoiceOver가 화면을 다 읽을 때까지 기다리는 시간입니다.
+const SHARE_PROCESSING_ANNOUNCE_DELAY_MS = 1000;
+// 장소 찾기가 이만큼 지나도 끝나지 않으면 멈춘 게 아니라고 한 번 알립니다.
+const SHARE_STILL_PROCESSING_ANNOUNCE_MS = 10_000;
 
 // 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
 // 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
@@ -246,6 +263,7 @@ export function SavedPlacesScreen({
   const scrollViewRef = useRef<ScrollView>(null);
   // 토글·카테고리 칩 바를 고정하기 위한 스크롤 위치와 바의 원래 y 위치입니다.
   const scrollY = useRef(new Animated.Value(0)).current;
+  const screenReaderEnabled = useScreenReaderEnabled();
   const [libraryBarLayout, setLibraryBarLayout] = useState<{
     top: number;
     height: number;
@@ -263,6 +281,47 @@ export function SavedPlacesScreen({
   const reelPollStartedAtRef = useRef<number | null>(null);
   const reelPollFailureCountRef = useRef(0);
   const saveRequestIdRef = useRef<string | null>(null);
+  // 같은 공유의 결과를 폴링마다 다시 읽지 않도록 안내한 공유 ID를 기억합니다.
+  const announcedResultIdsRef = useRef(new Set<string>());
+  const announcedProcessingKeysRef = useRef(new Set<string>());
+  const remindedProcessingIdsRef = useRef(new Set<string>());
+  // 이 화면에서 장소 찾기를 시작한 공유입니다. 상태 확인 폴링이 90초 뒤 멈춰도
+  // 최근 공유 목록에서 끝난 것을 보고 결과를 안내합니다.
+  const watchedReelIdsRef = useRef(new Set<string>());
+  const [recentShareFocusRequest, setRecentShareFocusRequest] = useState<{
+    reelId: string;
+    requestId: number;
+  } | null>(null);
+  const pendingRecentShareFocusIdRef = useRef<string | null>(null);
+  const handleLinkDialogDismiss = useCallback(() => {
+    const reelId = pendingRecentShareFocusIdRef.current;
+    pendingRecentShareFocusIdRef.current = null;
+    if (reelId) setRecentShareFocusRequest({reelId, requestId: Date.now()});
+  }, []);
+  const shareAnnounceTimersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
+  useEffect(() => {
+    const timers = shareAnnounceTimersRef.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+  // 진행 상태가 링 색으로만 보이므로, 장소 찾기가 끝나거나 실패하면 스크린 리더로도 알립니다.
+  const announceExtractionResult = useCallback(
+    async (reelId: string, status: 'COMPLETED' | 'FAILED') => {
+      if (announcedResultIdsRef.current.has(reelId)) return;
+      announcedResultIdsRef.current.add(reelId);
+      if (status === 'FAILED') {
+        announce(SHARE_FAILED_MESSAGE);
+        return;
+      }
+      let placeCount: number | null = null;
+      try {
+        placeCount = await getHistoryReelPlaceCount(reelId);
+      } catch {
+        // 장소 수를 못 읽어도 끝났다는 사실은 알립니다.
+      }
+      announce(getShareCompletedMessage(placeCount));
+    },
+    [],
+  );
   const hasSavedPlaces =
     places.length > 0 || postReels.length > 0 || sharedReels.length > 0 || postError !== null;
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
@@ -682,16 +741,30 @@ export function SavedPlacesScreen({
               queryFailureReason: null,
             },
       );
-      if (
-        (state.status === 'PENDING' || state.status === 'PROCESSING') &&
-        !hasRealReelId
-      ) {
+      const isShareInProgress =
+        state.status === 'PENDING' || state.status === 'PROCESSING';
+      // 공유 시트에서 보낸 링크는 이 화면에서 시작한 동작이 아니라 포커스는 그대로 두고 읽어만 줍니다.
+      const announceShareProcessing = () => {
+        if (state.source !== 'instagram_share') return;
+        const key = state.shareResultId ?? state.url;
+        if (announcedProcessingKeysRef.current.has(key)) return;
+        announcedProcessingKeysRef.current.add(key);
+        // 공유 시트에서 앱으로 막 돌아온 때라 VoiceOver가 화면을 읽는 중이에요. 바로 안내하면 버려지므로
+        // 잠시 기다렸다가 읽던 내용 뒤에 이어 읽게 합니다.
+        const timer = setTimeout(() => {
+          shareAnnounceTimersRef.current.delete(timer);
+          announce(SHARE_PROCESSING_MESSAGE, {queue: true});
+        }, SHARE_PROCESSING_ANNOUNCE_DELAY_MS);
+        shareAnnounceTimersRef.current.add(timer);
+      };
+      if (isShareInProgress && !hasRealReelId) {
         // Share Extension이 현재 requestId/URL로 API 응답을 기다리는 실제 상태입니다.
         // reelId가 오기 전에는 상태 API를 호출하지 않고 응답 대기 카드만 표시합니다.
         setProcessingReelId(null);
         setProcessingReel(state.reel);
         setStatusQueryError(null);
         setIsSaveResponseFailure(false);
+        announceShareProcessing();
         return;
       }
 
@@ -719,6 +792,10 @@ export function SavedPlacesScreen({
           : null,
       );
       setProcessingReel(state.reel);
+      if (isShareInProgress && hasRealReelId) {
+        watchedReelIdsRef.current.add(state.reel.id);
+        announceShareProcessing();
+      }
       setIsSaveResponseFailure(state.status === 'FAILED');
       setShowSaveSuccess(
         state.status === 'COMPLETED' && state.source === 'url_input',
@@ -823,6 +900,24 @@ export function SavedPlacesScreen({
         reused: response.reused ?? false,
       });
       handleSaveResponse(response, normalizedUrl, 'url_input');
+      const {status} = response;
+      const isFinished = status === 'COMPLETED' || status === 'FAILED';
+      if (!isFinished) watchedReelIdsRef.current.add(response.reelId);
+      if (hasSavedPlaces) {
+        // 입력창이 닫힌 뒤 포커스가 갈 곳이 없으므로 방금 추가한 공유로 옮깁니다.
+        // 썸네일 label이 진행 상태를 읽어 주므로 따로 안내하지 않습니다.
+        if (isFinished) announcedResultIdsRef.current.add(response.reelId);
+        if (Platform.OS === 'ios') {
+          // iOS는 입력창이 다 닫히기 전에 포커스를 옮기면 VoiceOver가 닫힌 뒤 위치를 다시 정해 덮어씁니다.
+          pendingRecentShareFocusIdRef.current = response.reelId;
+        } else {
+          setRecentShareFocusRequest({reelId: response.reelId, requestId: Date.now()});
+        }
+      } else if (isFinished) {
+        announceExtractionResult(response.reelId, status).catch(() => undefined);
+      } else {
+        announce(SHARE_ACCEPTED_MESSAGE);
+      }
       setIsDialogVisible(false);
       setLinkValue('');
       // v2 대기함 흐름 복원 시:
@@ -856,6 +951,8 @@ export function SavedPlacesScreen({
       }
 
       setLinkError(normalizedError.message);
+      // 입력창 아래 오류 문구는 포커스가 가지 않으면 읽히지 않아 따로 알립니다.
+      announce(normalizedError.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -1037,6 +1134,15 @@ export function SavedPlacesScreen({
               reel: nextStatus,
             });
           }
+          if (
+            nextStatus.processing_status === 'COMPLETED' ||
+            nextStatus.processing_status === 'FAILED'
+          ) {
+            announceExtractionResult(
+              nextStatus.id,
+              nextStatus.processing_status,
+            ).catch(() => undefined);
+          }
           if (nextStatus.processing_status === 'COMPLETED') {
             setProcessingReelId(null);
             setShowSaveSuccess(sharedState?.source === 'url_input');
@@ -1098,6 +1204,7 @@ export function SavedPlacesScreen({
       subscription.unsubscribe();
     };
   }, [
+    announceExtractionResult,
     onRequireLogin,
     processingReel?.created_at,
     processingReel?.id,
@@ -1106,6 +1213,24 @@ export function SavedPlacesScreen({
     queueCompletedRefresh,
     error,
   ]);
+
+  const processingStatus = processingReel?.processing_status;
+  useEffect(() => {
+    if (
+      !processingReelId ||
+      (processingStatus !== 'PENDING' && processingStatus !== 'PROCESSING') ||
+      remindedProcessingIdsRef.current.has(processingReelId)
+    ) {
+      return;
+    }
+    // 진행 중에는 반복해 읽지 않고, 오래 걸릴 때만 한 번 알립니다. 끝나면 정리되어 읽지 않아요.
+    const startedAt = reelPollStartedAtRef.current ?? Date.now();
+    const timeoutId = setTimeout(() => {
+      remindedProcessingIdsRef.current.add(processingReelId);
+      announce(SHARE_STILL_PROCESSING_MESSAGE, {queue: true});
+    }, Math.max(0, SHARE_STILL_PROCESSING_ANNOUNCE_MS - (Date.now() - startedAt)));
+    return () => clearTimeout(timeoutId);
+  }, [processingReelId, processingStatus]);
 
   useEffect(() => {
     if (isGuest) {
@@ -1118,6 +1243,15 @@ export function SavedPlacesScreen({
       intervalMs: RECENT_SHARES_INTERVAL_MS,
       onResult: ({ reels }) => {
         setSharedReels(reels);
+        reels.forEach(reel => {
+          if (
+            watchedReelIdsRef.current.has(reel.id) &&
+            (reel.processing_status === 'COMPLETED' || reel.processing_status === 'FAILED')
+          ) {
+            watchedReelIdsRef.current.delete(reel.id);
+            announceExtractionResult(reel.id, reel.processing_status).catch(() => undefined);
+          }
+        });
         const completedIds = new Set(
           reels.filter(reel => reel.processing_status === 'COMPLETED').map(reel => reel.id),
         );
@@ -1136,7 +1270,7 @@ export function SavedPlacesScreen({
       subscription.unsubscribe();
       completedShareIdsRef.current = null;
     };
-  }, [isGuest, queueCompletedRefresh]);
+  }, [announceExtractionResult, isGuest, queueCompletedRefresh]);
 
   // 방금 저장한 릴스는 서버 목록에 잡히기 전에도 "최근 공유" 줄에 보여 줍니다.
   // 서버가 접수한 실패 항목은 보여 주되, 요청 자체가 실패한 임시 카드는 숨깁니다.
@@ -1210,6 +1344,23 @@ export function SavedPlacesScreen({
     const timeoutId = setTimeout(() => setShowSaveSuccess(false), 1800);
     return () => clearTimeout(timeoutId);
   }, [showSaveSuccess]);
+
+  // 편집 모드에 들어가고 나올 때 스크린 리더로 알려 줍니다. 화면 모양만 바뀌어서 알 수 없었어요.
+  const isAnyEditing = isEditing || isEditingPosts;
+  const wasEditingRef = useRef(isAnyEditing);
+  useEffect(() => {
+    if (wasEditingRef.current === isAnyEditing) return;
+    wasEditingRef.current = isAnyEditing;
+    if (!isAnyEditing) {
+      announce('편집을 마쳤어요');
+      return;
+    }
+    announce(
+      isEditingPosts
+        ? '편집 모드. 삭제할 게시물을 두 번 탭해 고른 뒤 화면 아래 삭제하기 버튼을 눌러요'
+        : '편집 모드. 북마크를 해제할 장소를 두 번 탭해 고른 뒤 화면 아래 북마크 해제 버튼을 눌러요',
+    );
+  }, [isAnyEditing, isEditingPosts]);
 
   const handlePressEdit = useCallback(() => {
     const next = !isEditing;
@@ -1658,6 +1809,10 @@ export function SavedPlacesScreen({
   // 장소/게시물 토글과 카테고리 칩. 스크롤 내용 안에 한 번(자리 확보), 위에 겹쳐 한 번 그립니다.
   const libraryBar = (
     <View style={styles.libraryBar}>
+      {/* 화면에는 보이지 않는 스크린 리더용 제목입니다. 제목 단위 이동으로 '최근 공유'에서 바로 이곳으로 옵니다. */}
+      <Text accessibilityRole="header" style={visuallyHiddenTextStyle}>
+        보관함 목록
+      </Text>
       <SavedPlacesViewToggle
         view={libraryView}
         onChangeView={handleChangeLibraryView}
@@ -1818,12 +1973,13 @@ export function SavedPlacesScreen({
               onPressReel={handleOpenRecentReel}
               onPressViewAll={handleOpenHistory}
               onPressAdd={openDialog}
+              focusRequest={recentShareFocusRequest}
             />
+            {/*
+              스크린 리더는 이 스크롤 안의 바를 읽습니다(읽는 순서가 화면 순서와 같고, 스크롤로 따라갈 수 있어요).
+              눈에 보이고 터치를 받는 것은 위에 겹쳐 그린 바라서, 버튼은 두 번 탭을 위치와 관계없이 바로 처리합니다.
+            */}
             <View
-              accessibilityElementsHidden={libraryBarLayout !== null}
-              importantForAccessibility={
-                libraryBarLayout !== null ? 'no-hide-descendants' : 'auto'
-              }
               onLayout={event =>
                 setLibraryBarLayout({
                   top: event.nativeEvent.layout.y,
@@ -1831,7 +1987,13 @@ export function SavedPlacesScreen({
                 })
               }
               pointerEvents={libraryBarLayout !== null ? 'none' : 'auto'}
-              style={libraryBarLayout !== null && styles.libraryBarPlaceholder}
+              // 평소에는 위에 겹친 바와 겹쳐 보이지 않도록 투명하게 둡니다. VoiceOver는 투명도 0인 요소를 건너뛰므로
+              // 스크린 리더가 켜져 있으면 보이게 둡니다(겹친 바와 헤더가 같은 자리를 덮어 화면은 거의 같아요).
+              style={
+                libraryBarLayout !== null &&
+                !screenReaderEnabled &&
+                styles.libraryBarPlaceholder
+              }
             >
               {libraryBar}
             </View>
@@ -1920,7 +2082,12 @@ export function SavedPlacesScreen({
               scrollY={scrollY}
               stickOffset={stickOffset}
             >
-              {libraryBar}
+              <View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {libraryBar}
+              </View>
             </SavedPlacesStickyBar>
           ) : null}
         </View>
@@ -1947,12 +2114,18 @@ export function SavedPlacesScreen({
       )}
       {isEditing || isEditingPosts ? (
         <Pressable
+          // 몇 개를 고른 상태인지 버튼 이름에서 바로 알 수 있게 개수를 넣습니다.
           accessibilityLabel={
             isEditingPosts
-              ? selectedPostIds.size > 0 ? '선택한 게시물 삭제하기' : '게시물 편집 취소'
-              : selectedPlaceIds.size > 0 ? '선택한 장소 북마크 해제하기' : '보관함 편집 취소'
+              ? selectedPostIds.size > 0
+                ? `선택한 게시물 ${selectedPostIds.size}개 삭제하기`
+                : '게시물 편집 취소'
+              : selectedPlaceIds.size > 0
+                ? `선택한 장소 ${selectedPlaceIds.size}개 북마크 해제하기`
+                : '보관함 편집 취소'
           }
           accessibilityRole="button"
+          accessibilityState={{ busy: isDeleting, disabled: isDeleting }}
           disabled={isDeleting}
           onPress={isEditingPosts
             ? selectedPostIds.size === 0 ? handlePressEditPosts : confirmDeleteSelectedPosts
@@ -2028,6 +2201,7 @@ export function SavedPlacesScreen({
         onClose={closeDialog}
         isSubmitting={isSubmitting}
         onSubmit={handleSaveLink}
+        onDismiss={handleLinkDialogDismiss}
       />
     </View>
   );

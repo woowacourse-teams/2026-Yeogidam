@@ -24,6 +24,7 @@ export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
 
   return (
     <View
+      accessibilityRole="tablist"
       style={styles.container}
       onLayout={event => {
         const { width } = event.nativeEvent.layout;
@@ -36,8 +37,12 @@ export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
           key={tab}
           style={styles.tabItem}
           onPress={() => onTabPress(tab)}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: tab === activeTab }}
+          // 두 번 탭을 화면 위치의 터치로 바꾸지 않고 바로 처리합니다.
+          onAccessibilityTap={() => onTabPress(tab)}
+          // "게시물 탭, 선택됨" / "정보 탭" 순서로 읽습니다. iOS의 선택 상태(selected)는 "선택됨"을 이름보다
+          // 먼저 읽어서, 선택 여부는 값(value)으로 전달합니다.
+          accessibilityLabel={`${tab} 탭`}
+          accessibilityValue={tab === activeTab ? { text: '선택됨' } : undefined}
         >
           <Text
             style={tab === activeTab ? styles.activeTab : styles.inactiveTab}
