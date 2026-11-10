@@ -2,12 +2,17 @@ package com.yeogidam.media.extraction.infrastructure.loadtest;
 
 import com.yeogidam.media.extraction.config.LoadTestProperties;
 import java.net.URI;
+import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 
 @RequiredArgsConstructor
 public class LoadTestHttpRouting {
+
+    private static final List<String> GEMINI_UPLOAD_HEADERS = List.of(
+            "X-Goog-Upload-Protocol", "X-Goog-Upload-Command", "X-Goog-Upload-Header-Content-Length",
+            "X-Goog-Upload-Header-Content-Type", "X-Goog-Upload-Offset");
 
     private final LoadTestProperties properties;
 
@@ -51,6 +56,7 @@ public class LoadTestHttpRouting {
         copyHeader(original, headers, HttpHeaders.CONTENT_TYPE);
         copyHeader(original, headers, HttpHeaders.ACCEPT);
         copyHeader(original, headers, HttpHeaders.USER_AGENT);
+        GEMINI_UPLOAD_HEADERS.forEach(name -> copyHeader(original, headers, name));
         headers.set("X-Load-Test-Key", properties.fakeKey());
         headers.set("X-Load-Test-Shortcode", LoadTestScope.currentShortcode());
         return headers;

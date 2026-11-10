@@ -65,6 +65,10 @@ onboarding:
 media:
   extraction:
     pipeline-version: 1
+    pool:
+      core-size: ${EXTRACTION_CORE_POOL_SIZE:2}
+      max-size: ${EXTRACTION_MAX_POOL_SIZE:4}
+      queue-capacity: ${EXTRACTION_QUEUE_CAPACITY:100}
     # prod 프로필도 기본 비활성이다. 명시적으로 켠 테스트에서만 전용 공유를 HTTP Fake에 연결한다.
     load-test:
       enabled: ${LOAD_TEST_ENABLED:false}
