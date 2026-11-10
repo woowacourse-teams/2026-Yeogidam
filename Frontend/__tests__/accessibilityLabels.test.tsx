@@ -3,6 +3,7 @@ import {Keyboard, TextInput} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {SearchBar} from '../src/components/SearchBar';
+import * as accessibility from '../src/lib/accessibility';
 import {FOLDER_COLORS, getFolderColorName} from '../src/entities/folder/color';
 import type {HistoryReel} from '../src/entities/content/types';
 import type {Place} from '../src/entities/place/types';
@@ -138,5 +139,29 @@ describe('키보드 (K1)', () => {
     input!.props.onAccessibilityEscape();
     expect(dismiss).toHaveBeenCalledTimes(1);
     dismiss.mockRestore();
+  });
+});
+
+describe('검색창 (K2)', () => {
+  test('검색 패널 입력창이 열리면 스크린 리더 포커스를 입력창으로 옮긴다', async () => {
+    const focusSpy = jest.spyOn(accessibility, 'focusAccessibility');
+    const renderer = await render(
+      <SearchBar autoFocus layout="embedded" onChangeText={jest.fn()} />,
+    );
+
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+    const [, delayMs] = focusSpy.mock.calls[0];
+    expect(delayMs).toBe(300);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+    focusSpy.mockRestore();
+  });
+
+  test('눌러서 여는 검색창은 무엇을 하는지 힌트로 알려 준다', async () => {
+    const renderer = await render(<SearchBar layout="header" onPress={jest.fn()} />);
+
+    expect(
+      renderer.root.findAllByProps({accessibilityHint: '두 번 탭하면 검색어를 입력할 수 있어요'})
+        .length,
+    ).toBeGreaterThan(0);
   });
 });
