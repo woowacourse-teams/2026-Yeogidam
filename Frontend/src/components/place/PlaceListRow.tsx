@@ -29,8 +29,10 @@ type PlaceListRowProps = {
   trailing?: ReactNode;
 } & Pick<
   PressableProps,
+  | 'accessibilityHint'
   | 'accessibilityLabel'
   | 'accessibilityRole'
+  | 'accessibilityValue'
   | 'disabled'
   | 'onLongPress'
   | 'onPress'

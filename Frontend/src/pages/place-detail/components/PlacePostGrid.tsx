@@ -152,8 +152,10 @@ export function PostCard({
   imageOverlay?: ReactNode;
 } & Pick<
   PressableProps,
+  | 'accessibilityHint'
   | 'accessibilityLabel'
   | 'accessibilityRole'
+  | 'accessibilityValue'
   | 'disabled'
   | 'onLongPress'
   | 'onPress'

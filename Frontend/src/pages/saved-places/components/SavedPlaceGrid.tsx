@@ -39,10 +39,17 @@ export function SavedPlaceGrid({
         return (
           <PlaceListRow
             key={`${place.id}-${index}`}
-            accessibilityLabel={
+            accessibilityLabel={description}
+            // 편집 중에는 선택 여부를 값으로 읽고, 두 번 탭이 무엇을 하는지 힌트로 알려 줍니다.
+            accessibilityHint={
               isEditing
-                ? `${description}, ${selected ? '선택 해제' : '선택'}`
-                : description
+                ? selected
+                  ? '두 번 탭하면 선택을 해제해요'
+                  : '두 번 탭하면 북마크를 해제할 장소로 선택해요'
+                : undefined
+            }
+            accessibilityValue={
+              isEditing ? {text: selected ? '선택됨' : '선택 안 됨'} : undefined
             }
             accessibilityRole="button"
             address={place.fullAddress || place.address}

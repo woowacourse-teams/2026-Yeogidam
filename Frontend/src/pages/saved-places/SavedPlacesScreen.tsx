@@ -1345,6 +1345,23 @@ export function SavedPlacesScreen({
     return () => clearTimeout(timeoutId);
   }, [showSaveSuccess]);
 
+  // 편집 모드에 들어가고 나올 때 스크린 리더로 알려 줍니다. 화면 모양만 바뀌어서 알 수 없었어요.
+  const isAnyEditing = isEditing || isEditingPosts;
+  const wasEditingRef = useRef(isAnyEditing);
+  useEffect(() => {
+    if (wasEditingRef.current === isAnyEditing) return;
+    wasEditingRef.current = isAnyEditing;
+    if (!isAnyEditing) {
+      announce('편집을 마쳤어요');
+      return;
+    }
+    announce(
+      isEditingPosts
+        ? '편집 모드. 삭제할 게시물을 두 번 탭해 고른 뒤 화면 아래 삭제하기 버튼을 눌러요'
+        : '편집 모드. 북마크를 해제할 장소를 두 번 탭해 고른 뒤 화면 아래 북마크 해제 버튼을 눌러요',
+    );
+  }, [isAnyEditing, isEditingPosts]);
+
   const handlePressEdit = useCallback(() => {
     const next = !isEditing;
     analytics.button(next ? 'edit_start' : 'edit_cancel');
@@ -2097,12 +2114,18 @@ export function SavedPlacesScreen({
       )}
       {isEditing || isEditingPosts ? (
         <Pressable
+          // 몇 개를 고른 상태인지 버튼 이름에서 바로 알 수 있게 개수를 넣습니다.
           accessibilityLabel={
             isEditingPosts
-              ? selectedPostIds.size > 0 ? '선택한 게시물 삭제하기' : '게시물 편집 취소'
-              : selectedPlaceIds.size > 0 ? '선택한 장소 북마크 해제하기' : '보관함 편집 취소'
+              ? selectedPostIds.size > 0
+                ? `선택한 게시물 ${selectedPostIds.size}개 삭제하기`
+                : '게시물 편집 취소'
+              : selectedPlaceIds.size > 0
+                ? `선택한 장소 ${selectedPlaceIds.size}개 북마크 해제하기`
+                : '보관함 편집 취소'
           }
           accessibilityRole="button"
+          accessibilityState={{ busy: isDeleting, disabled: isDeleting }}
           disabled={isDeleting}
           onPress={isEditingPosts
             ? selectedPostIds.size === 0 ? handlePressEditPosts : confirmDeleteSelectedPosts

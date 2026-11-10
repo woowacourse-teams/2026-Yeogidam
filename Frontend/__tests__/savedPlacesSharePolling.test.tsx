@@ -408,8 +408,10 @@ test('게시물 편집에서 선택한 ID를 삭제 API로 보내고 목록을 �
     renderer.root.findByType(SavedPostGrid).props.onToggleReelSelection('81');
   });
   expect(onEditModeChange).toHaveBeenCalledWith(true);
+  // 편집 모드에 들어가면 스크린 리더로 알려 준다.
+  expect(announce).toHaveBeenCalledWith(expect.stringContaining('편집 모드'));
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByProps({accessibilityLabel: '선택한 게시물 삭제하기'}).props.onPress();
+    renderer.root.findByProps({accessibilityLabel: '선택한 게시물 1개 삭제하기'}).props.onPress();
   });
   expect(jest.mocked(showAlert).mock.calls[0][1]).toContain('장소 보관함과 지도에서 사라져요.');
   const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
@@ -417,6 +419,7 @@ test('게시물 편집에서 선택한 ID를 삭제 API로 보내고 목록을 �
   expect(deleteSavedMedia).toHaveBeenCalledWith(['81']);
   expect(getSavedMedia).toHaveBeenCalledTimes(2);
   expect(onEditModeChange).toHaveBeenCalledWith(false);
+  expect(announce).toHaveBeenLastCalledWith('편집을 마쳤어요');
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 
@@ -435,7 +438,7 @@ test('장소 편집은 북마크 해제를 안내하고 저장 장소 ID로 해�
     renderer.root.findByType(SavedPlaceGrid).props.onTogglePlaceSelection('1');
   });
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByProps({accessibilityLabel: '선택한 장소 북마크 해제하기'}).props.onPress();
+    renderer.root.findByProps({accessibilityLabel: '선택한 장소 1개 북마크 해제하기'}).props.onPress();
   });
   expect(jest.mocked(showAlert).mock.calls[0][0]).toBe('선택한 장소의 북마크를 해제할까요?');
   expect(jest.mocked(showAlert).mock.calls[0][1]).toContain('장소 보관함과 지도에서 사라져요.');

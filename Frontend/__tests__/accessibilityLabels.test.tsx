@@ -71,15 +71,29 @@ describe('보관함 카드 (S6)', () => {
     expect(labels).toContain('게시물, 성수 카페 모음, 작성자 seongsu_cafe');
   });
 
-  test('장소 카드는 종류·이름·카테고리를 읽고, 편집 중에는 선택 동작을 덧붙인다', async () => {
-    const renderer = await render(
-      <SavedPlaceGrid isEditing onPressPlace={jest.fn()} places={[place]} />,
-    );
+  test('장소 카드는 종류·이름·카테고리를 읽는다', async () => {
+    const renderer = await render(<SavedPlaceGrid onPressPlace={jest.fn()} places={[place]} />);
 
     const labels = findByLabelPrefix(renderer, '장소, ').map(
       node => node.props.accessibilityLabel,
     );
-    expect(labels).toContain('장소, 테스트 카페, 카페, 선택');
+    expect(labels).toContain('장소, 테스트 카페, 카페');
+  });
+
+  test('편집 중에는 이름 뒤에 선택 여부를 값으로 읽는다 (S4)', async () => {
+    const renderer = await render(
+      <SavedPlaceGrid
+        isEditing
+        onPressPlace={jest.fn()}
+        places={[place]}
+        selectedPlaceIds={new Set(['place-1'])}
+      />,
+    );
+
+    const [card] = findByLabelPrefix(renderer, '장소, ');
+    expect(card.props.accessibilityLabel).toBe('장소, 테스트 카페, 카페');
+    expect(card.props.accessibilityValue).toEqual({text: '선택됨'});
+    expect(card.props.accessibilityHint).toBe('두 번 탭하면 선택을 해제해요');
   });
 });
 
