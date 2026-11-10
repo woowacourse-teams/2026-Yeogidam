@@ -4,7 +4,7 @@ import {ScrollView} from 'react-native';
 
 import {getReelProcessingStatus, saveContent} from '../src/entities/content/api';
 import {ReelApiError} from '../src/entities/content/errors';
-import {getHistoryReels} from '../src/entities/content/history-api';
+import {getHistoryReelPlaceCount, getHistoryReels} from '../src/entities/content/history-api';
 import {clearRecentShares, subscribeRecentShares} from '../src/entities/content/recent-shares-poller';
 import {deleteSavedMedia, getSavedMedia} from '../src/entities/content/saved-media-api';
 import type {HistoryReel} from '../src/entities/content/types';
@@ -16,6 +16,8 @@ import {SavedPlacesViewToggle} from '../src/pages/saved-places/components/SavedP
 import {SavedPlacesScreen} from '../src/pages/saved-places/SavedPlacesScreen';
 import {showAlert} from '../src/lib/app-alert';
 import {setSharedSaveState} from '../src/lib/reel-save-state';
+import {announce, focusAccessibility} from '../src/lib/accessibility';
+import {SavedPlacesRecentShares} from '../src/pages/saved-places/components/SavedPlacesRecentShares';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
 jest.mock(
@@ -48,7 +50,13 @@ jest.mock('../src/entities/content/api', () => ({
   saveContent: jest.fn(),
 }));
 jest.mock('../src/entities/content/history-api', () => ({
+  getHistoryReelPlaceCount: jest.fn(),
   getHistoryReels: jest.fn(),
+}));
+jest.mock('../src/lib/accessibility', () => ({
+  ...jest.requireActual('../src/lib/accessibility'),
+  announce: jest.fn(),
+  focusAccessibility: jest.fn(() => () => undefined),
 }));
 jest.mock('../src/entities/content/saved-media-api', () => ({
   getSavedMedia: jest.fn(),
@@ -116,6 +124,9 @@ beforeEach(() => {
   jest.mocked(getSavedMedia).mockReset().mockResolvedValue({reels: [], nextCursor: null});
   jest.mocked(deleteSavedMedia).mockReset().mockResolvedValue(undefined);
   jest.mocked(showAlert).mockReset();
+  jest.mocked(getHistoryReelPlaceCount).mockReset().mockResolvedValue(0);
+  jest.mocked(announce).mockReset();
+  jest.mocked(focusAccessibility).mockClear();
 });
 
 afterEach(() => {
@@ -434,4 +445,202 @@ test('장소 편집은 북마크 해제를 안내하고 저장 장소 ID로 해�
   await ReactTestRenderer.act(async () => buttons[1]?.onPress?.());
   expect(deleteSavedPlaces).toHaveBeenCalledWith(['99']);
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+describe('장소 찾기 상태 안내', () => {
+  test('보관함이 비어 최근 공유 줄이 없으면 장소를 찾는 중이라고 읽고, 끝나면 찾은 장소 수를 한 번만 읽는다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValueOnce({reels: [historyReel('8', 'PROCESSING')], nextCursor: null})
+      .mockResolvedValue({reels: [historyReel('8', 'COMPLETED')], nextCursor: null});
+    jest.mocked(getHistoryReelPlaceCount).mockResolvedValue(3);
+    const renderer = await render();
+
+    await saveLink(renderer);
+    expect(announce).toHaveBeenCalledWith('링크를 받았어요. 장소를 찾는 중이에요.');
+
+    await tick(3000);
+    expect(announce).toHaveBeenCalledTimes(1);
+
+    await tick(3000);
+    expect(getHistoryReelPlaceCount).toHaveBeenCalledWith('8');
+    expect(announce).toHaveBeenLastCalledWith('장소 3곳을 찾았어요.');
+
+    await tick(9000);
+    expect(announce).toHaveBeenCalledTimes(2);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('iOS에서는 입력창이 완전히 닫힌 뒤에 방금 추가한 공유로 포커스를 옮기고 따로 읽지 않는다', async () => {
+    jest.mocked(getSavedPlaces).mockResolvedValue([{
+      id: 'saved-1',
+      createdAt: '2026-11-08T00:00:00Z',
+      place: {id: 'place-1', name: '저장한 장소', latitude: 37.5, longitude: 127},
+    }] as Awaited<ReturnType<typeof getSavedPlaces>>);
+    jest.mocked(getHistoryReels).mockResolvedValue({
+      reels: [historyReel('8', 'PROCESSING')],
+      nextCursor: null,
+    });
+    const renderer = await render();
+
+    await saveLink(renderer);
+
+    // 닫히는 중에는 아직 옮기지 않는다.
+    const recentShares = () => renderer.root.findByType(SavedPlacesRecentShares);
+    expect(recentShares().props.focusRequest).toBeNull();
+    expect(focusAccessibility).not.toHaveBeenCalled();
+
+    await ReactTestRenderer.act(async () => {
+      renderer.root.findByType(SavedPlacesLinkDialog).props.onDismiss();
+    });
+    expect(recentShares().props.focusRequest).toEqual({reelId: '8', requestId: expect.any(Number)});
+    expect(focusAccessibility).toHaveBeenCalledWith({current: expect.anything()}, 300);
+    expect(announce).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('공유 시트로 보낸 링크를 처리하기 시작하면 포커스는 두고 장소를 찾는 중이라고 한 번만 읽는다', async () => {
+    jest.mocked(getHistoryReels).mockResolvedValue({
+      reels: [historyReel('8', 'PROCESSING')],
+      nextCursor: null,
+    });
+    const renderer = await render();
+    const sharedState = {
+      shareResultId: 'share-8',
+      source: 'instagram_share' as const,
+      url: LINK,
+      status: 'PROCESSING' as const,
+      reel: {
+        id: 'share-8',
+        processing_status: 'PROCESSING' as const,
+        failure_reason: null,
+        instagram_thumbnail_url: null,
+        created_at: new Date().toISOString(),
+      },
+    };
+
+    await ReactTestRenderer.act(async () => setSharedSaveState(sharedState));
+    await ReactTestRenderer.act(async () => setSharedSaveState({...sharedState}));
+
+    // 앱으로 막 돌아와 VoiceOver가 화면을 읽는 중이라 바로 읽지 않는다.
+    expect(announce).not.toHaveBeenCalled();
+    await tick(1000);
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith('공유한 링크에서 장소를 찾는 중이에요.', {queue: true});
+    expect(focusAccessibility).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('10초가 지나도 찾는 중이면 아직 찾고 있다고 한 번만 읽고, 끝나면 결과를 읽는다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: [historyReel('8', 'PROCESSING')], nextCursor: null});
+    const renderer = await render();
+
+    await saveLink(renderer);
+    jest.mocked(announce).mockClear();
+
+    await tick(6000);
+    expect(announce).not.toHaveBeenCalled();
+    await tick(1000);
+    expect(announce).not.toHaveBeenCalled();
+    await tick(3000);
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith('아직 장소를 찾고 있어요.', {queue: true});
+
+    await tick(30_000);
+    expect(announce).toHaveBeenCalledTimes(1);
+
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: [historyReel('8', 'COMPLETED')], nextCursor: null});
+    jest.mocked(getHistoryReelPlaceCount).mockResolvedValue(4);
+    await tick(3000);
+    expect(announce).toHaveBeenLastCalledWith('장소 4곳을 찾았어요.');
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('10초 전에 끝나면 아직 찾고 있다는 안내는 읽지 않는다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValueOnce({reels: [historyReel('8', 'PROCESSING')], nextCursor: null})
+      .mockResolvedValue({reels: [historyReel('8', 'COMPLETED')], nextCursor: null});
+    const renderer = await render();
+
+    await saveLink(renderer);
+    await tick(3000);
+    await tick(3000);
+    await tick(30_000);
+
+    expect(announce).not.toHaveBeenCalledWith('아직 장소를 찾고 있어요.', {queue: true});
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('90초가 지나 상태 확인 폴링이 멈춘 뒤에 끝나도 최근 공유 목록에서 보고 결과를 읽는다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: [historyReel('8', 'PROCESSING')], nextCursor: null});
+    jest.mocked(getHistoryReelPlaceCount).mockResolvedValue(4);
+    const renderer = await render();
+
+    await saveLink(renderer);
+    for (let elapsed = 0; elapsed < 93_000; elapsed += 3000) await tick(3000);
+    const callsAfterTimeout = jest.mocked(getHistoryReels).mock.calls.length;
+    await tick(3000);
+    // 상태 확인 폴링은 멈추고, 최근 공유 줄의 느린 주기만 남는다.
+    expect(jest.mocked(getHistoryReels).mock.calls.length).toBe(callsAfterTimeout);
+
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: [historyReel('8', 'COMPLETED')], nextCursor: null});
+    await tick(60_000);
+
+    expect(announce).toHaveBeenLastCalledWith('장소 4곳을 찾았어요.');
+    expect(
+      jest.mocked(announce).mock.calls.filter(([message]) => message.startsWith('장소 4곳')),
+    ).toHaveLength(1);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('장소 찾기에 실패하면 실패했다고 읽는다', async () => {
+    jest
+      .mocked(getHistoryReels)
+      .mockResolvedValue({reels: [historyReel('8', 'FAILED')], nextCursor: null});
+    const renderer = await render();
+
+    await saveLink(renderer);
+    await tick(3000);
+
+    expect(announce).toHaveBeenLastCalledWith('장소를 찾지 못했어요. 다시 시도해 주세요.');
+    expect(getHistoryReelPlaceCount).not.toHaveBeenCalled();
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('바로 완료된 링크는 접수 안내 없이 결과를 읽고, 장소 수를 못 읽으면 끝났다는 것만 읽는다', async () => {
+    jest.mocked(saveContent).mockResolvedValue({reelId: '8', status: 'COMPLETED', reused: true});
+    jest.mocked(getHistoryReelPlaceCount).mockRejectedValue(new Error('network'));
+    const renderer = await render();
+
+    await saveLink(renderer);
+
+    expect(announce).toHaveBeenCalledTimes(1);
+    expect(announce).toHaveBeenCalledWith('장소 찾기가 끝났어요.');
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('저장 요청이 실패하면 입력창 아래 오류 문구를 읽어 준다', async () => {
+    jest.mocked(saveContent).mockRejectedValue(
+      new ReelApiError({
+        errorCode: 'REEL400_001',
+        message: '인스타그램 릴스나 게시물 링크를 넣어주세요.',
+        retryable: false,
+      }),
+    );
+    const renderer = await render();
+
+    await saveLink(renderer);
+
+    expect(announce).toHaveBeenCalledWith('인스타그램 릴스나 게시물 링크를 넣어주세요.');
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
 });

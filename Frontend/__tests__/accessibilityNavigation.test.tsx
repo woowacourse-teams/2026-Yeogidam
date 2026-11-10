@@ -7,6 +7,7 @@ import {CategoryFilterChips} from '../src/components/CategoryFilterChips';
 import {PlaceTabs} from '../src/pages/place-detail/components/PlaceTabs';
 import {SavedPlacesRecentShares} from '../src/pages/saved-places/components/SavedPlacesRecentShares';
 import {SavedPlacesViewToggle} from '../src/pages/saved-places/components/SavedPlacesViewToggle';
+import {getRecentShareAccessibilityLabel} from '../src/pages/saved-places/shareStatusMessages';
 import type {HistoryReel} from '../src/entities/content/types';
 
 jest.mock('posthog-react-native', () => ({usePostHog: () => null}));
@@ -68,6 +69,17 @@ describe('카테고리 필터', () => {
 });
 
 describe('최근 공유', () => {
+  test.each([
+    ['PROCESSING', undefined, '최근 공유, 장소 찾는 중'],
+    ['PENDING', undefined, '최근 공유, 대기 중'],
+    ['COMPLETED', 3, '완료, 장소 3곳 찾음'],
+    ['COMPLETED', 0, '완료, 찾은 장소 없음'],
+    ['COMPLETED', undefined, '완료'],
+    ['FAILED', undefined, '최근 공유, 장소 찾기 실패'],
+  ] as const)('%s 상태의 썸네일은 상태를 말로 읽는다 (장소 %s곳)', (status, count, label) => {
+    expect(getRecentShareAccessibilityLabel(status, count)).toBe(label);
+  });
+
   const reel = {
     id: '1',
     instagram_url: 'https://www.instagram.com/reel/a/',

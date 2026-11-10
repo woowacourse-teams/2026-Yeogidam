@@ -3,6 +3,7 @@ import {
   Animated,
   Easing,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,8 @@ import {MaterialIcons} from '@react-native-vector-icons/material-icons/static';
 
 import {getHistoryReelPlaceCount} from '../../../entities/content/history-api';
 import type {HistoryReel} from '../../../entities/content/types';
+import {focusAccessibility} from '../../../lib/accessibility';
+import {getRecentShareAccessibilityLabel} from '../shareStatusMessages';
 import {
   getPlaceholderGradient,
   LIBRARY_COLORS,
@@ -27,7 +30,17 @@ type SavedPlacesRecentSharesProps = {
   /** 오른쪽 위 "전체보기"를 눌렀을 때 히스토리 화면으로 이동합니다. */
   onPressViewAll: () => void;
   onPressReel?: (reel: HistoryReel) => void;
+  /**
+   * 링크를 저장하고 입력창이 닫히면 방금 추가한 공유로 스크린 리더 포커스를 옮깁니다.
+   * 같은 공유를 다시 저장해도 옮기도록 요청마다 `requestId`를 바꿉니다.
+   */
+  focusRequest?: {reelId: string; requestId: number} | null;
 };
+
+// 입력창이 사라진 뒤에 포커스를 옮겨야 무시되지 않습니다. iOS는 입력창이 다 닫힌(onDismiss) 뒤에
+// 요청하므로, VoiceOver가 아래 화면으로 돌아와 자리를 잡을 때까지만 잠깐 기다립니다.
+// Android는 닫힘 시점을 알 수 없어 페이드가 끝날 만큼 기다립니다.
+const FOCUS_AFTER_DIALOG_CLOSE_DELAY_MS = Platform.OS === 'ios' ? 300 : 500;
 
 // 가장 최근에 추가한 릴스 4개와 링크 추가 버튼만 보여 줍니다(공유 목록은 최신순).
 const MAX_RECENT_REELS = 4;
@@ -250,9 +263,20 @@ export function SavedPlacesRecentShares({
   onPressAdd,
   onPressViewAll,
   onPressReel,
+  focusRequest = null,
 }: SavedPlacesRecentSharesProps) {
   const visibleReels = reels.slice(0, MAX_RECENT_REELS);
   const counts = useExtractedPlaceCounts(visibleReels);
+  const itemRefs = useRef(new Map<string, View>());
+
+  useEffect(() => {
+    if (!focusRequest) return;
+    // 포커스가 가면 썸네일 label("최근 공유, 장소 찾는 중")을 읽어 진행 상태를 알 수 있어요.
+    return focusAccessibility(
+      {current: itemRefs.current.get(focusRequest.reelId) ?? null},
+      FOCUS_AFTER_DIALOG_CLOSE_DELAY_MS,
+    );
+  }, [focusRequest]);
 
   if (reels.length === 0) {
     return null;
@@ -306,11 +330,14 @@ export function SavedPlacesRecentShares({
           return (
             <Pressable
               key={reel.id}
-              accessibilityLabel={
-                extractedCount === undefined || status !== 'done'
-                  ? `최근 공유 ${label}`
-                  : `최근 공유 ${label}, ${extractedCount}곳 추출`
-              }
+              ref={node => {
+                if (node) itemRefs.current.set(reel.id, node);
+                else itemRefs.current.delete(reel.id);
+              }}
+              accessibilityLabel={getRecentShareAccessibilityLabel(
+                reel.processing_status,
+                extractedCount,
+              )}
               accessibilityRole="button"
               onPress={() => onPressReel?.(reel)}
               style={({pressed}) => [styles.item, pressed && styles.pressed]}>

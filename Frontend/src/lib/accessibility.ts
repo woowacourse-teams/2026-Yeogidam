@@ -15,8 +15,16 @@ export const visuallyHiddenTextStyle: TextStyle = {
   color: 'transparent',
 };
 
-/** 화면 변화 없이 상태만 바뀔 때 스크린 리더로 읽어 줍니다. 스크린 리더가 꺼져 있으면 아무 일도 없어요. */
-export function announce(message: string) {
+/**
+ * 화면 변화 없이 상태만 바뀔 때 스크린 리더로 읽어 줍니다. 스크린 리더가 꺼져 있으면 아무 일도 없어요.
+ * iOS VoiceOver는 다른 것을 읽는 중에 들어온 안내를 버립니다. 앱으로 돌아온 직후처럼 화면을 읽고 있을
+ * 때는 `queue`를 켜서 지금 읽는 내용 뒤에 읽게 합니다(Android는 이 옵션을 무시해요).
+ */
+export function announce(message: string, options?: {queue?: boolean}) {
+  if (options?.queue) {
+    AccessibilityInfo.announceForAccessibilityWithOptions(message, {queue: true});
+    return;
+  }
   AccessibilityInfo.announceForAccessibility(message);
 }
 

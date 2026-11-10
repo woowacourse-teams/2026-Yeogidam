@@ -17,6 +17,8 @@ type SavedPlacesLinkDialogProps = {
   onChangeValue: (value: string) => void;
   onClose: () => void;
   onSubmit: () => void;
+  /** 입력창이 완전히 닫힌 뒤 불립니다. iOS에서만 불러요. */
+  onDismiss?: () => void;
   isSubmitting?: boolean;
   errorMessage?: string | null;
   submitLabel?: string;
@@ -28,6 +30,7 @@ export function SavedPlacesLinkDialog({
   onChangeValue,
   onClose,
   onSubmit,
+  onDismiss,
   isSubmitting = false,
   errorMessage = null,
   submitLabel = '저장',
@@ -47,6 +50,7 @@ export function SavedPlacesLinkDialog({
       animationType="fade"
       transparent
       visible={visible}
+      onDismiss={onDismiss}
       onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <Pressable accessible={false} onPress={handleBackdropPress} style={StyleSheet.absoluteFill} />
