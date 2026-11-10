@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    marginBottom: 18,
+    marginBottom: 22,
   },
   pressed: { opacity: 0.78 },
   imageClip: {
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   accountRow: {
-    marginTop: 6,
+    marginTop: 4,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     color: '#8e8e93',
   },
   title: {
-    marginTop: 5,
+    marginTop: 1,
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '700',
