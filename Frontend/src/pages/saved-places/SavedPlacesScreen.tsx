@@ -1658,6 +1658,10 @@ export function SavedPlacesScreen({
   // 장소/게시물 토글과 카테고리 칩. 스크롤 내용 안에 한 번(자리 확보), 위에 겹쳐 한 번 그립니다.
   const libraryBar = (
     <View style={styles.libraryBar}>
+      {/* 화면에는 보이지 않는 스크린 리더용 제목입니다. 제목 단위 이동으로 '최근 공유'에서 바로 이곳으로 옵니다. */}
+      <Text accessibilityRole="header" style={styles.visuallyHidden}>
+        보관함 목록
+      </Text>
       <SavedPlacesViewToggle
         view={libraryView}
         onChangeView={handleChangeLibraryView}
@@ -1819,11 +1823,11 @@ export function SavedPlacesScreen({
               onPressViewAll={handleOpenHistory}
               onPressAdd={openDialog}
             />
+            {/*
+              스크린 리더는 이 스크롤 안의 바를 읽습니다(읽는 순서가 화면 순서와 같고, 스크롤로 따라갈 수 있어요).
+              눈에 보이고 터치를 받는 것은 위에 겹쳐 그린 바라서, 버튼은 두 번 탭을 위치와 관계없이 바로 처리합니다.
+            */}
             <View
-              accessibilityElementsHidden={libraryBarLayout !== null}
-              importantForAccessibility={
-                libraryBarLayout !== null ? 'no-hide-descendants' : 'auto'
-              }
               onLayout={event =>
                 setLibraryBarLayout({
                   top: event.nativeEvent.layout.y,
@@ -1920,7 +1924,12 @@ export function SavedPlacesScreen({
               scrollY={scrollY}
               stickOffset={stickOffset}
             >
-              {libraryBar}
+              <View
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                {libraryBar}
+              </View>
             </SavedPlacesStickyBar>
           ) : null}
         </View>
@@ -2130,6 +2139,13 @@ const styles = StyleSheet.create({
   },
   libraryBarPlaceholder: {
     opacity: 0,
+  },
+  visuallyHidden: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    opacity: 0,
+    overflow: 'hidden',
   },
   // 칩 목록의 기본 좌우 여백(24)을 시안의 20에 맞춥니다.
   categoryChips: {

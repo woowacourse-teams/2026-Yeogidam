@@ -24,6 +24,7 @@ export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
 
   return (
     <View
+      accessibilityRole="tablist"
       style={styles.container}
       onLayout={event => {
         const { width } = event.nativeEvent.layout;
@@ -36,6 +37,8 @@ export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
           key={tab}
           style={styles.tabItem}
           onPress={() => onTabPress(tab)}
+          // 두 번 탭을 화면 위치의 터치로 바꾸지 않고 바로 처리합니다.
+          onAccessibilityTap={() => onTabPress(tab)}
           accessibilityRole="tab"
           accessibilityState={{ selected: tab === activeTab }}
         >

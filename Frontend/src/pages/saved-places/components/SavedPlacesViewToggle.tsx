@@ -34,6 +34,8 @@ export function SavedPlacesViewToggle({
               key={segment.id}
               accessibilityRole="tab"
               accessibilityState={{selected}}
+              // 두 번 탭을 화면 위치의 터치로 바꾸지 않고 바로 처리합니다. 겹쳐 그린 바가 다른 곳에 있어도 동작해요.
+              onAccessibilityTap={() => onChangeView(segment.id)}
               onPress={() => onChangeView(segment.id)}
               style={[styles.segment, selected && styles.segmentSelected]}>
               <Text style={[styles.label, selected && styles.labelSelected]}>
@@ -48,6 +50,7 @@ export function SavedPlacesViewToggle({
           accessibilityLabel={isEditing ? '보관함 편집 취소' : '보관함 편집'}
           accessibilityRole="button"
           hitSlop={8}
+          onAccessibilityTap={onPressEdit}
           onPress={onPressEdit}
           style={({pressed}) => pressed && styles.pressed}>
           <Text style={styles.editText}>{isEditing ? '취소' : '편집'}</Text>
