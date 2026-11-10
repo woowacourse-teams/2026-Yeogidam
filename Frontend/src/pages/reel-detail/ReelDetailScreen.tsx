@@ -256,7 +256,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
     : null;
   const sharedDate = formatSharedDate(reel.created_at);
   const screenReaderEnabled = useScreenReaderEnabled();
-  const collapsedCaptionRef = useRef<View>(null);
+  const collapsedCaptionRef = useRef<Text>(null);
   const fullCaptionRef = useRef<Text>(null);
   const [sheetHeaderHeight, setSheetHeaderHeight] = useState(0);
   const thumbnail = reel.local_thumbnail_source
@@ -643,14 +643,8 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
           ) : null}
           {caption ? (
             // 접힌 캡션 글을 누르면 전체 캡션이 펼쳐집니다.
-            // '캡션 펼치기'만 읽으면 내용을 알 수 없어, 캡션 내용과 접힌 상태를 함께 읽어 줍니다.
-            <Pressable
-              ref={collapsedCaptionRef}
-              accessibilityHint="두 번 탭하면 전체 캡션을 펼쳐요"
-              accessibilityLabel={`캡션, ${captionPreview ?? caption}`}
-              accessibilityRole="button"
-              accessibilityValue={{text: '접힘'}}
-              onPress={() => toggleCaption(true)}>
+            // 스크린 리더에서는 캡션 내용(텍스트)과 '캡션 전체 보기'(버튼)를 따로 읽도록, 바깥 버튼은 하나로 묶지 않습니다.
+            <Pressable accessible={false} onPress={() => toggleCaption(true)}>
               {/* 전체 줄바꿈을 재기 위한 숨은 글자입니다. 화면 폭이 같아야 결과가 맞습니다. */}
               <Text
                 accessibilityElementsHidden
@@ -666,11 +660,22 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
                 style={[styles.caption, styles.captionMeasure]}>
                 {caption}
               </Text>
-              <Text numberOfLines={COLLAPSED_CAPTION_LINES} style={styles.caption}>
+              <Text
+                ref={collapsedCaptionRef}
+                accessibilityLabel={`캡션, ${captionPreview ?? caption}`}
+                numberOfLines={COLLAPSED_CAPTION_LINES}
+                style={styles.caption}>
                 {captionPreview !== null
                   ? `${captionPreview}${CAPTION_ELLIPSIS}`
                   : caption}
               </Text>
+              {/* 화면에는 보이지 않는 스크린 리더용 버튼입니다. 캡션 영역에 겹쳐 두어, 눌러도 캡션을 누른 것과 같습니다. */}
+              <Pressable
+                accessibilityLabel="캡션 전체 보기"
+                accessibilityRole="button"
+                onPress={() => toggleCaption(true)}
+                style={StyleSheet.absoluteFill}
+              />
             </Pressable>
           ) : null}
         </Animated.View>
@@ -729,7 +734,6 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
             <Pressable
               accessibilityLabel="캡션 접기"
               accessibilityRole="button"
-              accessibilityState={{expanded: true}}
               hitSlop={12}
               onPress={() => toggleCaption(false)}
               style={[

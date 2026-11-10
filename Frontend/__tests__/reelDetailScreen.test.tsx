@@ -190,7 +190,7 @@ test('접힌 캡션을 누르면 펼치고 접기로 닫는다', async () => {
   expect(texts(renderer)).not.toContain('접기');
 
   await ReactTestRenderer.act(async () =>
-    renderer.root.findByProps({accessibilityHint: '두 번 탭하면 전체 캡션을 펼쳐요'}).props.onPress(),
+    renderer.root.findByProps({accessibilityLabel: '캡션 전체 보기'}).props.onPress(),
   );
   expect(texts(renderer)).toContain('접기');
   expect(texts(renderer)).toContain('@seongsu_cafe · 2026.11.04 공유');
@@ -407,17 +407,27 @@ test('이미 제보한 게시물을 다시 열면 제보 완료 상태로 시작
 });
 
 describe('스크린 리더', () => {
-  test('작성자는 골뱅이 없이 읽고, 접힌 캡션은 내용과 접힌 상태를 읽는다', async () => {
+  test('작성자는 골뱅이 없이 읽고, 접힌 캡션은 내용과 전체 보기 버튼을 따로 읽는다', async () => {
     const {renderer} = await render();
 
     expect(
       renderer.root.findAllByProps({accessibilityLabel: '작성자 seongsu_cafe'}).length,
     ).toBeGreaterThan(0);
-    const collapsed = renderer.root.findByProps({
-      accessibilityHint: '두 번 탭하면 전체 캡션을 펼쳐요',
-    });
-    expect(collapsed.props.accessibilityLabel).toMatch(/^캡션, 성수동에서/);
-    expect(collapsed.props.accessibilityValue).toEqual({text: '접힘'});
+    const captionText = renderer.root.findAll(
+      node =>
+        typeof node.props.accessibilityLabel === 'string' &&
+        node.props.accessibilityLabel.startsWith('캡션, 성수동에서'),
+    );
+    expect(captionText.length).toBeGreaterThan(0);
+    expect(captionText[0].props.accessibilityRole).toBeUndefined();
+    const button = renderer.root.findByProps({accessibilityLabel: '캡션 전체 보기'});
+    expect(button.props.accessibilityRole).toBe('button');
+    // 바깥 Pressable이 둘을 하나로 합치지 않아야 따로 읽힌다.
+    expect(
+      renderer.root.findAll(
+        node => node.props.accessible === false && typeof node.props.onPress === 'function',
+      ).length,
+    ).toBeGreaterThan(0);
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
 
@@ -427,12 +437,9 @@ describe('스크린 리더', () => {
 
     await ReactTestRenderer.act(async () =>
       renderer.root
-        .findByProps({accessibilityHint: '두 번 탭하면 전체 캡션을 펼쳐요'})
+        .findByProps({accessibilityLabel: '캡션 전체 보기'})
         .props.onPress(),
     );
-    expect(
-      renderer.root.findByProps({accessibilityLabel: '캡션 접기'}).props.accessibilityState,
-    ).toEqual({expanded: true});
     await ReactTestRenderer.act(async () =>
       renderer.root.findByProps({accessibilityLabel: '캡션 접기'}).props.onPress(),
     );
