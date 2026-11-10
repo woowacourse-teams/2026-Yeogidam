@@ -78,6 +78,7 @@ import {
   type PlaceResultEmptyState,
 } from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
+import GoogleMapNativeComponent from '../../../spec/GoogleMapNativeComponent';
 
 import {
   checkLocationPermission,
@@ -114,6 +115,9 @@ type MapCamera = {
   zoomLevel: number;
   bottomInset: number;
 };
+
+// 국내 지도 품질 비교용 Google 지도 토글은 iOS 개발 빌드에서만 보여줍니다.
+const CAN_PREVIEW_GOOGLE_MAP = __DEV__ && Platform.OS === 'ios';
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
@@ -200,6 +204,20 @@ export function MapScreen({
   const [cameraFitRequestId, setCameraFitRequestId] = useState(0);
   // 같은 좌표로 다시 옮길 때도 지도가 움직이도록, 좌표와 별개로 이동 요청을 보낸다.
   const [cameraMoveRequestId, setCameraMoveRequestId] = useState(0);
+  const [isGoogleMapPreview, setIsGoogleMapPreview] = useState(false);
+  const googleMapCameraRef = useRef<MapCamera | null>(null);
+
+  const toggleGoogleMapPreview = () => {
+    if (isGoogleMapPreview && googleMapCameraRef.current) {
+      // Google 지도에서 보던 곳을 카카오 지도에서도 그대로 보여줍니다.
+      const { latitude, longitude, zoomLevel } = googleMapCameraRef.current;
+      setMapCenter({ latitude, longitude });
+      setMapZoomLevel(zoomLevel);
+      setCameraMoveRequestId(requestId => requestId + 1);
+    }
+    googleMapCameraRef.current = null;
+    setIsGoogleMapPreview(isPreview => !isPreview);
+  };
   const [isPlaceDetailVisible, setIsPlaceDetailVisible] = useState(false);
   const [openedMarker, setOpenedMarker] = useState<{
     place: Place | null;
@@ -783,6 +801,20 @@ export function MapScreen({
         ? 0
         : page.sheetVisibleHeight;
     const isCurrentPage = isActive;
+    const savedPlacesJson = JSON.stringify(
+      (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
+        ({ id, name, latitude, longitude, category, categoryCode }) => ({
+          id,
+          name,
+          selected: id === page.place?.id,
+          latitude,
+          longitude,
+          color: pinColorByPlaceId.get(id),
+          // 핀 안에 넣을 카테고리 아이콘을 네이티브가 범주 코드로 고릅니다.
+          category: resolvePlaceCategoryCode({ category, categoryCode }),
+        }),
+      ),
+    );
     return (
       <View style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}>
         {mapHeight > 0 ? (
@@ -795,27 +827,7 @@ export function MapScreen({
             cameraFitPointsJson={cameraFitPointsJson}
             cameraFitRequestId={cameraFitRequestId}
             cameraBottomInset={cameraBottomInset}
-            savedPlacesJson={JSON.stringify(
-              (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
-                ({
-                  id,
-                  name,
-                  latitude,
-                  longitude,
-                  category,
-                  categoryCode,
-                }) => ({
-                  id,
-                  name,
-                  selected: id === page.place?.id,
-                  latitude,
-                  longitude,
-                  color: pinColorByPlaceId.get(id),
-                  // 핀 안에 넣을 카테고리 아이콘을 네이티브가 범주 코드로 고릅니다.
-                  category: resolvePlaceCategoryCode({ category, categoryCode }),
-                }),
-              ),
-            )}
+            savedPlacesJson={savedPlacesJson}
             showsCurrentLocation={locationGranted}
             currentLocationRequestId={currentLocationRequestId}
             onMapReady={event => {
@@ -900,6 +912,22 @@ export function MapScreen({
             }}
           />
         ) : null}
+        {/* 카카오 지도 위에 겹치되, 바텀시트와 버튼보다는 아래에 두려고 zIndex 없이 뒤에 그립니다. */}
+        {mapHeight > 0 && CAN_PREVIEW_GOOGLE_MAP && isGoogleMapPreview ? (
+          <GoogleMapNativeComponent
+            style={styles.googleMapPreview}
+            latitude={lastMapCameraRef.current.latitude}
+            longitude={lastMapCameraRef.current.longitude}
+            zoomLevel={lastMapCameraRef.current.zoomLevel}
+            savedPlacesJson={savedPlacesJson}
+            onCameraChanged={event => {
+              googleMapCameraRef.current = {
+                ...event.nativeEvent,
+                bottomInset: cameraBottomInset,
+              };
+            }}
+          />
+        ) : null}
       </View>
     );
   };
@@ -963,6 +991,36 @@ export function MapScreen({
                   <View style={styles.currentLocationDot} />
                 </View>
               </View>
+            </Pressable>
+          </Animated.View>
+        ) : null}
+        {mapHeight > 0 && CAN_PREVIEW_GOOGLE_MAP ? (
+          <Animated.View
+            pointerEvents={page.isExpanded ? 'none' : 'auto'}
+            style={[
+              styles.currentLocationButtonContainer,
+              {
+                bottom: page.sheetBottomOffset + page.sheetHeight + 72,
+                opacity: locationButtonOpacity,
+                transform: [{ translateY: page.translateY }],
+              },
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                isGoogleMapPreview ? '카카오 지도로 보기' : 'Google 지도로 보기'
+              }
+              hitSlop={8}
+              onPress={toggleGoogleMapPreview}
+              style={({ pressed }) => [
+                styles.currentLocationButton,
+                pressed && styles.currentLocationButtonPressed,
+              ]}
+            >
+              <Text style={styles.mapProviderToggleText}>
+                {isGoogleMapPreview ? 'K' : 'G'}
+              </Text>
             </Pressable>
           </Animated.View>
         ) : null}
@@ -1278,6 +1336,18 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  googleMapPreview: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  mapProviderToggleText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#191919',
   },
   searchOverlay: {
     position: 'absolute',

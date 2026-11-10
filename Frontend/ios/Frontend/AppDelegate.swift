@@ -3,6 +3,7 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import KakaoMapsSDK
+import GoogleMaps
 import HotUpdater
 
 @main
@@ -26,6 +27,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 
   SDKInitializer.InitSDK(appKey: kakaoNativeAppKey)
+
+  // 개발용 Google 지도 비교에만 쓰므로 키가 없어도 앱은 그대로 실행한다.
+  if
+    let googleMapsApiKey =
+      Bundle.main.object(forInfoDictionaryKey: "GOOGLE_MAPS_IOS_API_KEY") as? String,
+    !googleMapsApiKey.isEmpty,
+    googleMapsApiKey != "$(GOOGLE_MAPS_IOS_API_KEY)"
+  {
+    GMSServices.provideAPIKey(googleMapsApiKey)
+  }
 
   let delegate = ReactNativeDelegate()
   let factory = RCTReactNativeFactory(delegate: delegate)

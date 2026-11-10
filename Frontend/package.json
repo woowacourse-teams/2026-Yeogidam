@@ -13,6 +13,9 @@
       "components": {
         "YeogidamKakaoMapView": {
           "className": "RCTKakaoMapView"
+        },
+        "YeogidamGoogleMapView": {
+          "className": "RCTGoogleMapView"
         }
       }
     }
