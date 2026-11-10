@@ -1,6 +1,8 @@
 import React from 'react';
+import {Keyboard, TextInput} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
+import {SearchBar} from '../src/components/SearchBar';
 import {FOLDER_COLORS, getFolderColorName} from '../src/entities/folder/color';
 import type {HistoryReel} from '../src/entities/content/types';
 import type {Place} from '../src/entities/place/types';
@@ -121,5 +123,20 @@ describe('폴더 색상 (F1)', () => {
       '분홍',
     ]);
     expect(getFolderColorName('#000000')).toBe('기본 색');
+  });
+});
+
+describe('키보드 (K1)', () => {
+  test('검색창에서 두 손가락 문지르기(Z) 제스처로 키보드를 내린다', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
+    const renderer = await render(<SearchBar layout="embedded" onChangeText={jest.fn()} />);
+
+    const input = renderer.root
+      .findAllByType(TextInput)
+      .find(node => node.props.accessibilityLabel === '장소, 지역 검색');
+    expect(input).toBeDefined();
+    input!.props.onAccessibilityEscape();
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    dismiss.mockRestore();
   });
 });

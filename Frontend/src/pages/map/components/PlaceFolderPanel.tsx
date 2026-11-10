@@ -245,6 +245,8 @@ export function FolderNameDialog({
           <Text style={styles.dialogTitle}>{title}</Text>
           <View style={styles.inputField}>
             <TextInput
+              // VoiceOver의 두 손가락 문지르기(Z) 제스처로 키보드를 내립니다. 빈 곳 탭은 스크린 리더에서 쓸 수 없어요.
+              onAccessibilityEscape={Keyboard.dismiss}
               autoFocus
               maxLength={MAX_FOLDER_NAME_LENGTH}
               onChangeText={setName}
