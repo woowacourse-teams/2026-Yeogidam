@@ -65,6 +65,8 @@ const BACKDROP_BLUR_RADIUS = 24;
 const REEL_HEIGHT_RATIO = 16 / 9;
 // 이보다 세로로 긴 사진만 릴스로 보고 가로에 꽉 채웁니다.
 const TALL_POST_MIN_RATIO = 1.6;
+// 짧은 사진 위아래로 남는 공간 중 위쪽이 차지하는 비율. 가운데(0.5)보다 살짝 아래에 둡니다.
+const POST_IMAGE_TOP_RATIO = 0.6;
 // 둘째 줄이 줄바꿈으로 끝나면 기본 말줄임이 붙지 않아 직접 붙입니다.
 const CAPTION_ELLIPSIS = '...';
 // 말줄임이 차지하는 폭보다 조금 넉넉하게 잡아 다음 줄로 밀리지 않게 합니다.
@@ -535,7 +537,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const sheetTranslateY = Animated.subtract(sheetTop, expandedTop);
   const sheetHeight = windowHeight - expandedTop;
 
-  // 릴스는 가로에 꽉 채우고, 그보다 짧은 사진은 아래 빈 공간이 없도록 시트 윗선에 붙입니다.
+  // 릴스는 가로에 꽉 채우고, 그보다 짧은 사진은 시트 위 남은 공간의 세로 가운데에 둡니다.
   const isTallPost =
     postImageRatio !== null && postImageRatio >= TALL_POST_MIN_RATIO;
   const shortPostHeight =
@@ -545,7 +547,9 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const postImageHeight = isTallPost
     ? Math.max(collapsedTop, windowWidth * REEL_HEIGHT_RATIO)
     : shortPostHeight;
-  const postImageTop = isTallPost ? 0 : collapsedTop - shortPostHeight;
+  const postImageTop = isTallPost
+    ? 0
+    : Math.round((collapsedTop - shortPostHeight) * POST_IMAGE_TOP_RATIO);
 
   const placesCount =
     placesState.status === 'ready' ? placesState.places.length : 0;
