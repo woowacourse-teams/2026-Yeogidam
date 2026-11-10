@@ -16,14 +16,17 @@ public class LoadTestMetrics {
     private final MeterRegistry registry;
     private final Timer queueWait;
     private final Timer execution;
+    private final Counter dedicatedQueueWaitSamples;
     private final Counter succeeded;
     private final Counter failed;
     private final Counter rejected;
+    private final ThreadLocal<Long> currentQueueWaitNanos = new ThreadLocal<>();
 
     public LoadTestMetrics(MeterRegistry registry) {
         this.registry = registry;
         queueWait = registry.timer("media.extraction.queue.wait");
         execution = registry.timer("media.extraction.execution");
+        dedicatedQueueWaitSamples = registry.counter("media.extraction.queue.wait.dedicated.samples");
         succeeded = registry.counter("media.extraction.succeeded");
         failed = registry.counter("media.extraction.failed");
         rejected = registry.counter("media.extraction.rejected");
@@ -47,12 +50,23 @@ public class LoadTestMetrics {
     }
 
     private void execute(Runnable task, long submittedAt) {
-        queueWait.record(Duration.ofNanos(System.nanoTime() - submittedAt));
         long startedAt = System.nanoTime();
+        long queueWaitNanos = startedAt - submittedAt;
+        queueWait.record(Duration.ofNanos(queueWaitNanos));
+        currentQueueWaitNanos.set(queueWaitNanos);
         try {
             task.run();
         } finally {
+            currentQueueWaitNanos.remove();
             execution.record(Duration.ofNanos(System.nanoTime() - startedAt));
+        }
+    }
+
+    void logDedicatedQueueWait(String shortcode) {
+        Long queueWaitNanos = currentQueueWaitNanos.get();
+        if (queueWaitNanos != null) {
+            log.info("LOAD_TEST_QUEUE_WAIT shortcode={} queueNs={}", shortcode, queueWaitNanos);
+            dedicatedQueueWaitSamples.increment();
         }
     }
 

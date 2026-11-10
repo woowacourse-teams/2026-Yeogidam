@@ -81,9 +81,10 @@ class GoldenSetEvalTest {
         JsonMapper jsonMapper = JsonMapper.builder().build();
         List<String> fallbackApiKeys = splitKeys(env.getOrDefault("GEMINI_API_KEY_FALLBACKS", ""));
         GeminiEvalRequestLimiter requestLimiter = new GeminiEvalRequestLimiter();
-        RestClient instagramMediaRestClient = extractionConfig.instagramMediaRestClient(RestClient.builder());
+        RestClient instagramMediaRestClient = extractionConfig.instagramMediaRestClient(
+                RestClient.builder(), extractionConfig.instagramMediaHttpClient());
         RestClient geminiMediaRestClient = extractionConfig.geminiMediaRestClient(
-                RestClient.builder().requestInterceptor(requestLimiter));
+                RestClient.builder().requestInterceptor(requestLimiter), extractionConfig.geminiMediaHttpClient());
         GeminiPlaceNameExtractor extractor = new GeminiPlaceNameExtractor(
                 extractionConfig.geminiRestClient(RestClient.builder().requestInterceptor(requestLimiter)),
                 new GeminiProperties(env.get("GEMINI_API_KEY"), env.get("GEMINI_MODEL"), fallbackApiKeys),
