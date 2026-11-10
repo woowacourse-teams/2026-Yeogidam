@@ -42,11 +42,23 @@ const reel = {
   created_at: '2026-11-04T03:00:00Z',
 } as HistoryReel;
 
+// 화면이 남아 있으면 포커스 이동 같은 타이머가 테스트 환경이 정리된 뒤에 실행돼 CI가 실패합니다.
+// 테스트마다 렌더한 화면을 모두 unmount해 타이머를 정리합니다.
+const mountedRenderers: ReactTestRenderer.ReactTestRenderer[] = [];
+
+afterEach(async () => {
+  const renderers = mountedRenderers.splice(0);
+  await ReactTestRenderer.act(async () => {
+    renderers.forEach(renderer => renderer.unmount());
+  });
+});
+
 async function render(element: React.ReactElement) {
   let renderer!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(async () => {
     renderer = ReactTestRenderer.create(element);
   });
+  mountedRenderers.push(renderer);
   return renderer;
 }
 
@@ -162,14 +174,11 @@ describe('키보드 (K1)', () => {
 describe('검색창 (K2)', () => {
   test('검색 패널 입력창이 열리면 스크린 리더 포커스를 입력창으로 옮긴다', async () => {
     const focusSpy = jest.spyOn(accessibility, 'focusAccessibility');
-    const renderer = await render(
-      <SearchBar autoFocus layout="embedded" onChangeText={jest.fn()} />,
-    );
+    await render(<SearchBar autoFocus layout="embedded" onChangeText={jest.fn()} />);
 
     expect(focusSpy).toHaveBeenCalledTimes(1);
     const [, delayMs] = focusSpy.mock.calls[0];
     expect(delayMs).toBe(300);
-    await ReactTestRenderer.act(async () => renderer.unmount());
     focusSpy.mockRestore();
   });
 

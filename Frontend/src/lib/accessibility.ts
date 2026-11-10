@@ -3,6 +3,11 @@ import {AccessibilityInfo, findNodeHandle} from 'react-native';
 import type {Component, RefObject} from 'react';
 import type {TextStyle} from 'react-native';
 
+// react-native는 이름을 처음 쓸 때 모듈을 불러옵니다. 포커스 이동처럼 나중에 실행되는 타이머 안에서
+// 처음 불러오지 않도록 미리 잡아 둡니다(테스트가 끝난 뒤 타이머가 실행되면 CI가 실패해요).
+const getNodeHandle = findNodeHandle;
+const accessibilityInfo = AccessibilityInfo;
+
 /**
  * 화면에는 보이지 않고 스크린 리더만 읽는 글자에 씁니다(웹의 sr-only).
  * iOS VoiceOver는 투명도(opacity)가 0인 요소를 건너뛰므로(기기에서 확인), opacity 대신 1pt 크기와 투명한 글자색으로 숨깁니다.
@@ -39,9 +44,9 @@ export function focusAccessibility(
   const timer = setTimeout(() => {
     // 기다리는 사이 화면이 닫히는 등 요소를 찾지 못해도 앱 동작에는 영향이 없도록 조용히 넘깁니다.
     try {
-      const node = ref.current ? findNodeHandle(ref.current) : null;
+      const node = ref.current ? getNodeHandle(ref.current) : null;
       if (node) {
-        AccessibilityInfo.setAccessibilityFocus(node);
+        accessibilityInfo.setAccessibilityFocus(node);
       }
     } catch {
       // 포커스 이동은 보조 기능이라 실패해도 무시합니다.
