@@ -1,21 +1,16 @@
-import { showAlert } from '../../lib/app-alert';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {usePostHog} from 'posthog-react-native';
-import {
-  trackActionFinished,
-  useScreenAnalytics,
-} from '../../analytics/uiEvents';
+import { trackActionFinished, useScreenAnalytics } from '../../analytics/uiEvents';
 
 import {
   captureSavedPlaceOpened,
   type SavedPlaceViewContext,
 } from '../../analytics/savedPlaceEvents';
-import { deleteSavedPlaces, getPlaceReels, getSavedPlaces } from '../../entities/info/api';
+import { getPlaceReels } from '../../entities/info/api';
 import type {
   PlaceReel,
   PlaceReelsApiError,
-  SavedPlacesApiError,
 } from '../../entities/info/types';
 import type { Place } from '../../entities/place/types';
 import { SEARCH_BAR_TOP_GAP } from '../../components/SearchBar';
@@ -24,6 +19,7 @@ import { usePlaceFolders } from '../../lib/usePlaceFolders';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
 import type { PlaceTab } from './components/PlaceTabs';
+import { usePlaceBookmark } from './usePlaceBookmark';
 import { usePlaceDetailData } from './usePlaceDetailData';
 
 type PlaceDetailScreenProps = {
@@ -77,8 +73,13 @@ export function PlaceDetailScreen({
     [folders],
   );
   const placeFolderIds = getPlaceFolderIds(place);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(null);
+  const bookmark = usePlaceBookmark({
+    place,
+    reels,
+    isReelsLoading,
+    analyticsSource: 'place_detail',
+    onAuthenticationRequired,
+  });
 
   useEffect(() => {
     if (
@@ -122,81 +123,10 @@ export function PlaceDetailScreen({
     loadPosts();
   }, [loadPosts]);
 
-  const handleDelete = useCallback(async () => {
-    if (isDeleting) {
-      return;
-    }
-    if (onDeleteGuestPlaces) {
-      onDeleteGuestPlaces([place.id]);
-      onBack();
-      return;
-    }
-    if (!place.savedPlaceId) {
-      setDeleteError({
-        status: 400,
-        errorCode: 'COMMON400_001',
-        message: '요청 내용을 확인해주세요.',
-        retryable: false,
-      });
-      return;
-    }
-
-    setIsDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteSavedPlaces([place.savedPlaceId]);
-      trackActionFinished(posthog, 'saved_place_delete', 'success', {
-        source: 'place_detail',
-      });
-      onBack();
-    } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
-      if (apiError.errorCode === 'CLIENT000_002') {
-        try {
-          const savedPlaces = await getSavedPlaces();
-          if (!savedPlaces.some(savedPlace => savedPlace.id === place.savedPlaceId)) {
-            onBack();
-            return;
-          }
-        } catch {
-          // Keep the original timeout error and allow the user to retry.
-        }
-      }
-
-      trackActionFinished(posthog, 'saved_place_delete', 'failure', {
-        source: 'place_detail',
-        failure_type: apiError.errorCode,
-      });
-      setDeleteError(apiError);
-      if (apiError.errorCode === 'AUTH401_001' || apiError.errorCode === 'AUTH401_002') {
-        onAuthenticationRequired?.();
-      }
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [
-    isDeleting,
-    onAuthenticationRequired,
-    onBack,
-    onDeleteGuestPlaces,
-    place.id,
-    posthog,
-    place.savedPlaceId,
-  ]);
-
-  // 더보기 시트가 없으므로 해제에 실패하면 알림 창으로 알립니다.
-  useEffect(() => {
-    if (!deleteError) {
-      return;
-    }
-    showAlert('북마크를 해제하지 못했어요', deleteError.message);
-    setDeleteError(null);
-  }, [deleteError]);
-
   const canDelete = guestReels === undefined || onDeleteGuestPlaces !== undefined;
 
   return (
-    <CopyToastProvider bottomOffset={bottomInset + 16}>
+    <CopyToastProvider bottomOffset={bottomInset + 16} notice={bookmark.notice}>
       <PlaceDetailContent
         onBack={onBack}
         place={place}
@@ -225,10 +155,21 @@ export function PlaceDetailScreen({
               }
         }
         onPressDelete={
-          canDelete ? () => handleDelete().catch(() => undefined) : undefined
+          canDelete
+            ? () => {
+                // 비회원 시드 장소는 저장 상태가 없어 지우고 바로 돌아갑니다.
+                if (onDeleteGuestPlaces) {
+                  onDeleteGuestPlaces([place.id]);
+                  onBack();
+                  return;
+                }
+                bookmark.toggle().catch(() => undefined);
+              }
+            : undefined
         }
+        isBookmarked={onDeleteGuestPlaces ? true : bookmark.isBookmarked}
         isInFolder={placeFolderIds.length > 0}
-        isDeleting={isDeleting}
+        isDeleting={bookmark.isPending}
       />
       {isGuest ? null : (
         <PlaceFolderAssignPicker

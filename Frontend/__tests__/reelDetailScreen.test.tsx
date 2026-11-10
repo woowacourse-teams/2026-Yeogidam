@@ -363,10 +363,12 @@ test('장소 북마크 버튼은 savedPlaceId로 표시하고 활성화와 해�
     renderer.root.findByProps({accessibilityLabel: '카페 온월 북마크하기'}).props.onPress();
   });
   expect(saveMediaPlace).toHaveBeenCalledWith('8', '1');
+  expect(texts(renderer)).toContain('보관함과 지도에서 표시했어요');
   await ReactTestRenderer.act(async () => {
     renderer.root.findByProps({accessibilityLabel: '카페 온월 북마크 해제'}).props.onPress();
   });
   expect(deleteSavedPlaces).toHaveBeenCalledWith(['99']);
+  expect(texts(renderer)).toContain('보관함과 지도에서 뺐어요');
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
 

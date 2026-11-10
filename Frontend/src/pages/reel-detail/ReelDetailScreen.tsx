@@ -35,7 +35,14 @@ import type {
   HistoryReel,
   HistoryReelPlace,
 } from '../../entities/content/types';
-import {getMiddleCategory} from '../../entities/place/category';
+import {PlaceListRow} from '../../components/place/PlaceListRow';
+import {
+  PLACE_SAVED_MESSAGE,
+  PLACE_UNSAVED_MESSAGE,
+  subscribeSavedPlaceChanged,
+} from '../../lib/saved-place-events';
+import {CopyToastProvider} from '../place-detail/components/CopyToast';
+import type {BookmarkNotice} from '../place-detail/usePlaceBookmark';
 
 type ReelDetailScreenProps = {
   reel: HistoryReel;
@@ -49,9 +56,6 @@ type ReelDetailScreenProps = {
 const COLLAPSED_RATIO = 600 / 844;
 const EXPANDED_RATIO = 250 / 844;
 const SHEET_RADIUS = 28;
-const PHOTO_WIDTH = 100;
-const PHOTO_HEIGHT = 92;
-const ROW_HEIGHT = 116;
 const COLLAPSED_CAPTION_LINES = 2;
 const CAPTION_SCRIM_COLOR = 'rgba(13, 13, 31, 0.72)';
 const CAPTION_SHADE_SOLID_START = 0.6;
@@ -225,6 +229,7 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const [isCaptionOpen, setIsCaptionOpen] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [savingPlaceIds, setSavingPlaceIds] = useState<Set<string>>(new Set());
+  const [notice, setNotice] = useState<BookmarkNotice | null>(null);
   const [isReported, setIsReported] = useState(reel.reported === true);
   const [isReporting, setIsReporting] = useState(false);
 
@@ -242,6 +247,24 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
     : reel.instagram_thumbnail_url
       ? {uri: reel.instagram_thumbnail_url}
       : null;
+
+  // 이 화면 위에 연 장소 상세에서 북마크를 바꾸면 돌아왔을 때 아이콘이 맞도록 반영합니다.
+  useEffect(
+    () =>
+      subscribeSavedPlaceChanged(({placeId, savedPlaceId}) => {
+        setPlacesState(current =>
+          current.status !== 'ready'
+            ? current
+            : {
+                ...current,
+                places: current.places.map(item =>
+                  item.place?.id === placeId ? {...item, savedPlaceId} : item,
+                ),
+              },
+        );
+      }),
+    [],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -286,6 +309,10 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
           ? {...place, savedPlaceId}
           : place),
       });
+      setNotice(current => ({
+        id: (current?.id ?? 0) + 1,
+        message: savedPlaceId ? PLACE_SAVED_MESSAGE : PLACE_UNSAVED_MESSAGE,
+      }));
     } catch (error) {
       trackActionFinished(posthog, actionName, 'failure', {
         failure_type: (error as {errorCode?: string}).errorCode ?? 'unknown',
@@ -524,302 +551,285 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
     placesState.status === 'ready' ? placesState.places.length : 0;
 
   return (
-    <View style={styles.container} {...panResponder.panHandlers}>
-      {thumbnail ? (
-        <>
-          {/* 게시물 비율과 관계없이 잘리지 않게 전체를 보여 주고, 남는 공간은 같은 사진을 흐려 채웁니다. */}
-          <Image
-            blurRadius={BACKDROP_BLUR_RADIUS}
-            source={thumbnail}
+    <CopyToastProvider bottomOffset={insets.bottom + 16} notice={notice}>
+      <View style={styles.container} {...panResponder.panHandlers}>
+        {thumbnail ? (
+          <>
+            {/* 게시물 비율과 관계없이 잘리지 않게 전체를 보여 주고, 남는 공간은 같은 사진을 흐려 채웁니다. */}
+            <Image
+              blurRadius={BACKDROP_BLUR_RADIUS}
+              source={thumbnail}
+              style={styles.backdrop}
+            />
+            <Image
+              onLoad={event => {
+                const {width, height} = event.nativeEvent.source;
+                setPostImageRatio(height / width);
+              }}
+              source={thumbnail}
+              style={[
+                styles.postImage,
+                {top: postImageTop, height: postImageHeight},
+              ]}
+            />
+          </>
+        ) : (
+          <LinearGradient
+            colors={['#b9c2ff', '#e6e9ff']}
+            end={{x: 1, y: 1}}
+            start={{x: 0, y: 0}}
             style={styles.backdrop}
           />
-          <Image
-            onLoad={event => {
-              const {width, height} = event.nativeEvent.source;
-              setPostImageRatio(height / width);
-            }}
-            source={thumbnail}
-            style={[
-              styles.postImage,
-              {top: postImageTop, height: postImageHeight},
-            ]}
-          />
-        </>
-      ) : (
+        )}
         <LinearGradient
-          colors={['#b9c2ff', '#e6e9ff']}
-          end={{x: 1, y: 1}}
-          start={{x: 0, y: 0}}
-          style={styles.backdrop}
+          // 접힌 캡션이 시작되는 높이부터 펼친 캡션의 배경과 같은 어둡기로 이어 글씨가 잘 보이게 하고,
+          // 시트의 둥근 모서리 뒤로 밝은 원본 이미지가 비치지 않도록 시트 윗선 아래까지 덮습니다.
+          colors={['rgba(0, 0, 0, 0)', CAPTION_SCRIM_COLOR, CAPTION_SCRIM_COLOR]}
+          locations={[0, CAPTION_SHADE_SOLID_START, 1]}
+          pointerEvents="none"
+          style={[
+            styles.shade,
+            {
+              top: windowHeight * 0.355,
+              height: windowHeight * 0.355 + SHEET_RADIUS,
+            },
+          ]}
         />
-      )}
-      <LinearGradient
-        // 접힌 캡션이 시작되는 높이부터 펼친 캡션의 배경과 같은 어둡기로 이어 글씨가 잘 보이게 하고,
-        // 시트의 둥근 모서리 뒤로 밝은 원본 이미지가 비치지 않도록 시트 윗선 아래까지 덮습니다.
-        colors={['rgba(0, 0, 0, 0)', CAPTION_SCRIM_COLOR, CAPTION_SCRIM_COLOR]}
-        locations={[0, CAPTION_SHADE_SOLID_START, 1]}
-        pointerEvents="none"
-        style={[
-          styles.shade,
-          {
-            top: windowHeight * 0.355,
-            height: windowHeight * 0.355 + SHEET_RADIUS,
-          },
-        ]}
-      />
 
-      <Animated.View
-        pointerEvents={isSheetExpanded || isCaptionOpen ? 'none' : 'box-none'}
-        style={[
-          styles.infoWrap,
-          {bottom: overlayBottom, opacity: infoOpacity},
-        ]}>
-        {author ? <Text style={styles.author}>{author}</Text> : null}
-        {caption ? (
-          // 접힌 캡션 글을 누르면 전체 캡션이 펼쳐집니다.
-          <Pressable
-            accessibilityLabel="캡션 펼치기"
-            accessibilityRole="button"
-            onPress={() => toggleCaption(true)}>
-            {/* 전체 줄바꿈을 재기 위한 숨은 글자입니다. 화면 폭이 같아야 결과가 맞습니다. */}
-            <Text
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              onTextLayout={event =>
-                setCaptionPreview(
-                  getCollapsedCaptionPreview(
-                    event.nativeEvent.lines,
-                    windowWidth - CAPTION_SIDE_PADDING * 2,
-                  ),
-                )
-              }
-              style={[styles.caption, styles.captionMeasure]}>
-              {caption}
-            </Text>
-            <Text numberOfLines={COLLAPSED_CAPTION_LINES} style={styles.caption}>
-              {captionPreview !== null
-                ? `${captionPreview}${CAPTION_ELLIPSIS}`
-                : caption}
-            </Text>
-          </Pressable>
-        ) : null}
-      </Animated.View>
-
-      {isCaptionOpen || isCaptionRendered ? (
         <Animated.View
-          pointerEvents={isCaptionOpen ? 'auto' : 'none'}
-          style={[styles.scrim, {opacity: captionProgress}]}>
-          <ScrollView
-            contentContainerStyle={styles.captionContent}
-            onScroll={e => {
-              captionScrollYRef.current = e.nativeEvent.contentOffset.y;
-            }}
-            scrollEventThrottle={16}
-            onScrollEndDrag={e => {
-              const {contentOffset, velocity} = e.nativeEvent;
-              if (
-                shouldDismissCaptionOnDragEnd({
-                  offsetY: contentOffset.y,
-                  velocityY: velocity?.y ?? 0,
-                  platform: Platform.OS,
-                })
-              ) {
-                toggleCaption(false);
-              }
-            }}
-            showsVerticalScrollIndicator={false}
-            style={[
-              styles.captionScroll,
-              {
-                top: insets.top + 64,
-                bottom: windowHeight - collapsedTop + FOLD_BAR_HEIGHT + 16,
-              },
-            ]}>
-            <Text style={styles.captionMeta}>
-              {[author, sharedDate ? `${sharedDate} 공유` : null]
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-            <Text style={styles.caption}>{caption}</Text>
-          </ScrollView>
-          {/* 스크롤 영역 밖에 고정해 긴 캡션에서도 항상 보이고 바로 눌립니다. */}
-          <Pressable
-            accessibilityLabel="캡션 접기"
-            accessibilityRole="button"
-            hitSlop={12}
-            onPress={() => toggleCaption(false)}
-            style={[
-              styles.foldButton,
-              {bottom: windowHeight - collapsedTop + 8},
-            ]}>
-            <Text style={styles.moreText}>접기</Text>
-          </Pressable>
-        </Animated.View>
-      ) : null}
-
-      <View style={[styles.topBar, {top: insets.top + 4}]}>
-        <Pressable
-          accessibilityLabel="이전 화면으로 돌아가기"
-          accessibilityRole="button"
-          onPress={() => {
-            analytics.button('back');
-            onBack();
-          }}
-          style={styles.backButton}>
-          <MaterialIcons color="#1a1a2e" name="chevron-left" size={28} />
-        </Pressable>
-        <View style={styles.topBarActions}>
-          {reel.instagram_url ? (
+          pointerEvents={isSheetExpanded || isCaptionOpen ? 'none' : 'box-none'}
+          style={[
+            styles.infoWrap,
+            {bottom: overlayBottom, opacity: infoOpacity},
+          ]}>
+          {author ? <Text style={styles.author}>{author}</Text> : null}
+          {caption ? (
+            // 접힌 캡션 글을 누르면 전체 캡션이 펼쳐집니다.
             <Pressable
-              accessibilityLabel="원본 게시물 보기"
+              accessibilityLabel="캡션 펼치기"
               accessibilityRole="button"
-              onPress={openOriginal}
-              style={styles.originalButton}>
-              <Image
-                source={require('../../assets/icons/instagram-logo.png')}
-                style={styles.originalIcon}
-              />
-              <Text style={styles.originalText}>원본</Text>
-              <MaterialIcons color="#1a1a2e" name="north-east" size={13} />
+              onPress={() => toggleCaption(true)}>
+              {/* 전체 줄바꿈을 재기 위한 숨은 글자입니다. 화면 폭이 같아야 결과가 맞습니다. */}
+              <Text
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+                onTextLayout={event =>
+                  setCaptionPreview(
+                    getCollapsedCaptionPreview(
+                      event.nativeEvent.lines,
+                      windowWidth - CAPTION_SIDE_PADDING * 2,
+                    ),
+                  )
+                }
+                style={[styles.caption, styles.captionMeasure]}>
+                {caption}
+              </Text>
+              <Text numberOfLines={COLLAPSED_CAPTION_LINES} style={styles.caption}>
+                {captionPreview !== null
+                  ? `${captionPreview}${CAPTION_ELLIPSIS}`
+                  : caption}
+              </Text>
             </Pressable>
           ) : null}
-        </View>
-      </View>
+        </Animated.View>
 
-      <Animated.View
-        style={[
-          styles.sheet,
-          {
-            top: expandedTop,
-            height: sheetHeight,
-            transform: [{translateY: sheetTranslateY}],
-          },
-        ]}>
-        <Pressable
-          accessibilityLabel={isSheetExpanded ? '찾은 장소 접기' : '찾은 장소 펼치기'}
-          accessibilityRole="button"
-          onPress={() => {
-            analytics.button(isSheetExpanded ? 'sheet_collapse' : 'sheet_expand');
-            snapSheet(!isSheetExpanded);
-          }}
-          style={styles.sheetDragArea}>
-          <View style={styles.handle} />
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>찾은 장소</Text>
-            {placesState.status === 'ready' ? (
-              <Text style={styles.sheetCount}>{placesCount}</Text>
+        {isCaptionOpen || isCaptionRendered ? (
+          <Animated.View
+            pointerEvents={isCaptionOpen ? 'auto' : 'none'}
+            style={[styles.scrim, {opacity: captionProgress}]}>
+            <ScrollView
+              contentContainerStyle={styles.captionContent}
+              onScroll={e => {
+                captionScrollYRef.current = e.nativeEvent.contentOffset.y;
+              }}
+              scrollEventThrottle={16}
+              onScrollEndDrag={e => {
+                const {contentOffset, velocity} = e.nativeEvent;
+                if (
+                  shouldDismissCaptionOnDragEnd({
+                    offsetY: contentOffset.y,
+                    velocityY: velocity?.y ?? 0,
+                    platform: Platform.OS,
+                  })
+                ) {
+                  toggleCaption(false);
+                }
+              }}
+              showsVerticalScrollIndicator={false}
+              style={[
+                styles.captionScroll,
+                {
+                  top: insets.top + 64,
+                  bottom: windowHeight - collapsedTop + FOLD_BAR_HEIGHT + 16,
+                },
+              ]}>
+              <Text style={styles.captionMeta}>
+                {[author, sharedDate ? `${sharedDate} 공유` : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+              <Text style={styles.caption}>{caption}</Text>
+            </ScrollView>
+            {/* 스크롤 영역 밖에 고정해 긴 캡션에서도 항상 보이고 바로 눌립니다. */}
+            <Pressable
+              accessibilityLabel="캡션 접기"
+              accessibilityRole="button"
+              hitSlop={12}
+              onPress={() => toggleCaption(false)}
+              style={[
+                styles.foldButton,
+                {bottom: windowHeight - collapsedTop + 8},
+              ]}>
+              <Text style={styles.moreText}>접기</Text>
+            </Pressable>
+          </Animated.View>
+        ) : null}
+
+        <View style={[styles.topBar, {top: insets.top + 4}]}>
+          <Pressable
+            accessibilityLabel="이전 화면으로 돌아가기"
+            accessibilityRole="button"
+            onPress={() => {
+              analytics.button('back');
+              onBack();
+            }}
+            style={styles.backButton}>
+            <MaterialIcons color="#1a1a2e" name="chevron-left" size={28} />
+          </Pressable>
+          <View style={styles.topBarActions}>
+            {reel.instagram_url ? (
+              <Pressable
+                accessibilityLabel="원본 게시물 보기"
+                accessibilityRole="button"
+                onPress={openOriginal}
+                style={styles.originalButton}>
+                <Image
+                  source={require('../../assets/icons/instagram-logo.png')}
+                  style={styles.originalIcon}
+                />
+                <Text style={styles.originalText}>원본</Text>
+                <MaterialIcons color="#1a1a2e" name="north-east" size={13} />
+              </Pressable>
             ) : null}
           </View>
-        </Pressable>
-        <ScrollView
-          contentContainerStyle={[
-            styles.sheetContent,
-            {paddingBottom: insets.bottom + 24},
-          ]}
-          scrollEnabled={isSheetExpanded}
-          showsVerticalScrollIndicator={false}>
-          {placesState.status === 'loading' ? (
-            <Text style={styles.stateText}>장소를 불러오고 있어요.</Text>
-          ) : placesState.status === 'error' ? (
-            <Text style={styles.stateText}>장소를 불러오지 못했어요.</Text>
-          ) : placesState.places.length === 0 ? (
-            <Text style={styles.stateText}>
-              {reel.processing_status === 'COMPLETED'
-                ? '찾은 장소가 없어요.'
-                : reel.processing_status === 'FAILED'
-                  ? '장소를 찾지 못했어요.'
-                  : '장소를 찾고 있어요.'}
-            </Text>
-          ) : (
-            placesState.places.map(item => {
-              const place = item.place;
-              if (!place) {
-                return null;
-              }
-              const category = getMiddleCategory(place.category);
-              return (
-                <Pressable
-                  key={item.id}
-                  accessibilityLabel={`${place.name} 장소 상세 보기`}
-                  accessibilityRole="button"
-                  disabled={!onOpenPlace}
-                  onPress={() => {
-                    const detailPlace = historyReelPlaceToPlace(item);
-                    if (detailPlace) {
-                      analytics.button('open_place_detail');
-                      onOpenPlace?.(detailPlace);
-                    }
-                  }}
-                  style={styles.row}>
-                  {place.thumbnail_url ? (
-                    <Image
-                      source={{uri: place.thumbnail_url}}
-                      style={styles.photo}
-                    />
-                  ) : (
-                    <View style={[styles.photo, styles.photoPlaceholder]} />
-                  )}
-                  <View style={styles.rowText}>
-                    <View style={styles.nameRow}>
-                      <Text numberOfLines={1} style={styles.name}>
-                        {place.name}
-                      </Text>
-                      {category ? (
-                        <View style={styles.categoryPill}>
-                          <Text style={styles.category}>{category}</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.address}>
-                      {place.road_address ?? place.address ?? ''}
-                    </Text>
-                  </View>
-                  {reel.processing_status === 'COMPLETED' && !isGuest ? (
-                    <Pressable
-                      accessibilityLabel={`${place.name} ${item.savedPlaceId ? '북마크 해제' : '북마크하기'}`}
-                      accessibilityRole="button"
-                      disabled={savingPlaceIds.has(place.id)}
-                      onPress={() => {
-                        analytics.button(
-                          item.savedPlaceId ? 'unbookmark_place' : 'bookmark_place',
-                        );
-                        toggleSavedPlace(item);
-                      }}
-                      style={styles.savePlaceButton}>
-                      <MaterialIcons
-                        color={item.savedPlaceId ? '#7186ed' : '#8b8e99'}
-                        name={item.savedPlaceId ? 'bookmark' : 'bookmark-border'}
-                        size={25}
-                      />
-                    </Pressable>
-                  ) : null}
-                </Pressable>
-              );
-            })
-          )}
-          {placesState.status === 'ready' && reel.processing_status === 'COMPLETED' && !isGuest ? (
-            <View style={styles.reportSection}>
-              <Text style={styles.reportHint}>장소가 빠졌거나 잘못 찾았나요?</Text>
-              <Pressable
-                accessibilityLabel={isReported ? '제보 완료' : '게시물 제보하기'}
-                accessibilityRole="button"
-                disabled={isReported || isReporting}
-                onPress={confirmReport}
-                style={styles.reportButton}>
-                <MaterialIcons
-                  color={isReported ? '#a5abc4' : '#5868ed'}
-                  name="outlined-flag"
-                  size={23}
-                />
-                <Text style={[styles.reportText, isReported && styles.reportTextDisabled]}>
-                  {isReported ? '제보 완료' : '제보하기'}
-                </Text>
-              </Pressable>
+        </View>
+
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              top: expandedTop,
+              height: sheetHeight,
+              transform: [{translateY: sheetTranslateY}],
+            },
+          ]}>
+          <Pressable
+            accessibilityLabel={isSheetExpanded ? '찾은 장소 접기' : '찾은 장소 펼치기'}
+            accessibilityRole="button"
+            onPress={() => {
+              analytics.button(isSheetExpanded ? 'sheet_collapse' : 'sheet_expand');
+              snapSheet(!isSheetExpanded);
+            }}
+            style={styles.sheetDragArea}>
+            <View style={styles.handle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>찾은 장소</Text>
+              {placesState.status === 'ready' ? (
+                <Text style={styles.sheetCount}>{placesCount}</Text>
+              ) : null}
             </View>
-          ) : null}
-        </ScrollView>
-      </Animated.View>
-    </View>
+          </Pressable>
+          <ScrollView
+            contentContainerStyle={[
+              styles.sheetContent,
+              {paddingBottom: insets.bottom + 24},
+            ]}
+            scrollEnabled={isSheetExpanded}
+            showsVerticalScrollIndicator={false}>
+            {placesState.status === 'loading' ? (
+              <Text style={styles.stateText}>장소를 불러오고 있어요.</Text>
+            ) : placesState.status === 'error' ? (
+              <Text style={styles.stateText}>장소를 불러오지 못했어요.</Text>
+            ) : placesState.places.length === 0 ? (
+              <Text style={styles.stateText}>
+                {reel.processing_status === 'COMPLETED'
+                  ? '찾은 장소가 없어요.'
+                  : reel.processing_status === 'FAILED'
+                    ? '장소를 찾지 못했어요.'
+                    : '장소를 찾고 있어요.'}
+              </Text>
+            ) : (
+              placesState.places.map(item => {
+                const place = item.place;
+                if (!place) {
+                  return null;
+                }
+                return (
+                  <PlaceListRow
+                    key={item.id}
+                    accessibilityLabel={`${place.name} 장소 상세 보기`}
+                    accessibilityRole="button"
+                    address={place.road_address ?? place.address ?? ''}
+                    category={place.category}
+                    disabled={!onOpenPlace}
+                    image={place.thumbnail_url ? {uri: place.thumbnail_url} : undefined}
+                    name={place.name}
+                    onPress={() => {
+                      const detailPlace = historyReelPlaceToPlace(item);
+                      if (detailPlace) {
+                        analytics.button('open_place_detail');
+                        onOpenPlace?.(detailPlace);
+                      }
+                    }}
+                    trailing={
+                      reel.processing_status === 'COMPLETED' && !isGuest ? (
+                        <Pressable
+                          accessibilityLabel={`${place.name} ${item.savedPlaceId ? '북마크 해제' : '북마크하기'}`}
+                          accessibilityRole="button"
+                          disabled={savingPlaceIds.has(place.id)}
+                          onPress={() => {
+                            analytics.button(
+                              item.savedPlaceId ? 'unbookmark_place' : 'bookmark_place',
+                            );
+                            toggleSavedPlace(item);
+                          }}
+                          style={styles.savePlaceButton}>
+                          <MaterialIcons
+                            color={item.savedPlaceId ? '#7186ed' : '#8b8e99'}
+                            name={item.savedPlaceId ? 'bookmark' : 'bookmark-border'}
+                            size={25}
+                          />
+                        </Pressable>
+                      ) : null
+                    }
+                  />
+                );
+              })
+            )}
+            {placesState.status === 'ready' && reel.processing_status === 'COMPLETED' && !isGuest ? (
+              <View style={styles.reportSection}>
+                <Text style={styles.reportHint}>장소가 빠졌거나 잘못 찾았나요?</Text>
+                <Pressable
+                  accessibilityLabel={isReported ? '제보 완료' : '게시물 제보하기'}
+                  accessibilityRole="button"
+                  disabled={isReported || isReporting}
+                  onPress={confirmReport}
+                  style={styles.reportButton}>
+                  <MaterialIcons
+                    color={isReported ? '#a5abc4' : '#5868ed'}
+                    name="outlined-flag"
+                    size={23}
+                  />
+                  <Text style={[styles.reportText, isReported && styles.reportTextDisabled]}>
+                    {isReported ? '제보 완료' : '제보하기'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </CopyToastProvider>
   );
 }
 
@@ -1027,57 +1037,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  row: {
-    height: ROW_HEIGHT,
-    flexDirection: 'row',
-    gap: 14,
-    paddingVertical: 12,
-  },
-  photo: {
-    width: PHOTO_WIDTH,
-    height: PHOTO_HEIGHT,
-    borderRadius: 4,
-    resizeMode: 'cover',
-  },
-  photoPlaceholder: {
-    backgroundColor: '#F1F3FB',
-  },
-  rowText: {
-    flex: 1,
-    gap: 7,
-    paddingTop: 3,
-  },
   savePlaceButton: {
     width: 36,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  name: {
-    flexShrink: 1,
-    color: '#1a1a2e',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  categoryPill: {
-    borderWidth: 1.5,
-    borderColor: '#c9c9ce',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-  },
-  category: {
-    color: '#77777d',
-    fontSize: 12,
-  },
-  address: {
-    color: '#8e8e93',
-    fontSize: 12,
-    lineHeight: 18,
   },
 });

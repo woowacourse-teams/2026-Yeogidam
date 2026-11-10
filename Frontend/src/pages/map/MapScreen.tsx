@@ -1140,11 +1140,9 @@ export function MapScreen({
               ? '폴더 수정'
               : '폴더에 담기'
           }
-          onSavedPlaceDeleted={savedPlaceId => {
-            setSavedPlaces(current =>
-              current.filter(place => place.savedPlaceId !== savedPlaceId),
-            );
-          }}
+          onSavedPlacesChanged={() =>
+            setSavedPlacesRefreshSignal(signal => signal + 1)
+          }
           onDeleteGuestPlaces={onDeleteGuestPlaces}
           onExpandedChange={expanded => {
             setIsSheetExpanded(expanded);

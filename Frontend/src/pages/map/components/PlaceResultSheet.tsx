@@ -1,4 +1,3 @@
-import { showAlert } from '../../../lib/app-alert';
 import {
   SwipeBackStack,
   type BackGestureRegion,
@@ -22,16 +21,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
   type GestureResponderEvent,
   type PanResponderCallbacks,
 } from 'react-native';
 import { usePostHog } from 'posthog-react-native';
-import {
-  trackActionFinished,
-  useScreenAnalytics,
-} from '../../../analytics/uiEvents';
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -39,15 +34,10 @@ import {
   captureSavedPlaceSelected,
   type SavedPlaceViewContext,
 } from '../../../analytics/savedPlaceEvents';
-import {
-  deleteSavedPlaces,
-  getPlaceReels,
-  getSavedPlaces,
-} from '../../../entities/info/api';
+import { getPlaceReels } from '../../../entities/info/api';
 import type {
   PlaceReel,
   PlaceReelsApiError,
-  SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
 import {
@@ -61,7 +51,12 @@ import {
   CATEGORY_CHIPS_TOP_GAP,
 } from '../../../components/CategoryFilterChips';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
+import { usePlaceBookmark } from '../../place-detail/usePlaceBookmark';
 import { usePlaceDetailData } from '../../place-detail/usePlaceDetailData';
+import {
+  PLACE_LIST_ROW_HEIGHT,
+  PlaceListRow,
+} from '../../../components/place/PlaceListRow';
 
 export type MapSheetPage = {
   isBackPreview?: boolean;
@@ -211,7 +206,8 @@ type PlaceResultSheetProps = {
   onListPlaceSelect?: (place: Place, sheetVisibleHeight: number) => void;
   onAuthenticationRequired?: () => void;
   onGuestExpandInteraction?: () => void;
-  onSavedPlaceDeleted?: (savedPlaceId: string) => void;
+  /** 북마크가 바뀐 장소 상세를 벗어날 때 호출합니다. */
+  onSavedPlacesChanged?: () => void;
   guestReelsByPlace?: Record<string, PlaceReel[]>;
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
@@ -234,17 +230,6 @@ const BOTTOM_TAB_CLEARANCE = 92;
 export const LIST_TOP_GAP = 12;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
 const DETAIL_ACTION_BOTTOM_PADDING = 24;
-const RESULT_ITEM_HEIGHT = 116;
-
-function getMiddleCategory(category?: string) {
-  if (!category) return undefined;
-
-  const categories = category
-    .split('>')
-    .map(item => item.trim())
-    .filter(Boolean);
-  return categories[1] ?? categories[0];
-}
 
 export function PlaceResultSheet({
   onOpenReel,
@@ -285,7 +270,7 @@ export function PlaceResultSheet({
   onListPlaceSelect,
   onAuthenticationRequired,
   onGuestExpandInteraction,
-  onSavedPlaceDeleted,
+  onSavedPlacesChanged,
   guestReelsByPlace,
   onDeleteGuestPlaces,
   onEditPlaceFolders,
@@ -295,18 +280,12 @@ export function PlaceResultSheet({
     guestReelsByPlace === undefined || onDeleteGuestPlaces !== undefined;
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('map');
-  const { width: windowWidth } = useWindowDimensions();
-  const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
-    null,
-  );
   const collapsedHeight =
     COLLAPSED_HANDLE_HEIGHT +
     COLLAPSED_CONTENT_VISIBLE_HEIGHT +
@@ -389,6 +368,14 @@ export function PlaceResultSheet({
     guestReelsByPlace !== undefined ? null : selectedPlace?.id ?? null,
     detailTab,
   );
+  const bookmark = usePlaceBookmark({
+    place: selectedPlace,
+    reels: selectedPlaceReels,
+    isReelsLoading,
+    analyticsSource: 'map',
+    onAuthenticationRequired,
+    onLeaveAfterChange: onSavedPlacesChanged,
+  });
   const detailScrollOffset = useRef(0);
   const detailScrollRef = useRef<ScrollView>(null);
   // Android에서 끝까지 올린 상세의 본문이 맨 위에 있으면 ScrollView 스크롤을 잠급니다.
@@ -1052,85 +1039,6 @@ export function PlaceResultSheet({
     backToPlaceList();
   }, [backToPlaceList, backToPlaceListSignal]);
 
-  const handleDelete = useCallback(async () => {
-    if (isDeleting || !selectedPlace) {
-      return;
-    }
-    if (onDeleteGuestPlaces) {
-      onDeleteGuestPlaces([selectedPlace.id]);
-      backToPlaceList();
-      return;
-    }
-    if (!selectedPlace.savedPlaceId) {
-      setDeleteError({
-        status: 400,
-        errorCode: 'COMMON400_001',
-        message: '요청 내용을 확인해주세요.',
-        retryable: false,
-      });
-      return;
-    }
-
-    setIsDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteSavedPlaces([selectedPlace.savedPlaceId]);
-      trackActionFinished(posthog, 'saved_place_delete', 'success', {
-        source: 'map',
-      });
-      onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
-      backToPlaceList();
-    } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
-      if (apiError.errorCode === 'CLIENT000_002') {
-        try {
-          const savedPlaces = await getSavedPlaces();
-          const isDeletionConfirmed = !savedPlaces.some(
-            savedPlace => savedPlace.id === selectedPlace.savedPlaceId,
-          );
-          if (isDeletionConfirmed) {
-            onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
-            backToPlaceList();
-            return;
-          }
-        } catch {
-          // Keep the original timeout error and allow the user to retry.
-        }
-      }
-
-      trackActionFinished(posthog, 'saved_place_delete', 'failure', {
-        source: 'map',
-        failure_type: apiError.errorCode,
-      });
-      setDeleteError(apiError);
-      if (
-        apiError.errorCode === 'AUTH401_001' ||
-        apiError.errorCode === 'AUTH401_002'
-      ) {
-        onAuthenticationRequired?.();
-      }
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [
-    backToPlaceList,
-    isDeleting,
-    onAuthenticationRequired,
-    onDeleteGuestPlaces,
-    onSavedPlaceDeleted,
-    posthog,
-    selectedPlace,
-  ]);
-
-  // 해제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
-  useEffect(() => {
-    if (!deleteError) {
-      return;
-    }
-    showAlert('북마크를 해제하지 못했어요', deleteError.message);
-    setDeleteError(null);
-  }, [deleteError]);
-
   const swipeCollapsesDetail =
     selectedPlace !== null &&
     activeSnapIndex === 0 &&
@@ -1154,7 +1062,10 @@ export function PlaceResultSheet({
           },
         ]}
       >
-        <CopyToastProvider bottomOffset={detailBottomOffset + 16}>
+        <CopyToastProvider
+          bottomOffset={detailBottomOffset + 16}
+          notice={preview ? null : bookmark.notice}
+        >
           <PlaceDetailContent
             // Keep the detail content mounted across snap changes so its
             // scroll position and header do not jump during expansion.
@@ -1212,11 +1123,20 @@ export function PlaceResultSheet({
             }
             onPressDelete={
               canOpenDetailMore
-                ? () => handleDelete().catch(() => undefined)
+                ? () => {
+                    // 비회원 시드 장소는 저장 상태가 없어 지우고 바로 돌아갑니다.
+                    if (onDeleteGuestPlaces) {
+                      onDeleteGuestPlaces([selectedPlace.id]);
+                      backToPlaceList();
+                      return;
+                    }
+                    bookmark.toggle().catch(() => undefined);
+                  }
                 : undefined
             }
+            isBookmarked={onDeleteGuestPlaces ? true : bookmark.isBookmarked}
             isInFolder={getPlaceFoldersLabel?.(selectedPlace) === '폴더 수정'}
-            isDeleting={isDeleting}
+            isDeleting={bookmark.isPending}
             headerTopInset={0}
             compactHeader
             scrollEnabled={
@@ -1269,8 +1189,8 @@ export function PlaceResultSheet({
             ]}
             keyExtractor={place => place.id}
             getItemLayout={(_, index) => ({
-              length: RESULT_ITEM_HEIGHT,
-              offset: RESULT_ITEM_HEIGHT * index,
+              length: PLACE_LIST_ROW_HEIGHT,
+              offset: PLACE_LIST_ROW_HEIGHT * index,
               index,
             })}
             contentInsetAdjustmentBehavior="never"
@@ -1300,51 +1220,16 @@ export function PlaceResultSheet({
             }}
             onContentSizeChange={preview ? undefined : restoreResultsScroll}
             renderItem={({ item: place, index }) => (
-              <View style={styles.result}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${place.name} 상세 보기`}
-                  onPress={() => selectPlace(place, index + 1)}
-                  onPressIn={ignoreCollapsedBodyTapOnPressIn}
-                  style={styles.resultCard}
-                >
-                  {place.image ? (
-                    <Image
-                      source={place.image}
-                      style={[styles.photo, { width: photoWidth }]}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.photo,
-                        styles.imagePlaceholder,
-                        { width: photoWidth },
-                      ]}
-                    />
-                  )}
-                  <View style={styles.resultText}>
-                    {getMiddleCategory(place.category) ? (
-                      <View style={styles.titleRow}>
-                        <Text numberOfLines={1} style={styles.name}>
-                          {place.name}
-                        </Text>
-                        <View style={styles.categoryPill}>
-                          <Text style={styles.category}>
-                            {getMiddleCategory(place.category)}
-                          </Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <Text numberOfLines={1} style={styles.name}>
-                        {place.name}
-                      </Text>
-                    )}
-                    <Text style={styles.address}>
-                      {place.fullAddress || place.address}
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
+              <PlaceListRow
+                accessibilityRole="button"
+                accessibilityLabel={`${place.name} 상세 보기`}
+                address={place.fullAddress || place.address}
+                category={place.category}
+                image={place.image}
+                name={place.name}
+                onPress={() => selectPlace(place, index + 1)}
+                onPressIn={ignoreCollapsedBodyTapOnPressIn}
+              />
             )}
             ListEmptyComponent={
               <View
@@ -1654,10 +1539,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  result: {
-    height: RESULT_ITEM_HEIGHT,
-    paddingVertical: 12,
-  },
   emptyResult: {
     paddingTop: 34,
     paddingHorizontal: 16,
@@ -1708,51 +1589,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8e8e93',
     textAlign: 'center',
-  },
-  resultCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    minHeight: 92,
-  },
-  resultText: {
-    flex: 1,
-    paddingLeft: 14,
-    paddingTop: 3,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  name: {
-    flexShrink: 1,
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1a1a2e',
-  },
-  categoryPill: {
-    borderWidth: 1.5,
-    borderColor: '#C9C9CE',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  category: {
-    color: '#77777D',
-    fontSize: 12,
-  },
-  address: {
-    fontSize: 12,
-    color: '#8e8e93',
-    lineHeight: 18,
-    marginTop: 7,
-  },
-  photo: {
-    height: 92,
-    borderRadius: 4,
-    resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    backgroundColor: '#F1F3FB',
   },
 });
