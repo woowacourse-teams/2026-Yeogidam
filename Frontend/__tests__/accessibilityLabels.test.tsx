@@ -1,5 +1,5 @@
 import React from 'react';
-import {Keyboard, TextInput} from 'react-native';
+import {Keyboard, Text, TextInput} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {SearchBar} from '../src/components/SearchBar';
@@ -105,6 +105,9 @@ describe('장소 상세 (P1–P4)', () => {
 
     const title = renderer.root.findByProps({accessibilityLabel: '장소 이름, 테스트 카페'});
     expect(title.props.accessibilityRole).toBe('header');
+    // iOS에서 Text는 포커스 이동 요청을 받지 못하므로, 포커스를 옮길 머리말은 View여야 한다.
+    expect(title.type).not.toBe(Text);
+    expect(title.props.accessible).toBe(true);
   });
 
   test('카테고리와 주소는 항목 이름을 붙여 한 줄로 읽는다', async () => {

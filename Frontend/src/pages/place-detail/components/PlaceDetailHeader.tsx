@@ -43,7 +43,7 @@ export function PlaceDetailHeader({
   compact = false,
 }: PlaceDetailHeaderProps) {
   const { button } = useScreenAnalytics();
-  const titleRef = useRef<Text>(null);
+  const titleRef = useRef<View>(null);
   const hasTitle = titleInHeader && Boolean(title);
 
   // 들어올 때마다 첫 포커스가 달라지지 않도록 장소 이름부터 읽게 합니다.
@@ -76,15 +76,19 @@ export function PlaceDetailHeader({
         </Pressable>
       )}
       {titleInHeader && title ? (
-        <Text
+        // iOS에서 Text는 스스로 VoiceOver 요소가 아니라 포커스 이동 요청을 받지 못합니다.
+        // 그래서 View를 하나의 요소로 만들어 머리말·이름을 붙이고, 이 View로 포커스를 옮깁니다.
+        <View
           ref={titleRef}
+          accessible
           accessibilityLabel={`장소 이름, ${title}`}
           accessibilityRole="header"
-          numberOfLines={1}
-          style={styles.title}
+          style={styles.titleWrap}
         >
-          {title}
-        </Text>
+          <Text numberOfLines={1} style={styles.title}>
+            {title}
+          </Text>
+        </View>
       ) : hideBack ? (
         <View style={styles.backPlaceholder} />
       ) : null}
@@ -190,9 +194,11 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
   },
-  title: {
+  titleWrap: {
     flex: 1,
     flexShrink: 1,
+  },
+  title: {
     fontSize: 23,
     lineHeight: 28,
     fontWeight: '800',
