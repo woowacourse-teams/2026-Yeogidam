@@ -22,7 +22,10 @@ type PlaceListRowProps = {
   image?: ImageSourcePropType;
   /** 사진 위에 얹을 표시입니다. 보관함 편집의 선택 표시에 씁니다. */
   photoOverlay?: ReactNode;
-  /** 행 오른쪽 끝에 둘 요소입니다. 게시물 상세의 북마크 버튼에 씁니다. */
+  /**
+   * 행 오른쪽 끝에 둘 요소입니다. 게시물 상세의 북마크 버튼에 씁니다.
+   * 행 버튼 안에 넣으면 iOS 스크린 리더가 행 하나로 합쳐 버튼을 따로 누를 수 없어서, 행 버튼 옆에 둡니다.
+   */
   trailing?: ReactNode;
 } & Pick<
   PressableProps,
@@ -74,8 +77,8 @@ export function PlaceListRow({
           </View>
           <Text style={styles.address}>{address}</Text>
         </View>
-        {trailing}
       </Pressable>
+      {trailing}
     </View>
   );
 }
@@ -84,8 +87,11 @@ const styles = StyleSheet.create({
   row: {
     height: PLACE_LIST_ROW_HEIGHT,
     paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   card: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-start',
     minHeight: PHOTO_HEIGHT,

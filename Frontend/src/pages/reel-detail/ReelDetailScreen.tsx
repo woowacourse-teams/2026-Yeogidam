@@ -28,6 +28,11 @@ import {getHistoryReelDetail, reportHistoryReel} from '../../entities/content/hi
 import {saveMediaPlace} from '../../entities/content/saved-media-api';
 import {deleteSavedPlaces} from '../../entities/info/api';
 import {showAlert} from '../../lib/app-alert';
+import {
+  announce,
+  focusAccessibility,
+  useScreenReaderEnabled,
+} from '../../lib/accessibility';
 import {historyReelPlaceToPlace} from '../../entities/content/convert';
 import {normalizeReelCaption} from '../../entities/content/title';
 import type {Place} from '../../entities/place/types';
@@ -71,6 +76,10 @@ const CAPTION_ELLIPSIS = '...';
 const CAPTION_ELLIPSIS_WIDTH = 24;
 const CAPTION_SIDE_PADDING = 20;
 const FOLD_BAR_HEIGHT = 44;
+// 캡션을 펼친 뒤 애니메이션이 끝나고 펼친 캡션으로 스크린 리더 포커스를 옮길 때까지의 시간입니다.
+const CAPTION_OPEN_FOCUS_DELAY_MS = CAPTION_TRANSITION_DURATION_MS + 50;
+// '캡션 접힘' 안내를 다 읽은 뒤 접힌 캡션으로 포커스를 옮깁니다. 포커스를 먼저 옮기면 안내가 끊겨요.
+const CAPTION_CLOSE_FOCUS_DELAY_MS = 900;
 
 // 이전 버튼이 있는 위쪽 띠(상태 표시줄 + 상단 버튼). 스와이프 뒤로가기 구역에서 뺍니다.
 const TOP_BAR_CLEARANCE = 100;
@@ -241,7 +250,15 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
   const author = reel.instagram_author_username
     ? `@${reel.instagram_author_username}`
     : null;
+  // 스크린 리더가 '@'를 '골뱅이'로 읽지 않도록 이름만 따로 읽어 줍니다.
+  const authorAccessibilityLabel = reel.instagram_author_username
+    ? `작성자 ${reel.instagram_author_username}`
+    : null;
   const sharedDate = formatSharedDate(reel.created_at);
+  const screenReaderEnabled = useScreenReaderEnabled();
+  const collapsedCaptionRef = useRef<View>(null);
+  const fullCaptionRef = useRef<Text>(null);
+  const [sheetHeaderHeight, setSheetHeaderHeight] = useState(0);
   const thumbnail = reel.local_thumbnail_source
     ? reel.local_thumbnail_source
     : reel.instagram_thumbnail_url
@@ -309,10 +326,13 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
           ? {...place, savedPlaceId}
           : place),
       });
+      const message = savedPlaceId ? PLACE_SAVED_MESSAGE : PLACE_UNSAVED_MESSAGE;
       setNotice(current => ({
         id: (current?.id ?? 0) + 1,
-        message: savedPlaceId ? PLACE_SAVED_MESSAGE : PLACE_UNSAVED_MESSAGE,
+        message,
       }));
+      // 화면 아래 토스트는 스크린 리더가 읽지 않으므로 결과를 따로 안내합니다.
+      announce(message);
     } catch (error) {
       trackActionFinished(posthog, actionName, 'failure', {
         failure_type: (error as {errorCode?: string}).errorCode ?? 'unknown',
@@ -514,6 +534,13 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
       analytics.button(open ? 'caption_open' : 'caption_close');
       captionScrollYRef.current = 0;
       setIsCaptionOpen(open);
+      if (open) {
+        // 펼친 캡션 본문부터 바로 읽도록 포커스를 옮깁니다.
+        focusAccessibility(fullCaptionRef, CAPTION_OPEN_FOCUS_DELAY_MS);
+      } else {
+        announce('캡션 접힘');
+        focusAccessibility(collapsedCaptionRef, CAPTION_CLOSE_FOCUS_DELAY_MS);
+      }
     },
     [analytics],
   );
@@ -597,17 +624,32 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
         />
 
         <Animated.View
+          // 시트를 펼치거나 캡션을 펼쳐 접힌 캡션이 보이지 않을 때는 스크린 리더에서도 숨깁니다.
+          accessibilityElementsHidden={isSheetExpanded || isCaptionOpen}
+          importantForAccessibility={
+            isSheetExpanded || isCaptionOpen ? 'no-hide-descendants' : 'auto'
+          }
           pointerEvents={isSheetExpanded || isCaptionOpen ? 'none' : 'box-none'}
           style={[
             styles.infoWrap,
             {bottom: overlayBottom, opacity: infoOpacity},
           ]}>
-          {author ? <Text style={styles.author}>{author}</Text> : null}
+          {author ? (
+            <Text
+              accessibilityLabel={authorAccessibilityLabel ?? undefined}
+              style={styles.author}>
+              {author}
+            </Text>
+          ) : null}
           {caption ? (
             // 접힌 캡션 글을 누르면 전체 캡션이 펼쳐집니다.
+            // '캡션 펼치기'만 읽으면 내용을 알 수 없어, 캡션 내용과 접힌 상태를 함께 읽어 줍니다.
             <Pressable
-              accessibilityLabel="캡션 펼치기"
+              ref={collapsedCaptionRef}
+              accessibilityHint="두 번 탭하면 전체 캡션을 펼쳐요"
+              accessibilityLabel={`캡션, ${captionPreview ?? caption}`}
               accessibilityRole="button"
+              accessibilityValue={{text: '접힘'}}
               onPress={() => toggleCaption(true)}>
               {/* 전체 줄바꿈을 재기 위한 숨은 글자입니다. 화면 폭이 같아야 결과가 맞습니다. */}
               <Text
@@ -635,6 +677,10 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
 
         {isCaptionOpen || isCaptionRendered ? (
           <Animated.View
+            // 펼친 캡션이 떠 있는 동안 뒤쪽 요소로 포커스가 새지 않게 막습니다. 닫히는 중에는 숨깁니다.
+            accessibilityElementsHidden={!isCaptionOpen}
+            accessibilityViewIsModal={isCaptionOpen}
+            importantForAccessibility={isCaptionOpen ? 'auto' : 'no-hide-descendants'}
             pointerEvents={isCaptionOpen ? 'auto' : 'none'}
             style={[styles.scrim, {opacity: captionProgress}]}>
             <ScrollView
@@ -663,17 +709,27 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
                   bottom: windowHeight - collapsedTop + FOLD_BAR_HEIGHT + 16,
                 },
               ]}>
-              <Text style={styles.captionMeta}>
+              <Text
+                accessibilityLabel={[
+                  authorAccessibilityLabel,
+                  sharedDate ? `${sharedDate} 공유` : null,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+                style={styles.captionMeta}>
                 {[author, sharedDate ? `${sharedDate} 공유` : null]
                   .filter(Boolean)
                   .join(' · ')}
               </Text>
-              <Text style={styles.caption}>{caption}</Text>
+              <Text ref={fullCaptionRef} style={styles.caption}>
+                {caption}
+              </Text>
             </ScrollView>
             {/* 스크롤 영역 밖에 고정해 긴 캡션에서도 항상 보이고 바로 눌립니다. */}
             <Pressable
               accessibilityLabel="캡션 접기"
               accessibilityRole="button"
+              accessibilityState={{expanded: true}}
               hitSlop={12}
               onPress={() => toggleCaption(false)}
               style={[
@@ -724,8 +780,18 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
             },
           ]}>
           <Pressable
-            accessibilityLabel={isSheetExpanded ? '찾은 장소 접기' : '찾은 장소 펼치기'}
+            // 안쪽 개수 글자가 label에 덮여 읽히지 않으므로 개수를 label에 넣습니다.
+            accessibilityHint={
+              isSheetExpanded ? '두 번 탭하면 목록을 접어요' : '두 번 탭하면 목록을 펼쳐요'
+            }
+            accessibilityLabel={
+              placesState.status === 'ready'
+                ? `찾은 장소 ${placesCount}곳`
+                : '찾은 장소'
+            }
             accessibilityRole="button"
+            accessibilityState={{expanded: isSheetExpanded}}
+            onLayout={event => setSheetHeaderHeight(event.nativeEvent.layout.height)}
             onPress={() => {
               analytics.button(isSheetExpanded ? 'sheet_collapse' : 'sheet_expand');
               snapSheet(!isSheetExpanded);
@@ -744,8 +810,15 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
               styles.sheetContent,
               {paddingBottom: insets.bottom + 24},
             ]}
-            scrollEnabled={isSheetExpanded}
-            showsVerticalScrollIndicator={false}>
+            // 접힌 시트는 목록 아래쪽이 화면 밖에 있어 스크린 리더가 위의 몇 개에만 닿습니다.
+            // 스크린 리더가 켜져 있으면 목록 높이를 보이는 영역에 맞추고 스크롤을 켜, 다음 장소로 넘길 때 자동으로 스크롤되게 합니다.
+            scrollEnabled={isSheetExpanded || screenReaderEnabled}
+            showsVerticalScrollIndicator={false}
+            style={
+              screenReaderEnabled && !isSheetExpanded
+                ? {maxHeight: Math.max(0, windowHeight - collapsedTop - sheetHeaderHeight)}
+                : undefined
+            }>
             {placesState.status === 'loading' ? (
               <Text style={styles.stateText}>장소를 불러오고 있어요.</Text>
             ) : placesState.status === 'error' ? (
@@ -808,9 +881,17 @@ export function ReelDetailScreen({reel, onBack, onReported, onOpenPlace, isGuest
             )}
             {placesState.status === 'ready' && reel.processing_status === 'COMPLETED' && !isGuest ? (
               <View style={styles.reportSection}>
-                <Text style={styles.reportHint}>장소가 빠졌거나 잘못 찾았나요?</Text>
+                {/* 안내 문구는 제보 버튼 label에 합쳐 한 번에 읽히게 하고, 따로는 읽지 않습니다. */}
+                <Text
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                  style={styles.reportHint}>
+                  장소가 빠졌거나 잘못 찾았나요?
+                </Text>
                 <Pressable
-                  accessibilityLabel={isReported ? '제보 완료' : '게시물 제보하기'}
+                  accessibilityLabel={
+                    isReported ? '제보 완료' : '장소가 빠졌거나 잘못 찾았다면 제보하기'
+                  }
                   accessibilityRole="button"
                   disabled={isReported || isReporting}
                   onPress={confirmReport}

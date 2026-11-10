@@ -1,5 +1,5 @@
 import React from 'react';
-import {Linking, ScrollView, Text} from 'react-native';
+import {AccessibilityInfo, Linking, ScrollView, Text} from 'react-native';
 import ReactTestRenderer from 'react-test-renderer';
 
 import {getHistoryReelDetail, reportHistoryReel} from '../src/entities/content/history-api';
@@ -190,7 +190,7 @@ test('접힌 캡션을 누르면 펼치고 접기로 닫는다', async () => {
   expect(texts(renderer)).not.toContain('접기');
 
   await ReactTestRenderer.act(async () =>
-    renderer.root.findByProps({accessibilityLabel: '캡션 펼치기'}).props.onPress(),
+    renderer.root.findByProps({accessibilityHint: '두 번 탭하면 전체 캡션을 펼쳐요'}).props.onPress(),
   );
   expect(texts(renderer)).toContain('접기');
   expect(texts(renderer)).toContain('@seongsu_cafe · 2026.11.04 공유');
@@ -342,17 +342,17 @@ test('시트 윗부분을 누르면 시트가 펼쳐지고 다시 누르면 접�
   const {renderer} = await render();
 
   await ReactTestRenderer.act(async () =>
-    renderer.root.findByProps({accessibilityLabel: '찾은 장소 펼치기'}).props.onPress(),
+    renderer.root.findByProps({accessibilityHint: '두 번 탭하면 목록을 펼쳐요'}).props.onPress(),
   );
   expect(
-    renderer.root.findAllByProps({accessibilityLabel: '찾은 장소 접기'}).length,
+    renderer.root.findAllByProps({accessibilityHint: '두 번 탭하면 목록을 접어요'}).length,
   ).toBeGreaterThan(0);
 
   await ReactTestRenderer.act(async () =>
-    renderer.root.findByProps({accessibilityLabel: '찾은 장소 접기'}).props.onPress(),
+    renderer.root.findByProps({accessibilityHint: '두 번 탭하면 목록을 접어요'}).props.onPress(),
   );
   expect(
-    renderer.root.findAllByProps({accessibilityLabel: '찾은 장소 펼치기'}).length,
+    renderer.root.findAllByProps({accessibilityHint: '두 번 탭하면 목록을 펼쳐요'}).length,
   ).toBeGreaterThan(0);
   await ReactTestRenderer.act(async () => renderer.unmount());
 });
@@ -375,7 +375,7 @@ test('장소 북마크 버튼은 savedPlaceId로 표시하고 활성화와 해�
 test('성공 게시물 제보는 확인 뒤 한 번 호출하고 완료 상태로 막는다', async () => {
   const {renderer} = await render();
   const sheetScroll = renderer.root.findAllByType(ScrollView).find(scroll =>
-    scroll.findAllByProps({accessibilityLabel: '게시물 제보하기'}).length > 0,
+    scroll.findAllByProps({accessibilityLabel: '장소가 빠졌거나 잘못 찾았다면 제보하기'}).length > 0,
   );
   expect(sheetScroll).toBeDefined();
   const sheetTexts = sheetScroll!.findAllByType(Text).map(node => node.props.children);
@@ -383,7 +383,7 @@ test('성공 게시물 제보는 확인 뒤 한 번 호출하고 완료 상태�
     sheetTexts.indexOf('카페 온월'),
   );
   await ReactTestRenderer.act(async () => {
-    renderer.root.findByProps({accessibilityLabel: '게시물 제보하기'}).props.onPress();
+    renderer.root.findByProps({accessibilityLabel: '장소가 빠졌거나 잘못 찾았다면 제보하기'}).props.onPress();
   });
   expect(reportHistoryReel).not.toHaveBeenCalled();
   const buttons = jest.mocked(showAlert).mock.calls[0][2] ?? [];
@@ -404,4 +404,66 @@ test('이미 제보한 게시물을 다시 열면 제보 완료 상태로 시작
   expect(renderer.root.findByProps({accessibilityLabel: '제보 완료'}).props.disabled).toBe(true);
   expect(reportHistoryReel).not.toHaveBeenCalled();
   await ReactTestRenderer.act(async () => renderer.unmount());
+});
+
+describe('스크린 리더', () => {
+  test('작성자는 골뱅이 없이 읽고, 접힌 캡션은 내용과 접힌 상태를 읽는다', async () => {
+    const {renderer} = await render();
+
+    expect(
+      renderer.root.findAllByProps({accessibilityLabel: '작성자 seongsu_cafe'}).length,
+    ).toBeGreaterThan(0);
+    const collapsed = renderer.root.findByProps({
+      accessibilityHint: '두 번 탭하면 전체 캡션을 펼쳐요',
+    });
+    expect(collapsed.props.accessibilityLabel).toMatch(/^캡션, 성수동에서/);
+    expect(collapsed.props.accessibilityValue).toEqual({text: '접힘'});
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('캡션을 접으면 접힌 상태를 안내한다', async () => {
+    const announceSpy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+    const {renderer} = await render();
+
+    await ReactTestRenderer.act(async () =>
+      renderer.root
+        .findByProps({accessibilityHint: '두 번 탭하면 전체 캡션을 펼쳐요'})
+        .props.onPress(),
+    );
+    expect(
+      renderer.root.findByProps({accessibilityLabel: '캡션 접기'}).props.accessibilityState,
+    ).toEqual({expanded: true});
+    await ReactTestRenderer.act(async () =>
+      renderer.root.findByProps({accessibilityLabel: '캡션 접기'}).props.onPress(),
+    );
+    expect(announceSpy).toHaveBeenCalledWith('캡션 접힘');
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('찾은 장소 헤더는 개수를 읽는다', async () => {
+    const {renderer} = await render();
+
+    expect(
+      renderer.root.findByProps({accessibilityHint: '두 번 탭하면 목록을 펼쳐요'}).props
+        .accessibilityLabel,
+    ).toMatch(/^찾은 장소 \d+곳$/);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
+
+  test('북마크 버튼은 장소 행 버튼 안에 합쳐지지 않는다', async () => {
+    const {renderer} = await render();
+
+    // 행 버튼의 실제 네이티브 요소 안에 북마크 버튼이 없어야 스크린 리더가 따로 잡는다.
+    const [row] = renderer.root.findAll(
+      node =>
+        typeof node.type === 'string' &&
+        node.props.accessibilityLabel === '카페 온월 장소 상세 보기',
+    );
+    expect(row).toBeDefined();
+    expect(row.findAllByProps({accessibilityLabel: '카페 온월 북마크하기'})).toHaveLength(0);
+    expect(
+      renderer.root.findAllByProps({accessibilityLabel: '카페 온월 북마크하기'}).length,
+    ).toBeGreaterThan(0);
+    await ReactTestRenderer.act(async () => renderer.unmount());
+  });
 });
