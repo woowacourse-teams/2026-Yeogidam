@@ -12,7 +12,7 @@ class KakaoMapPackage : BaseReactPackage() {
     override fun createViewManagers(
         reactContext: ReactApplicationContext,
     ): List<ViewManager<*, *>> =
-        listOf(KakaoMapViewManager())
+        listOf(KakaoMapViewManager(), GoogleMapViewManager())
 
     override fun getModule(
         name: String,

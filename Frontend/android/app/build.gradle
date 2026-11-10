@@ -77,6 +77,8 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 def kakaoNativeAppKey = project.env.get("KAKAO_NATIVE_APP_KEY", "").trim()
 def apiBaseUrl = project.env.get("API_BASE_URL", "").trim().replaceAll(/\/+$/, "")
 def appEnvironment = project.env.get("APP_ENV", "development").trim() ?: "development"
+// 개발용 Google 지도 비교에만 쓰므로 키가 없어도 빌드는 그대로 진행한다.
+def googleMapsAndroidApiKey = project.env.get("GOOGLE_MAPS_ANDROID_API_KEY", "").trim()
 if (kakaoNativeAppKey.isEmpty()) {
     throw new GradleException("KAKAO_NATIVE_APP_KEY is missing from the build configuration")
 }
@@ -89,6 +91,7 @@ def escapedKakaoNativeAppKey = kakaoNativeAppKey
     .replace("\"", "\\\"")
 def escapedApiBaseUrl = apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")
 def escapedAppEnvironment = appEnvironment.replace("\\", "\\\\").replace("\"", "\\\"")
+def escapedGoogleMapsAndroidApiKey = googleMapsAndroidApiKey.replace("\\", "\\\\").replace("\"", "\\\"")
 
 apply from: new File(new File(["node", "--print", "require.resolve('@sentry/react-native/package.json')"].execute().text.trim()).parentFile, "sentry.gradle")
 android {
@@ -114,6 +117,8 @@ android {
         // 공유 익스텐션(ShareAuth/ShareSaveWorker)이 Spring API를 직접 호출합니다.
         buildConfigField "String", "API_BASE_URL", "\"${escapedApiBaseUrl}\""
         buildConfigField "String", "APP_ENV", "\"${escapedAppEnvironment}\""
+        buildConfigField "String", "GOOGLE_MAPS_ANDROID_API_KEY", "\"${escapedGoogleMapsAndroidApiKey}\""
+        manifestPlaceholders = [googleMapsAndroidApiKey: googleMapsAndroidApiKey]
         // react-native-config creates these resources when the values exist.
         // Keep stable empty resources for CI builds that omit PostHog.
         if (!project.env.containsKey("POSTHOG_PROJECT_TOKEN")) {
@@ -164,6 +169,7 @@ dependencies {
     implementation("com.facebook.react:react-android")
     implementation("com.facebook.fresco:animated-gif:3.6.0")
     implementation("com.kakao.maps.open:android:2.14.1")
+    implementation("com.google.android.gms:play-services-maps:20.1.0")
 
 
     if (hermesEnabled.toBoolean()) {

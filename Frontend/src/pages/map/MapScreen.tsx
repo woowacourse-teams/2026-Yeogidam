@@ -116,8 +116,8 @@ type MapCamera = {
   bottomInset: number;
 };
 
-// 국내 지도 품질 비교용 Google 지도 토글은 iOS 개발 빌드에서만 보여줍니다.
-const CAN_PREVIEW_GOOGLE_MAP = __DEV__ && Platform.OS === 'ios';
+// 국내 지도 품질 비교용 Google 지도 토글은 개발 빌드에서만 보여줍니다.
+const CAN_PREVIEW_GOOGLE_MAP = __DEV__;
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
