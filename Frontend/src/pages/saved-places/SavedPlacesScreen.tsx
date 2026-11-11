@@ -118,6 +118,7 @@ import {
   getRecentSearches,
   setRecentSearches as persistRecentSearches,
 } from '../../lib/searchHistoryStorage';
+import {markStartupFullDisplay} from '../../lib/performance/startupTrace';
 
 const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
@@ -466,8 +467,11 @@ export function SavedPlacesScreen({
             : nextPlaces,
         );
         setError(null);
+        // 목록이 그려진 다음 프레임을 TTFD로 봅니다. 앱 시작 직후 첫 로드에서만 기록됩니다.
+        requestAnimationFrame(() => markStartupFullDisplay(true));
         return nextPlaces;
       } catch (nextError) {
+        markStartupFullDisplay(false);
         const apiError = nextError as SavedPlacesApiError;
         if (showLoadingState) setError(apiError);
         if (apiError.errorCode === 'AUTH401_001') {

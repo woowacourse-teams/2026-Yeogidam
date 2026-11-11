@@ -41,6 +41,12 @@ jest.mock('react-native-config', () => ({
 jest.mock('@sentry/react-native', () => ({
   init: jest.fn(),
   wrap: component => component,
+  appStartIntegration: jest.fn(() => ({ name: 'AppStart' })),
+  extendAppStart: jest.fn(),
+  getExtendedAppStartSpan: jest.fn(() => ({ name: 'extended-app-start' })),
+  finishExtendedAppStart: jest.fn(() => Promise.resolve()),
+  setMeasurement: jest.fn(),
+  startInactiveSpan: jest.fn(() => ({ end: jest.fn(), setAttribute: jest.fn() })),
 }));
 
 jest.mock('@hot-updater/react-native', () => ({

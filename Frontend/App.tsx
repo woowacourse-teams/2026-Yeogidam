@@ -128,6 +128,11 @@ import {
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
 import { otaBundleId } from './src/lib/hot-updater';
+import {
+  markStartupInitialDisplay,
+  startStartupPhase,
+  startStartupTrace,
+} from './src/lib/performance/startupTrace';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
@@ -142,9 +147,18 @@ Sentry.init({
   // Enable Logs
   enableLogs: false,
 
+  // 로딩 성능 측정: 사용자가 적어 표본이 부족하지 않도록 모든 실행을 수집합니다.
+  // debug 빌드 수치는 Metro를 거쳐 의미가 없으므로 Sentry에서 environment로 걸러 봅니다.
+  tracesSampleRate: 1.0,
+  integrations: [
+    // App Start를 별도 트랜잭션으로 보내야 startupTrace가 그 끝을 스플래시 다음 첫 화면까지 늘릴 수 있습니다.
+    Sentry.appStartIntegration({ standalone: true }),
+  ],
+
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
 });
+startStartupTrace();
 
 function captureShareLoginHandoffError(errorCode: string) {
   const messages: Record<string, {title: string; description: string}> = {
@@ -594,6 +608,19 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  // 스플래시 다음 화면이 커밋된 직후를 TTID로 기록합니다. 처음 한 번만 기록됩니다.
+  useEffect(() => {
+    if (!isAuthReady || isSplashVisible) return;
+
+    markStartupInitialDisplay(
+      isOnboardingVisible
+        ? 'onboarding'
+        : flowState.kind === 'main' && isAuthenticated === true
+          ? 'saved_places'
+          : 'other',
+    );
+  }, [flowState.kind, isAuthReady, isAuthenticated, isOnboardingVisible, isSplashVisible]);
+
   const canRequestLocation =
     isAuthReady &&
     !isSplashVisible &&
@@ -866,13 +893,17 @@ function App() {
       if (isMounted) applyUpdatePolicy(policy);
     };
 
+    const endSplashDelayPhase = startStartupPhase('splash_min_duration');
     const splashDelay = new Promise<void>(resolve => {
       splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
-    });
+    }).finally(endSplashDelayPhase);
+
+    const endAuthRestorePhase = startStartupPhase('auth_restore');
+    const endUpdatePolicyPhase = startStartupPhase('update_policy');
 
     Promise.allSettled([
-      syncFlowState(),
-      checkUpdatePolicy(),
+      syncFlowState().finally(endAuthRestorePhase),
+      checkUpdatePolicy().finally(endUpdatePolicyPhase),
       splashDelay,
     ]).finally(() => {
       if (!isMounted) {
