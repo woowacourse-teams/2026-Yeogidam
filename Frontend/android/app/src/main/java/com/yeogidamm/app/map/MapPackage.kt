@@ -7,12 +7,12 @@ import com.facebook.react.module.model.ReactModuleInfo
 import com.facebook.react.module.model.ReactModuleInfoProvider
 import com.facebook.react.uimanager.ViewManager
 
-class KakaoMapPackage : BaseReactPackage() {
+class MapPackage : BaseReactPackage() {
 
     override fun createViewManagers(
         reactContext: ReactApplicationContext,
     ): List<ViewManager<*, *>> =
-        listOf(KakaoMapViewManager(), GoogleMapViewManager())
+        listOf(GoogleMapViewManager())
 
     override fun getModule(
         name: String,

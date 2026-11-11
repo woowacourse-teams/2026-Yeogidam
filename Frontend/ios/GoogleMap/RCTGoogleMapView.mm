@@ -1,8 +1,6 @@
 #import "RCTGoogleMapView.h"
 
 #import <CoreLocation/CoreLocation.h>
-#import <KakaoMapsSDK/KakaoMapsSDK.h>
-#import <KakaoMapsSDK/KakaoMapsSDK-Swift.h>
 #import <React/RCTEventEmitter.h>
 
 #import "Frontend-Swift.h"

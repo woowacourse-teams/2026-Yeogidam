@@ -51,7 +51,7 @@ export default codegenNativeComponent<NativeProps>(
   'YeogidamGoogleMapView',
 ) as HostComponent<NativeProps>;
 
-// 지도 화면의 Google 지도. 카카오 지도(KakaoMapNativeComponent)와 같은 props·이벤트를 받음
+// 지도 화면의 Google 지도
 // latitude, longitude, zoomLevel: 지도 중심 좌표와 확대 단계. 값이나 cameraMoveRequestId가 바뀌면 카메라 이동
 // cameraBottomInset: 바텀시트에 가려진 높이. 카메라 중심을 그 위쪽 영역 가운데에 맞춤
 // logoBottomInset: Google 로고를 둘 아래쪽 높이. 지도 여백을 이 값으로 고정해 시트가 움직여도 지도가 다시 맞춰지지 않게 함

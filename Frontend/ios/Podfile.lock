@@ -69,7 +69,6 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - KakaoMapsSDK (2.12.17)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -2875,7 +2874,6 @@ DEPENDENCIES:
   - GoogleMaps (= 9.4.0)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - "HotUpdater (from `../node_modules/@hot-updater/react-native`)"
-  - KakaoMapsSDK (= 2.12.17)
   - RCT-Folly (from `../node_modules/react-native/third-party-podspecs/RCT-Folly.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
   - RCTRequired (from `../node_modules/react-native/Libraries/Required`)
@@ -2965,7 +2963,6 @@ DEPENDENCIES:
 SPEC REPOS:
   trunk:
     - GoogleMaps
-    - KakaoMapsSDK
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -3169,7 +3166,6 @@ SPEC CHECKSUMS:
   GoogleMaps: 0608099d4870cac8754bdba9b6953db543432438
   hermes-engine: 24427aaeeed69e5e7e7ccaec98f2847839d6e538
   HotUpdater: dba1296d145a42612a8f650afeb4c261be957f79
-  KakaoMapsSDK: 9becfe30f42630df1a0437ad2fcf2478ff8b56db
   RCT-Folly: 36c4f904fb6cd0219dcb76b94e9502d2a72fab0b
   RCTDeprecation: debcd5d989dc39edd50d61566b56e96da1c167b0
   RCTRequired: f06ef156c6b0244ac76aa51ef2e830a1a13004c8
@@ -3243,7 +3239,7 @@ SPEC CHECKSUMS:
   React-viewtransitionnativemodule: fd9f40b6a5a218e7ef9c2d8e06f1f675d865a29c
   React-webperformancenativemodule: d66dd9856e113dff06710b04548212c07940e026
   ReactAppDependencyProvider: 0e13d430eadac8a2ef18515a860d5c59df05b475
-  ReactCodegen: b55a1cea5b875547c66f1dd3dbe58d8c6c9d0534
+  ReactCodegen: 700886d57723d08626c53d57c23c4472bf1c921c
   ReactCommon: 8d4e8c6329885fed0938fe748b551efb7ca2c46f
   RNAppleAuthentication: a89c9804592b38ed4ab11f0aee68d05ba12ad432
   RNCClipboard: 4b58c780f63676367640f23c8e114e9bd0cf86ac
@@ -3255,6 +3251,6 @@ SPEC CHECKSUMS:
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 0b38f02674a32b9a15de1f41f8680ffa06eaf8ef
 
-PODFILE CHECKSUM: a060603d70344ba9abc9a8dc08b0a16ebee7817d
+PODFILE CHECKSUM: 79e93815a6218badf7c3fb5be031873f1529068c
 
 COCOAPODS: 1.17.0

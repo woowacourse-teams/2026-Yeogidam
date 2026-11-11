@@ -23,7 +23,6 @@ target 'Frontend' do
   config = use_native_modules!
 
   # fingerprint가 Podfile.lock을 보지 않으므로, SDK 버전 변경은 이 줄로 감지한다.
-  pod 'KakaoMapsSDK', '2.12.17'
   # 10.x는 iOS 16 이상이 필요해서 앱 최소 버전(15.1)을 지원하는 마지막 버전을 쓴다.
   pod 'GoogleMaps', '9.4.0'
 

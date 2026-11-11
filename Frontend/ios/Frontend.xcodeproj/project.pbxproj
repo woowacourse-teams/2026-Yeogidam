@@ -12,8 +12,6 @@
 		0C80B921A6F3F58F76C31292 /* libPods-Frontend.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-Frontend.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		19B8E81F44645F5851275F60 /* ShareIntentModuleBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = DDC4E8A070D1A4ACE018F629 /* ShareIntentModuleBridge.m */; };
-		19FBFE81302C722200049FC4 /* RCTKakaoMapView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */; };
-		19FBFE82302C722200049FC4 /* KakaoMapContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */; };
 		19FBFE94302C722200049FC4 /* GoogleMapContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE90302C722200049FC4 /* GoogleMapContainerView.swift */; };
 		19FBFE95302C722200049FC4 /* RCTGoogleMapView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19FBFE92302C722200049FC4 /* RCTGoogleMapView.mm */; };
 		206664E6301F1735F55CE7EE /* ShareIntentStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 705ACE27CDD54ECDEAC1CA2E /* ShareIntentStorage.swift */; };
@@ -76,9 +74,6 @@
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = Frontend/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		19FBFE7B302C5D8E00049FC4 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		19FBFE7C302C5D9800049FC4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
-		19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KakaoMapContainerView.swift; sourceTree = "<group>"; };
-		19FBFE7E302C722200049FC4 /* RCTKakaoMapView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RCTKakaoMapView.h; sourceTree = "<group>"; };
-		19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RCTKakaoMapView.mm; sourceTree = "<group>"; };
 		19FBFE90302C722200049FC4 /* GoogleMapContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleMapContainerView.swift; sourceTree = "<group>"; };
 		19FBFE91302C722200049FC4 /* RCTGoogleMapView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RCTGoogleMapView.h; sourceTree = "<group>"; };
 		19FBFE92302C722200049FC4 /* RCTGoogleMapView.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RCTGoogleMapView.mm; sourceTree = "<group>"; };
@@ -162,16 +157,6 @@
 			name = Frontend;
 			sourceTree = "<group>";
 		};
-		19FBFE80302C722200049FC4 /* KakaoMap */ = {
-			isa = PBXGroup;
-			children = (
-				19FBFE7D302C722200049FC4 /* KakaoMapContainerView.swift */,
-				19FBFE7E302C722200049FC4 /* RCTKakaoMapView.h */,
-				19FBFE7F302C722200049FC4 /* RCTKakaoMapView.mm */,
-			);
-			path = KakaoMap;
-			sourceTree = "<group>";
-		};
 		19FBFE93302C722200049FC4 /* GoogleMap */ = {
 			isa = PBXGroup;
 			children = (
@@ -214,7 +199,6 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				19FBFE80302C722200049FC4 /* KakaoMap */,
 				19FBFE93302C722200049FC4 /* GoogleMap */,
 				13B07FAE1A68108700A75B9A /* Frontend */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
@@ -491,8 +475,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				19FBFE81302C722200049FC4 /* RCTKakaoMapView.mm in Sources */,
-				19FBFE82302C722200049FC4 /* KakaoMapContainerView.swift in Sources */,
 				19FBFE95302C722200049FC4 /* RCTGoogleMapView.mm in Sources */,
 				19FBFE94302C722200049FC4 /* GoogleMapContainerView.swift in Sources */,
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,

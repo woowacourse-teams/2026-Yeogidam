@@ -2,8 +2,8 @@ import UIKit
 import CoreLocation
 import GoogleMaps
 
-// 지도 화면의 Google 지도입니다. 카카오 지도(KakaoMapContainerView)와 같은 props·이벤트를 받고,
-// 핀 모양·이름 표시·카메라 이동도 카카오 지도와 똑같이 동작하도록 옮겼습니다.
+// 지도 화면의 Google 지도입니다. 저장 장소 핀과 이름, 지하철역, 현재 위치를 직접 그리고,
+// 바텀시트에 가려지지 않은 영역을 기준으로 카메라를 움직입니다.
 @objc(GoogleMapContainerView)
 final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   @objc var onMapReady: ((NSDictionary) -> Void)?
