@@ -26,17 +26,26 @@ function notifyPermission(granted: boolean) {
   listeners.forEach(listener => listener(granted));
 }
 
-function showSettingsAlert(disabled = false) {
+/** 설정 안내 알림이 보였는지, 사용자가 어떤 버튼을 눌렀는지 알려줍니다. 분석 기록용입니다. */
+export type LocationSettingsAlertEvent = 'shown' | 'cancel' | 'open_settings';
+type LocationSettingsAlertListener = (event: LocationSettingsAlertEvent) => void;
+
+function showSettingsAlert(
+  disabled = false,
+  onAlertEvent?: LocationSettingsAlertListener,
+) {
+  onAlertEvent?.('shown');
   showAlert(
     '위치 권한이 필요해요',
     disabled
       ? '현재 위치를 표시하려면 iPhone 설정 > 개인정보 보호 및 보안 > 위치 서비스에서 위치 서비스를 켜 주세요.'
       : '주변 장소와 현재 위치를 지도에 표시하려면 설정에서 위치 권한을 허용해 주세요.',
     [
-      { text: '취소', style: 'cancel' },
+      { text: '취소', style: 'cancel', onPress: () => onAlertEvent?.('cancel') },
       {
         text: '설정 열기',
         onPress: () => {
+          onAlertEvent?.('open_settings');
           Linking.openSettings().catch(() =>
             showAlert(
               '설정을 열지 못했어요',
@@ -77,6 +86,7 @@ export async function checkLocationPermission(): Promise<boolean> {
 
 export async function ensureLocationPermission(
   automatic = false,
+  onSettingsAlertEvent?: LocationSettingsAlertListener,
 ): Promise<boolean> {
   if (pending) return pending;
   pending = (async () => {
@@ -95,7 +105,9 @@ export async function ensureLocationPermission(
         return granted;
       }
       notifyPermission(false);
-      if (!automatic) showSettingsAlert(status === 'disabled');
+      if (!automatic) {
+        showSettingsAlert(status === 'disabled', onSettingsAlertEvent);
+      }
       return false;
     }
     if (Platform.OS !== 'android') return false;
@@ -115,7 +127,7 @@ export async function ensureLocationPermission(
         p => results[p] === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN,
       )
     ) {
-      showSettingsAlert();
+      showSettingsAlert(false, onSettingsAlertEvent);
     }
     return granted;
   })();

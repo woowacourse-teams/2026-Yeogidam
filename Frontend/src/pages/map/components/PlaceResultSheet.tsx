@@ -1,4 +1,3 @@
-import { showAlert } from '../../../lib/app-alert';
 import {
   SwipeBackStack,
   type BackGestureRegion,
@@ -22,16 +21,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
   type GestureResponderEvent,
   type PanResponderCallbacks,
 } from 'react-native';
 import { usePostHog } from 'posthog-react-native';
-import {
-  trackActionFinished,
-  useScreenAnalytics,
-} from '../../../analytics/uiEvents';
+import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -39,15 +34,10 @@ import {
   captureSavedPlaceSelected,
   type SavedPlaceViewContext,
 } from '../../../analytics/savedPlaceEvents';
-import {
-  deleteSavedPlaces,
-  getPlaceReels,
-  getSavedPlaces,
-} from '../../../entities/info/api';
+import { getPlaceReels } from '../../../entities/info/api';
 import type {
   PlaceReel,
   PlaceReelsApiError,
-  SavedPlacesApiError,
 } from '../../../entities/info/types';
 import type { Place } from '../../../entities/place/types';
 import {
@@ -61,6 +51,12 @@ import {
   CATEGORY_CHIPS_TOP_GAP,
 } from '../../../components/CategoryFilterChips';
 import { PlaceDetailContent } from '../../place-detail/components/PlaceDetailContent';
+import { usePlaceBookmark } from '../../place-detail/usePlaceBookmark';
+import { usePlaceDetailData } from '../../place-detail/usePlaceDetailData';
+import {
+  PLACE_LIST_ROW_HEIGHT,
+  PlaceListRow,
+} from '../../../components/place/PlaceListRow';
 
 export type MapSheetPage = {
   isBackPreview?: boolean;
@@ -74,7 +70,98 @@ export type MapSheetPage = {
   translateY: Animated.Value | number;
 };
 
+/**
+ * 장소 목록이 비었을 때의 안내입니다. 보관함과 같은 기준(검색 결과 없음, 카테고리에만 없음, 저장한 장소 없음)에
+ * 장소는 있지만 지금 지도 영역에 없는 경우를 더했습니다.
+ */
+export type PlaceResultEmptyState =
+  | { kind: 'noSearchResults' }
+  | { kind: 'noSearchResultsInCategory'; category: string }
+  | { kind: 'noSavedPlaces'; category: string | null }
+  | { kind: 'outOfArea'; isSearch: boolean };
+
+/** 빈 안내가 바뀔 때 새 안내를 서서히 보여 줘, 칩을 넘길 때 그림이 툭 바뀌지 않게 합니다. */
+function FadeInOnChange({ children }: { children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [opacity]);
+  return (
+    <Animated.View style={[styles.emptyMessage, { opacity }]}>
+      {children}
+    </Animated.View>
+  );
+}
+
+function PlaceResultEmptyMessage({
+  emptyState,
+}: {
+  emptyState: PlaceResultEmptyState;
+}) {
+  return emptyState.kind === 'noSearchResults' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-search-no-results-cropped.png')}
+        style={styles.searchEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>검색 결과가 없어요</Text>
+      <Text style={styles.emptyResultText}>
+        다른 키워드로 다시 검색해보세요.
+      </Text>
+    </>
+  ) : emptyState.kind === 'noSearchResultsInCategory' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-category-cropped.png')}
+        style={styles.categoryEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category} 카테고리에 검색 결과가 없어요
+      </Text>
+      <Text style={styles.emptyResultText}>다른 카테고리를 골라보세요.</Text>
+    </>
+  ) : emptyState.kind === 'noSavedPlaces' ? (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
+        style={styles.emptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.category
+          ? `${emptyState.category} 카테고리에 저장한 장소가 없어요`
+          : '아직 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        {emptyState.category
+          ? '다른 카테고리를 골라보세요.'
+          : '장소를 저장하면 지도에서 확인할 수 있어요.'}
+      </Text>
+    </>
+  ) : (
+    <>
+      <Image
+        source={require('../../../assets/illustrations/dami-looking-around-cropped.png')}
+        style={styles.areaEmptyIllustration}
+      />
+      <Text style={styles.emptyResultTitle}>
+        {emptyState.isSearch
+          ? '이 지도 영역에 검색 결과가 없어요'
+          : '이 지도 영역에 저장한 장소가 없어요'}
+      </Text>
+      <Text style={styles.emptyResultText}>
+        지도를 움직여 다른 곳도 확인해보세요.
+      </Text>
+    </>
+  );
+}
+
 type PlaceResultSheetProps = {
+  /** 지정하면 장소 상세의 게시물을 눌렀을 때 앱 안의 게시물 상세로 이동합니다. */
+  onOpenReel?: (reel: PlaceReel) => void;
   pageHeight: number;
   renderPage: (sheet: React.ReactNode, page: MapSheetPage) => React.ReactNode;
   /** Keep the native map outside the sheet navigation stack. */
@@ -86,13 +173,12 @@ type PlaceResultSheetProps = {
   onBackGestureRegionChange?: (region: BackGestureRegion) => void;
   backPlaces?: Place[];
   places: Place[];
-  isSearchActive?: boolean;
-  hasSavedPlaces?: boolean;
+  emptyState?: PlaceResultEmptyState;
   /** 목록 위에 고정되는 폴더 전환/폴더 상세 헤더입니다. */
   folderHeader?: React.ReactNode;
   /** 지정하면 장소 목록 대신 이 내용을 보여줍니다(폴더 목록). */
   folderContent?: React.ReactNode;
-  /** 뒤로 스와이프할 때 미리 보여줄 이전 화면의 헤더와 내용입니다(폴더 안에서 폴더 목록으로). */
+  /** 폴더 상세 뒤에 유지할 폴더 목록 화면의 헤더와 내용입니다. */
   backFolderHeader?: React.ReactNode;
   backFolderContent?: React.ReactNode;
   /** 장소 목록이 비었을 때 기본 안내 대신 보여줄 내용입니다. */
@@ -103,6 +189,8 @@ type PlaceResultSheetProps = {
   translateY?: Animated.Value;
   topInset?: number;
   bottomTabOffset?: number;
+  /** 장소 상세에는 바텀 네비게이션이 없어 하단 안전 영역만큼만 띄웁니다. */
+  detailBottomOffset?: number;
   onExpandedChange?: (isExpanded: boolean) => void;
   onVisibleHeightChange?: (height: number) => void;
   collapseSignal?: number;
@@ -118,7 +206,8 @@ type PlaceResultSheetProps = {
   onListPlaceSelect?: (place: Place, sheetVisibleHeight: number) => void;
   onAuthenticationRequired?: () => void;
   onGuestExpandInteraction?: () => void;
-  onSavedPlaceDeleted?: (savedPlaceId: string) => void;
+  /** 북마크가 바뀐 장소 상세를 벗어날 때 호출합니다. */
+  onSavedPlacesChanged?: () => void;
   guestReelsByPlace?: Record<string, PlaceReel[]>;
   /** 비회원 시드 장소는 API 대신 이 콜백으로 지웁니다. */
   onDeleteGuestPlaces?: (placeIds: string[]) => void;
@@ -141,19 +230,9 @@ const BOTTOM_TAB_CLEARANCE = 92;
 export const LIST_TOP_GAP = 12;
 const DETAIL_PAGE_BOTTOM_PADDING = 68;
 const DETAIL_ACTION_BOTTOM_PADDING = 24;
-const RESULT_ITEM_HEIGHT = 116;
-
-function getMiddleCategory(category?: string) {
-  if (!category) return undefined;
-
-  const categories = category
-    .split('>')
-    .map(item => item.trim())
-    .filter(Boolean);
-  return categories[1] ?? categories[0];
-}
 
 export function PlaceResultSheet({
+  onOpenReel,
   pageHeight,
   renderPage,
   renderMap,
@@ -164,8 +243,7 @@ export function PlaceResultSheet({
   onBackGestureRegionChange,
   backPlaces,
   places,
-  isSearchActive = false,
-  hasSavedPlaces = false,
+  emptyState = { kind: 'noSavedPlaces', category: null },
   folderHeader,
   folderContent,
   backFolderHeader,
@@ -177,6 +255,7 @@ export function PlaceResultSheet({
   translateY: sharedTranslateY,
   topInset = 0,
   bottomTabOffset = 0,
+  detailBottomOffset = 0,
   onExpandedChange,
   onVisibleHeightChange,
   collapseSignal = 0,
@@ -191,7 +270,7 @@ export function PlaceResultSheet({
   onListPlaceSelect,
   onAuthenticationRequired,
   onGuestExpandInteraction,
-  onSavedPlaceDeleted,
+  onSavedPlacesChanged,
   guestReelsByPlace,
   onDeleteGuestPlaces,
   onEditPlaceFolders,
@@ -201,22 +280,16 @@ export function PlaceResultSheet({
     guestReelsByPlace === undefined || onDeleteGuestPlaces !== undefined;
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('map');
-  const { width: windowWidth } = useWindowDimensions();
-  const photoWidth = Math.min(104, Math.max(92, windowWidth * 0.25));
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const [selectedPlaceViewContext, setSelectedPlaceViewContext] =
     useState<SavedPlaceViewContext | null>(null);
   const [selectedPlaceReels, setSelectedPlaceReels] = useState<PlaceReel[]>([]);
   const [reelsError, setReelsError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<SavedPlacesApiError | null>(
-    null,
-  );
   const collapsedHeight =
     COLLAPSED_HANDLE_HEIGHT +
     COLLAPSED_CONTENT_VISIBLE_HEIGHT +
-    (selectedPlace ? bottomTabOffset : 0);
+    (selectedPlace ? detailBottomOffset : 0);
   const sheetHeight = Math.max(
     collapsedHeight,
     pageHeight - (selectedPlace ? 0 : bottomTabOffset),
@@ -291,6 +364,18 @@ export function PlaceResultSheet({
   const detailEntrySnapIndex = useRef(activeSnapIndex);
   const completingPageSwipe = useRef(false);
   const [detailTab, setDetailTab] = useState<PlaceTab>('게시물');
+  const { placeInfo, placeBlogs } = usePlaceDetailData(
+    guestReelsByPlace !== undefined ? null : selectedPlace?.id ?? null,
+    detailTab,
+  );
+  const bookmark = usePlaceBookmark({
+    place: selectedPlace,
+    reels: selectedPlaceReels,
+    isReelsLoading,
+    analyticsSource: 'map',
+    onAuthenticationRequired,
+    onLeaveAfterChange: onSavedPlacesChanged,
+  });
   const detailScrollOffset = useRef(0);
   const detailScrollRef = useRef<ScrollView>(null);
   // Android에서 끝까지 올린 상세의 본문이 맨 위에 있으면 ScrollView 스크롤을 잠급니다.
@@ -305,12 +390,13 @@ export function PlaceResultSheet({
   const [tapDirection, setTapDirection] = useState<'up' | 'down'>('up');
   const isExpanded = activeSnapIndex === 0;
   const backGestureTop = Math.max(0, snapOffsets[activeSnapIndex]);
+  const backGestureBottom = selectedPlace ? detailBottomOffset : bottomTabOffset;
   useLayoutEffect(() => {
     onBackGestureRegionChange?.({
       top: backGestureTop,
-      bottom: bottomTabOffset,
+      bottom: backGestureBottom,
     });
-  }, [backGestureTop, bottomTabOffset, onBackGestureRegionChange]);
+  }, [backGestureBottom, backGestureTop, onBackGestureRegionChange]);
   // Both the preview and the committed back action use this destination.
   const backSnapIndex = selectedPlace
     ? detailEntrySnapIndex.current
@@ -412,7 +498,7 @@ export function PlaceResultSheet({
     setIsReelsLoading(true);
     setReelsError(null);
     try {
-      setSelectedPlaceReels(await getPlaceReels(selectedPlace.savedPlaceId));
+      setSelectedPlaceReels(await getPlaceReels(selectedPlace.id));
     } catch (error) {
       setReelsError(error as PlaceReelsApiError);
     } finally {
@@ -622,11 +708,9 @@ export function PlaceResultSheet({
     () => ({
       // 끝까지 올린 상세(페이지 모드)에서도 핸들을 끌어 시트를 내릴 수 있어야 하므로 막지 않습니다.
       onMoveShouldSetPanResponder: (_, gesture) =>
-        Math.abs(gesture.dy) > 4 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onMoveShouldSetPanResponderCapture: (_, gesture) =>
-        Math.abs(gesture.dy) > 4 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx),
+        Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         const revision = ++sheetDragRevision.current;
@@ -677,9 +761,14 @@ export function PlaceResultSheet({
         }
 
         if (Math.abs(gesture.dy) < 3) {
+          analytics.button('sheet_handle_tap');
           snapTo(isExpanded ? collapsedOffset : topOffset);
           return;
         }
+        analytics.gesture('sheet_drag', {
+          direction: gesture.dy < 0 ? 'up' : 'down',
+          from_snap: dragStartSnapIndex.current,
+        });
 
         const releasedOffset = Math.max(
           topOffset,
@@ -715,6 +804,7 @@ export function PlaceResultSheet({
     }),
     [
       activeSnapIndex,
+      analytics,
       collapsedOffset,
       isExpanded,
       selectedPlace,
@@ -795,6 +885,7 @@ export function PlaceResultSheet({
           return;
         }
         sheetDragRevision.current += 1;
+        analytics.gesture('sheet_drag', {direction: 'down', from_snap: 0});
         const shouldLower =
           gesture.dy >= DETAIL_PULL_DOWN_DISTANCE ||
           gesture.vy >= DETAIL_PULL_DOWN_VELOCITY;
@@ -802,6 +893,7 @@ export function PlaceResultSheet({
       },
     });
   }, [
+    analytics,
     collapsedOffset,
     sheetDragCallbacks,
     snapOffsets,
@@ -822,6 +914,7 @@ export function PlaceResultSheet({
     velocityY: number,
   ) => {
     if (distance <= 0) return;
+    analytics.gesture('sheet_drag', {direction: 'down', from_snap: snapIndex});
     const shouldLower =
       distance >= DETAIL_PULL_DOWN_DISTANCE ||
       velocityY <= -DETAIL_PULL_DOWN_VELOCITY;
@@ -946,112 +1039,6 @@ export function PlaceResultSheet({
     backToPlaceList();
   }, [backToPlaceList, backToPlaceListSignal]);
 
-  const handleDelete = useCallback(async () => {
-    if (isDeleting || !selectedPlace) {
-      return;
-    }
-    if (onDeleteGuestPlaces) {
-      onDeleteGuestPlaces([selectedPlace.id]);
-      backToPlaceList();
-      return;
-    }
-    if (!selectedPlace.savedPlaceId) {
-      setDeleteError({
-        status: 400,
-        errorCode: 'COMMON400_001',
-        message: '요청 내용을 확인해주세요.',
-        retryable: false,
-      });
-      return;
-    }
-
-    setIsDeleting(true);
-    setDeleteError(null);
-    try {
-      await deleteSavedPlaces([selectedPlace.savedPlaceId]);
-      trackActionFinished(posthog, 'saved_place_delete', 'success', {
-        source: 'map',
-      });
-      onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
-      backToPlaceList();
-    } catch (nextError) {
-      const apiError = nextError as SavedPlacesApiError;
-      if (apiError.errorCode === 'CLIENT000_002') {
-        try {
-          const savedPlaces = await getSavedPlaces();
-          const isDeletionConfirmed = !savedPlaces.some(
-            savedPlace => savedPlace.id === selectedPlace.savedPlaceId,
-          );
-          if (isDeletionConfirmed) {
-            onSavedPlaceDeleted?.(selectedPlace.savedPlaceId);
-            backToPlaceList();
-            return;
-          }
-        } catch {
-          // Keep the original timeout error and allow the user to retry.
-        }
-      }
-
-      trackActionFinished(posthog, 'saved_place_delete', 'failure', {
-        source: 'map',
-        failure_type: apiError.errorCode,
-      });
-      setDeleteError(apiError);
-      if (
-        apiError.errorCode === 'AUTH401_001' ||
-        apiError.errorCode === 'AUTH401_002'
-      ) {
-        onAuthenticationRequired?.();
-      }
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [
-    backToPlaceList,
-    isDeleting,
-    onAuthenticationRequired,
-    onDeleteGuestPlaces,
-    onSavedPlaceDeleted,
-    posthog,
-    selectedPlace,
-  ]);
-
-  // 삭제 전에 보관함과 같은 문구로 한 번 더 확인합니다.
-  const confirmDelete = useCallback(() => {
-    if (isDeleting || !selectedPlace) {
-      return;
-    }
-    analytics.modal('delete_confirm');
-    showAlert(
-      '선택한 장소를 삭제할까요?',
-      '선택한 1곳의 장소가 보관함에서 삭제됩니다.',
-      [
-        {
-          text: '취소',
-          style: 'cancel',
-          onPress: () => analytics.button('delete_confirm_cancel'),
-        },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: () => {
-            analytics.button('delete_confirm_ok');
-            handleDelete().catch(() => undefined);
-          },
-        },
-      ],
-    );
-  }, [analytics, handleDelete, isDeleting, selectedPlace]);
-
-  // 삭제에 실패하면 더보기 시트가 없으므로 알림 창으로 알립니다.
-  useEffect(() => {
-    if (!deleteError) {
-      return;
-    }
-    showAlert('삭제하지 못했어요', deleteError.message);
-    setDeleteError(null);
-  }, [deleteError]);
-
   const swipeCollapsesDetail =
     selectedPlace !== null &&
     activeSnapIndex === 0 &&
@@ -1075,7 +1062,10 @@ export function PlaceResultSheet({
           },
         ]}
       >
-        <CopyToastProvider bottomOffset={bottomTabOffset + 16}>
+        <CopyToastProvider
+          bottomOffset={detailBottomOffset + 16}
+          notice={preview ? null : bookmark.notice}
+        >
           <PlaceDetailContent
             // Keep the detail content mounted across snap changes so its
             // scroll position and header do not jump during expansion.
@@ -1083,6 +1073,8 @@ export function PlaceResultSheet({
             analyticsScreenName="map"
             activeTab={detailTab}
             onTabChange={setDetailTab}
+            placeInfo={placeInfo}
+            placeBlogs={placeBlogs}
             initialScrollOffset={
               preview ? detailScrollOffset.current : undefined
             }
@@ -1117,6 +1109,7 @@ export function PlaceResultSheet({
             reelsError={reelsError}
             isReelsLoading={isReelsLoading}
             onRetryReels={loadSelectedPlaceReels}
+            onOpenReel={onOpenReel}
             hideBack
             showTitle={false}
             showMetadata={snapIndex !== 2}
@@ -1128,9 +1121,22 @@ export function PlaceResultSheet({
                 ? () => onEditPlaceFolders(selectedPlace)
                 : undefined
             }
-            onPressDelete={canOpenDetailMore ? confirmDelete : undefined}
+            onPressDelete={
+              canOpenDetailMore
+                ? () => {
+                    // 비회원 시드 장소는 저장 상태가 없어 지우고 바로 돌아갑니다.
+                    if (onDeleteGuestPlaces) {
+                      onDeleteGuestPlaces([selectedPlace.id]);
+                      backToPlaceList();
+                      return;
+                    }
+                    bookmark.toggle().catch(() => undefined);
+                  }
+                : undefined
+            }
+            isBookmarked={onDeleteGuestPlaces ? true : bookmark.isBookmarked}
             isInFolder={getPlaceFoldersLabel?.(selectedPlace) === '폴더 수정'}
-            isDeleting={isDeleting}
+            isDeleting={bookmark.isPending}
             headerTopInset={0}
             compactHeader
             scrollEnabled={
@@ -1139,19 +1145,25 @@ export function PlaceResultSheet({
             }
             scrollViewRef={preview ? undefined : detailScrollRef}
             contentBottomPadding={
-              // 상세 시트는 화면 끝까지 내려와 바텀 네비게이션에 덮이므로 그 높이만큼 띄웁니다.
+              // 상세 시트는 화면 끝까지 내려오므로 하단 안전 영역만큼 띄웁니다.
               snapIndex === 0
-                ? Math.max(DETAIL_PAGE_BOTTOM_PADDING, bottomTabOffset + 12)
-                : bottomTabOffset + DETAIL_ACTION_BOTTOM_PADDING
+                ? Math.max(DETAIL_PAGE_BOTTOM_PADDING, detailBottomOffset + 12)
+                : detailBottomOffset + DETAIL_ACTION_BOTTOM_PADDING
             }
           />
         </CopyToastProvider>
       </View>
     ) : null;
-  const renderListContent = (snapIndex: number, preview = false) => {
-    // 높이만 내려가는 뒤로가기가 아니라 이전 화면으로 돌아가는 뒤로가기의 미리보기입니다.
-    const isPageBackPreview = preview && !selectedPlace && snapIndex !== 0;
-    const showsBackFolder = isPageBackPreview && backFolderHeader !== undefined;
+  const renderListContent = (
+    snapIndex: number,
+    preview = false,
+    forceBackFolder = false,
+  ) => {
+    // 일반 상태 복귀는 미리보기를 쓰고, 폴더 복귀는 유지 중인 목록 화면을 씁니다.
+    const isPageBackPreview =
+      preview && !selectedPlace && snapIndex !== 0 && !hasFolderDetail;
+    const showsBackFolder =
+      (forceBackFolder || isPageBackPreview) && backFolderHeader !== undefined;
     return (
       <View
         {...(snapIndex === 2 ? panResponder.panHandlers : {})}
@@ -1177,8 +1189,8 @@ export function PlaceResultSheet({
             ]}
             keyExtractor={place => place.id}
             getItemLayout={(_, index) => ({
-              length: RESULT_ITEM_HEIGHT,
-              offset: RESULT_ITEM_HEIGHT * index,
+              length: PLACE_LIST_ROW_HEIGHT,
+              offset: PLACE_LIST_ROW_HEIGHT * index,
               index,
             })}
             contentInsetAdjustmentBehavior="never"
@@ -1208,51 +1220,16 @@ export function PlaceResultSheet({
             }}
             onContentSizeChange={preview ? undefined : restoreResultsScroll}
             renderItem={({ item: place, index }) => (
-              <View style={styles.result}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${place.name} 상세 보기`}
-                  onPress={() => selectPlace(place, index + 1)}
-                  onPressIn={ignoreCollapsedBodyTapOnPressIn}
-                  style={styles.resultCard}
-                >
-                  {place.image ? (
-                    <Image
-                      source={place.image}
-                      style={[styles.photo, { width: photoWidth }]}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.photo,
-                        styles.imagePlaceholder,
-                        { width: photoWidth },
-                      ]}
-                    />
-                  )}
-                  <View style={styles.resultText}>
-                    {getMiddleCategory(place.category) ? (
-                      <View style={styles.titleRow}>
-                        <Text numberOfLines={1} style={styles.name}>
-                          {place.name}
-                        </Text>
-                        <View style={styles.categoryPill}>
-                          <Text style={styles.category}>
-                            {getMiddleCategory(place.category)}
-                          </Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <Text numberOfLines={1} style={styles.name}>
-                        {place.name}
-                      </Text>
-                    )}
-                    <Text style={styles.address}>
-                      {place.fullAddress || place.address}
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
+              <PlaceListRow
+                accessibilityRole="button"
+                accessibilityLabel={`${place.name} 상세 보기`}
+                address={place.fullAddress || place.address}
+                category={place.category}
+                image={place.image}
+                name={place.name}
+                onPress={() => selectPlace(place, index + 1)}
+                onPressIn={ignoreCollapsedBodyTapOnPressIn}
+              />
             )}
             ListEmptyComponent={
               <View
@@ -1275,37 +1252,10 @@ export function PlaceResultSheet({
                   <Text style={styles.emptyResultText}>
                     저장한 장소를 불러오지 못했어요.
                   </Text>
-                ) : isSearchActive ? (
-                  <>
-                    <Text style={styles.emptyResultTitle}>
-                      검색 결과가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      다른 키워드로 다시 검색해보세요.
-                    </Text>
-                  </>
-                ) : !hasSavedPlaces ? (
-                  <>
-                    <Image
-                      source={require('../../../assets/illustrations/dami-empty-box-small-cropped.png')}
-                      style={styles.emptyIllustration}
-                    />
-                    <Text style={styles.emptyResultTitle}>
-                      아직 저장한 장소가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      장소를 저장하면 지도에서 확인할 수 있어요.
-                    </Text>
-                  </>
                 ) : (
-                  <>
-                    <Text style={styles.emptyResultTitle}>
-                      이 지도 영역에 저장한 장소가 없어요
-                    </Text>
-                    <Text style={styles.emptyResultText}>
-                      지도를 움직여 다른 곳도 확인해보세요.
-                    </Text>
-                  </>
+                  <FadeInOnChange key={JSON.stringify(emptyState)}>
+                    <PlaceResultEmptyMessage emptyState={emptyState} />
+                  </FadeInOnChange>
                 )}
               </View>
             }
@@ -1336,9 +1286,13 @@ export function PlaceResultSheet({
   const backOffset = selectedPlace
     ? snapOffsets[backSnapIndex]
     : listSnapOffsets[backSnapIndex];
+  const folderListOffset = listSnapOffsets[backSnapIndex];
+  const hasFolderDetail =
+    backFolderHeader !== undefined && backFolderContent !== undefined;
   const hasStateBack =
     swipeCollapsesDetail ||
-    (!selectedPlace && (activeSnapIndex === 0 || pageBackAvailable));
+    (!selectedPlace &&
+      (activeSnapIndex === 0 || (!hasFolderDetail && pageBackAvailable)));
   useLayoutEffect(() => {
     if (!selectedPlace) return;
     // Prepare the real retained destination before it can be revealed. This
@@ -1346,7 +1300,7 @@ export function PlaceResultSheet({
     listTranslateY.stopAnimation();
     listTranslateY.setValue(listOffset);
   }, [listOffset, listTranslateY, selectedPlace]);
-  const renderListSheet = (preview = false) => (
+  const renderListSheet = (preview = false, forceBackFolder = false) => (
     <Animated.View
       style={[
         styles.sheet,
@@ -1355,7 +1309,11 @@ export function PlaceResultSheet({
           bottom: bottomTabOffset,
           transform: [
             {
-              translateY: preview ? backOffset : listTranslateY,
+              translateY: preview
+                ? forceBackFolder
+                  ? folderListOffset
+                  : backOffset
+                : listTranslateY,
             },
           ],
         },
@@ -1371,7 +1329,11 @@ export function PlaceResultSheet({
           <View style={styles.pill} />
         </Pressable>
       </View>
-      {renderListContent(preview ? backSnapIndex : listSnapIndex, preview)}
+      {renderListContent(
+        preview ? backSnapIndex : listSnapIndex,
+        preview,
+        forceBackFolder,
+      )}
     </Animated.View>
   );
   const renderDetailSheet = (snapIndex = activeSnapIndex, preview = false) =>
@@ -1414,9 +1376,21 @@ export function PlaceResultSheet({
       })}
       <SwipeBackStack
         transparent={!!renderMap}
-        gestureRegion={{ top: backGestureTop, bottom: bottomTabOffset }}
-        activeKey={selectedPlace ? 'detail' : 'list'}
-        backKey={hasStateBack ? 'state-back' : selectedPlace ? 'list' : null}
+        gestureRegion={{ top: backGestureTop, bottom: backGestureBottom }}
+        activeKey={
+          selectedPlace ? 'detail' : hasFolderDetail ? 'folder-detail' : 'list'
+        }
+        backKey={
+          hasStateBack
+            ? 'state-back'
+            : selectedPlace
+            ? hasFolderDetail
+              ? 'folder-detail'
+              : 'list'
+            : hasFolderDetail
+            ? 'list'
+            : null
+        }
         onSwipeStart={() => refreshBackPreview(revision => revision + 1)}
         transitionKey={`${activeSnapIndex}:${pageBackStateKey}`}
         onBack={() => {
@@ -1456,18 +1430,41 @@ export function PlaceResultSheet({
             : []),
           {
             key: 'list',
-            content: renderPage(renderListSheet(), {
-              isDetail: false,
-              isExpanded: listSnapIndex === 0,
-              place: null,
-              sheetHeight: listHeight,
-              sheetBottomOffset: bottomTabOffset,
-              sheetVisibleHeight: selectedPlace
-                ? listHeight - listOffset
-                : sheetHeight - currentOffset.current,
-              translateY: listTranslateY,
-            }),
+            content: renderPage(
+              renderListSheet(hasFolderDetail, hasFolderDetail),
+              {
+                isBackPreview: hasFolderDetail,
+                isDetail: false,
+                isExpanded:
+                  (hasFolderDetail ? backSnapIndex : listSnapIndex) === 0,
+                place: null,
+                sheetHeight: listHeight,
+                sheetBottomOffset: bottomTabOffset,
+                sheetVisibleHeight: hasFolderDetail
+                  ? listHeight - folderListOffset
+                  : selectedPlace
+                  ? listHeight - listOffset
+                  : sheetHeight - currentOffset.current,
+                translateY: hasFolderDetail ? folderListOffset : listTranslateY,
+              },
+            ),
           },
+          ...(hasFolderDetail
+            ? [
+                {
+                  key: 'folder-detail',
+                  content: renderPage(renderListSheet(), {
+                    isDetail: false,
+                    isExpanded: listSnapIndex === 0,
+                    place: null,
+                    sheetHeight: listHeight,
+                    sheetBottomOffset: bottomTabOffset,
+                    sheetVisibleHeight: sheetHeight - currentOffset.current,
+                    translateY: listTranslateY,
+                  }),
+                },
+              ]
+            : []),
           ...(selectedPlace
             ? [
                 {
@@ -1542,13 +1539,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  result: {
-    height: RESULT_ITEM_HEIGHT,
-    paddingVertical: 12,
-  },
   emptyResult: {
     paddingTop: 34,
     paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  emptyMessage: {
     alignItems: 'center',
   },
   // 화면이 넘긴 빈 상태(예: 빈 폴더)는 위 헤더에 붙여 보여줍니다.
@@ -1562,6 +1558,26 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -8 }],
     marginBottom: 12,
   },
+  // 빈 상자 일러스트(96)는 위 투명 여백 약 16을 빼면 그림 높이가 약 80입니다.
+  // 여백 없는 일러스트도 그림 높이 80에 원본 비율로 맞추고, 위에 16을 두어 그림과 제목 위치를 같게 합니다.
+  searchEmptyIllustration: {
+    width: 75,
+    height: 80,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  areaEmptyIllustration: {
+    width: 92,
+    height: 80,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  categoryEmptyIllustration: {
+    width: 95,
+    height: 80,
+    marginTop: 16,
+    marginBottom: 12,
+  },
   emptyResultTitle: {
     fontSize: 15,
     fontWeight: '700',
@@ -1573,51 +1589,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8e8e93',
     textAlign: 'center',
-  },
-  resultCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    minHeight: 92,
-  },
-  resultText: {
-    flex: 1,
-    paddingLeft: 14,
-    paddingTop: 3,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  name: {
-    flexShrink: 1,
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#1a1a2e',
-  },
-  categoryPill: {
-    borderWidth: 1.5,
-    borderColor: '#C9C9CE',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  category: {
-    color: '#77777D',
-    fontSize: 12,
-  },
-  address: {
-    fontSize: 12,
-    color: '#8e8e93',
-    lineHeight: 18,
-    marginTop: 7,
-  },
-  photo: {
-    height: 92,
-    borderRadius: 4,
-    resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    backgroundColor: '#F1F3FB',
   },
 });

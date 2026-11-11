@@ -1,8 +1,10 @@
 import React, {useRef} from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import {StyleSheet, Text, View} from 'react-native';
 
+import {PlaceListRow} from '../../../components/place/PlaceListRow';
+import {getMiddleCategory} from '../../../entities/place/category';
 import type {Place} from '../../../entities/place/types';
+import {LIBRARY_GUTTER} from './libraryTheme';
 
 type SavedPlaceGridProps = {
   isEditing?: boolean;
@@ -13,6 +15,7 @@ type SavedPlaceGridProps = {
   selectedPlaceIds?: ReadonlySet<string>;
 };
 
+/** 보관함의 장소 목록. 지도 화면의 리스트처럼 사진·이름·카테고리·주소를 한 행에 보여 줍니다. */
 export function SavedPlaceGrid({
   isEditing = false,
   places,
@@ -24,16 +27,35 @@ export function SavedPlaceGrid({
   const didLongPressRef = useRef(false);
 
   return (
-    <View style={styles.grid}>
-      {places.map((place, index) => (
-        <View key={`${place.id}-${index}`} style={styles.card}>
-          <Pressable
-            accessibilityLabel={
+    <View style={styles.list}>
+      {places.map((place, index) => {
+        const selected = selectedPlaceIds?.has(place.id) ?? false;
+        // 게시물인지 장소인지 구분되도록 종류를 먼저 읽고, 같은 이름을 구분할 카테고리를 함께 읽습니다.
+        const category = getMiddleCategory(place.category);
+        const description = ['장소', place.name, category]
+          .filter(Boolean)
+          .join(', ');
+
+        return (
+          <PlaceListRow
+            key={`${place.id}-${index}`}
+            accessibilityLabel={description}
+            // 편집 중에는 선택 여부를 값으로 읽고, 두 번 탭이 무엇을 하는지 힌트로 알려 줍니다.
+            accessibilityHint={
               isEditing
-                ? `${place.name} ${selectedPlaceIds?.has(place.id) ? '선택 해제' : '선택'}`
-                : place.name
+                ? selected
+                  ? '두 번 탭하면 선택을 해제해요'
+                  : '두 번 탭하면 북마크를 해제할 장소로 선택해요'
+                : undefined
+            }
+            accessibilityValue={
+              isEditing ? {text: selected ? '선택됨' : '선택 안 됨'} : undefined
             }
             accessibilityRole="button"
+            address={place.fullAddress || place.address}
+            category={place.category}
+            image={place.image}
+            name={place.name}
             onLongPress={() => {
               if (!isEditing) {
                 didLongPressRef.current = true;
@@ -56,67 +78,35 @@ export function SavedPlaceGrid({
             onPressIn={() => {
               didLongPressRef.current = false;
             }}
-            style={styles.cardBody}>
-            {place.image ? (
-              <Image source={place.image} style={styles.image} />
-            ) : (
-              <View style={styles.imagePlaceholder} />
-            )}
-            <LinearGradient
-              colors={[
-                'rgba(0, 0, 0, 0)',
-                'rgba(0, 0, 0, 0.22)',
-                'rgba(0, 0, 0, 0.58)',
-                'rgba(0, 0, 0, 0.86)',
-              ]}
-              locations={[0, 0.38, 0.72, 1]}
-              pointerEvents="none"
-              style={styles.dim}
-            />
-            <View style={styles.label}>
-              <Text style={styles.name}>{place.name}</Text>
-              <Text style={styles.address}>{place.address}</Text>
-            </View>
-            {isEditing ? (
-              <View
-                style={[
-                  styles.selectionIndicator,
-                  selectedPlaceIds?.has(place.id) && styles.selectionIndicatorSelected,
-                ]}>
-                {selectedPlaceIds?.has(place.id) ? (
-                  <Text style={styles.selectionCheck}>✓</Text>
-                ) : null}
-              </View>
-            ) : null}
-          </Pressable>
-        </View>
-      ))}
+            photoOverlay={
+              isEditing ? (
+                <View
+                  style={[
+                    styles.selectionIndicator,
+                    selected && styles.selectionIndicatorSelected,
+                  ]}>
+                  {selected ? (
+                    <Text style={styles.selectionCheck}>✓</Text>
+                  ) : null}
+                </View>
+              ) : null
+            }
+          />
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  grid: {
-    padding: 12,
+  list: {
+    paddingHorizontal: LIBRARY_GUTTER,
     paddingBottom: 130,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  card: {
-    width: '48.5%',
-    height: 248,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#eeeeee',
-  },
-  cardBody: {
-    flex: 1,
   },
   selectionIndicator: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 6,
+    left: 6,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -135,38 +125,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     lineHeight: 18,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#d8dffe',
-  },
-  dim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 100,
-  },
-  label: {
-    position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: 10,
-  },
-  name: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  address: {
-    color: '#ffffff',
-    fontSize: 10,
-    marginTop: 2,
   },
 });

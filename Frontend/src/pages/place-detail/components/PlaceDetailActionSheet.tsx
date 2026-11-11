@@ -49,7 +49,7 @@ export function PlaceDetailActionSheet({
             </Pressable>
           ) : null}
           <Pressable
-            accessibilityLabel="장소 삭제하기"
+            accessibilityLabel="장소 북마크 해제하기"
             accessibilityRole="button"
             disabled={isDeleting}
             onPress={onDelete}
@@ -58,9 +58,9 @@ export function PlaceDetailActionSheet({
               isDeleting && styles.deleteButtonDisabled,
               pressed && styles.deleteButtonPressed,
             ]}>
-            <MaterialIcons color="#000000" name="delete-outline" size={21} />
+            <MaterialIcons color="#7186ed" name="bookmark" size={21} />
             <Text style={styles.deleteButtonText}>
-              {isDeleting ? '삭제 중...' : '삭제하기'}
+              {isDeleting ? '해제 중...' : '북마크 해제'}
             </Text>
           </Pressable>
           {deleteError ? (

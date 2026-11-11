@@ -1,5 +1,8 @@
 import type {
   CurrentProfileRepository,
+  PlaceBlogSearchResult,
+  PlaceDetailInfo,
+  PlaceDetailRepository,
   PlaceReel,
   PlaceReelsRepository,
   ProfileInfo,
@@ -35,6 +38,9 @@ let savedPlacesRepository: SavedPlacesRepository = {
   async getSavedPlaces() {
     throw unconfiguredRepositoryError('Saved places');
   },
+  async searchSavedPlaces() {
+    throw unconfiguredRepositoryError('Saved places');
+  },
   async deleteSavedPlaces() {
     throw unconfiguredRepositoryError('Saved places');
   },
@@ -48,6 +54,11 @@ export function configureSavedPlacesRepository(
 
 export function getSavedPlaces(): Promise<SavedPlaceListItem[]> {
   return savedPlacesRepository.getSavedPlaces();
+}
+
+/** 서버가 이름·주소·카테고리에서 공백으로 나눈 단어를 모두 포함한 장소를 찾습니다. */
+export function searchSavedPlaces(query: string): Promise<SavedPlaceListItem[]> {
+  return savedPlacesRepository.searchSavedPlaces(query);
 }
 
 export function deleteSavedPlaces(savedPlaceIds: string[]): Promise<void> {
@@ -66,10 +77,33 @@ export function configurePlaceReelsRepository(
   placeReelsRepository = repository;
 }
 
-/** 서버의 미디어 경로는 저장 장소 ID로 조회하므로, 저장하지 않은 장소는 요청하지 않습니다. */
-export async function getPlaceReels(
-  savedPlaceId: string | undefined,
-): Promise<PlaceReel[]> {
-  if (!savedPlaceId) return [];
-  return placeReelsRepository.getPlaceReels(savedPlaceId);
+/** 장소 상세 게시물은 저장 여부와 관계없이 장소 ID로 조회합니다. */
+export async function getPlaceReels(placeId: string): Promise<PlaceReel[]> {
+  return placeReelsRepository.getPlaceReels(placeId);
+}
+
+let placeDetailRepository: PlaceDetailRepository = {
+  async getPlaceInfo() {
+    throw unconfiguredRepositoryError('Place detail');
+  },
+  async getPlaceBlogs() {
+    throw unconfiguredRepositoryError('Place detail');
+  },
+};
+
+export function configurePlaceDetailRepository(
+  repository: PlaceDetailRepository,
+) {
+  placeDetailRepository = repository;
+}
+
+export async function getPlaceInfo(placeId: string): Promise<PlaceDetailInfo> {
+  return placeDetailRepository.getPlaceInfo(placeId);
+}
+
+/** 서버가 요청마다 네이버를 호출하므로 블로그 탭을 열 때만 부릅니다. */
+export async function getPlaceBlogs(
+  placeId: string,
+): Promise<PlaceBlogSearchResult> {
+  return placeDetailRepository.getPlaceBlogs(placeId);
 }

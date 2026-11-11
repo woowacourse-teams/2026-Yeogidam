@@ -58,14 +58,23 @@ import type {
 } from '../../entities/content/types';
 import {normalizeReelTitle} from '../../entities/content/title';
 import {setLastSeenHistorySnapshot} from '../../lib/history-notification-storage';
+import {getSharedSaveState, setSharedSaveState, subscribeSharedSaveState} from '../../lib/reel-save-state';
+
+// 앱이 직접 만든 임시 항목(보낸 직후의 manual-·share- 항목)이 서버 목록에 끝내 안 잡히면
+// 스켈레톤이 영원히 남지 않도록 이 시간이 지나면 숨깁니다.
+const PENDING_SHARE_MAX_AGE_MS = 60_000;
 
 type HistoryScreenProps = {
   isActive?: boolean;
   onBack: () => void;
+  initialFailureReel?: HistoryReel | null;
+  onInitialFailureExit?: () => void;
   onNestedBackStateChange?: (canGoBack: boolean) => void;
   guestReels?: HistoryReel[];
   guestDetails?: Record<string, HistoryReelDetail>;
   onRequireLogin?: () => void;
+  /** 성공한 공유를 누르면 게시물 상세 화면을 엽니다. 없으면 히스토리 안의 결과 화면을 씁니다. */
+  onOpenReel?: (reel: HistoryReel) => void;
 };
 
 const thumbnail =
@@ -399,16 +408,20 @@ function HistorySuccessDetail({
 
 function HistoryFailureDetail({
   onBack,
+  backLabel = '히스토리 목록으로 돌아가기',
   reel,
   onRetry,
   guestDetail,
   onRequireLogin,
+  onReported,
 }: {
   onBack: () => void;
+  backLabel?: string;
   reel: HistoryReel;
   onRetry: () => Promise<void>;
   guestDetail?: HistoryReelDetail | null;
   onRequireLogin?: () => void;
+  onReported?: (reelId: string) => void;
 }) {
   const posthog = usePostHog();
   const {button, modal} = useScreenAnalytics('history_detail_failure');
@@ -429,7 +442,10 @@ function HistoryFailureDetail({
   useEffect(() => {
     trackHistoryContentDetailViewed(posthog, reel.id, 'failed');
   }, [posthog, reel.id]);
-  const [reported, setReported] = useState(false);
+  const [reported, setReported] = useState(reel.reported === true);
+  useEffect(() => {
+    setReported(reel.reported === true);
+  }, [reel.id, reel.reported]);
   const [retrying, setRetrying] = useState(false);
   const { detail } = useHistoryReelDetail(reel, guestDetail);
   const displayReel = detail ?? reel;
@@ -443,7 +459,7 @@ function HistoryFailureDetail({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="히스토리 목록으로 돌아가기"
+          accessibilityLabel={backLabel}
           hitSlop={12}
           onPress={() => {
             button('back');
@@ -568,9 +584,10 @@ function HistoryFailureDetail({
                     button('report_confirm_ok');
                     setReported(true);
                     reportHistoryReel(reel.id)
-                      .then(() =>
-                        trackActionFinished(posthog, 'history_report', 'success'),
-                      )
+                      .then(() => {
+                        onReported?.(reel.id);
+                        trackActionFinished(posthog, 'history_report', 'success');
+                      })
                       .catch(() => {
                         trackActionFinished(posthog, 'history_report', 'failure');
                         setReported(false);
@@ -614,10 +631,13 @@ const RETRY_NOT_ELIGIBLE_ERROR_CODE = 'MEDIA400_016';
 export function HistoryScreen({
   isActive = true,
   onBack,
+  initialFailureReel,
+  onInitialFailureExit,
   onNestedBackStateChange,
   guestReels,
   guestDetails,
   onRequireLogin,
+  onOpenReel,
 }: HistoryScreenProps) {
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('history');
@@ -640,14 +660,22 @@ export function HistoryScreen({
   // 첫 페이지 다음까지 읽었으면 커서는 더 보기만 갱신한다.
   const hasLoadedMoreRef = useRef(false);
   const [reels, setReels] = useState<HistoryReel[]>(guestReels ?? []);
+  // 방금 저장을 요청해 아직 서버 목록에 없는 공유. 요청 직후부터 처리 중 스켈레톤으로 보여 줍니다.
+  const [pendingShare, setPendingShare] = useState<HistoryReel | null>(null);
   const [cursor, setCursor] = useState<HistoryCursor | null>(null);
   const [loading, setLoading] = useState(guestReels === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [error, setError] = useState(false);
   const [selectedSuccess, setSelectedSuccess] = useState(false);
-  const [selectedFailure, setSelectedFailure] = useState(false);
-  const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(null);
+  const [selectedFailure, setSelectedFailure] = useState(!!initialFailureReel);
+  const [selectedReel, setSelectedReel] = useState<HistoryReel | null>(initialFailureReel ?? null);
+  useEffect(() => {
+    if (!initialFailureReel) return;
+    setSelectedSuccess(false);
+    setSelectedReel(initialFailureReel);
+    setSelectedFailure(true);
+  }, [initialFailureReel]);
   // 같은 분석 버전이라 서버가 재시도를 받지 않은 항목. 잠시 처리 중으로 보여 준다.
   const [silentRetryIds, setSilentRetryIds] = useState<ReadonlySet<string>>(() => new Set());
   const silentRetryTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -660,11 +688,14 @@ export function HistoryScreen({
   }, []);
 
   const handleDetailBack = useCallback(() => {
+    if (initialFailureReel) {
+      onBack();
+    }
     shouldRestoreScrollRef.current = true;
     setSelectedSuccess(false);
     setSelectedFailure(false);
     setSelectedReel(null);
-  }, []);
+  }, [initialFailureReel, onBack]);
 
   useEffect(() => {
     const canGoBack = isActive && (selectedSuccess || selectedFailure);
@@ -676,6 +707,7 @@ export function HistoryScreen({
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
+        analytics.gesture('hardware_back', {handled: true});
         handleDetailBack();
         return true;
       },
@@ -686,6 +718,7 @@ export function HistoryScreen({
       onNestedBackStateChange?.(false);
     };
   }, [
+    analytics,
     handleDetailBack,
     isActive,
     onNestedBackStateChange,
@@ -696,6 +729,47 @@ export function HistoryScreen({
   // 폴링 실패 시 이미 보이는 목록을 지우지 않도록 목록이 있는지 기억한다.
   const hasReelsRef = useRef(false);
   hasReelsRef.current = reels.length > 0;
+
+  useEffect(() => {
+    if (guestReels !== undefined) {
+      setPendingShare(null);
+      return undefined;
+    }
+    // 보관함에서 링크를 저장하거나 공유 확장으로 보낸 요청이 진행 중이면 목록 맨 앞에 끼워 넣습니다.
+    return subscribeSharedSaveState(state => {
+      const isTemporaryId =
+        state?.reel.id.startsWith('manual-') ||
+        state?.reel.id.startsWith('share-');
+      const createdAt = state ? Date.parse(state.reel.created_at) : NaN;
+      const isStale =
+        isTemporaryId &&
+        Number.isFinite(createdAt) &&
+        Date.now() - createdAt > PENDING_SHARE_MAX_AGE_MS;
+      if (
+        !state ||
+        isStale ||
+        (state.status !== 'PENDING' && state.status !== 'PROCESSING' &&
+          !(state.source === 'url_input' &&
+            !isTemporaryId &&
+            (state.status === 'COMPLETED' || state.status === 'FAILED')))
+      ) {
+        setPendingShare(null);
+        return;
+      }
+      setPendingShare({
+        id: state.reel.id,
+        instagram_url: state.url,
+        instagram_title: null,
+        instagram_description: null,
+        instagram_author_username: null,
+        instagram_thumbnail_url: state.reel.instagram_thumbnail_url,
+        processing_status: state.status,
+        failure_reason: null,
+        save_mode: null,
+        created_at: state.reel.created_at,
+      });
+    });
+  }, [guestReels]);
   const showErrorIfEmpty = useCallback(() => {
     if (!hasReelsRef.current) setError(true);
   }, []);
@@ -784,6 +858,14 @@ export function HistoryScreen({
         ...current.filter(item => !refreshedIds.has(item.id)),
       ];
     });
+    const sharedState = getSharedSaveState();
+    if (
+      sharedState?.source === 'url_input' &&
+      (sharedState.status === 'COMPLETED' || sharedState.status === 'FAILED') &&
+      result.reels.some(item => item.id === sharedState.reel.id)
+    ) {
+      setSharedSaveState(null);
+    }
     // 폴링은 첫 페이지만 읽은 목록의 커서만 갱신한다. 더 보기로 이어 읽은 뒤에는
     // 커서가 마지막으로 읽은 페이지를 가리키고, 끝까지 읽어 null이면 그대로 둔다.
     if (replace || !hasLoadedMoreRef.current) setCursor(result.nextCursor);
@@ -882,6 +964,7 @@ export function HistoryScreen({
         shouldRestoreScrollRef.current = false;
         setSelectedFailure(false);
         setSelectedReel(null);
+        onInitialFailureExit?.();
         const timers = silentRetryTimersRef.current;
         const previous = timers.get(reel.id);
         if (previous) clearTimeout(previous);
@@ -924,6 +1007,7 @@ export function HistoryScreen({
     shouldRestoreScrollRef.current = false;
     setSelectedFailure(false);
     setSelectedReel(null);
+    onInitialFailureExit?.();
     // 같은 게시물을 다시 처리하므로 접수된 공유는 실패 카드의 내용으로 바로 보여 준다.
     // 생성 시각 등 서버 값은 이어지는 목록 조회가 같은 ID로 덮어쓴다.
     if (!response.reused) {
@@ -941,7 +1025,7 @@ export function HistoryScreen({
       );
     }
     await load(undefined, true);
-  }, [load, posthog]);
+  }, [load, onInitialFailureExit, posthog]);
 
   useEffect(() => {
     if (!isActive || guestReels !== undefined) return;
@@ -953,6 +1037,8 @@ export function HistoryScreen({
       onError: showErrorIfEmpty,
     });
     sharesSubscriptionRef.current = subscription;
+    // 방문한 탭은 마운트 상태를 유지하므로 다시 열 때 목록을 바로 새로 읽습니다.
+    subscription.refresh().catch(() => undefined);
 
     return () => {
       subscription.unsubscribe();
@@ -992,7 +1078,12 @@ export function HistoryScreen({
     : reels.map(item => (silentRetryIds.has(item.id)
       ? {...item, processing_status: 'PROCESSING' as const, failure_reason: null}
       : item));
-  const groupedReels = displayedReels.reduce<Record<string, HistoryReel[]>>(
+  // 서버 목록에 같은 공유가 오면 임시 항목은 빠지고 서버 쪽 항목으로 대체됩니다.
+  const displayReels =
+    pendingShare && !displayedReels.some(reel => reel.id === pendingShare.id)
+      ? [pendingShare, ...displayedReels]
+      : displayedReels;
+  const groupedReels = displayReels.reduce<Record<string, HistoryReel[]>>(
     (groups, reel) => {
       const date = formatHistoryDate(reel.created_at);
       groups[date] = groups[date] ? [...groups[date], reel] : [reel];
@@ -1013,9 +1104,14 @@ export function HistoryScreen({
   ) : selectedFailure ? (
       <HistoryFailureDetail
         onBack={handleDetailBack}
+        backLabel={initialFailureReel ? '보관함으로 돌아가기' : undefined}
         reel={selectedReel as HistoryReel}
         guestDetail={selectedGuestDetail}
         onRequireLogin={onRequireLogin}
+        onReported={reelId => {
+          setSelectedReel(current => current?.id === reelId ? {...current, reported: true} : current);
+          setReels(current => current.map(item => item.id === reelId ? {...item, reported: true} : item));
+        }}
         onRetry={async () => {
           if (guestReels !== undefined) {
             onRequireLogin?.();
@@ -1031,7 +1127,7 @@ export function HistoryScreen({
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="대기함으로 돌아가기"
+          accessibilityLabel="이전 화면으로 돌아가기"
           hitSlop={12}
           onPress={() => {
             analytics.button('back');
@@ -1039,10 +1135,7 @@ export function HistoryScreen({
           }}
           style={styles.backButton}
         >
-          <Image
-            source={require('../../assets/icons/brand-mark.png')}
-            style={styles.brandMark}
-          />
+          <Text style={styles.back}>‹</Text>
         </Pressable>
         <Text style={styles.headerTitle}>히스토리</Text>
         <View style={styles.headerSpacer} />
@@ -1056,7 +1149,7 @@ export function HistoryScreen({
         contentContainerStyle={[
           styles.content,
           {paddingBottom: listBottomPadding},
-          !loading && reels.length === 0 && styles.emptyContent,
+          !loading && displayReels.length === 0 && styles.emptyContent,
         ]}
         onScroll={({nativeEvent}) => {
           scrollOffsetRef.current = nativeEvent.contentOffset.y;
@@ -1065,14 +1158,21 @@ export function HistoryScreen({
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 80;
           // 실패했으면 스크롤마다 다시 요청하지 않고 다시 불러오기 버튼을 기다린다.
-          if (reachedBottom && cursor && !loadingMore && !loadMoreFailed) {
+          if (
+            reachedBottom &&
+            cursor &&
+            !loadingMore &&
+            !loadingMoreRef.current &&
+            !loadMoreFailed
+          ) {
+            analytics.gesture('load_more');
             load(cursor).catch(() => undefined);
           }
         }}
         scrollEventThrottle={200}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
+        {loading && !pendingShare ? (
           <Text style={styles.stateText}>히스토리를 불러오는 중이에요.</Text>
         ) : error ? (
           <View style={styles.stateBody}>
@@ -1086,7 +1186,7 @@ export function HistoryScreen({
               <Text style={styles.retryText}>다시 시도</Text>
             </Pressable>
           </View>
-        ) : reels.length === 0 ? (
+        ) : displayReels.length === 0 ? (
           <View style={styles.emptyBody}>
             <Image
               source={require('../../assets/illustrations/dami-empty-box-small-cropped.png')}
@@ -1138,9 +1238,15 @@ export function HistoryScreen({
                     evaluateVisibleCards();
                   }}
                   onPress={
-                    reel.processing_status === 'COMPLETED'
+                    reel.deleted_from_library
+                      ? () => showAlert('보관함에서 삭제한 게시물이에요.')
+                      : reel.processing_status === 'COMPLETED'
                       ? () => {
                           analytics.button('open_item', {status: 'completed'});
+                          if (onOpenReel) {
+                            onOpenReel(reel);
+                            return;
+                          }
                           setSelectedReel(reel);
                           setSelectedSuccess(true);
                         }
@@ -1149,6 +1255,12 @@ export function HistoryScreen({
                           analytics.button('open_item', {status: 'failed'});
                           setSelectedReel(reel);
                           setSelectedFailure(true);
+                        }
+                      : onOpenReel
+                      ? () => {
+                          // 처리 중·대기 중인 공유는 진행 화면으로 넘어간다.
+                          analytics.button('open_item', {status: 'processing'});
+                          onOpenReel(reel);
                         }
                       : undefined
                   }
@@ -1207,7 +1319,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  brandMark: { width: 44, height: 44, borderRadius: 22 },
   back: {
     fontSize: 30,
     lineHeight: 34,

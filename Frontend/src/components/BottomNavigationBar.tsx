@@ -1,8 +1,11 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useEffect, useRef} from 'react';
 import {usePostHog} from 'posthog-react-native';
 
 import {trackButtonPressed} from '../analytics/uiEvents';
+import {visuallyHiddenTextStyle} from '../lib/accessibility';
 import {
+  Animated,
+  Easing,
   Platform,
   Pressable,
   StyleSheet,
@@ -15,20 +18,22 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { subscribeRecentShares } from '../entities/content/recent-shares-poller';
-import type { HistoryReel } from '../entities/content/types';
-import {
-  getLastSeenHistorySnapshot,
-  setLastSeenHistorySnapshot,
-} from '../lib/history-notification-storage';
+import { getHistoryReelPlaceCount } from '../entities/content/history-api';
+import { reportExtractionResults } from '../analytics/extractionCompletion';
+import { getSpringMemberId } from '../lib/auth/spring-session';
 
 import type { MainScreen } from '../types/navigation';
 
-const HISTORY_NOTIFICATION_INTERVAL_MS = 5000;
+// 보관함의 최근 공유 행이 읽는 공유 목록(앱 공용 폴러)을 로그인 상태에서 계속 갱신해 둡니다.
+const RECENT_SHARES_INTERVAL_MS = 5000;
+const HIDE_ANIMATION_DURATION_MS = 220;
 
 type BottomNavigationBarProps = {
   active: MainScreen;
   isGuest: boolean;
   onNavigate: (screen: MainScreen) => void;
+  /** true면 아래로 내려가며 숨습니다. 위 화면의 전환과 끊겨 보이지 않도록 마운트는 유지합니다. */
+  hidden?: boolean;
 };
 
 export const BOTTOM_NAVIGATION_BAR_HEIGHT = 64;
@@ -83,14 +88,14 @@ export const bottomNavigationBarContainerStyle: ViewStyle = {
 
 const navigationItems: {
   id: MainScreen;
-  icon: 'bookmark' | 'map' | 'person' | 'history';
+  icon: 'bookmark' | 'map' | 'person';
   label: string;
 }[] = [
+  // 보관함이 앱의 시작 화면이라 가장 앞에 둡니다.
   { id: 'saved', icon: 'bookmark', label: '보관함' },
-  { id: 'map', icon: 'map', label: '지도' },
   // 대기함 흐름을 다시 사용할 때 복원합니다.
   // { id: 'inBox', icon: 'inventory-2', label: '대기함' },
-  { id: 'history', icon: 'history', label: '히스토리' },
+  { id: 'map', icon: 'map', label: '지도' },
   { id: 'my', icon: 'person', label: '내 정보' },
 ];
 
@@ -98,67 +103,72 @@ export function BottomNavigationBar({
   active,
   isGuest,
   onNavigate,
+  hidden = false,
 }: BottomNavigationBarProps) {
   const { bottom } = useSafeAreaInsets();
   const posthog = usePostHog();
-  const [isHistoryUnread, setIsHistoryUnread] = useState(false);
-  const activeRef = useRef(active);
-  activeRef.current = active;
+  const hideProgress = useRef(new Animated.Value(hidden ? 1 : 0)).current;
 
-  const syncHistoryNotification = useCallback(async (reels: HistoryReel[]) => {
-    // 히스토리 화면이 같은 결과로 마지막 확인 시점을 갱신하므로 그 화면에서는 판단하지 않는다.
-    if (activeRef.current === 'history') {
-      setIsHistoryUnread(false);
-      return;
-    }
-    const latest = reels[0];
-    if (!latest) {
-      setIsHistoryUnread(false);
-      return;
-    }
-    const lastSeen = await getLastSeenHistorySnapshot();
-    if (lastSeen === null) {
-      await setLastSeenHistorySnapshot({
-        id: latest.id,
-        status: latest.processing_status,
-      });
-      setIsHistoryUnread(false);
-      return;
-    }
-    setIsHistoryUnread(
-      lastSeen.id !== latest.id ||
-        lastSeen.status !== latest.processing_status,
-    );
-  }, []);
+  useEffect(() => {
+    Animated.timing(hideProgress, {
+      toValue: hidden ? 1 : 0,
+      duration: HIDE_ANIMATION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [hidden, hideProgress]);
 
   useEffect(() => {
     if (isGuest) {
-      setIsHistoryUnread(false);
       return;
     }
-    // 앱 공용 폴러를 5초 주기로 구독한다. 히스토리 등 더 짧은 구독자가 있으면 그 주기를 따른다.
-    // 포그라운드 복귀 시 다시 읽는 것도 폴러가 맡는다.
+    // 앱 공용 폴러를 구독해 첫 조회와 주기 갱신을 이어 둡니다. 결과는 폴러를 구독한
+    // 화면(보관함 최근 공유 등)이 받아 씁니다. 포그라운드 복귀 시 다시 읽는 것도 폴러가 맡습니다.
     const subscription = subscribeRecentShares({
-      intervalMs: HISTORY_NOTIFICATION_INTERVAL_MS,
-      onResult: ({reels}) => {
-        // Keep the navigation usable if the history request fails.
-        syncHistoryNotification(reels).catch(() => undefined);
+      intervalMs: RECENT_SHARES_INTERVAL_MS,
+      // 회원이면 항상 떠 있는 탭 바가 공유 목록을 받는 곳이라, 여기서 추출이 끝난 공유를 기록합니다.
+      onResult: snapshot => {
+        getSpringMemberId()
+          .then(memberId =>
+            reportExtractionResults(snapshot.reels, {
+              client: posthog,
+              memberId,
+              getPlaceCount: getHistoryReelPlaceCount,
+            }),
+          )
+          .catch(() => undefined);
       },
     });
+    // 조회가 실패해도 탭 이동은 그대로 쓸 수 있어야 합니다.
     subscription.refresh().catch(() => undefined);
     return () => subscription.unsubscribe();
-  }, [isGuest, syncHistoryNotification]);
+  }, [isGuest, posthog]);
 
   return (
-    <View
+    <Animated.View
+      accessibilityElementsHidden={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      pointerEvents={hidden ? 'none' : 'auto'}
       style={[
         styles.navigationBar,
         {
           paddingBottom: bottom,
+          transform: [
+            {
+              translateY: hideProgress.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, BOTTOM_NAVIGATION_BAR_HEIGHT + bottom],
+              }),
+            },
+          ],
         },
       ]}
     >
       <SystemNavigationGradient />
+      {/* 화면에는 보이지 않는 스크린 리더용 머리말입니다. 로터의 '머리말' 이동으로 목록에서 하단 메뉴까지 바로 옵니다. */}
+      <Text accessibilityRole="header" style={visuallyHiddenTextStyle}>
+        하단 메뉴
+      </Text>
       <View style={styles.navigationItems}>
         {navigationItems.map(navigation => (
           <Pressable
@@ -167,8 +177,6 @@ export function BottomNavigationBar({
             accessibilityLabel={navigation.label}
             accessibilityState={{selected: active === navigation.id}}
             onPress={() => {
-              // 마지막 확인 시점은 히스토리 화면이 첫 페이지를 읽을 때 저장한다.
-              if (navigation.id === 'history') setIsHistoryUnread(false);
               trackButtonPressed(posthog, active, 'bottom_tab', {
                 target_tab: navigation.id,
                 is_same_tab: navigation.id === active,
@@ -208,49 +216,6 @@ export function BottomNavigationBar({
                     strokeWidth={0.3}
                   />
                 </Svg>
-              ) : navigation.id === 'history' ? (
-                <View>
-                  <Svg height={24} viewBox="0 0 24 24" width={24}>
-                    {active === navigation.id ? (
-                      <>
-                        <Path
-                          d="M12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15Z"
-                          fill="#000000"
-                          stroke="#000000"
-                          strokeWidth={2}
-                        />
-                        <Path
-                          fill="none"
-                          d="M12 8v4.3l3 1.8"
-                          stroke="#ffffff"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.8}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <Path
-                          d="M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17Z"
-                          fill="none"
-                          stroke="#666b79"
-                          strokeWidth={2}
-                        />
-                        <Path
-                          d="M12 7.5v4.8l3.2 1.9"
-                          fill="none"
-                          stroke="#666b79"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                        />
-                      </>
-                    )}
-                  </Svg>
-                  {isHistoryUnread && active !== navigation.id ? (
-                    <View style={styles.historyBadge} />
-                  ) : null}
-                </View>
               ) : (
                 <MaterialIcons
                   color={active === navigation.id ? '#1f2238' : '#666b79'}
@@ -270,7 +235,7 @@ export function BottomNavigationBar({
           </Pressable>
         ))}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -320,17 +285,6 @@ const styles = StyleSheet.create({
   navigationText: {
     fontSize: 10,
     color: '#666b79',
-  },
-  historyBadge: {
-    position: 'absolute',
-    right: -2,
-    top: -1,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#f04438',
-    borderWidth: 1,
-    borderColor: '#ffffff',
   },
   activeText: {
     color: '#1f2238',

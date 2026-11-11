@@ -12,6 +12,8 @@ export const ANALYTICS_EVENTS = {
   historyContentDetailViewed: 'history_content_detail_viewed',
   extractionRequestStarted: 'extraction_request_started',
   extractionRequestFinished: 'extraction_request_finished',
+  /** 공유한 게시물의 장소 추출이 끝났습니다(앱이 공유 목록에서 확인한 시점). `result`, `place_count` */
+  extractionCompleted: 'extraction_completed',
   savedPlacesViewed: 'saved_places_viewed',
   savedPlacesSearchSubmitted: 'saved_places_search_submitted',
   savedPlaceSelected: 'saved_place_selected',
@@ -22,4 +24,10 @@ export const ANALYTICS_EVENTS = {
   pendingPlaceSaveFinished: 'pending_place_save_finished',
   pendingPlaceDiscardFinished: 'pending_place_discard_finished',
   pendingResolutionCompleted: 'pending_resolution_completed',
+  /** PMF 설문 모달이 보였습니다. `survey_id` */
+  pmfSurveyViewed: 'pmf_survey_viewed',
+  /** PMF 설문을 답하지 않고 닫았습니다. `survey_id`, `method` */
+  pmfSurveyDismissed: 'pmf_survey_dismissed',
+  /** PMF 설문에 답했습니다. `survey_id`, `answer` */
+  pmfSurveyAnswered: 'pmf_survey_answered',
 } as const;

@@ -156,7 +156,12 @@ export function PlaceInfo({
         ) : null}
         {actionsUnderTitle ? actions : null}
         {showCategory && place.category ? (
-          <View style={styles.metaRow}>
+          // 아이콘은 따로 잡히지 않게 줄 전체를 하나로 묶고, 무슨 정보인지 이름을 붙여 읽습니다.
+          <View
+            accessible
+            accessibilityLabel={`카테고리, ${getMiddleCategory(place.category)}`}
+            style={styles.metaRow}
+          >
             <MaterialIcons color="#85869A" name="sell" size={16} />
             <Text style={styles.category} numberOfLines={1}>
               {getMiddleCategory(place.category)}
@@ -164,7 +169,11 @@ export function PlaceInfo({
           </View>
         ) : null}
         {showAddress ? (
-          <View style={styles.addressRow}>
+          <View
+            accessible
+            accessibilityLabel={`주소, ${place.fullAddress}`}
+            style={styles.addressRow}
+          >
             <MaterialIcons color="#85869A" name="place" size={17} />
             <Text style={styles.address} numberOfLines={1}>
               {place.fullAddress}
@@ -286,8 +295,10 @@ const styles = StyleSheet.create({
   imageContainer: {
     marginHorizontal: 24,
     marginTop: 6,
+    marginBottom: 16,
     overflow: 'hidden',
     borderRadius: 16,
+    backgroundColor: '#d9dce8',
   },
   image: {
     width: '100%',

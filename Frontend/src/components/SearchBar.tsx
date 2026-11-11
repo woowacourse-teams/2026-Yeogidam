@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   type FocusEvent,
   Image,
+  Keyboard,
   type NativeSyntheticEvent,
   Platform,
   Pressable,
@@ -14,23 +15,33 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
 
+import { focusAccessibility } from '../lib/accessibility';
+
+// 검색 패널이 열리는 애니메이션이 끝난 뒤 입력창으로 스크린 리더 포커스를 옮깁니다.
+const INPUT_FOCUS_DELAY_MS = 300;
+
 type SearchBarProps = {
   value?: string;
   onChangeText?: (value: string) => void;
   onPress?: () => void;
   layout?: 'overlay' | 'embedded' | 'header';
   topInset?: number;
+  /** 오버레이 검색창의 좌우 여백. 기본값은 24입니다. */
+  horizontalInset?: number;
   onPressBack?: () => void;
   backButtonPosition?: 'inside' | 'leading';
   placeholder?: string;
   autoFocus?: boolean;
   autoCorrect?: boolean;
+  maxLength?: number;
   onSubmitEditing?: (
     event: NativeSyntheticEvent<TextInputSubmitEditingEventData>,
   ) => void;
   onFocus?: (event: FocusEvent) => void;
   onBlur?: (event: BlurEvent) => void;
   onPressSearchAction?: () => void;
+  /** 누르는 검색창(onPress)에 확정한 검색어(value)가 있을 때 지우기 버튼을 보여 줍니다. */
+  onPressClear?: () => void;
   /** 기존 호출부 호환용 검색 실행 콜백 */
   onSubmit?: () => void;
 };
@@ -44,17 +55,26 @@ export function SearchBar({
   onPress,
   layout = 'overlay',
   topInset = 0,
+  horizontalInset = 24,
   onPressBack,
   backButtonPosition = 'inside',
   placeholder = '장소, 지역 검색',
   autoFocus = false,
   autoCorrect = true,
+  maxLength,
   onSubmitEditing,
   onFocus,
   onBlur,
   onPressSearchAction,
+  onPressClear,
   onSubmit,
 }: SearchBarProps) {
+  const inputRef = useRef<TextInput>(null);
+  // 키보드는 autoFocus로 올라오지만 VoiceOver 포커스는 따로 옮겨야 바로 "편집 중"인 입력창을 읽어요.
+  useEffect(() => {
+    if (!autoFocus || onPress) return undefined;
+    return focusAccessibility(inputRef, INPUT_FOCUS_DELAY_MS);
+  }, [autoFocus, onPress]);
   const handleSearchAction = onPressSearchAction ?? onSubmit;
   const handleSubmitEditing = onSubmitEditing ?? onSubmit;
   const SearchAction = handleSearchAction && !onPress ? Pressable : View;
@@ -68,7 +88,11 @@ export function SearchBar({
     <View
       style={[
         styles.container,
-        layout === 'overlay' && { top: topInset + SEARCH_BAR_TOP_GAP },
+        layout === 'overlay' && {
+          top: topInset + SEARCH_BAR_TOP_GAP,
+          left: horizontalInset,
+          right: horizontalInset,
+        },
         layout === 'embedded' && styles.embedded,
         layout === 'header' && styles.header,
       ]}
@@ -97,6 +121,7 @@ export function SearchBar({
               onPress,
               accessibilityRole: 'button' as const,
               accessibilityLabel: placeholder,
+              accessibilityHint: '두 번 탭하면 검색어를 입력할 수 있어요',
             }
           : {})}
         style={styles.searchBar}
@@ -113,33 +138,45 @@ export function SearchBar({
           </Pressable>
         ) : null}
         {onPress ? (
-          <Text style={[styles.inputText, styles.placeholder]}>
-            {placeholder}
-          </Text>
+          // 눌러서 여는 검색창도 입력창과 같은 TextInput으로 그려, 화면이 바뀔 때 글씨 위치가 어긋나지 않게 합니다.
+          <TextInput
+            accessible={false}
+            editable={false}
+            placeholder={placeholder}
+            placeholderTextColor="#a9a9ae"
+            pointerEvents="none"
+            style={[styles.inputText, styles.input, !value && styles.placeholderText]}
+            value={value}
+          />
         ) : (
           <TextInput
+            ref={inputRef}
             accessibilityLabel="장소, 지역 검색"
+            // VoiceOver의 두 손가락 문지르기(Z) 제스처로 키보드를 내립니다. 빈 곳 탭은 스크린 리더에서 쓸 수 없어요.
+            onAccessibilityEscape={Keyboard.dismiss}
             autoCapitalize="none"
             autoCorrect={autoCorrect}
             autoFocus={autoFocus}
             onBlur={onBlur}
             clearButtonMode="while-editing"
+            maxLength={maxLength}
             onChangeText={onChangeText}
             onFocus={onFocus}
             onSubmitEditing={handleSubmitEditing}
             placeholder={placeholder}
             placeholderTextColor="#a9a9ae"
             returnKeyType="search"
-            style={[styles.inputText, styles.input]}
+            style={[styles.inputText, styles.input, !value && styles.placeholderText]}
             value={value}
           />
         )}
-        {!onPress && Platform.OS !== 'ios' && value ? (
+        {value &&
+        (onPress ? onPressClear : Platform.OS !== 'ios') ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="검색어 지우기"
             hitSlop={10}
-            onPress={() => onChangeText?.('')}
+            onPress={onPress ? onPressClear : () => onChangeText?.('')}
             style={styles.clearButton}
           >
             <Text style={styles.clearIcon}>×</Text>
@@ -237,8 +274,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#202124',
   },
-  placeholder: {
-    color: '#a9a9ae',
+  // 안내 문구는 입력한 검색어보다 작고 얇게 보여, 좁은 검색창에서도 한 줄에 들어가게 합니다.
+  placeholderText: {
+    fontSize: 15,
+    fontWeight: '500',
   },
   input: {
     height: SEARCH_BAR_HEIGHT,

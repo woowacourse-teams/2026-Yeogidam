@@ -2,6 +2,7 @@ import { showAlert } from '../../../lib/app-alert';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import { AppModal } from '../../../components/AppModal';
 import { useScreenAnalytics } from '../../../analytics/uiEvents';
 import {
   FOLDER_COLORS,
+  getFolderColorName,
   getNextFolderColor,
 } from '../../../entities/folder/color';
 import {
@@ -220,20 +222,31 @@ export function FolderNameDialog({
     existingNames.some(existingName => existingName.trim() === trimmedName);
   const canSubmit = trimmedName.length > 0 && !isDuplicate;
 
+  const handleBackdropPress = () => {
+    if (Keyboard.isVisible()) {
+      Keyboard.dismiss();
+      return;
+    }
+    onCancel();
+  };
+
   return (
     <AppModal
       avoidKeyboard
+      backdropColor="rgba(0,0,0,0.4)"
       transparent
       animationType="fade"
       visible={visible}
       onRequestClose={onCancel}
     >
       <View style={styles.backdrop}>
-        <Pressable accessible={false} onPress={onCancel} style={StyleSheet.absoluteFill} />
+        <Pressable accessible={false} onPress={handleBackdropPress} style={StyleSheet.absoluteFill} />
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
           <View style={styles.inputField}>
             <TextInput
+              // VoiceOver의 두 손가락 문지르기(Z) 제스처로 키보드를 내립니다. 빈 곳 탭은 스크린 리더에서 쓸 수 없어요.
+              onAccessibilityEscape={Keyboard.dismiss}
               autoFocus
               maxLength={MAX_FOLDER_NAME_LENGTH}
               onChangeText={setName}
@@ -253,15 +266,16 @@ export function FolderNameDialog({
               </Text>
             ) : null}
           </View>
-          <View style={styles.colorRow}>
+          <View accessibilityRole="radiogroup" style={styles.colorRow}>
             {FOLDER_COLORS.map(candidate => {
               const selected = candidate === color;
               return (
                 <Pressable
                   key={candidate}
                   accessibilityRole="radio"
-                  accessibilityLabel={`폴더 색상 ${candidate}`}
-                  accessibilityState={{ selected }}
+                  // 색상 코드 대신 색 이름을 읽고, '선택됨'은 이름 뒤에 읽도록 checked로 전달합니다.
+                  accessibilityLabel={`폴더 색상 ${getFolderColorName(candidate)}`}
+                  accessibilityState={{ checked: selected || undefined }}
                   hitSlop={4}
                   onPress={() => {
                     button('select_color');
@@ -760,7 +774,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,

@@ -21,6 +21,23 @@ export const FOLDER_COLOR_HEX: Record<FolderColorCode, string> = {
   PINK: '#F06292',
 };
 
+// 스크린 리더가 색상 코드 대신 읽을 색 이름입니다.
+export const FOLDER_COLOR_NAMES: Record<FolderColorCode, string> = {
+  RED: '빨강',
+  ORANGE: '주황',
+  YELLOW: '노랑',
+  GREEN: '초록',
+  TEAL: '청록',
+  PURPLE: '보라',
+  PINK: '분홍',
+};
+
+/** 화면의 hex 색을 스크린 리더가 읽을 이름으로 바꿉니다. 목록에 없는 색은 '기본 색'입니다. */
+export function getFolderColorName(hex?: string | null): string {
+  const code = FOLDER_COLOR_CODES.find(item => FOLDER_COLOR_HEX[item] === hex);
+  return code ? FOLDER_COLOR_NAMES[code] : '기본 색';
+}
+
 // 폴더 색 선택지입니다. 지도 핀 색으로도 쓰이고, 첫 번째 색이 기본값입니다.
 // 지도 기본 핀 색(DEFAULT_PIN_COLOR)은 폴더 색으로 고를 수 없습니다.
 export const FOLDER_COLORS = FOLDER_COLOR_CODES.map(code => FOLDER_COLOR_HEX[code]);
