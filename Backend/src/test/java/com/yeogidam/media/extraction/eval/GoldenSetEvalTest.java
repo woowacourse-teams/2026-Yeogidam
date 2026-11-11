@@ -9,6 +9,7 @@ import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.infrastructure.GeminiFileClient;
 import com.yeogidam.media.extraction.infrastructure.GeminiPlaceSearchHintExtractor;
+import com.yeogidam.media.extraction.infrastructure.GoogleDomesticPlaceSearcher;
 import com.yeogidam.media.extraction.infrastructure.GoogleOverseasPlaceSearcher;
 import com.yeogidam.media.extraction.infrastructure.GooglePlacesClient;
 import com.yeogidam.media.extraction.infrastructure.KakaoDomesticPlaceSearcher;
@@ -109,14 +110,17 @@ class GoldenSetEvalTest {
                 new InstagramMediaDownloader(new InstagramMediaSourceReader(instagramMediaRestClient, jsonMapper),
                         instagramMediaRestClient),
                 new GeminiFileClient(geminiMediaRestClient));
-        // 운영처럼 나라 코드로 카카오와 Google을 나눠서, 국내 가게에 해외 나라 코드가 붙어 장소를 잃는 일도 점수에 나타나게 한다.
+        // 운영처럼 나라 코드로 카카오와 Google을 나누고 카카오가 0건인 국내 단서는 Google에서 한 번 더 찾아서,
+        // 국내 가게에 해외 나라 코드가 붙어 장소를 잃는 일과 Google이 다른 국내 가게를 붙이는 일도 점수에 나타나게 한다.
+        GooglePlacesClient googlePlacesClient = new GooglePlacesClient(
+                extractionConfig.googlePlacesRestClient(RestClient.builder()),
+                new GooglePlacesProperties(env.get("GOOGLE_PLACES_API_KEY")));
         PlaceSearchRouter searcher = new PlaceSearchRouter(
                 new KakaoDomesticPlaceSearcher(
                         extractionConfig.kakaoLocalRestClient(RestClient.builder()),
                         new KakaoLocalProperties(env.get("KAKAO_CLIENT_ID"))),
-                new GoogleOverseasPlaceSearcher(new GooglePlacesClient(
-                        extractionConfig.googlePlacesRestClient(RestClient.builder()),
-                        new GooglePlacesProperties(env.get("GOOGLE_PLACES_API_KEY")))));
+                new GoogleOverseasPlaceSearcher(googlePlacesClient),
+                new GoogleDomesticPlaceSearcher(googlePlacesClient));
         System.out.println("Gemini key: 먼저 부르는 key 1개, 막히면 넘기는 결제 key " + fallbackApiKeys.size() + "개");
 
         List<GoldenCase> cases = readCases();
@@ -442,7 +446,8 @@ class GoldenSetEvalTest {
                     splitIds(columns.get("kakao_api_missing_ids")),
                     columns.get("verification_status"),
                     splitIds(columns.get("observed_place_names")),
-                    readAliases(columns.getOrDefault("accepted_kakao_aliases", ""))));
+                    readAliases(columns.getOrDefault("accepted_kakao_aliases", ""),
+                            columns.getOrDefault("accepted_google_place_ids", ""))));
         }
         return cases;
     }
@@ -458,14 +463,17 @@ class GoldenSetEvalTest {
         return value.isBlank() ? List.of() : List.of(value.split(";"));
     }
 
-    private static Map<String, String> readAliases(String value) {
+    // 카카오의 중복 ID와, 카카오가 못 찾아 Google에서 찾은 같은 장소의 Google ID를 모두 정답 카카오 ID로 바꿔 채점한다.
+    private static Map<String, String> readAliases(String... values) {
         Map<String, String> aliases = new LinkedHashMap<>();
-        for (String pair : splitIds(value)) {
-            int separator = pair.indexOf('=');
-            if (separator <= 0 || separator == pair.length() - 1) {
-                throw new IllegalArgumentException("지도 별칭은 별칭ID=정답ID 형식이어야 합니다.");
+        for (String value : values) {
+            for (String pair : splitIds(value)) {
+                int separator = pair.indexOf('=');
+                if (separator <= 0 || separator == pair.length() - 1) {
+                    throw new IllegalArgumentException("지도 별칭은 별칭ID=정답ID 형식이어야 합니다.");
+                }
+                aliases.put(pair.substring(0, separator), pair.substring(separator + 1));
             }
-            aliases.put(pair.substring(0, separator), pair.substring(separator + 1));
         }
         return Map.copyOf(aliases);
     }

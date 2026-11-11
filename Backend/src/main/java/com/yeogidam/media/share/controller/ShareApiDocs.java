@@ -332,9 +332,10 @@ public interface ShareApiDocs {
                     - `category` 원문이 없거나 분류 규칙에 맞지 않으면 `ETC`, `기타`를 돌려줍니다.
                     - `latitude`, `longitude`, `kakaoPlaceUrl`, `telephone`은 보관함 게시물 목록(`GET /api/v1/saved-media`)의 장소와 같은 값이라, 저장하지 않은 장소도 장소 상세의 지도 위치, 카카오 링크, 전화번호를 히스토리 응답의 값으로 채울 수 있습니다.
                     - `latitude`와 `longitude`는 늘 값이 있고, `kakaoPlaceUrl`과 `telephone`은 장소에 값이 없으면 null을 돌려줍니다.
-                    - `mapProvider`는 장소를 찾은 지도 제공자로, 국내 장소는 `KAKAO`이고 해외 장소는 `GOOGLE`입니다.
+                    - `mapProvider`는 장소를 찾은 지도 제공자로, 카카오에서 찾은 장소는 `KAKAO`이고 해외 장소와 카카오가 찾지 못해 Google에서 찾은 국내 장소는 `GOOGLE`입니다.
                     - `countryCode`는 장소가 있는 나라의 ISO 3166-1 alpha-2 코드로, 국내 장소는 `KR`입니다.
                     - `placeUrl`은 장소를 지도 앱에서 여는 링크로, 카카오 장소는 `kakaoPlaceUrl`과 같고 구글 장소는 place ID로 만든 구글맵 링크입니다.
+                    - 국내 장소도 `GOOGLE`일 수 있으므로, 지도 앱 버튼은 `countryCode` 대신 `mapProvider`와 `placeUrl`로 정합니다.
                     - 보관함 게시물 삭제(`DELETE /api/v1/saved-media`)로 지운 게시글의 공유 이력도 같은 방식으로 장소를 돌려줍니다.
                     - 존재하지 않거나 다른 회원의 공유 이력이면 조회할 수 없습니다.
                     """,

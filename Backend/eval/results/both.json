@@ -2,9 +2,9 @@
   "schemaVersion" : 1,
   "runner" : "java-operational",
   "inputStrategy" : "caption_then_media",
-  "recordedAt" : "2026-11-10T09:20:41.462312Z",
+  "recordedAt" : "2026-11-10T12:46:18.557382Z",
   "model" : "gemini-3.5-flash-lite",
-  "goldenSha256" : "2b7d85f301bd8eb52a49dd39092b4569ae738eda52bf8cd4dfda5b24d09606d9",
+  "goldenSha256" : "8fd629e72237160841c94b03016da8c703c2b390f9bb3631a6e5b2d399b28811",
   "plannedCaseIds" : [ "C001", "C002", "C003", "C004", "C005", "C006", "C007", "C008", "C009", "C010", "C011", "C012", "C013", "C014", "C015", "C016", "C017", "C018", "C019", "C020", "C021", "C022", "C023", "C024", "C025", "C026", "C027", "C028", "C029", "C030", "C031", "C032", "C033", "C034", "C035", "C036", "C037", "C038", "C039", "C040" ],
   "complete" : true,
   "rows" : [ {
@@ -17,7 +17,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "득량집" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJcczcFQCPcTURvjyzWTlMV7Q" : "1286915693"
+      }
     },
     "predicted" : [ {
       "id" : "1286915693",
@@ -29,13 +31,13 @@
       "nameSearchHint" : "득량집",
       "accountHints" : [ ],
       "locationHints" : [ {
-        "type" : "REGION",
-        "value" : "수완지구",
-        "basis" : "CAPTION"
-      }, {
         "type" : "ADDRESS",
         "value" : "광주 광산구 수완로74번길 11-2 1층",
         "basis" : "VIDEO"
+      }, {
+        "type" : "REGION",
+        "value" : "수완지구",
+        "basis" : "CAPTION"
       } ],
       "categoryHint" : "한식당",
       "countryCode" : "KR",
@@ -43,7 +45,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 21.254
+    "seconds" : 18.991
   }, {
     "goldenCase" : {
       "caseId" : "C002",
@@ -56,35 +58,31 @@
       "observedNames" : [ "전남대 후문 흑미찹쌀 참붕어빵 노점" ],
       "acceptedAliases" : { }
     },
-    "predicted" : [ ],
+    "predicted" : [ {
+      "id" : "ChIJoyTZUfmMcTURG7KPYR4vGMg",
+      "name" : "카페온리",
+      "address" : "광주광역시 북구 서방로19번길 36"
+    } ],
     "hints" : [ {
-      "nameInCaption" : "흑미찹쌀 찹붕어빵",
-      "nameSearchHint" : "흑미찹쌀 찹붕어빵",
+      "nameInCaption" : "카페온리 전남대점",
+      "nameSearchHint" : "카페온리 전남대점",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "광주",
+        "value" : "전대후문 복개도로",
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
-        "value" : "전대후문",
+        "value" : "광주",
         "basis" : "CAPTION"
-      }, {
-        "type" : "ADDRESS",
-        "value" : "복개도로 카페온리 전남대점 앞",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "ADDRESS",
-        "value" : "용봉로 2",
-        "basis" : "VIDEO"
       } ],
-      "categoryHint" : "길거리음식",
+      "categoryHint" : "카페",
       "countryCode" : "KR",
       "domestic" : true
     } ],
-    "stage" : "카카오 0건",
-    "path" : "캡션→카카오0건→첨부",
-    "seconds" : 35.859
+    "stage" : "ok",
+    "path" : "캡션",
+    "seconds" : 2.857
   }, {
     "goldenCase" : {
       "caseId" : "C003",
@@ -95,7 +93,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "52년전통원조 대나무국수", "담양당" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJUwi3UuzqcTUReYMjJslwK-A" : "15649056"
+      }
     },
     "predicted" : [ {
       "id" : "15649056",
@@ -108,18 +108,14 @@
     } ],
     "hints" : [ {
       "nameInCaption" : "담양 대나무 국수",
-      "nameSearchHint" : "진우네국수",
+      "nameSearchHint" : "담양대나무국수",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "담양",
         "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "담양",
-        "basis" : "VIDEO"
       } ],
-      "categoryHint" : "음식점",
+      "categoryHint" : "국수집",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -129,19 +125,15 @@
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "담양",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "담양",
         "basis" : "VIDEO"
       } ],
-      "categoryHint" : "카페",
+      "categoryHint" : "아이스크림",
       "countryCode" : "KR",
       "domestic" : true
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 22.857
+    "seconds" : 23.636
   }, {
     "goldenCase" : {
       "caseId" : "C004",
@@ -158,7 +150,7 @@
     "hints" : [ ],
     "stage" : "추출 0건",
     "path" : "캡션→첨부",
-    "seconds" : 20.252
+    "seconds" : 17.52
   }, {
     "goldenCase" : {
       "caseId" : "C005",
@@ -169,7 +161,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "미드나잇익스프레스" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJN5-kKxaLcTUR4jrmoQUXsC8" : "303939175"
+      }
     },
     "predicted" : [ {
       "id" : "303939175",
@@ -177,25 +171,25 @@
       "address" : "전남광주통합특별시 남구 양림동 66-38"
     } ],
     "hints" : [ {
-      "nameInCaption" : "미드나잇익스프레스",
+      "nameInCaption" : "MIDNIGHT EXPRESS",
       "nameSearchHint" : "미드나잇익스프레스",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "광주",
-        "basis" : "VIDEO"
+        "basis" : "CAPTION"
       }, {
         "type" : "ADDRESS",
         "value" : "용봉동",
         "basis" : "VIDEO"
       } ],
-      "categoryHint" : "음식점",
+      "categoryHint" : "아시안 음식점",
       "countryCode" : "KR",
       "domestic" : true
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 18.568
+    "seconds" : 22.648
   }, {
     "goldenCase" : {
       "caseId" : "C006",
@@ -206,7 +200,10 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "카페마카리조", "케쿠당", "등화" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJp5_7NQCNcTURr5UBiMLetY4" : "729138871",
+        "ChIJQ_PnazOPcTUR9xbQ-IbxilY" : "27507002"
+      }
     },
     "predicted" : [ {
       "id" : "27507002",
@@ -216,55 +213,27 @@
       "id" : "729138871",
       "name" : "케쿠당",
       "address" : "전남광주통합특별시 북구 중흥동 277-1"
-    }, {
-      "id" : "1167504950",
-      "name" : "등화",
-      "address" : "전남광주통합특별시 서구 마륵동 97-30"
-    }, {
-      "id" : "19711998",
-      "name" : "순천찹쌀떡",
-      "address" : "전남광주통합특별시 순천시 해룡면 상삼리 622-1"
     } ],
     "hints" : [ {
       "nameInCaption" : "마카리조",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "마카리조",
       "accountHints" : [ ],
       "locationHints" : [ ],
-      "categoryHint" : "디저트집",
+      "categoryHint" : "디저트",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "케쿠당",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "케쿠당",
       "accountHints" : [ ],
       "locationHints" : [ ],
-      "categoryHint" : "디저트집",
-      "countryCode" : "KR",
-      "domestic" : true
-    }, {
-      "nameInCaption" : "등화",
-      "nameSearchHint" : null,
-      "accountHints" : [ ],
-      "locationHints" : [ ],
-      "categoryHint" : "디저트집",
-      "countryCode" : "KR",
-      "domestic" : true
-    }, {
-      "nameInCaption" : "순천찹쌀떡",
-      "nameSearchHint" : null,
-      "accountHints" : [ ],
-      "locationHints" : [ {
-        "type" : "REGION",
-        "value" : "순천",
-        "basis" : "CAPTION"
-      } ],
-      "categoryHint" : "떡집",
+      "categoryHint" : "디저트",
       "countryCode" : "KR",
       "domestic" : true
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 2.93
+    "seconds" : 7.145
   }, {
     "goldenCase" : {
       "caseId" : "C007",
@@ -281,7 +250,7 @@
     "hints" : [ ],
     "stage" : "처리 실패: 장소 정보를 처리하지 못했어요 <- 장소 정보를 처리하지 못했어요",
     "path" : "캡션→첨부",
-    "seconds" : 12.533
+    "seconds" : 20.58
   }, {
     "goldenCase" : {
       "caseId" : "C008",
@@ -292,7 +261,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "프루토프루타" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJeYyUzCiTaDUR68raAfLyB34" : "1731570544"
+      }
     },
     "predicted" : [ {
       "id" : "1731570544",
@@ -318,7 +289,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 21.767
+    "seconds" : 26.454
   }, {
     "goldenCase" : {
       "caseId" : "C009",
@@ -329,7 +300,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "금호대패삼겹살 금호점" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJoRfENGWJcTURtUfmlAHUHkU" : "1897775353"
+      }
     },
     "predicted" : [ {
       "id" : "1897775353",
@@ -341,17 +314,13 @@
       "nameSearchHint" : "금호대패삼겹살",
       "accountHints" : [ ],
       "locationHints" : [ {
-        "type" : "REGION",
-        "value" : "금호동",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "광주",
-        "basis" : "CAPTION"
-      }, {
         "type" : "ADDRESS",
         "value" : "광주 서구 금화로85번길 4-32",
         "basis" : "VIDEO"
+      }, {
+        "type" : "REGION",
+        "value" : "금호동",
+        "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
       "countryCode" : "KR",
@@ -359,7 +328,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 22.947
+    "seconds" : 18.946
   }, {
     "goldenCase" : {
       "caseId" : "C010",
@@ -396,7 +365,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 2.4
+    "seconds" : 6.699
   }, {
     "goldenCase" : {
       "caseId" : "C011",
@@ -407,7 +376,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "어텐션플리즈" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJl2fL9l7BcTURtY-fIT0ad9Y" : "1847742837"
+      }
     },
     "predicted" : [ {
       "id" : "1847742837",
@@ -417,14 +388,14 @@
     "hints" : [ {
       "nameInCaption" : "어텐션플리즈",
       "nameSearchHint" : "어텐션플리즈",
-      "accountHints" : [ "@attentionplzzz" ],
+      "accountHints" : [ "attentionplzzz" ],
       "locationHints" : [ {
         "type" : "ADDRESS",
         "value" : "전남광주 담양군 금성면 대성리 1049-4",
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
-        "value" : "담양",
+        "value" : "담양군",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "카페",
@@ -433,7 +404,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 4.152
+    "seconds" : 5.375
   }, {
     "goldenCase" : {
       "caseId" : "C012",
@@ -444,7 +415,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "조선국밥" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJ8843IgCLcTURWQC0_T8u76g" : "854759239"
+      }
     },
     "predicted" : [ {
       "id" : "854759239",
@@ -453,15 +426,15 @@
     } ],
     "hints" : [ {
       "nameInCaption" : "조선국밥",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "조선국밥",
       "accountHints" : [ ],
       "locationHints" : [ {
-        "type" : "REGION",
-        "value" : "광주 남구 봉선동",
-        "basis" : "CAPTION"
-      }, {
         "type" : "ADDRESS",
         "value" : "전남광주 남구 봉선동 1130-8",
+        "basis" : "CAPTION"
+      }, {
+        "type" : "REGION",
+        "value" : "봉선동",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "국밥집",
@@ -470,7 +443,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 20.986
+    "seconds" : 15.185
   }, {
     "goldenCase" : {
       "caseId" : "C013",
@@ -481,7 +454,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "육미제당 광주신창점" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJz6aDfACPcTURAvHx0Zilxhg" : "100587192"
+      }
     },
     "predicted" : [ {
       "id" : "100587192",
@@ -498,7 +473,7 @@
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
-        "value" : "광주",
+        "value" : "신창동",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "고기집",
@@ -506,8 +481,8 @@
       "domestic" : true
     } ],
     "stage" : "ok",
-    "path" : "캡션→카카오0건→첨부",
-    "seconds" : 14.395
+    "path" : "캡션→첨부",
+    "seconds" : 18.738
   }, {
     "goldenCase" : {
       "caseId" : "C014",
@@ -518,7 +493,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "정동 광주수완본점" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJkdx6idePcTURRH2d1x_Blfc" : "30632562"
+      }
     },
     "predicted" : [ {
       "id" : "30632562",
@@ -527,7 +504,7 @@
     } ],
     "hints" : [ {
       "nameInCaption" : "정동",
-      "nameSearchHint" : "수완지구 정동",
+      "nameSearchHint" : "수완동 정동",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "ADDRESS",
@@ -535,7 +512,7 @@
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
-        "value" : "수완지구",
+        "value" : "광주 광산구",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -544,7 +521,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 1.898
+    "seconds" : 2.398
   }, {
     "goldenCase" : {
       "caseId" : "C015",
@@ -564,11 +541,11 @@
     } ],
     "hints" : [ {
       "nameInCaption" : "주연",
-      "nameSearchHint" : "주연",
-      "accountHints" : [ ],
+      "nameSearchHint" : null,
+      "accountHints" : [ "@주연" ],
       "locationHints" : [ {
         "type" : "ADDRESS",
-        "value" : "광주 광산구 첨단중앙로106번길 65-3",
+        "value" : "광주 광산구 첨단중앙로106번길 65-3 1층",
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
@@ -581,7 +558,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 4.144
+    "seconds" : 3.783
   }, {
     "goldenCase" : {
       "caseId" : "C016",
@@ -622,7 +599,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 4.151
+    "seconds" : 5.402
   }, {
     "goldenCase" : {
       "caseId" : "C017",
@@ -633,7 +610,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "김금자숯불갈비 양산점" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJRVmJIQCNcTURK05KvhW2w6M" : "980900276"
+      }
     },
     "predicted" : [ {
       "id" : "980900276",
@@ -642,15 +621,15 @@
     } ],
     "hints" : [ {
       "nameInCaption" : "김금자숯불갈비",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "김금자숯불갈비",
       "accountHints" : [ ],
       "locationHints" : [ {
-        "type" : "ADDRESS",
-        "value" : "광주 북구 연양로81번길 42",
-        "basis" : "CAPTION"
-      }, {
         "type" : "REGION",
         "value" : "양산동",
+        "basis" : "CAPTION"
+      }, {
+        "type" : "ADDRESS",
+        "value" : "광주 북구 연양로81번길 42",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -659,7 +638,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 4.207
+    "seconds" : 2.691
   }, {
     "goldenCase" : {
       "caseId" : "C018",
@@ -696,7 +675,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 3.486
+    "seconds" : 4.0
   }, {
     "goldenCase" : {
       "caseId" : "C019",
@@ -707,7 +686,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "더플러스참치 본점" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJQx2Qq8OMcTURfajCw3r5WgA" : "24169681"
+      }
     },
     "predicted" : [ {
       "id" : "24169681",
@@ -719,16 +700,12 @@
       "nameSearchHint" : "더플러스참치 산수본점",
       "accountHints" : [ ],
       "locationHints" : [ {
-        "type" : "REGION",
-        "value" : "광주",
+        "type" : "ADDRESS",
+        "value" : "동구 밤실로 152-1",
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
         "value" : "산수동",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "ADDRESS",
-        "value" : "동구 밤실로 152-1",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -737,7 +714,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 4.633
+    "seconds" : 4.016
   }, {
     "goldenCase" : {
       "caseId" : "C020",
@@ -748,14 +725,20 @@
       "apiMissingIds" : [ "261631752" ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "금빛돼지 본점" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJi6wvlaDraDURcYTlGfNmN8M" : "261631752"
+      }
     },
     "predicted" : [ ],
     "hints" : [ {
       "nameInCaption" : "문현동_금빛돼지 본점",
-      "nameSearchHint" : "문현동 금빛돼지 본점",
+      "nameSearchHint" : "금빛돼지 본점",
       "accountHints" : [ ],
       "locationHints" : [ {
+        "type" : "REGION",
+        "value" : "부산 남구",
+        "basis" : "CAPTION"
+      }, {
         "type" : "REGION",
         "value" : "문현동",
         "basis" : "CAPTION"
@@ -770,7 +753,7 @@
     } ],
     "stage" : "카카오 0건",
     "path" : "캡션→카카오0건→첨부",
-    "seconds" : 27.034
+    "seconds" : 27.787
   }, {
     "goldenCase" : {
       "caseId" : "C021",
@@ -801,13 +784,13 @@
         "value" : "전포동",
         "basis" : "CAPTION"
       } ],
-      "categoryHint" : "고기집",
+      "categoryHint" : "음식점",
       "countryCode" : "KR",
       "domestic" : true
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 1.955
+    "seconds" : 2.322
   }, {
     "goldenCase" : {
       "caseId" : "C022",
@@ -818,7 +801,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "선미한우샤브샤브" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJE8rTdAB3ezURPoiLK693eRI" : "12014937"
+      }
     },
     "predicted" : [ {
       "id" : "12014937",
@@ -835,7 +820,7 @@
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
-        "value" : "송도",
+        "value" : "인천 연수구 송도동",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -844,7 +829,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 3.876
+    "seconds" : 3.887
   }, {
     "goldenCase" : {
       "caseId" : "C023",
@@ -855,7 +840,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "치즈당대왕카스테라 광주수완점" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJo1nmPxOPcTURletHftbrbLE" : "186785130"
+      }
     },
     "predicted" : [ {
       "id" : "186785130",
@@ -864,7 +851,7 @@
     } ],
     "hints" : [ {
       "nameInCaption" : "치즈당",
-      "nameSearchHint" : "치즈당 수완점",
+      "nameSearchHint" : "치즈당",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "ADDRESS",
@@ -875,13 +862,13 @@
         "value" : "수완동",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "베이커리",
+      "categoryHint" : "카페",
       "countryCode" : "KR",
       "domestic" : true
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 57.95
+    "seconds" : 54.562
   }, {
     "goldenCase" : {
       "caseId" : "C024",
@@ -1031,6 +1018,10 @@
       "name" : "사직공원 전망타워",
       "address" : "전남광주통합특별시 남구 양림동 315"
     }, {
+      "id" : "801525831",
+      "name" : "동리단길 카페거리",
+      "address" : "전남광주통합특별시 동구 동명동 292"
+    }, {
       "id" : "27455633",
       "name" : "무등산리프트&모노레일",
       "address" : "전남광주통합특별시 동구 지산동 산 63-1"
@@ -1124,7 +1115,7 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "포토존",
+      "categoryHint" : "관광지",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1136,12 +1127,12 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "하천",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "한강공원",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "한강공원",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1177,7 +1168,7 @@
       "domestic" : true
     }, {
       "nameInCaption" : "서울광장 스케이트장",
-      "nameSearchHint" : "서울광장스케이트장",
+      "nameSearchHint" : null,
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1208,24 +1199,24 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "궁궐",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "흑성산성",
-      "nameSearchHint" : "흑성산",
+      "nameSearchHint" : null,
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "천안",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "산성",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "삽교호",
-      "nameSearchHint" : "삽교호국민관광지",
+      "nameSearchHint" : "삽교호관광지",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1244,7 +1235,7 @@
         "value" : "천안",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "하천",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1280,7 +1271,7 @@
         "value" : "천안",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "기념관",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1309,7 +1300,7 @@
       "domestic" : true
     }, {
       "nameInCaption" : "성심당",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "성심당 본점",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1340,7 +1331,7 @@
         "value" : "대전",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "산림욕장",
+      "categoryHint" : "휴양림",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1381,7 +1372,7 @@
       "domestic" : true
     }, {
       "nameInCaption" : "엑스포아쿠아리움",
-      "nameSearchHint" : "대전 신세계 엑스포 아쿠아리움",
+      "nameSearchHint" : "대전엑스포아쿠아리움",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1424,7 +1415,7 @@
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광농원",
+      "categoryHint" : "농원",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1441,7 +1432,7 @@
       "domestic" : true
     }, {
       "nameInCaption" : "구절초 지방정원",
-      "nameSearchHint" : "정읍구절초지방정원",
+      "nameSearchHint" : "옥정호구절초지방정원",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1472,7 +1463,7 @@
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "숲",
+      "categoryHint" : "산",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1524,27 +1515,27 @@
       "countryCode" : "KR",
       "domestic" : true
     }, {
-      "nameInCaption" : "PABLO CHURROS",
-      "nameSearchHint" : "파블로추러스",
+      "nameInCaption" : "동명동카페거리",
+      "nameSearchHint" : "동명동 카페거리",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "광주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "카페",
+      "categoryHint" : "거리",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "무등산모노레일",
-      "nameSearchHint" : "무등산리프트모노레일",
+      "nameSearchHint" : null,
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "광주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광시설",
+      "categoryHint" : "관광지",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1561,14 +1552,14 @@
       "domestic" : true
     }, {
       "nameInCaption" : "펭귄마을",
-      "nameSearchHint" : "양림동펭귄마을",
+      "nameSearchHint" : "양림동 펭귄마을",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "광주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "마을",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1580,7 +1571,7 @@
         "value" : "광주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "역사건축물",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1616,7 +1607,7 @@
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "산책로",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1628,12 +1619,12 @@
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "분식점",
+      "categoryHint" : "분식집",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "메타세콰이어길",
-      "nameSearchHint" : "나주 메타세콰이어길",
+      "nameSearchHint" : "나주 메타세쿼이아길",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1657,19 +1648,19 @@
       "domestic" : true
     }, {
       "nameInCaption" : "죽산보경비행장",
-      "nameSearchHint" : "나주경비행장",
+      "nameSearchHint" : null,
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "체험시설",
+      "categoryHint" : "비행장",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "남평은행나무길",
-      "nameSearchHint" : "나주 남평은행나무길",
+      "nameSearchHint" : null,
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1705,14 +1696,14 @@
       "domestic" : true
     }, {
       "nameInCaption" : "시화골목",
-      "nameSearchHint" : "목포 시화골목",
+      "nameSearchHint" : "목포 고하도 시화골목",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "목포",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "골목길",
+      "categoryHint" : "마을",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1753,7 +1744,7 @@
       "domestic" : true
     }, {
       "nameInCaption" : "노을공원",
-      "nameSearchHint" : "목포 노을공원",
+      "nameSearchHint" : "목포노을공원",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -1772,7 +1763,7 @@
         "value" : "목포",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "상점",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -1790,7 +1781,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 68.987
+    "seconds" : 64.731
   }, {
     "goldenCase" : {
       "caseId" : "C025",
@@ -1801,7 +1792,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "우트롱" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJy_DvJACJcTUR-_CIFgsAFxM" : "1824857521"
+      }
     },
     "predicted" : [ {
       "id" : "1824857521",
@@ -1814,11 +1807,15 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "ADDRESS",
-        "value" : "광주 서구 운천로 261 어반피크 상무 2층 220호",
+        "value" : "광주 서구 운천로 261",
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
         "value" : "상무지구",
+        "basis" : "CAPTION"
+      }, {
+        "type" : "REGION",
+        "value" : "치평동",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "카페",
@@ -1827,7 +1824,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 2.752
+    "seconds" : 3.159
   }, {
     "goldenCase" : {
       "caseId" : "C026",
@@ -2074,7 +2071,7 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "쇼핑",
+      "categoryHint" : "명소",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2086,7 +2083,7 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "공원",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2134,7 +2131,7 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "스포츠시설",
+      "categoryHint" : "스케이트장",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2146,7 +2143,7 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "쇼핑몰",
+      "categoryHint" : "백화점",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2158,7 +2155,7 @@
         "value" : "서울",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "궁궐",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2170,7 +2167,7 @@
         "value" : "천안",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "산",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2194,7 +2191,7 @@
         "value" : "천안",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "하천",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2230,7 +2227,7 @@
         "value" : "천안",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "기념관",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2278,7 +2275,7 @@
         "value" : "대전",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "공원",
+      "categoryHint" : "수목원",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2290,7 +2287,7 @@
         "value" : "대전",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "휴양림",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2307,7 +2304,7 @@
       "domestic" : true
     }, {
       "nameInCaption" : "대전오월드",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "오월드",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -2326,7 +2323,7 @@
         "value" : "대전",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "휴양림",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2367,14 +2364,14 @@
       "domestic" : true
     }, {
       "nameInCaption" : "허브원",
-      "nameSearchHint" : "정읍 허브원",
+      "nameSearchHint" : "정읍허브원",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "농원",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2386,7 +2383,7 @@
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "카페",
+      "categoryHint" : "정원",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2398,7 +2395,7 @@
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "정원",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2410,7 +2407,7 @@
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "저수지",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2422,7 +2419,7 @@
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "숲",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2434,7 +2431,7 @@
         "value" : "정읍",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "서원",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2494,7 +2491,7 @@
         "value" : "광주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "모노레일",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2518,7 +2515,7 @@
         "value" : "광주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "마을",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2530,7 +2527,7 @@
         "value" : "광주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "명소",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2554,19 +2551,19 @@
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "저수지",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "파밀리에",
-      "nameSearchHint" : null,
+      "nameSearchHint" : "빛가람호수공원 파밀리에",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "명소",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2578,55 +2575,55 @@
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "분식점",
+      "categoryHint" : "분식집",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "메타세콰이어길",
-      "nameSearchHint" : "나주 산림자원연구소 메타세쿼이아길",
+      "nameSearchHint" : "나주 남평 메타세콰이어길",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "가로수길",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "영상테마파크",
-      "nameSearchHint" : "나주 영상테마파크",
+      "nameSearchHint" : "나주영상테마파크",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "테마파크",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "죽산보경비행장",
-      "nameSearchHint" : "죽산보 경비행장",
+      "nameSearchHint" : null,
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "체험시설",
+      "categoryHint" : "비행장",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "남평은행나무길",
-      "nameSearchHint" : "나주 남평은행나무길",
+      "nameSearchHint" : "나주 산림자원연구소 은행나무길",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "길",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2638,7 +2635,7 @@
         "value" : "나주",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "연구소",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2662,7 +2659,7 @@
         "value" : "목포",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "골목길",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2698,12 +2695,12 @@
         "value" : "목포",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "유원지",
       "countryCode" : "KR",
       "domestic" : true
     }, {
       "nameInCaption" : "노을공원",
-      "nameSearchHint" : "목포 노을공원",
+      "nameSearchHint" : "목포 북항 노을공원",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -2722,7 +2719,7 @@
         "value" : "목포",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "관광지",
+      "categoryHint" : "명소",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2740,7 +2737,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 74.634
+    "seconds" : 66.028
   }, {
     "goldenCase" : {
       "caseId" : "C027",
@@ -2754,6 +2751,10 @@
       "acceptedAliases" : { }
     },
     "predicted" : [ {
+      "id" : "337086242",
+      "name" : "롯데백화점 부산본점",
+      "address" : "부산 부산진구 부전동 503-15"
+    }, {
       "id" : "939648636",
       "name" : "쥬디스태화",
       "address" : "부산 부산진구 부전동 193-1"
@@ -2797,14 +2798,30 @@
       "id" : "23870662",
       "name" : "동보서적주차빌딩",
       "address" : "부산 부산진구 부전동 168-300"
+    }, {
+      "id" : "27459769",
+      "name" : "부산대역 부산1호선 3번출구",
+      "address" : "부산 금정구 장전동 427"
     } ],
     "hints" : [ {
+      "nameInCaption" : "서면 롯백 지하 분수대 앞",
+      "nameSearchHint" : "롯데백화점 부산본점",
+      "accountHints" : [ ],
+      "locationHints" : [ {
+        "type" : "REGION",
+        "value" : "서면",
+        "basis" : "IMAGE"
+      } ],
+      "categoryHint" : "백화점",
+      "countryCode" : "KR",
+      "domestic" : true
+    }, {
       "nameInCaption" : "쥬디스 태화",
       "nameSearchHint" : "쥬디스태화",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "서면",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "쇼핑몰",
@@ -2816,7 +2833,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "남포동",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "서점",
@@ -2828,7 +2845,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "경성대",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "패스트푸드",
@@ -2840,7 +2857,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "남포동",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "영화관",
@@ -2852,7 +2869,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "남포동",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "영화관",
@@ -2860,11 +2877,11 @@
       "domestic" : true
     }, {
       "nameInCaption" : "경성대 스파크(cgv)",
-      "nameSearchHint" : "CGV 경성대",
+      "nameSearchHint" : "CGV 대연",
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "경성대",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "영화관",
@@ -2876,7 +2893,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "경성대",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "베이커리",
@@ -2888,10 +2905,10 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "서면",
         "basis" : "IMAGE"
       } ],
-      "categoryHint" : "피자집",
+      "categoryHint" : "음식점",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -2900,7 +2917,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "부산대",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "백화점",
@@ -2912,7 +2929,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "서면",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "오락실",
@@ -2924,16 +2941,28 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "부산",
+        "value" : "서면",
         "basis" : "IMAGE"
       } ],
       "categoryHint" : "서점",
       "countryCode" : "KR",
       "domestic" : true
+    }, {
+      "nameInCaption" : "부산대 지하철역 3번 출구",
+      "nameSearchHint" : "부산대역",
+      "accountHints" : [ ],
+      "locationHints" : [ {
+        "type" : "REGION",
+        "value" : "부산대",
+        "basis" : "IMAGE"
+      } ],
+      "categoryHint" : "지하철역",
+      "countryCode" : "KR",
+      "domestic" : true
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 72.546
+    "seconds" : 124.427
   }, {
     "goldenCase" : {
       "caseId" : "C028",
@@ -2961,8 +2990,8 @@
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
-        "value" : "회동수원지",
-        "basis" : "IMAGE"
+        "value" : "부산 금정구",
+        "basis" : "CAPTION"
       } ],
       "categoryHint" : "디저트",
       "countryCode" : "KR",
@@ -2970,7 +2999,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션→첨부",
-    "seconds" : 51.687
+    "seconds" : 96.756
   }, {
     "goldenCase" : {
       "caseId" : "C029",
@@ -2981,7 +3010,14 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "느루, 강진갤러리민박", "한옥카페세연당", "쨈과크림", "카페목리", "예향", "목림", "해오름식당", "강진만생태공원" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJ_zZk5mpbcjURQwgsZEVFKgc" : "150296265",
+        "ChIJo3ONLA1QcjURrBlO642qzsM" : "16809537",
+        "ChIJ4fZcRWJRcjUR6gGcNtE7kJI" : "770900327",
+        "ChIJh0KirX1QcjUR5W2hSLg5oGk" : "326197550",
+        "ChIJj2K1lRJQcjURLeWS7slVGcM" : "13269919",
+        "ChIJN3nf3BtRcjUR7qeXP4bpw0g" : "751054484"
+      }
     },
     "predicted" : [ {
       "id" : "751054484",
@@ -3115,7 +3151,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 7.217
+    "seconds" : 10.377
   }, {
     "goldenCase" : {
       "caseId" : "C030",
@@ -3319,6 +3355,10 @@
       "name" : "일이일오 봉선점",
       "address" : "전남광주통합특별시 남구 봉선동 497-45"
     }, {
+      "id" : "ChIJXamHWxeJcTURRE7vGUnlFIw",
+      "name" : "플로븐 베이커리",
+      "address" : "광주광역시"
+    }, {
       "id" : "2034214133",
       "name" : "미세스베이글",
       "address" : "전남광주통합특별시 광산구 선암동 693"
@@ -3354,6 +3394,10 @@
       "id" : "1172399642",
       "name" : "아우터베이크하우스",
       "address" : "전남광주통합특별시 서구 화정동 365-39"
+    }, {
+      "id" : "ChIJ-50dkWKNcTURSQCPa7ZzYlM",
+      "name" : "올라이스",
+      "address" : "광주광역시 북구 자미로 68-20"
     }, {
       "id" : "1601873991",
       "name" : "아베쏘케이커리",
@@ -4100,7 +4144,7 @@
         "value" : "광주",
         "basis" : "CAPTION"
       } ],
-      "categoryHint" : "베이커리",
+      "categoryHint" : "카페",
       "countryCode" : "KR",
       "domestic" : true
     }, {
@@ -4136,13 +4180,13 @@
         "value" : "광주",
         "basis" : "CAPTION"
       } ],
-      "categoryHint" : "베이커리",
+      "categoryHint" : "카페",
       "countryCode" : "KR",
       "domestic" : true
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 21.939
+    "seconds" : 23.978
   }, {
     "goldenCase" : {
       "caseId" : "C031",
@@ -4226,7 +4270,7 @@
       "domestic" : true
     }, {
       "nameInCaption" : "프츠",
-      "nameSearchHint" : "프릳츠",
+      "nameSearchHint" : null,
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
@@ -4311,7 +4355,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 6.658
+    "seconds" : 4.685
   }, {
     "goldenCase" : {
       "caseId" : "C032",
@@ -4325,9 +4369,9 @@
       "acceptedAliases" : { }
     },
     "predicted" : [ {
-      "id" : "8441874",
-      "name" : "영미오리탕",
-      "address" : "전남광주통합특별시 북구 유동 102-31"
+      "id" : "11887885",
+      "name" : "영미오리탕 상무점",
+      "address" : "전남광주통합특별시 서구 치평동 1211-11"
     }, {
       "id" : "66480816",
       "name" : "부부더상록 상무점",
@@ -4343,7 +4387,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "광주",
+        "value" : "광주 서구",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -4355,7 +4399,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "광주",
+        "value" : "광주 서구",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "카페",
@@ -4367,7 +4411,7 @@
       "accountHints" : [ ],
       "locationHints" : [ {
         "type" : "REGION",
-        "value" : "광주",
+        "value" : "광주 서구",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -4376,7 +4420,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 7.082
+    "seconds" : 3.532
   }, {
     "goldenCase" : {
       "caseId" : "C033",
@@ -4387,7 +4431,15 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "하숙집 벡스코점", "나미집", "부연연탄숯불갈비", "먹때돼", "이조식당", "돼지한마리", "삼굽살 부산대점", "기억돼 고단봉", "태화식당" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJad8xBQDpaDURV2rGfTTOr_M" : "9036632",
+        "ChIJt4vOHsfraDURFJgwDfExm8g" : "1385724310",
+        "ChIJBaVPWmHraDURbr_LwLJW7M4" : "386742697",
+        "ChIJCacYTJvraDURMNfR4G8YfNE" : "16667520",
+        "ChIJowm3FgCTaDURpvDSpQpFsZE" : "646792749",
+        "ChIJkbIpSLnpaDUR5dErSPfdl5c" : "14664666",
+        "ChIJGWH_uW-TaDURqOP4Y1IXX9g" : "1156422377"
+      }
     },
     "predicted" : [ {
       "id" : "591563973",
@@ -4434,10 +4486,6 @@
         "type" : "ADDRESS",
         "value" : "부산 해운대구 우동 1516",
         "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
-        "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
       "countryCode" : "KR",
@@ -4449,10 +4497,6 @@
       "locationHints" : [ {
         "type" : "ADDRESS",
         "value" : "부산 부산진구 양정동 389-14",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -4466,10 +4510,6 @@
         "type" : "ADDRESS",
         "value" : "부산 중구 부평동3가 76-1",
         "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
-        "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
       "countryCode" : "KR",
@@ -4481,10 +4521,6 @@
       "locationHints" : [ {
         "type" : "ADDRESS",
         "value" : "부산 중구 부평동2가 24-19",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -4498,10 +4534,6 @@
         "type" : "ADDRESS",
         "value" : "부산 수영구 망미동 431-6",
         "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
-        "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
       "countryCode" : "KR",
@@ -4513,10 +4545,6 @@
       "locationHints" : [ {
         "type" : "ADDRESS",
         "value" : "부산 동래구 수안동 4-7",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -4530,10 +4558,6 @@
         "type" : "ADDRESS",
         "value" : "부산 금정구 장전동 293-60",
         "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
-        "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
       "countryCode" : "KR",
@@ -4545,10 +4569,6 @@
       "locationHints" : [ {
         "type" : "ADDRESS",
         "value" : "부산 부산진구 전포동 233-2",
-        "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
@@ -4562,10 +4582,6 @@
         "type" : "ADDRESS",
         "value" : "부산 동구 범일동 830-44",
         "basis" : "CAPTION"
-      }, {
-        "type" : "REGION",
-        "value" : "부산",
-        "basis" : "CAPTION"
       } ],
       "categoryHint" : "음식점",
       "countryCode" : "KR",
@@ -4573,7 +4589,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 8.385
+    "seconds" : 9.84
   }, {
     "goldenCase" : {
       "caseId" : "C034",
@@ -4718,7 +4734,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 7.514
+    "seconds" : 4.822
   }, {
     "goldenCase" : {
       "caseId" : "C035",
@@ -4746,7 +4762,7 @@
         "basis" : "CAPTION"
       }, {
         "type" : "REGION",
-        "value" : "광주광역시",
+        "value" : "광주광역시 동구",
         "basis" : "CAPTION"
       } ],
       "categoryHint" : "쇼핑몰",
@@ -4755,7 +4771,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 5.104
+    "seconds" : 6.903
   }, {
     "goldenCase" : {
       "caseId" : "C036",
@@ -4772,7 +4788,7 @@
     "hints" : [ ],
     "stage" : "추출 0건",
     "path" : "캡션→첨부",
-    "seconds" : 19.15
+    "seconds" : 19.753
   }, {
     "goldenCase" : {
       "caseId" : "C037",
@@ -4783,7 +4799,9 @@
       "apiMissingIds" : [ ],
       "verificationStatus" : "VERIFIED",
       "observedNames" : [ "김대중컨벤션센터" ],
-      "acceptedAliases" : { }
+      "acceptedAliases" : {
+        "ChIJR8-viBaJcTURHc_XHLTtBDE" : "16440291"
+      }
     },
     "predicted" : [ {
       "id" : "16440291",
@@ -4805,7 +4823,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 1.835
+    "seconds" : 2.305
   }, {
     "goldenCase" : {
       "caseId" : "C038",
@@ -4822,7 +4840,7 @@
     "hints" : [ ],
     "stage" : "추출 0건",
     "path" : "캡션→첨부",
-    "seconds" : 15.694
+    "seconds" : 18.544
   }, {
     "goldenCase" : {
       "caseId" : "C039",
@@ -4837,11 +4855,11 @@
     },
     "predicted" : [ {
       "id" : "ChIJt7fxYomtaTUR2RyzdxhfcRs",
-      "name" : "토요코인",
+      "name" : "토요코인 쓰시마 히타카츠",
       "address" : "1217-5 Kamitsushimamachi Nishidomari, Tsushima, Nagasaki 817-1703"
     }, {
       "id" : "ChIJkTHCDtB_aTURPzpnF-S9vos",
-      "name" : "티아라몰",
+      "name" : "이즈하라 쇼핑 센터 티아라",
       "address" : "661-3 今屋敷 厳原町 Tsushima, Nagasaki 817-0021"
     } ],
     "hints" : [ {
@@ -4871,7 +4889,7 @@
     } ],
     "stage" : "ok",
     "path" : "캡션",
-    "seconds" : 3.204
+    "seconds" : 7.605
   }, {
     "goldenCase" : {
       "caseId" : "C040",
@@ -4888,6 +4906,6 @@
     "hints" : [ ],
     "stage" : "추출 0건",
     "path" : "캡션→첨부",
-    "seconds" : 17.001
+    "seconds" : 14.904
   } ]
 }

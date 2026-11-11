@@ -9,6 +9,7 @@ import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.infrastructure.GeminiFileClient;
 import com.yeogidam.media.extraction.infrastructure.GeminiPlaceSearchHintExtractor;
+import com.yeogidam.media.extraction.infrastructure.GoogleDomesticPlaceSearcher;
 import com.yeogidam.media.extraction.infrastructure.GoogleOverseasPlaceSearcher;
 import com.yeogidam.media.extraction.infrastructure.GooglePlacesClient;
 import com.yeogidam.media.extraction.infrastructure.KakaoDomesticPlaceSearcher;
@@ -94,11 +95,14 @@ class OverseasGoldenSetEvalTest {
                         instagramMediaRestClient),
                 new GeminiFileClient(geminiMediaRestClient));
         GooglePlacesProperties googleProperties = new GooglePlacesProperties(env.get("GOOGLE_PLACES_API_KEY"));
+        GooglePlacesClient googlePlacesClient = new GooglePlacesClient(
+                config.googlePlacesRestClient(RestClient.builder()), googleProperties);
         PlaceSearchRouter router = new PlaceSearchRouter(
                 new KakaoDomesticPlaceSearcher(config.kakaoLocalRestClient(RestClient.builder()),
                         new KakaoLocalProperties(env.get("KAKAO_CLIENT_ID"))),
-                new GoogleOverseasPlaceSearcher(new GooglePlacesClient(config.googlePlacesRestClient(RestClient.builder()), googleProperties)));
-        System.out.println("Google Places 키: " + (googleProperties.enabled() ? "있음" : "없음(해외 단서는 찾지 못한 것으로 끝남)"));
+                new GoogleOverseasPlaceSearcher(googlePlacesClient),
+                new GoogleDomesticPlaceSearcher(googlePlacesClient));
+        System.out.println("Google Places 키: " + (googleProperties.enabled() ? "있음" : "없음(해외 단서와 카카오가 못 찾은 국내 단서는 찾지 못한 것으로 끝남)"));
 
         List<OverseasCase> cases = readCases();
         String only = System.getProperty("eval.cases", "");

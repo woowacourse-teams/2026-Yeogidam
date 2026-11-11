@@ -53,6 +53,12 @@ public class FakeMediaExtractionConfig {
         return new FakeOverseasPlaceSearcher();
     }
 
+    @Bean
+    @Primary
+    public FakeDomesticFallbackPlaceSearcher fakeDomesticFallbackPlaceSearcher() {
+        return new FakeDomesticFallbackPlaceSearcher();
+    }
+
     private static class FakeKakaoPlaceMetaReader extends KakaoPlaceMetaReader {
 
         private FakeKakaoPlaceMetaReader(HttpClient httpClient) {
