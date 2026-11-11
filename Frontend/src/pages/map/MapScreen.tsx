@@ -123,7 +123,7 @@ const CAN_PREVIEW_GOOGLE_MAP = __DEV__;
 // 국가철도공단 도시광역철도 역사정보(2026-06-30 기준)를 변환한 역 목록으로, Google 지도에 직접 그립니다.
 const SUBWAY_STATIONS_JSON = JSON.stringify(subwayStations);
 const SUBWAY_STATION_MIN_ZOOM = 12;
-const SUBWAY_STATION_NAME_MIN_ZOOM = 14;
+const SUBWAY_STATION_NAME_MIN_ZOOM = 13;
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;

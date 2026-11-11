@@ -1,8 +1,8 @@
 /**
- * 확대했을 때의 기본 스타일입니다. 색은 네이버 지도 스크린샷에서 많이 쓰인 색을 뽑아
- * 맞췄습니다(회색 바탕, 베이지 시가지, 흰 골목길, 연노랑 큰길, 주황 고속도로).
+ * 색은 네이버 지도 스크린샷에서 많이 쓰인 색을 뽑아 맞췄습니다(회색 바탕, 베이지 시가지,
+ * 흰 골목길, 연노랑 큰길, 주황 고속도로).
  */
-const DETAIL_STYLE = [
+const MAP_STYLE = [
   // 모든 요소에 바탕색을 칠하면 지하철 노선 같은 선도 바탕색에 묻히므로 땅에만 칠합니다.
   {
     featureType: 'landscape',
@@ -190,63 +190,9 @@ const DETAIL_STYLE = [
 ];
 
 /**
- * Google 스타일은 줌별 규칙을 지원하지 않아서, 줌 단계마다 조금씩 다른 스타일을 만들어
- * 두고 네이티브에서 현재 줌에 맞는 스타일로 바꿔 끼웁니다. 카카오맵처럼 축소할수록 땅과
- * 녹지가 흰색에 가까워지고 도로가 큰 길부터 남도록, 단계마다 차이를 작게 둡니다.
- * detailRatio가 0이면 전국 지도처럼 흰 땅만, 1이면 DETAIL_STYLE 그대로입니다.
+ * 네이티브는 줌 단계별 스타일 목록을 받지만, 스타일을 바꿔 끼울 때마다 Google이 지도 타일을
+ * 다시 그려 깜빡이므로 단계를 하나만 둡니다.
  */
-const ZOOM_STEPS = [
-  { minZoom: 0, detailRatio: 0 },
-  { minZoom: 7, detailRatio: 0.25 },
-  { minZoom: 8, detailRatio: 0.5 },
-  { minZoom: 9, detailRatio: 0.75 },
-  { minZoom: 10, detailRatio: 1 },
-];
-
-function mixWithWhite(hex: string, ratio: number) {
-  const channel = (start: number) => {
-    const value = parseInt(hex.slice(start, start + 2), 16);
-    return Math.round(255 + (value - 255) * ratio)
-      .toString(16)
-      .padStart(2, '0');
-  };
-  return `#${channel(1)}${channel(3)}${channel(5)}`;
-}
-
-function buildZoomOverrides(detailRatio: number) {
-  const fill = (featureType: string, elementType: string, color: string) => ({
-    featureType,
-    elementType,
-    stylers: [{ color: mixWithWhite(color, detailRatio) }],
-  });
-  const hidden = (featureType: string) => ({
-    featureType,
-    stylers: [{ visibility: 'off' }],
-  });
-  const roads =
-    detailRatio === 0
-      ? [hidden('road')]
-      : detailRatio <= 0.5
-      ? [hidden('road.arterial'), hidden('road.local')]
-      : [];
-
-  return [
-    fill('landscape', 'geometry', '#f4f4f4'),
-    fill('landscape.man_made', 'geometry.fill', '#f6f1eb'),
-    fill('landscape.man_made', 'geometry.stroke', '#ede6dd'),
-    fill('landscape.natural', 'geometry', '#dfedd0'),
-    fill('poi.park', 'geometry', '#dfedd0'),
-    fill('poi.sports_complex', 'geometry', '#dfedd0'),
-    ...roads,
-  ];
-}
-
-export const GOOGLE_MAP_ZOOM_STYLES_JSON = JSON.stringify(
-  ZOOM_STEPS.map(({ minZoom, detailRatio }) => ({
-    minZoom,
-    styleJson: JSON.stringify([
-      ...DETAIL_STYLE,
-      ...buildZoomOverrides(detailRatio),
-    ]),
-  })),
-);
+export const GOOGLE_MAP_ZOOM_STYLES_JSON = JSON.stringify([
+  { minZoom: 0, styleJson: JSON.stringify(MAP_STYLE) },
+]);
