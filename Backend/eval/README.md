@@ -48,7 +48,7 @@ cd Backend
 ./gradlew evalTest --no-daemon -Deval.cases=C016,C022   # 몇 건만 돌려 콘솔로 본다
 ```
 
-- 자바 채점기(`GoldenSetEvalTest`)가 운영 인프라 클래스(`InstagramMediaHtmlReader`, `InstagramMediaDownloader`, `GeminiPlaceNameExtractor`, `KakaoPlaceSearcher`)를 사용해 `MediaExtractionPipeline`과 같은 순서로 돌리고 `results/summary.md`를 쓴다. DB와 S3 저장은 제외하며, Gemini에는 평가 전용 요청 간격을 적용한다.
+- 자바 채점기(`GoldenSetEvalTest`)가 운영 인프라 클래스(`InstagramMediaHtmlReader`, `InstagramMediaDownloader`, `GeminiPlaceSearchHintExtractor`, `KakaoDomesticPlaceSearcher`)를 사용해 `MediaExtractionPipeline`과 같은 순서로 돌리고 `results/summary.md`를 쓴다. DB와 S3 저장은 제외하며, Gemini에는 평가 전용 요청 간격을 적용한다.
 - 캡션 단서로 한 곳이라도 찾으면 그 결과를 사용하고, 단서나 검색 결과가 없으면 영상, 사진까지 읽는다. 공통 프롬프트에 지역명과 상품 브랜드의 구분, 지점명 추측 금지, 상호와 지역 분리 규칙을 적용한다. 카카오는 원문으로 기존 검색 경로를 먼저 시도하고 정상적인 빈 결과일 때만 보정명으로 같은 경로를 다시 검색한다. 캡션 주소가 있으면 두 이름 모두 같은 반경 3km 안에서만 찾는다. 첫 유효 장소를 반환하며 이름, 카테고리, 주소 문자열로 후보를 추가 필터링하지 않는다. 캡션 우선 정책 때문에 유효 장소를 찾았어도 전체 소개 장소의 일부를 놓칠 수 있다.
 - 각 사례가 끝날 때마다 `results/both.json`에 전체 예측 ID, Gemini 단서, 단계/오류, 처리 경로, 시간, 모델과 정답 CSV 해시를 저장한다. 중간에는 `complete: false`, 끝까지 실행하면 `true`다. 일부 실행은 `build/eval/both-partial.json`에 남기며 전체 결과와 `summary.md`를 덮어쓰지 않는다.
 - 채점은 예측한 카카오 장소 ID와 정답 ID를 견준다. 맞힌 장소, 틀리게 뽑은 장소(정답에 없는데 뽑은 곳), 카카오 검색 API 미확인(공식 장소 페이지는 확인했으나 검증에 사용한 검색어로 API에서 해당 ID를 확인하지 못한 정답)을 센다.

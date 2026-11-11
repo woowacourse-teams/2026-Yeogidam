@@ -2,7 +2,7 @@ package com.yeogidam.support.fake;
 
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
-import com.yeogidam.media.extraction.service.PlaceNameExtractor;
+import com.yeogidam.media.extraction.service.PlaceSearchHintExtractor;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class FakePlaceNameExtractor implements PlaceNameExtractor {
+public final class FakePlaceSearchHintExtractor implements PlaceSearchHintExtractor {
 
     private static final int TIMEOUT_SECONDS = 5;
 

@@ -31,7 +31,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.springframework.web.client.RestClient;
 
-class KakaoPlaceSearcherTest {
+class KakaoDomesticPlaceSearcherTest {
 
     private FakeKakaoServer kakaoServer;
 
@@ -630,9 +630,9 @@ class KakaoPlaceSearcherTest {
         assertThat(kakaoServer.queries()).containsExactly("올드빅 해방촌");
     }
 
-    private KakaoPlaceSearcher searcher() {
+    private KakaoDomesticPlaceSearcher searcher() {
         KakaoLocalProperties properties = new KakaoLocalProperties("test-kakao-key");
-        return new KakaoPlaceSearcher(RestClient.create(), properties, kakaoServer.endpoint());
+        return new KakaoDomesticPlaceSearcher(RestClient.create(), properties, kakaoServer.endpoint());
     }
 
     private PlaceSearchHint hint(String name, String searchName, Type type, String location) {

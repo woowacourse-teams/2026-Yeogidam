@@ -3,6 +3,7 @@ package com.yeogidam.media.share;
 import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertGooglePlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
@@ -316,6 +317,8 @@ class ShareHistoryE2eTest extends E2eTestSupport {
                 .body("places[0].latitude", equalTo(37.5446f))
                 .body("places[0].longitude", equalTo(127.0559f))
                 .body("places[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/1"))
+                .body("places[0].mapProvider", equalTo("KAKAO"))
+                .body("places[0].placeUrl", equalTo("https://place.map.kakao.com/1"))
                 .body("places[0].telephone", equalTo("02-1234-5678"))
                 .body("places[1].savedPlaceId", nullValue())
                 .body("places[1].categoryCode", equalTo("ETC"))
@@ -375,6 +378,29 @@ class ShareHistoryE2eTest extends E2eTestSupport {
     /**
      * 장소 1로 모든 정보가 있는 카페 온월을, 장소 2로 카테고리와 카카오 링크와 전화번호가 없는 종로 식당을 넣는다.
      */
+    @Test
+    void 히스토리의_구글_장소는_나라와_place_ID로_만든_구글맵_링크를_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("share-history-google-user");
+        insertMedia(jdbcTemplate, 1L, "오사카 맛집", "media.jpg", "@osaka_food");
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, BASE);
+        insertGooglePlace(jdbcTemplate, 1L, "ChIJxwgCUhPnAGARoz8_83liVEk", "JP", "토미타 규카츠", "음식점 > 일식",
+                "〒556-0011 Osaka, Naniwa Ward, Nanbanaka, 2-chōme−3−１", new BigDecimal("34.6630"),
+                new BigDecimal("135.5020"));
+        insertMediaPlace(jdbcTemplate, 1L, 1L, 1L);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(PATH + "/1/places")
+                .then().statusCode(200)
+                .body("places[0].mapProvider", equalTo("GOOGLE"))
+                .body("places[0].countryCode", equalTo("JP"))
+                .body("places[0].placeUrl", equalTo("https://www.google.com/maps/search/?api=1"
+                        + "&query=%ED%86%A0%EB%AF%B8%ED%83%80+%EA%B7%9C%EC%B9%B4%EC%B8%A0"
+                        + "&query_place_id=ChIJxwgCUhPnAGARoz8_83liVEk"))
+                .body("places[0].kakaoPlaceUrl", nullValue());
+    }
+
     private void insertTwoPlaces() {
         insertPlace(jdbcTemplate, 1L, "kakao-history-1", "카페 온월", "음식점 > 카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1", new BigDecimal("37.5446"),

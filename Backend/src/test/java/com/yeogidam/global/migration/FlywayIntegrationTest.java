@@ -252,6 +252,48 @@ class FlywayIntegrationTest extends MySqlContainerSupport {
     }
 
     @Test
+    void V6까지_적용한_DB에_V7을_적용하면_기존_장소는_카카오_키와_한국을_받는다() {
+        // given: V7 전의 장소는 모두 카카오에서 찾은 국내 장소다.
+        try (IsolatedDatabase database = new IsolatedDatabase("")) {
+            Flyway.configure().dataSource(database.source).target("6").load().migrate();
+            insertPlaceWithRequiredColumnsOnly(database.jdbc, 71L, "26338954", "카페 온월", "서울 성동구",
+                    new BigDecimal("37.5"), new BigDecimal("127.0"));
+
+            // when
+            Flyway.configure().dataSource(database.source).target("7").load().migrate();
+
+            // then
+            assertThat(database.jdbc.queryForMap("""
+                    SELECT map_provider, external_place_id, country_code, kakao_place_id FROM places WHERE id = 71
+                    """))
+                    .containsEntry("map_provider", "KAKAO")
+                    .containsEntry("external_place_id", "26338954")
+                    .containsEntry("country_code", "KR")
+                    .containsEntry("kakao_place_id", "26338954");
+        }
+    }
+
+    @Test
+    void V7을_적용한_뒤에도_kakao_place_id만_넣는_이전_컨테이너의_장소는_카카오_키를_받는다() {
+        // given: 블루그린 배포 동안 이전 컨테이너는 V7 컬럼을 모르고 kakao_place_id만 넣는다.
+        try (IsolatedDatabase database = new IsolatedDatabase("")) {
+            Flyway.configure().dataSource(database.source).target("7").load().migrate();
+
+            // when
+            insertPlaceWithRequiredColumnsOnly(database.jdbc, 71L, "26338954", "카페 온월", "서울 성동구",
+                    new BigDecimal("37.5"), new BigDecimal("127.0"));
+
+            // then
+            assertThat(database.jdbc.queryForMap("""
+                    SELECT map_provider, external_place_id, country_code FROM places WHERE id = 71
+                    """))
+                    .containsEntry("map_provider", "KAKAO")
+                    .containsEntry("external_place_id", "26338954")
+                    .containsEntry("country_code", "KR");
+        }
+    }
+
+    @Test
     void 접속_URL과_다른_DB를_Flyway_대상으로_지정하면_변경_전에_예외가_발생한다() {
         // given
         try (IsolatedDatabase database = new IsolatedDatabase("");

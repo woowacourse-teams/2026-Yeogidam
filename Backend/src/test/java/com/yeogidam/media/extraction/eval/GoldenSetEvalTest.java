@@ -7,8 +7,8 @@ import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.infrastructure.GeminiFileClient;
-import com.yeogidam.media.extraction.infrastructure.GeminiPlaceNameExtractor;
-import com.yeogidam.media.extraction.infrastructure.KakaoPlaceSearcher;
+import com.yeogidam.media.extraction.infrastructure.GeminiPlaceSearchHintExtractor;
+import com.yeogidam.media.extraction.infrastructure.KakaoDomesticPlaceSearcher;
 import com.yeogidam.media.instagram.config.InstagramConfig;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadataWithUrl;
@@ -85,7 +85,7 @@ class GoldenSetEvalTest {
                 RestClient.builder(), extractionConfig.instagramMediaHttpClient());
         RestClient geminiMediaRestClient = extractionConfig.geminiMediaRestClient(
                 RestClient.builder().requestInterceptor(requestLimiter), extractionConfig.geminiMediaHttpClient());
-        GeminiPlaceNameExtractor extractor = new GeminiPlaceNameExtractor(
+        GeminiPlaceSearchHintExtractor extractor = new GeminiPlaceSearchHintExtractor(
                 extractionConfig.geminiRestClient(RestClient.builder().requestInterceptor(requestLimiter)),
                 new GeminiProperties(env.get("GEMINI_API_KEY"), env.get("GEMINI_MODEL"), fallbackApiKeys),
                 jsonMapper,
@@ -94,7 +94,7 @@ class GoldenSetEvalTest {
                 new InstagramMediaDownloader(new InstagramMediaSourceReader(instagramMediaRestClient, jsonMapper),
                         instagramMediaRestClient),
                 new GeminiFileClient(geminiMediaRestClient));
-        KakaoPlaceSearcher searcher = new KakaoPlaceSearcher(
+        KakaoDomesticPlaceSearcher searcher = new KakaoDomesticPlaceSearcher(
                 extractionConfig.kakaoLocalRestClient(RestClient.builder()),
                 new KakaoLocalProperties(env.get("KAKAO_CLIENT_ID")));
         System.out.println("Gemini key: 먼저 부르는 key 1개, 막히면 넘기는 결제 key " + fallbackApiKeys.size() + "개");
@@ -208,8 +208,8 @@ class GoldenSetEvalTest {
     private CaseResult run(
             GoldenCase goldenCase,
             InstagramMediaHtmlReader reader,
-            GeminiPlaceNameExtractor extractor,
-            KakaoPlaceSearcher searcher
+            GeminiPlaceSearchHintExtractor extractor,
+            KakaoDomesticPlaceSearcher searcher
     ) {
         InstagramUrl url = new InstagramUrl(goldenCase.url());
         MediaMetadataWithUrl metadata;
@@ -266,7 +266,7 @@ class GoldenSetEvalTest {
     }
 
     /** MediaExtractionPipeline.findPlaces와 같다. 단서마다 검색하고 카카오 ID로 중복을 뺀다. */
-    private List<PredictedPlace> findPlaces(List<PlaceSearchHint> hints, KakaoPlaceSearcher searcher) {
+    private List<PredictedPlace> findPlaces(List<PlaceSearchHint> hints, KakaoDomesticPlaceSearcher searcher) {
         Map<String, PredictedPlace> placesByKakaoId = new LinkedHashMap<>();
         for (PlaceSearchHint hint : hints) {
             for (Place place : searcher.search(hint)) {

@@ -1,14 +1,14 @@
 package com.yeogidam.support.fake;
 
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
-import com.yeogidam.media.extraction.service.PlaceSearcher;
+import com.yeogidam.media.extraction.service.DomesticPlaceSearcher;
 import com.yeogidam.place.domain.Place;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public final class FakePlaceSearcher implements PlaceSearcher {
+public final class FakeDomesticPlaceSearcher implements DomesticPlaceSearcher {
 
     private final Map<String, Place> places = new ConcurrentHashMap<>();
     private final AtomicInteger requests = new AtomicInteger();

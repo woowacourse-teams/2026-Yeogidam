@@ -56,7 +56,7 @@ public class GeminiFileClient {
      *
      * <p>전송이 끝나도 파일 상태가 PROCESSING이면 아직 분석할 수 없으므로 상태를 반복 조회한다.
      * ACTIVE가 되면 파일 이름, 분석용 URI, MIME 유형을 GeminiUploadedFile로 반환한다.
-     * 실제 장소 분석 요청은 호출자인 GeminiPlaceNameExtractor가 수행한다.
+     * 실제 장소 분석 요청은 호출자인 GeminiPlaceSearchHintExtractor가 수행한다.
      *
      * <p>업로드나 처리 상태 확인에 실패하면 유효한 파일 이름을 확보한 경우 해당 파일의 삭제를 시도하고,
      * PROCESSING_FAILED로 전달한다. 대기 중 스레드가 중단되면 인터럽트 상태를 복원한다.

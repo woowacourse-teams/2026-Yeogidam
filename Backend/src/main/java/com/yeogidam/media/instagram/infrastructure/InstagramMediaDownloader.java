@@ -51,7 +51,7 @@ public class InstagramMediaDownloader {
      *
      * <p>다운로드 도중 실패하면 이미 내려받은 파일의 삭제를 시도하고 PROCESSING_FAILED로 전달한다.
      * 성공한 파일은 호출자가 사용을 마친 뒤 delete로 정리해야 한다.
-     * 현재 GeminiPlaceNameExtractor가 업로드와 분석을 수행하고 finally에서 파일을 정리한다.
+     * 현재 GeminiPlaceSearchHintExtractor가 업로드와 분석을 수행하고 finally에서 파일을 정리한다.
      * 이 클래스는 Gemini 업로드나 장소 분석을 수행하지 않는다.
      *
      * @param url 원본을 다운로드할 인스타그램 게시물의 공유 URL
