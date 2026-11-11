@@ -1,6 +1,7 @@
 import {toScreenApiError} from '../../lib/api/screen-error';
 import {createSpringApiClient} from '../../lib/api/spring-client';
 import type {SpringMember} from '../../lib/api/spring-auth-api';
+import {toMapProvider} from '../place/mapProvider';
 import type {
   CurrentProfileRepository,
   PlaceBlogPost,
@@ -36,6 +37,11 @@ type SavedPlaceResponse = {
   latitude: number | null;
   longitude: number | null;
   kakaoPlaceUrl: string | null;
+  // 해외 장소 API(pipeline-version 1)부터 내려옵니다.
+  // TODO(해외 장소 API): 운영 서버 배포가 확인되면 필수 필드로 바꿉니다.
+  mapProvider?: string | null;
+  countryCode?: string | null;
+  placeUrl?: string | null;
   thumbnailUrl: string | null;
   lastSavedAt: string;
   // 담은 시각 오름차순이라 마지막이 가장 최근에 담은 폴더입니다.
@@ -84,6 +90,9 @@ function toSavedPlaceListItem(item: SavedPlaceResponse): SavedPlaceListItem {
       latitude: item.latitude,
       longitude: item.longitude,
       kakaoPlaceUrl: item.kakaoPlaceUrl,
+      mapProvider: toMapProvider(item.mapProvider),
+      countryCode: item.countryCode ?? null,
+      placeUrl: item.placeUrl ?? item.kakaoPlaceUrl,
       thumbnailUrl: item.thumbnailUrl,
     },
   };

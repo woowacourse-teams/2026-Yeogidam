@@ -1,16 +1,16 @@
 {
   "ios": {
     "engine": "hot-updater/interface@1",
-    "hash": "88653636a616a1847b3b52b7c82a5fd9aee3ac772a1219c5dc95c94472c9fe4f",
+    "hash": "bf02fe710a9d6218d4f82a3ecef0a80ccab8186358b47f81c3f356cd485f2fab",
     "sources": [
       {
         "type": "contents",
         "id": "codegen-config:.",
-        "contents": "{\"ios\":{\"components\":{\"YeogidamKakaoMapView\":{\"className\":\"RCTKakaoMapView\"}}},\"jsSrcsDir\":\"spec\",\"name\":\"YeogidamMapSpec\",\"type\":\"components\"}",
+        "contents": "{\"ios\":{\"components\":{\"YeogidamGoogleMapView\":{\"className\":\"RCTGoogleMapView\"}}},\"jsSrcsDir\":\"spec\",\"name\":\"YeogidamMapSpec\",\"type\":\"components\"}",
         "reasons": [
           "codegen-config"
         ],
-        "hash": "21436a05470275c33ab875508f05cdc6c7f3c02d9d47a1550bca1c851c8cdf50"
+        "hash": "549d20e8712fdeed02df5fb2664c8dc3feb6ae636915c98cfe75fc449fe71929"
       },
       {
         "type": "contents",
@@ -345,7 +345,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "10d822013492e9dda39fc329d4de0ab81195a86967516e229e14b1aad4ca0532"
+        "hash": "6967a28f526f504a4fdae5b2aca844931d39d00abb011ab546bf5128950cf568"
       },
       {
         "type": "file",
@@ -369,7 +369,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "d47878c896741b49e607c7e775d3e6716453f7e34ce112d632336de202e4baee"
+        "hash": "b6883bb0c4e84f41c72c10d7d8e40c77a09a5a18830551ce9fb25d49b5d270f4"
       },
       {
         "type": "file",
@@ -729,7 +729,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "93d980480c138b41a8bf5aff7daa6a7775927b89dc4d81f5f47e1843ec7c5054"
+        "hash": "10dd16214278a1ebc68a85865a37567faff6e4bb89387aaa19b614d9d0932eb9"
       },
       {
         "type": "file",
@@ -773,27 +773,27 @@
       },
       {
         "type": "file",
-        "filePath": "ios/KakaoMap/KakaoMapContainerView.swift",
+        "filePath": "ios/GoogleMap/GoogleMapContainerView.swift",
         "reasons": [
           "extra-source"
         ],
-        "hash": "1bc207c4ec55ebdec40e8db567622e8a1e2315bbc8685cc1ce317a717b26631e"
+        "hash": "5b3c0211aaecfccfe4163739adad7a06996d7de4b4ac896dbc52ccba0f2b63a0"
       },
       {
         "type": "file",
-        "filePath": "ios/KakaoMap/RCTKakaoMapView.h",
+        "filePath": "ios/GoogleMap/RCTGoogleMapView.h",
         "reasons": [
           "extra-source"
         ],
-        "hash": "419bc61b089cde67dab55e9dfa9a3a43dc33f0d6102cb0b6a1c356dd5839b955"
+        "hash": "c4e68594616d0747e9df111e80ea2d8bbfd799dc48e37f1014846bddaf6c756f"
       },
       {
         "type": "file",
-        "filePath": "ios/KakaoMap/RCTKakaoMapView.mm",
+        "filePath": "ios/GoogleMap/RCTGoogleMapView.mm",
         "reasons": [
           "extra-source"
         ],
-        "hash": "74c44971a1a069fc75c5f396cb19560d453fd445ea8ebba9ecf447e9d31a4d7e"
+        "hash": "d99e3362c38b734592b7b978a1004b243bdc8a15991cd44dd6c07c93fd2d4ab4"
       },
       {
         "type": "file",
@@ -801,7 +801,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "b0753e901deae0eab5daf0c9d2d00f1d94d02cf661010187759396a4c788a75b"
+        "hash": "e4983b869e3c132669d69a41ce633a315bacb9aa927586ea7ff5ad13fd0b6720"
       },
       {
         "type": "file",
@@ -909,17 +909,17 @@
       },
       {
         "type": "file",
-        "filePath": "spec/KakaoMapNativeComponent.ts",
+        "filePath": "spec/GoogleMapNativeComponent.ts",
         "reasons": [
           "app-codegen-spec"
         ],
-        "hash": "10a93eacf5425406cebb25aadabedac0150b345fadbd2c1808267d53f199a3cb"
+        "hash": "759006078f7d9d39cf78bf4f0b83055cb0470c938bd791b222bbe5d343d10edd"
       }
     ]
   },
   "android": {
     "engine": "hot-updater/interface@1",
-    "hash": "9756e98f41ec9dc68ba98730b9b07eab54801c8898a2ce1d1dabc4cf6d8c7eb3",
+    "hash": "a95a790b436d0358444563d82989bb16a5687851ef52e66054b9e05f60dbbccc",
     "sources": [
       {
         "type": "contents",
@@ -1089,7 +1089,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "4e51b7fe15ac226000bc49b8c14b53e13f5b8d8862fbe8d433912cf1d7aefe2f"
+        "hash": "24dcb522545de2bb205091a779d7e0903ddd3605e92f4192a178a1dd539cb3d2"
       },
       {
         "type": "file",
@@ -1105,7 +1105,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "5c15c96fc764e1e79e07bae6e49a591d30c9a3bba8fcd778d7cb60f2f224b503"
+        "hash": "4361fc1055b07cd9a388bda57cd2b5cf5774a5af7933d762e4ddf48ddf9edc2d"
       },
       {
         "type": "file",
@@ -1113,7 +1113,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "9c231fa4930061c87beb2cc2e661b284924b74276311dedcc543530d5e0a1282"
+        "hash": "b219affd5e9ddc0495ed259b9fc039cad14cc45a024631c2c953463bff734b63"
       },
       {
         "type": "file",
@@ -1129,31 +1129,39 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "056e644181c26028f0e8374970b8a18e2bd447be620ce532c3fa12ea1cfc2657"
+        "hash": "37c3ccd3b87f47e1b5183c0312645e13220c642d9ce48ad1e91715ad42d35e6e"
       },
       {
         "type": "file",
-        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/KakaoMapPackage.kt",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/GoogleMapView.kt",
         "reasons": [
           "extra-source"
         ],
-        "hash": "27b89674e8b0a6002637efb81b34085faa424ecd13ff3d31783c050626148b9c"
+        "hash": "70b3c9aef0e7a085da1d76fa74683165f1b9aa37bb2161f190891bceefba6324"
       },
       {
         "type": "file",
-        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/KakaoMapView.kt",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/GoogleMapViewManager.kt",
         "reasons": [
           "extra-source"
         ],
-        "hash": "84328800a488fc1e2167fbea06ae811246f55780f5356226150c767772858913"
+        "hash": "d6df494f6222571701645ab04e52fff925946b5a6368015f4d498be2f7720ab7"
       },
       {
         "type": "file",
-        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/KakaoMapViewManager.kt",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/MapPackage.kt",
         "reasons": [
           "extra-source"
         ],
-        "hash": "ae06fd3cd11f10fdbc3e3c8b6978b7dd7ca9f6a9321718b3285548a325e96bb6"
+        "hash": "8e3d7ae37e05498839fa4dd7ea3069739adda2941c3b4ee9a9bc0a2e800fcef6"
+      },
+      {
+        "type": "file",
+        "filePath": "android/app/src/main/java/com/yeogidamm/app/map/SubwayStationLayer.kt",
+        "reasons": [
+          "extra-source"
+        ],
+        "hash": "884b44b8082f73ee2e902441b87e87f6e83d524158873050e8d29c7d4cf92714"
       },
       {
         "type": "file",
@@ -1473,7 +1481,7 @@
         "reasons": [
           "extra-source"
         ],
-        "hash": "8034aa251e704fb9317b9c670022e19a1f8b057ea27191cedb80f90f71d409f5"
+        "hash": "2be9a7cd545ade63b8866d1576d470bc69556b9a773b9cc656a0f2803afcc88e"
       },
       {
         "type": "file",
@@ -1533,11 +1541,11 @@
       },
       {
         "type": "file",
-        "filePath": "spec/KakaoMapNativeComponent.ts",
+        "filePath": "spec/GoogleMapNativeComponent.ts",
         "reasons": [
           "app-codegen-spec"
         ],
-        "hash": "10a93eacf5425406cebb25aadabedac0150b345fadbd2c1808267d53f199a3cb"
+        "hash": "759006078f7d9d39cf78bf4f0b83055cb0470c938bd791b222bbe5d343d10edd"
       }
     ]
   },

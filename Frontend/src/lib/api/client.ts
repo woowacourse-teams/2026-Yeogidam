@@ -1,4 +1,5 @@
 import {getApiBaseUrl} from './config';
+import {logApiResult} from './devLog';
 import {ApiError, httpApiError} from './errors';
 
 type QueryValue = string | number | boolean;
@@ -150,12 +151,17 @@ async function readJsonBody(response: Response): Promise<unknown> {
   return text.trim() ? JSON.parse(text) : undefined;
 }
 
-async function readResponse<T>(response: Response, signal: AbortSignal): Promise<T> {
+async function readResponse<T>(
+  response: Response,
+  signal: AbortSignal,
+  onPayload?: (status: number, payload: unknown) => void,
+): Promise<T> {
   const responseRequestId = response.headers.get('X-Request-Id');
   const requestId = responseRequestId && /^[A-Za-z0-9-]{1,64}$/.test(responseRequestId)
     ? responseRequestId
     : null;
   if (response.status === 204 || response.status === 205) {
+    onPayload?.(response.status, undefined);
     return undefined as T;
   }
 
@@ -175,6 +181,7 @@ async function readResponse<T>(response: Response, signal: AbortSignal): Promise
     }
   }
 
+  onPayload?.(response.status, payload);
   if (!response.ok) throw httpApiError(response.status, payload, requestId);
   return payload as T;
 }
@@ -223,16 +230,32 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         requestOptions.timeoutMs ?? defaultTimeoutMs,
       );
 
+      const method = requestOptions.method ?? 'GET';
+      const startedAt = Date.now();
+      let logged = false;
       try {
         const response = await fetchImpl(url, {
-          method: requestOptions.method ?? 'GET',
+          method,
           headers,
           ...(body !== undefined ? {body} : {}),
           signal: cancellation.signal,
         });
-        return await readResponse<T>(response, cancellation.signal);
+        return await readResponse<T>(response, cancellation.signal, (status, payload) => {
+          logged = true;
+          logApiResult({method, url, durationMs: Date.now() - startedAt, status, body: payload});
+        });
       } catch (cause) {
-        throw requestError(cause, cancellation.didTimeOut(), requestOptions.signal);
+        const error = requestError(cause, cancellation.didTimeOut(), requestOptions.signal);
+        if (!logged) {
+          logApiResult({
+            method,
+            url,
+            durationMs: Date.now() - startedAt,
+            status: error.status ?? undefined,
+            error: `${error.kind}: ${error.message}`,
+          });
+        }
+        throw error;
       } finally {
         cancellation.dispose();
       }

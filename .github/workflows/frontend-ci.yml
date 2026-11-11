@@ -177,7 +177,6 @@ jobs:
       - name: Create CI build configuration
         run: |
           printf '%s\n' \
-            'KAKAO_NATIVE_APP_KEY=ci-placeholder' \
             'API_BASE_URL=https://ci.example.invalid' > .env
       # 러너 이미지에 없는 NDK를 Gradle이 빌드 중에 받다가 손상된 파일로 실패한 적이 있어,
       # build.gradle의 ndkVersion을 미리 설치하고 실패하면 지운 뒤 다시 받는다.
@@ -303,7 +302,6 @@ jobs:
       - name: Create CI build configuration
         run: |
           printf '%s\n' \
-            'KAKAO_NATIVE_APP_KEY=ci-placeholder' \
             'API_BASE_URL=https://ci.example.invalid' > .env
       # Podfile에 선언된 iOS 네이티브 라이브러리를 설치해 .xcworkspace를 준비한다.
       - name: Install CocoaPods
@@ -392,7 +390,7 @@ jobs:
         run: npm ci
       - name: Prepare Android release secrets
         env:
-          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          GOOGLE_MAPS_ANDROID_API_KEY: ${{ secrets.GOOGLE_MAPS_ANDROID_API_KEY }}
           POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
@@ -402,7 +400,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           HOT_UPDATER_CLIENT_KEY: ${{ secrets.HOT_UPDATER_CLIENT_KEY }}
         run: |
-          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY \
+          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL GOOGLE_MAPS_ANDROID_API_KEY \
             POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_STORE_PASSWORD \
             ANDROID_UPLOAD_KEY_ALIAS ANDROID_UPLOAD_KEY_PASSWORD SENTRY_AUTH_TOKEN \
@@ -412,8 +410,8 @@ jobs:
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\nHOT_UPDATER_URL=%s\nHOT_UPDATER_CLIENT_KEY=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$API_BASE_URL" \
+          printf 'GOOGLE_MAPS_ANDROID_API_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\nHOT_UPDATER_URL=%s\nHOT_UPDATER_CLIENT_KEY=%s\n' \
+            "$GOOGLE_MAPS_ANDROID_API_KEY" "$API_BASE_URL" \
             "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" \
             "$HOT_UPDATER_URL" "$HOT_UPDATER_CLIENT_KEY" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
@@ -497,7 +495,7 @@ jobs:
         run: npm ci
       - name: Prepare iOS release secrets
         env:
-          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.GOOGLE_MAPS_IOS_API_KEY }}
           POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
@@ -506,7 +504,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           HOT_UPDATER_CLIENT_KEY: ${{ secrets.HOT_UPDATER_CLIENT_KEY }}
         run: |
-          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL KAKAO_NATIVE_APP_KEY \
+          for key in APP_VERSION APP_BUILD_NUMBER API_BASE_URL GOOGLE_MAPS_IOS_API_KEY \
             POSTHOG_PROJECT_TOKEN POSTHOG_HOST \
             APP_STORE_CONNECT_API_KEY_BASE64 APP_STORE_CONNECT_KEY_ID \
             APP_STORE_CONNECT_ISSUER_ID SENTRY_AUTH_TOKEN \
@@ -516,8 +514,8 @@ jobs:
               exit 1
             fi
           done
-          printf 'KAKAO_NATIVE_APP_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\nHOT_UPDATER_URL=%s\nHOT_UPDATER_CLIENT_KEY=%s\n' \
-            "$KAKAO_NATIVE_APP_KEY" "$API_BASE_URL" \
+          printf 'GOOGLE_MAPS_IOS_API_KEY=%s\nAPI_BASE_URL=%s\nPOSTHOG_PROJECT_TOKEN=%s\nPOSTHOG_HOST=%s\nAPP_VERSION=%s\nAPP_ENV=%s\nHOT_UPDATER_URL=%s\nHOT_UPDATER_CLIENT_KEY=%s\n' \
+            "$GOOGLE_MAPS_IOS_API_KEY" "$API_BASE_URL" \
             "$POSTHOG_PROJECT_TOKEN" "$POSTHOG_HOST" "$APP_VERSION" "$APP_ENV" \
             "$HOT_UPDATER_URL" "$HOT_UPDATER_CLIENT_KEY" > "$RUNNER_TEMP/frontend-beta-config"
           chmod 600 "$RUNNER_TEMP/frontend-beta-config"
@@ -543,7 +541,7 @@ jobs:
           fi
       - name: Archive signed iOS app
         env:
-          KAKAO_NATIVE_APP_KEY: ${{ secrets.KAKAO_NATIVE_APP_KEY }}
+          GOOGLE_MAPS_IOS_API_KEY: ${{ secrets.GOOGLE_MAPS_IOS_API_KEY }}
           POSTHOG_PROJECT_TOKEN: ${{ secrets.POSTHOG_PROJECT_TOKEN }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -561,7 +559,7 @@ jobs:
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID" \
             "MARKETING_VERSION=$APP_VERSION" \
             "CURRENT_PROJECT_VERSION=$APP_BUILD_NUMBER" \
-            "KAKAO_NATIVE_APP_KEY=$KAKAO_NATIVE_APP_KEY" \
+            "GOOGLE_MAPS_IOS_API_KEY=$GOOGLE_MAPS_IOS_API_KEY" \
             "POSTHOG_PROJECT_TOKEN=$POSTHOG_PROJECT_TOKEN" \
             "POSTHOG_HOST=$POSTHOG_HOST" \
             "APP_ENV=$APP_ENV" \
