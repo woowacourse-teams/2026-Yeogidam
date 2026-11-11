@@ -2,6 +2,7 @@ import React, {useRef} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import {PlaceListRow} from '../../../components/place/PlaceListRow';
+import {getMiddleCategory} from '../../../entities/place/category';
 import type {Place} from '../../../entities/place/types';
 import {LIBRARY_GUTTER} from './libraryTheme';
 
@@ -29,14 +30,26 @@ export function SavedPlaceGrid({
     <View style={styles.list}>
       {places.map((place, index) => {
         const selected = selectedPlaceIds?.has(place.id) ?? false;
+        // 게시물인지 장소인지 구분되도록 종류를 먼저 읽고, 같은 이름을 구분할 카테고리를 함께 읽습니다.
+        const category = getMiddleCategory(place.category);
+        const description = ['장소', place.name, category]
+          .filter(Boolean)
+          .join(', ');
 
         return (
           <PlaceListRow
             key={`${place.id}-${index}`}
-            accessibilityLabel={
+            accessibilityLabel={description}
+            // 편집 중에는 선택 여부를 값으로 읽고, 두 번 탭이 무엇을 하는지 힌트로 알려 줍니다.
+            accessibilityHint={
               isEditing
-                ? `${place.name} ${selected ? '선택 해제' : '선택'}`
-                : place.name
+                ? selected
+                  ? '두 번 탭하면 선택을 해제해요'
+                  : '두 번 탭하면 북마크를 해제할 장소로 선택해요'
+                : undefined
+            }
+            accessibilityValue={
+              isEditing ? {text: selected ? '선택됨' : '선택 안 됨'} : undefined
             }
             accessibilityRole="button"
             address={place.fullAddress || place.address}

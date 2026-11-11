@@ -1,3 +1,4 @@
+import { useScreenReaderEnabled } from '../../lib/accessibility';
 import { showAlert } from '../../lib/app-alert';
 import React, {
   useCallback,
@@ -295,6 +296,7 @@ export function MapScreen({
   const bottomNavigationOffset =
     BOTTOM_NAVIGATION_BAR_HEIGHT + getBottomNavigationBarOffset(bottomInset);
 
+  const screenReaderEnabled = useScreenReaderEnabled();
   const [visibleBounds, setVisibleBounds] = useState<{
     southLatitude: number;
     northLatitude: number;
@@ -454,7 +456,8 @@ export function MapScreen({
   const resultPlaces = useMemo(() => {
     const candidatePlaces = searchedPlaces ?? placesWithCoordinates;
     // 폴더 안에서는 지도 범위와 상관없이 폴더의 모든 장소를 보여줍니다.
-    if (openedFolder) return candidatePlaces;
+    // 스크린 리더 사용자는 지도를 움직일 수 없으므로 지도 범위로 거르지 않고 모든 장소를 보여줍니다.
+    if (openedFolder || screenReaderEnabled) return candidatePlaces;
     if (!visibleBounds) return [];
 
     return candidatePlaces.filter(
@@ -466,7 +469,13 @@ export function MapScreen({
         place.longitude >= visibleBounds.westLongitude &&
         place.longitude <= visibleBounds.eastLongitude,
     );
-  }, [openedFolder, placesWithCoordinates, searchedPlaces, visibleBounds]);
+  }, [
+    openedFolder,
+    placesWithCoordinates,
+    screenReaderEnabled,
+    searchedPlaces,
+    visibleBounds,
+  ]);
   const markerPlaces = searchedPlaces ?? placesWithCoordinates;
   const cameraFitPointsJson = useMemo(
     () =>
@@ -807,7 +816,12 @@ export function MapScreen({
       ),
     );
     return (
-      <View style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}>
+      <View
+        // 지도 위 마커와 이동은 스크린 리더로 쓸 수 없어 숨기고, 같은 장소를 아래 목록으로 찾게 합니다.
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}
+      >
         {mapHeight > 0 ? (
           <GoogleMapNativeComponent
             style={styles.map}
@@ -1079,6 +1093,7 @@ export function MapScreen({
           onPageBack={handleSearchBack}
           backPlaces={placesWithCoordinates.filter(
             place =>
+              screenReaderEnabled ||
               !visibleBounds ||
               (place.latitude! >= visibleBounds.southLatitude &&
                 place.latitude! <= visibleBounds.northLatitude &&

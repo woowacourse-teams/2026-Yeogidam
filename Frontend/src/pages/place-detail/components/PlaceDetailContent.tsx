@@ -362,12 +362,12 @@ function PlaceDetailContentBody({
         {/*
           RN stickyHeaderIndices는 내용 높이가 바뀌면 탭 위치가 어긋나므로 스크롤 밖에 겹쳐 둡니다.
           선택 표시 위치를 유지하도록 숨길 때도 마운트해 둡니다.
+          스크린 리더에는 스크롤 안의 탭 하나만 보여 줍니다. 겹친 탭까지 보이면 같은 탭이 두 번 나오고,
+          스크롤 밖에 있어 읽는 순서가 맨 뒤로 밀려요.
         */}
         <View
-          accessibilityElementsHidden={!isTabsPinned}
-          importantForAccessibility={
-            isTabsPinned ? 'auto' : 'no-hide-descendants'
-          }
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
           pointerEvents={isTabsPinned ? 'auto' : 'none'}
           style={[styles.pinnedTabs, !isTabsPinned && styles.pinnedTabsHidden]}
         >

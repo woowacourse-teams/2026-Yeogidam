@@ -23,8 +23,69 @@ on:
 permissions:
   contents: read
 
+# 같은 PR에 새 커밋이 올라오면 이전 실행은 결과가 쓸모없으므로 취소한다.
+# beta 호출은 실행마다 그룹이 달라 서로 취소하지 않는다.
+concurrency:
+  group: frontend-ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # PR 검증은 병렬로 실행하고, beta 호출에서는 선택한 플랫폼만 빌드한다.
 jobs:
+  # PR이 플랫폼별 네이티브를 바꿨는지 판단해, 바꾸지 않은 플랫폼의 네이티브 빌드를 건너뛴다.
+  # fingerprint.json의 플랫폼 해시가 base와 다르면 네이티브가 바뀐 것이다.
+  # 해시가 실제 네이티브와 맞는지는 verify의 Check fingerprint가 보장한다.
+  native-changes:
+    if: inputs.beta_platform == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      android: ${{ steps.detect.outputs.android }}
+      ios: ${{ steps.detect.outputs.ios }}
+    steps:
+      # PR의 merge 커밋과 그 첫 번째 부모(base 브랜치 HEAD)만 받는다.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - name: Detect native changes
+        id: detect
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # fe-release로 가는 PR은 beta 직전 관문이므로 항상 두 플랫폼을 모두 빌드한다.
+          if [[ "$BASE_REF" == "fe-release" ]]; then
+            echo "Release PR: building all platforms"
+            echo "android=true" >> "$GITHUB_OUTPUT"
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          echo "$changed"
+
+          # fingerprint에 잡히지 않지만 네이티브 빌드 방식을 바꾸는 파일들이다.
+          common='^(\.github/workflows/frontend-ci\.yml|Frontend/\.nvmrc)$'
+          ios_only='^Frontend/(Gemfile|Gemfile\.lock|ios/Podfile\.lock)$'
+
+          hash() {
+            node -e 'const [file, platform] = process.argv.slice(1); try { console.log(JSON.parse(require("fs").readFileSync(file, "utf8"))[platform].hash) } catch { console.log("missing") }' "$1" "$2"
+          }
+          git show HEAD^1:Frontend/fingerprint.json > "$RUNNER_TEMP/base-fingerprint.json" 2>/dev/null || true
+
+          for platform in android ios; do
+            base=$(hash "$RUNNER_TEMP/base-fingerprint.json" "$platform")
+            head=$(hash Frontend/fingerprint.json "$platform")
+            build=false
+            if [[ "$base" != "$head" ]]; then
+              build=true
+            elif grep -Eq "$common" <<< "$changed"; then
+              build=true
+            elif [[ "$platform" == "ios" ]] && grep -Eq "$ios_only" <<< "$changed"; then
+              build=true
+            fi
+            echo "$platform: base=$base head=$head build=$build"
+            echo "$platform=$build" >> "$GITHUB_OUTPUT"
+          done
+
   # JavaScript/TypeScript 정적 검사와 Jest 테스트를 수행한다.
   verify:
     runs-on: ubuntu-latest
@@ -57,6 +118,20 @@ jobs:
       - name: Test
         run: npm run test:ci
 
+      # 네이티브 빌드를 건너뛰는 PR에서도 Release 빌드가 하던 JS 번들 생성은 확인한다.
+      # Metro가 import 해석이나 변환에 실패하면 여기서 잡힌다.
+      - name: Bundle JavaScript (Release)
+        run: |
+          for platform in android ios; do
+            npx react-native bundle \
+              --platform "$platform" \
+              --dev false \
+              --minify false \
+              --entry-file index.js \
+              --bundle-output "$RUNNER_TEMP/bundle-$platform.js" \
+              --assets-dest "$RUNNER_TEMP/assets-$platform"
+          done
+
       # 네이티브 코드나 네이티브 라이브러리가 바뀌었는데 fingerprint.json을 갱신하지 않으면 실패한다.
       # OTA 번들은 이 해시가 같은 앱에만 배포되므로, 커밋된 값이 실제 네이티브와 일치해야 한다.
       - name: Check fingerprint
@@ -69,7 +144,8 @@ jobs:
 
   # PR에서는 스토어 서명 없이 Android Release APK가 컴파일되는지 확인한다.
   android-build:
-    if: inputs.beta_platform == ''
+    needs: native-changes
+    if: inputs.beta_platform == '' && needs.native-changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     # 네이티브 빌드가 멈추면 60분 후 종료한다.
     timeout-minutes: 60
@@ -152,7 +228,9 @@ jobs:
           SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: 'true'
         run: |
           for attempt in 1 2 3 4 5; do
-            if ./gradlew :app:assembleRelease --no-daemon 2>&1 | tee "$RUNNER_TEMP/android-build.log"; then
+            # 컴파일 확인이 목적이므로 실제 기기 대부분이 쓰는 arm64-v8a만 빌드해 C++ 컴파일을 1/4로 줄인다.
+            # 배포용 AAB(android-beta-build)는 기존처럼 모든 ABI를 빌드한다.
+            if ./gradlew :app:assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a 2>&1 | tee "$RUNNER_TEMP/android-build.log"; then
               exit 0
             fi
             # 외부 저장소 응답 오류에만 재시도한다. 컴파일 오류는 즉시 실패로 남긴다.
@@ -169,7 +247,8 @@ jobs:
 
   # PR에서는 Apple 배포 서명 없이 iOS 시뮬레이터용 Release 앱을 컴파일한다.
   ios-build:
-    if: inputs.beta_platform == ''
+    needs: native-changes
+    if: inputs.beta_platform == '' && needs.native-changes.outputs.ios == 'true'
     # Xcode와 iOS Simulator SDK가 있는 macOS runner가 필요하다.
     runs-on: macos-26
     # CocoaPods 설치와 네이티브 컴파일 시간을 고려해 120분으로 제한한다.

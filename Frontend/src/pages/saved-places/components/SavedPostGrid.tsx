@@ -44,12 +44,30 @@ export function SavedPostGrid({
           {column.map(reel => {
             const title = getPostTitle(reel);
             const selected = selectedReelIds?.has(reel.id) ?? false;
+            // 게시물인지 장소인지 구분되도록 종류를 먼저 읽고, 작성자도 '골뱅이' 없이 읽습니다.
+            const author = reel.instagram_author_username?.replace(/^@/, '');
+            const description = [
+              '게시물',
+              title,
+              author ? `작성자 ${author}` : null,
+            ]
+              .filter(Boolean)
+              .join(', ');
 
             return (
               <PostCard
                 key={reel.id}
-                accessibilityLabel={
-                  isEditing ? `${title} ${selected ? '선택 해제' : '선택'}` : title
+                accessibilityLabel={description}
+                // 편집 중에는 선택 여부를 값으로 읽고, 두 번 탭이 무엇을 하는지 힌트로 알려 줍니다.
+                accessibilityHint={
+                  isEditing
+                    ? selected
+                      ? '두 번 탭하면 선택을 해제해요'
+                      : '두 번 탭하면 삭제할 게시물로 선택해요'
+                    : undefined
+                }
+                accessibilityValue={
+                  isEditing ? {text: selected ? '선택됨' : '선택 안 됨'} : undefined
                 }
                 accessibilityRole="button"
                 authorUsername={reel.instagram_author_username}
