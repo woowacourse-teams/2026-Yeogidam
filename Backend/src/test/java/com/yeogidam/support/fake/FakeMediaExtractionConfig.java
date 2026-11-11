@@ -43,8 +43,8 @@ public class FakeMediaExtractionConfig {
 
     @Bean
     @Primary
-    public FakePlaceSearcher fakePlaceSearcher() {
-        return new FakePlaceSearcher();
+    public FakeDomesticPlaceSearcher fakeDomesticPlaceSearcher() {
+        return new FakeDomesticPlaceSearcher();
     }
 
     private static class FakeKakaoPlaceMetaReader extends KakaoPlaceMetaReader {

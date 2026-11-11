@@ -27,7 +27,7 @@ public class MediaExtractionPipeline {
 
     private final InstagramMetadataService instagramMetadataService;
     private final PlaceSearchHintExtractor placeSearchHintExtractor;
-    private final PlaceSearcher placeSearcher;
+    private final DomesticPlaceSearcher domesticPlaceSearcher;
     private final MediaExtractionResultWriter resultWriter;
     private final PlaceThumbnailService placeThumbnailService;
 
@@ -73,7 +73,7 @@ public class MediaExtractionPipeline {
     private List<Place> findPlaces(PlaceSearchHints hints, String instagramThumbnailKey) {
         Map<String, Place> placesByKakaoId = new LinkedHashMap<>();
         for (PlaceSearchHint hint : hints.places()) {
-            List<Place> matchedPlaces = placeSearcher.search(hint);
+            List<Place> matchedPlaces = domesticPlaceSearcher.search(hint);
             if (matchedPlaces.isEmpty()) {
                 continue;
             }

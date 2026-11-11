@@ -22,10 +22,10 @@ import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import com.yeogidam.support.fake.FakeDomesticPlaceSearcher;
 import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import com.yeogidam.support.fake.FakePlaceSearchHintExtractor;
-import com.yeogidam.support.fake.FakePlaceSearcher;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
@@ -78,7 +78,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     private FakePlaceSearchHintExtractor placeSearchHintExtractor;
 
     @Autowired
-    private FakePlaceSearcher placeSearcher;
+    private FakeDomesticPlaceSearcher domesticPlaceSearcher;
 
     @Autowired
     private FakeExtractionRetryExecutor extractionExecutor;
@@ -90,8 +90,8 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     void setUpRetry() {
         placeSearchHintExtractor.reset();
         placeSearchHintExtractor.block();
-        placeSearcher.reset();
-        placeSearcher.add("올드빅", place(301L));
+        domesticPlaceSearcher.reset();
+        domesticPlaceSearcher.add("올드빅", place(301L));
         extractionExecutor.reset();
     }
 

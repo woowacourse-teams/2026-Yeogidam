@@ -8,7 +8,7 @@ import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.infrastructure.GeminiFileClient;
 import com.yeogidam.media.extraction.infrastructure.GeminiPlaceSearchHintExtractor;
-import com.yeogidam.media.extraction.infrastructure.KakaoPlaceSearcher;
+import com.yeogidam.media.extraction.infrastructure.KakaoDomesticPlaceSearcher;
 import com.yeogidam.media.instagram.config.InstagramConfig;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadataWithUrl;
@@ -94,7 +94,7 @@ class GoldenSetEvalTest {
                 new InstagramMediaDownloader(new InstagramMediaSourceReader(instagramMediaRestClient, jsonMapper),
                         instagramMediaRestClient),
                 new GeminiFileClient(geminiMediaRestClient));
-        KakaoPlaceSearcher searcher = new KakaoPlaceSearcher(
+        KakaoDomesticPlaceSearcher searcher = new KakaoDomesticPlaceSearcher(
                 extractionConfig.kakaoLocalRestClient(RestClient.builder()),
                 new KakaoLocalProperties(env.get("KAKAO_CLIENT_ID")));
         System.out.println("Gemini key: 먼저 부르는 key 1개, 막히면 넘기는 결제 key " + fallbackApiKeys.size() + "개");
@@ -209,7 +209,7 @@ class GoldenSetEvalTest {
             GoldenCase goldenCase,
             InstagramMediaHtmlReader reader,
             GeminiPlaceSearchHintExtractor extractor,
-            KakaoPlaceSearcher searcher
+            KakaoDomesticPlaceSearcher searcher
     ) {
         InstagramUrl url = new InstagramUrl(goldenCase.url());
         MediaMetadataWithUrl metadata;
@@ -266,7 +266,7 @@ class GoldenSetEvalTest {
     }
 
     /** MediaExtractionPipeline.findPlaces와 같다. 단서마다 검색하고 카카오 ID로 중복을 뺀다. */
-    private List<PredictedPlace> findPlaces(List<PlaceSearchHint> hints, KakaoPlaceSearcher searcher) {
+    private List<PredictedPlace> findPlaces(List<PlaceSearchHint> hints, KakaoDomesticPlaceSearcher searcher) {
         Map<String, PredictedPlace> placesByKakaoId = new LinkedHashMap<>();
         for (PlaceSearchHint hint : hints) {
             for (Place place : searcher.search(hint)) {

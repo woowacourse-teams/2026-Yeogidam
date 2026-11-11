@@ -60,7 +60,7 @@ class GeminiMediaExtractionLiveTest extends IntegrationTestSupport {
     private GeminiPlaceSearchHintExtractor extractor;
 
     @Autowired
-    private KakaoPlaceSearcher searcher;
+    private KakaoDomesticPlaceSearcher searcher;
 
     @Autowired
     private MediaExtractionResultWriter resultWriter;

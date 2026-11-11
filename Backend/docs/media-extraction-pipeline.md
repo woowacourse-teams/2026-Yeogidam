@@ -244,7 +244,7 @@ Gemini key는 `GEMINI_API_KEY`(먼저 부르는 key), `GEMINI_API_KEY_FALLBACKS`
 
 ## 7. 카카오에서 최종 장소를 고르는 기준
 
-`KakaoPlaceSearcher`는 장소 단서 한 개당 최종 장소를 최대 한 개 반환한다.
+`KakaoDomesticPlaceSearcher`는 장소 단서 한 개당 최종 장소를 최대 한 개 반환한다.
 주소 단서를 좌표로 바꿀 수 있으면 7.2의 반경 검색을 먼저 하고, 아니면 7.1에서 고른 지역으로 7.3의 키워드 검색을 한다.
 
 ### 7.1. 검색명과 지역 선택
@@ -388,7 +388,7 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 | 프롬프트, 응답 스키마, Gemini 요청, 예비 key 전환 | [GeminiPlaceSearchHintExtractor](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceSearchHintExtractor.java), [GeminiApiKeys](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiApiKeys.java) |
 | 원본 목록 조회와 파일 다운로드 | [InstagramMediaSourceReader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReader.java), [InstagramMediaDownloader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaDownloader.java) |
 | 업로드, 처리 상태 확인, 삭제 | [GeminiFileClient](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiFileClient.java) |
-| 주소 반경 검색, 지도 검색어와 결과 변환 | [KakaoPlaceSearcher](../src/main/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcher.java) |
+| 주소 반경 검색, 지도 검색어와 결과 변환 | [KakaoDomesticPlaceSearcher](../src/main/java/com/yeogidam/media/extraction/infrastructure/KakaoDomesticPlaceSearcher.java) |
 | 결과 저장 | [MediaExtractionResultWriter](../src/main/java/com/yeogidam/media/extraction/service/MediaExtractionResultWriter.java) |
 | 썸네일 선택 | [PlaceThumbnailService](../src/main/java/com/yeogidam/place/service/PlaceThumbnailService.java) |
 
@@ -415,7 +415,7 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 ### 테스트로 규칙 확인하기
 
 - [MediaExtractionPipelineIntegrationTest](../src/test/java/com/yeogidam/media/extraction/service/MediaExtractionPipelineIntegrationTest.java): 부분 매칭 성공, 결과 재사용, 캡션 단서로 카카오에서 못 찾을 때의 첨부 분석, 지정 작성자 예외, 캡션과 첨부 모두 빈 결과일 때 지도 미호출, 실패 기록, 저장 롤백.
-- [KakaoPlaceSearcherTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcherTest.java): 원문 우선 후 보정명 재검색, 같은 이름 중복 방지, 지역 우선순위, 주소 반경 검색, 카테고리와 무관한 첫 유효 결과 선택과 오류 응답 처리.
+- [KakaoDomesticPlaceSearcherTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/KakaoDomesticPlaceSearcherTest.java): 원문 우선 후 보정명 재검색, 같은 이름 중복 방지, 지역 우선순위, 주소 반경 검색, 카테고리와 무관한 첫 유효 결과 선택과 오류 응답 처리.
 - [GoldenSetEvaluationTest](../src/test/java/com/yeogidam/media/extraction/eval/GoldenSetEvaluationTest.java): 검증 상태별 채점, 정상 빈 결과와 실패의 구분, 정답 별칭과 완료된 원시 실행의 보존.
 - [GeminiPlaceSearchHintExtractorTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceSearchHintExtractorTest.java): 캡션 요청 스키마, 원문과 보정명 보존, 응답 검증, 예비 key 전환과 건너뛰는 시간.
 - [InstagramMediaSourceReaderTest](../src/test/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReaderTest.java): 캐러셀 순서와 누락 처리, 릴스 썸네일 이후 원본 조회.

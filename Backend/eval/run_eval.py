@@ -477,7 +477,7 @@ def build_parts(variant, meta):
     return parts, SYSTEM_INSTRUCTION + VIDEO_ADDENDUM, False
 
 
-# ---------- 3. 카카오 매칭 (KakaoPlaceSearcher와 같은 규칙) ----------
+# ---------- 3. 카카오 매칭 (KakaoDomesticPlaceSearcher와 같은 규칙) ----------
 
 def normalize(value):
     if not value:
@@ -543,8 +543,8 @@ def search_queries(hint):
     return out
 
 
-NEARBY_RADIUS_METERS = 3000   # KakaoPlaceSearcher.NEARBY_RADIUS_METERS와 같다
-ADDRESS_TRIM_ATTEMPTS = 3     # KakaoPlaceSearcher.ADDRESS_TRIM_ATTEMPTS와 같다
+NEARBY_RADIUS_METERS = 3000   # KakaoDomesticPlaceSearcher.NEARBY_RADIUS_METERS와 같다
+ADDRESS_TRIM_ATTEMPTS = 3     # KakaoDomesticPlaceSearcher.ADDRESS_TRIM_ATTEMPTS와 같다
 
 
 def kakao_request(api_key, path, params, cache_dir):
@@ -626,7 +626,7 @@ def match_places(api_key, hints, cache_dir):
     trace = []
     for hint in hints:
         chosen = None
-        # 1. 주소가 있으면 좌표로 바꿔 반경 안에서 (KakaoPlaceSearcher.search와 같다).
+        # 1. 주소가 있으면 좌표로 바꿔 반경 안에서 (KakaoDomesticPlaceSearcher.search와 같다).
         #    캡션 주소는 사실이라 근처에 없으면 못 찾은 것으로 두고, 추론 주소는 단서라 근처에 없으면 지역 검색으로 돌아간다
         locations = hint.get("locationHints") or []
         caption_anchor = anchor_coordinate(api_key, locations, cache_dir, "CAPTION")
