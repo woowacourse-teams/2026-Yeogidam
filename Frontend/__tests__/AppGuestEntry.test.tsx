@@ -1011,3 +1011,39 @@ describe('인스타그램 공유 직후(서버로 가는 중)', () => {
     await ReactTestRenderer.act(async () => renderer.unmount());
   });
 });
+
+test('업데이트 정책 응답을 기다리지 않고 0.5초 뒤 첫 화면을 보여준 뒤, 늦게 온 필수 업데이트로 막는다', async () => {
+  let resolvePolicy!: (policy: unknown) => void;
+  (getAppUpdatePolicy as jest.Mock).mockReturnValue(
+    new Promise(resolve => {
+      resolvePolicy = resolve;
+    }),
+  );
+
+  let renderer!: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(async () => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await ReactTestRenderer.act(async () => {
+    jest.advanceTimersByTime(500);
+    await Promise.resolve();
+  });
+
+  expect(renderer.root.findAllByType(OnboardingScreen)).toHaveLength(1);
+  const requiredModal = () =>
+    renderer.root.findAllByType(AppUpdateModal).find(modal => modal.props.mode === 'required');
+  expect(requiredModal()?.props.visible).toBe(false);
+
+  await ReactTestRenderer.act(async () => {
+    resolvePolicy({
+      updateRequired: true,
+      updateRecommended: false,
+      minimumSupportedVersion: '9.0.0',
+      latestVersion: '9.0.0',
+      storeUrl: 'https://example.com/store',
+    });
+  });
+
+  expect(requiredModal()?.props.visible).toBe(true);
+  await ReactTestRenderer.act(async () => renderer.unmount());
+});

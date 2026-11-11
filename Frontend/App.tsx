@@ -229,7 +229,8 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   detailSource: null,
 };
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
-const SPLASH_MIN_DURATION_MS = 2000;
+// 로딩이 빨리 끝날 때 스플래시가 깜빡이지 않을 만큼만 보여준다.
+const SPLASH_MIN_DURATION_MS = 500;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
@@ -410,6 +411,8 @@ function App() {
   // 이벤트 안내가 먼저 뜨도록, 뜰지 확인되기 전까지는 막혀 있다고 본다.
   const [isEventNoticeBlocking, setIsEventNoticeBlocking] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
+  // 앱 시작 때 업데이트 정책 확인이 끝났는지. 끝나기 전에는 업데이트 모달보다 먼저 뜰 안내를 미룬다.
+  const [isUpdatePolicyChecked, setIsUpdatePolicyChecked] = useState(false);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
   const [onboardingBackRequest, setOnboardingBackRequest] = useState(0);
@@ -626,6 +629,7 @@ function App() {
     !isSplashVisible &&
     !isOnboardingVisible &&
     flowState.kind === 'main' &&
+    isUpdatePolicyChecked &&
     !requiredUpdateStoreUrl;
   useEffect(() => {
     if (!canRequestLocation) return;
@@ -899,11 +903,17 @@ function App() {
     }).finally(endSplashDelayPhase);
 
     const endAuthRestorePhase = startStartupPhase('auth_restore');
-    const endUpdatePolicyPhase = startStartupPhase('update_policy');
+
+    // 업데이트 정책은 대부분 "업데이트 없음"이라 스플래시를 붙잡지 않는다.
+    // 첫 화면 뒤에 도착하면 필수 업데이트 모달이 그 위를 막고, 그 전까지는 다른 안내 모달을 미룬다.
+    checkUpdatePolicy()
+      .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) setIsUpdatePolicyChecked(true);
+      });
 
     Promise.allSettled([
       syncFlowState().finally(endAuthRestorePhase),
-      checkUpdatePolicy().finally(endUpdatePolicyPhase),
       splashDelay,
     ]).finally(() => {
       if (!isMounted) {
@@ -1981,6 +1991,7 @@ function App() {
       <EventNoticeModal
         enabled={
           flowState.kind === 'main' &&
+          isUpdatePolicyChecked &&
           requiredUpdateStoreUrl === null &&
           recommendedUpdate === null &&
           !(isGuestLoginPromptVisible && isGuestBrowsing)
@@ -1992,6 +2003,7 @@ function App() {
         enabled={
           flowState.kind === 'main' &&
           isAuthenticated === true &&
+          isUpdatePolicyChecked &&
           requiredUpdateStoreUrl === null &&
           recommendedUpdate === null &&
           !isEventNoticeBlocking
