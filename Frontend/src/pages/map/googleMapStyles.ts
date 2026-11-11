@@ -1,5 +1,5 @@
 /**
- * 색은 네이버 지도 스크린샷에서 많이 쓰인 색을 뽑아 맞췄습니다(회색 바탕, 베이지 시가지,
+ * 색은 네이버 지도 스크린샷에서 많이 쓰인 색을 뽑아 맞췄습니다(회색 바탕, 흰 시가지,
  * 흰 골목길, 연노랑 큰길, 주황 고속도로).
  */
 const MAP_STYLE = [
@@ -41,33 +41,33 @@ const MAP_STYLE = [
     elementType: 'labels.text.stroke',
     stylers: [{ visibility: 'off' }],
   },
-  // Google 국내 데이터는 시가지 영역을 산까지 넓게 잡아서, 네이버의 블록 색(#f4e8dc)을
-  // 그대로 쓰면 지도 전체가 베이지가 됩니다. 바탕에 가까운 연한 베이지로 낮춥니다.
+  // Google 국내 데이터는 시가지 영역을 산까지 넓게 잡아서 베이지로 칠하면 지도 전체가
+  // 누렇게 보이므로, 시가지와 건물은 흰색으로 두고 건물 윤곽만 연한 회색으로 남깁니다.
   {
     featureType: 'landscape.man_made',
     elementType: 'geometry.fill',
-    stylers: [{ color: '#f6f1eb' }],
+    stylers: [{ color: '#ffffff' }],
   },
   {
     featureType: 'landscape.man_made',
     elementType: 'geometry.stroke',
-    stylers: [{ color: '#ede6dd' }],
+    stylers: [{ color: '#ebebeb' }],
   },
   // 공원·산 같은 녹지는 네이버 지도의 연한 초록(경복궁, 남산 등)에 맞춥니다.
   {
     featureType: 'landscape.natural',
     elementType: 'geometry',
-    stylers: [{ color: '#dfedd0' }],
+    stylers: [{ color: '#eaf4e0' }],
   },
   {
     featureType: 'poi.park',
     elementType: 'geometry',
-    stylers: [{ color: '#dfedd0' }],
+    stylers: [{ color: '#eaf4e0' }],
   },
   {
     featureType: 'poi.sports_complex',
     elementType: 'geometry',
-    stylers: [{ color: '#dfedd0' }],
+    stylers: [{ color: '#eaf4e0' }],
   },
   // 저장 장소 마커와 헷갈리지 않도록 가게는 숨기고, 명소·공원·관공서·학교·병원 같은
   // 랜드마크는 위치를 가늠할 수 있게 아이콘과 이름을 남깁니다.
