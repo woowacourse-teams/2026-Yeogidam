@@ -34,6 +34,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MapStyleOptions
@@ -74,6 +75,9 @@ class GoogleMapView(
     private var appliedMapStyleIndex: Int? = null
     private var subwayStationsJson = ""
     private val subwayStationLayer = SubwayStationLayer(context.resources.displayMetrics.density)
+    // 카카오 지도는 핀 이미지를 1.5배로 키워 그렸으므로, 같은 크기로 보이도록 핀·이름·현재 위치 마커를
+    // 모두 이 배율을 곱한 밀도로 그립니다.
+    private val markerDensity = context.resources.displayMetrics.density * MARKER_SCALE
 
     private var latitude = 37.5445
     private var longitude = 127.0557
@@ -86,6 +90,7 @@ class GoogleMapView(
     private var cameraBottomInset = 0
     private var locationUpdatesStarted = false
     private var pendingCurrentLocationCameraMove = false
+    private var appliedBottomPadding = 0
 
     private val locationListener =
         LocationListener { location ->
@@ -343,7 +348,25 @@ class GoogleMapView(
     private fun applyCameraPadding() {
         val map = googleMap ?: return
         val bottomInset = cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0))
-        map.setPadding(0, 0, 0, bottomInset)
+        // Google 로고는 여백 안쪽 왼쪽 아래에 놓입니다. 시트 둥근 모서리에 걸리지 않는 선에서
+        // 로고를 시트 쪽으로 조금 내리려고 여백을 시트 높이보다 살짝 줄입니다.
+        val logoLowering = (LOGO_LOWERING_DP * resources.displayMetrics.density).roundToInt()
+        val bottomPadding = (bottomInset - logoLowering).coerceAtLeast(0)
+        if (bottomPadding == appliedBottomPadding) return
+
+        // Google은 여백이 바뀌면 카메라 중심을 새 여백의 가운데로 옮겨 지도가 시트를 따라 움직입니다.
+        // 카카오 지도처럼 보이는 지도는 그대로 두려고, 새 중심 자리에 있던 좌표로 카메라를 다시 맞춥니다.
+        val camera = map.cameraPosition
+        val target = map.projection.fromScreenLocation(Point(width / 2, (height - bottomPadding) / 2))
+        map.setPadding(0, 0, 0, bottomPadding)
+        appliedBottomPadding = bottomPadding
+        if (width > 0 && height > 0) {
+            map.moveCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition(target, camera.zoom, camera.tilt, camera.bearing),
+                ),
+            )
+        }
         post { emitVisibleBounds() }
     }
 
@@ -532,21 +555,21 @@ class GoogleMapView(
             val metrics = paint.fontMetrics
             fittedPlaceName(marker.name, paint).let(paint::measureText) to (metrics.descent - metrics.ascent)
         }
-        val density = resources.displayMetrics.density
-        val halo = PLACE_NAME_HALO_DP * density
+        val density = markerDensity
+        val halo = PLACE_NAME_HALO_DP * resources.displayMetrics.density
         val top = center.y + placeMarkerDiameter(marker.selected) / 2 + density
         val halfWidth = textWidth / 2 + halo
         return RectF(center.x - halfWidth, top, center.x + halfWidth, top + textHeight + halo)
     }
 
     private fun placeMarkerDiameter(selected: Boolean): Float =
-        (if (selected) 26 else 20) * resources.displayMetrics.density
+        (if (selected) 26 else 20) * markerDensity
 
     private fun placeNamePaint(): Paint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = PLACE_NAME_TEXT_SIZE_DP * resources.displayMetrics.density
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            color = Color.rgb(33, 33, 38)
+            color = Color.rgb(26, 26, 28)
             textAlign = Paint.Align.CENTER
         }
 
@@ -555,7 +578,7 @@ class GoogleMapView(
             .ellipsize(
                 name,
                 TextPaint(paint),
-                PLACE_NAME_MAX_WIDTH_DP * resources.displayMetrics.density,
+                PLACE_NAME_MAX_WIDTH_DP * markerDensity,
                 TextUtils.TruncateAt.END,
             )
             .toString()
@@ -624,8 +647,8 @@ class GoogleMapView(
         val text = name.trim()
         if (text.isEmpty()) return marker to 0.5f
 
-        val density = resources.displayMetrics.density
-        val halo = PLACE_NAME_HALO_DP * density
+        val density = markerDensity
+        val halo = PLACE_NAME_HALO_DP * resources.displayMetrics.density
         val fill = placeNamePaint()
         val outline = Paint(fill).apply {
             style = Paint.Style.STROKE
@@ -653,7 +676,7 @@ class GoogleMapView(
     // 흰 테두리와 옅은 그림자가 있는 색 원 핀입니다. 기준점은 원 중심입니다.
     // 카테고리 아이콘(흰색)이 있으면 원 안에 비율 그대로 얹고, 없으면 흰 점을 찍습니다.
     private fun createColoredPlaceMarker(color: Int, selected: Boolean, icon: Drawable?): Bitmap {
-        val density = resources.displayMetrics.density
+        val density = markerDensity
         val diameter = placeMarkerDiameter(selected)
         val border = 2 * density
         val shadowBlur = 2 * density
@@ -886,7 +909,7 @@ class GoogleMapView(
     }
 
     private fun createCurrentLocationMarker(): Bitmap {
-        val density = resources.displayMetrics.density
+        val density = markerDensity
         val size = (CURRENT_LOCATION_MARKER_SIZE_DP * density).roundToInt()
         val center = size / 2f
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -920,7 +943,7 @@ class GoogleMapView(
     }
 
     private fun createSavedPlaceMarker(selected: Boolean): Bitmap {
-        val density = resources.displayMetrics.density
+        val density = markerDensity
         val markerSizeDp =
             if (selected) SAVED_PLACE_SELECTED_MARKER_SIZE_DP
             else SAVED_PLACE_MARKER_SIZE_DP
@@ -994,15 +1017,18 @@ class GoogleMapView(
     }
 
     private companion object {
+        const val MARKER_SCALE = 1.5f
+        const val LOGO_LOWERING_DP = 4
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 44
         const val SAVED_PLACE_MARKER_SIZE_DP = 26
         const val SAVED_PLACE_SELECTED_MARKER_SIZE_DP = 32
         const val SEARCH_RESULT_CAMERA_PADDING_DP = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16f
         // 이 줌부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
-        const val PLACE_NAME_MIN_ZOOM_LEVEL = 13f
-        const val PLACE_NAME_TEXT_SIZE_DP = 8f
-        const val PLACE_NAME_HALO_DP = 1f
+        const val PLACE_NAME_MIN_ZOOM_LEVEL = 12f
+        // 장소 이름은 지도의 동·역 이름보다 크고 진하게, 두꺼운 흰 테두리로 그려 지도 위에서 잘 읽히게 합니다.
+        const val PLACE_NAME_TEXT_SIZE_DP = 11f
+        const val PLACE_NAME_HALO_DP = 1.5f
         const val PLACE_NAME_MAX_WIDTH_DP = 120f
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f

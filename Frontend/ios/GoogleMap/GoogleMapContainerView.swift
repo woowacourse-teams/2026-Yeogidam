@@ -49,6 +49,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   private var needsCurrentLocationCameraMove = false
   private var cameraMoveScheduled = false
   private var reportedMissingApiKey = false
+  private var isAdjustingPadding = false
 
   private lazy var mapDelegate = MapDelegate(
     onWillMove: { [weak self] isGesture in
@@ -142,7 +143,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     mapView.delegate = mapDelegate
     mapView.settings.indoorPicker = false
     // 바텀시트에 가려진 부분만큼 안쪽 여백을 두면 카메라 중심과 Google 로고가 시트 위로 올라갑니다.
-    mapView.padding = UIEdgeInsets(top: 0, left: 0, bottom: cameraBottomInset, right: 0)
+    mapView.padding = UIEdgeInsets(top: 0, left: 0, bottom: mapBottomPadding, right: 0)
     addSubview(mapView)
     self.mapView = mapView
 
@@ -268,6 +269,9 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   }
 
   private func cameraWillMove(isGesture: Bool) {
+    // 시트 높이에 맞춰 지도를 제자리에 두는 이동은 사용자가 지도를 움직인 것이 아니므로 알리지 않습니다.
+    guard !isAdjustingPadding else { return }
+
     if isGesture {
       onMapPanStarted?(["started": true])
     }
@@ -295,8 +299,14 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
       "latitude": coordinate.latitude,
       "longitude": coordinate.longitude,
       "zoomLevel": Int(mapView.camera.zoom.rounded()),
-      "cameraBottomInset": mapView.padding.bottom
+      "cameraBottomInset": cameraBottomInset
     ])
+  }
+
+  // Google 로고는 여백 안쪽 왼쪽 아래에 놓입니다. 시트 둥근 모서리에 걸리지 않는 선에서
+  // 로고를 시트 쪽으로 조금 내리려고 여백을 시트 높이보다 살짝 줄입니다.
+  private var mapBottomPadding: CGFloat {
+    max(0, cameraBottomInset - Self.logoLowering)
   }
 
   private func updateCameraPadding() {
@@ -304,7 +314,27 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
 
     // 지도 뷰는 전체 화면 그대로 두고, 바텀시트에 가려진 부분은 여백으로 처리합니다.
     // 여백을 두면 카메라 중심 좌표가 시트 위쪽 영역의 가운데에 놓입니다.
-    mapView.padding = UIEdgeInsets(top: 0, left: 0, bottom: cameraBottomInset, right: 0)
+    let bottomPadding = mapBottomPadding
+    guard mapView.padding.bottom != bottomPadding else { return }
+
+    // Google은 여백이 바뀌면 카메라 중심을 새 여백의 가운데로 옮겨 지도가 시트를 따라 움직입니다.
+    // 카카오 지도처럼 보이는 지도는 그대로 두려고, 새 중심 자리에 있던 좌표로 카메라를 다시 맞춥니다.
+    let newCenter = CGPoint(x: mapView.bounds.midX, y: (mapView.bounds.height - bottomPadding) / 2)
+    let target = mapView.projection.coordinate(for: newCenter)
+    let camera = mapView.camera
+    mapView.padding = UIEdgeInsets(top: 0, left: 0, bottom: bottomPadding, right: 0)
+    isAdjustingPadding = true
+    mapView.moveCamera(
+      GMSCameraUpdate.setCamera(
+        GMSCameraPosition(
+          target: target,
+          zoom: camera.zoom,
+          bearing: camera.bearing,
+          viewingAngle: camera.viewingAngle
+        )
+      )
+    )
+    isAdjustingPadding = false
     DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
   }
 
@@ -677,7 +707,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     let width = textSize.width + halo * 2
     return CGRect(
       x: center.x - width / 2,
-      y: center.y + Self.placeMarkerDiameter(selected: marker.selected) / 2 + 1,
+      y: center.y + Self.placeMarkerDiameter(selected: marker.selected) / 2 + Self.markerScale,
       width: width,
       height: textSize.height + halo
     )
@@ -699,13 +729,17 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   ]
   private static let defaultPinColorHex = "#8FA2FF"
   // 이 줌부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
-  private static let placeNameMinZoomLevel: Float = 13
-  private static let placeNameFont = UIFont.systemFont(ofSize: 8, weight: .semibold)
-  private static let placeNameHalo: CGFloat = 1
-  private static let placeNameMaxWidth: CGFloat = 120
+  private static let placeNameMinZoomLevel: Float = 12
+  // 카카오 지도는 핀 이미지를 1.5배로 키워 그렸으므로, 같은 크기로 보이도록 핀·이름·현재 위치 마커를
+  // 모두 이 배율로 그립니다.
+  private static let markerScale: CGFloat = 1.5
+  // 장소 이름은 지도의 동·역 이름보다 크고 진하게, 두꺼운 흰 테두리로 그려 지도 위에서 잘 읽히게 합니다.
+  private static let placeNameFont = UIFont.systemFont(ofSize: 11, weight: .semibold)
+  private static let placeNameHalo: CGFloat = 1.5
+  private static let placeNameMaxWidth: CGFloat = 120 * markerScale
 
   private static func placeMarkerDiameter(selected: Bool) -> CGFloat {
-    selected ? 26 : 20
+    (selected ? 26 : 20) * markerScale
   }
 
   private static func placeNameTextSize(_ name: String) -> CGSize {
@@ -742,7 +776,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     paragraph.lineBreakMode = .byTruncatingTail
     let fill: [NSAttributedString.Key: Any] = [
       .font: font,
-      .foregroundColor: UIColor(red: 0.13, green: 0.13, blue: 0.15, alpha: 1),
+      .foregroundColor: UIColor(red: 0.1, green: 0.1, blue: 0.11, alpha: 1),
       .paragraphStyle: paragraph,
     ]
     // strokeWidth는 글자 크기 대비 백분율이고 선의 가운데를 기준으로 그려지므로, 바깥쪽 halo만큼 두 배로 잡습니다.
@@ -756,7 +790,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     let textWidth = textSize.width
     let textHeight = textSize.height
     // 마커 이미지에는 그림자 여백(3pt)이 있으므로 원 바로 아래에서 1pt 띄웁니다.
-    let textTop = marker.size.height - 2
+    let textTop = marker.size.height - 2 * markerScale
     let size = CGSize(
       width: max(marker.size.width, textWidth + halo * 2),
       height: textTop + textHeight + halo
@@ -776,9 +810,9 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   // 카테고리 아이콘(흰색)이 있으면 원 안에 비율 그대로 얹고, 없으면 흰 점을 찍습니다.
   private func makeColoredPlaceMarker(color: UIColor, selected: Bool, icon: UIImage?) -> UIImage {
     let diameter = Self.placeMarkerDiameter(selected: selected)
-    let border: CGFloat = 2
-    let shadowBlur: CGFloat = 2
-    let padding = shadowBlur + 1
+    let border = 2 * Self.markerScale
+    let shadowBlur = 2 * Self.markerScale
+    let padding = shadowBlur + Self.markerScale
     let size = CGSize(width: diameter + padding * 2, height: diameter + padding * 2)
     return UIGraphicsImageRenderer(size: size).image { context in
       let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -788,7 +822,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
 
       context.cgContext.saveGState()
       context.cgContext.setShadow(
-        offset: CGSize(width: 0, height: 0.5),
+        offset: CGSize(width: 0, height: 0.5 * Self.markerScale),
         blur: shadowBlur,
         color: UIColor.black.withAlphaComponent(0.25).cgColor
       )
@@ -855,7 +889,8 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   }
 
   private func makeCurrentLocationMarker() -> UIImage {
-    let size = CGSize(width: 40, height: 40)
+    let scale = Self.markerScale
+    let size = CGSize(width: 40 * scale, height: 40 * scale)
     let center = CGPoint(x: size.width / 2, y: size.height / 2)
 
     return UIGraphicsImageRenderer(size: size).image { context in
@@ -885,13 +920,13 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
       }
 
       let whiteCircle = UIBezierPath(
-        ovalIn: CGRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12)
+        ovalIn: CGRect(x: center.x - 6 * scale, y: center.y - 6 * scale, width: 12 * scale, height: 12 * scale)
       )
       UIColor.white.setFill()
       whiteCircle.fill()
 
       let blueCircle = UIBezierPath(
-        ovalIn: CGRect(x: center.x - 4.5, y: center.y - 4.5, width: 9, height: 9)
+        ovalIn: CGRect(x: center.x - 4.5 * scale, y: center.y - 4.5 * scale, width: 9 * scale, height: 9 * scale)
       )
       blueColor.setFill()
       blueCircle.fill()
@@ -899,7 +934,8 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   }
 
   private func makeSavedPlaceMarker(selected: Bool) -> UIImage {
-    let size = selected ? CGSize(width: 32, height: 32) : CGSize(width: 26, height: 26)
+    let length = (selected ? 32 : 26) * Self.markerScale
+    let size = CGSize(width: length, height: length)
 
     let assetName = selected ? Self.selectedPlaceMarkerAssetName : Self.savedPlaceMarkerAssetName
     if let markerImage = UIImage(named: assetName) {
@@ -918,7 +954,8 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
         ovalIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)
       ).fill()
       UIColor.white.setFill()
-      UIBezierPath(ovalIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)).fill()
+      let dotRadius = 5 * Self.markerScale
+      UIBezierPath(ovalIn: CGRect(x: center.x - dotRadius, y: center.y - dotRadius, width: dotRadius * 2, height: dotRadius * 2)).fill()
     }
   }
 
@@ -945,6 +982,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     }
     return !key.isEmpty && key != "$(GOOGLE_MAPS_IOS_API_KEY)"
   }()
+  private static let logoLowering: CGFloat = 4
   private static let searchResultCameraPadding: CGFloat = 48
   private static let searchResultMaxZoomLevel: Float = 16
   private static let savedPlaceStyleID = "yeogidam-saved-place-style"

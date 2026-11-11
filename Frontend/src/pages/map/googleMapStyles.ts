@@ -69,60 +69,18 @@ const MAP_STYLE = [
     elementType: 'geometry',
     stylers: [{ color: '#eaf4e0' }],
   },
-  // 저장 장소 마커와 헷갈리지 않도록 가게는 숨기고, 명소·공원·관공서·학교·병원 같은
-  // 랜드마크는 위치를 가늠할 수 있게 아이콘과 이름을 남깁니다.
-  { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
-  // 랜드마크 아이콘과 이름은 네이버 지도 스크린샷에서 종류별로 뽑은 차분한 색에 맞춥니다.
+  // 저장 장소 핀만 눈에 띄도록 가게·명소·공원·학교 같은 Google 장소 핀은 모두 숨깁니다.
+  // 공원 같은 녹지 면적 색은 남습니다.
   {
-    featureType: 'poi.government',
-    elementType: 'labels.icon',
-    stylers: [{ color: '#9ca8c6' }],
+    featureType: 'poi',
+    elementType: 'labels',
+    stylers: [{ visibility: 'off' }],
   },
-  {
-    featureType: 'poi.attraction',
-    elementType: 'labels.icon',
-    stylers: [{ color: '#a2968a' }],
-  },
-  {
-    featureType: 'poi.place_of_worship',
-    elementType: 'labels.icon',
-    stylers: [{ color: '#a2968a' }],
-  },
-  {
-    featureType: 'poi.sports_complex',
-    elementType: 'labels.icon',
-    stylers: [{ color: '#9ca8c6' }],
-  },
-  {
-    featureType: 'poi.school',
-    elementType: 'labels.icon',
-    stylers: [{ color: '#90aef0' }],
-  },
-  {
-    featureType: 'poi.medical',
-    elementType: 'labels.icon',
-    stylers: [{ color: '#de8484' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'labels.icon',
-    stylers: [{ color: '#78b460' }],
-  },
-  // 남산 같은 산 아이콘은 poi가 아니라 자연 지형으로 분류되어 따로 맞춥니다.
+  // 남산 같은 산 아이콘도 장소 핀처럼 보여 숨깁니다.
   {
     featureType: 'landscape.natural',
     elementType: 'labels.icon',
-    stylers: [{ color: '#78b460' }],
-  },
-  {
-    featureType: 'poi.school',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#5b8bd6' }],
-  },
-  {
-    featureType: 'poi.medical',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#d0646c' }],
+    stylers: [{ visibility: 'off' }],
   },
   // 출구 번호·버스 정류장까지 Google 역 표시를 모두 숨기고, 역 건물 이름이 직접 그린
   // 역 마커와 겹치지 않도록 건물 이름도 숨깁니다(아파트·빌딩 이름도 함께 사라집니다).
@@ -135,11 +93,6 @@ const MAP_STYLE = [
     featureType: 'landscape.man_made',
     elementType: 'labels',
     stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#3f8a3a' }],
   },
   {
     featureType: 'water',
