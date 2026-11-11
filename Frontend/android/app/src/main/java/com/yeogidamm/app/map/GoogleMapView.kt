@@ -19,6 +19,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
+import android.os.SystemClock
 import android.text.TextPaint
 import android.text.TextUtils
 import android.util.Log
@@ -96,6 +97,7 @@ class GoogleMapView(
     private var pendingCurrentLocationCameraMove = false
     private var appliedBottomPadding = 0
     private var logoBottomInset = 0
+    private var lastPlaceNameRefreshTime = 0L
 
     private val locationListener =
         LocationListener { location ->
@@ -213,6 +215,7 @@ class GoogleMapView(
         map.setOnCameraMoveListener {
             applyMapStyle()
             subwayStationLayer.refresh(map)
+            refreshPlaceNamesWhileMoving()
         }
         map.setOnCameraIdleListener {
             emitVisibleBounds()
@@ -483,6 +486,15 @@ class GoogleMapView(
     }
 
     // 카메라가 멈출 때 이름을 보여 줄 핀이 달라졌으면 핀 이미지를 다시 적용합니다.
+    // 지도가 멈출 때까지 기다리면 이름이 늦게 붙으므로, 움직이는 동안에도 짧은 간격으로 다시 계산합니다.
+    // 매 프레임 계산하면 무거워서 PLACE_NAME_REFRESH_INTERVAL_MS마다 한 번만 합니다.
+    private fun refreshPlaceNamesWhileMoving() {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastPlaceNameRefreshTime < PLACE_NAME_REFRESH_INTERVAL_MS) return
+        lastPlaceNameRefreshTime = now
+        refreshPlaceNames()
+    }
+
     private fun refreshPlaceNames() {
         val map = googleMap ?: return
         if (placeIdsShowingName(map) != placeNameShownIds) {
@@ -1062,6 +1074,7 @@ class GoogleMapView(
         const val PLACE_NAME_TEXT_SIZE_DP = 13f
         const val PLACE_NAME_HALO_DP = 1.5f
         const val PLACE_NAME_MAX_WIDTH_DP = 120f
+        const val PLACE_NAME_REFRESH_INTERVAL_MS = 150L
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f
         // 지하철역 마커(-1)보다 위, 선택된 핀은 다른 핀 위, 현재 위치 마커는 맨 위에 그립니다.

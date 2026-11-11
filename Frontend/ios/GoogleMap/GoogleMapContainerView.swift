@@ -51,6 +51,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   private var reportedMissingApiKey = false
   private var isAdjustingPadding = false
   private var logoBottomInset: CGFloat = 0
+  private var lastPlaceNameRefreshTime: CFTimeInterval = 0
 
   private lazy var mapDelegate = MapDelegate(
     onWillMove: { [weak self] isGesture in
@@ -59,6 +60,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     onChange: { [weak self] in
       self?.applyMapStyle()
       self?.refreshSubwayStations()
+      self?.refreshPlaceNamesWhileMoving()
     },
     onIdle: { [weak self] in
       self?.emitCameraChanged()
@@ -615,6 +617,15 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   }
 
   // 카메라가 멈출 때 이름을 보여 줄 핀이 달라졌으면 핀 이미지를 다시 적용합니다.
+  // 지도가 멈출 때까지 기다리면 이름이 늦게 붙으므로, 움직이는 동안에도 짧은 간격으로 다시 계산합니다.
+  // 매 프레임 계산하면 무거워서 placeNameRefreshInterval마다 한 번만 합니다.
+  private func refreshPlaceNamesWhileMoving() {
+    let now = CACurrentMediaTime()
+    guard now - lastPlaceNameRefreshTime >= Self.placeNameRefreshInterval else { return }
+    lastPlaceNameRefreshTime = now
+    refreshPlaceNames()
+  }
+
   private func refreshPlaceNames() {
     guard let mapView else { return }
     if placeIDsShowingName(in: mapView) != placeNameShownIDs {
@@ -775,6 +786,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   private static let placeNameFont = UIFont.systemFont(ofSize: 13, weight: .semibold)
   private static let placeNameHalo: CGFloat = 1.5
   private static let placeNameMaxWidth: CGFloat = 120 * markerScale
+  private static let placeNameRefreshInterval: CFTimeInterval = 0.15
 
   private static func placeMarkerDiameter(selected: Bool) -> CGFloat {
     (selected ? 26 : 20) * markerScale
