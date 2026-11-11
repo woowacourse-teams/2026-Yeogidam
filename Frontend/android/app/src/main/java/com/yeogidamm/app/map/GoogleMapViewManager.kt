@@ -48,6 +48,48 @@ class GoogleMapViewManager :
         view.setZoomLevel(value)
     }
 
+    override fun setCameraMoveRequestId(
+        view: GoogleMapView,
+        value: Int,
+    ) {
+        view.setCameraMoveRequestId(value)
+    }
+
+    override fun setCameraFitPointsJson(
+        view: GoogleMapView,
+        value: String?,
+    ) {
+        view.setCameraFitPointsJson(value ?: "[]")
+    }
+
+    override fun setCameraFitRequestId(
+        view: GoogleMapView,
+        value: Int,
+    ) {
+        view.setCameraFitRequestId(value)
+    }
+
+    override fun setShowsCurrentLocation(
+        view: GoogleMapView,
+        value: Boolean,
+    ) {
+        view.setShowsCurrentLocation(value)
+    }
+
+    override fun setCurrentLocationRequestId(
+        view: GoogleMapView,
+        value: Int,
+    ) {
+        view.setCurrentLocationRequestId(value)
+    }
+
+    override fun setCameraBottomInset(
+        view: GoogleMapView,
+        value: Double,
+    ) {
+        view.setCameraBottomInset(value)
+    }
+
     override fun setSavedPlacesJson(
         view: GoogleMapView,
         value: String?,
