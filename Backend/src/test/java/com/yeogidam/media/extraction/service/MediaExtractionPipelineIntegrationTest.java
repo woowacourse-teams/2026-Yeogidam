@@ -12,6 +12,7 @@ import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.service.ShareService;
 import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.domain.Coordinate;
+import com.yeogidam.place.domain.CountryCode;
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.domain.PlaceExternalSource;
 import com.yeogidam.place.domain.PlaceName;
@@ -20,6 +21,7 @@ import com.yeogidam.place.domain.PlaceThumbnail;
 import com.yeogidam.support.IntegrationTestSupport;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig.FakeInstagramMediaHtmlReader;
+import com.yeogidam.support.fake.FakeOverseasPlaceSearcher;
 import com.yeogidam.support.fake.FakePlaceSearchHintExtractor;
 import com.yeogidam.support.fake.FakeDomesticPlaceSearcher;
 import java.math.BigDecimal;
@@ -59,6 +61,9 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     private FakeDomesticPlaceSearcher domesticPlaceSearcher;
 
     @Autowired
+    private FakeOverseasPlaceSearcher overseasPlaceSearcher;
+
+    @Autowired
     private FakeInstagramMediaHtmlReader instagramMediaHtmlReader;
 
     @BeforeEach
@@ -67,6 +72,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 "pipeline-user@example.com", null);
         placeSearchHintExtractor.reset();
         domesticPlaceSearcher.reset();
+        overseasPlaceSearcher.reset();
         instagramMediaHtmlReader.respondWithAuthor("yeogidam");
     }
 
@@ -502,8 +508,41 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 "SELECT extraction_status FROM media WHERE id = ?", String.class, mediaId)).isEqualTo(expected);
     }
 
+    @Test
+    void 국내_단서는_카카오에서_해외_단서는_구글에서_찾아_지도_제공자와_나라를_함께_저장한다() throws Exception {
+        // given: 카카오 장소 ID와 구글 장소 ID가 우연히 같아도 다른 장소로 저장해야 한다.
+        placeSearchHintExtractor.respondWith(List.of(hint("올드빅"), overseasHint("토미타 규카츠", "JP")));
+        domesticPlaceSearcher.add("올드빅", place("100", "올드빅"));
+        overseasPlaceSearcher.add("토미타 규카츠", googlePlace("100", "토미타 규카츠", "JP"));
+
+        // when
+        shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+        awaitStatus(mediaId(), "SUCCEEDED");
+
+        // then
+        assertThat(jdbcTemplate.queryForList("""
+                SELECT map_provider, external_place_id, country_code, thumbnail_source FROM places ORDER BY id
+                """)).containsExactly(
+                Map.of("map_provider", "KAKAO", "external_place_id", "100", "country_code", "KR",
+                        "thumbnail_source", "INSTAGRAM"),
+                Map.of("map_provider", "GOOGLE", "external_place_id", "100", "country_code", "JP",
+                        "thumbnail_source", "INSTAGRAM"));
+        assertThat(count("saved_places")).isEqualTo(2);
+    }
+
     private static PlaceSearchHint hint(String name) {
-        return new PlaceSearchHint(name, null, List.of(), List.of(), null);
+        return new PlaceSearchHint(name, null, List.of(), List.of(), null, null);
+    }
+
+    private static PlaceSearchHint overseasHint(String name, String countryCode) {
+        return new PlaceSearchHint(name, null, List.of(), List.of(), null, countryCode);
+    }
+
+    private static Place googlePlace(String googlePlaceId, String name, String countryCode) {
+        return new Place(null, PlaceExternalSource.google(googlePlaceId),
+                new PlaceProfile(new PlaceName(name), new Address("Osaka", null, new CountryCode(countryCode)),
+                        new Coordinate(new BigDecimal("34.6"), new BigDecimal("135.5")),
+                        "음식점 > 일식", null, new PlaceThumbnail(null, null)));
     }
 
     private static Place place(String kakaoId, String name) {

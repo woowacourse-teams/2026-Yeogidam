@@ -1,0 +1,874 @@
+[ {
+  "overseasCase" : {
+    "caseId" : "O01",
+    "shortcode" : "Dd8KUL1Td0p",
+    "url" : "https://www.instagram.com/p/Dd8KUL1Td0p/",
+    "kind" : "video",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "NONE",
+    "notes" : "캡션은 #japan뿐이고 seed 감사에서 소개 장소를 찾지 못함"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O02",
+    "shortcode" : "DdnlgszJ-1f",
+    "url" : "https://www.instagram.com/p/DdnlgszJ-1f/",
+    "kind" : "video",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "飯山", "Iiyama", "이이야마" ],
+    "expectedPlaces" : [ [ "奈良沢神社", "Narasawa", "나라사와" ] ],
+    "verifiedIds" : [ "google:ChIJo4LTByQZ9l8RnmJaOILcavc" ],
+    "rejectedIds" : [ ],
+    "status" : "VIDEO_VERIFIED",
+    "notes" : "신사 축제 영상. 11-09 인스타그램 영상 자막 「Narasawa Shrine festival」과 신사 경내 장면으로 신사를 정답으로 둠"
+  },
+  "hints" : [ {
+    "name" : "奈良沢神社",
+    "searchName" : "奈良沢神社",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJo4LTByQZ9l8RnmJaOILcavc",
+    "name" : "Narasawa Shrine",
+    "address" : "8975 Iiyama, Nagano 389-2253",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O03",
+    "shortcode" : "Debd8BIE-sJ",
+    "url" : "https://www.instagram.com/p/Debd8BIE-sJ/",
+    "kind" : "image",
+    "group" : "overseas",
+    "country" : "",
+    "cityAliases" : [ ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ "google:ChIJqdYaECnPCUcRsP6IQsuxIQQ", "google:ChIJexrAbQeChEcRJXjJPr3bnyc", "google:ChIJOwg_06VPwokRYv534QaPC8g", "google:ChIJeRhuM5xdc0cRIN8UZg-vAAQ", "google:ChIJyc_U0TTDQUcRYBEeDCnEAAQ", "google:ChIJG4WAuFFN0kURb07763U-HZ4", "google:ChIJ5yW_trBx-F8R-AVYnbtRxcw", "google:ChIJc8r44c9unUcRDZsdKH0cIJ0" ],
+    "status" : "NONE",
+    "notes" : "해외 겨울 여행지(도시와 지역) 8곳 모음이라 가게나 시설이 아님"
+  },
+  "hints" : [ {
+    "name" : "드레스덴",
+    "searchName" : "Dresden",
+    "countryCode" : "DE"
+  }, {
+    "name" : "생모리츠",
+    "searchName" : "St. Moritz",
+    "countryCode" : "CH"
+  }, {
+    "name" : "뉴욕",
+    "searchName" : "New York",
+    "countryCode" : "US"
+  }, {
+    "name" : "체스키크롬로프",
+    "searchName" : "Český Krumlov",
+    "countryCode" : "CZ"
+  }, {
+    "name" : "부다페스트",
+    "searchName" : "Budapest",
+    "countryCode" : "HU"
+  }, {
+    "name" : "레비",
+    "searchName" : "Levi",
+    "countryCode" : "FI"
+  }, {
+    "name" : "시라카와고",
+    "searchName" : "白川郷",
+    "countryCode" : "JP"
+  }, {
+    "name" : "인스부르크",
+    "searchName" : "Innsbruck",
+    "countryCode" : "AT"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJ5yW_trBx-F8R-AVYnbtRxcw",
+    "name" : "시라카와고",
+    "address" : "〒501-5627 기후현 Ono District, 시라카와무라 오기마치",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O04",
+    "shortcode" : "Ded7wl3E_Cd",
+    "url" : "https://www.instagram.com/p/Ded7wl3E_Cd/",
+    "kind" : "caption",
+    "group" : "overseas",
+    "country" : "AT",
+    "cityAliases" : [ "Wien", "Vienna", "비엔나", "빈" ],
+    "expectedPlaces" : [ [ "Christkindlmarkt", "크리스트킨들마르크트", "Rathausplatz", "라트하우스" ] ],
+    "verifiedIds" : [ "google:ChIJRbHDbZYHbUcR-miegR12eh4" ],
+    "rejectedIds" : [ ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "캡션 주소 Rathausplatz, 1010 Wien. 기간 한정 마켓이라 광장으로 잡혀도 맞음으로 봄"
+  },
+  "hints" : [ {
+    "name" : "비엔나 크리스트킨들마르크트",
+    "searchName" : "Wiener Christkindlmarkt",
+    "countryCode" : "AT"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJRbHDbZYHbUcR-miegR12eh4",
+    "name" : "라트하우스광장",
+    "address" : "Rathauspl., 1010 Wien",
+    "hintCountry" : "AT"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O05",
+    "shortcode" : "DedubjHk7Le",
+    "url" : "https://www.instagram.com/p/DedubjHk7Le/",
+    "kind" : "image",
+    "group" : "overseas",
+    "country" : "",
+    "cityAliases" : [ ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ "google:ChIJG5Qwtitu5kcRQ72uAe3noig", "google:ChIJlQG-Z5AHbUcRKjR3T99KRFQ", "google:ChIJOYeVEl4FdkgRnAuiIT19-sI", "google:ChIJD9G0ZTzEhkcR_ck2rYW_kDg", "google:ChIJ6zOvIgOjpBIR2Fjlk2hIoiA", "google:ChIJDeMf9GOLGGARSU3nNHhT1C0", "google:ChIJbUjtT6cZ2jERJOB8kHFKljI", "google:ChIJ_XfHgqzvrw0RfD6oNnt7Zxo", "google:ChIJR3-j4xDJBZERK-EaCYQ-HCU", "google:ChIJ-TKJu3kNbqoRJaMS9Kfq4Rk" ],
+    "rejectedIds" : [ ],
+    "status" : "PHOTO_VERIFIED",
+    "notes" : "박물관 속 카페와 레스토랑 10곳 모음. 이름은 사진 안에만 있어 아직 못 적음 11-09 사진으로 10곳 확인"
+  },
+  "hints" : [ {
+    "name" : "Le Restaurant du Musée d’Orsay",
+    "searchName" : "Le Restaurant du Musée d'Orsay",
+    "countryCode" : "FR"
+  }, {
+    "name" : "Cafe im Kunsthistorischen Museum Wien",
+    "searchName" : "Cafe im Kunsthistorischen Museum Wien",
+    "countryCode" : "AT"
+  }, {
+    "name" : "The V&A Cafe",
+    "searchName" : "The V&A Cafe",
+    "countryCode" : "GB"
+  }, {
+    "name" : "Bar Luce",
+    "searchName" : "Bar Luce",
+    "countryCode" : "IT"
+  }, {
+    "name" : "Restaurant Absis",
+    "searchName" : "Restaurant Absis",
+    "countryCode" : "ES"
+  }, {
+    "name" : "NEZU CAFE",
+    "searchName" : "Nezu Cafe",
+    "countryCode" : "JP"
+  }, {
+    "name" : "Odette",
+    "searchName" : "Odette",
+    "countryCode" : "SG"
+  }, {
+    "name" : "Bacha Coffee",
+    "searchName" : "Bacha Coffee",
+    "countryCode" : "MA"
+  }, {
+    "name" : "Cafe Museo Larco",
+    "searchName" : "Cafe Museo Larco",
+    "countryCode" : "PE"
+  }, {
+    "name" : "Faro Bar + Restaurant",
+    "searchName" : "Faro Bar + Restaurant",
+    "countryCode" : "AU"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJG5Qwtitu5kcRQ72uAe3noig",
+    "name" : "Le Restaurant du Musée d'Orsay",
+    "address" : "1 Rue de la Légion d'Honneur, 75007 Paris",
+    "hintCountry" : "FR"
+  }, {
+    "id" : "google:ChIJlQG-Z5AHbUcRKjR3T99KRFQ",
+    "name" : "Café im Kunsthistorischen Museum Wien",
+    "address" : "Maria-Theresien-Platz 1, 1010 Wien",
+    "hintCountry" : "AT"
+  }, {
+    "id" : "google:ChIJOYeVEl4FdkgRnAuiIT19-sI",
+    "name" : "The V&A Cafe",
+    "address" : "Cromwell Rd, London SW7 2RL",
+    "hintCountry" : "GB"
+  }, {
+    "id" : "google:ChIJD9G0ZTzEhkcR_ck2rYW_kDg",
+    "name" : "Bar Luce",
+    "address" : "L.go Isarco, 2, 20139 Milano MI",
+    "hintCountry" : "IT"
+  }, {
+    "id" : "google:ChIJ6zOvIgOjpBIR2Fjlk2hIoiA",
+    "name" : "Restaurant Absis",
+    "address" : "08038 Barcelona, Sants-Montjuïc, 카탈루냐 미술관",
+    "hintCountry" : "ES"
+  }, {
+    "id" : "google:ChIJDeMf9GOLGGARSU3nNHhT1C0",
+    "name" : "네즈카페",
+    "address" : "6-chōme-5-1 Minamiaoyama, Minato City, Tokyo 107-0062",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJbUjtT6cZ2jERJOB8kHFKljI",
+    "name" : "Odette",
+    "address" : "1 St Andrew's Rd, #01-04 National Gallery, Singapore 178957",
+    "hintCountry" : "SG"
+  }, {
+    "id" : "google:ChIJR3-j4xDJBZERK-EaCYQ-HCU",
+    "name" : "Cafe Museo Larco",
+    "address" : "Avenida Simón Bolivar 1515 Ingreso por, frente al, Parque Larco, Navarra 169, Pueblo Libre 15084",
+    "hintCountry" : "PE"
+  }, {
+    "id" : "google:ChIJ-TKJu3kNbqoRJaMS9Kfq4Rk",
+    "name" : "Faro Bar + Restaurant",
+    "address" : "655 Main Rd, Berriedale TAS 7011",
+    "hintCountry" : "AU"
+  } ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O06",
+    "shortcode" : "DejhtJUk85g",
+    "url" : "https://www.instagram.com/p/DejhtJUk85g/",
+    "kind" : "image",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "홋카이도", "北海道", "Hokkaido" ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ "google:ChIJbQ_Crs_fCl8RzB_24LZy8ek", "google:ChIJjXSpv-vNCl8RgrDJGsBN3ng", "google:ChIJd8VMBSfSCl8REvfyFPL_J6Y", "google:ChIJgYdDQSLSCl8Rbq2XQCsMpOk", "google:ChIJrSzW2CPSCl8RgH5JFbLJ7t8", "google:ChIJofSGZe5rdV8RDBFnVhfVkVI", "google:ChIJD1Sz3A4pC18RKbRbaBMYLXA", "google:ChIJ0cls-V3TCl8RxgHC-tZK164", "google:ChIJV7UyiyHSCl8Rz2mQ5LxF6g0" ],
+    "rejectedIds" : [ ],
+    "status" : "PHOTO_VERIFIED",
+    "notes" : "홋카이도 료칸 8곳 모음. 이름은 사진 안에만 있어 아직 못 적음 11-09 사진으로 8곳 확인. 11-09 인스타그램 넷째 슬라이드 제목 「스이잔테이 & 스이잔테이 클럽」으로 본관(조잔케이 다이치 호텔 스이잔테이)도 정답에 넣음"
+  },
+  "hints" : [ {
+    "name" : "오타루 코라쿠엔",
+    "searchName" : null,
+    "countryCode" : "JP"
+  }, {
+    "name" : "오쿠조잔케이 온센 가쇼교엔",
+    "searchName" : null,
+    "countryCode" : "JP"
+  }, {
+    "name" : "스이잔테이 & 스이잔테이 클럽",
+    "searchName" : "스이잔테이",
+    "countryCode" : "JP"
+  }, {
+    "name" : "구리야스이잔",
+    "searchName" : null,
+    "countryCode" : "JP"
+  }, {
+    "name" : "스이초칸",
+    "searchName" : null,
+    "countryCode" : "JP"
+  }, {
+    "name" : "호시노 리조트 카이 포로토",
+    "searchName" : "계절 카이 포로토",
+    "countryCode" : "JP"
+  }, {
+    "name" : "온센 료칸 유엔 삿포로",
+    "searchName" : null,
+    "countryCode" : "JP"
+  }, {
+    "name" : "조잔케이 유라쿠소안",
+    "searchName" : null,
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJbQ_Crs_fCl8RzB_24LZy8ek",
+    "name" : "오타루 코라쿠엔",
+    "address" : "5-chōme-18-2 Shinkō, Otaru, Hokkaido 047-0152",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJjXSpv-vNCl8RgrDJGsBN3ng",
+    "name" : "오쿠조잔케이 온천 가마쓰 교엔 (카쇼교엔)",
+    "address" : "857 Jōzankei, Minami Ward, Sapporo, Hokkaido 061-2301",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJd8VMBSfSCl8REvfyFPL_J6Y",
+    "name" : "수이잔테이 클럽 조잔케이",
+    "address" : "2-chōme-2-10 Jōzankeionsennishi, Minami Ward, Sapporo, Hokkaido 061-2303",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJrSzW2CPSCl8RgH5JFbLJ7t8",
+    "name" : "스파 & 에스테틱 스이쵸칸",
+    "address" : "3-chōme-57 Jōzankeionsennishi, Minami Ward, Sapporo, Hokkaido 061-2303",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJofSGZe5rdV8RDBFnVhfVkVI",
+    "name" : "호시노 리조트 카이 포로토",
+    "address" : "1-chōme-2-1018-94 Wakakusachō, Shiraoi, Shiraoi District, Hokkaido 059-0902",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJD1Sz3A4pC18RKbRbaBMYLXA",
+    "name" : "온천 료칸 유엔 삿포로",
+    "address" : "〒060-0001 北海道札幌市中央区北１条西７丁目６",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJ0cls-V3TCl8RxgHC-tZK164",
+    "name" : "조잔케이 유라쿠소안",
+    "address" : "3-chōme-228-1 Jōzankeionsenhigashi, Minami Ward, Sapporo, Hokkaido 061-2301",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O07",
+    "shortcode" : "DelH6osk22Z",
+    "url" : "https://www.instagram.com/p/DelH6osk22Z/",
+    "kind" : "image",
+    "group" : "overseas",
+    "country" : "",
+    "cityAliases" : [ ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "NONE",
+    "notes" : "북유럽 겨울 여행지(도시와 마을) 8곳 모음이라 가게나 시설이 아님"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O08",
+    "shortcode" : "DeXObXDJFti",
+    "url" : "https://www.instagram.com/p/DeXObXDJFti/",
+    "kind" : "video",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "교토", "京都", "Kyoto" ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "NEEDS_LABEL",
+    "notes" : "교토 온천 소개. 캡션에 상호가 없음"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O09",
+    "shortcode" : "DVlYTNIk33_",
+    "url" : "https://www.instagram.com/p/DVlYTNIk33_/",
+    "kind" : "multi",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "도쿄", "東京", "Tokyo" ],
+    "expectedPlaces" : [ [ "Musashi Bettei", "Ganryujima", "巌流島" ], [ "돈카츠 스즈키", "스즈키" ], [ "곤파치 니시아자부", "곤파치", "Gonpachi" ], [ "센트레 더 베이커리", "Centre the Bakery", "센트레" ] ],
+    "verifiedIds" : [ "google:ChIJ0eYnmOiLGGAROa8hdiPpP-g", "google:ChIJGeYlX_mLGGARTlIbc1yzJb4", "google:ChIJEwlemnqLGGARhwMuRpwpkBI", "google:ChIJE8S0lOSLGGAR84AdzQ71F3I" ],
+    "rejectedIds" : [ "google:ChIJCwTxGnuJGGARMn4j3h6M0fk", "google:ChIJn2FoeFmLGGARnIog2ijRZXw", "google:ChIJq6qaF2iNGGARyuzaSpQUFcI", "google:ChIJmSH7tdmMGGARuuMDL3ipL04", "google:ChIJWfXGT6qMGGARUBxJQ1emmT0", "google:ChIJ_9oVOZ-LGGARTMN4dW-AI-4" ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "도쿄 맛집 10곳. 11-09 정콩 결정으로 지점 근거 없는 체인 6곳(모헤지, 모토무라, 쿠라 스시, 우나테츠, 멘키 야시마, 팡 메종)은 넣지 않는 것이 정답이라 오답 ID로 둠. 지금 운영은 국내 가게 3곳이 잘못 붙음(종로 츠키시마몬자모헤지, 해운대 쿠라, 당산 메종드팡)"
+  },
+  "hints" : [ {
+    "name" : "Musashi Bettei Ganryūjima",
+    "searchName" : "Musashi Bettei Ganryūjima",
+    "countryCode" : "JP"
+  }, {
+    "name" : "츠키시마 몬자 모헤지",
+    "searchName" : "몬자 모헤지",
+    "countryCode" : "JP"
+  }, {
+    "name" : "규카츠 모토무라",
+    "searchName" : "규카츠 모토무라",
+    "countryCode" : "JP"
+  }, {
+    "name" : "쿠라 스시",
+    "searchName" : "쿠라스시",
+    "countryCode" : "JP"
+  }, {
+    "name" : "돈카츠 스즈키",
+    "searchName" : "돈카츠 스즈키",
+    "countryCode" : "JP"
+  }, {
+    "name" : "우나테츠",
+    "searchName" : "우나테츠",
+    "countryCode" : "JP"
+  }, {
+    "name" : "곤파치 니시아자부",
+    "searchName" : "Gonpachi Nishi-Azabu",
+    "countryCode" : "JP"
+  }, {
+    "name" : "멘키 야시마",
+    "searchName" : "멘키 야시마",
+    "countryCode" : "JP"
+  }, {
+    "name" : "센트레 더 베이커리",
+    "searchName" : "Centre The Bakery",
+    "countryCode" : "JP"
+  }, {
+    "name" : "팡 메종",
+    "searchName" : "パン・メゾン",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJ0eYnmOiLGGAROa8hdiPpP-g",
+    "name" : "Musashi Bettei Ganryūjima",
+    "address" : "〒104-0061 Tokyo, Chuo City, Ginza, 7-chōme−2−２０ PACIFIC GINZA BLDG, 5F",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJGeYlX_mLGGARTlIbc1yzJb4",
+    "name" : "돈카츠 스즈키",
+    "address" : "〒100-0005 Tokyo, Chiyoda City, Marunouchi, 1-chōme−9−１ グランスタ八重北 １階 Yaekita Shokudo",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJEwlemnqLGGARhwMuRpwpkBI",
+    "name" : "곤파치 니시아자부(킬빌)",
+    "address" : "1-chōme-13-11 Nishiazabu, Minato City, Tokyo 106-0031",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJWfXGT6qMGGARUBxJQ1emmT0",
+    "name" : "멘키 야시마",
+    "address" : "〒150-0044 Tokyo, Shibuya, Maruyamachō, 10−１３ サンライズビル 1階",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJE8S0lOSLGGAR84AdzQ71F3I",
+    "name" : "센트레 더 베이커리",
+    "address" : "〒104-0061 Tokyo, Chuo City, Ginza, 1-chōme−2−１ 紺屋ビル 1F 東京高速道路",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O10",
+    "shortcode" : "Ddw0rTXTQ6d",
+    "url" : "https://www.instagram.com/p/Ddw0rTXTQ6d/",
+    "kind" : "video",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "도쿄", "東京", "Tokyo" ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ "google:ChIJDTah3CuNGGARSlZWPBxUhCo", "google:ChIJhdnzfLKLGGARD4gyth0tfKs" ],
+    "rejectedIds" : [ ],
+    "status" : "PHOTO_VERIFIED",
+    "notes" : "도쿄 맛집 영상. 캡션에 상호가 없음 11-09 영상 속 지도 화면으로 2곳 확인(하카타 모츠나베 마에다야 신주쿠점, 간소 에비다시 몬자노 에비센)"
+  },
+  "hints" : [ {
+    "name" : "하카타 모츠나베 마에다야 신주쿠점",
+    "searchName" : "博多モツ鍋 前田屋 新宿東口店",
+    "countryCode" : "JP"
+  }, {
+    "name" : "간소 에비다시 몬자노 에비센",
+    "searchName" : "元祖海老だし もんじゃのえびせん 渋谷ストリーム店",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJDTah3CuNGGARSlZWPBxUhCo",
+    "name" : "하카타 모츠나베 마에다야 신주쿠점",
+    "address" : "〒160-0022 Tokyo, Shinjuku City, Shinjuku, 3-chōme−23−１２ Pandora Building, 3F",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJhdnzfLKLGGARD4gyth0tfKs",
+    "name" : "간소 에비다시 몬자노 에비센",
+    "address" : "〒150-0002 Tokyo, Shibuya, 3-chōme−21−３ 渋谷ストリーム 2F",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O11",
+    "shortcode" : "De8KKqtALfs",
+    "url" : "https://www.instagram.com/p/De8KKqtALfs/",
+    "kind" : "caption",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "오사카", "大阪", "Osaka" ],
+    "expectedPlaces" : [ [ "unito OSAKA Shinsaibashi West", "유니토", "unito" ] ],
+    "verifiedIds" : [ "google:ChIJv9I4C-DnAGARBQWDDBzyVOA" ],
+    "rejectedIds" : [ ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "캡션 주소 1 Chome-22-20 Kitahorie, Nishi Ward, Osaka"
+  },
+  "hints" : [ {
+    "name" : "unito OSAKA Shinsaibashi West",
+    "searchName" : "unito OSAKA Shinsaibashi West",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJv9I4C-DnAGARBQWDDBzyVOA",
+    "name" : "unito OSAKA Shinsaibashi West",
+    "address" : "1-chōme-22-20 Kitahorie, Nishi Ward, Osaka, 550-0014",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O12",
+    "shortcode" : "Dee4VgjzanB",
+    "url" : "https://www.instagram.com/p/Dee4VgjzanB/",
+    "kind" : "caption",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "오사카", "大阪", "Osaka" ],
+    "expectedPlaces" : [ [ "Doutonbori Crystal Exe", "크리스탈 엑스", "Crystal Exe" ] ],
+    "verifiedIds" : [ "google:ChIJY9H2ZvXnAGARQaKtVtYlRIU" ],
+    "rejectedIds" : [ ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "캡션 주소 大阪府大阪市中央区瓦屋町3-6-15"
+  },
+  "hints" : [ {
+    "name" : "도톤보리 크리스탈 엑스",
+    "searchName" : "Doutonbori Crystal Exe",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJY9H2ZvXnAGARQaKtVtYlRIU",
+    "name" : "Dotonbori Crystal Exe Hotel",
+    "address" : "3-chōme-6-15 Kawarayamachi, Chuo Ward, Osaka, 542-0066",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O13",
+    "shortcode" : "Dd6iEmLvolL",
+    "url" : "https://www.instagram.com/p/Dd6iEmLvolL/",
+    "kind" : "video",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "후쿠오카", "福岡", "Fukuoka" ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ "google:ChIJSc8jdZORQTURu6BMwxrKbGg" ],
+    "status" : "NONE",
+    "notes" : "후쿠오카 마사지 가게. 11-09 인스타그램 영상(7초)에 간판이나 상호가 없고 캡션 「극락마사지였음」은 감탄사이며 구글 링크는 댓글로만 준다고 함. 이치란은 곁가지 체인이라 오답. 지금 운영은 창원 라멘집이 잘못 붙음"
+  },
+  "hints" : [ {
+    "name" : "이치란",
+    "searchName" : "Ichiran",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O14",
+    "shortcode" : "DfMMk8lpA4q",
+    "url" : "https://www.instagram.com/p/DfMMk8lpA4q/",
+    "kind" : "video",
+    "group" : "overseas",
+    "country" : "TW",
+    "cityAliases" : [ "타이베이", "台北", "Taipei" ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "NONE",
+    "notes" : "타이베이 시장 볶음밥. 가게 이름과 위치는 DM으로만 알려 준다고 함"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O15",
+    "shortcode" : "DfAC5iKpw84",
+    "url" : "https://www.instagram.com/p/DfAC5iKpw84/",
+    "kind" : "video",
+    "group" : "overseas",
+    "country" : "TW",
+    "cityAliases" : [ "타이베이", "台北", "Taipei" ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "NONE",
+    "notes" : "타이베이 만두집. 가게 이름과 위치는 DM으로만 알려 준다고 함"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O16",
+    "shortcode" : "DfUJWZXo8Gv",
+    "url" : "https://www.instagram.com/p/DfUJWZXo8Gv/",
+    "kind" : "caption",
+    "group" : "overseas",
+    "country" : "TW",
+    "cityAliases" : [ "타이베이", "台北", "Taipei", "Datong", "大同" ],
+    "expectedPlaces" : [ [ "菓酪格格", "御糬點心所" ] ],
+    "verifiedIds" : [ "google:ChIJxehvyKOpQjQRaKbo_DDmqnA" ],
+    "rejectedIds" : [ ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "캡션 주소 No. 213, Minsheng W Rd, Datong District, Taipei"
+  },
+  "hints" : [ {
+    "name" : "菓酪格格御糬點心所",
+    "searchName" : "菓酪格格御糬點心所",
+    "countryCode" : "TW"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJxehvyKOpQjQRaKbo_DDmqnA",
+    "name" : "菓酪格格御糬點心所",
+    "address" : "No. 213號, Minsheng W Rd, Datong District, Taipei City, 103",
+    "hintCountry" : "TW"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O17",
+    "shortcode" : "DdT3SBAzrOP",
+    "url" : "https://www.instagram.com/p/DdT3SBAzrOP/",
+    "kind" : "caption",
+    "group" : "overseas",
+    "country" : "TW",
+    "cityAliases" : [ "신베이", "新北", "New Taipei", "深坑", "Shenkeng" ],
+    "expectedPlaces" : [ [ "寶桂的店", "豆腐麻糬", "두부모찌" ] ],
+    "verifiedIds" : [ "google:ChIJbfZIV8SqQjQRhndeBbqZjXk" ],
+    "rejectedIds" : [ ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "캡션 주소 No. 116, Shenkeng St, Shenkeng District, New Taipei City"
+  },
+  "hints" : [ {
+    "name" : "寶桂的店 豆腐麻糬",
+    "searchName" : null,
+    "countryCode" : "TW"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJbfZIV8SqQjQRhndeBbqZjXk",
+    "name" : "寶桂的店 豆腐麻糬",
+    "address" : "No. 114號, Shenkeng St, Shenkeng Village, Shenkeng District, New Taipei City, 222",
+    "hintCountry" : "TW"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O18",
+    "shortcode" : "DZwsWjmRoki",
+    "url" : "https://www.instagram.com/p/DZwsWjmRoki/",
+    "kind" : "caption",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "후쿠오카", "福岡", "Fukuoka" ],
+    "expectedPlaces" : [ [ "ハルモ", "하르모" ] ],
+    "verifiedIds" : [ "google:ChIJUT2FDwCRQTURJlyNrK9ybkg" ],
+    "rejectedIds" : [ ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "캡션 표기 Cafe&Dining ハルモ 天神今泉公園前店, 주소 Fukuoka Chuo Ward Imaizumi 1-7-21"
+  },
+  "hints" : [ {
+    "name" : "카페 하르모",
+    "searchName" : "Cafe&Dining ハルモ 天神今泉公園前店",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJUT2FDwCRQTURJlyNrK9ybkg",
+    "name" : "카페 하르모",
+    "address" : "1-chōme-7-21 Imaizumi, Chuo Ward, Fukuoka, 810-0021",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O19",
+    "shortcode" : "DX4P4OmzonI",
+    "url" : "https://www.instagram.com/p/DX4P4OmzonI/",
+    "kind" : "caption",
+    "group" : "overseas",
+    "country" : "JP",
+    "cityAliases" : [ "오사카", "大阪", "Osaka" ],
+    "expectedPlaces" : [ [ "토미타 규카츠", "토미타" ] ],
+    "verifiedIds" : [ "google:ChIJxwgCUhPnAGARoz8_83liVEk" ],
+    "rejectedIds" : [ "google:ChIJpa0SXtvnAGARzL8X4ltQxPE", "google:ChIJb1on8ZLmAGARjfrrHZK5tyo" ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "오사카 맛집 셋. 이즈모 우나기(2곳)와 잇신도(4곳)는 지점 근거가 없어 넣지 않는 것이 정답(11-09 체인 정책). 지금 운영은 송도 잇신카레&라멘이 잘못 붙음"
+  },
+  "hints" : [ {
+    "name" : "토미타 규카츠",
+    "searchName" : "토미타 규카츠",
+    "countryCode" : "JP"
+  }, {
+    "name" : "이즈모 우나기 장어덮밥 집",
+    "searchName" : "이즈모",
+    "countryCode" : "JP"
+  }, {
+    "name" : "잇신도",
+    "searchName" : "잇신도",
+    "countryCode" : "JP"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJxwgCUhPnAGARoz8_83liVEk",
+    "name" : "규카츠 토미타",
+    "address" : "〒556-0011 Osaka, Naniwa Ward, Nanbanaka, 2-chōme−3−１ ２階",
+    "hintCountry" : "JP"
+  }, {
+    "id" : "google:ChIJpa0SXtvnAGARzL8X4ltQxPE",
+    "name" : "이즈모 우나기",
+    "address" : "5-chōme-12-18 Fukushima, Fukushima Ward, Osaka, 553-0003",
+    "hintCountry" : "JP"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "O20",
+    "shortcode" : "DfUbmkKH1Cr",
+    "url" : "https://www.instagram.com/p/DfUbmkKH1Cr/",
+    "kind" : "multi",
+    "group" : "overseas",
+    "country" : "CN",
+    "cityAliases" : [ "칭다오", "青岛", "青島", "Qingdao" ],
+    "expectedPlaces" : [ [ "자자후올드훠궈", "자자후" ], [ "루위" ], [ "칭피 하이벤런자", "하이벤런자" ], [ "와이포지아" ], [ "바오스푸" ], [ "중산공원 북카페", "북카페" ] ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "PARTIAL",
+    "notes" : "칭다오 맛집 일곱 곳 가운데 seed 감사가 슬라이드와 자막에서 읽은 여섯 곳. 지금 운영은 처리 실패"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : "장소 정보를 처리하지 못했어요 <- 장소 정보를 처리하지 못했어요"
+}, {
+  "overseasCase" : {
+    "caseId" : "O21",
+    "shortcode" : "Dd2xEwQz4Ul",
+    "url" : "https://www.instagram.com/p/Dd2xEwQz4Ul/",
+    "kind" : "multi",
+    "group" : "overseas",
+    "country" : "CN",
+    "cityAliases" : [ "칭다오", "青岛", "青島", "Qingdao" ],
+    "expectedPlaces" : [ [ "주식맥주", "타이동", "台东" ], [ "메이지아인샹 지엔빙", "지엔빙", "煎饼" ], [ "무예슬거", "Muye" ], [ "핑지에훠궈", "핑지에" ], [ "맥주박물관", "Tsingtao Brewery Museum", "啤酒博物馆" ], [ "삼림해선대배당", "해선" ] ],
+    "verifiedIds" : [ "google:ChIJowsuSssRljUR4JKw4fCJl80", "google:ChIJV5aYKSYQljURyzPaSLnejW0" ],
+    "rejectedIds" : [ "google:ChIJkQtRRVsQljURYcnAzjOtRcc", "google:ChIJUQkdQeIEvjUR_6pKJ1jP0YQ", "google:ChIJ9aOhF5MPljURdmhF6rkrab4" ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "칭다오 맛집 일곱 곳. 메이다얼은 지점 20곳 이상이라 넣지 않는 것이 정답(11-09 체인 정책). 주식맥주와 삼림해선대배당은 Google에 없고, 万象城(옆 몰)과 East Town Hot Pot(다른 가게)은 오답. 지금 운영은 국내 가게 2곳이 잘못 붙음(서초 포차주식시장, 남이섬 스윙까페)"
+  },
+  "hints" : [ {
+    "name" : "주식맥주",
+    "searchName" : null,
+    "countryCode" : "CN"
+  }, {
+    "name" : "메이지아인샹 지엔빙",
+    "searchName" : null,
+    "countryCode" : "CN"
+  }, {
+    "name" : "무예슬거",
+    "searchName" : null,
+    "countryCode" : "CN"
+  }, {
+    "name" : "메이다얼",
+    "searchName" : null,
+    "countryCode" : "CN"
+  }, {
+    "name" : "핑지에훠궈",
+    "searchName" : null,
+    "countryCode" : "CN"
+  }, {
+    "name" : "맥주박물관",
+    "searchName" : "칭다오 맥주박물관",
+    "countryCode" : "CN"
+  }, {
+    "name" : "삼림해선대배당",
+    "searchName" : null,
+    "countryCode" : "CN"
+  } ],
+  "places" : [ {
+    "id" : "google:ChIJkQtRRVsQljURYcnAzjOtRcc",
+    "name" : "万象城",
+    "address" : "10 Shan Dong Lu, LiCun ShangQuan, Shi Nan Qu, Qing Dao Shi, Shan Dong Sheng, 266072",
+    "hintCountry" : "CN"
+  }, {
+    "id" : "google:ChIJowsuSssRljUR4JKw4fCJl80",
+    "name" : "Muye Shi Ge Kao Chuan",
+    "address" : "39号甲 Si Ping Lu, 39, Shi Bei Qu, Qing Dao Shi, Shan Dong Sheng, 266021",
+    "hintCountry" : "CN"
+  }, {
+    "id" : "google:ChIJV5aYKSYQljURyzPaSLnejW0",
+    "name" : "Tsingtao Brewery Museum",
+    "address" : "Shan Dong Sheng, Qing Dao Shi, Shi Bei Qu, Deng Zhou Lu, 56号-1 邮政编码: 266022",
+    "hintCountry" : "CN"
+  }, {
+    "id" : "google:ChIJ9aOhF5MPljURdmhF6rkrab4",
+    "name" : "Meida'er",
+    "address" : "125 Zhong Shan Lu, 中山路商圈 Shi Bei Qu, Qing Dao Shi, Shan Dong Sheng, 266001",
+    "hintCountry" : "CN"
+  } ],
+  "path" : "캡션",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "K01",
+    "shortcode" : "DcvdBrzGRO6",
+    "url" : "https://www.instagram.com/p/DcvdBrzGRO6/",
+    "kind" : "caption",
+    "group" : "control",
+    "country" : "",
+    "cityAliases" : [ ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "NONE",
+    "notes" : "대조군. 일본 로맨스 만화 순위라 장소가 없음"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "K02",
+    "shortcode" : "DeL2nS6kz5S",
+    "url" : "https://www.instagram.com/p/DeL2nS6kz5S/",
+    "kind" : "caption",
+    "group" : "control",
+    "country" : "",
+    "cityAliases" : [ ],
+    "expectedPlaces" : [ ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "NONE",
+    "notes" : "대조군. 일본 신상 가챠 상품 소개라 장소가 없음"
+  },
+  "hints" : [ ],
+  "places" : [ ],
+  "path" : "캡션→첨부",
+  "error" : ""
+}, {
+  "overseasCase" : {
+    "caseId" : "K03",
+    "shortcode" : "CrIewXWuLEU",
+    "url" : "https://www.instagram.com/p/CrIewXWuLEU/",
+    "kind" : "caption",
+    "group" : "control",
+    "country" : "KR",
+    "cityAliases" : [ "문래", "영등포", "서울" ],
+    "expectedPlaces" : [ [ "문래동멘", "문래" ] ],
+    "verifiedIds" : [ ],
+    "rejectedIds" : [ ],
+    "status" : "CAPTION_LABELED",
+    "notes" : "대조군. 일본 라멘을 파는 국내 가게라 카카오로 가야 함. 캡션 주소 문래동2가 49-23. seed-data 검수(11-01)가 문을 닫은 가게로 봐서(회원 골든셋 U053) 국내로 보내는지만 보고 장소 맞히기는 보지 않음"
+  },
+  "hints" : [ {
+    "name" : "문래동멘",
+    "searchName" : "문래동멘",
+    "countryCode" : "KR"
+  }, {
+    "name" : "문래동멘",
+    "searchName" : "문래동멘",
+    "countryCode" : "KR"
+  } ],
+  "places" : [ ],
+  "path" : "캡션→지도0건→첨부",
+  "error" : ""
+} ]

@@ -65,8 +65,12 @@ tasks.register('evalTest', Test) {
     outputs.upToDateWhen { false }
     // ./gradlew evalTest -Deval.cases=C016,C022 처럼 몇 건만 돌릴 수 있다
     systemProperty 'eval.cases', System.getProperty('eval.cases', '')
+    // ./gradlew evalTest -Deval.cases-file=user-cases.csv 처럼 eval/golden 아래의 다른 골든셋을 돌린다
+    systemProperty 'eval.cases-file', System.getProperty('eval.cases-file', 'cases.csv')
     // 저장된 예측으로 정답만 다시 채점할 때는 외부 API를 부르지 않는다.
     systemProperty 'eval.results-file', System.getProperty('eval.results-file', '')
+    // 워크트리처럼 .env가 없는 곳에서는 ./gradlew evalTest -Deval.env-file=<경로>로 다른 .env를 읽는다
+    systemProperty 'eval.env-file', System.getProperty('eval.env-file', '.env')
     testLogging {
         showStandardStreams = true
     }

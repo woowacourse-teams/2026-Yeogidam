@@ -21,7 +21,7 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class LoadTestBeanPostProcessor implements BeanPostProcessor {
 
     private static final Set<String> EXTERNAL_REST_CLIENTS = Set.of(
-            "instagramRestClient", "geminiRestClient", "kakaoLocalRestClient");
+            "instagramRestClient", "geminiRestClient", "kakaoLocalRestClient", "googlePlacesRestClient");
     private static final Set<String> EXTERNAL_HTTP_CLIENTS = Set.of(
             "thumbnailHttpClient", "geminiMediaHttpClient", "instagramMediaHttpClient");
 

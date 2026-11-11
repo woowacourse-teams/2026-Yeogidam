@@ -86,6 +86,28 @@ class GeminiPlaceSearchHintExtractorTest {
         assertRequestUsesFrozenSchema();
     }
 
+    @Test
+    void 응답의_나라_코드를_장소마다_읽고_없으면_나라를_모르는_것으로_둔다() throws Exception {
+        // given
+        String output = """
+                {"places":[
+                  {"nameInCaption":"하르모","nameSearchHint":"ハルモ","accountHints":[],"locationHints":[],
+                   "categoryHint":null,"countryCode":"jp"},
+                  {"nameInCaption":"올드빅","nameSearchHint":null,"accountHints":[],"locationHints":[],
+                   "categoryHint":null}]}
+                """;
+        geminiServer.respondWith(interactionResponse(output));
+
+        // when
+        PlaceSearchHints hints = extractor("test-gemini-key").extract(CAPTION);
+
+        // then
+        assertThat(hints.places().get(0).countryCode()).isEqualTo("JP");
+        assertThat(hints.places().get(0).isDomestic()).isFalse();
+        assertThat(hints.places().get(1).countryCode()).isNull();
+        assertThat(hints.places().get(1).isDomestic()).isTrue();
+    }
+
     @ParameterizedTest
     @CsvSource({
             "FRUTO FRUTA, 프루토프루타",
@@ -334,7 +356,8 @@ class GeminiPlaceSearchHintExtractorTest {
         assertThat(geminiServer.apiKey()).isEqualTo("test-gemini-key");
         assertThat(fieldNames(schema.path("properties"))).containsExactly("places");
         assertThat(fieldNames(placeProperties)).containsExactlyInAnyOrder(
-                "nameInCaption", "nameSearchHint", "accountHints", "locationHints", "categoryHint");
+                "nameInCaption", "nameSearchHint", "accountHints", "locationHints", "categoryHint", "countryCode");
+        assertThat(placeProperties.path("countryCode").path("type").isArray()).isTrue();
         assertThat(placeProperties.get("correctedName")).isNull();
         assertThat(placeProperties.path("nameSearchHint").path("type").isArray()).isTrue();
         assertThat(fieldNames(locationProperties)).containsExactlyInAnyOrder("type", "value", "basis");
