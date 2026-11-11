@@ -26,7 +26,7 @@ public class MediaExtractionPipeline {
     private static final String MEDIA_ANALYSIS_AUTHOR = "with_sol_mate";
 
     private final InstagramMetadataService instagramMetadataService;
-    private final PlaceNameExtractor placeNameExtractor;
+    private final PlaceSearchHintExtractor placeSearchHintExtractor;
     private final PlaceSearcher placeSearcher;
     private final MediaExtractionResultWriter resultWriter;
     private final PlaceThumbnailService placeThumbnailService;
@@ -42,7 +42,7 @@ public class MediaExtractionPipeline {
         if (MEDIA_ANALYSIS_AUTHOR.equals(metadata.author())) {
             return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
-        PlaceSearchHints captionHints = placeNameExtractor.extract(metadata.caption());
+        PlaceSearchHints captionHints = placeSearchHintExtractor.extract(metadata.caption());
         if (captionHints.places().isEmpty()) {
             return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
@@ -59,7 +59,7 @@ public class MediaExtractionPipeline {
             MediaMetadata metadata,
             ExtractionFailureReason noHintsReason
     ) {
-        PlaceSearchHints mediaHints = placeNameExtractor.extractFile(metadata.caption(), instagramUrl);
+        PlaceSearchHints mediaHints = placeSearchHintExtractor.extractFile(metadata.caption(), instagramUrl);
         if (mediaHints.places().isEmpty()) {
             throw new ExtractionFailedException(noHintsReason);
         }

@@ -7,7 +7,7 @@ import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.infrastructure.GeminiFileClient;
-import com.yeogidam.media.extraction.infrastructure.GeminiPlaceNameExtractor;
+import com.yeogidam.media.extraction.infrastructure.GeminiPlaceSearchHintExtractor;
 import com.yeogidam.media.extraction.infrastructure.KakaoPlaceSearcher;
 import com.yeogidam.media.instagram.config.InstagramConfig;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
@@ -85,7 +85,7 @@ class GoldenSetEvalTest {
                 RestClient.builder(), extractionConfig.instagramMediaHttpClient());
         RestClient geminiMediaRestClient = extractionConfig.geminiMediaRestClient(
                 RestClient.builder().requestInterceptor(requestLimiter), extractionConfig.geminiMediaHttpClient());
-        GeminiPlaceNameExtractor extractor = new GeminiPlaceNameExtractor(
+        GeminiPlaceSearchHintExtractor extractor = new GeminiPlaceSearchHintExtractor(
                 extractionConfig.geminiRestClient(RestClient.builder().requestInterceptor(requestLimiter)),
                 new GeminiProperties(env.get("GEMINI_API_KEY"), env.get("GEMINI_MODEL"), fallbackApiKeys),
                 jsonMapper,
@@ -208,7 +208,7 @@ class GoldenSetEvalTest {
     private CaseResult run(
             GoldenCase goldenCase,
             InstagramMediaHtmlReader reader,
-            GeminiPlaceNameExtractor extractor,
+            GeminiPlaceSearchHintExtractor extractor,
             KakaoPlaceSearcher searcher
     ) {
         InstagramUrl url = new InstagramUrl(goldenCase.url());

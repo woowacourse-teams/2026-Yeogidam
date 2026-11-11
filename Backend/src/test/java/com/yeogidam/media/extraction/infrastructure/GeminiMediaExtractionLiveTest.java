@@ -57,7 +57,7 @@ class GeminiMediaExtractionLiveTest extends IntegrationTestSupport {
     private InstagramMediaMetadataWriter metadataWriter;
 
     @Autowired
-    private GeminiPlaceNameExtractor extractor;
+    private GeminiPlaceSearchHintExtractor extractor;
 
     @Autowired
     private KakaoPlaceSearcher searcher;

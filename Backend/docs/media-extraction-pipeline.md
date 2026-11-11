@@ -122,7 +122,7 @@ flowchart LR
 
 ### 4.2. 캡션 우선과 지정 작성자 예외
 
-일반 작성자는 `PlaceNameExtractor.extract(caption)`을 먼저 호출한다.
+일반 작성자는 `PlaceSearchHintExtractor.extract(caption)`을 먼저 호출한다.
 장소 단서가 하나라도 있으면 캡션 단서로 카카오 검색을 하고, 한 곳이라도 찾으면 찾은 장소만 저장한다. 일부 장소가 첨부에만 등장해도 추가 분석하지 않는다.
 캡션 단서로 카카오에서 한 곳도 찾지 못하면 `extractFile(caption, instagramUrl)`로 캡션과 첨부를 함께 다시 분석하고, 첨부 분석에서 얻은 단서로 다시 검색한다.
 캡션 분석이 예외로 실패한 경우에는 첨부 분석으로 전환하지 않는다. 정상 응답의 `places`가 빈 배열이거나 캡션 단서의 카카오 매칭이 0건인 경우에만 전환한다.
@@ -385,7 +385,7 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 | 재시도 조건 | [ExtractionSnapshot](../src/main/java/com/yeogidam/media/extraction/domain/ExtractionSnapshot.java) |
 | 커밋 후 실행과 실패 기록 | [MediaExtractionDispatcher](../src/main/java/com/yeogidam/media/extraction/service/MediaExtractionDispatcher.java) |
 | 분석 경로 선택과 성공 판정 | [MediaExtractionPipeline](../src/main/java/com/yeogidam/media/extraction/service/MediaExtractionPipeline.java) |
-| 프롬프트, 응답 스키마, Gemini 요청, 예비 key 전환 | [GeminiPlaceNameExtractor](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractor.java), [GeminiApiKeys](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiApiKeys.java) |
+| 프롬프트, 응답 스키마, Gemini 요청, 예비 key 전환 | [GeminiPlaceSearchHintExtractor](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceSearchHintExtractor.java), [GeminiApiKeys](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiApiKeys.java) |
 | 원본 목록 조회와 파일 다운로드 | [InstagramMediaSourceReader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReader.java), [InstagramMediaDownloader](../src/main/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaDownloader.java) |
 | 업로드, 처리 상태 확인, 삭제 | [GeminiFileClient](../src/main/java/com/yeogidam/media/extraction/infrastructure/GeminiFileClient.java) |
 | 주소 반경 검색, 지도 검색어와 결과 변환 | [KakaoPlaceSearcher](../src/main/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcher.java) |
@@ -417,7 +417,7 @@ Gemini의 반환 순서대로 검색하고 중복 제거 후에도 처음 발견
 - [MediaExtractionPipelineIntegrationTest](../src/test/java/com/yeogidam/media/extraction/service/MediaExtractionPipelineIntegrationTest.java): 부분 매칭 성공, 결과 재사용, 캡션 단서로 카카오에서 못 찾을 때의 첨부 분석, 지정 작성자 예외, 캡션과 첨부 모두 빈 결과일 때 지도 미호출, 실패 기록, 저장 롤백.
 - [KakaoPlaceSearcherTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/KakaoPlaceSearcherTest.java): 원문 우선 후 보정명 재검색, 같은 이름 중복 방지, 지역 우선순위, 주소 반경 검색, 카테고리와 무관한 첫 유효 결과 선택과 오류 응답 처리.
 - [GoldenSetEvaluationTest](../src/test/java/com/yeogidam/media/extraction/eval/GoldenSetEvaluationTest.java): 검증 상태별 채점, 정상 빈 결과와 실패의 구분, 정답 별칭과 완료된 원시 실행의 보존.
-- [GeminiPlaceNameExtractorTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceNameExtractorTest.java): 캡션 요청 스키마, 원문과 보정명 보존, 응답 검증, 예비 key 전환과 건너뛰는 시간.
+- [GeminiPlaceSearchHintExtractorTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiPlaceSearchHintExtractorTest.java): 캡션 요청 스키마, 원문과 보정명 보존, 응답 검증, 예비 key 전환과 건너뛰는 시간.
 - [InstagramMediaSourceReaderTest](../src/test/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaSourceReaderTest.java): 캐러셀 순서와 누락 처리, 릴스 썸네일 이후 원본 조회.
 - [InstagramMediaDownloaderTest](../src/test/java/com/yeogidam/media/instagram/infrastructure/InstagramMediaDownloaderTest.java): 원본 유형 검증과 임시 파일 정리.
 - [GeminiFileClientTest](../src/test/java/com/yeogidam/media/extraction/infrastructure/GeminiFileClientTest.java): 파일 업로드, 처리 대기, 시간 초과 시 정리.

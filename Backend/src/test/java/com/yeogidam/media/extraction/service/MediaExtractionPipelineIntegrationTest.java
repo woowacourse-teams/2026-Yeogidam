@@ -20,7 +20,7 @@ import com.yeogidam.place.domain.PlaceThumbnail;
 import com.yeogidam.support.IntegrationTestSupport;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig.FakeInstagramMediaHtmlReader;
-import com.yeogidam.support.fake.FakePlaceNameExtractor;
+import com.yeogidam.support.fake.FakePlaceSearchHintExtractor;
 import com.yeogidam.support.fake.FakePlaceSearcher;
 import java.math.BigDecimal;
 import java.util.List;
@@ -53,7 +53,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     private ExtractionProperties extractionProperties;
 
     @Autowired
-    private FakePlaceNameExtractor placeNameExtractor;
+    private FakePlaceSearchHintExtractor placeSearchHintExtractor;
 
     @Autowired
     private FakePlaceSearcher placeSearcher;
@@ -65,7 +65,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     void setUp() {
         insertKakaoMember(jdbcTemplate, MEMBER_ID, "pipeline-user", "pipeline-user",
                 "pipeline-user@example.com", null);
-        placeNameExtractor.reset();
+        placeSearchHintExtractor.reset();
         placeSearcher.reset();
         instagramMediaHtmlReader.respondWithAuthor("yeogidam");
     }
@@ -78,7 +78,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Test
     void 여러_장소를_찾으면_장소와_미디어_관계를_연결하고_보관함에_저장한다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of(hint("올드빅"), hint("Dub.+")));
+        placeSearchHintExtractor.respondWith(List.of(hint("올드빅"), hint("Dub.+")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
         placeSearcher.add("Dub.+", place("200", "Dub.+"));
 
@@ -99,14 +99,14 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(count("media_places")).isEqualTo(2),
                 () -> assertThat(count("saved_places")).isEqualTo(2),
                 () -> assertThat(count("shared_media_saved_places")).isEqualTo(2),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isZero()
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isZero()
         );
     }
 
     @Test
     void 여러_장소_중_일부만_지도에서_확인되면_확인된_장소만_보관함에_저장한다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of(hint("올드빅"), hint("Dub.+")));
+        placeSearchHintExtractor.respondWith(List.of(hint("올드빅"), hint("Dub.+")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
 
         // when
@@ -144,7 +144,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Test
     void Gemini_요청이_실패한_미디어는_파이프라인_버전_변경_후_재공유하면_다시_추출한다() throws Exception {
         // given
-        placeNameExtractor.failWith(new ExtractionFailedException(
+        placeSearchHintExtractor.failWith(new ExtractionFailedException(
                 ExtractionFailureReason.PROCESSING_FAILED, new IllegalStateException("Gemini 503")));
 
         // when
@@ -168,18 +168,18 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         assertThat(count("places")).isZero();
         assertThat(count("saved_places")).isZero();
         assertThat(count("shared_media_saved_places")).isZero();
-        assertThat(placeNameExtractor.mediaRequestCount()).isZero();
+        assertThat(placeSearchHintExtractor.mediaRequestCount()).isZero();
 
         // when: 파이프라인 버전이 오른 뒤 실패한 미디어를 다시 공유한다.
         jdbcTemplate.update("UPDATE media SET extraction_version = ? WHERE id = ?",
                 extractionProperties.pipelineVersion() - 1, mediaId);
-        placeNameExtractor.failWith(null);
+        placeSearchHintExtractor.failWith(null);
         placeSearcher.add("올드빅", place("100", "올드빅"));
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
         awaitStatus(mediaId, "SUCCEEDED");
 
         // then: 가장 최근 공유 건을 보관함 장소와 연결한다.
-        assertThat(placeNameExtractor.requestCount()).isEqualTo(2);
+        assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(2);
         assertThat(count("places")).isEqualTo(1);
         assertThat(count("media_places")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForList(
@@ -199,7 +199,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
 
         // then
-        assertThat(placeNameExtractor.requestCount()).isEqualTo(1);
+        assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1);
         assertThat(count("places")).isEqualTo(1);
         assertThat(count("media_places")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForList(
@@ -211,12 +211,12 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     void 추출_중에_재공유하면_가장_최근_공유에_장소를_연결한다() throws Exception {
         // given
         placeSearcher.add("올드빅", place("100", "올드빅"));
-        placeNameExtractor.block();
+        placeSearchHintExtractor.block();
 
         try {
             // when
             shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
-            assertThat(placeNameExtractor.awaitStarted()).isTrue();
+            assertThat(placeSearchHintExtractor.awaitStarted()).isTrue();
             Long previousSharedMediaId = latestSharedMediaId();
             shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
 
@@ -225,10 +225,10 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                     "SELECT COUNT(*) FROM shared_media_saved_places WHERE shared_media_id = ?",
                     Integer.class, previousSharedMediaId)).isZero();
         } finally {
-            placeNameExtractor.allow();
+            placeSearchHintExtractor.allow();
         }
         awaitStatus(mediaId(), "SUCCEEDED");
-        assertThat(placeNameExtractor.requestCount()).isEqualTo(1);
+        assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1);
         assertThat(jdbcTemplate.queryForList(
                 "SELECT shared_media_id FROM shared_media_saved_places", Long.class))
                 .containsExactly(latestSharedMediaId());
@@ -237,7 +237,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Test
     void 결과_저장_중_실패하면_장소_관련_행은_모두_롤백하고_실패로_기록한다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of(hint("올드빅"), hint("두 번째 장소")));
+        placeSearchHintExtractor.respondWith(List.of(hint("올드빅"), hint("두 번째 장소")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
         placeSearcher.add("두 번째 장소", place("200", "가".repeat(300)));
 
@@ -262,8 +262,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Test
     void 캡션과_첨부_모두_검색용_장소가_없으면_지도를_조회하지_않고_미추출로_기록한다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of());
-        placeNameExtractor.respondToMediaWith(List.of());
+        placeSearchHintExtractor.respondWith(List.of());
+        placeSearchHintExtractor.respondToMediaWith(List.of());
 
         // when
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
@@ -277,8 +277,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                         .isEqualTo("PLACE_NOT_EXTRACTED"),
                 () -> assertThat(count("places")).isZero(),
                 () -> assertThat(count("saved_places")).isZero(),
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1),
                 () -> assertThat(placeSearcher.requestCount()).isZero()
         );
     }
@@ -288,8 +288,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     void 캡션에_장소가_없으면_원본_미디어와_캡션으로_재분석하고_지도_장소를_저장한다(String path) throws Exception {
         // given
         String url = "https://www.instagram.com/" + path + "/pipeline-2026/";
-        placeNameExtractor.respondWith(List.of());
-        placeNameExtractor.respondToMediaWith(List.of(hint("올드빅"), hint("Dub.+")));
+        placeSearchHintExtractor.respondWith(List.of());
+        placeSearchHintExtractor.respondToMediaWith(List.of(hint("올드빅"), hint("Dub.+")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
         placeSearcher.add("Dub.+", place("200", "Dub.+"));
 
@@ -299,10 +299,10 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
 
         // then
         assertAll(
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.mediaCaption()).isEqualTo("올드빅과 Dub.+에 다녀왔어요"),
-                () -> assertThat(placeNameExtractor.mediaUrl()).isEqualTo(url),
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.mediaCaption()).isEqualTo("올드빅과 Dub.+에 다녀왔어요"),
+                () -> assertThat(placeSearchHintExtractor.mediaUrl()).isEqualTo(url),
                 () -> assertThat(count("saved_places")).isEqualTo(2)
         );
     }
@@ -310,8 +310,9 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Test
     void 미디어_추가_분석이_실패하면_PROCESSING_FAILED로_기록한다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of());
-        placeNameExtractor.failMediaWith(new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED));
+        placeSearchHintExtractor.respondWith(List.of());
+        placeSearchHintExtractor.failMediaWith(new ExtractionFailedException(
+                ExtractionFailureReason.PROCESSING_FAILED));
 
         // when
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
@@ -321,7 +322,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT failure_reason FROM media WHERE id = ?", String.class, mediaId()))
                 .isEqualTo("PROCESSING_FAILED");
-        assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1);
+        assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1);
         assertThat(count("places")).isZero();
         assertThat(placeSearcher.requestCount()).isZero();
     }
@@ -329,8 +330,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Test
     void 미디어로_찾은_장소를_재공유하면_다운로드와_추가_분석을_반복하지_않는다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of());
-        placeNameExtractor.respondToMediaWith(List.of(hint("올드빅")));
+        placeSearchHintExtractor.respondWith(List.of());
+        placeSearchHintExtractor.respondToMediaWith(List.of(hint("올드빅")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
         awaitStatus(mediaId(), "SUCCEEDED");
@@ -340,8 +341,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
 
         // then
         assertAll(
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1),
                 () -> assertThat(count("places")).isEqualTo(1),
                 () -> assertThat(count("shared_media_saved_places")).isEqualTo(2)
         );
@@ -350,13 +351,13 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Test
     void 이전_버전에서_장소를_못_찾은_게시물을_재공유하면_미디어_재분석으로_복구한다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of());
+        placeSearchHintExtractor.respondWith(List.of());
         shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
         Long mediaId = mediaId();
         awaitStatus(mediaId, "FAILED");
         jdbcTemplate.update("UPDATE media SET extraction_version = ? WHERE id = ?",
                 extractionProperties.pipelineVersion() - 1, mediaId);
-        placeNameExtractor.respondToMediaWith(List.of(hint("올드빅")));
+        placeSearchHintExtractor.respondToMediaWith(List.of(hint("올드빅")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
 
         // when
@@ -364,7 +365,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         awaitStatus(mediaId, "SUCCEEDED");
 
         // then
-        assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(2);
+        assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(2);
         assertThat(count("saved_places")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT extraction_version FROM media WHERE id = ?", Integer.class, mediaId))
@@ -383,14 +384,14 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 "SELECT failure_reason FROM media WHERE id = ?", String.class, mediaId))
                 .isEqualTo("PLACE_NOT_MATCHED");
         assertThat(count("places")).isZero();
-        assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1);
+        assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1);
     }
 
     @Test
     void 캡션_단서로_카카오에서_못_찾으면_첨부에서_찾은_장소를_저장한다() throws Exception {
         // given
-        placeNameExtractor.respondWith(List.of(hint("올드빅")));
-        placeNameExtractor.respondToMediaWith(List.of(hint("Dub.+")));
+        placeSearchHintExtractor.respondWith(List.of(hint("올드빅")));
+        placeSearchHintExtractor.respondToMediaWith(List.of(hint("Dub.+")));
         placeSearcher.add("Dub.+", place("200", "Dub.+"));
 
         // when
@@ -399,8 +400,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
 
         // then
         assertAll(
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1),
                 () -> assertThat(count("saved_places")).isEqualTo(1)
         );
     }
@@ -411,8 +412,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         // given
         String url = "https://www.instagram.com/" + path + "/pipeline-2026/";
         instagramMediaHtmlReader.respondWithAuthor("with_sol_mate");
-        placeNameExtractor.respondWith(List.of(hint("올드빅")));
-        placeNameExtractor.respondToMediaWith(List.of(hint("올드빅"), hint("Dub.+")));
+        placeSearchHintExtractor.respondWith(List.of(hint("올드빅")));
+        placeSearchHintExtractor.respondToMediaWith(List.of(hint("올드빅"), hint("Dub.+")));
         placeSearcher.add("올드빅", place("100", "올드빅"));
         placeSearcher.add("Dub.+", place("200", "Dub.+"));
 
@@ -422,10 +423,10 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
 
         // then
         assertAll(
-                () -> assertThat(placeNameExtractor.requestCount()).isZero(),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.mediaCaption()).isEqualTo("올드빅과 Dub.+에 다녀왔어요"),
-                () -> assertThat(placeNameExtractor.mediaUrl()).isEqualTo(url),
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isZero(),
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.mediaCaption()).isEqualTo("올드빅과 Dub.+에 다녀왔어요"),
+                () -> assertThat(placeSearchHintExtractor.mediaUrl()).isEqualTo(url),
                 () -> assertThat(count("saved_places")).isEqualTo(2)
         );
     }
@@ -444,8 +445,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
 
         // then
         assertAll(
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isZero(),
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isZero(),
                 () -> assertThat(count("saved_places")).isEqualTo(1)
         );
     }
@@ -454,7 +455,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     void 지정_작성자의_미디어_분석이_실패하면_PROCESSING_FAILED로_기록한다() throws Exception {
         // given
         instagramMediaHtmlReader.respondWithAuthor("with_sol_mate");
-        placeNameExtractor.failMediaWith(new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED));
+        placeSearchHintExtractor.failMediaWith(new ExtractionFailedException(
+                ExtractionFailureReason.PROCESSING_FAILED));
         placeSearcher.add("올드빅", place("100", "올드빅"));
 
         // when
@@ -463,8 +465,8 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
 
         // then
         assertAll(
-                () -> assertThat(placeNameExtractor.requestCount()).isZero(),
-                () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isZero(),
+                () -> assertThat(placeSearchHintExtractor.mediaRequestCount()).isEqualTo(1),
                 () -> assertThat(placeSearcher.requestCount()).isZero(),
                 () -> assertThat(count("saved_places")).isZero(),
                 () -> assertThat(jdbcTemplate.queryForObject(

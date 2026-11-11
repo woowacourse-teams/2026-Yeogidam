@@ -37,8 +37,8 @@ public class FakeMediaExtractionConfig {
 
     @Bean
     @Primary
-    public FakePlaceNameExtractor fakePlaceNameExtractor() {
-        return new FakePlaceNameExtractor();
+    public FakePlaceSearchHintExtractor fakePlaceSearchHintExtractor() {
+        return new FakePlaceSearchHintExtractor();
     }
 
     @Bean

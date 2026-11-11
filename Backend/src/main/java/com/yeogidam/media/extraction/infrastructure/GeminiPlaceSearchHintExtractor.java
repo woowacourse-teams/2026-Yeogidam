@@ -4,7 +4,7 @@ import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
-import com.yeogidam.media.extraction.service.PlaceNameExtractor;
+import com.yeogidam.media.extraction.service.PlaceSearchHintExtractor;
 import com.yeogidam.media.instagram.domain.DownloadedMedia;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.infrastructure.InstagramMediaDownloader;
@@ -42,7 +42,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Slf4j
 @Component
-public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
+public class GeminiPlaceSearchHintExtractor implements PlaceSearchHintExtractor {
 
     private static final URI API_ENDPOINT = URI.create("https://generativelanguage.googleapis.com/v1/interactions");
 
@@ -260,7 +260,7 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
     private final GeminiFileClient fileClient;
 
     @Autowired
-    public GeminiPlaceNameExtractor(
+    public GeminiPlaceSearchHintExtractor(
             @Qualifier("geminiRestClient") RestClient restClient,
             GeminiProperties properties,
             JsonMapper jsonMapper,
@@ -273,7 +273,7 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
     }
 
     // 캡션만 다루는 테스트용 생성자. 첨부 분석은 쓰지 않는다.
-    GeminiPlaceNameExtractor(
+    GeminiPlaceSearchHintExtractor(
             RestClient restClient,
             GeminiProperties properties,
             JsonMapper jsonMapper,
@@ -283,7 +283,7 @@ public class GeminiPlaceNameExtractor implements PlaceNameExtractor {
         this(restClient, properties, jsonMapper, apiEndpoint, clock, restClient, null, null);
     }
 
-    GeminiPlaceNameExtractor(
+    GeminiPlaceSearchHintExtractor(
             RestClient restClient,
             GeminiProperties properties,
             JsonMapper jsonMapper,

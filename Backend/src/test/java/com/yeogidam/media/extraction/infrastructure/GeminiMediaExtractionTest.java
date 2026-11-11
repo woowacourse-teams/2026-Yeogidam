@@ -34,7 +34,7 @@ class GeminiMediaExtractionTest {
     private HttpServer server;
     private URI baseUri;
     private FakeMediaDownloader downloader;
-    private GeminiPlaceNameExtractor extractor;
+    private GeminiPlaceSearchHintExtractor extractor;
     private final List<String> deleted = new ArrayList<>();
     private final List<byte[]> uploads = new ArrayList<>();
     private final AtomicInteger uploadCount = new AtomicInteger();
@@ -57,7 +57,7 @@ class GeminiMediaExtractionTest {
         RestClient client = RestClient.create();
         GeminiProperties properties = new GeminiProperties("test-key", "test-model", List.of());
         GeminiFileClient fileClient = new GeminiFileClient(client, baseUri, Duration.ofSeconds(3));
-        extractor = new GeminiPlaceNameExtractor(client, properties, mapper, baseUri.resolve("/v1/interactions"),
+        extractor = new GeminiPlaceSearchHintExtractor(client, properties, mapper, baseUri.resolve("/v1/interactions"),
                 Clock.systemUTC(), client, downloader, fileClient);
     }
 
