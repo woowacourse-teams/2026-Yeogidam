@@ -1,6 +1,8 @@
 package com.yeogidam.place.repository;
 
+import com.yeogidam.place.domain.MapProvider;
 import com.yeogidam.place.domain.Place;
+import com.yeogidam.place.domain.PlaceExternalSource;
 import com.yeogidam.place.domain.PlaceThumbnail;
 import com.yeogidam.place.repository.PlaceInfoProjection.Menu;
 import com.yeogidam.place.repository.PlaceInfoProjection.OpeningDay;
@@ -46,6 +48,9 @@ public class PlaceDao {
         this.jdbcInsert = new SimpleJdbcInsert(jdbcTemplate)
                 .withTableName("places")
                 .usingColumns(
+                        "map_provider",
+                        "external_place_id",
+                        "country_code",
                         "kakao_place_id",
                         "name",
                         "category",
@@ -62,23 +67,25 @@ public class PlaceDao {
     }
 
     public Long saveIfAbsent(Place place) {
-        String kakaoPlaceId = place.externalSource().placeId();
-        Optional<Long> existingId = findIdByKakaoPlaceId(kakaoPlaceId);
+        PlaceExternalSource externalSource = place.externalSource();
+        Optional<Long> existingId = findIdByExternalSource(externalSource);
         if (existingId.isPresent()) {
             Long placeId = existingId.orElseThrow();
             updateThumbnailIfAbsent(placeId, place.profile().thumbnail());
             return placeId;
         }
-        return insertOrFindExisting(place, kakaoPlaceId);
+        return insertOrFindExisting(place, externalSource);
     }
 
-    private Optional<Long> findIdByKakaoPlaceId(String kakaoPlaceId) {
+    private Optional<Long> findIdByExternalSource(PlaceExternalSource externalSource) {
         String sql = """
                 SELECT id
                 FROM places
-                WHERE kakao_place_id = ?
+                WHERE map_provider = ?
+                  AND external_place_id = ?
                 """;
-        return jdbcTemplate.query(sql, PLACE_ID_ROW_MAPPER, kakaoPlaceId)
+        return jdbcTemplate.query(sql, PLACE_ID_ROW_MAPPER,
+                        externalSource.mapProvider().name(), externalSource.placeId())
                 .stream()
                 .findFirst();
     }
@@ -96,11 +103,11 @@ public class PlaceDao {
         jdbcTemplate.update(sql, thumbnail.key(), thumbnail.source(), placeId);
     }
 
-    private Long insertOrFindExisting(Place place, String kakaoPlaceId) {
+    private Long insertOrFindExisting(Place place, PlaceExternalSource externalSource) {
         try {
             return insert(place);
         } catch (DuplicateKeyException exception) {
-            Long placeId = findIdByKakaoPlaceIdForUpdate(kakaoPlaceId).orElseThrow(() -> exception);
+            Long placeId = findIdByExternalSourceForUpdate(externalSource).orElseThrow(() -> exception);
             updateThumbnailIfAbsent(placeId, place.profile().thumbnail());
             return placeId;
         }
@@ -110,29 +117,42 @@ public class PlaceDao {
         PlaceThumbnail thumbnail = Objects.requireNonNullElse(place.profile().thumbnail(),
                 new PlaceThumbnail(null, null));
         MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("kakao_place_id", place.externalSource().placeId())
+                .addValue("map_provider", place.externalSource().mapProvider().name())
+                .addValue("external_place_id", place.externalSource().placeId())
+                .addValue("country_code", place.profile().address().countryCode().value())
+                .addValue("kakao_place_id", kakaoPlaceId(place.externalSource()))
                 .addValue("name", place.profile().name().value())
                 .addValue("category", place.profile().category())
                 .addValue("land_lot_address", place.profile().address().landLotAddress())
                 .addValue("road_address", place.profile().address().roadAddress())
                 .addValue("latitude", place.profile().coordinate().latitude())
                 .addValue("longitude", place.profile().coordinate().longitude())
-                .addValue("kakao_place_url", place.externalSource().placeUrl())
+                .addValue("kakao_place_url", place.externalSource().kakaoPlaceUrl())
                 .addValue("telephone", place.profile().telephone())
                 .addValue("thumbnail_key", thumbnail.key())
                 .addValue("thumbnail_source", thumbnail.source());
         return jdbcInsert.executeAndReturnKey(parameters).longValue();
     }
 
-    public Optional<PlaceThumbnail> findThumbnailByKakaoPlaceId(String kakaoPlaceId) {
+    // V7 배포 동안 이전 컨테이너는 kakao_place_id로 장소를 찾아서, 카카오 장소는 kakao_place_id도 채운다.
+    // 이전 컨테이너가 모두 내려간 뒤 다음 버전에서 kakao_place_id 컬럼을 지울 때 함께 지운다.
+    private String kakaoPlaceId(PlaceExternalSource externalSource) {
+        if (externalSource.mapProvider() != MapProvider.KAKAO) {
+            return null;
+        }
+        return externalSource.placeId();
+    }
+
+    public Optional<PlaceThumbnail> findThumbnailByExternalSource(PlaceExternalSource externalSource) {
         String sql = """
                 SELECT thumbnail_key, thumbnail_source
                 FROM places
-                WHERE kakao_place_id = ?
+                WHERE map_provider = ?
+                  AND external_place_id = ?
                 """;
         return jdbcTemplate.query(sql, (resultSet, rowNumber) -> new PlaceThumbnail(
                 resultSet.getString("thumbnail_key"),
-                resultSet.getString("thumbnail_source")), kakaoPlaceId)
+                resultSet.getString("thumbnail_source")), externalSource.mapProvider().name(), externalSource.placeId())
                 .stream()
                 .findFirst();
     }
@@ -223,14 +243,16 @@ public class PlaceDao {
         return jdbcTemplate.query(sql, MEDIA_PROJECTION_ROW_MAPPER, memberId, placeId);
     }
 
-    private Optional<Long> findIdByKakaoPlaceIdForUpdate(String kakaoPlaceId) {
+    private Optional<Long> findIdByExternalSourceForUpdate(PlaceExternalSource externalSource) {
         String sql = """
                 SELECT id
                 FROM places
-                WHERE kakao_place_id = ?
+                WHERE map_provider = ?
+                  AND external_place_id = ?
                 FOR UPDATE
                 """;
-        return jdbcTemplate.query(sql, PLACE_ID_ROW_MAPPER, kakaoPlaceId)
+        return jdbcTemplate.query(sql, PLACE_ID_ROW_MAPPER,
+                        externalSource.mapProvider().name(), externalSource.placeId())
                 .stream()
                 .findFirst();
     }

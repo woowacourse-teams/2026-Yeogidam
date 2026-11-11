@@ -388,7 +388,7 @@ public class KakaoDomesticPlaceSearcher implements DomesticPlaceSearcher {
 
     private Optional<Place> readPlace(JsonNode document) {
         try {
-            PlaceExternalSource externalSource = new PlaceExternalSource(required(document, "id"), optional(document, "place_url"));
+            PlaceExternalSource externalSource = PlaceExternalSource.kakao(required(document, "id"), optional(document, "place_url"));
 
             PlaceProfile profile =
                     new PlaceProfile(

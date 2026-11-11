@@ -184,10 +184,11 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
                 new MediaPlaceProjection(1L, null, "cafe.jpg", "성수 카페", "카페",
                         "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",
                         new BigDecimal("37.5446000000"), new BigDecimal("127.0559000000"),
-                        "https://place.map.kakao.com/1", "02-1234-5678"),
+                        "KAKAO", "media-place-cafe", "KR", "https://place.map.kakao.com/1", "02-1234-5678"),
                 new MediaPlaceProjection(2L, null, null, "종로 식당", null,
                         "서울 종로구 관철동 1-1", null,
-                        new BigDecimal("37.5704000000"), new BigDecimal("126.9921000000"), null, null)
+                        new BigDecimal("37.5704000000"), new BigDecimal("126.9921000000"),
+                        "KAKAO", "media-place-restaurant", "KR", null, null)
         );
     }
 
@@ -225,11 +226,11 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
         // when & then
         assertAll(
                 () -> assertThat(mediaPlaceDao.findExtractedPlaces(1L).places()).containsExactly(
-                        new ExtractedPlaceProjection(2L, "media-place-restaurant"),
-                        new ExtractedPlaceProjection(1L, "media-place-cafe")
+                        new ExtractedPlaceProjection(2L, "KAKAO", "media-place-restaurant"),
+                        new ExtractedPlaceProjection(1L, "KAKAO", "media-place-cafe")
                 ),
                 () -> assertThat(mediaPlaceDao.findExtractedPlaces(2L).places()).containsExactly(
-                        new ExtractedPlaceProjection(1L, "media-place-cafe")
+                        new ExtractedPlaceProjection(1L, "KAKAO", "media-place-cafe")
                 ),
                 () -> assertThat(mediaPlaceDao.findExtractedPlaces(3L).places()).isEmpty()
         );
@@ -283,10 +284,11 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
                 new SavedMediaPlaceProjection(1L, 1L, 101L, "cafe.jpg", "성수 카페", "카페",
                         "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",
                         new BigDecimal("37.5446000000"), new BigDecimal("127.0559000000"),
-                        "https://place.map.kakao.com/1", "02-1234-5678"),
+                        "KAKAO", "media-place-cafe", "KR", "https://place.map.kakao.com/1", "02-1234-5678"),
                 new SavedMediaPlaceProjection(1L, 2L, null, null, "종로 식당", null,
                         "서울 종로구 관철동 1-1", null,
-                        new BigDecimal("37.5704000000"), new BigDecimal("126.9921000000"), null, null)
+                        new BigDecimal("37.5704000000"), new BigDecimal("126.9921000000"),
+                        "KAKAO", "media-place-restaurant", "KR", null, null)
         );
     }
 

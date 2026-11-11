@@ -42,6 +42,6 @@ class SavedMediaPlaceProjectionsTest {
      */
     private SavedMediaPlaceProjection place(Long mediaId, Long placeId) {
         return new SavedMediaPlaceProjection(mediaId, placeId, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null, null, null);
     }
 }

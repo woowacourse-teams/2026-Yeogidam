@@ -1,5 +1,7 @@
 package com.yeogidam.media.extraction.repository;
 
+import com.yeogidam.place.domain.MapProvider;
+import com.yeogidam.place.domain.PlaceExternalSource;
 import java.math.BigDecimal;
 
 /**
@@ -16,7 +18,14 @@ public record MediaPlaceProjection(
         String roadAddress,
         BigDecimal latitude,
         BigDecimal longitude,
+        String mapProvider,
+        String externalPlaceId,
+        String countryCode,
         String kakaoPlaceUrl,
         String telephone
 ) {
+
+    public PlaceExternalSource externalSource() {
+        return new PlaceExternalSource(MapProvider.valueOf(mapProvider), externalPlaceId, kakaoPlaceUrl);
+    }
 }

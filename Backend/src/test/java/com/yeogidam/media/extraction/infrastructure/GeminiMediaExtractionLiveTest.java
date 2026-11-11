@@ -122,7 +122,7 @@ class GeminiMediaExtractionLiveTest extends IntegrationTestSupport {
                         .isEqualByComparingTo(profile.coordinate().latitude().setScale(10, RoundingMode.HALF_UP)),
                 () -> assertThat((BigDecimal) row.get("longitude"))
                         .isEqualByComparingTo(profile.coordinate().longitude().setScale(10, RoundingMode.HALF_UP)),
-                () -> assertThat(row.get("kakao_place_url")).isEqualTo(place.externalSource().placeUrl()),
+                () -> assertThat(row.get("kakao_place_url")).isEqualTo(place.externalSource().kakaoPlaceUrl()),
                 () -> assertThat(row.get("telephone")).isEqualTo(profile.telephone()),
                 () -> assertThat(row.get("created_at")).isNotNull()
         );

@@ -1,5 +1,7 @@
 package com.yeogidam.place.repository;
 
+import com.yeogidam.place.domain.MapProvider;
+import com.yeogidam.place.domain.PlaceExternalSource;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -15,10 +17,17 @@ public record SavedPlaceProjection(
         String roadAddress,
         BigDecimal latitude,
         BigDecimal longitude,
+        String mapProvider,
+        String externalPlaceId,
+        String countryCode,
         String kakaoPlaceUrl,
         String telephone,
         String thumbnailKey,
         String thumbnailSource,
         Instant lastSavedAt
 ) {
+
+    public PlaceExternalSource externalSource() {
+        return new PlaceExternalSource(MapProvider.valueOf(mapProvider), externalPlaceId, kakaoPlaceUrl);
+    }
 }

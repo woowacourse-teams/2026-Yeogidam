@@ -507,7 +507,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     }
 
     private static Place place(String kakaoId, String name) {
-        return new Place(null, new PlaceExternalSource(kakaoId, "https://place.map.kakao.com/" + kakaoId),
+        return new Place(null, PlaceExternalSource.kakao(kakaoId, "https://place.map.kakao.com/" + kakaoId),
                 new PlaceProfile(new PlaceName(name), new Address("서울 용산구 용산동2가 1", null),
                         new Coordinate(new BigDecimal("37.5"), new BigDecimal("127.0")),
                         "술집", null, new PlaceThumbnail(null, null)));

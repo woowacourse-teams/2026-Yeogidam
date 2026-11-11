@@ -37,6 +37,9 @@ public interface SavedMediaApiDocs {
                     - `places`에는 게시물에서 추출된 장소를 추출 순서로 담고, 보관함에 없는 장소는 `savedPlaceId`를 null로 돌려줍니다.
                     - `places`의 `latitude`, `longitude`, `kakaoPlaceUrl`, `telephone`은 보관함 장소 목록과 같은 값이라, 저장하지 않은 장소도 장소 상세의 지도 위치, 카카오 링크, 전화번호를 게시물 탭 응답의 값으로 채울 수 있습니다.
                     - `latitude`와 `longitude`는 늘 값이 있고, `kakaoPlaceUrl`과 `telephone`은 장소에 값이 없으면 null을 돌려줍니다.
+                    - `mapProvider`는 장소를 찾은 지도 제공자(`KAKAO`, `GOOGLE`)로, 지금은 모든 장소를 카카오에서 찾아서 `KAKAO`입니다.
+                    - `countryCode`는 장소가 있는 나라의 ISO 3166-1 alpha-2 코드로, 국내 장소는 `KR`입니다.
+                    - `placeUrl`은 장소를 지도 앱에서 여는 링크로, 카카오 장소는 `kakaoPlaceUrl`과 같고 구글 장소는 place ID로 만든 구글맵 링크입니다.
                     - `reported`는 돌려준 공유(`sharedMediaId`)를 제보했으면 `true`, 제보하지 않았으면 `false`를 돌려주며, 릴스 상세의 「제보하기」를 처음부터 「제보 완료」로 그릴 때 씁니다. 제보할 때도 같은 `sharedMediaId`로 `POST /api/v1/shares/{sharedMediaId}/reports`를 부릅니다.
                     - 제보는 공유마다 받으므로, 같은 게시물의 옛 공유만 제보했고 돌려준 최근 공유는 제보하지 않았으면 `false`를 돌려줍니다.
                     - 카드 제목은 앱이 `caption` 첫 줄을 잘라 만듭니다.

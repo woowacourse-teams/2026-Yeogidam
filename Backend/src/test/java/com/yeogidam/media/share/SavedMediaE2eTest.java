@@ -6,6 +6,7 @@ import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaP
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertFailedMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.sharedUrl;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertGooglePlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
@@ -91,6 +92,8 @@ class SavedMediaE2eTest extends E2eTestSupport {
                 .body("sharedMedia[0].places[0].latitude", equalTo(37.544f))
                 .body("sharedMedia[0].places[0].longitude", equalTo(127.05f))
                 .body("sharedMedia[0].places[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/2"))
+                .body("sharedMedia[0].places[0].mapProvider", equalTo("KAKAO"))
+                .body("sharedMedia[0].places[0].placeUrl", equalTo("https://place.map.kakao.com/2"))
                 .body("sharedMedia[0].places[0].telephone", equalTo("02-1234-5678"))
                 .body("sharedMedia[0].places[0].thumbnailUrl", nullValue())
                 .body("sharedMedia[0].places[1].savedPlaceId", equalTo(10))
@@ -103,6 +106,31 @@ class SavedMediaE2eTest extends E2eTestSupport {
                 .body("sharedMedia[0].places[1].roadAddress", equalTo("서울 성동구 연무장길 1"))
                 .body("sharedMedia[0].places[1].thumbnailUrl", equalTo("https://img.example.com/place-1.jpg"))
                 .body("nextCursor", nullValue());
+    }
+
+    @Test
+    void 보관함_게시물의_구글_장소는_나라와_place_ID로_만든_구글맵_링크를_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("saved-media-google-user");
+        insertMedia(jdbcTemplate, 1L, "오사카 맛집", "media.jpg", "@osaka_food");
+        insertGooglePlace(jdbcTemplate, 1L, "ChIJxwgCUhPnAGARoz8_83liVEk", "JP", "토미타 규카츠", "음식점 > 일식",
+                "〒556-0011 Osaka, Naniwa Ward, Nanbanaka, 2-chōme−3−１", new BigDecimal("34.6630"),
+                new BigDecimal("135.5020"));
+        insertMediaPlace(jdbcTemplate, 1L, 1L, 1L);
+        insertSharedMedia(jdbcTemplate, 1L, login.memberId(), 1L, BASE);
+        insertSavedPlace(jdbcTemplate, 10L, login.memberId(), 1L, BASE);
+        insertSavedPlaceShare(jdbcTemplate, 100L, 10L, 1L, BASE);
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when().get(PATH)
+                .then().statusCode(200)
+                .body("sharedMedia[0].places[0].mapProvider", equalTo("GOOGLE"))
+                .body("sharedMedia[0].places[0].countryCode", equalTo("JP"))
+                .body("sharedMedia[0].places[0].placeUrl", equalTo("https://www.google.com/maps/search/?api=1"
+                        + "&query=%ED%86%A0%EB%AF%B8%ED%83%80+%EA%B7%9C%EC%B9%B4%EC%B8%A0"
+                        + "&query_place_id=ChIJxwgCUhPnAGARoz8_83liVEk"))
+                .body("sharedMedia[0].places[0].kakaoPlaceUrl", nullValue());
     }
 
     @Test
