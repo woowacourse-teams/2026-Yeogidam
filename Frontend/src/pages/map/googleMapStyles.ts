@@ -107,12 +107,12 @@ const MAP_STYLE = [
   {
     featureType: 'road.highway',
     elementType: 'geometry.fill',
-    stylers: [{ color: '#fbe3c2' }],
+    stylers: [{ color: '#fdf0de' }],
   },
   {
     featureType: 'road.highway',
     elementType: 'geometry.stroke',
-    stylers: [{ color: '#f0c99a' }],
+    stylers: [{ color: '#f5dcbc' }],
   },
   {
     featureType: 'road.arterial',
