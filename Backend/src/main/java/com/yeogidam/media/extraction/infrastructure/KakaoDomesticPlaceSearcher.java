@@ -7,7 +7,7 @@ import com.yeogidam.media.extraction.domain.LocationHint.Basis;
 import com.yeogidam.media.extraction.domain.LocationHint.Type;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
-import com.yeogidam.media.extraction.service.PlaceSearcher;
+import com.yeogidam.media.extraction.service.DomesticPlaceSearcher;
 import com.yeogidam.place.domain.Address;
 import com.yeogidam.place.domain.Coordinate;
 import com.yeogidam.place.domain.Place;
@@ -47,7 +47,7 @@ import tools.jackson.databind.JsonNode;
  */
 @Component
 @RequiredArgsConstructor
-public class KakaoPlaceSearcher implements PlaceSearcher {
+public class KakaoDomesticPlaceSearcher implements DomesticPlaceSearcher {
 
     private static final URI API_ENDPOINT = URI.create("https://dapi.kakao.com/v2/local/search/keyword.json");
 
@@ -80,7 +80,7 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
     private final URI apiEndpoint;
 
     @Autowired
-    public KakaoPlaceSearcher(
+    public KakaoDomesticPlaceSearcher(
             @Qualifier("kakaoLocalRestClient") RestClient restClient,
             KakaoLocalProperties properties
     ) {
@@ -388,7 +388,7 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
 
     private Optional<Place> readPlace(JsonNode document) {
         try {
-            PlaceExternalSource externalSource = new PlaceExternalSource(required(document, "id"), optional(document, "place_url"));
+            PlaceExternalSource externalSource = PlaceExternalSource.kakao(required(document, "id"), optional(document, "place_url"));
 
             PlaceProfile profile =
                     new PlaceProfile(

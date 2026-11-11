@@ -41,7 +41,7 @@ FETCH_SLEEP_SECONDS = 2
 KAKAO_SLEEP_SECONDS = 0.2
 GEMINI_TIMEOUT_SECONDS = 180
 
-# GeminiPlaceNameExtractor와 같은 전체 장소 범위로 입력 변형을 비교한다.
+# GeminiPlaceSearchHintExtractor와 같은 전체 장소 범위로 입력 변형을 비교한다.
 SYSTEM_INSTRUCTION = """너는 인스타그램 캡션에서 지도 검색에 쓸 장소 단서를 추출한다.
 캡션 본문, 해시태그, @멘션을 모두 읽고 지도에서 찾을 수 있는 장소를 캡션에 처음 나온 순서로 반환한다.
 음식점, 카페, 소품샵, 서점, 관광지, 공원, 전시관, 숙소, 쇼핑몰, 편의점, 행사장 등 장소 유형에 제한을 두지 않는다.
@@ -426,7 +426,7 @@ def gemini_generate(api_key, model, parts, system, cache_file, use_url_context, 
 
 
 def caption_input(meta):
-    """운영 GeminiPlaceNameExtractor.requestInput과 같게 캡션 뒤에 @멘션 프로필 URL을 붙인다."""
+    """운영 GeminiPlaceSearchHintExtractor.requestInput과 같게 캡션 뒤에 @멘션 프로필 URL을 붙인다."""
     caption = meta.get("og_description") or meta.get("caption") or ""
     handles = []
     for m in ACCOUNT_MENTION.finditer(caption):
@@ -477,7 +477,7 @@ def build_parts(variant, meta):
     return parts, SYSTEM_INSTRUCTION + VIDEO_ADDENDUM, False
 
 
-# ---------- 3. 카카오 매칭 (KakaoPlaceSearcher와 같은 규칙) ----------
+# ---------- 3. 카카오 매칭 (KakaoDomesticPlaceSearcher와 같은 규칙) ----------
 
 def normalize(value):
     if not value:
@@ -543,8 +543,8 @@ def search_queries(hint):
     return out
 
 
-NEARBY_RADIUS_METERS = 3000   # KakaoPlaceSearcher.NEARBY_RADIUS_METERS와 같다
-ADDRESS_TRIM_ATTEMPTS = 3     # KakaoPlaceSearcher.ADDRESS_TRIM_ATTEMPTS와 같다
+NEARBY_RADIUS_METERS = 3000   # KakaoDomesticPlaceSearcher.NEARBY_RADIUS_METERS와 같다
+ADDRESS_TRIM_ATTEMPTS = 3     # KakaoDomesticPlaceSearcher.ADDRESS_TRIM_ATTEMPTS와 같다
 
 
 def kakao_request(api_key, path, params, cache_dir):
@@ -626,7 +626,7 @@ def match_places(api_key, hints, cache_dir):
     trace = []
     for hint in hints:
         chosen = None
-        # 1. 주소가 있으면 좌표로 바꿔 반경 안에서 (KakaoPlaceSearcher.search와 같다).
+        # 1. 주소가 있으면 좌표로 바꿔 반경 안에서 (KakaoDomesticPlaceSearcher.search와 같다).
         #    캡션 주소는 사실이라 근처에 없으면 못 찾은 것으로 두고, 추론 주소는 단서라 근처에 없으면 지역 검색으로 돌아간다
         locations = hint.get("locationHints") or []
         caption_anchor = anchor_coordinate(api_key, locations, cache_dir, "CAPTION")

@@ -4,7 +4,7 @@ import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 
 /** 외부 AI에서 캡션의 장소와 지도 검색 단서를 얻는 포트. */
-public interface PlaceNameExtractor {
+public interface PlaceSearchHintExtractor {
 
     PlaceSearchHints extract(String caption);
 

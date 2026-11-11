@@ -37,7 +37,7 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-class GeminiPlaceNameExtractorTest {
+class GeminiPlaceSearchHintExtractorTest {
 
     private static final String FREE_KEY = "free-gemini-key";
     private static final String PAID_KEY = "paid-gemini-key";
@@ -84,6 +84,28 @@ class GeminiPlaceNameExtractorTest {
         assertThat(hints.places().get(1).nameSearchHint()).isEqualTo("Dub+");
         assertThat(hints.places().get(1).locationHints().getFirst().value()).isEqualTo("이태원");
         assertRequestUsesFrozenSchema();
+    }
+
+    @Test
+    void 응답의_나라_코드를_장소마다_읽고_없으면_나라를_모르는_것으로_둔다() throws Exception {
+        // given
+        String output = """
+                {"places":[
+                  {"nameInCaption":"하르모","nameSearchHint":"ハルモ","accountHints":[],"locationHints":[],
+                   "categoryHint":null,"countryCode":"jp"},
+                  {"nameInCaption":"올드빅","nameSearchHint":null,"accountHints":[],"locationHints":[],
+                   "categoryHint":null}]}
+                """;
+        geminiServer.respondWith(interactionResponse(output));
+
+        // when
+        PlaceSearchHints hints = extractor("test-gemini-key").extract(CAPTION);
+
+        // then
+        assertThat(hints.places().get(0).countryCode()).isEqualTo("JP");
+        assertThat(hints.places().get(0).isDomestic()).isFalse();
+        assertThat(hints.places().get(1).countryCode()).isNull();
+        assertThat(hints.places().get(1).isDomestic()).isTrue();
     }
 
     @ParameterizedTest
@@ -202,7 +224,7 @@ class GeminiPlaceNameExtractorTest {
         // given
         geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
         geminiServer.respondToKeyWith(FREE_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
-        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        GeminiPlaceSearchHintExtractor extractor = extractor(FREE_KEY, PAID_KEY);
         extractor.extract(CAPTION);
 
         // when
@@ -222,7 +244,7 @@ class GeminiPlaceNameExtractorTest {
         // given
         geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
         geminiServer.respondToKeyWith(FREE_KEY, status, "{}", Map.of());
-        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        GeminiPlaceSearchHintExtractor extractor = extractor(FREE_KEY, PAID_KEY);
         extractor.extract(CAPTION);
 
         // when
@@ -239,7 +261,7 @@ class GeminiPlaceNameExtractorTest {
         geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
         geminiServer.respondToKeyWith(FREE_KEY, 429, "{\"error\":{\"message\":\"Your prepayment credits are depleted.\"}}",
                 Map.of("Retry-After", "1"));
-        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        GeminiPlaceSearchHintExtractor extractor = extractor(FREE_KEY, PAID_KEY);
         extractor.extract(CAPTION);
 
         // when
@@ -255,7 +277,7 @@ class GeminiPlaceNameExtractorTest {
         // given
         geminiServer.respondWith(interactionResponse(EXTRACTED_PLACES));
         geminiServer.respondToKeyWith(FREE_KEY, 503, "{}", Map.of());
-        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        GeminiPlaceSearchHintExtractor extractor = extractor(FREE_KEY, PAID_KEY);
         extractor.extract(CAPTION);
 
         // when
@@ -285,7 +307,7 @@ class GeminiPlaceNameExtractorTest {
         // given
         geminiServer.respondToKeyWith(FREE_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
         geminiServer.respondToKeyWith(PAID_KEY, 429, RATE_LIMITED, Map.of("Retry-After", "120"));
-        GeminiPlaceNameExtractor extractor = extractor(FREE_KEY, PAID_KEY);
+        GeminiPlaceSearchHintExtractor extractor = extractor(FREE_KEY, PAID_KEY);
         assertThatThrownBy(() -> extractor.extract(CAPTION)).isInstanceOf(ExtractionFailedException.class);
 
         // when & then
@@ -293,22 +315,22 @@ class GeminiPlaceNameExtractorTest {
         assertThat(geminiServer.requestedKeys()).containsExactly(FREE_KEY, PAID_KEY);
     }
 
-    private GeminiPlaceNameExtractor extractor(String apiKey) {
+    private GeminiPlaceSearchHintExtractor extractor(String apiKey) {
         return extractor(apiKey, List.of());
     }
 
-    private GeminiPlaceNameExtractor extractor(String apiKey, String fallbackApiKey) {
+    private GeminiPlaceSearchHintExtractor extractor(String apiKey, String fallbackApiKey) {
         return extractor(apiKey, List.of(fallbackApiKey));
     }
 
-    private GeminiPlaceNameExtractor extractor(String apiKey, List<String> fallbackApiKeys) {
+    private GeminiPlaceSearchHintExtractor extractor(String apiKey, List<String> fallbackApiKeys) {
         GeminiProperties properties = new GeminiProperties(apiKey, "test-gemini-model", fallbackApiKeys);
         // 운영의 geminiRestClient처럼 JDK HttpClient를 쓴다. 기본 RestClient가 고르는 Apache HttpClient는
         // 429와 503을 받으면 Retry-After만큼 기다렸다가 스스로 한 번 더 보내서 key 전환을 가린다.
         RestClient restClient = RestClient.builder()
                 .requestFactory(new JdkClientHttpRequestFactory())
                 .build();
-        return new GeminiPlaceNameExtractor(restClient, properties, jsonMapper, geminiServer.endpoint(), clock);
+        return new GeminiPlaceSearchHintExtractor(restClient, properties, jsonMapper, geminiServer.endpoint(), clock);
     }
 
     private String interactionResponse(String output) throws Exception {
@@ -334,7 +356,8 @@ class GeminiPlaceNameExtractorTest {
         assertThat(geminiServer.apiKey()).isEqualTo("test-gemini-key");
         assertThat(fieldNames(schema.path("properties"))).containsExactly("places");
         assertThat(fieldNames(placeProperties)).containsExactlyInAnyOrder(
-                "nameInCaption", "nameSearchHint", "accountHints", "locationHints", "categoryHint");
+                "nameInCaption", "nameSearchHint", "accountHints", "locationHints", "categoryHint", "countryCode");
+        assertThat(placeProperties.path("countryCode").path("type").isArray()).isTrue();
         assertThat(placeProperties.get("correctedName")).isNull();
         assertThat(placeProperties.path("nameSearchHint").path("type").isArray()).isTrue();
         assertThat(fieldNames(locationProperties)).containsExactlyInAnyOrder("type", "value", "basis");

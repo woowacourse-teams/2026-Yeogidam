@@ -21,7 +21,9 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class LoadTestBeanPostProcessor implements BeanPostProcessor {
 
     private static final Set<String> EXTERNAL_REST_CLIENTS = Set.of(
-            "instagramRestClient", "geminiRestClient", "kakaoLocalRestClient");
+            "instagramRestClient", "geminiRestClient", "kakaoLocalRestClient", "googlePlacesRestClient");
+    private static final Set<String> EXTERNAL_HTTP_CLIENTS = Set.of(
+            "thumbnailHttpClient", "geminiMediaHttpClient", "instagramMediaHttpClient");
 
     private final ConfigurableListableBeanFactory beanFactory;
 
@@ -32,7 +34,7 @@ public class LoadTestBeanPostProcessor implements BeanPostProcessor {
                     .requestInterceptor(new LoadTestRestClientInterceptor(routing(), metrics()))
                     .build();
         }
-        if (bean instanceof HttpClient client && "thumbnailHttpClient".equals(beanName)) {
+        if (bean instanceof HttpClient client && EXTERNAL_HTTP_CLIENTS.contains(beanName)) {
             return new LoadTestHttpClient(client, routing(), metrics());
         }
         if (bean instanceof ThreadPoolTaskExecutor executor && "mediaExtractionExecutor".equals(beanName)) {
@@ -80,7 +82,9 @@ public class LoadTestBeanPostProcessor implements BeanPostProcessor {
         if (!policy().canUseFake((Long) arguments[0], url)) {
             return invocation.proceed();
         }
-        try (LoadTestScope ignored = LoadTestScope.open(url.getMediaShortcode().value())) {
+        String shortcode = url.getMediaShortcode().value();
+        try (LoadTestScope ignored = LoadTestScope.open(shortcode)) {
+            metrics().logDedicatedQueueWait(shortcode);
             return invocation.proceed();
         }
     }

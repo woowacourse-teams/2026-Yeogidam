@@ -31,7 +31,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.springframework.web.client.RestClient;
 
-class KakaoPlaceSearcherTest {
+class KakaoDomesticPlaceSearcherTest {
 
     private FakeKakaoServer kakaoServer;
 
@@ -93,7 +93,7 @@ class KakaoPlaceSearcherTest {
                         "서울 강남구 테헤란로 521")));
         PlaceSearchHint hint = new PlaceSearchHint("고디바", null, List.of(), List.of(
                 new LocationHint(Type.ADDRESS, captionAddress, Basis.CAPTION),
-                new LocationHint(Type.REGION, "잠실", Basis.CAPTION)), null);
+                new LocationHint(Type.REGION, "잠실", Basis.CAPTION)), null, null);
 
         // when
         List<Place> result = searcher().search(hint);
@@ -227,7 +227,7 @@ class KakaoPlaceSearcherTest {
                 document("93396236", "파이프그라운드 서울숲",
                         "서울 성동구 성수동1가 1", "서울 성동구 왕십리로 83-21")));
         PlaceSearchHint hint = new PlaceSearchHint("파이프그라운드 서울숲점", null, List.of(),
-                List.of(new LocationHint(Type.REGION, "서울숲", Basis.INFERRED)), null);
+                List.of(new LocationHint(Type.REGION, "서울숲", Basis.INFERRED)), null, null);
 
         // when
         List<Place> result = searcher().search(hint);
@@ -281,7 +281,7 @@ class KakaoPlaceSearcherTest {
                 document("200", "올드빅", "서울 마포구 서교동 1", ""),
                 document("300", "올드빅", "서울 강남구 신사동 1", ""),
                 document("400", "올드빅", "서울 종로구 종로1가 1", "")));
-        PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(), List.of(), null);
+        PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(), List.of(), null, null);
 
         // when & then
         assertThat(searcher().search(hint))
@@ -298,7 +298,7 @@ class KakaoPlaceSearcherTest {
                 + document("200", "올드빅", "서울 마포구 서교동 1", "") + "]}";
         kakaoServer.respondWithPage("올드빅", 1, firstPage);
         kakaoServer.respondWithPage("올드빅", 2, secondPage);
-        PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(), List.of(), null);
+        PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(), List.of(), null, null);
 
         // when & then
         assertThat(searcher().search(hint))
@@ -327,7 +327,7 @@ class KakaoPlaceSearcherTest {
                 document("100", "올드빅", "서울 마포구 서교동 1", "서울 마포구 와우산로 1")));
         PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(),
                 List.of(new LocationHint(Type.ADDRESS, "서울 용산구 녹사평대로 1",
-                        Basis.INFERRED)), null);
+                        Basis.INFERRED)), null, null);
 
         // when & then
         assertThat(searcher().search(hint).getFirst().externalSource().placeId()).isEqualTo("100");
@@ -342,7 +342,7 @@ class KakaoPlaceSearcherTest {
                 document("200", "올드빅 서울숲", "서울 용산구 한남동 1", "서울 용산구 한남대로27길 66")));
         PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(), List.of(
                 new LocationHint(Type.ADDRESS, address, Basis.CAPTION),
-                new LocationHint(Type.REGION, "서울숲", Basis.CAPTION)), null);
+                new LocationHint(Type.REGION, "서울숲", Basis.CAPTION)), null, null);
 
         // when & then
         assertThat(searcher().search(hint).getFirst().externalSource().placeId()).isEqualTo("100");
@@ -493,7 +493,7 @@ class KakaoPlaceSearcherTest {
         kakaoServer.respondWith("덕수궁", documents(
                 documentWithCategory("1", "덕수궁", "서울 중구 정동 5-1", "여행 > 관광,명소 > 고궁,궁"),
                 documentWithCategory("2", "덕수궁 카페", "서울 중구 정동 6", "음식점 > 카페")));
-        PlaceSearchHint hint = new PlaceSearchHint("덕수궁", null, List.of(), List.of(), null);
+        PlaceSearchHint hint = new PlaceSearchHint("덕수궁", null, List.of(), List.of(), null, null);
 
         // when & then
         assertThat(searcher().search(hint))
@@ -506,7 +506,7 @@ class KakaoPlaceSearcherTest {
         // given
         kakaoServer.respondWith("청계천", documents(
                 documentWithCategory("1", "청계천", "서울 종로구 서린동 1", "여행 > 관광,명소 > 하천")));
-        PlaceSearchHint hint = new PlaceSearchHint("청계천", null, List.of(), List.of(), null);
+        PlaceSearchHint hint = new PlaceSearchHint("청계천", null, List.of(), List.of(), null, null);
 
         // when & then
         assertThat(searcher().search(hint))
@@ -522,7 +522,7 @@ class KakaoPlaceSearcherTest {
         kakaoServer.respondWith("미드나잇익스프레스 용봉동", documents(
                 document("500", "미드나잇익스프레스", "광주 남구 양림동 66-38", "광주 남구 양림로 1")));
         PlaceSearchHint hint = new PlaceSearchHint("미드나잇익스프레스", null, List.of(),
-                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null);
+                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null, null);
 
         // when & then
         assertThat(searcher().search(hint)).extracting(place -> place.externalSource().placeId()).containsExactly("500");
@@ -539,7 +539,7 @@ class KakaoPlaceSearcherTest {
         kakaoServer.respondNearby("보정상호", documents(
                 document("200", "보정상호", "광주 북구 용봉동 2", "")));
         PlaceSearchHint hint = new PlaceSearchHint("원문상호", "보정상호", List.of(),
-                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null);
+                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null, null);
 
         // when
         List<Place> result = searcher().search(hint);
@@ -561,7 +561,7 @@ class KakaoPlaceSearcherTest {
         kakaoServer.respondNearby("보정상호", documents(
                 document("200", "보정상호", "광주 북구 용봉동 2", "")));
         PlaceSearchHint hint = new PlaceSearchHint("원문상호", "보정상호", List.of(),
-                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null);
+                List.of(new LocationHint(Type.ADDRESS, "용봉동", Basis.valueOf(basis))), null, null);
 
         // when
         List<Place> result = searcher().search(hint);
@@ -583,7 +583,7 @@ class KakaoPlaceSearcherTest {
     void 카카오가_503을_반환하면_요청_예외가_발생한다() {
         // given
         kakaoServer.respondWithStatus(503);
-        PlaceSearchHint hint = new PlaceSearchHint("올드빅", "보정상호", List.of(), List.of(), null);
+        PlaceSearchHint hint = new PlaceSearchHint("올드빅", "보정상호", List.of(), List.of(), null, null);
 
         // when & then
         assertThatThrownBy(() -> searcher().search(hint))
@@ -603,7 +603,7 @@ class KakaoPlaceSearcherTest {
         kakaoServer.respondWith("송화산시도삭면 광진구", documents(
                 document("100", "송화산시도삭면", "서울 광진구 자양동 1", address)));
         PlaceSearchHint hint = new PlaceSearchHint("송화산시도삭면", null, List.of(),
-                List.of(new LocationHint(Type.ADDRESS, address, Basis.valueOf(basis))), null);
+                List.of(new LocationHint(Type.ADDRESS, address, Basis.valueOf(basis))), null, null);
 
         // when
         List<Place> result = searcher().search(hint);
@@ -620,7 +620,7 @@ class KakaoPlaceSearcherTest {
         kakaoServer.respondWith("올드빅 해방촌", documents(
                 document("100", "올드빅", "서울 용산구 용산동2가 1", "서울 용산구 신흥로 1")));
         PlaceSearchHint hint = new PlaceSearchHint("올드빅", null, List.of(),
-                List.of(new LocationHint(Type.REGION, "해방촌", Basis.valueOf(basis))), null);
+                List.of(new LocationHint(Type.REGION, "해방촌", Basis.valueOf(basis))), null, null);
 
         // when
         List<Place> result = searcher().search(hint);
@@ -630,14 +630,14 @@ class KakaoPlaceSearcherTest {
         assertThat(kakaoServer.queries()).containsExactly("올드빅 해방촌");
     }
 
-    private KakaoPlaceSearcher searcher() {
+    private KakaoDomesticPlaceSearcher searcher() {
         KakaoLocalProperties properties = new KakaoLocalProperties("test-kakao-key");
-        return new KakaoPlaceSearcher(RestClient.create(), properties, kakaoServer.endpoint());
+        return new KakaoDomesticPlaceSearcher(RestClient.create(), properties, kakaoServer.endpoint());
     }
 
     private PlaceSearchHint hint(String name, String searchName, Type type, String location) {
         return new PlaceSearchHint(name, searchName, List.of(),
-                List.of(new LocationHint(type, location, Basis.CAPTION)), null);
+                List.of(new LocationHint(type, location, Basis.CAPTION)), null, null);
     }
 
     private String documents(String... documents) {

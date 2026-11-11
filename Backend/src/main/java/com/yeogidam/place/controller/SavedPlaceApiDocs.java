@@ -67,6 +67,10 @@ public interface SavedPlaceApiDocs {
                     - `category`는 기존 앱을 위해 카카오 원문 그대로 유지하며 null일 수 있습니다.
                     - `categoryCode`와 `categoryName`은 `/api/v1/place-categories`의 코드와 이름에 대응합니다.
                     - 원문이 없거나 분류 규칙에 맞지 않으면 `ETC`, `기타`를 돌려줍니다.
+                    - `mapProvider`는 장소를 찾은 지도 제공자로, 카카오에서 찾은 장소는 `KAKAO`이고 해외 장소와 카카오가 찾지 못해 Google에서 찾은 국내 장소는 `GOOGLE`입니다.
+                    - `countryCode`는 장소가 있는 나라의 ISO 3166-1 alpha-2 코드로, 국내 장소는 `KR`입니다.
+                    - `placeUrl`은 장소를 지도 앱에서 여는 링크로, 카카오 장소는 `kakaoPlaceUrl`과 같고 구글 장소는 place ID로 만든 구글맵 링크입니다.
+                    - 국내 장소도 `GOOGLE`일 수 있으므로, 지도 앱 버튼은 `countryCode` 대신 `mapProvider`와 `placeUrl`로 정합니다.
                     - `folderIds`는 해당 장소가 속한 로그인 회원의 폴더 ID 목록이며, 앱에서 폴더별로 필터링할 때 씁니다.
                     - `folderIds`는 장소를 폴더에 담은 시각(`folder_saved_places.created_at`) 오름차순으로 반환합니다.
                     - 가장 최근에 담은 폴더가 맨 뒤에 오며, 담은 시각이 같으면 연결 ID 오름차순으로 반환합니다.

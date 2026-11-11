@@ -9,6 +9,7 @@ import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.instagram.service.InstagramMetadataService;
+import com.yeogidam.place.domain.MapProvider;
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.service.PlaceThumbnailService;
 import java.util.LinkedHashMap;
@@ -26,8 +27,8 @@ public class MediaExtractionPipeline {
     private static final String MEDIA_ANALYSIS_AUTHOR = "with_sol_mate";
 
     private final InstagramMetadataService instagramMetadataService;
-    private final PlaceNameExtractor placeNameExtractor;
-    private final PlaceSearcher placeSearcher;
+    private final PlaceSearchHintExtractor placeSearchHintExtractor;
+    private final PlaceSearchRouter placeSearchRouter;
     private final MediaExtractionResultWriter resultWriter;
     private final PlaceThumbnailService placeThumbnailService;
 
@@ -42,7 +43,7 @@ public class MediaExtractionPipeline {
         if (MEDIA_ANALYSIS_AUTHOR.equals(metadata.author())) {
             return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
-        PlaceSearchHints captionHints = placeNameExtractor.extract(metadata.caption());
+        PlaceSearchHints captionHints = placeSearchHintExtractor.extract(metadata.caption());
         if (captionHints.places().isEmpty()) {
             return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
@@ -59,7 +60,7 @@ public class MediaExtractionPipeline {
             MediaMetadata metadata,
             ExtractionFailureReason noHintsReason
     ) {
-        PlaceSearchHints mediaHints = placeNameExtractor.extractFile(metadata.caption(), instagramUrl);
+        PlaceSearchHints mediaHints = placeSearchHintExtractor.extractFile(metadata.caption(), instagramUrl);
         if (mediaHints.places().isEmpty()) {
             throw new ExtractionFailedException(noHintsReason);
         }
@@ -71,31 +72,39 @@ public class MediaExtractionPipeline {
     }
 
     private List<Place> findPlaces(PlaceSearchHints hints, String instagramThumbnailKey) {
-        Map<String, Place> placesByKakaoId = new LinkedHashMap<>();
+        Map<PlaceKey, Place> placesByExternalId = new LinkedHashMap<>();
         for (PlaceSearchHint hint : hints.places()) {
-            List<Place> matchedPlaces = placeSearcher.search(hint);
+            List<Place> matchedPlaces = placeSearchRouter.search(hint);
             if (matchedPlaces.isEmpty()) {
                 continue;
             }
-            addPlaces(placesByKakaoId, matchedPlaces, instagramThumbnailKey);
+            addPlaces(placesByExternalId, matchedPlaces, instagramThumbnailKey);
         }
-        return List.copyOf(placesByKakaoId.values());
+        return List.copyOf(placesByExternalId.values());
     }
 
     private void addPlaces(
-            Map<String, Place> placesByKakaoId,
+            Map<PlaceKey, Place> placesByExternalId,
             List<Place> places,
             String instagramThumbnailKey
     ) {
         for (Place place : places) {
-            addPlaceIfAbsent(placesByKakaoId, place, instagramThumbnailKey);
+            addPlaceIfAbsent(placesByExternalId, place, instagramThumbnailKey);
         }
     }
 
-    private void addPlaceIfAbsent(Map<String, Place> placesByKakaoId, Place place, String instagramThumbnailKey) {
-        String kakaoPlaceId = place.externalSource().placeId();
-        if (!placesByKakaoId.containsKey(kakaoPlaceId)) {
-            placesByKakaoId.put(kakaoPlaceId, placeThumbnailService.resolve(place, instagramThumbnailKey));
+    private void addPlaceIfAbsent(Map<PlaceKey, Place> placesByExternalId, Place place, String instagramThumbnailKey) {
+        PlaceKey key = PlaceKey.of(place);
+        if (!placesByExternalId.containsKey(key)) {
+            placesByExternalId.put(key, placeThumbnailService.resolve(place, instagramThumbnailKey));
+        }
+    }
+
+    // 카카오와 구글의 장소 ID가 우연히 같아도 다른 장소로 보도록, 지도 제공자와 장소 ID를 함께 키로 쓴다.
+    private record PlaceKey(MapProvider mapProvider, String placeId) {
+
+        static PlaceKey of(Place place) {
+            return new PlaceKey(place.externalSource().mapProvider(), place.externalSource().placeId());
         }
     }
 }

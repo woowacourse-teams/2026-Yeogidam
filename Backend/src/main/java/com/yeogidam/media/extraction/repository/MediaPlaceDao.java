@@ -17,7 +17,8 @@ public class MediaPlaceDao {
     private static final RowMapper<ExtractedPlaceProjection> EXTRACTED_PLACE_ROW_MAPPER = (resultSet, rowNumber) ->
             new ExtractedPlaceProjection(
                     resultSet.getLong("place_id"),
-                    resultSet.getString("kakao_place_id")
+                    resultSet.getString("map_provider"),
+                    resultSet.getString("external_place_id")
             );
 
     private static final RowMapper<MediaPlaceProjection> PLACE_PROJECTION_ROW_MAPPER = (resultSet, rowNumber) ->
@@ -31,6 +32,9 @@ public class MediaPlaceDao {
                     resultSet.getString("road_address"),
                     resultSet.getBigDecimal("latitude"),
                     resultSet.getBigDecimal("longitude"),
+                    resultSet.getString("map_provider"),
+                    resultSet.getString("external_place_id"),
+                    resultSet.getString("country_code"),
                     resultSet.getString("kakao_place_url"),
                     resultSet.getString("telephone")
             );
@@ -47,6 +51,9 @@ public class MediaPlaceDao {
                     resultSet.getString("road_address"),
                     resultSet.getBigDecimal("latitude"),
                     resultSet.getBigDecimal("longitude"),
+                    resultSet.getString("map_provider"),
+                    resultSet.getString("external_place_id"),
+                    resultSet.getString("country_code"),
                     resultSet.getString("kakao_place_url"),
                     resultSet.getString("telephone")
             );
@@ -76,7 +83,8 @@ public class MediaPlaceDao {
     public ExtractedPlaceProjections findExtractedPlaces(Long mediaId) {
         String sql = """
                 SELECT p.id AS place_id,
-                       p.kakao_place_id
+                       p.map_provider,
+                       p.external_place_id
                 FROM media_places mp
                 JOIN places p ON p.id = mp.place_id
                 WHERE mp.media_id = ?
@@ -101,6 +109,9 @@ public class MediaPlaceDao {
                        p.road_address,
                        p.latitude,
                        p.longitude,
+                       p.map_provider,
+                       p.external_place_id,
+                       p.country_code,
                        p.kakao_place_url,
                        p.telephone
                 FROM shared_media sm
@@ -134,6 +145,9 @@ public class MediaPlaceDao {
                        p.road_address,
                        p.latitude,
                        p.longitude,
+                       p.map_provider,
+                       p.external_place_id,
+                       p.country_code,
                        p.kakao_place_url,
                        p.telephone
                 FROM media_places mp

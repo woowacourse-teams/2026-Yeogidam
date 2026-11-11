@@ -3,6 +3,7 @@ package com.yeogidam.media.share.dto.response;
 import com.yeogidam.media.extraction.repository.SavedMediaPlaceProjection;
 import com.yeogidam.place.domain.PlaceCategory;
 import com.yeogidam.place.domain.PlaceCategoryClassifier;
+import com.yeogidam.place.domain.PlaceExternalSource;
 import java.math.BigDecimal;
 import java.util.function.UnaryOperator;
 
@@ -21,6 +22,9 @@ public record SavedMediaPlaceResponse(
         BigDecimal latitude,
         BigDecimal longitude,
         String kakaoPlaceUrl,
+        String mapProvider,
+        String countryCode,
+        String placeUrl,
         String telephone,
         String thumbnailUrl
 ) {
@@ -29,6 +33,7 @@ public record SavedMediaPlaceResponse(
             UnaryOperator<String> thumbnailUrlResolver
     ) {
         PlaceCategory category = PlaceCategoryClassifier.classify(projection.category());
+        PlaceExternalSource externalSource = projection.externalSource();
         return new SavedMediaPlaceResponse(
                 projection.savedPlaceId(),
                 projection.placeId(),
@@ -41,6 +46,9 @@ public record SavedMediaPlaceResponse(
                 projection.latitude(),
                 projection.longitude(),
                 projection.kakaoPlaceUrl(),
+                externalSource.mapProvider().name(),
+                projection.countryCode(),
+                externalSource.mapUrl(projection.name()),
                 projection.telephone(),
                 thumbnailUrlResolver.apply(projection.thumbnailKey())
         );

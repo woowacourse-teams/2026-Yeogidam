@@ -4,6 +4,7 @@ import static com.yeogidam.support.fixture.sql.FolderSavedPlaceSqlFixture.insert
 import static com.yeogidam.support.fixture.sql.FolderSqlFixture.insertFolder;
 import static com.yeogidam.support.fixture.sql.MediaPlaceSqlFixture.insertMediaPlace;
 import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
+import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertGooglePlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
 import static com.yeogidam.support.fixture.sql.SavedPlaceShareSqlFixture.insertSavedPlaceShare;
@@ -101,6 +102,9 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces[0].latitude", equalTo(37.5796f))
                 .body("savedPlaces[0].longitude", equalTo(126.9770f))
                 .body("savedPlaces[0].kakaoPlaceUrl", equalTo("https://place.map.kakao.com/3"))
+                .body("savedPlaces[0].mapProvider", equalTo("KAKAO"))
+                .body("savedPlaces[0].countryCode", equalTo("KR"))
+                .body("savedPlaces[0].placeUrl", equalTo("https://place.map.kakao.com/3"))
                 .body("savedPlaces[0].telephone", nullValue())
                 .body("savedPlaces[0].thumbnailUrl", equalTo("https://img.example.com/3.jpg"))
                 .body("savedPlaces[0].thumbnailSource", equalTo("KAKAO"))
@@ -182,6 +186,30 @@ class SavedPlaceE2eTest extends E2eTestSupport {
                 .body("savedPlaces[0].category", equalTo(category))
                 .body("savedPlaces[0].categoryCode", equalTo("DESSERT"))
                 .body("savedPlaces[0].categoryName", equalTo("디저트"));
+    }
+
+    @Test
+    void 해외_장소는_구글을_지도_제공자로_두고_place_ID로_만든_구글맵_링크를_돌려준다() {
+        // given
+        LoginResult login = loginAsKakao("user-1");
+        insertGooglePlace(jdbcTemplate, 1L, "ChIJxwgCUhPnAGARoz8_83liVEk", "JP", "토미타 규카츠", "음식점 > 일식",
+                "〒556-0011 Osaka, Naniwa Ward, Nanbanaka, 2-chōme−3−１", new BigDecimal("34.6630"),
+                new BigDecimal("135.5020"));
+        insertSavedPlace(jdbcTemplate, 11L, login.memberId(), 1L, Instant.parse("2026-09-15T00:00:00Z"));
+
+        // when & then
+        givenBearer(login.accessToken())
+                .when()
+                .get(SAVED_PLACES_PATH)
+                .then()
+                .statusCode(200)
+                .body("savedPlaces[0].mapProvider", equalTo("GOOGLE"))
+                .body("savedPlaces[0].countryCode", equalTo("JP"))
+                .body("savedPlaces[0].placeUrl", equalTo("https://www.google.com/maps/search/?api=1"
+                        + "&query=%ED%86%A0%EB%AF%B8%ED%83%80+%EA%B7%9C%EC%B9%B4%EC%B8%A0"
+                        + "&query_place_id=ChIJxwgCUhPnAGARoz8_83liVEk"))
+                .body("savedPlaces[0].kakaoPlaceUrl", nullValue())
+                .body("savedPlaces[0].categoryCode", equalTo("JAPANESE"));
     }
 
     @Test

@@ -4,11 +4,16 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.yeogidam.media.extraction.config.ExtractionConfig;
 import com.yeogidam.media.extraction.config.GeminiProperties;
+import com.yeogidam.media.extraction.config.GooglePlacesProperties;
 import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.infrastructure.GeminiFileClient;
-import com.yeogidam.media.extraction.infrastructure.GeminiPlaceNameExtractor;
-import com.yeogidam.media.extraction.infrastructure.KakaoPlaceSearcher;
+import com.yeogidam.media.extraction.infrastructure.GeminiPlaceSearchHintExtractor;
+import com.yeogidam.media.extraction.infrastructure.GoogleDomesticPlaceSearcher;
+import com.yeogidam.media.extraction.infrastructure.GoogleOverseasPlaceSearcher;
+import com.yeogidam.media.extraction.infrastructure.GooglePlacesClient;
+import com.yeogidam.media.extraction.infrastructure.KakaoDomesticPlaceSearcher;
+import com.yeogidam.media.extraction.service.PlaceSearchRouter;
 import com.yeogidam.media.instagram.config.InstagramConfig;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadataWithUrl;
@@ -41,19 +46,30 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 골든셋(eval/golden/cases.csv)을 운영 인프라 클래스로 돌려 eval/results/summary.md를 쓴다.
- * 인스타그램 페이지 읽기, 원본 입수, Gemini 추출, 카카오 검색을 운영과 같은 클래스와 설정으로 부르고,
+ * 인스타그램 페이지 읽기, 원본 입수, Gemini 추출, 나라별 검색(카카오, Google)을 운영과 같은 클래스와 설정으로 부르고,
  * MediaExtractionPipeline과 같은 순서(캡션 → 단서 0건이거나 카카오 0건이면 캡션과 영상, 사진)로 고른다.
  * DB와 S3 저장은 제외하고, Gemini 분석 요청에는 평가 전용 5초 간격을 적용한다.
  * 외부 API를 부르므로 기본 test에서는 빼고 `./gradlew evalTest --no-daemon`으로만 돌린다. 이력은 git이 든다.
+ * `-Deval.cases-file=user-cases.csv`처럼 eval/golden 아래의 다른 골든셋을 고를 수 있고, 결과는 파일 이름을 앞에 붙여 따로 쓴다.
  */
 @Tag("eval")
 class GoldenSetEvalTest {
 
     private static final Path EVAL_ROOT = Path.of("eval");
-    private static final Path CASES_FILE = EVAL_ROOT.resolve("golden/cases.csv");
+    private static final String DEFAULT_CASES_NAME = "cases.csv";
+    private static final String CASES_NAME = System.getProperty("eval.cases-file", DEFAULT_CASES_NAME);
+    private static final Path CASES_FILE = EVAL_ROOT.resolve("golden").resolve(CASES_NAME);
     private static final Path RESULTS_DIR = EVAL_ROOT.resolve("results");
-    private static final Path SUMMARY_FILE = RESULTS_DIR.resolve("summary.md");
-    private static final Path ENV_FILE = Path.of(".env");
+    // 기본 골든셋은 예전 이름(summary.md, both.json)에 쓰고, 다른 골든셋은 파일 이름을 앞에 붙여 서로 덮지 않게 한다.
+    private static final String RESULT_PREFIX =
+            CASES_NAME.equals(DEFAULT_CASES_NAME) ? "" : CASES_NAME.replaceFirst("\\.csv$", "") + "-";
+    private static final Path SUMMARY_FILE = RESULTS_DIR.resolve(RESULT_PREFIX + "summary.md");
+    private static final String RAW_FILE_NAME = RESULT_PREFIX + "both.json";
+    private static final Map<String, String> VERIFICATION_DOCS = Map.of(
+            DEFAULT_CASES_NAME, "verification-20261016.md",
+            "user-cases.csv", "user-verification.md");
+    // 쉼표로 여러 파일을 주면 차례로 읽고 뒤 파일 값이 앞 값을 덮는다(본 저장소 .env 뒤에 워크트리 .env)
+    private static final String ENV_FILES = System.getProperty("eval.env-file", ".env");
     private static final long PAUSE_BETWEEN_CASES_MILLIS = 1_000;
     private static final Map<String, String> KIND_LABELS = Map.of(
             "video", "영상 전용 릴스",
@@ -81,10 +97,11 @@ class GoldenSetEvalTest {
         JsonMapper jsonMapper = JsonMapper.builder().build();
         List<String> fallbackApiKeys = splitKeys(env.getOrDefault("GEMINI_API_KEY_FALLBACKS", ""));
         GeminiEvalRequestLimiter requestLimiter = new GeminiEvalRequestLimiter();
-        RestClient instagramMediaRestClient = extractionConfig.instagramMediaRestClient(RestClient.builder());
+        RestClient instagramMediaRestClient = extractionConfig.instagramMediaRestClient(
+                RestClient.builder(), extractionConfig.instagramMediaHttpClient());
         RestClient geminiMediaRestClient = extractionConfig.geminiMediaRestClient(
-                RestClient.builder().requestInterceptor(requestLimiter));
-        GeminiPlaceNameExtractor extractor = new GeminiPlaceNameExtractor(
+                RestClient.builder().requestInterceptor(requestLimiter), extractionConfig.geminiMediaHttpClient());
+        GeminiPlaceSearchHintExtractor extractor = new GeminiPlaceSearchHintExtractor(
                 extractionConfig.geminiRestClient(RestClient.builder().requestInterceptor(requestLimiter)),
                 new GeminiProperties(env.get("GEMINI_API_KEY"), env.get("GEMINI_MODEL"), fallbackApiKeys),
                 jsonMapper,
@@ -93,9 +110,17 @@ class GoldenSetEvalTest {
                 new InstagramMediaDownloader(new InstagramMediaSourceReader(instagramMediaRestClient, jsonMapper),
                         instagramMediaRestClient),
                 new GeminiFileClient(geminiMediaRestClient));
-        KakaoPlaceSearcher searcher = new KakaoPlaceSearcher(
-                extractionConfig.kakaoLocalRestClient(RestClient.builder()),
-                new KakaoLocalProperties(env.get("KAKAO_CLIENT_ID")));
+        // 운영처럼 나라 코드로 카카오와 Google을 나누고 카카오가 0건인 국내 단서는 Google에서 한 번 더 찾아서,
+        // 국내 가게에 해외 나라 코드가 붙어 장소를 잃는 일과 Google이 다른 국내 가게를 붙이는 일도 점수에 나타나게 한다.
+        GooglePlacesClient googlePlacesClient = new GooglePlacesClient(
+                extractionConfig.googlePlacesRestClient(RestClient.builder()),
+                new GooglePlacesProperties(env.get("GOOGLE_PLACES_API_KEY")));
+        PlaceSearchRouter searcher = new PlaceSearchRouter(
+                new KakaoDomesticPlaceSearcher(
+                        extractionConfig.kakaoLocalRestClient(RestClient.builder()),
+                        new KakaoLocalProperties(env.get("KAKAO_CLIENT_ID"))),
+                new GoogleOverseasPlaceSearcher(googlePlacesClient),
+                new GoogleDomesticPlaceSearcher(googlePlacesClient));
         System.out.println("Gemini key: 먼저 부르는 key 1개, 막히면 넘기는 결제 key " + fallbackApiKeys.size() + "개");
 
         List<GoldenCase> cases = readCases();
@@ -109,7 +134,7 @@ class GoldenSetEvalTest {
         List<CaseResult> results = new ArrayList<>();
         Path rawFile = Path.of("build/eval/both-partial.json");
         if (only.isBlank()) {
-            rawFile = RESULTS_DIR.resolve("both.json");
+            rawFile = RESULTS_DIR.resolve(RAW_FILE_NAME);
         }
         writeResults(jsonMapper, rawFile, env.get("GEMINI_MODEL"), cases, results, false);
         for (GoldenCase goldenCase : cases) {
@@ -207,8 +232,8 @@ class GoldenSetEvalTest {
     private CaseResult run(
             GoldenCase goldenCase,
             InstagramMediaHtmlReader reader,
-            GeminiPlaceNameExtractor extractor,
-            KakaoPlaceSearcher searcher
+            GeminiPlaceSearchHintExtractor extractor,
+            PlaceSearchRouter searcher
     ) {
         InstagramUrl url = new InstagramUrl(goldenCase.url());
         MediaMetadataWithUrl metadata;
@@ -264,8 +289,8 @@ class GoldenSetEvalTest {
         return text.toString();
     }
 
-    /** MediaExtractionPipeline.findPlaces와 같다. 단서마다 검색하고 카카오 ID로 중복을 뺀다. */
-    private List<PredictedPlace> findPlaces(List<PlaceSearchHint> hints, KakaoPlaceSearcher searcher) {
+    /** MediaExtractionPipeline.findPlaces와 같다. 단서마다 나라별로 검색하고 외부 장소 ID로 중복을 뺀다. */
+    private List<PredictedPlace> findPlaces(List<PlaceSearchHint> hints, PlaceSearchRouter searcher) {
         Map<String, PredictedPlace> placesByKakaoId = new LinkedHashMap<>();
         for (PlaceSearchHint hint : hints) {
             for (Place place : searcher.search(hint)) {
@@ -288,7 +313,11 @@ class GoldenSetEvalTest {
         out.append("갱신 ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
                 .append(", 모델 ").append(model).append(". 실행 ").append(pipeline.size()).append("건, 기록된 소개 장소 ")
                 .append(observed).append("항목, 지도 정답 ").append(expected).append("곳(미검증 기록 포함)이다. ")
-                .append("검증 근거는 `../golden/verification-20261016.md`, 원시 예측은 `both.json`에 있다.\n\n");
+                .append("검증 근거는 `../golden/")
+                .append(VERIFICATION_DOCS.getOrDefault(CASES_NAME, CASES_NAME))
+                .append("`, 원시 예측은 `")
+                .append(RAW_FILE_NAME)
+                .append("`에 있다.\n\n");
         out.append("추출 대상은 음식점, 소품샵, 전시회 등 지도에서 찾을 수 있는 장소다. ")
                 .append("검증 완료 ").append(verified).append("건의 지도 정답 ").append(verifiedExpected)
                 .append("곳만 집계하므로 전체 소개 장소의 추출 성능으로 해석하지 않는다. 원본 접근 불가 또는 지도 ID 미확정 사례는 ")
@@ -383,15 +412,18 @@ class GoldenSetEvalTest {
 
     private Map<String, String> readEnv() throws IOException {
         Map<String, String> env = new LinkedHashMap<>(System.getenv());
-        if (!Files.exists(ENV_FILE)) {
-            return env;
-        }
-        for (String line : Files.readAllLines(ENV_FILE)) {
-            int separator = line.indexOf('=');
-            if (line.isBlank() || line.startsWith("#") || separator < 0) {
+        for (String envFile : ENV_FILES.split(",")) {
+            Path path = Path.of(envFile.strip());
+            if (!Files.exists(path)) {
                 continue;
             }
-            env.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim().replaceAll("^\"|\"$", ""));
+            for (String line : Files.readAllLines(path)) {
+                int separator = line.indexOf('=');
+                if (line.isBlank() || line.startsWith("#") || separator < 0) {
+                    continue;
+                }
+                env.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim().replaceAll("^\"|\"$", ""));
+            }
         }
         return env;
     }
@@ -414,7 +446,8 @@ class GoldenSetEvalTest {
                     splitIds(columns.get("kakao_api_missing_ids")),
                     columns.get("verification_status"),
                     splitIds(columns.get("observed_place_names")),
-                    readAliases(columns.getOrDefault("accepted_kakao_aliases", ""))));
+                    readAliases(columns.getOrDefault("accepted_kakao_aliases", ""),
+                            columns.getOrDefault("accepted_google_place_ids", ""))));
         }
         return cases;
     }
@@ -430,14 +463,17 @@ class GoldenSetEvalTest {
         return value.isBlank() ? List.of() : List.of(value.split(";"));
     }
 
-    private static Map<String, String> readAliases(String value) {
+    // 카카오의 중복 ID와, 카카오가 못 찾아 Google에서 찾은 같은 장소의 Google ID를 모두 정답 카카오 ID로 바꿔 채점한다.
+    private static Map<String, String> readAliases(String... values) {
         Map<String, String> aliases = new LinkedHashMap<>();
-        for (String pair : splitIds(value)) {
-            int separator = pair.indexOf('=');
-            if (separator <= 0 || separator == pair.length() - 1) {
-                throw new IllegalArgumentException("지도 별칭은 별칭ID=정답ID 형식이어야 합니다.");
+        for (String value : values) {
+            for (String pair : splitIds(value)) {
+                int separator = pair.indexOf('=');
+                if (separator <= 0 || separator == pair.length() - 1) {
+                    throw new IllegalArgumentException("지도 별칭은 별칭ID=정답ID 형식이어야 합니다.");
+                }
+                aliases.put(pair.substring(0, separator), pair.substring(separator + 1));
             }
-            aliases.put(pair.substring(0, separator), pair.substring(separator + 1));
         }
         return Map.copyOf(aliases);
     }

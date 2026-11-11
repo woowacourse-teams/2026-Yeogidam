@@ -34,6 +34,9 @@ public class SavedPlaceDao {
                     resultSet.getString("road_address"),
                     resultSet.getBigDecimal("latitude"),
                     resultSet.getBigDecimal("longitude"),
+                    resultSet.getString("map_provider"),
+                    resultSet.getString("external_place_id"),
+                    resultSet.getString("country_code"),
                     resultSet.getString("kakao_place_url"),
                     resultSet.getString("telephone"),
                     resultSet.getString("thumbnail_key"),
@@ -131,6 +134,9 @@ public class SavedPlaceDao {
                        p.road_address,
                        p.latitude,
                        p.longitude,
+                       p.map_provider,
+                       p.external_place_id,
+                       p.country_code,
                        p.kakao_place_url,
                        p.telephone,
                        p.thumbnail_key,
@@ -380,7 +386,8 @@ public class SavedPlaceDao {
         }
         String sql = """
                 SELECT sp.id, p.id AS place_id, p.name, p.category, p.land_lot_address, p.road_address,
-                       p.latitude, p.longitude, p.kakao_place_url, p.telephone,
+                       p.latitude, p.longitude, p.map_provider, p.external_place_id, p.country_code,
+                       p.kakao_place_url, p.telephone,
                        p.thumbnail_key, p.thumbnail_source, sp.last_saved_at
                 FROM saved_places sp
                 JOIN places p ON p.id = sp.place_id

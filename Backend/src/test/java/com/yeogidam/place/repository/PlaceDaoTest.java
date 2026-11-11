@@ -12,6 +12,13 @@ import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
+import com.yeogidam.place.domain.Address;
+import com.yeogidam.place.domain.Coordinate;
+import com.yeogidam.place.domain.CountryCode;
+import com.yeogidam.place.domain.Place;
+import com.yeogidam.place.domain.PlaceExternalSource;
+import com.yeogidam.place.domain.PlaceName;
+import com.yeogidam.place.domain.PlaceProfile;
 import com.yeogidam.support.JdbcTestSupport;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -305,6 +312,102 @@ class PlaceDaoTest extends JdbcTestSupport {
 
         // then
         assertThat(info.menus()).isNull();
+    }
+
+    @Test
+    void 카카오_장소는_지도_제공자와_장소_ID와_함께_kakao_place_id도_넣는다() {
+        // when
+        Long placeId = placeDao.saveIfAbsent(kakaoPlace("26338954"));
+
+        // then
+        assertThat(jdbcTemplate.queryForMap("""
+                SELECT map_provider, external_place_id, country_code, kakao_place_id FROM places WHERE id = ?
+                """, placeId))
+                .containsEntry("map_provider", "KAKAO")
+                .containsEntry("external_place_id", "26338954")
+                .containsEntry("country_code", "KR")
+                .containsEntry("kakao_place_id", "26338954");
+    }
+
+    @Test
+    void 구글_장소는_지도_제공자와_나라를_넣고_kakao_place_id와_카카오_링크는_비운다() {
+        // when
+        Long placeId = placeDao.saveIfAbsent(googlePlace("ChIJxwgCUhPnAGARoz8_83liVEk"));
+
+        // then
+        assertThat(jdbcTemplate.queryForMap("""
+                SELECT map_provider, external_place_id, country_code, kakao_place_id, kakao_place_url
+                FROM places WHERE id = ?
+                """, placeId))
+                .containsEntry("map_provider", "GOOGLE")
+                .containsEntry("external_place_id", "ChIJxwgCUhPnAGARoz8_83liVEk")
+                .containsEntry("country_code", "JP")
+                .containsEntry("kakao_place_id", null)
+                .containsEntry("kakao_place_url", null);
+    }
+
+    @Test
+    void 같은_구글_장소를_다시_저장하면_새_줄을_만들지_않고_같은_장소_ID를_돌려준다() {
+        // given
+        Long first = placeDao.saveIfAbsent(googlePlace("ChIJxwgCUhPnAGARoz8_83liVEk"));
+
+        // when
+        Long second = placeDao.saveIfAbsent(googlePlace("ChIJxwgCUhPnAGARoz8_83liVEk"));
+
+        // then
+        assertThat(second).isEqualTo(first);
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM places", Long.class)).isEqualTo(1L);
+    }
+
+    @Test
+    void 카카오_장소_ID와_글자가_같은_구글_장소는_다른_장소로_저장한다() {
+        // given
+        Long kakaoPlaceId = placeDao.saveIfAbsent(kakaoPlace("26338954"));
+
+        // when
+        Long googlePlaceId = placeDao.saveIfAbsent(googlePlace("26338954"));
+
+        // then
+        assertThat(googlePlaceId).isNotEqualTo(kakaoPlaceId);
+    }
+
+    @Test
+    void 구글_장소_ID는_대소문자를_가려서_대소문자만_다른_ID는_다른_장소로_저장한다() {
+        // given
+        Long lowerCasePlaceId = placeDao.saveIfAbsent(googlePlace("ChIJabcdefg"));
+
+        // when
+        Long upperCasePlaceId = placeDao.saveIfAbsent(googlePlace("ChIJABCDEFG"));
+
+        // then
+        assertThat(upperCasePlaceId).isNotEqualTo(lowerCasePlaceId);
+    }
+
+    @Test
+    void 이전_서버가_kakao_place_id만_넣은_장소를_다시_저장하면_같은_장소_ID를_돌려준다() {
+        // given: 배포 동안 V7 컬럼을 모르는 이전 서버가 kakao_place_id만 넣었다.
+        insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 71L, "26338954", "카페 온월", "서울 성동구 성수동2가 289-10",
+                new BigDecimal("37.5445"), new BigDecimal("127.0561"));
+
+        // when
+        Long placeId = placeDao.saveIfAbsent(kakaoPlace("26338954"));
+
+        // then
+        assertThat(placeId).isEqualTo(71L);
+    }
+
+    private Place kakaoPlace(String kakaoPlaceId) {
+        return new Place(null, PlaceExternalSource.kakao(kakaoPlaceId, "https://place.map.kakao.com/" + kakaoPlaceId),
+                new PlaceProfile(new PlaceName("카페 온월"), new Address("서울 성동구 성수동2가 289-10", null),
+                        new Coordinate(new BigDecimal("37.5445"), new BigDecimal("127.0561")), "음식점 > 카페",
+                        null, null));
+    }
+
+    private Place googlePlace(String googlePlaceId) {
+        return new Place(null, PlaceExternalSource.google(googlePlaceId),
+                new PlaceProfile(new PlaceName("토미타 규카츠"), new Address("Osaka", null, new CountryCode("JP")),
+                        new Coordinate(new BigDecimal("34.6630"), new BigDecimal("135.5020")), "음식점 > 일식",
+                        null, null));
     }
 
     private void updatePlaceInfo(Long placeId, String openingHours, String menus) {
