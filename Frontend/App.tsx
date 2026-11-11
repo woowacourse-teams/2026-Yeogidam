@@ -40,6 +40,11 @@ import {
   clearPrefetchedSavedPlaces,
   prefetchSavedPlaces,
 } from './src/entities/info/savedPlacesPrefetch';
+import {
+  clearSavedLibraryCache,
+  loadSavedLibraryCache,
+  setSavedLibraryCacheOwner,
+} from './src/entities/info/savedLibraryCache';
 import type { PlaceReel, ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -864,6 +869,7 @@ function App() {
 
         // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
         await syncShareSession(null).catch(() => undefined);
+        clearSavedLibraryCache().catch(() => undefined);
 
         setFlowState(INITIAL_FLOW_STATE);
         setIsOnboardingVisible(true);
@@ -874,6 +880,10 @@ function App() {
 
       // 첫 화면은 항상 저장 장소 탭이라, 세션을 확인하자마자 목록 요청을 시작해 스플래시와 겹친다.
       prefetchSavedPlaces();
+      // 기기에 남은 지난 보관함을 스플래시 동안 읽어, 첫 화면이 네트워크를 기다리지 않게 한다.
+      if (memberId) await loadSavedLibraryCache(memberId).catch(() => undefined);
+      else setSavedLibraryCacheOwner(null);
+      if (!isMounted) return;
       if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setActiveUserId(memberId);
@@ -940,6 +950,7 @@ function App() {
       clearPrefetchedSavedPlaces();
 
       if (event === 'SIGNED_OUT') {
+        clearSavedLibraryCache().catch(() => undefined);
         loginEntryRef.current = null;
         activeUserIdRef.current = null;
         setActiveUserId(null);
@@ -955,6 +966,7 @@ function App() {
       }
 
       setSocialLoginError(null);
+      setSavedLibraryCacheOwner(memberId);
       if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setActiveUserId(memberId);
