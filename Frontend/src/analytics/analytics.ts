@@ -33,6 +33,11 @@ export function setAnalyticsGuestMode(isGuest: boolean | null) {
   analyticsIsGuest = isGuest;
 }
 
+/** 현재 비회원 여부. 확인 전이면 null입니다. */
+export function getAnalyticsGuestMode(): boolean | null {
+  return analyticsIsGuest;
+}
+
 /** 모든 이벤트에 공통으로 포함할 속성입니다. */
 export function getAnalyticsEnvironment() {
   return Config.APP_ENV?.trim() || 'development';
