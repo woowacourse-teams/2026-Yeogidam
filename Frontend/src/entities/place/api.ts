@@ -20,7 +20,9 @@ export function toSavedPlaceDisplayPlace(savedPlace: SavedPlaceListItem): Place 
     fullAddress: address,
     latitude: place.latitude ?? undefined,
     longitude: place.longitude ?? undefined,
-    placeUrl: place.kakaoPlaceUrl ?? undefined,
+    placeUrl: place.placeUrl ?? place.kakaoPlaceUrl ?? undefined,
+    mapProvider: place.mapProvider ?? undefined,
+    countryCode: place.countryCode ?? undefined,
     image: imageUrl ? {uri: imageUrl} : undefined,
   };
 }

@@ -1,5 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 
+import type { MapProvider } from './mapProvider';
+
 export type Place = {
   id: string;
   savedPlaceId?: string;
@@ -15,7 +17,12 @@ export type Place = {
   fullAddress: string;
   latitude?: number;
   longitude?: number;
+  // 카카오 장소는 카카오맵 링크, Google 장소는 구글맵 검색 링크입니다.
   placeUrl?: string;
+  // 값이 없으면 카카오 장소로 봅니다.
+  mapProvider?: MapProvider;
+  // ISO 3166-1 alpha-2 대문자입니다. (KR, JP, FR 등)
+  countryCode?: string;
   telephone?: string;
   image?: ImageSourcePropType;
   images?: ImageSourcePropType[];
