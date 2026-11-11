@@ -34,16 +34,20 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.yeogidamm.app.BuildConfig
 import com.yeogidamm.app.R
 import org.json.JSONArray
+import kotlin.math.PI
+import kotlin.math.atan
+import kotlin.math.ln
+import kotlin.math.log2
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sinh
 
 // 지도 화면의 Google 지도입니다. 카카오 지도(KakaoMapView)와 같은 props·이벤트를 받고,
 // 핀 모양·이름 표시·카메라 이동도 카카오 지도와 똑같이 동작하도록 옮겼습니다.
@@ -91,6 +95,7 @@ class GoogleMapView(
     private var locationUpdatesStarted = false
     private var pendingCurrentLocationCameraMove = false
     private var appliedBottomPadding = 0
+    private var logoBottomInset = 0
 
     private val locationListener =
         LocationListener { location ->
@@ -104,12 +109,7 @@ class GoogleMapView(
             return@Runnable
         }
 
-        map.moveCamera(
-            CameraUpdateFactory.newLatLngZoom(
-                LatLng(latitude, longitude),
-                zoomLevel.toFloat(),
-            ),
-        )
+        moveCamera(map, LatLng(latitude, longitude), zoomLevel.toFloat())
     }
 
     private val fitSearchResultPoints = Runnable {
@@ -139,12 +139,27 @@ class GoogleMapView(
                 return@Runnable
             }
 
-            val bounds = LatLngBounds.builder().apply { points.forEach(::include) }.build()
-            val padding = (SEARCH_RESULT_CAMERA_PADDING_DP * resources.displayMetrics.density).roundToInt()
-            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, padding))
-            if (map.cameraPosition.zoom > SEARCH_RESULT_MAX_ZOOM_LEVEL) {
-                map.moveCamera(CameraUpdateFactory.zoomTo(SEARCH_RESULT_MAX_ZOOM_LEVEL))
+            // 시트에 가려지지 않은 영역 안에 모든 좌표가 들어오는 줌을 메르카토르 좌표로 직접 구합니다.
+            val density = resources.displayMetrics.density
+            val padding = SEARCH_RESULT_CAMERA_PADDING_DP * density
+            val availableWidth = width - padding * 2
+            val availableHeight = height - visibleBottomInset() - padding * 2
+            if (availableWidth <= 0 || availableHeight <= 0) return@Runnable
+            val xs = points.map { (it.longitude + 180) / 360 }
+            val ys = points.map {
+                val sine = sin(Math.toRadians(it.latitude))
+                0.5 - ln((1 + sine) / (1 - sine)) / (4 * PI)
             }
+            val spanX = (xs.max() - xs.min()).coerceAtLeast(1e-12)
+            val spanY = (ys.max() - ys.min()).coerceAtLeast(1e-12)
+            val worldSize = 256 * density
+            val fitZoom = log2(minOf(availableWidth / (worldSize * spanX), availableHeight / (worldSize * spanY)))
+            val centerY = (ys.min() + ys.max()) / 2
+            val center = LatLng(
+                Math.toDegrees(atan(sinh(PI * (1 - 2 * centerY)))),
+                (xs.min() + xs.max()) / 2 * 360 - 180,
+            )
+            moveCamera(map, center, minOf(fitZoom.toFloat(), SEARCH_RESULT_MAX_ZOOM_LEVEL))
         } catch (error: Exception) {
             Log.e("YeogidamGoogleMap", "검색 결과 범위에 카메라를 맞추지 못했습니다.", error)
         }
@@ -306,6 +321,15 @@ class GoogleMapView(
         applyCameraPadding()
     }
 
+    fun setLogoBottomInset(value: Double) {
+        val nextInset =
+            (value.coerceAtLeast(0.0) * resources.displayMetrics.density).roundToInt()
+        if (logoBottomInset == nextInset) return
+
+        logoBottomInset = nextInset
+        applyCameraPadding()
+    }
+
     fun setSavedPlacesJson(value: String) {
         if (savedPlacesJson == value) return
         savedPlacesJson = value
@@ -343,31 +367,44 @@ class GoogleMapView(
         googleMap?.let { subwayStationLayer.refresh(it) }
     }
 
-    // 지도 뷰는 전체 화면 그대로 두고, 바텀시트에 가려진 부분은 여백으로 처리합니다.
-    // 여백을 두면 카메라 중심 좌표와 Google 로고가 시트 위쪽 영역으로 올라갑니다.
+    // 여백을 바꿀 때마다 Google이 카메라를 새 여백 가운데로 다시 맞추면서 지도가 움직이므로,
+    // 여백은 Google 로고 자리로만 씁니다. JS가 준 높이(시트를 내린 높이) 위에 로고를 고정하고,
+    // 시트에 가려진 영역을 피해 카메라를 맞추는 일은 exposedCenter로 직접 합니다.
+    // 로고는 시트 둥근 모서리에 걸리지 않는 선에서 시트 쪽으로 조금 내립니다.
     private fun applyCameraPadding() {
         val map = googleMap ?: return
-        val bottomInset = cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0))
-        // Google 로고는 여백 안쪽 왼쪽 아래에 놓입니다. 시트 둥근 모서리에 걸리지 않는 선에서
-        // 로고를 시트 쪽으로 조금 내리려고 여백을 시트 높이보다 살짝 줄입니다.
+        post { emitVisibleBounds() }
+        if (width <= 0 || height <= 0) return
+
         val logoLowering = (LOGO_LOWERING_DP * resources.displayMetrics.density).roundToInt()
-        val bottomPadding = (bottomInset - logoLowering).coerceAtLeast(0)
+        val bottomPadding =
+            (logoBottomInset.coerceAtMost(height - 1) - logoLowering).coerceAtLeast(0)
         if (bottomPadding == appliedBottomPadding) return
 
-        // Google은 여백이 바뀌면 카메라 중심을 새 여백의 가운데로 옮겨 지도가 시트를 따라 움직입니다.
-        // 카카오 지도처럼 보이는 지도는 그대로 두려고, 새 중심 자리에 있던 좌표로 카메라를 다시 맞춥니다.
-        val camera = map.cameraPosition
+        // 여백이 바뀌는 드문 경우에도 보이는 지도는 그대로 두려고, 새 여백 가운데 자리에 있던 좌표로
+        // 카메라를 다시 맞춥니다.
         val target = map.projection.fromScreenLocation(Point(width / 2, (height - bottomPadding) / 2))
         map.setPadding(0, 0, 0, bottomPadding)
         appliedBottomPadding = bottomPadding
-        if (width > 0 && height > 0) {
-            map.moveCamera(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition(target, camera.zoom, camera.tilt, camera.bearing),
-                ),
-            )
-        }
-        post { emitVisibleBounds() }
+        map.moveCamera(CameraUpdateFactory.newLatLng(target))
+    }
+
+    // 바텀시트에 가려진 높이(px)입니다.
+    private fun visibleBottomInset(): Int = cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0))
+
+    // 바텀시트에 가려지지 않은 영역의 가운데입니다. 카메라를 옮길 좌표는 여기에 놓입니다.
+    private fun exposedCenter(): Point = Point(width / 2, (height - visibleBottomInset()) / 2)
+
+    // 좌표를 Google 카메라 중심이 아니라 시트 위쪽 영역 가운데에 오도록 카메라를 옮깁니다.
+    // 두 번 옮기지만 같은 순간에 처리되어 화면에는 마지막 위치만 그려집니다.
+    private fun moveCamera(map: GoogleMap, coordinate: LatLng, zoom: Float) {
+        map.moveCamera(CameraUpdateFactory.newLatLngZoom(coordinate, zoom))
+        if (width <= 0 || height <= 0) return
+        val paddedCenterY = (height - appliedBottomPadding) / 2
+        val target = map.projection.fromScreenLocation(
+            Point(width / 2, paddedCenterY * 2 - exposedCenter().y),
+        )
+        map.moveCamera(CameraUpdateFactory.newLatLng(target))
     }
 
     // 줌이 단계 경계를 넘을 때만 스타일을 바꿔 끼워, 매 프레임 다시 그리지 않게 합니다.
@@ -392,19 +429,18 @@ class GoogleMapView(
     }
 
     private fun emitMarkerPressed(map: GoogleMap, placeId: String) {
-        val cameraPosition = map.cameraPosition
+        val center = map.projection.fromScreenLocation(exposedCenter())
         reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
             id,
             "onMarkerPressed",
             Arguments.createMap().apply {
                 putString("id", placeId)
-                putDouble("latitude", cameraPosition.target.latitude)
-                putDouble("longitude", cameraPosition.target.longitude)
-                putInt("zoomLevel", cameraPosition.zoom.roundToInt())
+                putDouble("latitude", center.latitude)
+                putDouble("longitude", center.longitude)
+                putInt("zoomLevel", map.cameraPosition.zoom.roundToInt())
                 putDouble(
                     "cameraBottomInset",
-                    cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0)) /
-                        resources.displayMetrics.density.toDouble(),
+                    visibleBottomInset() / resources.displayMetrics.density.toDouble(),
                 )
             },
         )
@@ -747,14 +783,15 @@ class GoogleMapView(
             Point(width, height),
         ).map(projection::fromScreenLocation)
 
-        // 여백이 있으면 Google 카메라 중심(target)은 여백을 뺀 영역의 가운데입니다.
+        // 카메라 이동과 같은 기준인, 시트에 가려지지 않은 영역의 가운데 좌표를 보냅니다.
         val cameraPosition = map.cameraPosition
+        val center = projection.fromScreenLocation(exposedCenter())
         reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
             id,
             "onCameraChanged",
             Arguments.createMap().apply {
-                putDouble("latitude", cameraPosition.target.latitude)
-                putDouble("longitude", cameraPosition.target.longitude)
+                putDouble("latitude", center.latitude)
+                putDouble("longitude", center.longitude)
                 putInt("zoomLevel", cameraPosition.zoom.roundToInt())
                 putDouble("southLatitude", corners.minOf { it.latitude })
                 putDouble("northLatitude", corners.maxOf { it.latitude })
@@ -876,12 +913,7 @@ class GoogleMapView(
                 return@post
             }
 
-            map.moveCamera(
-                CameraUpdateFactory.newLatLngZoom(
-                    LatLng(location.latitude, location.longitude),
-                    zoomLevel.toFloat(),
-                ),
-            )
+            moveCamera(map, LatLng(location.latitude, location.longitude), zoomLevel.toFloat())
         }
     }
 

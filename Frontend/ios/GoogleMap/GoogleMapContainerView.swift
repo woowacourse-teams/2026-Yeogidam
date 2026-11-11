@@ -50,6 +50,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   private var cameraMoveScheduled = false
   private var reportedMissingApiKey = false
   private var isAdjustingPadding = false
+  private var logoBottomInset: CGFloat = 0
 
   private lazy var mapDelegate = MapDelegate(
     onWillMove: { [weak self] isGesture in
@@ -142,10 +143,12 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     let mapView = GMSMapView(options: options)
     mapView.delegate = mapDelegate
     mapView.settings.indoorPicker = false
-    // 바텀시트에 가려진 부분만큼 안쪽 여백을 두면 카메라 중심과 Google 로고가 시트 위로 올라갑니다.
+    // Google 로고가 시트 위에 보이도록 아래쪽 여백을 둡니다(mapBottomPadding 참고).
     mapView.padding = UIEdgeInsets(top: 0, left: 0, bottom: mapBottomPadding, right: 0)
     addSubview(mapView)
     self.mapView = mapView
+    // 안전 영역을 먼저 잡아 두어야 첫 카메라 이동부터 시트 위쪽 가운데에 정확히 놓입니다.
+    mapView.layoutIfNeeded()
 
     applyMapStyle()
     // 여백이 적용된 뒤의 화면 가운데에 처음 카메라를 다시 맞춥니다.
@@ -293,7 +296,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   // 저장 장소 핀만 눌림을 전달합니다. 어떤 핀이든 Google 기본 동작(말풍선, 카메라 이동)은 막습니다.
   private func markerTapped(_ marker: GMSMarker) {
     guard let mapView, let placeID = marker.userData as? String else { return }
-    let coordinate = mapView.camera.target
+    let coordinate = mapView.projection.coordinate(for: exposedCenterPoint(in: mapView))
     onMarkerPressed?([
       "id": placeID,
       "latitude": coordinate.latitude,
@@ -303,41 +306,66 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     ])
   }
 
-  // Google 로고는 여백 안쪽 왼쪽 아래에 놓입니다. 시트 둥근 모서리에 걸리지 않는 선에서
-  // 로고를 시트 쪽으로 조금 내리려고 여백을 시트 높이보다 살짝 줄입니다.
+  // 여백을 바꿀 때마다 Google이 다음 프레임에 카메라를 새 여백 가운데로 다시 맞추면서 지도가 깜빡이므로,
+  // 여백은 Google 로고 자리로만 씁니다. JS가 준 높이(시트를 내린 높이) 위에 로고를 고정하고,
+  // 시트에 가려진 영역을 피해 카메라를 맞추는 일은 exposedCenterPoint로 직접 합니다.
+  // 로고는 시트 둥근 모서리에 걸리지 않는 선에서 시트 쪽으로 조금 내립니다.
   private var mapBottomPadding: CGFloat {
-    max(0, cameraBottomInset - Self.logoLowering)
+    max(0, logoBottomInset - Self.logoLowering)
+  }
+
+  @objc
+  func updateLogoBottomInset(_ value: Double) {
+    let nextValue = max(0, CGFloat(value))
+    guard logoBottomInset != nextValue else { return }
+    logoBottomInset = nextValue
+    updateCameraPadding()
   }
 
   private func updateCameraPadding() {
     guard let mapView else { return }
+    defer { DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() } }
 
-    // 지도 뷰는 전체 화면 그대로 두고, 바텀시트에 가려진 부분은 여백으로 처리합니다.
-    // 여백을 두면 카메라 중심 좌표가 시트 위쪽 영역의 가운데에 놓입니다.
     let bottomPadding = mapBottomPadding
     guard mapView.padding.bottom != bottomPadding else { return }
 
-    // Google은 여백이 바뀌면 카메라 중심을 새 여백의 가운데로 옮겨 지도가 시트를 따라 움직입니다.
-    // 카카오 지도처럼 보이는 지도는 그대로 두려고, 새 중심 자리에 있던 좌표로 카메라를 다시 맞춥니다.
-    let newCenter = CGPoint(x: mapView.bounds.midX, y: (mapView.bounds.height - bottomPadding) / 2)
+    // 여백이 바뀌는 드문 경우에도 보이는 지도는 그대로 두려고, 새 여백 가운데 자리에 있던 좌표로
+    // 카메라를 다시 맞춥니다. Google은 여백에 안전 영역(상태바 등)까지 더해 가운데를 잡습니다.
+    let newCenter = paddedCenterPoint(in: mapView, bottomPadding: bottomPadding)
     let target = mapView.projection.coordinate(for: newCenter)
-    let camera = mapView.camera
     mapView.padding = UIEdgeInsets(top: 0, left: 0, bottom: bottomPadding, right: 0)
-    // 여백은 다음 레이아웃 때 반영될 수 있어서, 보정 전에 바로 반영해 새 여백 기준으로 카메라를 맞춥니다.
-    mapView.layoutIfNeeded()
     isAdjustingPadding = true
-    mapView.moveCamera(
-      GMSCameraUpdate.setCamera(
-        GMSCameraPosition(
-          target: target,
-          zoom: camera.zoom,
-          bearing: camera.bearing,
-          viewingAngle: camera.viewingAngle
-        )
-      )
-    )
+    mapView.moveCamera(GMSCameraUpdate.setTarget(target))
     isAdjustingPadding = false
-    DispatchQueue.main.async { [weak self] in self?.emitCameraChanged() }
+  }
+
+  // Google이 카메라 중심(target)을 두는 화면 위치입니다.
+  private func paddedCenterPoint(in mapView: GMSMapView, bottomPadding: CGFloat? = nil) -> CGPoint {
+    let safeArea = mapView.safeAreaInsets
+    let bottom = bottomPadding ?? mapView.padding.bottom
+    return CGPoint(
+      x: mapView.bounds.midX,
+      y: (safeArea.top + mapView.bounds.height - bottom - safeArea.bottom) / 2
+    )
+  }
+
+  // 바텀시트에 가려지지 않은 영역의 가운데입니다. 카메라를 옮길 좌표는 여기에 놓입니다.
+  private func exposedCenterPoint(in mapView: GMSMapView) -> CGPoint {
+    let safeArea = mapView.safeAreaInsets
+    return CGPoint(
+      x: mapView.bounds.midX,
+      y: (safeArea.top + mapView.bounds.height - cameraBottomInset - safeArea.bottom) / 2
+    )
+  }
+
+  // 좌표를 Google 카메라 중심이 아니라 시트 위쪽 영역 가운데에 오도록 카메라를 옮깁니다.
+  // 두 번 옮기지만 같은 순간에 처리되어 화면에는 마지막 위치만 그려집니다.
+  private func moveCamera(_ mapView: GMSMapView, to coordinate: CLLocationCoordinate2D, zoom: Float) {
+    mapView.moveCamera(GMSCameraUpdate.setTarget(coordinate, zoom: zoom))
+    let padded = paddedCenterPoint(in: mapView)
+    let exposed = exposedCenterPoint(in: mapView)
+    let target = mapView.projection.coordinate(for: CGPoint(x: padded.x, y: padded.y * 2 - exposed.y))
+    mapView.moveCamera(GMSCameraUpdate.setTarget(target))
   }
 
   private func moveCameraIfPossible() {
@@ -376,9 +404,7 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
       needsCurrentLocationCameraMove = false
       needsDefaultCameraMove = false
 
-      mapView.moveCamera(
-        GMSCameraUpdate.setTarget(location.coordinate, zoom: Float(zoomLevel))
-      )
+      moveCamera(mapView, to: location.coordinate, zoom: Float(zoomLevel))
       return
     }
 
@@ -390,33 +416,43 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
         return
       }
 
-      let bounds = points.dropFirst().reduce(
-        GMSCoordinateBounds(coordinate: points[0], coordinate: points[0])
-      ) { $0.includingCoordinate($1) }
+      // 시트에 가려지지 않은 영역 안에 모든 좌표가 들어오는 줌을 메르카토르 좌표로 직접 구합니다.
       let padding = Self.searchResultCameraPadding
+      let safeArea = mapView.safeAreaInsets
+      let availableWidth = mapView.bounds.width - padding * 2
+      let availableHeight =
+        mapView.bounds.height - safeArea.top - safeArea.bottom - cameraBottomInset - padding * 2
+      let xs = points.map { ($0.longitude + 180) / 360 }
+      let ys = points.map { point -> Double in
+        let sine = sin(point.latitude * .pi / 180)
+        return 0.5 - log((1 + sine) / (1 - sine)) / (4 * .pi)
+      }
       guard
-        var camera = mapView.camera(
-          for: bounds,
-          insets: UIEdgeInsets(top: padding, left: padding, bottom: padding, right: padding)
-        )
+        let minX = xs.min(), let maxX = xs.max(),
+        let minY = ys.min(), let maxY = ys.max(),
+        availableWidth > 0, availableHeight > 0
       else {
         return
       }
-      if camera.zoom > Self.searchResultMaxZoomLevel {
-        camera = GMSCameraPosition(target: camera.target, zoom: Self.searchResultMaxZoomLevel)
-      }
-      mapView.moveCamera(GMSCameraUpdate.setCamera(camera))
+      let spanX = max(maxX - minX, .ulpOfOne)
+      let spanY = max(maxY - minY, .ulpOfOne)
+      let fitZoom = log2(min(Double(availableWidth) / (256 * spanX), Double(availableHeight) / (256 * spanY)))
+      let centerY = (minY + maxY) / 2
+      let center = CLLocationCoordinate2D(
+        latitude: atan(sinh(.pi * (1 - 2 * centerY))) * 180 / .pi,
+        longitude: (minX + maxX) / 2 * 360 - 180
+      )
+      moveCamera(mapView, to: center, zoom: min(Float(fitZoom), Self.searchResultMaxZoomLevel))
       return
     }
 
     guard needsDefaultCameraMove else { return }
     needsDefaultCameraMove = false
 
-    mapView.moveCamera(
-      GMSCameraUpdate.setTarget(
-        CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-        zoom: Float(zoomLevel)
-      )
+    moveCamera(
+      mapView,
+      to: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+      zoom: Float(zoomLevel)
     )
   }
 
@@ -877,8 +913,8 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
       let eastLongitude = longitudes.max()
     else { return }
 
-    // 여백이 있으면 Google 카메라 중심(target)은 여백을 뺀 영역의 가운데입니다.
-    let coordinate = mapView.camera.target
+    // 카메라 이동과 같은 기준인, 시트에 가려지지 않은 영역의 가운데 좌표를 보냅니다.
+    let coordinate = projection.coordinate(for: exposedCenterPoint(in: mapView))
     onCameraChanged?([
       "latitude": coordinate.latitude,
       "longitude": coordinate.longitude,

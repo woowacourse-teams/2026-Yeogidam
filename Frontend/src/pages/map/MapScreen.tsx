@@ -71,6 +71,7 @@ import {
   SearchBar,
 } from '../../components/SearchBar';
 import {
+  COLLAPSED_LIST_SHEET_VISIBLE_HEIGHT,
   COLLAPSED_SHEET_HEIGHT,
   LIST_TOP_GAP,
   PlaceResultSheet,
@@ -817,6 +818,8 @@ export function MapScreen({
             cameraFitPointsJson={cameraFitPointsJson}
             cameraFitRequestId={cameraFitRequestId}
             cameraBottomInset={cameraBottomInset}
+            // Google 로고는 시트를 내린 높이 위에 고정해, 시트를 움직여도 지도가 다시 맞춰지지 않게 합니다.
+            logoBottomInset={COLLAPSED_LIST_SHEET_VISIBLE_HEIGHT}
             savedPlacesJson={savedPlacesJson}
             zoomMapStylesJson={GOOGLE_MAP_ZOOM_STYLES_JSON}
             subwayStationsJson={SUBWAY_STATIONS_JSON}

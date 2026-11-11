@@ -70,6 +70,7 @@ using namespace facebook::react;
     >(props);
 
   // 스타일과 역 목록을 먼저 넣어, 지도가 처음 그려질 때부터 적용되게 합니다.
+  [_mapView updateLogoBottomInset:newProps.logoBottomInset];
   [_mapView updateZoomMapStylesWithJson:[NSString stringWithUTF8String:newProps.zoomMapStylesJson.c_str()]];
   [_mapView updateSubwayStationsWithJson:[NSString stringWithUTF8String:newProps.subwayStationsJson.c_str()]
                                  minZoom:newProps.subwayStationMinZoom

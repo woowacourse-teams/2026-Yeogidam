@@ -90,6 +90,13 @@ class GoogleMapViewManager :
         view.setCameraBottomInset(value)
     }
 
+    override fun setLogoBottomInset(
+        view: GoogleMapView,
+        value: Double,
+    ) {
+        view.setLogoBottomInset(value)
+    }
+
     override fun setSavedPlacesJson(
         view: GoogleMapView,
         value: String?,
