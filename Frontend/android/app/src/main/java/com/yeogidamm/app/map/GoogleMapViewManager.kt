@@ -54,4 +54,32 @@ class GoogleMapViewManager :
     ) {
         view.setSavedPlacesJson(value ?: "[]")
     }
+
+    override fun setZoomMapStylesJson(
+        view: GoogleMapView,
+        value: String?,
+    ) {
+        view.setZoomMapStylesJson(value ?: "")
+    }
+
+    override fun setSubwayStationsJson(
+        view: GoogleMapView,
+        value: String?,
+    ) {
+        view.setSubwayStationsJson(value ?: "")
+    }
+
+    override fun setSubwayStationMinZoom(
+        view: GoogleMapView,
+        value: Int,
+    ) {
+        view.setSubwayStationMinZoom(value)
+    }
+
+    override fun setSubwayStationNameMinZoom(
+        view: GoogleMapView,
+        value: Int,
+    ) {
+        view.setSubwayStationNameMinZoom(value)
+    }
 }

@@ -61,6 +61,10 @@ using namespace facebook::react;
                      longitude:newProps.longitude
                      zoomLevel:newProps.zoomLevel
                savedPlacesJson:[NSString stringWithUTF8String:newProps.savedPlacesJson.c_str()]];
+  [_mapView updateZoomMapStylesWithJson:[NSString stringWithUTF8String:newProps.zoomMapStylesJson.c_str()]];
+  [_mapView updateSubwayStationsWithJson:[NSString stringWithUTF8String:newProps.subwayStationsJson.c_str()]
+                                 minZoom:newProps.subwayStationMinZoom
+                             nameMinZoom:newProps.subwayStationNameMinZoom];
 
   [super updateProps:props oldProps:oldProps];
 }

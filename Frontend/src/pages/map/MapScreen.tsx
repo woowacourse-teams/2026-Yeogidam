@@ -79,6 +79,8 @@ import {
 } from './components/PlaceResultSheet';
 import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
 import GoogleMapNativeComponent from '../../../spec/GoogleMapNativeComponent';
+import { GOOGLE_MAP_ZOOM_STYLES_JSON } from './googleMapStyles';
+import subwayStations from './subwayStations.json';
 
 import {
   checkLocationPermission,
@@ -118,6 +120,10 @@ type MapCamera = {
 
 // 국내 지도 품질 비교용 Google 지도 토글은 개발 빌드에서만 보여줍니다.
 const CAN_PREVIEW_GOOGLE_MAP = __DEV__;
+// 국가철도공단 도시광역철도 역사정보(2026-06-30 기준)를 변환한 역 목록으로, Google 지도에 직접 그립니다.
+const SUBWAY_STATIONS_JSON = JSON.stringify(subwayStations);
+const SUBWAY_STATION_MIN_ZOOM = 12;
+const SUBWAY_STATION_NAME_MIN_ZOOM = 14;
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
@@ -920,6 +926,10 @@ export function MapScreen({
             longitude={lastMapCameraRef.current.longitude}
             zoomLevel={lastMapCameraRef.current.zoomLevel}
             savedPlacesJson={savedPlacesJson}
+            zoomMapStylesJson={GOOGLE_MAP_ZOOM_STYLES_JSON}
+            subwayStationsJson={SUBWAY_STATIONS_JSON}
+            subwayStationMinZoom={SUBWAY_STATION_MIN_ZOOM}
+            subwayStationNameMinZoom={SUBWAY_STATION_NAME_MIN_ZOOM}
             onCameraChanged={event => {
               googleMapCameraRef.current = {
                 ...event.nativeEvent,
