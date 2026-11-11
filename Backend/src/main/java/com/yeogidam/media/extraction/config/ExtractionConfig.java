@@ -12,7 +12,8 @@ import org.springframework.web.client.RestClient;
 
 @Configuration
 @EnableConfigurationProperties({
-        ExtractionProperties.class, ExtractionPoolProperties.class, GeminiProperties.class, KakaoLocalProperties.class
+        ExtractionProperties.class, ExtractionPoolProperties.class, GeminiProperties.class, KakaoLocalProperties.class,
+        GooglePlacesProperties.class
 })
 public class ExtractionConfig {
 
@@ -20,6 +21,7 @@ public class ExtractionConfig {
     private static final Duration GEMINI_MEDIA_HTTP_TIMEOUT = Duration.ofSeconds(120);
     private static final Duration MEDIA_DOWNLOAD_HTTP_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration KAKAO_LOCAL_HTTP_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration GOOGLE_PLACES_HTTP_TIMEOUT = Duration.ofSeconds(5);
 
     @Bean
     public ThreadPoolTaskExecutor mediaExtractionExecutor(ExtractionPoolProperties properties) {
@@ -41,6 +43,12 @@ public class ExtractionConfig {
     @Bean("kakaoLocalRestClient")
     public RestClient kakaoLocalRestClient(RestClient.Builder builder) {
         return builder.requestFactory(createRequestFactory(KAKAO_LOCAL_HTTP_TIMEOUT))
+                .build();
+    }
+
+    @Bean("googlePlacesRestClient")
+    public RestClient googlePlacesRestClient(RestClient.Builder builder) {
+        return builder.requestFactory(createRequestFactory(GOOGLE_PLACES_HTTP_TIMEOUT))
                 .build();
     }
 

@@ -27,6 +27,9 @@ public class LoadTestHttpRouting {
         if (host.equals("dapi.kakao.com")) {
             return "kakao";
         }
+        if (host.equals("places.googleapis.com")) {
+            return "google-places";
+        }
         if (host.equals("place.map.kakao.com") || host.equals("map.kakao.com") || host.equals("m.map.kakao.com")) {
             return "place-page";
         }

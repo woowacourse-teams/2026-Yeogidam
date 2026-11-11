@@ -105,7 +105,7 @@ public final class FakePlaceSearchHintExtractor implements PlaceSearchHintExtrac
     }
 
     public void reset() {
-        respondWith(List.of(new PlaceSearchHint("올드빅", null, List.of(), List.of(), null)));
+        respondWith(List.of(new PlaceSearchHint("올드빅", null, List.of(), List.of(), null, null)));
         failure.set(null);
         requests.set(0);
         mediaRequests.set(0);

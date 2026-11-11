@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
+import org.springframework.http.MediaType;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestClient;
 
@@ -30,6 +31,7 @@ class LoadTestMediaClientsTest {
     private static final String SHORTCODE = "ydlt_test_01";
     private static final String GEMINI_HOST = "https://generativelanguage.googleapis.com";
     private static final String VIDEO = "fixture-video";
+    private static final String NO_PLACES = "{\"places\":[]}";
 
     @TempDir
     Path directory;
@@ -78,6 +80,35 @@ class LoadTestMediaClientsTest {
         }
     }
 
+    @Test
+    void Google_Places_검색은_측정_범위에서_Fake로_보내고_인증_키는_보내지_않는다() throws IOException {
+        Map<String, Request> requests = new ConcurrentHashMap<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> respond(exchange, requests));
+        server.start();
+        URI fakeBase = URI.create("http://127.0.0.1:" + server.getAddress().getPort());
+        try (AnnotationConfigApplicationContext context = createContext(fakeBase)) {
+            var google = context.getBean("googlePlacesRestClient", RestClient.class);
+            try (LoadTestScope ignored = LoadTestScope.open(SHORTCODE)) {
+                String places = google.post()
+                        .uri("https://places.googleapis.com/v1/places:searchText")
+                        .header("X-Goog-Api-Key", "real-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"textQuery\":\"Ichiran Shibuya\"}")
+                        .retrieve()
+                        .body(String.class);
+                assertThat(places).isEqualTo(NO_PLACES);
+            }
+
+            Request search = requests.get("/external/google-places/v1/places:searchText");
+            assertThat(search.shortcode()).isEqualTo(SHORTCODE);
+            assertThat(search.apiKey()).isNull();
+            assertThat(search.body()).contains("Ichiran Shibuya");
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private AnnotationConfigApplicationContext createContext(URI fakeBase) {
         var context = new AnnotationConfigApplicationContext();
         context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("test", Map.of(
@@ -118,6 +149,7 @@ class LoadTestMediaClientsTest {
                 case "/external/gemini/mock-upload/fixture" -> reply(exchange, "application/json", """
                         {"file":{"name":"files/fixture","state":"ACTIVE","uri":"%s/v1beta/files/fixture"}}
                         """.formatted(GEMINI_HOST));
+                case "/external/google-places/v1/places:searchText" -> reply(exchange, "application/json", NO_PLACES);
                 case "/external/gemini/v1beta/files/fixture", "/direct" -> exchange.sendResponseHeaders(204, -1);
                 default -> exchange.sendResponseHeaders(404, -1);
             }
