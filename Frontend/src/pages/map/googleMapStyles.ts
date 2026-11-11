@@ -154,12 +154,12 @@ const MAP_STYLE = [
   {
     featureType: 'road.highway',
     elementType: 'geometry.fill',
-    stylers: [{ color: '#f8d098' }],
+    stylers: [{ color: '#fbe3c2' }],
   },
   {
     featureType: 'road.highway',
     elementType: 'geometry.stroke',
-    stylers: [{ color: '#e4a870' }],
+    stylers: [{ color: '#f0c99a' }],
   },
   {
     featureType: 'road.arterial',
