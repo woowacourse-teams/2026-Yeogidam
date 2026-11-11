@@ -1025,9 +1025,9 @@ class GoogleMapView(
         const val SEARCH_RESULT_CAMERA_PADDING_DP = 48
         const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16f
         // 이 줌부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
-        const val PLACE_NAME_MIN_ZOOM_LEVEL = 12f
+        const val PLACE_NAME_MIN_ZOOM_LEVEL = 13f
         // 장소 이름은 지도의 동·역 이름보다 크고 진하게, 두꺼운 흰 테두리로 그려 지도 위에서 잘 읽히게 합니다.
-        const val PLACE_NAME_TEXT_SIZE_DP = 11f
+        const val PLACE_NAME_TEXT_SIZE_DP = 13f
         const val PLACE_NAME_HALO_DP = 1.5f
         const val PLACE_NAME_MAX_WIDTH_DP = 120f
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L

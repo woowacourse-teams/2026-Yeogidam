@@ -123,14 +123,14 @@ class SubwayStationLayer(
 
     // 단일 노선역은 노선 색 테두리의 흰 동그라미, 환승역은 노선 색 점을 나란히 담은
     // 알약 모양으로 그리고 그 아래에 역 이름을 둡니다. 역 좌표는 배지 가운데에 맞춥니다.
-    // 크기는 네이버 지도 스크린샷의 역 표시(지름 약 9dp, 얇은 테두리, 10dp 이름)에 맞췄습니다.
+    // 역이 많이 깔려도 지도를 덮지 않도록 동그라미는 지름 7dp로 작게, 이름은 10dp로 그립니다.
     private fun makeIcon(station: Station, showsName: Boolean): StationIcon {
-        val badgeHeight = 9 * density
-        val dotSize = 5 * density
-        val dotGap = 1.5f * density
+        val badgeHeight = 7 * density
+        val dotSize = 3.5f * density
+        val dotGap = 1 * density
         val isTransfer = station.colors.size > 1
         val badgeWidth =
-            if (isTransfer) station.colors.size * (dotSize + dotGap) + 4 * density else badgeHeight
+            if (isTransfer) station.colors.size * (dotSize + dotGap) + 3 * density else badgeHeight
 
         val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = 10 * density
@@ -168,18 +168,18 @@ class SubwayStationLayer(
             stroke.strokeWidth = 1 * density
             canvas.drawRoundRect(rect, badgeCenterY, badgeCenterY, stroke)
 
-            var dotX = badgeLeft + 2.75f * density + dotSize / 2
+            var dotX = badgeLeft + 2 * density + dotSize / 2
             station.colors.forEach { color ->
                 fill.color = color
                 canvas.drawCircle(dotX, badgeCenterY, dotSize / 2, fill)
                 dotX += dotSize + dotGap
             }
         } else {
-            val radius = badgeHeight / 2 - 0.75f * density
+            val radius = badgeHeight / 2 - 0.6f * density
             fill.color = Color.WHITE
             canvas.drawCircle(width / 2f, badgeCenterY, radius, fill)
             stroke.color = station.colors.firstOrNull() ?: Color.GRAY
-            stroke.strokeWidth = 1.5f * density
+            stroke.strokeWidth = 1.2f * density
             canvas.drawCircle(width / 2f, badgeCenterY, radius, stroke)
         }
 

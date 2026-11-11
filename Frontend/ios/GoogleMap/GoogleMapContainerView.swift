@@ -323,6 +323,8 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
     let target = mapView.projection.coordinate(for: newCenter)
     let camera = mapView.camera
     mapView.padding = UIEdgeInsets(top: 0, left: 0, bottom: bottomPadding, right: 0)
+    // 여백은 다음 레이아웃 때 반영될 수 있어서, 보정 전에 바로 반영해 새 여백 기준으로 카메라를 맞춥니다.
+    mapView.layoutIfNeeded()
     isAdjustingPadding = true
     mapView.moveCamera(
       GMSCameraUpdate.setCamera(
@@ -729,12 +731,12 @@ final class GoogleMapContainerView: UIView, CLLocationManagerDelegate {
   ]
   private static let defaultPinColorHex = "#8FA2FF"
   // 이 줌부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
-  private static let placeNameMinZoomLevel: Float = 12
+  private static let placeNameMinZoomLevel: Float = 13
   // 카카오 지도는 핀 이미지를 1.5배로 키워 그렸으므로, 같은 크기로 보이도록 핀·이름·현재 위치 마커를
   // 모두 이 배율로 그립니다.
   private static let markerScale: CGFloat = 1.5
   // 장소 이름은 지도의 동·역 이름보다 크고 진하게, 두꺼운 흰 테두리로 그려 지도 위에서 잘 읽히게 합니다.
-  private static let placeNameFont = UIFont.systemFont(ofSize: 11, weight: .semibold)
+  private static let placeNameFont = UIFont.systemFont(ofSize: 13, weight: .semibold)
   private static let placeNameHalo: CGFloat = 1.5
   private static let placeNameMaxWidth: CGFloat = 120 * markerScale
 
@@ -1145,14 +1147,14 @@ private final class SubwayStationLayer {
 
   // 단일 노선역은 노선 색 테두리의 흰 동그라미, 환승역은 노선 색 점을 나란히 담은
   // 알약 모양으로 그리고 그 아래에 역 이름을 둡니다. 역 좌표는 배지 가운데에 맞춥니다.
-  // 크기는 네이버 지도 스크린샷의 역 표시(지름 약 9pt, 얇은 테두리, 10pt 이름)에 맞췄습니다.
+  // 역이 많이 깔려도 지도를 덮지 않도록 동그라미는 지름 7pt로 작게, 이름은 10pt로 그립니다.
   private static func makeIcon(for station: Station, showsName: Bool) -> StationIcon {
-    let badgeHeight: CGFloat = 9
-    let dotSize: CGFloat = 5
-    let dotGap: CGFloat = 1.5
+    let badgeHeight: CGFloat = 7
+    let dotSize: CGFloat = 3.5
+    let dotGap: CGFloat = 1
     let isTransfer = station.colors.count > 1
     let badgeWidth = isTransfer
-      ? CGFloat(station.colors.count) * (dotSize + dotGap) + 4
+      ? CGFloat(station.colors.count) * (dotSize + dotGap) + 3
       : badgeHeight
     let nameFont = UIFont.systemFont(ofSize: 10, weight: .medium)
     let nameColor = UIColor(white: 0.13, alpha: 1)
@@ -1195,7 +1197,7 @@ private final class SubwayStationLayer {
         badge.lineWidth = 1
         badge.stroke()
 
-        var dotX = badgeRect.minX + 2.75
+        var dotX = badgeRect.minX + 2
         for color in station.colors {
           color.setFill()
           UIBezierPath(
@@ -1204,11 +1206,11 @@ private final class SubwayStationLayer {
           dotX += dotSize + dotGap
         }
       } else {
-        let badge = UIBezierPath(ovalIn: badgeRect.insetBy(dx: 0.75, dy: 0.75))
+        let badge = UIBezierPath(ovalIn: badgeRect.insetBy(dx: 0.6, dy: 0.6))
         UIColor.white.setFill()
         badge.fill()
         (station.colors.first ?? .gray).setStroke()
-        badge.lineWidth = 1.5
+        badge.lineWidth = 1.2
         badge.stroke()
       }
 

@@ -119,7 +119,8 @@ type MapCamera = {
 
 // 국가철도공단 도시광역철도 역사정보(2026-06-30 기준)를 변환한 역 목록으로, Google 지도에 직접 그립니다.
 const SUBWAY_STATIONS_JSON = JSON.stringify(subwayStations);
-const SUBWAY_STATION_MIN_ZOOM = 12;
+// 카카오 지도처럼 역 동그라미·역 이름·장소 이름(네이티브)이 모두 줌 13부터 나오게 맞춥니다.
+const SUBWAY_STATION_MIN_ZOOM = 13;
 const SUBWAY_STATION_NAME_MIN_ZOOM = 13;
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
