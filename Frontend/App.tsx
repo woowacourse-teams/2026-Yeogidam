@@ -36,6 +36,10 @@ import { AppAlertHost } from './src/components/AppAlertHost';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
 import { PmfSurveyModal } from './src/components/PmfSurveyModal';
 import { getCurrentProfile } from './src/entities/info/api';
+import {
+  clearPrefetchedSavedPlaces,
+  prefetchSavedPlaces,
+} from './src/entities/info/savedPlacesPrefetch';
 import type { PlaceReel, ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -868,6 +872,8 @@ function App() {
         return;
       }
 
+      // 첫 화면은 항상 저장 장소 탭이라, 세션을 확인하자마자 목록 요청을 시작해 스플래시와 겹친다.
+      prefetchSavedPlaces();
       if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setActiveUserId(memberId);
@@ -931,6 +937,7 @@ function App() {
       if (!isMounted || event === 'TOKEN_REFRESHED') {
         return;
       }
+      clearPrefetchedSavedPlaces();
 
       if (event === 'SIGNED_OUT') {
         loginEntryRef.current = null;

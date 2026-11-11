@@ -53,6 +53,7 @@ import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import { syncSavedPlaceFolderIds } from '../../lib/usePlaceFolders';
 import type { Place } from '../../entities/place/types';
 import { deleteSavedPlaces, getSavedPlaces } from '../../entities/info/api';
+import { takePrefetchedSavedPlaces } from '../../entities/info/savedPlacesPrefetch';
 import type { SavedPlacesApiError } from '../../entities/info/types';
 import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
 import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
@@ -456,7 +457,7 @@ export function SavedPlacesScreen({
       const showLoadingState = showLoading || !hasLoadedPlacesRef.current;
       if (showLoadingState) setIsLoading(true);
       try {
-        const savedPlaces = await getSavedPlaces();
+        const savedPlaces = await (takePrefetchedSavedPlaces() ?? getSavedPlaces());
         syncSavedPlaceFolderIds(savedPlaces);
         const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
         cachedSavedPlaces = nextPlaces;
