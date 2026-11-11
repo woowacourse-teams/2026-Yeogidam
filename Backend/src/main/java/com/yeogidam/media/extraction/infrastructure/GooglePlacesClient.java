@@ -15,7 +15,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * Google Places API (New)의 Text Search를 부른다. 어떤 검색어로 찾고 나라와 지역 결과를 어떻게 거를지는 GooglePlaceCandidateFinder가 정하고,
- * 거르고 남은 후보 가운데 무엇을 붙일지는 GoogleOverseasPlaceSearcher가 정한다.
+ * 거르고 남은 후보 가운데 무엇을 붙일지는 GoogleOverseasPlaceSearcher와 GoogleDomesticPlaceSearcher가 정한다.
  * 키가 없거나 호출이 실패하면 빈 값을 돌려줘서, 호출한 쪽은 찾지 못한 것으로 다룬다.
  */
 @Slf4j
@@ -51,7 +51,7 @@ public class GooglePlacesClient {
         this.properties = properties;
         this.apiEndpoint = apiEndpoint;
         if (!properties.enabled()) {
-            log.warn("GOOGLE_PLACES_API_KEY가 없어서 해외 장소 단서는 찾지 않고 장소를 찾지 못한 것으로 남깁니다.");
+            log.warn("GOOGLE_PLACES_API_KEY가 없어서 해외 장소와 카카오가 못 찾은 국내 장소는 찾지 않고 장소를 찾지 못한 것으로 남깁니다.");
         }
     }
 

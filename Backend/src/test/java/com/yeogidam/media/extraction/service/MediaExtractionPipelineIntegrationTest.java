@@ -21,6 +21,7 @@ import com.yeogidam.place.domain.PlaceThumbnail;
 import com.yeogidam.support.IntegrationTestSupport;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig.FakeInstagramMediaHtmlReader;
+import com.yeogidam.support.fake.FakeDomesticFallbackPlaceSearcher;
 import com.yeogidam.support.fake.FakeOverseasPlaceSearcher;
 import com.yeogidam.support.fake.FakePlaceSearchHintExtractor;
 import com.yeogidam.support.fake.FakeDomesticPlaceSearcher;
@@ -64,6 +65,9 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     private FakeOverseasPlaceSearcher overseasPlaceSearcher;
 
     @Autowired
+    private FakeDomesticFallbackPlaceSearcher domesticFallbackPlaceSearcher;
+
+    @Autowired
     private FakeInstagramMediaHtmlReader instagramMediaHtmlReader;
 
     @BeforeEach
@@ -73,6 +77,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         placeSearchHintExtractor.reset();
         domesticPlaceSearcher.reset();
         overseasPlaceSearcher.reset();
+        domesticFallbackPlaceSearcher.reset();
         instagramMediaHtmlReader.respondWithAuthor("yeogidam");
     }
 
@@ -528,6 +533,22 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 Map.of("map_provider", "GOOGLE", "external_place_id", "100", "country_code", "JP",
                         "thumbnail_source", "INSTAGRAM"));
         assertThat(count("saved_places")).isEqualTo(2);
+    }
+
+    @Test
+    void 카카오가_찾지_못한_국내_단서는_첨부를_다시_읽기_전에_구글에서_찾아_한국_구글_장소로_저장한다() throws Exception {
+        // given
+        placeSearchHintExtractor.respondWith(List.of(hint("누들스트릿")));
+        domesticFallbackPlaceSearcher.add("누들스트릿", googlePlace("ChIJ-noodle", "누들 스트릿", "KR"));
+
+        // when
+        shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+        awaitStatus(mediaId(), "SUCCEEDED");
+
+        // then
+        assertThat(jdbcTemplate.queryForList("SELECT map_provider, external_place_id, country_code FROM places"))
+                .containsExactly(Map.of("map_provider", "GOOGLE", "external_place_id", "ChIJ-noodle", "country_code", "KR"));
+        assertThat(placeSearchHintExtractor.mediaRequestCount()).isZero();
     }
 
     private static PlaceSearchHint hint(String name) {

@@ -19,6 +19,7 @@ class PlaceSearchRouterTest {
 
     private final List<String> kakaoRequests = new ArrayList<>();
     private final List<String> overseasRequests = new ArrayList<>();
+    private final List<String> fallbackRequests = new ArrayList<>();
 
     private final PlaceSearchRouter router = new PlaceSearchRouter(
             hint -> {
@@ -27,6 +28,10 @@ class PlaceSearchRouterTest {
             },
             hint -> {
                 overseasRequests.add(hint.nameInCaption());
+                return List.of();
+            },
+            hint -> {
+                fallbackRequests.add(hint.nameInCaption());
                 return List.of();
             });
 
@@ -39,6 +44,22 @@ class PlaceSearchRouterTest {
         assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("1001");
         assertThat(kakaoRequests).containsExactly("올드빅");
         assertThat(overseasRequests).isEmpty();
+        assertThat(fallbackRequests).isEmpty();
+    }
+
+    @Test
+    void 국내_장소_단서는_카카오가_0건이면_보조_검색에서_한_번_더_찾는다() {
+        // given
+        PlaceSearchRouter fallbackRouter = new PlaceSearchRouter(
+                hint -> List.of(),
+                hint -> List.of(place("ChIJ-overseas")),
+                hint -> List.of(place("ChIJ-noodle")));
+
+        // when
+        List<Place> result = fallbackRouter.search(hint("누들스트릿", null));
+
+        // then
+        assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("ChIJ-noodle");
     }
 
     @Test
@@ -60,6 +81,7 @@ class PlaceSearchRouterTest {
         assertThat(result).isEmpty();
         assertThat(overseasRequests).containsExactly("이치란");
         assertThat(kakaoRequests).isEmpty();
+        assertThat(fallbackRequests).isEmpty();
     }
 
     @Test
@@ -67,7 +89,8 @@ class PlaceSearchRouterTest {
         // given
         PlaceSearchRouter overseasRouter = new PlaceSearchRouter(
                 hint -> List.of(),
-                hint -> List.of(place("ChIJ-ichiran")));
+                hint -> List.of(place("ChIJ-ichiran")),
+                hint -> List.of());
 
         // when
         List<Place> result = overseasRouter.search(hint("이치란", "JP"));

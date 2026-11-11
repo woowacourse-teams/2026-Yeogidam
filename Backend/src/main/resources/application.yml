@@ -66,7 +66,8 @@ media:
   extraction:
     # 추출 방식이 바뀌면 올린다. 이전 버전에서 실패한 게시물은 다시 공유하거나 재시도할 때 실패 사유와 관계없이 다시 추출한다.
     # 2: 해외 장소를 Google Places로 찾는다(#679).
-    pipeline-version: 2
+    # 3: 국내 단서도 카카오가 0건이면 Google Places에서 한 번 더 찾는다(#679).
+    pipeline-version: 3
     pool:
       core-size: ${EXTRACTION_CORE_POOL_SIZE:2}
       max-size: ${EXTRACTION_MAX_POOL_SIZE:4}
@@ -85,7 +86,7 @@ media:
       fallback-api-keys: ${GEMINI_API_KEY_FALLBACKS:}
     kakao:
       api-key: ${KAKAO_CLIENT_ID}
-    # 해외 장소를 찾는 Google Places API (New) 키. 비워 두면 해외 장소 단서는 찾지 못한 것으로 끝난다.
+    # 해외 장소와 카카오가 못 찾은 국내 장소를 찾는 Google Places API (New) 키. 비워 두면 두 단서 모두 찾지 못한 것으로 끝난다.
     google:
       api-key: ${GOOGLE_PLACES_API_KEY:}
 

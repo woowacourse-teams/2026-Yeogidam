@@ -22,7 +22,7 @@ import java.util.Set;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Google Places API (New)의 Text Search로 장소 단서의 후보를 찾는다.
+ * Google Places API (New)의 Text Search로 장소 단서의 후보를 찾는다. 해외 검색과 국내 보조 검색이 함께 쓴다.
  * 원문 nameInCaption, 보정한 nameSearchHint 순으로 '장소명 + 주소나 지역'을 먼저 찾고, 모두 비면 장소명만 찾는다.
  * 캡션에 주소가 있으면 카카오 검색처럼 캡션 주소로 찾은 결과만 믿고 장소명만으로는 다시 찾지 않는다.
  * 결과의 나라가 찾는 나라와 다르면 버려서, 같은 이름의 다른 나라 가게가 붙지 않게 한다. 도시나 행정구역 같은 지역 결과도 버린다.
