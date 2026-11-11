@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   type FocusEvent,
   Image,
+  Keyboard,
   type NativeSyntheticEvent,
   Platform,
   Pressable,
@@ -13,6 +14,11 @@ import {
   View,
 } from 'react-native';
 import { MaterialIcons } from '@react-native-vector-icons/material-icons/static';
+
+import { focusAccessibility } from '../lib/accessibility';
+
+// 검색 패널이 열리는 애니메이션이 끝난 뒤 입력창으로 스크린 리더 포커스를 옮깁니다.
+const INPUT_FOCUS_DELAY_MS = 300;
 
 type SearchBarProps = {
   value?: string;
@@ -63,6 +69,12 @@ export function SearchBar({
   onPressClear,
   onSubmit,
 }: SearchBarProps) {
+  const inputRef = useRef<TextInput>(null);
+  // 키보드는 autoFocus로 올라오지만 VoiceOver 포커스는 따로 옮겨야 바로 "편집 중"인 입력창을 읽어요.
+  useEffect(() => {
+    if (!autoFocus || onPress) return undefined;
+    return focusAccessibility(inputRef, INPUT_FOCUS_DELAY_MS);
+  }, [autoFocus, onPress]);
   const handleSearchAction = onPressSearchAction ?? onSubmit;
   const handleSubmitEditing = onSubmitEditing ?? onSubmit;
   const SearchAction = handleSearchAction && !onPress ? Pressable : View;
@@ -109,6 +121,7 @@ export function SearchBar({
               onPress,
               accessibilityRole: 'button' as const,
               accessibilityLabel: placeholder,
+              accessibilityHint: '두 번 탭하면 검색어를 입력할 수 있어요',
             }
           : {})}
         style={styles.searchBar}
@@ -137,7 +150,10 @@ export function SearchBar({
           />
         ) : (
           <TextInput
+            ref={inputRef}
             accessibilityLabel="장소, 지역 검색"
+            // VoiceOver의 두 손가락 문지르기(Z) 제스처로 키보드를 내립니다. 빈 곳 탭은 스크린 리더에서 쓸 수 없어요.
+            onAccessibilityEscape={Keyboard.dismiss}
             autoCapitalize="none"
             autoCorrect={autoCorrect}
             autoFocus={autoFocus}

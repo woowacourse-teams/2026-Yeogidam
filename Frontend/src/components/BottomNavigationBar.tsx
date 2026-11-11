@@ -2,6 +2,7 @@ import React, {useEffect, useRef} from 'react';
 import {usePostHog} from 'posthog-react-native';
 
 import {trackButtonPressed} from '../analytics/uiEvents';
+import {visuallyHiddenTextStyle} from '../lib/accessibility';
 import {
   Animated,
   Easing,
@@ -164,6 +165,10 @@ export function BottomNavigationBar({
       ]}
     >
       <SystemNavigationGradient />
+      {/* 화면에는 보이지 않는 스크린 리더용 머리말입니다. 로터의 '머리말' 이동으로 목록에서 하단 메뉴까지 바로 옵니다. */}
+      <Text accessibilityRole="header" style={visuallyHiddenTextStyle}>
+        하단 메뉴
+      </Text>
       <View style={styles.navigationItems}>
         {navigationItems.map(navigation => (
           <Pressable

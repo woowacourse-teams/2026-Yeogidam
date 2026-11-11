@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -104,6 +105,8 @@ export function AccountDeletionScreen({
             탈퇴를 진행하려면 아래 입력칸에 정확히 `DELETE`를 입력해주세요.
           </Text>
           <TextInput
+            // VoiceOver의 두 손가락 문지르기(Z) 제스처로 키보드를 내립니다. 빈 곳 탭은 스크린 리더에서 쓸 수 없어요.
+            onAccessibilityEscape={Keyboard.dismiss}
             autoCapitalize="characters"
             autoCorrect={false}
             onChangeText={setConfirmation}

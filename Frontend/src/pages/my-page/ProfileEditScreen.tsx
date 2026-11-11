@@ -1,5 +1,6 @@
 import React, {useMemo, useState} from 'react';
 import {
+  Keyboard,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -147,6 +148,8 @@ export function ProfileEditScreen({
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>소개</Text>
             <TextInput
+              // VoiceOver의 두 손가락 문지르기(Z) 제스처로 키보드를 내립니다. 빈 곳 탭은 스크린 리더에서 쓸 수 없어요.
+              onAccessibilityEscape={Keyboard.dismiss}
               multiline
               numberOfLines={4}
               onChangeText={setDescription}
