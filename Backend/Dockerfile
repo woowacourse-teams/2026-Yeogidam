@@ -40,8 +40,16 @@ USER app
 # 배포 스크립트가 아니라 이미지에 둔다.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=50.0"
 
-# Alloy와 저장소를 준비한 서버에서 --env-file로 false를 전달한 뒤 컨테이너를 재생성한다.
-ENV OTEL_SDK_DISABLED=true
+# 계측 설치 비용을 줄이도록 에이전트를 기본 비활성화한다.
+# Alloy와 저장소를 준비한 서버에서 --env-file로 OTEL_JAVAAGENT_ENABLED=true를 전달한 뒤 컨테이너를 재생성한다.
+ENV OTEL_JAVAAGENT_ENABLED=false
+
+ENV OTEL_SERVICE_NAME=yeogidam-backend \
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318 \
+    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+
+# 로그가 발생한 시점에 MDC에 있는 요청 진단 항목을 Loki로 함께 전달한다.
+ENV OTEL_INSTRUMENTATION_LOGBACK_APPENDER_EXPERIMENTAL_MDC_ATTRIBUTES_INCLUDED=requestId,httpMethod,path,status,durationMs
 
 EXPOSE 8080
 

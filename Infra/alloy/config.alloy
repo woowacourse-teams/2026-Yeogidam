@@ -31,7 +31,36 @@ otelcol.processor.batch "app" {
   output {
     logs    = [otelcol.exporter.otlphttp.loki.input]
     metrics = [otelcol.processor.transform.environment.input]
-    traces  = [otelcol.exporter.otlp.tempo.input]
+    traces  = [otelcol.processor.filter.actuator.input]
+  }
+}
+
+// 주기적인 상태 확인 요청은 트레이스 저장에서 제외한다.
+otelcol.processor.filter "actuator" {
+  error_mode = "ignore"
+
+  trace_conditions {
+    context = "span"
+    conditions = [
+      `attributes["url.path"] != nil and IsMatch(attributes["url.path"], "^/actuator/")`,
+    ]
+  }
+
+  output {
+    traces = [otelcol.processor.transform.scrub.input]
+  }
+}
+
+otelcol.processor.transform "scrub" {
+  error_mode = "ignore"
+
+  trace_statements {
+    context    = "span"
+    statements = [`delete_key(attributes, "url.query")`]
+  }
+
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
   }
 }
 

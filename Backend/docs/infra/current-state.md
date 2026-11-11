@@ -2,7 +2,7 @@
 
 지금 실제로 돌아가는 것과 ADR이 정했는데 아직 못 한 것을 적는다. **ADR은 결정 기록이라 함부로 고치지 않지만 현재 상태 문서는 바뀔 때마다 고친다.** 인프라를 건드리는 PR은 현재 상태 문서도 같이 고친다.
 
-마지막 갱신 2026-10-27. Flyway 관련 내용은 로컬 코드 변경을 반영한 것이며, 개발 서버와 운영 DB에 마이그레이션을 적용하지 않았다.
+마지막 갱신 2026-11-11. Flyway 관련 내용은 로컬 코드 변경을 반영한 것이며, 개발 서버와 운영 DB에 마이그레이션을 적용하지 않았다. Java Agent와 Alloy 항목은 PR #512의 코드와 준비 절차다. 모니터링 서버의 저장소 보존 기간은 30일로 변경하고 실행 설정과 준비 상태를 확인했으며, 앱 서버의 수집 활성화는 별도다.
 
 ## 배포 경로
 
@@ -47,7 +47,7 @@ JWT_SECRET
 
 기존 비밀값은 각 서버에서 `openssl`로 만들어 넣었다. Flyway 비밀번호는 사용자가 개발과 운영에서 서로 다르게 준비해 직접 입력했다. `DB_URL`은 시간대 파라미터(`connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true`)까지 갖춘 값이다. 개발은 `yeogidam-dev-db`의 사설 IP이고 운영은 2026-10-02에 RDS를 만들어 엔드포인트와 앱 사용자(`yeogidam_app`) 비밀번호로 갈아끼웠다. 두 DB의 관리자(마스터) 비밀번호는 env에 없고 팀이 비밀값을 두는 곳에만 있다.
 
-`--env-file`은 컨테이너를 만들 때만 읽히고 `deploy.sh`는 같은 이미지면 컨테이너를 교체하지 않으므로, 값만 고치고 배포를 다시 돌려도 반영되지 않는다. 그래서 env를 고친 뒤에는 손배포하는데, `Infra/scripts/restart-backend.sh`를 서버에 복사해 `sudo bash`로 돌리면 `deploy.sh`와 같은 옵션으로 `current` 이미지를 다시 띄우고 healthy까지 기다린다. 롤백은 없으니 healthy가 안 되면 env를 되돌리고 다시 돌린다. 배포 워크플로가 도는 중에는 돌리지 않는다(#267). 2026-10-02 운영 RDS 전환 때는 재시작 스크립트가 머지되기 전이라 `docker rm -f` 뒤 `be-release` 마지막 실행의 Re-run으로 했고, 마지막 실행 이후 `be-release`에 커밋이 없어 Re-run이 통했다. 다시 돌리려는 실행 이후에 커밋이 하나라도 들어가면 「Validate Deployment Target」이 Re-run을 거부한다. 코드 변경 없이 지금 HEAD로 다시 배포할 때는 `gh workflow run backend-cd.yml --ref be-dev`로 부르는데, 수동 실행 트리거는 워크플로 파일이 `main`에 올라간 뒤부터 부를 수 있고 env 변경을 반영하지는 않는다.
+`--env-file`은 컨테이너를 만들 때만 읽히고 `deploy.sh`는 같은 이미지면 컨테이너를 교체하지 않으므로, 값만 고치고 배포를 다시 돌려도 반영되지 않는다. 그래서 env를 고친 뒤에는 손배포하는데, 최신 `Infra/scripts/restart-backend.sh`를 서버에 복사해 `sudo bash`로 돌리면 `current` 이미지를 반대쪽 포트에 띄우고 liveness를 확인한 뒤 전환한다. 새 컨테이너가 뜨지 않으면 기존 컨테이너가 계속 요청을 받으며, 직전 이미지로 되돌릴 때는 `previous` 인자를 사용한다. 배포 워크플로가 도는 중에는 돌리지 않는다(#267). 2026-10-02 운영 RDS 전환 때는 재시작 스크립트가 머지되기 전이라 `docker rm -f` 뒤 `be-release` 마지막 실행의 Re-run으로 했고, 마지막 실행 이후 `be-release`에 커밋이 없어 Re-run이 통했다. 다시 돌리려는 실행 이후에 커밋이 하나라도 들어가면 「Validate Deployment Target」이 Re-run을 거부한다. 코드 변경 없이 지금 HEAD로 다시 배포할 때는 `gh workflow run backend-cd.yml --ref be-dev`로 부르는데, 수동 실행 트리거는 워크플로 파일이 `main`에 올라간 뒤부터 부를 수 있고 env 변경을 반영하지는 않는다.
 
 소유권이 바뀌면 배포가 env 파일을 못 읽으므로, 손으로 고칠 때는 `sudo -u github-runner vi`로 연다. 따옴표와 끝 공백과 CRLF를 넣으면 `deploy.sh`의 프로필 대조가 막는다.
 
@@ -57,6 +57,41 @@ GitHub 저장소 설정에 다음이 있어야 배포가 돈다.
 | --- | --- |
 | variable | `DOCKERHUB_IMAGE`, `DOCKERHUB_USERNAME`, `BACKEND_ENV_FILE`, `BACKEND_HOST_PORT` |
 | secret | `DOCKERHUB_TOKEN` (CI, push용), `DOCKERHUB_READ_TOKEN` (러너, pull 전용) |
+
+## 앱 로그, 메트릭, 트레이스 수집 준비
+
+PR #512는 OpenTelemetry Java Agent `v2.33.1`과 Alloy `v1.21.3` 수집 경로를 추가한다.
+앱과 `yeogidam-alloy`는 외부 Docker 네트워크 `yeogidam-observability`를 공유하고,
+앱이 `http://alloy:4318`로 보낸 로그, 메트릭, 트레이스를 Alloy가 Loki, Prometheus, Tempo로 전달한다.
+4318 포트는 호스트에 공개하지 않는다. Alloy의 컨테이너 메모리 상한은 256MiB다.
+
+앱 이미지의 기본값은 `OTEL_JAVAAGENT_ENABLED=false`이다. 수집할 서버의 `backend.env`에서만
+활성화하고 컨테이너를 재생성한다. 서비스 이름 `yeogidam-backend`, OTLP 주소 `http://alloy:4318`과
+프로토콜 `http/protobuf`는 이미지 기본값이다. 환경 속성 `deployment.environment.name`은 배포와
+수동 재시작 스크립트가 검증한 프로필로 주입하고 다른 리소스 속성은 보존한다.
+기존 `OTEL_SDK_DISABLED=true`는 제거하거나 `false`로 바꿔야 수집을 켤 수 있다.
+
+Alloy 설정 파일은 `/opt/yeogidam/alloy/compose.yml`, `/opt/yeogidam/alloy/config.alloy`에 두고,
+인증과 전송 주소는 root 소유, 권한 600인 `/opt/yeogidam/alloy.env`에서 읽는다.
+키는 `LOKI_OTLP_ENDPOINT`, `PROMETHEUS_REMOTE_WRITE_URL`, `TEMPO_OTLP_ENDPOINT`,
+`MONITOR_AUTHORIZATION`이다. 서버에 복사한 `restart-backend.sh`도 개발과 운영 모두 갱신해야 한다.
+
+설치, 주소 형식, 시작, 설정 반영, 확인과 중지 순서는 [Alloy 운영 절차](../../../Infra/alloy/README.md)에 있다.
+서버별 활성화 여부와 실제 데이터 저장은 별도 확인이 필요하다. 개발 서버에서 먼저 켜고
+블루그린 배포 중 두 앱이 함께 실행되는 구간의 메모리까지 확인한 뒤 운영을 켠다.
+기존 CloudWatch 수집과 알람은 유지하며, 제거와 대체 알림은 후속 작업이다.
+
+트레이스는 batch 뒤에서 `/actuator/` 경로의 스팬을 제외하고 `transform.scrub`에서 `url.query`만 삭제한다.
+소셜 로그인 콜백의 인가 코드와 state가 새 트레이스에 저장되지 않도록 하며 서버 적용은 별도다.
+
+2026-11-11 22:45(KST)에 모니터링 서버의 Loki, Tempo와 Prometheus 보존 기간을 30일로 변경했다.
+Loki와 Tempo는 `720h`, Prometheus는 `30d`이며 Prometheus의 5GiB 제한을 유지했다.
+Prometheus는 30일 또는 5GiB 중 먼저 도달하는 기준으로 기록을 삭제한다.
+설정 백업과 동일 버전 검사 후 Prometheus를 재로딩하고 Loki와 Tempo를 순서대로 재시작했으며,
+실행 설정, 준비 상태 HTTP 200과 동일 데이터 볼륨 유지를 확인했다.
+모니터링 디스크는 19.93GiB 중 약 4.35GiB 사용, 약 15.58GiB 여유(사용률 22%)다. 앱 수집 활성화 후
+새 데이터 생성량은 추가 확인이 필요하다. 설정 경로, 백업 위치와 검증 기록은
+[운영 관찰 문서](observability.md#로그와-트레이스-보존-기간)에 있다.
 
 ## ADR별 구현 현황
 

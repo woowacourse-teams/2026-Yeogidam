@@ -40,6 +40,22 @@ READY_TIMEOUT_SECONDS=150
 log()  { printf '[restart-backend] %s %s\n' "$(TZ=Asia/Seoul date '+%F %T KST')" "$*"; }
 fail() { printf '[restart-backend] 오류: %s\n' "$*" >&2; exit 1; }
 
+otel_resource_attributes() {
+  local env_file="$1" profile="$2"
+  local configured_attributes attribute
+  local result="deployment.environment.name=${profile}"
+  local -a attributes=()
+
+  configured_attributes="$(grep -E '^OTEL_RESOURCE_ATTRIBUTES=' "$env_file" | tail -n 1 | cut -d= -f2- || true)"
+  IFS=, read -r -a attributes <<< "$configured_attributes"
+  for attribute in "${attributes[@]}"; do
+    [[ -z "${attribute//[[:space:]]/}" ]] && continue
+    [[ "$attribute" =~ ^[[:space:]]*deployment[.]environment[.]name[[:space:]]*= ]] && continue
+    result+=",${attribute}"
+  done
+  printf '%s' "$result"
+}
+
 [ "$(id -u)" -eq 0 ] || fail "sudo로 실행해 주세요."
 case "$ROLE" in
   current|previous) ;;
@@ -60,6 +76,7 @@ command -v flock >/dev/null 2>&1 || fail "flock이 없습니다."
 # awslogs 드라이버가 컨테이너를 못 띄우므로 먼저 거른다.
 PROFILE="$(grep -E '^SPRING_PROFILES_ACTIVE=' "$ENV_FILE" | tail -n 1 | cut -d= -f2 || true)"
 [[ "$PROFILE" =~ ^(dev|prod)$ ]] || fail "SPRING_PROFILES_ACTIVE가 dev나 prod가 아닙니다: '$PROFILE'"
+RESOURCE_ATTRIBUTES="$(otel_resource_attributes "$ENV_FILE" "$PROFILE")"
 
 # current 이미지는 Flyway 전용 계정으로 시작하므로(#412) 두 값이 비어 있으면 앱이 뜨지 못한다.
 # 블루그린이라 뜨지 않아도 요청은 끊기지 않지만, 시간을 버리지 않게 deploy.sh와 같은 기준으로 먼저 본다.
@@ -82,10 +99,9 @@ LOCK_FILE="${LOCK_DIR}/backend.lock"
 exec 9>>"$LOCK_FILE"
 flock -n 9 || fail "배포 워크플로가 EC2에서 진행 중입니다. Actions에서 Backend CD가 끝난 것을 보고 다시 돌려 주세요."
 
-if ! docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null 2>&1; then
-  docker network create "$OBSERVABILITY_NETWORK" >/dev/null 2>&1 \
-    || docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null
-fi
+docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null 2>&1 \
+  || docker network create "$OBSERVABILITY_NETWORK" >/dev/null \
+  || fail "Docker 네트워크 ${OBSERVABILITY_NETWORK}를 만들지 못했습니다."
 
 color_of_port() { if [ "$1" = "$BLUE_PORT" ]; then echo blue; else echo green; fi; }
 other_port()    { if [ "$1" = "$BLUE_PORT" ]; then echo "$GREEN_PORT"; else echo "$BLUE_PORT"; fi; }
@@ -119,6 +135,7 @@ docker run --detach \
   --network "$OBSERVABILITY_NETWORK" \
   --restart unless-stopped \
   --env-file "$ENV_FILE" \
+  --env "OTEL_RESOURCE_ATTRIBUTES=${RESOURCE_ATTRIBUTES}" \
   --publish "127.0.0.1:${IDLE_PORT}:8080" \
   --memory "$MEMORY_LIMIT" \
   --memory-swap "$MEMORY_SWAP_LIMIT" \
