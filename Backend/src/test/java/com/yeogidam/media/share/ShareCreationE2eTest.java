@@ -15,6 +15,7 @@ import com.yeogidam.global.exception.CommonErrorCode;
 import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.extraction.config.ExtractionProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.service.MediaExtractionPipeline;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
@@ -57,7 +58,11 @@ class ShareCreationE2eTest extends E2eTestSupport {
         MediaExtractionPipeline fakeMediaExtractionPipeline() {
             return new MediaExtractionPipeline(null, null, null, null, null) {
                 @Override
-                public void extract(Long mediaId, InstagramUrl instagramUrl) {
+                public void extract(
+                        Long mediaId,
+                        InstagramUrl instagramUrl,
+                        ExtractionReport report
+                ) {
                 }
             };
         }

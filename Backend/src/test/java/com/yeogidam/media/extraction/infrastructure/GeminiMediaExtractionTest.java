@@ -3,14 +3,15 @@ package com.yeogidam.media.extraction.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import com.yeogidam.media.extraction.config.GeminiProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.instagram.domain.DownloadedMedia;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.infrastructure.InstagramMediaDownloader;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -127,11 +128,16 @@ class GeminiMediaExtractionTest {
                 {"text":"{\\\"places\\\":"},{"text":"[]}"}]}}]}
                 """;
 
+        ExtractionReport report = new ExtractionReport();
+
         // when
-        var hints = extractor.extractFile("나들이", new InstagramUrl("https://www.instagram.com/p/post/"));
+        var hints = extractor.extractFile("나들이", new InstagramUrl("https://www.instagram.com/p/post/"), report);
 
         // then
         assertThat(hints.places()).isEmpty();
+        JsonNode result = mapper.valueToTree(report.toLogFields()).path("gemini_results").get(0);
+        assertThat(result.path("stage").asString()).isEqualTo("GEMINI_MEDIA");
+        assertThat(result.path("raw_json").asString()).isEqualTo("{\"places\":[]}");
     }
 
     @Test
@@ -142,11 +148,15 @@ class GeminiMediaExtractionTest {
                 {"text":"{\\\"places\\\":[]}"}]}}]}
                 """;
 
+        ExtractionReport report = new ExtractionReport();
+
         // when & then
-        assertThatThrownBy(() -> extractor.extractFile("나들이", new InstagramUrl("https://www.instagram.com/p/post/")))
+        assertThatThrownBy(() -> extractor.extractFile("나들이", new InstagramUrl("https://www.instagram.com/p/post/"), report))
                 .isInstanceOf(ExtractionFailedException.class)
                 .extracting(exception -> ((ExtractionFailedException) exception).reason())
                 .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+        assertThat(mapper.valueToTree(report.toLogFields()).path("gemini_results").get(0).path("raw_json").asString())
+                .isEqualTo("{\"places\":[]}");
         assertThat(deleted).containsExactly("files/1", "files/2");
         assertThat(downloader.files).allSatisfy(file -> assertThat(Files.exists(file.path())).isFalse());
     }
@@ -222,7 +232,11 @@ class GeminiMediaExtractionTest {
                 + "\",\"state\":\"" + state + "\"}";
     }
 
-    private void respond(HttpExchange exchange, int status, String body) throws IOException {
+    private void respond(
+            HttpExchange exchange,
+            int status,
+            String body
+    ) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         exchange.sendResponseHeaders(status, bytes.length);

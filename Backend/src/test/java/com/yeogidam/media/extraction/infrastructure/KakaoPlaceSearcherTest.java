@@ -6,9 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
-import com.yeogidam.media.extraction.domain.LocationHint;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.LocationHint.Basis;
 import com.yeogidam.media.extraction.domain.LocationHint.Type;
+import com.yeogidam.media.extraction.domain.LocationHint;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.place.domain.Place;
@@ -27,9 +28,12 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 class KakaoPlaceSearcherTest {
 
@@ -373,8 +377,10 @@ class KakaoPlaceSearcherTest {
                 document("999", "이가돈", "광주 서구 치평동 1", "광주 서구 상무중앙로 1")));
         PlaceSearchHint hint = hint("금호대패삼겹살", null, Type.ADDRESS, address);
 
+        ExtractionReport report = new ExtractionReport();
+
         // when
-        List<Place> result = searcher().search(hint);
+        List<Place> result = searcher().search(hint, report);
 
         // then
         assertThat(result).extracting(place -> place.externalSource().placeId()).containsExactly("300");
@@ -385,6 +391,14 @@ class KakaoPlaceSearcherTest {
                 .containsEntry("y", "35.14")
                 .containsEntry("radius", "3000")
                 .doesNotContainKey("sort");
+
+        JsonNode requests = new JsonMapper().valueToTree(report.toLogFields()).path("kakao_requests");
+        assertThat(requests.get(0).path("stage").asString()).isEqualTo("KAKAO_ADDRESS");
+        JsonNode nearby = requests.get(requests.size() - 1).path("parameters");
+        assertThat(nearby.path("x").asString()).isEqualTo(kakaoServer.lastKeywordParameters().get("x"));
+        assertThat(nearby.path("y").asString()).isEqualTo(kakaoServer.lastKeywordParameters().get("y"));
+        assertThat(nearby.path("radius").asString()).isEqualTo("3000");
+        assertThat(nearby.path("size").asString()).isEqualTo("15");
     }
 
     @Test
@@ -579,20 +593,51 @@ class KakaoPlaceSearcherTest {
                         .containsEntry("radius", "3000"));
     }
 
-    @Test
-    void 카카오가_503을_반환하면_요청_예외가_발생한다() {
+    @ParameterizedTest
+    @ValueSource(ints = {401, 503})
+    void 카카오가_401이나_503을_반환하면_HTTP_상태를_보존하고_요청_예외가_발생한다(int status) {
         // given
-        kakaoServer.respondWithStatus(503);
+        kakaoServer.respondWithStatus(status);
         PlaceSearchHint hint = new PlaceSearchHint("올드빅", "보정상호", List.of(), List.of(), null);
+        ExtractionReport report = new ExtractionReport();
 
         // when & then
-        assertThatThrownBy(() -> searcher().search(hint))
+        assertThatThrownBy(() -> searcher().search(hint, report))
+                .isInstanceOf(ExtractionFailedException.class)
+                .hasCauseInstanceOf(RestClientResponseException.class)
+                .extracting(exception -> ((ExtractionFailedException) exception).reason())
+                .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
+        JsonNode request = new JsonMapper().valueToTree(report.toLogFields()).path("kakao_requests").get(0);
+        assertAll(
+                () -> assertThat(request.path("http_status").asInt()).isEqualTo(status),
+                () -> assertThat(request.path("response_count").isNull()).isTrue(),
+                () -> assertThat(kakaoServer.queries())
+                        .isNotEmpty()
+                        .containsOnly("올드빅")
+        );
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {200, 201})
+    void 응답_JSON을_읽지_못해도_HTTP_상태를_보존하고_요청_예외가_발생한다(int status) {
+        // given
+        kakaoServer.respondWithStatus(status);
+        kakaoServer.respondWith("올드빅", "{\"documents\":[broken");
+        PlaceSearchHint hint = new PlaceSearchHint("올드빅", "보정상호", List.of(), List.of(), null);
+        ExtractionReport report = new ExtractionReport();
+
+        // when & then
+        assertThatThrownBy(() -> searcher().search(hint, report))
                 .isInstanceOf(ExtractionFailedException.class)
                 .extracting(exception -> ((ExtractionFailedException) exception).reason())
                 .isEqualTo(ExtractionFailureReason.PROCESSING_FAILED);
-        assertThat(kakaoServer.queries())
-                .isNotEmpty()
-                .containsOnly("올드빅");
+        JsonNode request = new JsonMapper().valueToTree(report.toLogFields()).path("kakao_requests").get(0);
+        assertAll(
+                () -> assertThat(request.path("http_status").asInt()).isEqualTo(status),
+                () -> assertThat(request.path("response_count").isNull()).isTrue(),
+                () -> assertThat(request.path("candidates").isEmpty()).isTrue(),
+                () -> assertThat(kakaoServer.queries()).containsExactly("올드빅")
+        );
     }
 
     @ParameterizedTest
@@ -635,7 +680,12 @@ class KakaoPlaceSearcherTest {
         return new KakaoPlaceSearcher(RestClient.create(), properties, kakaoServer.endpoint());
     }
 
-    private PlaceSearchHint hint(String name, String searchName, Type type, String location) {
+    private PlaceSearchHint hint(
+            String name,
+            String searchName,
+            Type type,
+            String location
+    ) {
         return new PlaceSearchHint(name, searchName, List.of(),
                 List.of(new LocationHint(type, location, Basis.CAPTION)), null);
     }
@@ -644,15 +694,31 @@ class KakaoPlaceSearcherTest {
         return "{\"documents\":[" + String.join(",", documents) + "]}";
     }
 
-    private String document(String id, String name, String address, String roadAddress) {
+    private String document(
+            String id,
+            String name,
+            String address,
+            String roadAddress
+    ) {
         return documentWithCategory(id, name, address, "음식점 > 중식", roadAddress);
     }
 
-    private String documentWithCategory(String id, String name, String address, String category) {
+    private String documentWithCategory(
+            String id,
+            String name,
+            String address,
+            String category
+    ) {
         return documentWithCategory(id, name, address, category, "");
     }
 
-    private String documentWithCategory(String id, String name, String address, String category, String roadAddress) {
+    private String documentWithCategory(
+            String id,
+            String name,
+            String address,
+            String category,
+            String roadAddress
+    ) {
         return """
                 {"id":"%s","place_name":"%s","address_name":"%s","road_address_name":"%s",
                  "x":"127.0","y":"37.5","category_name":"%s","phone":"",

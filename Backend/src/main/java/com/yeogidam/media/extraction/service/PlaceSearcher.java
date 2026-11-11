@@ -1,5 +1,6 @@
 package com.yeogidam.media.extraction.service;
 
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.place.domain.Place;
 import java.util.List;
@@ -8,4 +9,8 @@ import java.util.List;
 public interface PlaceSearcher {
 
     List<Place> search(PlaceSearchHint hint);
+
+    default List<Place> search(PlaceSearchHint hint, ExtractionReport report) {
+        return search(hint);
+    }
 }

@@ -2,9 +2,11 @@ package com.yeogidam.media.extraction.infrastructure;
 
 import com.yeogidam.media.extraction.config.KakaoLocalProperties;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
-import com.yeogidam.media.extraction.domain.LocationHint;
+import com.yeogidam.media.extraction.domain.ExtractionReport;
+import com.yeogidam.media.extraction.domain.ExtractionReport.KakaoRequest;
 import com.yeogidam.media.extraction.domain.LocationHint.Basis;
 import com.yeogidam.media.extraction.domain.LocationHint.Type;
+import com.yeogidam.media.extraction.domain.LocationHint;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.extraction.service.PlaceSearcher;
@@ -27,12 +29,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 
@@ -89,17 +93,26 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
 
     @Override
     public List<Place> search(PlaceSearchHint hint) {
-        Coordinate captionAnchor = anchorCoordinate(hint.locationHints(), Basis.CAPTION);
-        if (captionAnchor != null) {
-            // 캡션에 적힌 주소는 사실이라 그 근처만 믿는다. 근처에 없는 가게를 지역이나 이름만으로 찾으면 다른 지점이 붙는다.
-            return searchNearCaptionAddress(hint, captionAnchor);
-        }
-        return searchByNames(hint, softAnchor(hint.locationHints()));
+        return search(hint, new ExtractionReport());
     }
 
-    private List<Place> searchNearCaptionAddress(PlaceSearchHint hint, Coordinate anchor) {
+    @Override
+    public List<Place> search(PlaceSearchHint hint, ExtractionReport report) {
+        Coordinate captionAnchor = anchorCoordinate(hint.locationHints(), Basis.CAPTION, report);
+        if (captionAnchor != null) {
+            // 캡션에 적힌 주소는 사실이라 그 근처만 믿는다. 근처에 없는 가게를 지역이나 이름만으로 찾으면 다른 지점이 붙는다.
+            return searchNearCaptionAddress(hint, captionAnchor, report);
+        }
+        return searchByNames(hint, softAnchor(hint.locationHints(), report), report);
+    }
+
+    private List<Place> searchNearCaptionAddress(
+            PlaceSearchHint hint,
+            Coordinate anchor,
+            ExtractionReport report
+    ) {
         for (String searchName : getSearchNames(hint)) {
-            List<Place> nearby = searchNearby(searchName, anchor);
+            List<Place> nearby = searchNearby(searchName, anchor, report);
             if (!nearby.isEmpty()) {
                 return nearby;
             }
@@ -107,9 +120,13 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return List.of();
     }
 
-    private List<Place> searchByNames(PlaceSearchHint hint, Coordinate softAnchor) {
+    private List<Place> searchByNames(
+            PlaceSearchHint hint,
+            Coordinate softAnchor,
+            ExtractionReport report
+    ) {
         for (String searchName : getSearchNames(hint)) {
-            List<Place> places = searchByName(searchName, hint.locationHints(), softAnchor);
+            List<Place> places = searchByName(searchName, hint.locationHints(), softAnchor, report);
             if (!places.isEmpty()) {
                 return places;
             }
@@ -120,22 +137,27 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
     private List<Place> searchByName(
             String searchName,
             List<LocationHint> locationHints,
-            Coordinate softAnchor
+            Coordinate softAnchor,
+            ExtractionReport report
     ) {
         if (softAnchor != null) {
             // 영상, 이미지에서 읽거나 프로필 등에서 추론한 주소는 단서일 뿐이라, 근처에 없으면 지역과 이름으로 다시 찾는다.
-            List<Place> nearby = searchNearby(searchName, softAnchor);
+            List<Place> nearby = searchNearby(searchName, softAnchor, report);
             if (!nearby.isEmpty()) {
                 return nearby;
             }
         }
-        return searchKeywords(searchName, locationHints);
+        return searchKeywords(searchName, locationHints, report);
     }
 
-    private List<Place> searchKeywords(String searchName, List<LocationHint> locationHints) {
+    private List<Place> searchKeywords(
+            String searchName,
+            List<LocationHint> locationHints,
+            ExtractionReport report
+    ) {
         for (String query : searchQueries(searchName, locationHints)) {
-            JsonNode response = requestPage(query);
-            List<Place> places = readPlaces(response.path("documents"));
+            KakaoResponse response = requestPage(query, report);
+            List<Place> places = readPlaces(response.body().path("documents"), response.request());
 
             if (!places.isEmpty()) {
                 return List.of(places.getFirst());
@@ -145,18 +167,22 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return List.of();
     }
 
-    private List<Place> searchNearby(String searchName, Coordinate anchor) {
-        JsonNode response = requestNearby(searchName, anchor);
-        List<Place> places = readPlaces(response.path("documents"));
+    private List<Place> searchNearby(
+            String searchName,
+            Coordinate anchor,
+            ExtractionReport report
+    ) {
+        KakaoResponse response = requestNearby(searchName, anchor, report);
+        List<Place> places = readPlaces(response.body().path("documents"), response.request());
         if (places.isEmpty()) {
             return List.of();
         }
         return List.of(places.getFirst());
     }
 
-    private Coordinate softAnchor(List<LocationHint> locationHints) {
+    private Coordinate softAnchor(List<LocationHint> locationHints, ExtractionReport report) {
         for (Basis basis : SOFT_ADDRESS_BASES) {
-            Coordinate coordinate = anchorCoordinate(locationHints, basis);
+            Coordinate coordinate = anchorCoordinate(locationHints, basis, report);
             if (coordinate != null) {
                 return coordinate;
             }
@@ -164,12 +190,16 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return null;
     }
 
-    private Coordinate anchorCoordinate(List<LocationHint> locationHints, Basis basis) {
+    private Coordinate anchorCoordinate(
+            List<LocationHint> locationHints,
+            Basis basis,
+            ExtractionReport report
+    ) {
         for (LocationHint location : locationHints) {
             if (location.type() != Type.ADDRESS || location.basis() != basis) {
                 continue;
             }
-            Coordinate coordinate = geocode(location.value());
+            Coordinate coordinate = geocode(location.value(), report);
             if (coordinate != null) {
                 return coordinate;
             }
@@ -177,10 +207,11 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return null;
     }
 
-    private Coordinate geocode(String address) {
+    private Coordinate geocode(String address, ExtractionReport report) {
         String query = address.strip();
         for (int attempt = 0; attempt <= ADDRESS_TRIM_ATTEMPTS && !query.isBlank(); attempt++) {
-            Coordinate coordinate = readCoordinate(requestAddress(query).path("documents"));
+            KakaoResponse response = requestAddress(query, report);
+            Coordinate coordinate = readCoordinate(response.body().path("documents"), response.request());
             if (coordinate != null) {
                 return coordinate;
             }
@@ -197,15 +228,31 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return query.substring(0, lastSpace).strip();
     }
 
-    private Coordinate readCoordinate(JsonNode documents) {
+    private Coordinate readCoordinate(JsonNode documents, KakaoRequest request) {
         for (JsonNode document : documents) {
-            String latitude = optional(document, "y");
-            String longitude = optional(document, "x");
-            if (latitude != null && longitude != null) {
-                return new Coordinate(new BigDecimal(latitude), new BigDecimal(longitude));
+            Coordinate coordinate = readCoordinateCandidate(document, request);
+            if (coordinate != null) {
+                return coordinate;
             }
         }
         return null;
+    }
+
+    private Coordinate readCoordinateCandidate(JsonNode document, KakaoRequest request) {
+        String latitude = optional(document, "y");
+        String longitude = optional(document, "x");
+        if (latitude == null || longitude == null) {
+            recordCandidate(document, "좌표 누락", request);
+            return null;
+        }
+        try {
+            Coordinate coordinate = new Coordinate(new BigDecimal(latitude), new BigDecimal(longitude));
+            recordCandidate(document, null, request);
+            return coordinate;
+        } catch (IllegalArgumentException exception) {
+            recordCandidate(document, exception.getClass().getSimpleName() + ": " + exception.getMessage(), request);
+            throw exception;
+        }
     }
 
     private List<String> searchQueries(String searchName, List<LocationHint> locationHints) {
@@ -319,7 +366,7 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return district == null ? city : district;
     }
 
-    private JsonNode requestPage(String query) {
+    private KakaoResponse requestPage(String query, ExtractionReport report) {
         URI uri = UriComponentsBuilder.fromUri(apiEndpoint)
                 .queryParam("query", query)
                 .queryParam("size", PAGE_SIZE)
@@ -327,12 +374,16 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
                 .build()
                 .encode()
                 .toUri();
-        return request(uri);
+        return request(uri, "KAKAO_SEARCH", query, report);
     }
 
     // 좌표 반경 안으로 결과를 좁힌다. 같은 이름의 다른 도시 지점이 먼저 오는 일을 막는다.
     // 정렬은 카카오 기본값(정확도)을 둔다. 거리순으로 바꾸면 같은 건물의 다른 가게가 앞에 오는 일이 있었다.
-    private JsonNode requestNearby(String query, Coordinate anchor) {
+    private KakaoResponse requestNearby(
+            String query,
+            Coordinate anchor,
+            ExtractionReport report
+    ) {
         URI uri = UriComponentsBuilder.fromUri(apiEndpoint)
                 .queryParam("query", query)
                 .queryParam("x", anchor.longitude().toPlainString())
@@ -343,41 +394,65 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
                 .build()
                 .encode()
                 .toUri();
-        return request(uri);
+        return request(uri, "KAKAO_SEARCH", query, report);
     }
 
     // 주소 검색은 키워드 검색과 같은 경로 아래의 address.json이다.
-    private JsonNode requestAddress(String address) {
+    private KakaoResponse requestAddress(String address, ExtractionReport report) {
         URI uri = UriComponentsBuilder.fromUri(apiEndpoint.resolve("address.json"))
                 .queryParam("query", address)
                 .queryParam("size", 1)
                 .build()
                 .encode()
                 .toUri();
-        return request(uri);
+        return request(uri, "KAKAO_ADDRESS", address, report);
     }
 
-    private JsonNode request(URI uri) {
+    private KakaoResponse request(
+            URI uri,
+            String stage,
+            String query,
+            ExtractionReport report
+    ) {
+        KakaoRequest kakaoRequest = report.startKakaoRequest(stage, query,
+                UriComponentsBuilder.fromUri(uri).build().getQueryParams().toSingleValueMap()
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> !entry.getKey().equals("query"))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         try {
             JsonNode response = restClient.get()
                     .uri(uri)
                     .header("Authorization", "KakaoAK " + properties.apiKey())
                     .retrieve()
+                    .onStatus(status -> !status.isError(), (request, received) ->
+                            kakaoRequest.recordHttpStatus(received.getStatusCode().value()))
                     .body(JsonNode.class);
+            kakaoRequest.recordResponseCount(responseCount(response));
             if (response == null || !response.path("documents").isArray()) {
                 throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED);
             }
-            return response;
+            return new KakaoResponse(response, kakaoRequest);
         } catch (RestClientException exception) {
+            if (exception instanceof RestClientResponseException responseException) {
+                kakaoRequest.recordHttpStatus(responseException.getStatusCode().value());
+            }
             throw new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED, exception);
         }
     }
 
-    private List<Place> readPlaces(JsonNode documents) {
+    private Integer responseCount(JsonNode response) {
+        if (response == null || !response.path("documents").isArray()) {
+            return null;
+        }
+        return response.path("documents").size();
+    }
+
+    private List<Place> readPlaces(JsonNode documents, KakaoRequest request) {
         Map<String, Place> places = new LinkedHashMap<>();
 
         for (JsonNode document : documents) {
-            readPlace(document)
+            readPlace(document, request)
                     .ifPresent(place -> places.putIfAbsent(place.externalSource().placeId(), place));
         }
         if (!documents.isEmpty() && places.isEmpty()) {
@@ -386,7 +461,7 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return List.copyOf(places.values());
     }
 
-    private Optional<Place> readPlace(JsonNode document) {
+    private Optional<Place> readPlace(JsonNode document, KakaoRequest request) {
         try {
             PlaceExternalSource externalSource = new PlaceExternalSource(required(document, "id"), optional(document, "place_url"));
 
@@ -411,10 +486,21 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
                             optional(document, "phone"),
                             new PlaceThumbnail(null, null)
                     );
+            recordCandidate(document, null, request);
             return Optional.of(new Place(null, externalSource, profile));
         } catch (IllegalArgumentException exception) {
+            recordCandidate(document, exception.getClass().getSimpleName() + ": " + exception.getMessage(), request);
             return Optional.empty();
         }
+    }
+
+    private void recordCandidate(
+            JsonNode document,
+            String exclusionReason,
+            KakaoRequest request
+    ) {
+        request.recordCandidate(optional(document, "id"), optional(document, "place_name"),
+                optional(document, "address_name"), optional(document, "road_address_name"), exclusionReason);
     }
 
     private String required(JsonNode document, String field) {
@@ -441,5 +527,8 @@ public class KakaoPlaceSearcher implements PlaceSearcher {
         return Normalizer.normalize(value, Normalizer.Form.NFKC)
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[\\p{Z}\\p{P}\\p{S}\\s]", "");
+    }
+
+    private record KakaoResponse(JsonNode body, KakaoRequest request) {
     }
 }

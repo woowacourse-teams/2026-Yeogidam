@@ -17,14 +17,15 @@ import com.yeogidam.place.domain.PlaceExternalSource;
 import com.yeogidam.place.domain.PlaceName;
 import com.yeogidam.place.domain.PlaceProfile;
 import com.yeogidam.place.domain.PlaceThumbnail;
-import com.yeogidam.support.IntegrationTestSupport;
-import com.yeogidam.support.fake.FakeMediaExtractionConfig;
+import com.yeogidam.support.ExtractionFailureLogTestSupport;
 import com.yeogidam.support.fake.FakeMediaExtractionConfig.FakeInstagramMediaHtmlReader;
+import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import com.yeogidam.support.fake.FakePlaceNameExtractor;
 import com.yeogidam.support.fake.FakePlaceSearcher;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,9 +36,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Import(FakeMediaExtractionConfig.class)
-class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
+class MediaExtractionPipelineIntegrationTest extends ExtractionFailureLogTestSupport {
 
     private static final Long MEMBER_ID = 1L;
     private static final String INSTAGRAM_URL = "https://www.instagram.com/reel/pipeline-2026/";
@@ -61,8 +63,24 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     @Autowired
     private FakeInstagramMediaHtmlReader instagramMediaHtmlReader;
 
+    @Autowired
+    private ThreadPoolTaskExecutor mediaExtractionExecutor;
+
+    private Phaser extractionTasks;
+
     @BeforeEach
     void setUp() {
+        extractionTasks = new Phaser(1);
+        mediaExtractionExecutor.setTaskDecorator(task -> {
+            extractionTasks.register();
+            return () -> {
+                try {
+                    task.run();
+                } finally {
+                    extractionTasks.arriveAndDeregister();
+                }
+            };
+        });
         insertKakaoMember(jdbcTemplate, MEMBER_ID, "pipeline-user", "pipeline-user",
                 "pipeline-user@example.com", null);
         placeNameExtractor.reset();
@@ -71,7 +89,9 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     }
 
     @AfterEach
-    void resetAuthor() {
+    void resetAuthor() throws Exception {
+        awaitExtractionTasks();
+        mediaExtractionExecutor.setTaskDecorator(null);
         instagramMediaHtmlReader.respondWithAuthor("yeogidam");
     }
 
@@ -101,6 +121,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(count("shared_media_saved_places")).isEqualTo(2),
                 () -> assertThat(placeNameExtractor.mediaRequestCount()).isZero()
         );
+        assertNoFailureLog();
     }
 
     @Test
@@ -118,6 +139,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
         assertThat(count("media_places")).isEqualTo(1);
         assertThat(count("saved_places")).isEqualTo(1);
         assertThat(count("shared_media_saved_places")).isEqualTo(1);
+        assertNoFailureLog();
     }
 
     @Test
@@ -305,6 +327,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(placeNameExtractor.mediaUrl()).isEqualTo(url),
                 () -> assertThat(count("saved_places")).isEqualTo(2)
         );
+        assertNoFailureLog();
     }
 
     @Test
@@ -403,6 +426,7 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
                 () -> assertThat(placeNameExtractor.mediaRequestCount()).isEqualTo(1),
                 () -> assertThat(count("saved_places")).isEqualTo(1)
         );
+        assertNoFailureLog();
     }
 
     @ParameterizedTest
@@ -476,6 +500,16 @@ class MediaExtractionPipelineIntegrationTest extends IntegrationTestSupport {
     private Long mediaId() {
         return jdbcTemplate.queryForObject("SELECT id FROM media WHERE media_shortcode = ?",
                 Long.class, "pipeline-2026");
+    }
+
+    private void assertNoFailureLog() throws Exception {
+        awaitExtractionTasks();
+        assertThat(failureLogs()).isEmpty();
+    }
+
+    private void awaitExtractionTasks() throws Exception {
+        int phase = extractionTasks.arrive();
+        extractionTasks.awaitAdvanceInterruptibly(phase, 5, TimeUnit.SECONDS);
     }
 
     private Long latestSharedMediaId() {

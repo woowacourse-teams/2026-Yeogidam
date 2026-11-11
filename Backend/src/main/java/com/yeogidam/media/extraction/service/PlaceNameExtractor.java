@@ -1,5 +1,6 @@
 package com.yeogidam.media.extraction.service;
 
+import com.yeogidam.media.extraction.domain.ExtractionReport;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 
@@ -9,4 +10,12 @@ public interface PlaceNameExtractor {
     PlaceSearchHints extract(String caption);
 
     PlaceSearchHints extractFile(String caption, InstagramUrl instagramUrl);
+
+    default PlaceSearchHints extract(String caption, ExtractionReport report) {
+        return extract(caption);
+    }
+
+    default PlaceSearchHints extractFile(String caption, InstagramUrl instagramUrl, ExtractionReport report) {
+        return extractFile(caption, instagramUrl);
+    }
 }
