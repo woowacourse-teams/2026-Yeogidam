@@ -119,6 +119,42 @@ test('저장 장소 검색은 검색어를 쿼리로 보내고 목록과 같은 
   ]);
 });
 
+test('저장 장소의 지도 제공자·나라·링크를 담고, 필드가 없던 응답은 카카오로 본다', async () => {
+  const base = {
+    savedPlaceId: 7,
+    placeId: 42,
+    name: '장소',
+    category: null,
+    landLotAddress: null,
+    roadAddress: null,
+    latitude: null,
+    longitude: null,
+    thumbnailUrl: null,
+    lastSavedAt: '2026-11-04T03:12:45Z',
+  };
+  const googleUrl =
+    'https://www.google.com/maps/search/?api=1&query=Ichiran&query_place_id=ChIJ123';
+  request.mockResolvedValue({
+    savedPlaces: [
+      {...base, kakaoPlaceUrl: null, mapProvider: 'GOOGLE', countryCode: 'JP', placeUrl: googleUrl},
+      {...base, savedPlaceId: 8, kakaoPlaceUrl: 'https://place.map.kakao.com/1'},
+    ],
+  });
+
+  const [google, legacy] = await springSavedPlacesRepository.getSavedPlaces();
+
+  expect(google.place).toEqual(
+    expect.objectContaining({mapProvider: 'GOOGLE', countryCode: 'JP', placeUrl: googleUrl}),
+  );
+  expect(legacy.place).toEqual(
+    expect.objectContaining({
+      mapProvider: 'KAKAO',
+      countryCode: null,
+      placeUrl: 'https://place.map.kakao.com/1',
+    }),
+  );
+});
+
 test('저장 장소 삭제는 저장 장소 ID 목록을 쿼리로 전송한다', async () => {
   request.mockResolvedValue(undefined);
   await springSavedPlacesRepository.deleteSavedPlaces(['42', '43']);

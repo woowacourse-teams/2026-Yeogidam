@@ -38,11 +38,15 @@ export function historyReelPlaceToPlace(item: HistoryReelPlace): Place | null {
     savedPlaceId: item.savedPlaceId ?? undefined,
     name: place.name,
     category: place.category ?? undefined,
+    categoryCode: place.category_code ?? undefined,
+    categoryName: place.category_name ?? undefined,
     address,
     fullAddress: address,
     latitude: place.latitude ?? undefined,
     longitude: place.longitude ?? undefined,
-    placeUrl: place.kakao_place_url ?? undefined,
+    placeUrl: place.place_url ?? place.kakao_place_url ?? undefined,
+    mapProvider: place.map_provider ?? undefined,
+    countryCode: place.country_code ?? undefined,
     image,
   };
 }
