@@ -72,13 +72,16 @@ import {
   SearchBar,
 } from '../../components/SearchBar';
 import {
+  COLLAPSED_LIST_SHEET_VISIBLE_HEIGHT,
   COLLAPSED_SHEET_HEIGHT,
   LIST_TOP_GAP,
   PlaceResultSheet,
   type MapSheetPage,
   type PlaceResultEmptyState,
 } from './components/PlaceResultSheet';
-import KakaoMapNativeComponent from '../../../spec/KakaoMapNativeComponent';
+import GoogleMapNativeComponent from '../../../spec/GoogleMapNativeComponent';
+import { GOOGLE_MAP_ZOOM_STYLES_JSON } from './googleMapStyles';
+import subwayStations from './subwayStations.json';
 
 import {
   checkLocationPermission,
@@ -115,6 +118,12 @@ type MapCamera = {
   zoomLevel: number;
   bottomInset: number;
 };
+
+// 국가철도공단 도시광역철도 역사정보(2026-06-30 기준)를 변환한 역 목록으로, Google 지도에 직접 그립니다.
+const SUBWAY_STATIONS_JSON = JSON.stringify(subwayStations);
+// 카카오 지도처럼 역 동그라미·역 이름·장소 이름(네이티브)이 모두 줌 13부터 나오게 맞춥니다.
+const SUBWAY_STATION_MIN_ZOOM = 13;
+const SUBWAY_STATION_NAME_MIN_ZOOM = 13;
 
 const FOLDER_LIST_BOTTOM_PADDING = 320;
 const SAVED_PLACES_COMPLETION_POLL_INTERVAL_MS = 5000;
@@ -792,6 +801,20 @@ export function MapScreen({
         ? 0
         : page.sheetVisibleHeight;
     const isCurrentPage = isActive;
+    const savedPlacesJson = JSON.stringify(
+      (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
+        ({ id, name, latitude, longitude, category, categoryCode }) => ({
+          id,
+          name,
+          selected: id === page.place?.id,
+          latitude,
+          longitude,
+          color: pinColorByPlaceId.get(id),
+          // 핀 안에 넣을 카테고리 아이콘을 네이티브가 범주 코드로 고릅니다.
+          category: resolvePlaceCategoryCode({ category, categoryCode }),
+        }),
+      ),
+    );
     return (
       <View
         // 지도 위 마커와 이동은 스크린 리더로 쓸 수 없어 숨기고, 같은 장소를 아래 목록으로 찾게 합니다.
@@ -800,7 +823,7 @@ export function MapScreen({
         style={[styles.mapViewport, { bottom: bottomNavigationOffset }]}
       >
         {mapHeight > 0 ? (
-          <KakaoMapNativeComponent
+          <GoogleMapNativeComponent
             style={styles.map}
             latitude={pageCamera.latitude}
             longitude={pageCamera.longitude}
@@ -809,27 +832,13 @@ export function MapScreen({
             cameraFitPointsJson={cameraFitPointsJson}
             cameraFitRequestId={cameraFitRequestId}
             cameraBottomInset={cameraBottomInset}
-            savedPlacesJson={JSON.stringify(
-              (page.clearsSearch ? placesWithCoordinates : markerPlaces).map(
-                ({
-                  id,
-                  name,
-                  latitude,
-                  longitude,
-                  category,
-                  categoryCode,
-                }) => ({
-                  id,
-                  name,
-                  selected: id === page.place?.id,
-                  latitude,
-                  longitude,
-                  color: pinColorByPlaceId.get(id),
-                  // 핀 안에 넣을 카테고리 아이콘을 네이티브가 범주 코드로 고릅니다.
-                  category: resolvePlaceCategoryCode({ category, categoryCode }),
-                }),
-              ),
-            )}
+            // Google 로고는 시트를 내린 높이 위에 고정해, 시트를 움직여도 지도가 다시 맞춰지지 않게 합니다.
+            logoBottomInset={COLLAPSED_LIST_SHEET_VISIBLE_HEIGHT}
+            savedPlacesJson={savedPlacesJson}
+            zoomMapStylesJson={GOOGLE_MAP_ZOOM_STYLES_JSON}
+            subwayStationsJson={SUBWAY_STATIONS_JSON}
+            subwayStationMinZoom={SUBWAY_STATION_MIN_ZOOM}
+            subwayStationNameMinZoom={SUBWAY_STATION_NAME_MIN_ZOOM}
             showsCurrentLocation={locationGranted}
             currentLocationRequestId={currentLocationRequestId}
             onMapReady={event => {

@@ -61,5 +61,8 @@ T7/Eb1Pu9uQNq508IP/aaI38L64+utFiw2mfCJinL7e2dDHiuo+3WzDvLeceM1gL
 NCGs5dqCZ1sOI7ImJ8lg0o6FeqMJ7KNyJP1qbbtqzM7vzgfEZj0pODDfXgdrEr2P
 UVYrJ8cxutVikRbgI7r+ufECAwEAAQ==
 -----END PUBLIC KEY-----" />
+      <meta-data
+        android:name="com.google.android.geo.API_KEY"
+        android:value="${googleMapsAndroidApiKey}" />
     </application>
 </manifest>

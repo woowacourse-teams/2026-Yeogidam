@@ -10,6 +10,7 @@ import type {
   SaveInstagramReelResponse,
 } from './types';
 import {ReelApiError} from './errors';
+import {toMapProvider} from '../place/mapProvider';
 
 const client = createSpringApiClient();
 const SHARES_PATH = '/api/v1/shares';
@@ -19,7 +20,10 @@ type SpringShareHistoryResponse = {
   nextCursor: {createdAt: string; id: number} | null;
 };
 
-/** 서버 ShareHistoryPlaceResponse. 좌표·카카오 URL·사진 출처는 내려오지 않습니다. */
+/**
+ * 서버 ShareHistoryPlaceResponse. 사진 출처는 내려오지 않습니다.
+ * 좌표·링크·지도 제공자는 서버 배포 전 응답에 없을 수 있어 선택 필드로 둡니다.
+ */
 type SpringShareHistoryPlace = {
   placeId: number;
   thumbnailUrl: string | null;
@@ -27,6 +31,14 @@ type SpringShareHistoryPlace = {
   category: string | null;
   landLotAddress: string | null;
   roadAddress: string | null;
+  categoryCode?: string | null;
+  categoryName?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  kakaoPlaceUrl?: string | null;
+  mapProvider?: string | null;
+  countryCode?: string | null;
+  placeUrl?: string | null;
 };
 
 type SpringShareHistoryPlacesResponse = {
@@ -64,9 +76,14 @@ export function toHistoryReelPlace(
       source_address: null,
       road_address: place.roadAddress,
       address: place.landLotAddress,
-      latitude: null,
-      longitude: null,
-      kakao_place_url: null,
+      latitude: place.latitude ?? null,
+      longitude: place.longitude ?? null,
+      kakao_place_url: place.kakaoPlaceUrl ?? null,
+      category_code: place.categoryCode ?? null,
+      category_name: place.categoryName ?? null,
+      map_provider: toMapProvider(place.mapProvider),
+      country_code: place.countryCode ?? null,
+      place_url: place.placeUrl ?? place.kakaoPlaceUrl ?? null,
       thumbnail_url: place.thumbnailUrl,
       photo_attribution: null,
     },

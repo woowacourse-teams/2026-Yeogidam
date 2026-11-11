@@ -145,6 +145,7 @@ export function capturePlaceMapViewed(
   properties: SavedPlaceViewContext & {
     savedAt: string;
     viewedAt?: Date;
+    mapProvider?: 'kakao' | 'google';
   },
 ) {
   if (isSampleSavedPlace(properties)) return;
@@ -159,7 +160,7 @@ export function capturePlaceMapViewed(
     saved_place_id: properties.savedPlaceId,
     place_view_id: properties.placeViewId,
     source: properties.source,
-    map_provider: 'kakao',
+    map_provider: properties.mapProvider ?? 'kakao',
     is_revisit: isRevisit,
   });
 }

@@ -12,6 +12,3 @@
 # react-native-config reads the generated BuildConfig fields through reflection.
 -keep class com.yeogidamm.app.BuildConfig { *; }
 
-# Kakao Maps SDK uses classes and interfaces that must not be shrunk or obfuscated.
--keep class com.kakao.vectormap.** { *; }
--keep interface com.kakao.vectormap.**

@@ -14,7 +14,12 @@ export interface NativeProps extends ViewProps {
   showsCurrentLocation?: boolean;
   currentLocationRequestId?: CodegenTypes.Int32;
   cameraBottomInset?: CodegenTypes.Double;
+  logoBottomInset?: CodegenTypes.Double;
   savedPlacesJson?: string;
+  zoomMapStylesJson?: string;
+  subwayStationsJson?: string;
+  subwayStationMinZoom?: CodegenTypes.Int32;
+  subwayStationNameMinZoom?: CodegenTypes.Int32;
   onMapReady?: CodegenTypes.DirectEventHandler<{
     ready: boolean;
   }> | null;
@@ -43,16 +48,17 @@ export interface NativeProps extends ViewProps {
 }
 
 export default codegenNativeComponent<NativeProps>(
-  'YeogidamKakaoMapView',
+  'YeogidamGoogleMapView',
 ) as HostComponent<NativeProps>;
 
-// ViewProps: style={{flex: 1}} 같은 기본 React Native View 속성을 사용할 수 있게 함
-// latitude, longitude: 지도 중심 좌표
-// zoomLevel: 지도 확대 단계
-// showsCurrentLocation: 위치 권한 요청 후 현재 위치 마커 표시
-// currentLocationRequestId: 값이 바뀔 때마다 현재 위치로 카메라 이동
-// cameraMoveRequestId: 값이 바뀔 때마다 지정 좌표로 카메라 이동
-// onMapReady: 카카오 지도가 정상 준비됐다는 네이티브 이벤트
-// onMapError: 인증·네트워크 오류를 React에 전달
-// YeogidamKakaoMapView: Android/iOS 네이티브 컴포넌트가 공통으로 사용할 이름
-// 파일명이 반드시 NativeComponent.ts로 끝나야 Codegen이 인식함
+// 지도 화면의 Google 지도
+// latitude, longitude, zoomLevel: 지도 중심 좌표와 확대 단계. 값이나 cameraMoveRequestId가 바뀌면 카메라 이동
+// cameraBottomInset: 바텀시트에 가려진 높이. 카메라 중심을 그 위쪽 영역 가운데에 맞춤
+// logoBottomInset: Google 로고를 둘 아래쪽 높이. 지도 여백을 이 값으로 고정해 시트가 움직여도 지도가 다시 맞춰지지 않게 함
+// showsCurrentLocation: 현재 위치 마커 표시, currentLocationRequestId: 값이 바뀔 때마다 현재 위치로 카메라 이동
+// savedPlacesJson: 저장 장소 핀(id, name, latitude, longitude, selected, color, category)
+// zoomMapStylesJson: 줌 단계별 지도 스타일 목록([{ minZoom, styleJson }]). 현재 줌 이하인 가장 큰 minZoom의 스타일을 적용
+// subwayStationsJson: 직접 그릴 지하철역 목록(name, latitude, longitude, colors)
+// subwayStationMinZoom: 이 줌 이상에서만 지하철역 동그라미를 표시
+// subwayStationNameMinZoom: 이 줌 이상에서만 지하철역 이름을 표시
+// onCameraChanged: 카메라가 멈출 때 중심과 지도 전체 범위를 전달. iOS는 움직이는 동안 뒤집힌 범위를 보내 목록을 비움
