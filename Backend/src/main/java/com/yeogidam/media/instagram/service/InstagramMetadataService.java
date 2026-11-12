@@ -1,5 +1,6 @@
 package com.yeogidam.media.instagram.service;
 
+import com.yeogidam.media.extraction.logging.ExtractionTimeline;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.instagram.domain.MediaMetadataWithUrl;
@@ -19,12 +20,16 @@ public class InstagramMetadataService {
 
     public MediaMetadata readAndStore(Long mediaId, InstagramUrl instagramUrl) {
         MediaMetadataWithUrl mediaMetadataWithUrl = instagramMediaHtmlReader.read(instagramUrl);
+        ExtractionTimeline.instagramRead();
         String thumbnailKey = storeThumbnail(instagramUrl, mediaMetadataWithUrl.thumbnailUrl());
+        ExtractionTimeline.thumbnailStored();
         MediaMetadata mediaMetadata = new MediaMetadata(
                 mediaMetadataWithUrl.caption(),
                 thumbnailKey,
                 mediaMetadataWithUrl.author());
         instagramMediaMetadataWriter.updateMetadata(mediaId, mediaMetadata);
+        // 캡션이 비어 실패하는 게시물도 썸네일은 이미 카드에 보이므로, 캡션 검사 전에 남긴다.
+        ExtractionTimeline.metadataStored();
         if (isMissingCaption(mediaMetadataWithUrl.caption())) {
             throw new InstagramContentUnavailableException("인스타그램 게시물 설명을 찾지 못했습니다.");
         }
