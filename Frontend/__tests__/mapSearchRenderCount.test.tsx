@@ -97,7 +97,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-async function renderMap() {
+async function renderMapScreen() {
   let renderer!: TestRenderer.ReactTestRenderer;
   await act(async () => {
     renderer = TestRenderer.create(<MapScreen />);
@@ -118,7 +118,7 @@ async function typeInto(renderer: TestRenderer.ReactTestRenderer, value: string)
 }
 
 test(`장소 ${PLACE_COUNT}곳이 있어도 검색어를 입력하는 동안 지도 화면은 첫 글자에서만 다시 그린다`, async () => {
-  const renderer = await renderMap();
+  const renderer = await renderMapScreen();
 
   for (const value of TYPED_VALUES) {
     await typeInto(renderer, value);
@@ -132,7 +132,7 @@ test(`장소 ${PLACE_COUNT}곳이 있어도 검색어를 입력하는 동안 지
 });
 
 test('검색어를 모두 지우면 지도 화면을 한 번 다시 그려 검색 전 상태로 돌아간다', async () => {
-  const renderer = await renderMap();
+  const renderer = await renderMapScreen();
   await typeInto(renderer, '카페');
   jest.mocked(PlaceResultSheet).mockClear();
 
