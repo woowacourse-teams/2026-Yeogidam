@@ -2,7 +2,7 @@
 
 스프린트 1 요구사항 「운영 관찰과 대응」을 CloudWatch로 채운다. 서버가 무엇을 어디로 보내는지, 서버와 콘솔에서 각각 무엇을 해야 하는지, 알람이 울리면 무엇을 남기는지 적는다. 서버 쪽 스크립트와 설정은 저장소에 있고 콘솔에서 만드는 것(지표 필터, 알람, 대시보드, SNS, Lambda)은 사람이 손으로 만든다. 우테코 공용 계정이라 IaC 도구를 붙일 권한이 없고, 누가 어떤 이름으로 무엇을 만들었는지 저장소에 남겨야 다음 사람이 같은 것을 또 만들지 않으므로 콘솔 절차를 여기에 적어 둔다.
 
-마지막 갱신 2026-10-02.
+마지막 갱신 2026-11-11. Java Agent와 Alloy 항목은 PR #512의 코드와 준비 절차이며 앱 서버의 활성화와 실제 수집은 별도 확인이 필요하다. 모니터링 서버의 저장소 보존 기간은 같은 날 30일로 변경하고 실행 설정과 준비 상태를 확인했다.
 
 ## 무엇을 어디로 보내는가
 
@@ -14,14 +14,17 @@
 | 메모리, 디스크 사용률 (서버 3대) | CloudWatch 에이전트 | `Yeogidam/<env>` | `mem_used_percent`(차원 `InstanceId`), `disk_used_percent`(차원 `InstanceId`, `path`, `fstype`) |
 | RDS error, slowquery (prod) | RDS 로그 내보내기 (인스턴스 설정, 2026-10-02) | `/aws/rds/instance/yeogidam-prod-db/error`, `/aws/rds/instance/yeogidam-prod-db/slowquery` | `yeogidam-prod-db` |
 | RDS CPU, 연결 수, 남은 저장 공간, 남은 메모리 | RDS 기본 지표 (무료, 1분) | `AWS/RDS` | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `FreeableMemory` (차원 `DBInstanceIdentifier`) |
+| 앱 로그 (Java Agent 활성화 시) | Java Agent의 OTLP HTTP 전송과 Alloy | Loki | `service_name`, `deployment_environment_name`으로 구분 |
+| 앱 메트릭 (Java Agent 활성화 시) | Java Agent와 Alloy의 Prometheus remote write | Prometheus | 환경 레이블 `deployment_environment_name` |
+| 앱 트레이스 (Java Agent 활성화 시) | Java Agent와 Alloy의 OTLP gRPC 전송 | Tempo | 리소스 속성 `service.name`, `deployment.environment.name` |
 
 `<env>` 자리에는 `dev`나 `prod`가 들어가는데, 앱은 `SPRING_PROFILES_ACTIVE`의 프로필 이름을, 에이전트는 부트스트랩 스크립트에 넘기는 `ENV_NAME`을 쓴다. 두 이름이 같아서 `deploy.sh`는 환경 변수를 따로 받지 않고 검증을 마친 `EXPECTED_SPRING_PROFILE`로 그룹 이름을 만든다. 변수를 하나 더 두면 두 값이 어긋났을 때 로그가 엉뚱한 환경의 그룹으로 간다.
 
-**앱 로그는 에이전트가 아니라 Docker가 보낸다.** 앱은 dev와 prod 프로필에서 logstash 형식의 JSON을 stdout으로 내고 컨테이너는 `--log-driver awslogs`로 떠서 JSON 줄을 CloudWatch로 바로 보낸다. 자격 증명은 EC2에 붙은 IAM 역할 `ec2-project`를 Docker 데몬이 쓰므로 서버에 키를 두지 않는다. Docker는 이중 로깅이 기본이라 서버에도 사본을 남기므로 `docker logs`도 그대로 쓸 수 있다. `BACKEND_LOG_MAX_SIZE`(기본 10m)와 `BACKEND_LOG_MAX_FILE`(기본 3)은 서버에 남는 사본(`cache-max-size`, `cache-max-file`)의 상한일 뿐 CloudWatch 보존 기간과는 관계없다. 서버마다 앱 컨테이너가 하나뿐이고 dev와 prod는 그룹이 달라서 스트림 이름을 `backend`로 고정했다.
+**CloudWatch로 가는 앱 로그는 Docker가 보낸다.** 앱은 dev와 prod 프로필에서 logstash 형식의 JSON을 stdout으로 내고 컨테이너는 `--log-driver awslogs`로 떠서 JSON 줄을 CloudWatch로 바로 보낸다. 자격 증명은 EC2에 붙은 IAM 역할 `ec2-project`를 Docker 데몬이 쓰므로 서버에 키를 두지 않는다. Docker는 이중 로깅이 기본이라 서버에도 사본을 남기므로 `docker logs`도 그대로 쓸 수 있다. `BACKEND_LOG_MAX_SIZE`(기본 10m)와 `BACKEND_LOG_MAX_FILE`(기본 3)은 서버에 남는 사본(`cache-max-size`, `cache-max-file`)의 상한일 뿐 CloudWatch 보존 기간과는 관계없다. 서버마다 앱 컨테이너가 하나뿐이고 dev와 prod는 그룹이 달라서 스트림 이름을 `backend`로 고정했다.
 
 **nginx와 MySQL 로그는 에이전트가 파일을 읽는다.** nginx는 호스트 systemd로 돌아 `/var/log/nginx/`에 파일로 남긴다. MySQL은 컨테이너 안에서 `/var/lib/mysql/slow.log`와 `error.log`로 남기는데 호스트에 깔린 에이전트가 컨테이너 안을 볼 수 없어 데이터 볼륨의 호스트 경로 `/var/lib/docker/volumes/yeogidam-mysql-data/_data/`로 읽어 간다. 느린 쿼리는 문장이 여러 줄이라 `# Time:`으로 시작하는 줄을 한 건의 시작으로 본다(`multi_line_start_pattern`).
 
-**지표는 서버당 두 개만 보낸다.** 커스텀 지표는 개당 월 0.3달러라 메모리 사용률과 루트 디스크 사용률만 60초 간격으로 보낸다. `omit_hostname`이 true라 호스트 이름 차원은 빠지고 `mem_used_percent`에는 `InstanceId` 하나가 붙는다. `disk_used_percent`는 `drop_device`가 장치 이름 차원만 빼므로 `InstanceId`에 `path`와 `fstype`이 더 붙는데, `resources`가 `/` 하나라 지표 수는 서버당 1개로 같고 비용 계산도 그대로다. 앱의 actuator `metrics`(커넥션 풀, 힙, 톰캣 스레드)는 서버 안에서 부하 시험할 때 보는 용도이고 CloudWatch로 보내지 않는다.
+**CloudWatch 커스텀 지표는 서버당 두 개만 보낸다.** 커스텀 지표는 개당 월 0.3달러라 메모리 사용률과 루트 디스크 사용률만 60초 간격으로 보낸다. `omit_hostname`이 true라 호스트 이름 차원은 빠지고 `mem_used_percent`에는 `InstanceId` 하나가 붙는다. `disk_used_percent`는 `drop_device`가 장치 이름 차원만 빼므로 `InstanceId`에 `path`와 `fstype`이 더 붙는데, `resources`가 `/` 하나라 지표 수는 서버당 1개로 같고 비용 계산도 그대로다. 앱의 actuator `metrics`(커넥션 풀, 힙, 톰캣 스레드)는 서버 안에서 부하 시험할 때 보는 용도이고 CloudWatch로 보내지 않는다.
 
 ### requestId로 access 로그와 앱 로그를 잇는다
 
@@ -42,6 +45,71 @@ fields @timestamp, level, message, httpMethod, path, status, durationMs
 | filter requestId = "<requestId>"
 | sort @timestamp asc
 ```
+
+## Java Agent와 Alloy 수집 준비
+
+앱 이미지에는 Java Agent가 포함되며 기본값은 `OTEL_JAVAAGENT_ENABLED=false`이다.
+활성화할 서버의 `backend.env`에서 `OTEL_JAVAAGENT_ENABLED=true`로 바꾸고 컨테이너를 재생성한다.
+서비스 이름 `yeogidam-backend`, 전송 주소 `http://alloy:4318`, 프로토콜 `http/protobuf`는 이미지의
+기본값이며 필요하면 env 파일에서 덮어쓸 수 있다. 리소스 속성 `deployment.environment.name`은
+배포와 수동 재시작 스크립트가 검증한 프로필로 주입하며, 기존의 다른 리소스 속성은 보존한다.
+기존 `OTEL_SDK_DISABLED=true`가 남아 있으면 제거하거나 `false`로 바꿔야 한다.
+
+Alloy는 같은 서버의 `yeogidam-observability` 네트워크에서 수신하고, `/opt/yeogidam/alloy.env`의
+`LOKI_OTLP_ENDPOINT`, `PROMETHEUS_REMOTE_WRITE_URL`, `TEMPO_OTLP_ENDPOINT`,
+`MONITOR_AUTHORIZATION`으로 모니터링 서버에 전송한다. Compose의 외부 네트워크는 시작 전에 만들어야 한다.
+개발과 운영 모두 서버에 복사한 `restart-backend.sh`를 갱신해야 앱 재생성이나 롤백 후에도 네트워크가 연결된다.
+
+설치, env 형식, 시작, 재생성, 중지와 저장 확인은 [Alloy 운영 절차](../../../Infra/alloy/README.md)를 따른다.
+개발에서 실제 저장과 블루그린 배포 중 메모리를 확인한 뒤 운영을 켠다. 현재 PR은 수집 경로를 추가하며,
+기존 CloudWatch 수집과 알람은 유지한다. 앞 절의 `requestId` 검색은 CloudWatch 기준이며,
+Java Agent도 `requestId`, `httpMethod`, `path`, `status`, `durationMs`를 MDC에서 수집해 Loki로 전달한다.
+`requestId`는 요청 시작부터, 나머지 네 항목은 요청 종료 로그를 남길 때 MDC에 들어간다.
+따라서 각 로그에는 그 시점에 존재하는 항목만 담긴다. 새 이미지 배포와 에이전트 활성화 후 실제 저장을 확인한다.
+
+### 로그와 트레이스 보존 기간
+
+2026-11-11 22:45(KST)에 모니터링 서버의 Loki, Tempo와 Prometheus 보존 기간을 7일에서 30일로
+변경했다. Prometheus의 5GiB 크기 제한은 유지했다. 아래 값은 설정 파일뿐 아니라 실행 중인
+서비스의 설정 API로 확인했다. CloudWatch 로그의 1개월 보존과는 별개다.
+
+| 대상 | 모니터링 서버 설정 파일 | 설정 | 보존 기간 |
+| --- | --- | --- | --- |
+| Loki 로그 | `/opt/yeogidam/monitoring/loki/loki.yaml` | `limits_config.retention_period: 720h`, `compactor.retention_enabled: true` | 30일 |
+| Tempo 트레이스 | `/opt/yeogidam/monitoring/tempo/tempo.yaml` | `overrides.defaults.compaction.block_retention: 720h` | 30일 |
+| Prometheus 메트릭 | `/opt/yeogidam/monitoring/prometheus/prometheus.yml` | `storage.tsdb.retention.time: 30d`, `storage.tsdb.retention.size: 5GB` | 30일 또는 5GiB 중 먼저 도달하는 기준 |
+
+Prometheus v3.15.1은 위 YAML의 `5GB`를 5GiB(5,368,709,120바이트)로 해석하며 실행 API에서도
+`30d or 5GiB`로 확인했다. 크기 제한에 먼저 도달하면 30일보다 오래되지 않은 데이터도 삭제될 수 있다.
+기간 확대는 이미 삭제된 기록을 복구하지 않으며, 30일이 지난 뒤 실제 삭제되는 동작까지 확인한 것은 아니다.
+
+원본 설정과 변경 후보, 파일 해시와 서비스별 적용 기록은 서버의 다음 디렉터리에 보관했다.
+
+```text
+/opt/yeogidam/monitoring/backups/retention-30d-20261111T134023Z/
+```
+
+Loki 3.7.9, Tempo 3.1.1과 Prometheus 3.15.1의 동일 버전 도구로 원본과 후보 설정을 검사했다.
+파일 단위 bind mount가 변경 내용을 보도록 기존 파일에 내용을 반영한 뒤 Prometheus는 `SIGHUP`으로
+재로딩하고 Loki와 Tempo는 순서대로 재시작했다. 세 서비스의 준비 상태 HTTP 200, 실행 설정의
+30일 보존과 동일한 데이터 볼륨 유지를 확인했다. Prometheus의 `TSDB retention updated` 로그에서도
+`duration=30d size=5GiB`를 확인했다.
+
+적용 후 디스크는 19.93GiB 중 약 4.35GiB 사용, 약 15.58GiB 여유(사용률 22%)다.
+적용 전 7일치 Prometheus 블록은 하루 약 19MiB를 생성했으며 같은 수집량이면 30일에 약 0.6GiB로
+예상한다. Loki와 Tempo의 수신량은 로그 3건과 스팬 1건뿐이어서 앱 수집 활성화 후 용량을
+예측할 근거는 부족하다. 활성화 후 24~48시간의 새 데이터 생성량과 디스크 여유를 확인한다.
+보존 기간이 지난 데이터가 삭제될 수 있으므로 디스크 순증가량만으로 수집량을 판단하지 않는다.
+
+보존 기간은 Alloy가 아니라 각 저장소의 설정에서 관리한다. 서버 설정을 변경할 때는 이 표도 갱신한다.
+
+## 트레이스 쿼리 문자열 제거
+
+소셜 로그인 콜백에는 인가 코드와 state가 쿼리 문자열로 들어온다.
+`config.alloy`는 batch에서 나온 트레이스에서 `/actuator/`로 시작하는 `url.path`의 스팬을 제외한다.
+나머지 트레이스는 `transform.scrub`에서 `url.query`를 삭제한 뒤 Tempo로 전달한다.
+쿼리 제거는 모든 경로의 트레이스에 적용하며, 헬스체크 필터는 개별 스팬에만 적용한다.
+로그, 메트릭과 나머지 트레이스 속성은 변경하지 않는다. 서버 적용과 기존 기록 삭제는 별도다.
 
 ## 전제
 

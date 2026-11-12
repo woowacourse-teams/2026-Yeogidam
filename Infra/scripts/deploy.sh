@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 
 readonly CONTAINER_PORT="8080"
+readonly OBSERVABILITY_NETWORK="yeogidam-observability"
 
 # 앱은 서버 안에서만 듣는다. 밖에서 오는 요청은 nginx가 443에서 받아 여기로 넘긴다.
 # project-public이 8080을 0.0.0.0/0으로 열어 두고 있어서(공용 보안 그룹이라 못 닫는다)
@@ -49,6 +50,22 @@ readonly LOG_STREAM_PREFIX="backend"
 fail() {
   printf '::error::%s\n' "$1"
   exit 1
+}
+
+otel_resource_attributes() {
+  local env_file="$1" profile="$2"
+  local configured_attributes attribute
+  local result="deployment.environment.name=${profile}"
+  local -a attributes=()
+
+  configured_attributes="$(grep -E '^OTEL_RESOURCE_ATTRIBUTES=' "$env_file" | tail -n 1 | cut -d= -f2- || true)"
+  IFS=, read -r -a attributes <<< "$configured_attributes"
+  for attribute in "${attributes[@]}"; do
+    [[ -z "${attribute//[[:space:]]/}" ]] && continue
+    [[ "$attribute" =~ ^[[:space:]]*deployment[.]environment[.]name[[:space:]]*= ]] && continue
+    result+=",${attribute}"
+  done
+  printf '%s' "$result"
 }
 
 require_value() {
@@ -259,11 +276,16 @@ start_container() {
   local image="$1"
   local container_name="$2"
   local port="$3"
+  local resource_attributes
+
+  resource_attributes="$(otel_resource_attributes "$BACKEND_ENV_FILE" "$EXPECTED_SPRING_PROFILE")"
 
   docker run --detach \
     --name "$container_name" \
+    --network "$OBSERVABILITY_NETWORK" \
     --restart unless-stopped \
     --env-file "$BACKEND_ENV_FILE" \
+    --env "OTEL_RESOURCE_ATTRIBUTES=${resource_attributes}" \
     --publish "${BIND_ADDRESS}:${port}:${CONTAINER_PORT}" \
     --memory "$BACKEND_MEMORY_LIMIT" \
     --memory-swap "$BACKEND_MEMORY_SWAP_LIMIT" \
@@ -569,6 +591,11 @@ chmod 700 "$DEPLOY_LOCK_DIR"
 
 exec 9>"$DEPLOY_LOCK_FILE"
 flock -n 9 || fail "다른 Backend 배포나 재시작이 EC2에서 진행 중입니다."
+
+# Alloy가 아직 없어도 앱은 배포할 수 있다. 수집기와 같은 네트워크만 미리 준비한다.
+docker network inspect "$OBSERVABILITY_NETWORK" >/dev/null 2>&1 \
+  || docker network create "$OBSERVABILITY_NETWORK" >/dev/null \
+  || fail "Docker 네트워크 ${OBSERVABILITY_NETWORK}를 만들지 못했습니다."
 
 ACTIVE_NAME="$(container_name_of_port "$ACTIVE_PORT")"
 IDLE_NAME="$(container_name_of_port "$IDLE_PORT")"
