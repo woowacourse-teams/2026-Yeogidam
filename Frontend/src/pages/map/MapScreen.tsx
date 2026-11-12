@@ -69,8 +69,9 @@ import { subscribeRecentShares } from '../../entities/content/recent-shares-poll
 import {
   SEARCH_BAR_HEIGHT,
   SEARCH_BAR_TOP_GAP,
-  SearchBar,
 } from '../../components/SearchBar';
+import { MapSearchBar } from './components/MapSearchBar';
+import { createSearchKeywordStore } from './searchKeywordStore';
 import {
   COLLAPSED_LIST_SHEET_VISIBLE_HEIGHT,
   COLLAPSED_SHEET_HEIGHT,
@@ -171,7 +172,16 @@ export function MapScreen({
   };
   const { top: topInset, bottom: bottomInset } = useSafeAreaInsets();
   const [mapHeight, setMapHeight] = useState(0);
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchKeywordStore] = useState(createSearchKeywordStore);
+  // 검색어 글자는 검색창만 구독하고, 이 화면은 검색어가 있는지만 알고 있습니다.
+  const [hasActiveSearch, setHasActiveSearch] = useState(false);
+  const setSearchKeyword = useCallback(
+    (value: string) => {
+      searchKeywordStore.set(value);
+      setHasActiveSearch(value.trim().length > 0);
+    },
+    [searchKeywordStore],
+  );
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   // 서버 검색 결과는 폴더·좌표 조건까지만 걸러 두고, 카테고리는 바뀔 때마다 다시 적용합니다.
   const [searchMatches, setSearchMatches] = useState<Place[] | null>(null);
@@ -435,7 +445,6 @@ export function MapScreen({
       searchMatches && filterPlacesByCategory(searchMatches, activeCategory),
     [searchMatches, activeCategory],
   );
-  const hasActiveSearch = searchKeyword.trim().length > 0;
   // 결과 목록이 비었을 때의 안내입니다. 검색 결과 → 고른 카테고리 → 저장한 장소 순으로 비었는지 보고,
   // 보여 줄 장소는 있는데 지금 지도 영역에만 없으면 지도를 움직여 보라고 안내합니다.
   const resultEmptyState: PlaceResultEmptyState = (() => {
@@ -492,11 +501,9 @@ export function MapScreen({
 
   // 응답이 오기 전에 검색어가 바뀌거나 지워졌으면(카테고리·폴더 전환 포함) 그 응답은 버립니다.
   const searchRequestIdRef = useRef(0);
-  const searchKeywordRef = useRef(searchKeyword);
-  searchKeywordRef.current = searchKeyword;
 
   const handleSearch = () => {
-    const keyword = searchKeyword.trim();
+    const keyword = searchKeywordStore.get().trim();
     if (!keyword) return;
 
     const requestId = ++searchRequestIdRef.current;
@@ -515,7 +522,7 @@ export function MapScreen({
         if (
           places === null ||
           requestId !== searchRequestIdRef.current ||
-          searchKeywordRef.current.trim() !== keyword
+          searchKeywordStore.get().trim() !== keyword
         ) {
           return;
         }
@@ -740,6 +747,7 @@ export function MapScreen({
     isSearchFocused,
     isSheetExpanded,
     openedFolderId,
+    setSearchKeyword,
   ]);
 
   useEffect(() => {
@@ -991,7 +999,9 @@ export function MapScreen({
         ) : null}
         <View pointerEvents="box-none" style={styles.searchOverlay}>
           <View>
-            <SearchBar
+            <MapSearchBar
+              keywordStore={searchKeywordStore}
+              clearsSearch={page.clearsSearch}
               horizontalInset={20}
               onPress={
                 isGuest
@@ -1010,7 +1020,6 @@ export function MapScreen({
                   ? 'leading'
                   : 'inside'
               }
-              value={page.clearsSearch ? '' : searchKeyword}
               maxLength={SEARCH_QUERY_MAX_LENGTH}
               onChangeText={handleSearchKeywordChange}
               onFocus={() => setIsSearchFocused(true)}
@@ -1089,7 +1098,7 @@ export function MapScreen({
           pageBackAvailable={
             hasActiveSearch || isSearchFocused || openedFolderId !== null
           }
-          pageBackStateKey={`${searchKeyword}:${isSearchFocused}:${openedFolderId}`}
+          pageBackStateKey={`${hasActiveSearch}:${isSearchFocused}:${openedFolderId}`}
           onPageBack={handleSearchBack}
           backPlaces={placesWithCoordinates.filter(
             place =>

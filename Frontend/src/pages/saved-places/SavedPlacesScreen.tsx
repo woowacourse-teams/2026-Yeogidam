@@ -145,6 +145,21 @@ const SHARE_PROCESSING_ANNOUNCE_DELAY_MS = 1000;
 // 장소 찾기가 이만큼 지나도 끝나지 않으면 멈춘 게 아니라고 한 번 알립니다.
 const SHARE_STILL_PROCESSING_ANNOUNCE_MS = 10_000;
 
+// 폴링은 대부분 같은 목록을 돌려줍니다. 내용이 같으면 이전 배열을 그대로 써서 보관함 전체를 다시 그리지 않습니다.
+function isSameHistoryReels(current: HistoryReel[], next: HistoryReel[]) {
+  return (
+    current.length === next.length &&
+    current.every((reel, index) => {
+      const nextReel = next[index] as Record<string, unknown>;
+      const keys = Object.keys(reel);
+      return (
+        keys.length === Object.keys(nextReel).length &&
+        keys.every(key => (reel as Record<string, unknown>)[key] === nextReel[key])
+      );
+    })
+  );
+}
+
 // 상세페이지로 이동하면 이 화면이 언마운트되므로, 복귀 시 최신 요청을
 // 기다리는 동안 기존 목록을 바로 보여주기 위한 메모리 캐시입니다.
 let cachedSavedPlaces: Place[] | null = null;
@@ -1296,7 +1311,7 @@ export function SavedPlacesScreen({
     const subscription = subscribeRecentShares({
       intervalMs: RECENT_SHARES_INTERVAL_MS,
       onResult: ({ reels }) => {
-        setSharedReels(reels);
+        setSharedReels(current => (isSameHistoryReels(current, reels) ? current : reels));
         reels.forEach(reel => {
           if (
             watchedReelIdsRef.current.has(reel.id) &&
