@@ -1,0 +1,24 @@
+== app-launch-ee3d2fc4
+00:00.000.000   379.33 ms  Initializing - Process Creation
+00:00.379.327    36.62 ms  Initializing - System Interface Initialization
+00:00.381.458    51.36 ms  Initializing - System Interface Initialization
+00:00.415.946    16.87 ms  Initializing - Static Runtime Initialization
+00:00.432.989    24.85 ms  Launching - UIKit Initialization
+00:00.457.843   340.67 µs  Launching - UIKit Scene Creation
+00:00.458.184     1.52 ms  Launching - UIKit Scene Creation
+00:00.459.701    21.93 ms  Launching - didFinishLaunchingWithOptions()
+00:00.481.630   314.83 µs  Launching - UIKit Scene Creation
+00:00.481.945     1.96 ms  Launching - Initial Frame Rendering
+00:00.485.608      5.90 s  Foreground - Active
+== app-launch-2644a433
+00:00.000.000   353.96 ms  Initializing - Process Creation
+00:00.353.955    30.55 ms  Initializing - System Interface Initialization
+00:00.355.225    46.10 ms  Initializing - System Interface Initialization
+00:00.384.500    16.83 ms  Initializing - Static Runtime Initialization
+00:00.401.553    25.98 ms  Launching - UIKit Initialization
+00:00.427.528   386.79 µs  Launching - UIKit Scene Creation
+00:00.427.915     1.25 ms  Launching - UIKit Scene Creation
+00:00.429.164    22.08 ms  Launching - didFinishLaunchingWithOptions()
+00:00.451.245   336.17 µs  Launching - UIKit Scene Creation
+00:00.451.581     2.08 ms  Launching - Initial Frame Rendering
+00:00.455.832      5.91 s  Foreground - Active
