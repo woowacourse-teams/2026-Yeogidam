@@ -53,6 +53,7 @@ import { toSavedPlaceDisplayPlace } from '../../entities/place/api';
 import { syncSavedPlaceFolderIds } from '../../lib/usePlaceFolders';
 import type { Place } from '../../entities/place/types';
 import { deleteSavedPlaces, getSavedPlaces } from '../../entities/info/api';
+import { takePrefetchedSavedPlaces } from '../../entities/info/savedPlacesPrefetch';
 import type { SavedPlacesApiError } from '../../entities/info/types';
 import { SavedPlacesErrorState } from './components/SavedPlacesErrorState';
 import { SavedPlacesEmptyState } from './components/SavedPlacesEmptyState';
@@ -118,6 +119,16 @@ import {
   getRecentSearches,
   setRecentSearches as persistRecentSearches,
 } from '../../lib/searchHistoryStorage';
+import {
+  markStartupFullDisplay,
+  markStartupPostsDisplay,
+} from '../../lib/performance/startupTrace';
+import {
+  saveCachedSavedPlaces,
+  saveCachedSavedPostsFirstPage,
+  takeStartupCachedPlaces,
+  takeStartupCachedPosts,
+} from '../../entities/info/savedLibraryCache';
 
 const REEL_POLL_INTERVAL_MS = 3000;
 const REEL_POLL_TIMEOUT_MS = 90_000;
@@ -214,8 +225,26 @@ export function SavedPlacesScreen({
   const [sharedReels, setSharedReels] = useState<HistoryReel[]>(
     () => (isGuest ? [] : getRecentSharesSnapshot()?.reels ?? []),
   );
-  const [postReels, setPostReels] = useState<HistoryReel[]>([]);
-  const [postCursor, setPostCursor] = useState<HistoryCursor | null>(null);
+  // 앱 시작 직후 첫 마운트에서만, 지난 실행에서 저장해 둔 보관함을 먼저 그린다. 서버 응답이 오면 바뀐다.
+  const [startupCache] = useState(() => {
+    if (isGuest || providedPlaces !== undefined) return null;
+    const placeItems = cachedSavedPlaces === null ? takeStartupCachedPlaces() : null;
+    const posts = takeStartupCachedPosts();
+    if (!placeItems && !posts) return null;
+    return {
+      placeItems,
+      places: placeItems?.map(toSavedPlaceDisplayPlace) ?? null,
+      posts,
+    };
+  });
+  const [postReels, setPostReels] = useState<HistoryReel[]>(
+    () => startupCache?.posts?.reels ?? [],
+  );
+  const [postCursor, setPostCursor] = useState<HistoryCursor | null>(
+    () => startupCache?.posts?.nextCursor ?? null,
+  );
+  // 캐시로 그린 게시물을 서버 응답으로 바꾸는 첫 요청은 "불러오는 중" 문구 없이 조용히 한다.
+  const hasPostsFromCacheRef = useRef(Boolean(startupCache?.posts));
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [selectedPlaceIds, setSelectedPlaceIds] = useState<Set<string>>(
@@ -227,15 +256,30 @@ export function SavedPlacesScreen({
     useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [places, setPlaces] = useState<Place[]>(
-    providedPlaces ?? cachedSavedPlaces ?? [],
+    providedPlaces ?? cachedSavedPlaces ?? startupCache?.places ?? [],
   );
   const hasLoadedPlacesRef = useRef(
-    providedPlaces !== undefined || cachedSavedPlaces !== null,
+    providedPlaces !== undefined ||
+      cachedSavedPlaces !== null ||
+      Boolean(startupCache?.places),
   );
   const [error, setError] = useState<SavedPlacesApiError | null>(null);
   const [isLoading, setIsLoading] = useState(
-    providedPlaces === undefined && cachedSavedPlaces === null,
+    providedPlaces === undefined &&
+      cachedSavedPlaces === null &&
+      !startupCache?.places,
   );
+
+  useEffect(() => {
+    if (!startupCache) return;
+    if (startupCache.placeItems) syncSavedPlaceFolderIds(startupCache.placeItems);
+    // 앱이 첫 화면(TTID)을 기록한 뒤 캐시로 그린 시점을 남긴다.
+    const frame = requestAnimationFrame(() => {
+      if (startupCache.places) markStartupFullDisplay(true, 'cache');
+      if (startupCache.posts) markStartupPostsDisplay('cache');
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [startupCache]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -455,10 +499,11 @@ export function SavedPlacesScreen({
       const showLoadingState = showLoading || !hasLoadedPlacesRef.current;
       if (showLoadingState) setIsLoading(true);
       try {
-        const savedPlaces = await getSavedPlaces();
+        const savedPlaces = await (takePrefetchedSavedPlaces() ?? getSavedPlaces());
         syncSavedPlaceFolderIds(savedPlaces);
         const nextPlaces = savedPlaces.map(toSavedPlaceDisplayPlace);
         cachedSavedPlaces = nextPlaces;
+        saveCachedSavedPlaces(savedPlaces);
         hasLoadedPlacesRef.current = true;
         setPlaces(current =>
           JSON.stringify(current) === JSON.stringify(nextPlaces)
@@ -466,8 +511,11 @@ export function SavedPlacesScreen({
             : nextPlaces,
         );
         setError(null);
+        // 목록이 그려진 다음 프레임을 TTFD로 봅니다. 앱 시작 직후 첫 로드에서만 기록됩니다.
+        requestAnimationFrame(() => markStartupFullDisplay(true));
         return nextPlaces;
       } catch (nextError) {
+        markStartupFullDisplay(false);
         const apiError = nextError as SavedPlacesApiError;
         if (showLoadingState) setError(apiError);
         if (apiError.errorCode === 'AUTH401_001') {
@@ -490,7 +538,8 @@ export function SavedPlacesScreen({
     if (cursor && isLoadingMorePostsRef.current) return;
     const requestId = ++postRequestIdRef.current;
     isLoadingMorePostsRef.current = true;
-    setIsLoadingPosts(true);
+    const isSilentRevalidate = !cursor && hasPostsFromCacheRef.current;
+    if (!isSilentRevalidate) setIsLoadingPosts(true);
     setPostError(null);
     try {
       const page = await getSavedMedia(cursor);
@@ -499,6 +548,11 @@ export function SavedPlacesScreen({
         ? [...current, ...page.reels.filter(reel => !current.some(item => item.id === reel.id))]
         : page.reels);
       setPostCursor(page.nextCursor);
+      if (!cursor) {
+        hasPostsFromCacheRef.current = false;
+        saveCachedSavedPostsFirstPage(page);
+        requestAnimationFrame(() => markStartupPostsDisplay('network'));
+      }
       return page;
     } catch (nextError) {
       if (requestId === postRequestIdRef.current) {

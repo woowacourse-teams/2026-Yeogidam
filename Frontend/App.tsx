@@ -36,6 +36,15 @@ import { AppAlertHost } from './src/components/AppAlertHost';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
 import { PmfSurveyModal } from './src/components/PmfSurveyModal';
 import { getCurrentProfile } from './src/entities/info/api';
+import {
+  clearPrefetchedSavedPlaces,
+  prefetchSavedPlaces,
+} from './src/entities/info/savedPlacesPrefetch';
+import {
+  clearSavedLibraryCache,
+  loadSavedLibraryCache,
+  setSavedLibraryCacheOwner,
+} from './src/entities/info/savedLibraryCache';
 import type { PlaceReel, ProfileApiError, ProfileInfo } from './src/entities/info/types';
 import type { Place } from './src/entities/place/types';
 import {
@@ -128,6 +137,11 @@ import {
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
 import { otaBundleId } from './src/lib/hot-updater';
+import {
+  markStartupInitialDisplay,
+  startStartupPhase,
+  startStartupTrace,
+} from './src/lib/performance/startupTrace';
 
 Sentry.init({
   dsn: 'https://f6c4700ac928b9ecc34983fb58d0dcda@o4512179066896384.ingest.us.sentry.io/4512179119456256',
@@ -142,9 +156,18 @@ Sentry.init({
   // Enable Logs
   enableLogs: false,
 
+  // 로딩 성능 측정: 사용자가 적어 표본이 부족하지 않도록 모든 실행을 수집합니다.
+  // debug 빌드 수치는 Metro를 거쳐 의미가 없으므로 Sentry에서 environment로 걸러 봅니다.
+  tracesSampleRate: 1.0,
+  integrations: [
+    // App Start를 별도 트랜잭션으로 보내야 startupTrace가 그 끝을 스플래시 다음 첫 화면까지 늘릴 수 있습니다.
+    Sentry.appStartIntegration({ standalone: true }),
+  ],
+
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
 });
+startStartupTrace();
 
 function captureShareLoginHandoffError(errorCode: string) {
   const messages: Record<string, {title: string; description: string}> = {
@@ -215,7 +238,8 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
   detailSource: null,
 };
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
-const SPLASH_MIN_DURATION_MS = 2000;
+// 로딩이 빨리 끝날 때 스플래시가 깜빡이지 않을 만큼만 보여준다.
+const SPLASH_MIN_DURATION_MS = 500;
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
@@ -396,6 +420,8 @@ function App() {
   // 이벤트 안내가 먼저 뜨도록, 뜰지 확인되기 전까지는 막혀 있다고 본다.
   const [isEventNoticeBlocking, setIsEventNoticeBlocking] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
+  // 앱 시작 때 업데이트 정책 확인이 끝났는지. 끝나기 전에는 업데이트 모달보다 먼저 뜰 안내를 미룬다.
+  const [isUpdatePolicyChecked, setIsUpdatePolicyChecked] = useState(false);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
   const [onboardingBackRequest, setOnboardingBackRequest] = useState(0);
@@ -594,11 +620,25 @@ function App() {
     }
   }, [isAuthenticated]);
 
+  // 스플래시 다음 화면이 커밋된 직후를 TTID로 기록합니다. 처음 한 번만 기록됩니다.
+  useEffect(() => {
+    if (!isAuthReady || isSplashVisible) return;
+
+    markStartupInitialDisplay(
+      isOnboardingVisible
+        ? 'onboarding'
+        : flowState.kind === 'main' && isAuthenticated === true
+          ? 'saved_places'
+          : 'other',
+    );
+  }, [flowState.kind, isAuthReady, isAuthenticated, isOnboardingVisible, isSplashVisible]);
+
   const canRequestLocation =
     isAuthReady &&
     !isSplashVisible &&
     !isOnboardingVisible &&
     flowState.kind === 'main' &&
+    isUpdatePolicyChecked &&
     !requiredUpdateStoreUrl;
   useEffect(() => {
     if (!canRequestLocation) return;
@@ -829,6 +869,7 @@ function App() {
 
         // Spring 세션이 없으면 Supabase 시절이나 다른 회원의 공유 세션이 남지 않게 지웁니다.
         await syncShareSession(null).catch(() => undefined);
+        clearSavedLibraryCache().catch(() => undefined);
 
         setFlowState(INITIAL_FLOW_STATE);
         setIsOnboardingVisible(true);
@@ -837,6 +878,12 @@ function App() {
         return;
       }
 
+      // 첫 화면은 항상 저장 장소 탭이라, 세션을 확인하자마자 목록 요청을 시작해 스플래시와 겹친다.
+      prefetchSavedPlaces();
+      // 기기에 남은 지난 보관함을 스플래시 동안 읽어, 첫 화면이 네트워크를 기다리지 않게 한다.
+      if (memberId) await loadSavedLibraryCache(memberId).catch(() => undefined);
+      else setSavedLibraryCacheOwner(null);
+      if (!isMounted) return;
       if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setActiveUserId(memberId);
@@ -866,13 +913,23 @@ function App() {
       if (isMounted) applyUpdatePolicy(policy);
     };
 
+    const endSplashDelayPhase = startStartupPhase('splash_min_duration');
     const splashDelay = new Promise<void>(resolve => {
       splashTimer = setTimeout(() => resolve(), SPLASH_MIN_DURATION_MS);
-    });
+    }).finally(endSplashDelayPhase);
+
+    const endAuthRestorePhase = startStartupPhase('auth_restore');
+
+    // 업데이트 정책은 대부분 "업데이트 없음"이라 스플래시를 붙잡지 않는다.
+    // 첫 화면 뒤에 도착하면 필수 업데이트 모달이 그 위를 막고, 그 전까지는 다른 안내 모달을 미룬다.
+    checkUpdatePolicy()
+      .catch(() => undefined)
+      .finally(() => {
+        if (isMounted) setIsUpdatePolicyChecked(true);
+      });
 
     Promise.allSettled([
-      syncFlowState(),
-      checkUpdatePolicy(),
+      syncFlowState().finally(endAuthRestorePhase),
       splashDelay,
     ]).finally(() => {
       if (!isMounted) {
@@ -890,8 +947,10 @@ function App() {
       if (!isMounted || event === 'TOKEN_REFRESHED') {
         return;
       }
+      clearPrefetchedSavedPlaces();
 
       if (event === 'SIGNED_OUT') {
+        clearSavedLibraryCache().catch(() => undefined);
         loginEntryRef.current = null;
         activeUserIdRef.current = null;
         setActiveUserId(null);
@@ -907,6 +966,7 @@ function App() {
       }
 
       setSocialLoginError(null);
+      setSavedLibraryCacheOwner(memberId);
       if (activeUserIdRef.current !== memberId) clearRecentShares();
       activeUserIdRef.current = memberId;
       setActiveUserId(memberId);
@@ -1950,6 +2010,7 @@ function App() {
       <EventNoticeModal
         enabled={
           flowState.kind === 'main' &&
+          isUpdatePolicyChecked &&
           requiredUpdateStoreUrl === null &&
           recommendedUpdate === null &&
           !(isGuestLoginPromptVisible && isGuestBrowsing)
@@ -1961,6 +2022,7 @@ function App() {
         enabled={
           flowState.kind === 'main' &&
           isAuthenticated === true &&
+          isUpdatePolicyChecked &&
           requiredUpdateStoreUrl === null &&
           recommendedUpdate === null &&
           !isEventNoticeBlocking
