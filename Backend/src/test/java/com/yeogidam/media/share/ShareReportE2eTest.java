@@ -33,6 +33,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -49,16 +50,23 @@ class ShareReportE2eTest extends E2eTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    @Qualifier("mediaMetadataExecutor")
     private FakeExtractionRetryExecutor extractionExecutor;
+
+    @Autowired
+    @Qualifier("mediaAnalysisExecutor")
+    private FakeExtractionRetryExecutor analysisExecutor;
 
     @BeforeEach
     void setUpReport() {
         extractionExecutor.reset();
+        analysisExecutor.reset();
     }
 
     @AfterEach
     void finishExtractions() throws Exception {
         extractionExecutor.awaitCompletion();
+        analysisExecutor.awaitCompletion();
     }
 
     @ParameterizedTest
@@ -319,7 +327,15 @@ class ShareReportE2eTest extends E2eTestSupport {
 
         @Primary
         @Bean(destroyMethod = "close")
+        @Qualifier("mediaMetadataExecutor")
         FakeExtractionRetryExecutor fakeExtractionRetryExecutor() {
+            return new FakeExtractionRetryExecutor();
+        }
+
+        @Primary
+        @Bean(destroyMethod = "close")
+        @Qualifier("mediaAnalysisExecutor")
+        FakeExtractionRetryExecutor fakeAnalysisExecutor() {
             return new FakeExtractionRetryExecutor();
         }
     }

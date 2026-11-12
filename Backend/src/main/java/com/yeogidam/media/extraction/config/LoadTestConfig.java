@@ -2,10 +2,8 @@ package com.yeogidam.media.extraction.config;
 
 import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestBeanPostProcessor;
 import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestHttpRouting;
-import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestMetrics;
 import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestRoutingPolicy;
 import com.yeogidam.media.extraction.repository.LoadTestMediaDao;
-import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -33,10 +31,5 @@ public class LoadTestConfig {
     @Bean
     public LoadTestHttpRouting loadTestHttpRouting(LoadTestProperties properties) {
         return new LoadTestHttpRouting(properties);
-    }
-
-    @Bean
-    public LoadTestMetrics loadTestMetrics(MeterRegistry registry) {
-        return new LoadTestMetrics(registry);
     }
 }

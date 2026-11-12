@@ -9,6 +9,11 @@ public record ExtractionSnapshot(
         int version,
         MediaSourceType sourceType
 ) {
+
+    public boolean isExtracting() {
+        return status == ExtractionStatus.EXTRACTING;
+    }
+
     public boolean isSucceeded() {
         return status == ExtractionStatus.SUCCEEDED;
     }

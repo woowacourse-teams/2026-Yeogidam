@@ -72,6 +72,7 @@ public class LoadTestHttpClient extends HttpClient {
         if (body instanceof InputStream stream) {
             long contentLength = response.headers().firstValueAsLong("Content-Length").orElse(-1);
             body = (T) new LoadTestMeasuredInputStream(stream, contentLength,
+                    response.headers().allValues("Content-Encoding"),
                     (received, bodyBytes) -> recordBody(service, fake, startedAt, finalOutcome, received, bodyBytes));
         } else {
             metrics.recordExternal(service, fake, startedAt, outcome, -1);
