@@ -34,6 +34,7 @@ import { GuestLoginPrompt } from './src/components/GuestLoginPrompt';
 import { AppUpdateModal } from './src/components/AppUpdateModal';
 import { AppAlertHost } from './src/components/AppAlertHost';
 import { EventNoticeModal } from './src/components/EventNoticeModal';
+import { WhatsNewModal } from './src/components/WhatsNewModal';
 import { PmfSurveyModal } from './src/components/PmfSurveyModal';
 import { getCurrentProfile } from './src/entities/info/api';
 import {
@@ -419,6 +420,7 @@ function App() {
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
   // 이벤트 안내가 먼저 뜨도록, 뜰지 확인되기 전까지는 막혀 있다고 본다.
   const [isEventNoticeBlocking, setIsEventNoticeBlocking] = useState(true);
+  const [isWhatsNewBlocking, setIsWhatsNewBlocking] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
   // 앱 시작 때 업데이트 정책 확인이 끝났는지. 끝나기 전에는 업데이트 모달보다 먼저 뜰 안내를 미룬다.
   const [isUpdatePolicyChecked, setIsUpdatePolicyChecked] = useState(false);
@@ -2017,7 +2019,18 @@ function App() {
         }
         onBlockingChange={setIsEventNoticeBlocking}
       />
-      {/* 업데이트·이벤트 안내가 모두 닫힌 뒤, 로그인한 회원에게만 묻는다. */}
+      {/* 업데이트 후 바뀐 점은 앱 버전과 무관하게 id당 한 번만, 이벤트 안내 다음에 보여준다. */}
+      <WhatsNewModal
+        enabled={
+          flowState.kind === 'main' &&
+          requiredUpdateStoreUrl === null &&
+          recommendedUpdate === null &&
+          !isEventNoticeBlocking &&
+          !(isGuestLoginPromptVisible && isGuestBrowsing)
+        }
+        onBlockingChange={setIsWhatsNewBlocking}
+      />
+      {/* 업데이트·이벤트·새 소식 안내가 모두 닫힌 뒤, 로그인한 회원에게만 묻는다. */}
       <PmfSurveyModal
         enabled={
           flowState.kind === 'main' &&
@@ -2025,7 +2038,8 @@ function App() {
           isUpdatePolicyChecked &&
           requiredUpdateStoreUrl === null &&
           recommendedUpdate === null &&
-          !isEventNoticeBlocking
+          !isEventNoticeBlocking &&
+          !isWhatsNewBlocking
         }
         memberId={activeUserId}
       />
