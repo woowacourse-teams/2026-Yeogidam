@@ -69,8 +69,8 @@ media:
     # 3: 국내 단서도 카카오가 0건이면 Google Places에서 한 번 더 찾는다(#679).
     pipeline-version: 3
     pool:
-      core-size: ${EXTRACTION_CORE_POOL_SIZE:2}
-      max-size: ${EXTRACTION_MAX_POOL_SIZE:4}
+      core-size: ${EXTRACTION_CORE_POOL_SIZE:10}
+      max-size: ${EXTRACTION_MAX_POOL_SIZE:10}
       queue-capacity: ${EXTRACTION_QUEUE_CAPACITY:100}
     # prod 프로필도 기본 비활성이다. 명시적으로 켠 테스트에서만 전용 공유를 HTTP Fake에 연결한다.
     load-test:

@@ -1,5 +1,7 @@
 package com.yeogidam.place.service;
 
+import com.yeogidam.media.extraction.logging.ExtractionTimeline;
+import com.yeogidam.media.extraction.logging.ExtractionTimeline.ExternalCall;
 import com.yeogidam.place.domain.MapProvider;
 import com.yeogidam.place.domain.Place;
 import com.yeogidam.place.domain.PlaceThumbnail;
@@ -43,8 +45,9 @@ public class PlaceThumbnailService {
         return thumbnail != null && thumbnail.key() != null && !thumbnail.key().isBlank();
     }
 
+    // DB에 썸네일이 없어 카카오 장소 페이지를 실제로 읽을 때만 추출 끝 줄의 placePage 합계에 더한다.
     private PlaceThumbnail loadKakaoThumbnail(Place place) {
-        return readAndStoreKakaoThumbnail(place);
+        return ExtractionTimeline.measure(ExternalCall.PLACE_PAGE, () -> readAndStoreKakaoThumbnail(place));
     }
 
     private PlaceThumbnail readAndStoreKakaoThumbnail(Place place) {

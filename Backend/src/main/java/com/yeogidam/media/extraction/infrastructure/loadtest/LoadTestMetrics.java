@@ -35,7 +35,6 @@ public class LoadTestMetrics {
     public void bindExecutor(ThreadPoolTaskExecutor executor) {
         Gauge.builder("media.extraction.queue.size", executor, ThreadPoolTaskExecutor::getQueueSize).register(registry);
         Gauge.builder("media.extraction.active", executor, ThreadPoolTaskExecutor::getActiveCount).register(registry);
-        executor.setTaskDecorator(this::observeTask);
         ThreadPoolExecutor pool = executor.getThreadPoolExecutor();
         RejectedExecutionHandler rejectionHandler = pool.getRejectedExecutionHandler();
         pool.setRejectedExecutionHandler((task, rejectedPool) -> {
@@ -44,7 +43,8 @@ public class LoadTestMetrics {
         });
     }
 
-    private Runnable observeTask(Runnable task) {
+    // ExtractionConfig가 단계 로그 데코레이터와 합쳐 실행기에 붙인다.
+    public Runnable observeTask(Runnable task) {
         long submittedAt = System.nanoTime();
         return () -> execute(task, submittedAt);
     }
