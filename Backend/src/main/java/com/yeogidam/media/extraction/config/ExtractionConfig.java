@@ -1,18 +1,21 @@
 package com.yeogidam.media.extraction.config;
 
+import com.yeogidam.media.extraction.infrastructure.MediaExtractionExecutor;
+import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestClient;
 
 @Configuration
 @EnableConfigurationProperties({
-        ExtractionProperties.class, ExtractionPoolProperties.class, GeminiProperties.class, KakaoLocalProperties.class,
+        ExtractionProperties.class, ExtractionExecutorProperties.class, GeminiProperties.class, KakaoLocalProperties.class,
         GooglePlacesProperties.class
 })
 public class ExtractionConfig {
@@ -24,14 +27,31 @@ public class ExtractionConfig {
     private static final Duration GOOGLE_PLACES_HTTP_TIMEOUT = Duration.ofSeconds(5);
 
     @Bean
-    public ThreadPoolTaskExecutor mediaExtractionExecutor(ExtractionPoolProperties properties) {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(properties.coreSize());
-        executor.setMaxPoolSize(properties.maxSize());
-        executor.setQueueCapacity(properties.queueCapacity());
-        executor.setThreadNamePrefix("media-extraction-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
+    @DependsOn("mediaAnalysisExecutor")
+    public MediaExtractionExecutor mediaMetadataExecutor(
+            ExtractionExecutorProperties properties,
+            LoadTestMetrics metrics
+    ) {
+        MediaExtractionExecutor executor = new MediaExtractionExecutor("media-metadata-", properties.metadata().coreSize(),
+                properties.metadata().queueCapacity());
+        metrics.bindExecutor(executor);
         return executor;
+    }
+
+    @Bean
+    public MediaExtractionExecutor mediaAnalysisExecutor(
+            ExtractionExecutorProperties properties,
+            LoadTestMetrics metrics
+    ) {
+        MediaExtractionExecutor executor = new MediaExtractionExecutor("media-analysis-", properties.analysis().coreSize(),
+                properties.analysis().queueCapacity());
+        metrics.bindExecutor(executor);
+        return executor;
+    }
+
+    @Bean
+    public LoadTestMetrics loadTestMetrics(MeterRegistry registry) {
+        return new LoadTestMetrics(registry);
     }
 
     @Bean("geminiRestClient")

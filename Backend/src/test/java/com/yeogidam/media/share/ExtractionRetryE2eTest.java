@@ -46,6 +46,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -81,7 +82,12 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     private FakeDomesticPlaceSearcher domesticPlaceSearcher;
 
     @Autowired
+    @Qualifier("mediaMetadataExecutor")
     private FakeExtractionRetryExecutor extractionExecutor;
+
+    @Autowired
+    @Qualifier("mediaAnalysisExecutor")
+    private FakeExtractionRetryExecutor analysisExecutor;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -93,6 +99,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
         domesticPlaceSearcher.reset();
         domesticPlaceSearcher.add("올드빅", place(301L));
         extractionExecutor.reset();
+        analysisExecutor.reset();
     }
 
     @AfterEach
@@ -711,6 +718,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     private void completeExtraction() throws Exception {
         placeSearchHintExtractor.allow();
         extractionExecutor.awaitCompletion();
+        analysisExecutor.awaitCompletion();
     }
 
     private Instant readDatabaseTime() {
@@ -834,7 +842,15 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
 
         @Primary
         @Bean(destroyMethod = "close")
+        @Qualifier("mediaMetadataExecutor")
         FakeExtractionRetryExecutor fakeExtractionRetryExecutor() {
+            return new FakeExtractionRetryExecutor();
+        }
+
+        @Primary
+        @Bean(destroyMethod = "close")
+        @Qualifier("mediaAnalysisExecutor")
+        FakeExtractionRetryExecutor fakeAnalysisExecutor() {
             return new FakeExtractionRetryExecutor();
         }
     }

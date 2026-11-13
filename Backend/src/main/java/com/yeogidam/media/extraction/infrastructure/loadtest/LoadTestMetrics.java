@@ -1,18 +1,21 @@
 package com.yeogidam.media.extraction.infrastructure.loadtest;
 
+import com.yeogidam.media.extraction.infrastructure.MediaExtractionExecutor;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
-import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadPoolExecutor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Slf4j
 public class LoadTestMetrics {
 
+    private final Set<MediaExtractionExecutor> executors = ConcurrentHashMap.newKeySet();
+    private final AtomicInteger inFlight = new AtomicInteger();
     private final MeterRegistry registry;
     private final Timer queueWait;
     private final Timer execution;
@@ -32,16 +35,31 @@ public class LoadTestMetrics {
         rejected = registry.counter("media.extraction.rejected");
     }
 
-    public void bindExecutor(ThreadPoolTaskExecutor executor) {
-        Gauge.builder("media.extraction.queue.size", executor, ThreadPoolTaskExecutor::getQueueSize).register(registry);
-        Gauge.builder("media.extraction.active", executor, ThreadPoolTaskExecutor::getActiveCount).register(registry);
+    public synchronized void bindExecutor(MediaExtractionExecutor executor) {
+        if (!executors.add(executor)) {
+            return;
+        }
+        if (executors.size() == 1) {
+            bindAggregateGauges();
+        }
+        executor.setAdmissionObservers(inFlight::incrementAndGet, inFlight::decrementAndGet);
+    }
+
+    private void bindAggregateGauges() {
+        Gauge.builder("media.extraction.queue.size", executors,
+                values -> values.stream().mapToInt(MediaExtractionExecutor::getQueueSize).sum()).register(registry);
+        Gauge.builder("media.extraction.active", executors,
+                values -> values.stream().mapToInt(MediaExtractionExecutor::getActiveCount).sum()).register(registry);
+        Gauge.builder("executor.active", inFlight, AtomicInteger::get)
+                .tag("name", "mediaExtractionExecutor").register(registry);
+        Gauge.builder("executor.queued", executors,
+                values -> values.stream().mapToInt(MediaExtractionExecutor::getQueueSize).sum())
+                .tag("name", "mediaExtractionExecutor").register(registry);
+    }
+
+    public void observeExecutor(MediaExtractionExecutor executor) {
         executor.setTaskDecorator(this::observeTask);
-        ThreadPoolExecutor pool = executor.getThreadPoolExecutor();
-        RejectedExecutionHandler rejectionHandler = pool.getRejectedExecutionHandler();
-        pool.setRejectedExecutionHandler((task, rejectedPool) -> {
-            rejected.increment();
-            rejectionHandler.rejectedExecution(task, rejectedPool);
-        });
+        executor.setRejectionObserver(rejected::increment);
     }
 
     private Runnable observeTask(Runnable task) {
@@ -62,10 +80,13 @@ public class LoadTestMetrics {
         }
     }
 
-    void logDedicatedQueueWait(String shortcode) {
+    void logDedicatedQueueWait(String shortcode, String stage) {
         Long queueWaitNanos = currentQueueWaitNanos.get();
+        if ("readMetadata".equals(stage)) {
+            return;
+        }
         if (queueWaitNanos != null) {
-            log.info("LOAD_TEST_QUEUE_WAIT shortcode={} queueNs={}", shortcode, queueWaitNanos);
+            log.info("LOAD_TEST_QUEUE_WAIT shortcode={} queueNs={} stage={}", shortcode, queueWaitNanos, stage);
             dedicatedQueueWaitSamples.increment();
         }
     }

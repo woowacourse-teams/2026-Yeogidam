@@ -3,10 +3,12 @@ package com.yeogidam.media.extraction.service;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -20,20 +22,23 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class MediaExtractionDispatcher {
 
     private final MediaExtractionPipeline mediaExtractionPipeline;
-    private final TaskExecutor mediaExtractionExecutor;
+    private final TaskExecutor mediaMetadataExecutor;
+    private final TaskExecutor mediaAnalysisExecutor;
     private final InstagramMediaDao instagramMediaDao;
     private final SharedMediaDao sharedMediaDao;
     private final TransactionTemplate failureTransactionTemplate;
 
     public MediaExtractionDispatcher(
             MediaExtractionPipeline mediaExtractionPipeline,
-            TaskExecutor mediaExtractionExecutor,
+            @Qualifier("mediaMetadataExecutor") TaskExecutor mediaMetadataExecutor,
+            @Qualifier("mediaAnalysisExecutor") TaskExecutor mediaAnalysisExecutor,
             InstagramMediaDao instagramMediaDao,
             SharedMediaDao sharedMediaDao,
             PlatformTransactionManager transactionManager
     ) {
         this.mediaExtractionPipeline = mediaExtractionPipeline;
-        this.mediaExtractionExecutor = mediaExtractionExecutor;
+        this.mediaMetadataExecutor = mediaMetadataExecutor;
+        this.mediaAnalysisExecutor = mediaAnalysisExecutor;
         this.instagramMediaDao = instagramMediaDao;
         this.sharedMediaDao = sharedMediaDao;
         this.failureTransactionTemplate = new TransactionTemplate(transactionManager);
@@ -45,7 +50,7 @@ public class MediaExtractionDispatcher {
             @Override
             public void afterCommit() {
                 try {
-                    mediaExtractionExecutor.execute(() -> extract(mediaId, instagramUrl));
+                    mediaMetadataExecutor.execute(() -> extractMetadata(mediaId, instagramUrl));
                 } catch (RuntimeException exception) {
                     markExtractionFailed(mediaId, instagramUrl.getMediaShortcode().value(),
                             failureReasonFor(exception));
@@ -56,9 +61,17 @@ public class MediaExtractionDispatcher {
         });
     }
 
-    private void extract(Long mediaId, InstagramUrl instagramUrl) {
+    private void extractMetadata(Long mediaId, InstagramUrl instagramUrl) {
+        runExtraction(mediaId, instagramUrl, () -> {
+            MediaMetadata metadata = mediaExtractionPipeline.readMetadata(mediaId, instagramUrl);
+            mediaAnalysisExecutor.execute(() -> runExtraction(mediaId, instagramUrl,
+                    () -> mediaExtractionPipeline.analyze(mediaId, instagramUrl, metadata)));
+        });
+    }
+
+    private void runExtraction(Long mediaId, InstagramUrl instagramUrl, Runnable task) {
         try {
-            mediaExtractionPipeline.extract(mediaId, instagramUrl);
+            task.run();
         } catch (RuntimeException exception) {
             boolean interrupted = hasInterruptedCause(exception);
             if (interrupted) {

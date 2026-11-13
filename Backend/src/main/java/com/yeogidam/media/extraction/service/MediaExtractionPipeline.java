@@ -33,7 +33,15 @@ public class MediaExtractionPipeline {
     private final PlaceThumbnailService placeThumbnailService;
 
     public void extract(Long mediaId, InstagramUrl instagramUrl) {
-        MediaMetadata metadata = instagramMetadataService.readAndStore(mediaId, instagramUrl);
+        MediaMetadata metadata = readMetadata(mediaId, instagramUrl);
+        analyze(mediaId, instagramUrl, metadata);
+    }
+
+    public MediaMetadata readMetadata(Long mediaId, InstagramUrl instagramUrl) {
+        return instagramMetadataService.readAndStore(mediaId, instagramUrl);
+    }
+
+    public void analyze(Long mediaId, InstagramUrl instagramUrl, MediaMetadata metadata) {
         List<Place> places = findPlacesFromCaptionThenMedia(instagramUrl, metadata);
         resultWriter.recordSuccess(mediaId, new PlaceExtractionResult(new ExtractedPlaces(places)));
     }
