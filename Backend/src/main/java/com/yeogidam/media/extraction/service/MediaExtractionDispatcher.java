@@ -2,11 +2,13 @@ package com.yeogidam.media.extraction.service;
 
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
+import com.yeogidam.media.extraction.logging.ExtractionTimeline;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
 import com.yeogidam.media.share.repository.SharedMediaDao;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -18,6 +20,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Slf4j
 @Service
 public class MediaExtractionDispatcher {
+
+    private static final String MDC_MEDIA_ID = "mediaId";
 
     private final MediaExtractionPipeline mediaExtractionPipeline;
     private final TaskExecutor mediaExtractionExecutor;
@@ -44,7 +48,8 @@ public class MediaExtractionDispatcher {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                try {
+                // 실행기의 데코레이터가 요청 스레드의 MDC를 추출 스레드로 옮기므로, 추출 로그마다 mediaId가 붙는다.
+                try (MDC.MDCCloseable ignored = MDC.putCloseable(MDC_MEDIA_ID, String.valueOf(mediaId))) {
                     mediaExtractionExecutor.execute(() -> extract(mediaId, instagramUrl));
                 } catch (RuntimeException exception) {
                     markExtractionFailed(mediaId, instagramUrl.getMediaShortcode().value(),
@@ -59,15 +64,17 @@ public class MediaExtractionDispatcher {
     private void extract(Long mediaId, InstagramUrl instagramUrl) {
         try {
             mediaExtractionPipeline.extract(mediaId, instagramUrl);
+            ExtractionTimeline.succeeded();
         } catch (RuntimeException exception) {
             boolean interrupted = hasInterruptedCause(exception);
             if (interrupted) {
                 Thread.interrupted();
             }
             try {
-                markExtractionFailed(mediaId, instagramUrl.getMediaShortcode().value(),
-                        failureReasonFor(exception));
+                ExtractionFailureReason failureReason = failureReasonFor(exception);
+                markExtractionFailed(mediaId, instagramUrl.getMediaShortcode().value(), failureReason);
                 logExtractionFailure(mediaId, instagramUrl, exception, interrupted);
+                ExtractionTimeline.failed(failureReason);
             } finally {
                 if (interrupted) {
                     Thread.currentThread().interrupt();

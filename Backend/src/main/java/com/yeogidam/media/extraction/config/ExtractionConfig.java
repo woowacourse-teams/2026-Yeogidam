@@ -1,11 +1,18 @@
 package com.yeogidam.media.extraction.config;
 
+import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestMetrics;
+import com.yeogidam.media.extraction.logging.ExtractionTaskDecorator;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.TaskDecorator;
+import org.springframework.core.task.support.CompositeTaskDecorator;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestClient;
@@ -24,14 +31,29 @@ public class ExtractionConfig {
     private static final Duration GOOGLE_PLACES_HTTP_TIMEOUT = Duration.ofSeconds(5);
 
     @Bean
-    public ThreadPoolTaskExecutor mediaExtractionExecutor(ExtractionPoolProperties properties) {
+    public ThreadPoolTaskExecutor mediaExtractionExecutor(
+            ExtractionPoolProperties properties,
+            ObjectProvider<LoadTestMetrics> loadTestMetrics
+    ) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(properties.coreSize());
         executor.setMaxPoolSize(properties.maxSize());
         executor.setQueueCapacity(properties.queueCapacity());
         executor.setThreadNamePrefix("media-extraction-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setTaskDecorator(taskDecorator(executor, loadTestMetrics));
         return executor;
+    }
+
+    // 실행기는 데코레이터를 하나만 받아서, 부하 테스트를 켜도 단계 로그가 덮이지 않도록 부하 테스트 측정을 바깥에 합친다.
+    private TaskDecorator taskDecorator(
+            ThreadPoolTaskExecutor executor,
+            ObjectProvider<LoadTestMetrics> loadTestMetrics
+    ) {
+        List<TaskDecorator> decorators = new ArrayList<>();
+        decorators.add(new ExtractionTaskDecorator(executor));
+        loadTestMetrics.ifAvailable(metrics -> decorators.add(metrics::observeTask));
+        return new CompositeTaskDecorator(decorators);
     }
 
     @Bean("geminiRestClient")

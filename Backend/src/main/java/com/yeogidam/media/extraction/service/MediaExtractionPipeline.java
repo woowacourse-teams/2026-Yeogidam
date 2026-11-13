@@ -6,6 +6,8 @@ import com.yeogidam.media.extraction.domain.PlaceExtractionResult;
 import com.yeogidam.media.extraction.domain.PlaceSearchHint;
 import com.yeogidam.media.extraction.domain.PlaceSearchHints;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
+import com.yeogidam.media.extraction.logging.ExtractionTimeline;
+import com.yeogidam.media.extraction.logging.ExtractionTimeline.ExternalCall;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.instagram.service.InstagramMetadataService;
@@ -43,7 +45,8 @@ public class MediaExtractionPipeline {
         if (MEDIA_ANALYSIS_AUTHOR.equals(metadata.author())) {
             return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
-        PlaceSearchHints captionHints = placeSearchHintExtractor.extract(metadata.caption());
+        PlaceSearchHints captionHints = ExtractionTimeline.measure(ExternalCall.GEMINI,
+                () -> placeSearchHintExtractor.extract(metadata.caption()));
         if (captionHints.places().isEmpty()) {
             return findPlacesInMedia(instagramUrl, metadata, ExtractionFailureReason.PLACE_NOT_EXTRACTED);
         }
@@ -60,7 +63,9 @@ public class MediaExtractionPipeline {
             MediaMetadata metadata,
             ExtractionFailureReason noHintsReason
     ) {
-        PlaceSearchHints mediaHints = placeSearchHintExtractor.extractFile(metadata.caption(), instagramUrl);
+        ExtractionTimeline.mediaAnalysisStarted();
+        PlaceSearchHints mediaHints = ExtractionTimeline.measure(ExternalCall.GEMINI,
+                () -> placeSearchHintExtractor.extractFile(metadata.caption(), instagramUrl));
         if (mediaHints.places().isEmpty()) {
             throw new ExtractionFailedException(noHintsReason);
         }
@@ -74,7 +79,8 @@ public class MediaExtractionPipeline {
     private List<Place> findPlaces(PlaceSearchHints hints, String instagramThumbnailKey) {
         Map<PlaceKey, Place> placesByExternalId = new LinkedHashMap<>();
         for (PlaceSearchHint hint : hints.places()) {
-            List<Place> matchedPlaces = placeSearchRouter.search(hint);
+            List<Place> matchedPlaces = ExtractionTimeline.measure(ExternalCall.PLACE_SEARCH,
+                    () -> placeSearchRouter.search(hint));
             if (matchedPlaces.isEmpty()) {
                 continue;
             }
