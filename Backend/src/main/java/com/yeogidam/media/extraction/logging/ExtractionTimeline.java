@@ -30,15 +30,21 @@ public final class ExtractionTimeline {
 
     private final long queuedAt;
     private final long startedAt;
+    private final Long requestStartedAt;
     private final Map<ExternalCall, CallTotal> callTotals = new EnumMap<>(ExternalCall.class);
     private Long instagramReadAt;
     private Long thumbnailStoredAt;
     private Long metadataStoredAt;
     private boolean mediaAnalyzed;
 
-    private ExtractionTimeline(long queuedAt, long startedAt) {
+    private ExtractionTimeline(
+            long queuedAt,
+            long startedAt,
+            Long requestStartedAt
+    ) {
         this.queuedAt = queuedAt;
         this.startedAt = startedAt;
+        this.requestStartedAt = requestStartedAt;
         for (ExternalCall call : ExternalCall.values()) {
             callTotals.put(call, new CallTotal());
         }
@@ -58,8 +64,8 @@ public final class ExtractionTimeline {
     }
 
     /** T2. 추출 스레드가 큐에서 작업을 꺼낸 직후에 부른다. */
-    static void started(long queuedAt) {
-        ExtractionTimeline timeline = new ExtractionTimeline(queuedAt, System.nanoTime());
+    static void started(long queuedAt, Long requestStartedAt) {
+        ExtractionTimeline timeline = new ExtractionTimeline(queuedAt, System.nanoTime(), requestStartedAt);
         CURRENT.set(timeline);
         long queueWaitMs = timeline.queueWaitMs();
         log.atInfo()
@@ -90,7 +96,8 @@ public final class ExtractionTimeline {
 
     /**
      * T5. 캡션과 썸네일을 커밋한 직후에 부르며, 앱의 게시물 카드는 이때부터 채워진다.
-     * sinceQueuedMs에 공유 요청 처리 시간(요청 로그의 durationMs)을 더하면 #537의 「공유부터 카드가 채워지기까지」가 된다.
+     * requestToMetadataMs는 요청 필터의 계측 시작부터 저장 완료까지이며, 앱의 조회나 화면 표시 시간은 포함하지 않는다.
+     * sinceQueuedMs와 요청 로그의 durationMs는 큐 등록 이후 요청 종료까지 겹치므로 더하지 않는다.
      */
     public static void metadataStored() {
         ExtractionTimeline timeline = CURRENT.get();
@@ -172,7 +179,14 @@ public final class ExtractionTimeline {
         if (metadataStoredAt != null) {
             event = event.addKeyValue(FIRST_STAGE_MS, firstStageMs());
         }
-        return event;
+        return addRequestToMetadata(event);
+    }
+
+    private LoggingEventBuilder addRequestToMetadata(LoggingEventBuilder event) {
+        if (requestStartedAt == null || metadataStoredAt == null) {
+            return event;
+        }
+        return event.addKeyValue("requestToMetadataMs", toMillis(metadataStoredAt - requestStartedAt));
     }
 
     private LoggingEventBuilder addCallTotals(LoggingEventBuilder event) {

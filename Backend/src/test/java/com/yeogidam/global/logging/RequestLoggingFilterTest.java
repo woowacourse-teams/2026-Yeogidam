@@ -37,6 +37,7 @@ class RequestLoggingFilterTest {
     @AfterEach
     void clearMdc() {
         MDC.clear();
+        RequestTimingContext.clear();
     }
 
     @Test
@@ -114,6 +115,22 @@ class RequestLoggingFilterTest {
     }
 
     @Test
+    void 요청_시작_시각을_체인에_제공하고_요청이_끝나면_비운다() throws Exception {
+        // given
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", API_PATH);
+        AtomicReference<Long> startedAt = new AtomicReference<>();
+        FilterChain chain = (servletRequest, servletResponse) -> startedAt.set(RequestTimingContext.startedAtNanos());
+        long beforeRequest = System.nanoTime();
+
+        // when
+        filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+        // then
+        assertThat(startedAt.get()).isBetween(beforeRequest, System.nanoTime());
+        assertThat(RequestTimingContext.startedAtNanos()).isNull();
+    }
+
+    @Test
     void 체인이_예외를_던져도_MDC를_비운다() {
         // given
         MockHttpServletRequest request = new MockHttpServletRequest("GET", API_PATH);
@@ -126,5 +143,6 @@ class RequestLoggingFilterTest {
         assertThatThrownBy(() -> filter.doFilter(request, response, chain))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(MDC.getCopyOfContextMap()).isNullOrEmpty();
+        assertThat(RequestTimingContext.startedAtNanos()).isNull();
     }
 }

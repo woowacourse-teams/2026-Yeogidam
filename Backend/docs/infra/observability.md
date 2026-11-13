@@ -30,6 +30,15 @@
 
 nginx는 요청마다 만드는 `$request_id`(32자 16진수)를 access 로그의 마지막 필드로 찍고 `proxy_set_header X-Request-Id $request_id`로 앱에 넘긴다. 앱의 `RequestLoggingFilter`는 헤더 값을 MDC `requestId`로 넣어 요청 안에서 찍히는 모든 로그 줄의 최상위 키로 실리게 하고 요청이 끝나면 `httpMethod`, `path`, `status`, `durationMs`를 붙인 한 줄을 남기며 응답 헤더 `X-Request-Id`로도 돌려준다. 그래서 클라이언트가 문의할 때 응답 헤더의 requestId를 받으면 nginx가 본 요청과 앱이 남긴 로그를 같은 값으로 찾을 수 있다. 클라이언트가 보낸 `X-Request-Id`는 nginx에서 덮이므로 값은 언제나 nginx가 정한다.
 
+추출 로그의 `requestToMetadataMs`는 요청 필터가 계측을 시작한 시각부터 캡션과 썸네일 저장이 끝날 때까지를
+직접 잰 값이다. 큐 등록 시 요청 시작 시각을 복사하므로, 공유 요청이 먼저 끝나도 추출 작업에서 사용할 수 있다.
+`METADATA_STORED`와 최종 성공·실패 로그에 같은 값을 남긴다. 요청 문맥이 없거나 메타데이터 저장 전에 실패하면
+이 필드를 생략한다. 앱의 후속 조회와 화면 표시까지 걸리는 시간은 포함하지 않는다.
+
+`sinceQueuedMs`는 큐 등록부터 메타데이터 저장까지이며, `durationMs`는 요청 필터의 계측 시작부터 요청 처리
+종료까지다. 큐 등록 이후 요청 처리 종료까지가 겹치므로 두 값을 더해 전체 시간을 계산하지 않는다.
+`totalMs`는 기존처럼 큐 등록부터 추출 완료까지의 시간이다.
+
 찾을 때는 Logs Insights에서 `/yeogidam/<env>/nginx`와 `/yeogidam/<env>/backend` 두 그룹을 함께 고르고 아래 쿼리를 돌린다. access 로그는 평문이고 앱 로그는 JSON이지만 둘 다 본문에 같은 문자열이 있어 `@message` 검색 하나로 두 쪽이 다 나온다.
 
 ```

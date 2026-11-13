@@ -1,5 +1,6 @@
 package com.yeogidam.media.extraction.logging;
 
+import com.yeogidam.global.logging.RequestTimingContext;
 import java.util.Map;
 import org.slf4j.MDC;
 import org.springframework.core.task.TaskDecorator;
@@ -20,17 +21,23 @@ public class ExtractionTaskDecorator implements TaskDecorator {
     @Override
     public Runnable decorate(Runnable task) {
         Map<String, String> context = MDC.getCopyOfContextMap();
+        Long requestStartedAt = RequestTimingContext.startedAtNanos();
         long queuedAt = ExtractionTimeline.queued(executor.getQueueSize(), executor.getActiveCount());
-        return () -> run(task, context, queuedAt);
+        return () -> run(task, context, queuedAt, requestStartedAt);
     }
 
-    private void run(Runnable task, Map<String, String> context, long queuedAt) {
+    private void run(
+            Runnable task,
+            Map<String, String> context,
+            long queuedAt,
+            Long requestStartedAt
+    ) {
         if (context == null) {
             MDC.clear();
         } else {
             MDC.setContextMap(context);
         }
-        ExtractionTimeline.started(queuedAt);
+        ExtractionTimeline.started(queuedAt, requestStartedAt);
         try {
             task.run();
         } finally {

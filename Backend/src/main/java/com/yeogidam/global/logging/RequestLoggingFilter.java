@@ -64,9 +64,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         response.setHeader(HEADER_NAME, requestId);
         MDC.put(MDC_REQUEST_ID, requestId);
         long startedAt = System.nanoTime();
+        RequestTimingContext.start(startedAt);
         try {
             filterChain.doFilter(request, response);
         } finally {
+            RequestTimingContext.clear();
             // 체인이 예외를 던져도 여기까지 온다. 요청 한 줄은 항상 남기고, MDC는 반드시 비운다.
             long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
             String method = request.getMethod();
