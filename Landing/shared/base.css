@@ -1,0 +1,72 @@
+/* 모든 섹션이 함께 쓰는 토큰, 기본 요소, 내비, 버튼, 스토어 배지, 푸터 */
+
+/* ---------- 토큰 ---------- */
+:root{
+  color-scheme: light;
+  --bg:#ffffff; --bg-soft:#f3f4fb; --bg-cream:#f5f3ee;
+  --brand:#dbe0f9; --brand-deep:#c1cbfe; --brand-ink:#4a5bd6;
+  --ink:#1a1a2e; --ink-2:#596275; --muted:#6e6e73; --line:#e5e5ea;
+  --success:#34c759; --fail:#fb6f6f; --kakao:#fee500; --black:#121212;
+  --radius:20px;
+  --shadow:0 10px 30px rgba(26,26,46,.08);
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-x:hidden}
+[hidden]{display:none!important}
+img{max-width:100%;display:block}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+h1,h2,h3{margin:0;line-height:1.25;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+.wrap{max-width:1120px;margin-inline:auto;padding-inline:max(clamp(16px,4vw,32px),env(safe-area-inset-left,0px)) max(clamp(16px,4vw,32px),env(safe-area-inset-right,0px))}
+#demo,#features,#tech,#journey,#faq,#start{scroll-margin-top:72px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--brand-ink);background:var(--bg-soft);border-radius:999px;padding:6px 12px}
+.sec{padding-block:clamp(56px,9vw,112px)}
+.sec-head{max-width:640px;margin-bottom:clamp(28px,4vw,48px)}
+.sec-head h2{font-size:clamp(26px,4vw,40px);font-weight:800;margin-top:14px}
+.sec-head p{margin-top:14px;color:var(--ink-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- 내비 ---------- */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-bottom:1px solid rgba(26,26,46,.06)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;text-decoration:none}
+.brand img{width:34px;height:34px;border-radius:10px}
+.nav-links{display:none;gap:4px}
+.nav-links a{text-decoration:none;font-size:15px;font-weight:600;color:var(--ink-2);padding:8px 12px;border-radius:999px}
+.nav-links a:hover{background:var(--bg-soft);color:var(--ink)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:999px;padding:12px 20px;font-weight:700;font-size:15px;text-decoration:none;transition:transform .15s ease,background .15s ease}
+.btn:active{transform:scale(.97)}
+.btn-dark{background:var(--black);color:#fff}
+.btn-dark:hover{background:#2a2a44}
+.btn-soft{background:var(--brand);color:var(--ink)}
+.btn-soft:hover{background:var(--brand-deep)}
+.btn-ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
+.btn-ghost:hover{background:var(--bg-soft)}
+.btn-sm{padding:9px 14px;font-size:14px;min-height:44px}
+@media (min-width:860px){.nav-links{display:flex}}
+
+/* ---------- 여러 섹션이 같이 쓰는 애니메이션(기술 섹션 스피너, 데모의 장소 찾는 중 링) ---------- */
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- 스토어 배지 ---------- */
+.badges{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:26px}
+.badges a{display:inline-flex;border-radius:8px;transition:transform .15s ease}
+.badges a:hover{transform:translateY(-2px)}
+.badges img{height:48px;width:auto}
+.badges .play img{height:48px}
+
+/* ---------- 푸터 ---------- */
+.foot{padding-block:40px 60px;font-size:13px;color:var(--muted)}
+.foot .row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between}
+.foot a{color:var(--ink-2);text-decoration:none;font-weight:600}
+.foot .legal{margin-top:18px;line-height:1.8}
+.foot .legal+.legal{margin-top:10px}
+.foot .copyright{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-2)}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
