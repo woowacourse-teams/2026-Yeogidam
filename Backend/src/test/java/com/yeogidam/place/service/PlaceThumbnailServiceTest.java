@@ -19,12 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
-import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
-import org.springframework.context.annotation.Import;
 
-@Import(PlaceDao.class)
-@ImportAutoConfiguration(JacksonAutoConfiguration.class)
 class PlaceThumbnailServiceTest extends JdbcTestSupport {
 
     private static final String INSTAGRAM_THUMBNAIL_KEY = "yeogidam/instagram-thumbnails/DX4P4OmzonI.jpg";

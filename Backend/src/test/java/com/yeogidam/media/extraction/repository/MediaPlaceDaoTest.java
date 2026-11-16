@@ -18,10 +18,8 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Import(MediaPlaceDao.class)
 class MediaPlaceDaoTest extends JdbcTestSupport {
 
     @Autowired

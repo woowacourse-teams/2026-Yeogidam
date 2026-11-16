@@ -6,6 +6,10 @@ spring:
     enabled: false # Spring Boot의 자동 실행만 끈다. MySqlContainerSupport가 Flyway를 직접 실행한다.
   datasource:
     hikari:
+      # 캐시된 테스트 컨텍스트마다 풀을 따로 만들어 MySQL 컨테이너 하나의 연결 한도(max_connections 151)를 나눠 쓴다.
+      # Hikari 기본값 10이면 컨텍스트 약 15개부터 Too many connections가 날 수 있어 5로 낮춘다(#282).
+      # 컨텍스트를 7개로 줄인 뒤(#305) 최대 동시 연결은 5일 때 36개, 기본값일 때 71개였고 시간 차이는 없었다.
+      # 하위 테스트 클래스에 설정을 더해 컨텍스트가 늘어날 때를 대비해 5를 유지한다.
       maximum-pool-size: 5
 
 jwt:

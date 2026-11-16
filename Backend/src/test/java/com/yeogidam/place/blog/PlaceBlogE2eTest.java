@@ -12,31 +12,23 @@ import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.place.blog.domain.BlogPost;
 import com.yeogidam.place.blog.domain.BlogSearchResult;
 import com.yeogidam.place.blog.exception.PlaceBlogErrorCode;
-import com.yeogidam.place.blog.exception.PlaceBlogException;
-import com.yeogidam.place.blog.service.BlogSearcher;
 import com.yeogidam.place.exception.PlaceErrorCode;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import com.yeogidam.support.fake.FakeBlogSearcher;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 블로그 기능을 들어낼 때 테스트 폴더째 지울 수 있도록, 네이버 대신 쓰는 가짜 검색기를 E2E 클래스 안에 둔다.
+ * 네이버 대신 쓰는 FakeBlogSearcher는 E2E 컨텍스트를 함께 쓰도록 E2eTestSupport가 등록한다.
+ * 블로그 기능을 들어낼 때는 support/fake의 FakeBlogSearcher와 FakeBlogSearcherConfig도 함께 지운다.
  */
-@Import(PlaceBlogE2eTest.FakeBlogSearcherConfiguration.class)
 class PlaceBlogE2eTest extends E2eTestSupport {
 
     private static final String PATH = "/api/v1/places/{placeId}/blogs";
@@ -120,53 +112,5 @@ class PlaceBlogE2eTest extends E2eTestSupport {
     private void insertCafe() {
         insertPlaceWithRequiredColumnsOnly(jdbcTemplate, PLACE_ID, "place-blog-cafe", "카페 온월",
                 "서울 마포구 연남동 239-49", new BigDecimal("37.5622"), new BigDecimal("126.9254"));
-    }
-
-    @TestConfiguration
-    static class FakeBlogSearcherConfiguration {
-
-        @Bean
-        @Primary
-        FakeBlogSearcher fakeBlogSearcher() {
-            return new FakeBlogSearcher();
-        }
-    }
-
-    /**
-     * 네이버를 부르지 않고 정해 둔 결과를 돌려주며, 받은 요청을 「검색어|개수」로 남긴다.
-     */
-    static class FakeBlogSearcher implements BlogSearcher {
-
-        private final AtomicReference<BlogSearchResult> result =
-                new AtomicReference<>(new BlogSearchResult("NAVER", List.of()));
-        private final AtomicBoolean failing = new AtomicBoolean();
-        private final List<String> requests = new CopyOnWriteArrayList<>();
-
-        @Override
-        public BlogSearchResult search(String query, int size) {
-            requests.add(query + "|" + size);
-            if (failing.get()) {
-                throw new PlaceBlogException(PlaceBlogErrorCode.BLOG_SEARCH_FAILED);
-            }
-            return result.get();
-        }
-
-        void respondWith(BlogSearchResult value) {
-            result.set(value);
-        }
-
-        void fail() {
-            failing.set(true);
-        }
-
-        void reset() {
-            result.set(new BlogSearchResult("NAVER", List.of()));
-            failing.set(false);
-            requests.clear();
-        }
-
-        List<String> requests() {
-            return List.copyOf(requests);
-        }
     }
 }

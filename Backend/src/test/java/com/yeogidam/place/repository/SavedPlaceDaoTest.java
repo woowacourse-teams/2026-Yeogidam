@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -39,7 +38,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 보관함 저장·조회·삭제와 공유 연결이 실제 MySQL에서 동작하는지 검증한다.
  * 행은 SQL fixture로 given에서 직접 넣는다.
  */
-@Import(SavedPlaceDao.class)
 class SavedPlaceDaoTest extends JdbcTestSupport {
 
     @Autowired
