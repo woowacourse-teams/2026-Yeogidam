@@ -42,7 +42,6 @@ public final class MediaExtractionExecutor implements AsyncTaskExecutor, AutoClo
         executor.setThreadNamePrefix(threadNamePrefix);
         executor.setPrestartAllCoreThreads(true);
         executor.setAllowCoreThreadTimeOut(false);
-        executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.initialize();
     }
 

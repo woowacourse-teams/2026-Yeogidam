@@ -58,7 +58,7 @@ public class LoadTestBeanPostProcessor implements BeanPostProcessor {
     }
 
     private Object observeExtraction(MethodInvocation invocation) throws Throwable {
-        if (!Set.of("extract", "readMetadata", "analyze").contains(invocation.getMethod().getName())) {
+        if (!Set.of("readMetadata", "analyze").contains(invocation.getMethod().getName())) {
             return invocation.proceed();
         }
         try {

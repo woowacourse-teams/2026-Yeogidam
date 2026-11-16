@@ -34,11 +34,6 @@ public class MediaExtractionPipeline {
     private final MediaExtractionResultWriter resultWriter;
     private final PlaceThumbnailService placeThumbnailService;
 
-    public void extract(Long mediaId, InstagramUrl instagramUrl) {
-        MediaMetadata metadata = readMetadata(mediaId, instagramUrl);
-        analyze(mediaId, instagramUrl, metadata);
-    }
-
     public MediaMetadata readMetadata(Long mediaId, InstagramUrl instagramUrl) {
         return instagramMetadataService.readAndStore(mediaId, instagramUrl);
     }
