@@ -1,14 +1,10 @@
 package com.yeogidam.media.extraction.infrastructure.loadtest;
 
 import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
-import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadPoolExecutor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Slf4j
 public class LoadTestMetrics {
@@ -32,17 +28,6 @@ public class LoadTestMetrics {
         rejected = registry.counter("media.extraction.rejected");
     }
 
-    public void bindExecutor(ThreadPoolTaskExecutor executor) {
-        Gauge.builder("media.extraction.queue.size", executor, ThreadPoolTaskExecutor::getQueueSize).register(registry);
-        Gauge.builder("media.extraction.active", executor, ThreadPoolTaskExecutor::getActiveCount).register(registry);
-        ThreadPoolExecutor pool = executor.getThreadPoolExecutor();
-        RejectedExecutionHandler rejectionHandler = pool.getRejectedExecutionHandler();
-        pool.setRejectedExecutionHandler((task, rejectedPool) -> {
-            rejected.increment();
-            rejectionHandler.rejectedExecution(task, rejectedPool);
-        });
-    }
-
     // ExtractionConfig가 단계 로그 데코레이터와 합쳐 실행기에 붙인다.
     public Runnable observeTask(Runnable task) {
         long submittedAt = System.nanoTime();
@@ -62,10 +47,13 @@ public class LoadTestMetrics {
         }
     }
 
-    void logDedicatedQueueWait(String shortcode) {
+    void logDedicatedQueueWait(String shortcode, String stage) {
         Long queueWaitNanos = currentQueueWaitNanos.get();
+        if ("readMetadata".equals(stage)) {
+            return;
+        }
         if (queueWaitNanos != null) {
-            log.info("LOAD_TEST_QUEUE_WAIT shortcode={} queueNs={}", shortcode, queueWaitNanos);
+            log.info("LOAD_TEST_QUEUE_WAIT shortcode={} queueNs={} stage={}", shortcode, queueWaitNanos, stage);
             dedicatedQueueWaitSamples.increment();
         }
     }
@@ -76,6 +64,10 @@ public class LoadTestMetrics {
 
     public void recordFailed() {
         failed.increment();
+    }
+
+    public void recordRejected() {
+        rejected.increment();
     }
 
     public void recordExternal(String service, boolean fake, long startedAt, String outcome) {

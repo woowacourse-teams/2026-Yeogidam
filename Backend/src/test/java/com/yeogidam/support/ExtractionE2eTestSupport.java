@@ -10,6 +10,7 @@ import com.yeogidam.support.fake.FakePlaceSearchHintExtractor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
 
@@ -37,7 +38,12 @@ public abstract class ExtractionE2eTestSupport extends E2eTestSupport {
     private FakeDomesticFallbackPlaceSearcher domesticFallbackPlaceSearcher;
 
     @Autowired
+    @Qualifier("mediaMetadataExecutor")
     private FakeExtractionRetryExecutor extractionExecutor;
+
+    @Autowired
+    @Qualifier("mediaAnalysisExecutor")
+    private FakeExtractionRetryExecutor analysisExecutor;
 
     @BeforeEach
     void resetExtractionFakes() {
@@ -46,10 +52,13 @@ public abstract class ExtractionE2eTestSupport extends E2eTestSupport {
         overseasPlaceSearcher.reset();
         domesticFallbackPlaceSearcher.reset();
         extractionExecutor.reset();
+        analysisExecutor.reset();
     }
 
     @AfterEach
     void awaitSubmittedExtractions() throws Exception {
+        // 메타데이터 작업이 끝나야 분석 작업 접수가 모두 끝나므로 메타데이터 실행기부터 기다린다.
         extractionExecutor.awaitCompletion();
+        analysisExecutor.awaitCompletion();
     }
 }

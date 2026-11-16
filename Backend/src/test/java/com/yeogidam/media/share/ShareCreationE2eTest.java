@@ -18,6 +18,7 @@ import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.service.MediaExtractionPipeline;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.support.E2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import io.restassured.path.json.JsonPath;
@@ -57,7 +58,12 @@ class ShareCreationE2eTest extends E2eTestSupport {
         MediaExtractionPipeline fakeMediaExtractionPipeline() {
             return new MediaExtractionPipeline(null, null, null, null, null) {
                 @Override
-                public void extract(Long mediaId, InstagramUrl instagramUrl) {
+                public MediaMetadata readMetadata(Long mediaId, InstagramUrl instagramUrl) {
+                    return new MediaMetadata("fixture", null, null);
+                }
+
+                @Override
+                public void analyze(Long mediaId, InstagramUrl instagramUrl, MediaMetadata metadata) {
                 }
             };
         }

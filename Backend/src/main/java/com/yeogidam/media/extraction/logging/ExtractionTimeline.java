@@ -18,6 +18,9 @@ import org.slf4j.spi.LoggingEventBuilder;
  * 단계가 일어난 시각은 줄마다 붙는 @timestamp로 본다. 구간 길이는 벽시계 대신 System.nanoTime() 차이로 잰다.
  * 끝에 요약 한 줄만 남기지 않고 단계마다 남기는 까닭은, 인스타그램 페이지 읽기에 시간 제한이 없어 멈춘 작업도 어디서 멈췄는지 보여야 하기 때문이다.
  * 작업을 시작한 뒤의 시각은 추출 스레드의 ThreadLocal에 두고, 작업이 끝나면 {@link ExtractionTaskDecorator}가 비운다.
+ * 메타데이터 스레드가 분석 작업을 넘기면 {@link ExtractionHandoffTaskDecorator}가 같은 기록을 분석 스레드로 옮겨,
+ * 작업 하나의 단계 로그와 끝 줄이 두 스레드에 걸쳐도 하나로 이어진다.
+ * 끝 줄의 secondStageMs는 캡션과 썸네일 저장부터 끝까지이며 분석 큐 대기를 포함하고, 그 대기만 analysisQueueWaitMs로 따로 싣는다.
  * 추출 스레드 밖(테스트, 다른 기능)에서 부르면 아무것도 남기지 않는다.
  */
 @Slf4j
@@ -26,6 +29,7 @@ public final class ExtractionTimeline {
     private static final String STAGE = "extractionStage";
     private static final String QUEUE_WAIT_MS = "queueWaitMs";
     private static final String FIRST_STAGE_MS = "firstStageMs";
+    private static final String ANALYSIS_QUEUE_WAIT_MS = "analysisQueueWaitMs";
     private static final ThreadLocal<ExtractionTimeline> CURRENT = new ThreadLocal<>();
 
     private final long queuedAt;
@@ -35,6 +39,8 @@ public final class ExtractionTimeline {
     private Long instagramReadAt;
     private Long thumbnailStoredAt;
     private Long metadataStoredAt;
+    private Long handedOffAt;
+    private Long analysisStartedAt;
     private boolean mediaAnalyzed;
 
     private ExtractionTimeline(
@@ -76,6 +82,34 @@ public final class ExtractionTimeline {
 
     static void clear() {
         CURRENT.remove();
+    }
+
+    /**
+     * 메타데이터 스레드가 분석 작업을 큐에 넣기 직전에 부른다. 지금 스레드의 기록과 넘긴 시각을 담아 두기만 하고 기록은 바꾸지 않는다.
+     * 분석 작업이 거절되면 기록은 메타데이터 스레드에 그대로 남아 그 스레드가 실패로 끝낸다.
+     */
+    static Handoff handOff() {
+        ExtractionTimeline timeline = CURRENT.get();
+        if (timeline == null) {
+            return null;
+        }
+        return new Handoff(timeline, System.nanoTime());
+    }
+
+    /** 분석 스레드가 큐에서 작업을 꺼낸 직후에 부른다. 넘겨받은 기록을 이 스레드에서 이어 쓴다. */
+    static void resume(Handoff handoff) {
+        if (handoff == null) {
+            return;
+        }
+        ExtractionTimeline timeline = handoff.timeline();
+        timeline.handedOffAt = handoff.handedOffAt();
+        timeline.analysisStartedAt = System.nanoTime();
+        CURRENT.set(timeline);
+        long analysisQueueWaitMs = timeline.analysisQueueWaitMs();
+        log.atInfo()
+                .addKeyValue(STAGE, Stage.ANALYSIS_STARTED.name())
+                .addKeyValue(ANALYSIS_QUEUE_WAIT_MS, analysisQueueWaitMs)
+                .log("[추출] 분석 시작 analysisQueueWaitMs={}", analysisQueueWaitMs);
     }
 
     /** T3. 인스타그램 게시물 페이지를 읽은 직후에 부른다. */
@@ -160,6 +194,9 @@ public final class ExtractionTimeline {
         if (timeline.metadataStoredAt != null) {
             event = event.addKeyValue("secondStageMs", toMillis(finishedAt - timeline.metadataStoredAt));
         }
+        if (timeline.analysisStartedAt != null) {
+            event = event.addKeyValue(ANALYSIS_QUEUE_WAIT_MS, timeline.analysisQueueWaitMs());
+        }
         event = timeline.addCallTotals(event)
                 .addKeyValue("mediaAnalyzed", timeline.mediaAnalyzed);
         if (failureReason != null) {
@@ -207,6 +244,11 @@ public final class ExtractionTimeline {
         return toMillis(metadataStoredAt - startedAt);
     }
 
+    // secondStageMs에는 분석 큐에서 기다린 시간도 들어 있으므로, 분석 스레드가 모자란지 보려고 따로 싣는다.
+    private long analysisQueueWaitMs() {
+        return toMillis(analysisStartedAt - handedOffAt);
+    }
+
     private static long toMillis(long nanos) {
         return Duration.ofNanos(nanos).toMillis();
     }
@@ -238,10 +280,15 @@ public final class ExtractionTimeline {
         }
     }
 
+    /** 메타데이터 스레드에서 분석 스레드로 넘기는 기록과 넘긴 시각이다. */
+    record Handoff(ExtractionTimeline timeline, long handedOffAt) {
+    }
+
     private enum Stage {
         QUEUED,
         STARTED,
         METADATA_STORED,
+        ANALYSIS_STARTED,
         SUCCEEDED,
         FAILED
     }

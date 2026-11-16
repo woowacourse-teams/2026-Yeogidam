@@ -17,7 +17,7 @@ class ExtractionTimelineTest {
         // given
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
-        executor.setTaskDecorator(new ExtractionTaskDecorator(executor));
+        executor.setTaskDecorator(new ExtractionTaskDecorator(executor::getQueueSize, executor::getActiveCount));
         executor.initialize();
         IllegalStateException geminiFailure = new IllegalStateException("Gemini 요청 한도 초과");
         AtomicReference<String> searchResult = new AtomicReference<>();

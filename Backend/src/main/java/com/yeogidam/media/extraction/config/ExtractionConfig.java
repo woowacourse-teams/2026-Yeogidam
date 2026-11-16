@@ -1,7 +1,11 @@
 package com.yeogidam.media.extraction.config;
 
+import com.yeogidam.media.extraction.infrastructure.ExtractionExecutorMetrics;
+import com.yeogidam.media.extraction.infrastructure.MediaExtractionExecutor;
 import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestMetrics;
+import com.yeogidam.media.extraction.logging.ExtractionHandoffTaskDecorator;
 import com.yeogidam.media.extraction.logging.ExtractionTaskDecorator;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -11,15 +15,15 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.core.task.TaskDecorator;
 import org.springframework.core.task.support.CompositeTaskDecorator;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestClient;
 
 @Configuration
 @EnableConfigurationProperties({
-        ExtractionProperties.class, ExtractionPoolProperties.class, GeminiProperties.class, KakaoLocalProperties.class,
+        ExtractionProperties.class, ExtractionExecutorProperties.class, GeminiProperties.class, KakaoLocalProperties.class,
         GooglePlacesProperties.class
 })
 public class ExtractionConfig {
@@ -31,29 +35,51 @@ public class ExtractionConfig {
     private static final Duration GOOGLE_PLACES_HTTP_TIMEOUT = Duration.ofSeconds(5);
 
     @Bean
-    public ThreadPoolTaskExecutor mediaExtractionExecutor(
-            ExtractionPoolProperties properties,
+    // 메타데이터 실행기가 분석 실행기에 의존하게 해서, 컨텍스트를 닫을 때 분석 작업을 넘기는 메타데이터 실행기가 먼저 닫히게 한다.
+    @DependsOn("mediaAnalysisExecutor")
+    public MediaExtractionExecutor mediaMetadataExecutor(
+            ExtractionExecutorProperties properties,
+            ExtractionExecutorMetrics executorMetrics,
             ObjectProvider<LoadTestMetrics> loadTestMetrics
     ) {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(properties.coreSize());
-        executor.setMaxPoolSize(properties.maxSize());
-        executor.setQueueCapacity(properties.queueCapacity());
-        executor.setThreadNamePrefix("media-extraction-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
-        executor.setTaskDecorator(taskDecorator(executor, loadTestMetrics));
-        return executor;
+        MediaExtractionExecutor executor = new MediaExtractionExecutor("media-metadata-", properties.metadata().coreSize(),
+                properties.metadata().queueCapacity());
+        TaskDecorator stageLog = new ExtractionTaskDecorator(executor::getQueueSize, executor::getActiveCount);
+        return configure(executor, stageLog, executorMetrics, loadTestMetrics);
+    }
+
+    @Bean
+    public MediaExtractionExecutor mediaAnalysisExecutor(
+            ExtractionExecutorProperties properties,
+            ExtractionExecutorMetrics executorMetrics,
+            ObjectProvider<LoadTestMetrics> loadTestMetrics
+    ) {
+        MediaExtractionExecutor executor = new MediaExtractionExecutor("media-analysis-", properties.analysis().coreSize(),
+                properties.analysis().queueCapacity());
+        return configure(executor, new ExtractionHandoffTaskDecorator(), executorMetrics, loadTestMetrics);
+    }
+
+    @Bean
+    public ExtractionExecutorMetrics extractionExecutorMetrics(MeterRegistry registry) {
+        return new ExtractionExecutorMetrics(registry);
     }
 
     // 실행기는 데코레이터를 하나만 받아서, 부하 테스트를 켜도 단계 로그가 덮이지 않도록 부하 테스트 측정을 바깥에 합친다.
-    private TaskDecorator taskDecorator(
-            ThreadPoolTaskExecutor executor,
+    private MediaExtractionExecutor configure(
+            MediaExtractionExecutor executor,
+            TaskDecorator stageLog,
+            ExtractionExecutorMetrics executorMetrics,
             ObjectProvider<LoadTestMetrics> loadTestMetrics
     ) {
         List<TaskDecorator> decorators = new ArrayList<>();
-        decorators.add(new ExtractionTaskDecorator(executor));
-        loadTestMetrics.ifAvailable(metrics -> decorators.add(metrics::observeTask));
-        return new CompositeTaskDecorator(decorators);
+        decorators.add(stageLog);
+        loadTestMetrics.ifAvailable(metrics -> {
+            decorators.add(metrics::observeTask);
+            executor.setRejectionObserver(metrics::recordRejected);
+        });
+        executor.setTaskDecorator(new CompositeTaskDecorator(decorators));
+        executorMetrics.bind(executor);
+        return executor;
     }
 
     @Bean("geminiRestClient")

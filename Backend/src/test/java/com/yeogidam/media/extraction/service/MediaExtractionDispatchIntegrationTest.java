@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.yeogidam.media.extraction.config.ExtractionProperties;
 import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
 import com.yeogidam.media.instagram.domain.InstagramUrl;
+import com.yeogidam.media.instagram.domain.MediaMetadata;
 import com.yeogidam.media.share.dto.request.ShareRequest;
 import com.yeogidam.media.share.dto.response.ShareResponse;
 import com.yeogidam.media.share.service.ShareService;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -63,18 +65,25 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
     private FakeMediaExtractionPipeline extractionPipeline;
 
     @Autowired
+    @Qualifier("mediaMetadataExecutor")
     private FakeExtractionRetryExecutor extractionExecutor;
+
+    @Autowired
+    @Qualifier("mediaAnalysisExecutor")
+    private FakeExtractionRetryExecutor analysisExecutor;
 
     @BeforeEach
     void setUp() {
         extractionPipeline.reset();
         extractionExecutor.reset();
+        analysisExecutor.reset();
     }
 
     @AfterEach
     void finishExtractions() throws Exception {
         extractionPipeline.allowExtractionToFinish();
         extractionExecutor.awaitCompletion();
+        analysisExecutor.awaitCompletion();
     }
 
     @Test
@@ -378,12 +387,52 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
         assertThat(extractionPipeline.awaitExtractionFinish(5, TimeUnit.SECONDS)).isTrue();
     }
 
+    @Test
+    void 메타데이터_추출이_실패하면_분석을_접수하지_않는다() throws Exception {
+        // given
+        insertKakaoMember(jdbcTemplate, MEMBER_ID, "metadata-failure", "회원", "metadata@example.com", null);
+        extractionPipeline.failNextExtraction(new InstagramContentUnavailableException("메타데이터 없음"));
+
+        // when
+        shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+        extractionExecutor.awaitCompletion();
+
+        // then
+        MetadataRequest request = extractionPipeline.takeRequest(5, TimeUnit.SECONDS);
+        assertThat(readExtractionStatus(request.mediaId())).isEqualTo("FAILED");
+        assertThat(analysisExecutor.countSubmittedTasks()).isZero();
+    }
+
+    @Test
+    void 메타데이터_완료_후_분석_접수가_거절되면_실패로_기록한다() throws Exception {
+        // given
+        insertKakaoMember(jdbcTemplate, MEMBER_ID, "analysis-rejected", "회원", "rejected@example.com", null);
+        analysisExecutor.rejectNextTask();
+
+        // when
+        shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+        extractionExecutor.awaitCompletion();
+
+        // then
+        MetadataRequest request = extractionPipeline.takeRequest(5, TimeUnit.SECONDS);
+        assertThat(readExtractionStatus(request.mediaId())).isEqualTo("FAILED");
+        assertThat(analysisExecutor.countSubmittedTasks()).isZero();
+    }
+
     @TestConfiguration
     static class FakeMetadataServiceConfiguration {
 
         @Bean
         @Primary
+        @Qualifier("mediaMetadataExecutor")
         FakeExtractionRetryExecutor fakeExtractionRetryExecutor() {
+            return new FakeExtractionRetryExecutor();
+        }
+
+        @Bean
+        @Primary
+        @Qualifier("mediaAnalysisExecutor")
+        FakeExtractionRetryExecutor fakeAnalysisExecutor() {
             return new FakeExtractionRetryExecutor();
         }
 
@@ -441,7 +490,7 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
         }
 
         @Override
-        public void extract(Long mediaId, InstagramUrl instagramUrl) {
+        public MediaMetadata readMetadata(Long mediaId, InstagramUrl instagramUrl) {
             requests.add(new MetadataRequest(mediaId, instagramUrl));
             try {
                 waitForExtractionToFinish();
@@ -453,6 +502,11 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
             } finally {
                 extractionFinished.countDown();
             }
+            return new MediaMetadata("fixture", null, null);
+        }
+
+        @Override
+        public void analyze(Long mediaId, InstagramUrl instagramUrl, MediaMetadata metadata) {
         }
 
         private void waitForExtractionToFinish() {
