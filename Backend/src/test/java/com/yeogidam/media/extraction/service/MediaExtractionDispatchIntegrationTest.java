@@ -419,6 +419,28 @@ class MediaExtractionDispatchIntegrationTest extends IntegrationTestSupport {
         assertThat(analysisExecutor.countSubmittedTasks()).isZero();
     }
 
+    @Test
+    void 공유가_몰려_메타데이터_접수가_거절되면_다시_시도할_수_있게_실패로_저장한다() {
+        // given: 메타데이터 실행기가 스레드와 큐가 모두 차서 다음 작업을 거절하는 상황
+        insertKakaoMember(jdbcTemplate, MEMBER_ID, "metadata-rejected", "회원", "metadata-rejected@example.com", null);
+        extractionExecutor.rejectNextTask();
+
+        // when: 거절은 공유 트랜잭션이 커밋된 뒤(afterCommit)에 일어난다.
+        ShareResponse response = shareService.createShare(MEMBER_ID, new ShareRequest(INSTAGRAM_URL));
+
+        // then
+        Long mediaId = jdbcTemplate.queryForObject(
+                "SELECT media_id FROM shared_media WHERE id = ?", Long.class, response.sharedMediaId());
+        assertAll(
+                () -> assertThat(readExtractionStatus(mediaId)).isEqualTo("FAILED"),
+                () -> assertThat(readFailureReason(mediaId)).isEqualTo("UNEXPECTED"),
+                () -> assertThat(jdbcTemplate.queryForObject(
+                        "SELECT extraction_status FROM shared_media WHERE id = ?", String.class,
+                        response.sharedMediaId())).isEqualTo("FAILED"),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isZero()
+        );
+    }
+
     @TestConfiguration
     static class FakeMetadataServiceConfiguration {
 
