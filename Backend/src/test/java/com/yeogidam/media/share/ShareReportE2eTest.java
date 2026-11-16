@@ -30,6 +30,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -41,6 +42,7 @@ class ShareReportE2eTest extends ExtractionE2eTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    @Qualifier("mediaMetadataExecutor")
     private FakeExtractionRetryExecutor extractionExecutor;
 
     @ParameterizedTest

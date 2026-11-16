@@ -85,7 +85,8 @@ public class LoadTestRestClientInterceptor implements ClientHttpRequestIntercept
         @Override
         public InputStream getBody() throws IOException {
             return new LoadTestMeasuredInputStream(
-                    delegate.getBody(), delegate.getHeaders().getContentLength(), this::record);
+                    delegate.getBody(), delegate.getHeaders().getContentLength(),
+                    delegate.getHeaders().getOrEmpty(HttpHeaders.CONTENT_ENCODING), this::record);
         }
 
         @Override

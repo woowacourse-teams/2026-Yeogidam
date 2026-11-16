@@ -3,6 +3,7 @@ package com.yeogidam.media.extraction.infrastructure.loadtest;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
@@ -14,13 +15,26 @@ final class LoadTestMeasuredInputStream extends FilterInputStream {
     private final AtomicBoolean recorded = new AtomicBoolean();
     private long received;
 
-    LoadTestMeasuredInputStream(InputStream stream, long contentLength, BiConsumer<Boolean, Long> completed) {
+    LoadTestMeasuredInputStream(
+            InputStream stream,
+            long contentLength,
+            List<String> contentEncodings,
+            BiConsumer<Boolean, Long> completed
+    ) {
         super(stream);
-        this.contentLength = contentLength;
+        this.contentLength = unencodedContentLength(contentLength, contentEncodings);
         this.completed = completed;
-        if (contentLength == 0) {
+        if (this.contentLength == 0) {
             record(true);
         }
+    }
+
+    private static long unencodedContentLength(long contentLength, List<String> contentEncodings) {
+        if (contentEncodings.stream().allMatch(encoding -> encoding.trim().equalsIgnoreCase("identity"))) {
+            return contentLength;
+        }
+        // 압축 길이와 압축 해제된 스트림의 수신량은 비교할 수 없으므로 EOF까지 기다린다.
+        return -1;
     }
 
     @Override

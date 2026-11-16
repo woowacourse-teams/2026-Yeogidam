@@ -45,6 +45,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -73,7 +74,12 @@ class ExtractionRetryE2eTest extends ExtractionE2eTestSupport {
     private FakeDomesticPlaceSearcher domesticPlaceSearcher;
 
     @Autowired
+    @Qualifier("mediaMetadataExecutor")
     private FakeExtractionRetryExecutor extractionExecutor;
+
+    @Autowired
+    @Qualifier("mediaAnalysisExecutor")
+    private FakeExtractionRetryExecutor analysisExecutor;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -700,6 +706,7 @@ class ExtractionRetryE2eTest extends ExtractionE2eTestSupport {
     private void completeExtraction() throws Exception {
         placeSearchHintExtractor.allow();
         extractionExecutor.awaitCompletion();
+        analysisExecutor.awaitCompletion();
     }
 
     private Instant readDatabaseTime() {

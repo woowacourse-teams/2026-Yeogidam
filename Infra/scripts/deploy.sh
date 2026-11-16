@@ -218,8 +218,9 @@ verify_after_switch() {
   done
 }
 
-# 이전 컨테이너의 분석 실행기 지표(active, queued)를 정수로 읽는다. 못 읽으면 빈 값을 낸다.
-# 지표는 스프링 부트가 ThreadPoolTaskExecutor 빈마다 executor.* 이름으로 자동으로 만든다.
+# 이전 컨테이너의 추출 실행기 지표(active, queued)를 정수로 읽는다. 못 읽으면 빈 값을 낸다.
+# 지표는 앱의 ExtractionExecutorMetrics가 메타데이터와 분석 실행기를 합쳐 executor.* 이름으로 만든다.
+# active는 접수부터 끝날 때까지의 작업 수라서 메타데이터에서 분석으로 넘어가는 사이에도 0이 되지 않는다.
 executor_metric() {
   local port="$1"
   local metric="$2"
@@ -230,8 +231,8 @@ executor_metric() {
   printf '%s' "$body" | grep -oE '"value":[0-9.]+' | head -n 1 | cut -d: -f2 | cut -d. -f1 || true
 }
 
-# 전환 뒤에는 이전 컨테이너로 새 요청이 가지 않으므로 돌던 분석 작업만 끝나면 내려도 된다. 실행기는
-# 종료할 때 작업을 기다리는 시간(awaitTerminationSeconds)이 없어서, 바로 내리면 DB 연결이 먼저 닫혀
+# 전환 뒤에는 이전 컨테이너로 새 요청이 가지 않으므로 돌던 추출 작업만 끝나면 내려도 된다. 실행기는
+# 종료할 때 남은 작업을 기다리지만, docker stop 제한 시간(STOP_TIMEOUT_SECONDS)이 지나면 강제로 끝나
 # 분석이 EXTRACTING에 멈출 수 있다. 그래서 내리기 전에 실행기가 빌 때까지 여기서 기다린다.
 wait_for_drain() {
   local port="$1"
