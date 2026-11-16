@@ -7,6 +7,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.context.support.DefaultLifecycleProcessor;
 
 class MediaExtractionLifecycleTest {
@@ -58,6 +60,46 @@ class MediaExtractionLifecycleTest {
             context.close();
         }
         assertThat(analysis.getActiveCount()).isZero();
+    }
+
+    @Test
+    void 정상_종료하면_받은_작업이_분석까지_끝난_뒤에_종료_완료를_알린다() throws Exception {
+        // given: 메타데이터 작업 A가 캡션을 저장하고 분석으로 넘기려던 참에 종료가 시작된다.
+        var metadata = new MediaExtractionExecutor("metadata-", 1, 10);
+        var analysis = new MediaExtractionExecutor("analysis-", 1, 10);
+        var lifecycle = new MediaExtractionLifecycle(metadata, analysis);
+        var metadataStarted = new CountDownLatch(1);
+        var releaseMetadata = new CountDownLatch(1);
+        var analysisStarted = new CountDownLatch(1);
+        var releaseAnalysis = new CountDownLatch(1);
+        var analysisFinished = new CountDownLatch(1);
+        var stopped = new CountDownLatch(1);
+        metadata.execute(() -> {
+            waitForRelease(metadataStarted, releaseMetadata);
+            analysis.execute(() -> {
+                waitForRelease(analysisStarted, releaseAnalysis);
+                analysisFinished.countDown();
+            });
+        });
+        try {
+            assertThat(metadataStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+            // when
+            lifecycle.onApplicationEvent(new ContextClosedEvent(new GenericApplicationContext()));
+            lifecycle.stop(stopped::countDown);
+            releaseMetadata.countDown();
+
+            // then: A는 분석으로 넘어가고, 분석이 끝나기 전에는 종료 완료를 알리지 않는다.
+            assertThat(analysisStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(stopped.await(50, TimeUnit.MILLISECONDS)).isFalse();
+            releaseAnalysis.countDown();
+            assertThat(stopped.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(analysisFinished.getCount()).isZero();
+        } finally {
+            releaseMetadata.countDown();
+            releaseAnalysis.countDown();
+            lifecycle.close();
+        }
     }
 
     private void awaitStopping(MediaExtractionExecutor executor) throws InterruptedException {
