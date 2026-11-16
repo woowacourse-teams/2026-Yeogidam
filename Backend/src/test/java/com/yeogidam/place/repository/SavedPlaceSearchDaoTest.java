@@ -17,10 +17,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Import(SavedPlaceDao.class)
 class SavedPlaceSearchDaoTest extends JdbcTestSupport {
 
     private static final Long MEMBER_ID = 1L;

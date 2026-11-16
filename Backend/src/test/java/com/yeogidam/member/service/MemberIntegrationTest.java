@@ -10,15 +10,12 @@ import com.yeogidam.auth.exception.AuthErrorCode;
 import com.yeogidam.auth.exception.AuthException;
 import com.yeogidam.auth.repository.RefreshSessionDao;
 import com.yeogidam.member.repository.MemberDao;
-import com.yeogidam.support.fake.FakeOAuthClientConfig;
 import com.yeogidam.support.IntegrationTestSupport;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Import(FakeOAuthClientConfig.class)
 class MemberIntegrationTest extends IntegrationTestSupport {
 
     private static final Instant EXPIRES_AT = Instant.parse("2026-10-15T00:00:00Z");

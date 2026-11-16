@@ -1,13 +1,18 @@
 package com.yeogidam.support;
 
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.JdbcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.SqlConfig;
 
 /**
- * DAO의 SQL과 조회 결과를 검증하는 테스트의 공통 설정이다. 검증할 DAO는 @Import로 추가한다.
+ * DAO의 SQL과 조회 결과를 검증하는 테스트의 공통 설정이다.
+ * 모든 DAO를 RepositoryScanConfig로 등록해 DAO 테스트가 컨텍스트 하나를 함께 쓴다.
+ * 하위 테스트 클래스에 @Import 같은 설정을 더하면 컨텍스트가 따로 뜨므로 추가하지 않는다.
  * 내장 DB 대신 테스트 컨테이너의 MySQL을 사용한다.
  * 각 테스트 전에 test-cleanup.sql로 이전 데이터를 비우고 자동 증가 ID를 초기화한다.
  * test-cleanup.sql의 ALTER TABLE은 MySQL에서 실행 중인 트랜잭션을 자동으로 커밋한다.
@@ -17,6 +22,8 @@ import org.springframework.test.context.jdbc.SqlConfig;
  */
 @JdbcTest
 @ActiveProfiles("test")
+@Import(RepositoryScanConfig.class)
+@ImportAutoConfiguration(JacksonAutoConfiguration.class)
 @Sql(scripts = "/test-cleanup.sql", config = @SqlConfig(transactionMode = SqlConfig.TransactionMode.ISOLATED))
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 public abstract class JdbcTestSupport extends MySqlContainerSupport {

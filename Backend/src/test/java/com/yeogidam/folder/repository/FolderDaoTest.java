@@ -18,7 +18,6 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -26,7 +25,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 폴더 조회, 저장, 수정, 삭제가 실제 MySQL에서 회원 조건, 정렬, 읽은 값, 생성된 식별자, 이름 중복, 연결 삭제까지 맞게 동작하는지 검증한다.
  * 행은 SQL fixture로 given에서 직접 넣는다.
  */
-@Import(FolderDao.class)
 class FolderDaoTest extends JdbcTestSupport {
 
     @Autowired

@@ -17,31 +17,23 @@ import com.yeogidam.media.exception.MediaErrorCode;
 import com.yeogidam.media.extraction.domain.ExtractionFailureReason;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
-import com.yeogidam.support.E2eTestSupport;
+import com.yeogidam.support.ExtractionE2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
-import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import io.restassured.response.Response;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Import(FakeMediaExtractionConfig.class)
-class ShareReportE2eTest extends E2eTestSupport {
+class ShareReportE2eTest extends ExtractionE2eTestSupport {
 
     private static final String REPORTS_PATH = "/api/v1/shares/{sharedMediaId}/reports";
 
@@ -50,16 +42,6 @@ class ShareReportE2eTest extends E2eTestSupport {
 
     @Autowired
     private FakeExtractionRetryExecutor extractionExecutor;
-
-    @BeforeEach
-    void setUpReport() {
-        extractionExecutor.reset();
-    }
-
-    @AfterEach
-    void finishExtractions() throws Exception {
-        extractionExecutor.awaitCompletion();
-    }
 
     @ParameterizedTest
     @EnumSource(ExtractionFailureReason.class)
@@ -312,15 +294,5 @@ class ShareReportE2eTest extends E2eTestSupport {
     }
 
     private record ExtractionSnapshot(List<Map<String, Object>> media, List<Map<String, Object>> sharedMedia) {
-    }
-
-    @TestConfiguration
-    static class ReportTestConfiguration {
-
-        @Primary
-        @Bean(destroyMethod = "close")
-        FakeExtractionRetryExecutor fakeExtractionRetryExecutor() {
-            return new FakeExtractionRetryExecutor();
-        }
     }
 }

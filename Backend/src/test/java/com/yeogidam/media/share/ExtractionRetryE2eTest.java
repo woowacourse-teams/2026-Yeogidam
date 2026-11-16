@@ -20,11 +20,10 @@ import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
-import com.yeogidam.support.E2eTestSupport;
+import com.yeogidam.support.ExtractionE2eTestSupport;
 import com.yeogidam.support.LoginResult;
 import com.yeogidam.support.fake.FakeDomesticPlaceSearcher;
 import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
-import com.yeogidam.support.fake.FakeMediaExtractionConfig;
 import com.yeogidam.support.fake.FakePlaceSearchHintExtractor;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
@@ -46,22 +45,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 새 히스토리 접수, 요청 권한, 과거 실패 보존과 분석 합류를 공개 API로 검증한다.
  */
-@Import(FakeMediaExtractionConfig.class)
-@TestPropertySource(properties = "media.extraction.pipeline-version=2")
-class ExtractionRetryE2eTest extends E2eTestSupport {
+class ExtractionRetryE2eTest extends ExtractionE2eTestSupport {
 
     private static final String SHARES_PATH = "/api/v1/shares";
     private static final Long MEDIA_ID = 3L;
@@ -88,11 +80,8 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
 
     @BeforeEach
     void setUpRetry() {
-        placeSearchHintExtractor.reset();
         placeSearchHintExtractor.block();
-        domesticPlaceSearcher.reset();
         domesticPlaceSearcher.add("올드빅", place(301L));
-        extractionExecutor.reset();
     }
 
     @AfterEach
@@ -827,15 +816,5 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
             List<Map<String, Object>> savedPlaces,
             List<Map<String, Object>> sharedMediaSavedPlaces
     ) {
-    }
-
-    @TestConfiguration
-    static class RetryTestConfiguration {
-
-        @Primary
-        @Bean(destroyMethod = "close")
-        FakeExtractionRetryExecutor fakeExtractionRetryExecutor() {
-            return new FakeExtractionRetryExecutor();
-        }
     }
 }
