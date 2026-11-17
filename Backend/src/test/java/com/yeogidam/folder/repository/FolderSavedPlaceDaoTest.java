@@ -15,14 +15,12 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 보관함 장소와 폴더의 연결을 읽고 담고 빼는 SQL과 소유 확인 쿼리가 실제 MySQL에서 맞게 동작하는지 검증한다.
  * 행은 SQL fixture로 given에서 직접 넣는다.
  */
-@Import(FolderSavedPlaceDao.class)
 class FolderSavedPlaceDaoTest extends JdbcTestSupport {
 
     private static final Instant SAVED_AT = Instant.parse("2026-10-28T00:00:00Z");

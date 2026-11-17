@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 class ExtractionRequestTimingTest {
 
@@ -92,7 +91,7 @@ class ExtractionRequestTimingTest {
     void 요청이_끝난_뒤_추출해도_등록할_때_복사한_요청_시작_시각을_쓴다() throws Exception {
         // given
         RequestLoggingFilter filter = new RequestLoggingFilter();
-        ExtractionTaskDecorator decorator = new ExtractionTaskDecorator(new ThreadPoolTaskExecutor());
+        ExtractionTaskDecorator decorator = new ExtractionTaskDecorator(() -> 0, () -> 0);
         AtomicReference<Runnable> extraction = new AtomicReference<>();
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/shared-media");
 

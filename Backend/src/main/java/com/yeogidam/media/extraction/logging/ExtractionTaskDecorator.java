@@ -2,9 +2,9 @@ package com.yeogidam.media.extraction.logging;
 
 import com.yeogidam.global.logging.RequestTimingContext;
 import java.util.Map;
+import java.util.function.IntSupplier;
 import org.slf4j.MDC;
 import org.springframework.core.task.TaskDecorator;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 /**
  * 추출 작업을 큐에 넣을 때 요청 스레드의 MDC(requestId, mediaId)를 복사해 두었다가 추출 스레드에 그대로 옮긴다.
@@ -12,17 +12,20 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  */
 public class ExtractionTaskDecorator implements TaskDecorator {
 
-    private final ThreadPoolTaskExecutor executor;
+    private final IntSupplier queueSize;
+    private final IntSupplier activeCount;
 
-    public ExtractionTaskDecorator(ThreadPoolTaskExecutor executor) {
-        this.executor = executor;
+    // 큐 등록 줄에 실을 대기 작업 수와 일하는 스레드 수를 실행기에서 읽는다.
+    public ExtractionTaskDecorator(IntSupplier queueSize, IntSupplier activeCount) {
+        this.queueSize = queueSize;
+        this.activeCount = activeCount;
     }
 
     @Override
     public Runnable decorate(Runnable task) {
         Map<String, String> context = MDC.getCopyOfContextMap();
         Long requestStartedAt = RequestTimingContext.startedAtNanos();
-        long queuedAt = ExtractionTimeline.queued(executor.getQueueSize(), executor.getActiveCount());
+        long queuedAt = ExtractionTimeline.queued(queueSize.getAsInt(), activeCount.getAsInt());
         return () -> run(task, context, queuedAt, requestStartedAt);
     }
 

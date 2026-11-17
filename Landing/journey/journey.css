@@ -1,0 +1,56 @@
+/* 품질 섹션 */
+
+/* ---------- 품질을 다듬는 방법 ---------- */
+/* 위에는 버전 번호를 한 줄로 늘어놓고, 마우스를 올리거나 누른 버전의 가설과 직접 써 본 사람(점 하나가 한 사람), 결과를 아래에 크게 보여 준다.
+   모든 버전의 내용을 같은 자리에 겹쳐 두어서 버전을 바꿔도 아래 내용이 밀리지 않는다 */
+.journey{background:var(--bg-soft)}
+.journey .eyebrow{background:#fff}
+.journey .sec-head{max-width:720px}
+.jr-nobr{white-space:nowrap}
+.jr-dotrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.jr-dots{display:grid;grid-template-columns:repeat(var(--cols),11px);gap:5px}
+.jr-dots i{width:11px;height:11px;border-radius:50%;background:var(--brand-deep)}
+.jr-dots i.on{background:var(--brand-ink)}
+.jr-dots.wait i{background:none;box-shadow:inset 0 0 0 2px var(--brand-deep)}
+.jr-n{font-size:14px;font-weight:700;color:var(--ink-2)}
+.jr-v{font-size:14px;font-weight:800;color:var(--ink-2)}
+.jr-v.no{color:#d14b4b}
+.jr-v.yes{color:#24963f}
+.jr-v.wip{color:var(--brand-ink)}
+.jr-pin{width:30px;height:auto}
+.jr-saw{font-size:15px;color:var(--ink-2);line-height:1.6}
+.jr-quote{margin:0;font-size:17px;font-weight:800;letter-spacing:-.02em;line-height:1.5}
+.jr-quote p{margin:0}
+.jr-quote span{white-space:nowrap}
+.jr-who{margin-top:4px;font-size:14px;color:var(--ink-2);line-height:1.55}
+.jr-did{margin-top:10px;display:flex;gap:8px;font-size:15px;font-weight:600;line-height:1.6}
+.jr-did::before{content:"→";flex:none;font-weight:800;color:var(--brand-ink)}
+.jr-tabs{display:flex;flex-wrap:wrap;gap:8px clamp(18px,4.2vw,56px);margin-bottom:clamp(28px,4vw,44px)}
+.jr-tab{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:0 0 14px;border:0;background:none;font:inherit;text-align:left;cursor:pointer;color:#b6bac7;transition:color .2s;-webkit-tap-highlight-color:transparent}
+.jr-tab b{font-size:clamp(28px,4.4vw,52px);font-weight:800;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.jr-tab small{display:flex;gap:6px;font-size:13px;font-weight:700;line-height:1.3;white-space:nowrap}
+.jr-tab::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:3px;background:var(--brand-ink);transform:scaleX(0);transform-origin:left;transition:transform .25s}
+.jr-tab:hover{color:var(--ink-2)}
+.jr-tab[aria-selected="true"]{color:var(--ink)}
+.jr-tab[aria-selected="true"] small{color:var(--ink-2)}
+.jr-tab[aria-selected="true"]::after{transform:none}
+.jr-tab[aria-selected="true"] .no{color:#d14b4b}
+.jr-tab[aria-selected="true"] .yes{color:#24963f}
+.jr-tab[aria-selected="true"] .wip{color:var(--brand-ink)}
+.jr-tab:focus-visible{outline:2px solid var(--brand-ink);outline-offset:6px;border-radius:6px}
+.jr-panels{display:grid}
+.jr-panel{grid-area:1/1;max-width:42em;display:flex;flex-direction:column;align-items:flex-start;gap:14px;visibility:hidden;opacity:0;transform:translateY(6px);transition:opacity .25s,transform .25s,visibility .25s}
+.jr-panel.on{visibility:visible;opacity:1;transform:none}
+.jr-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:14px;font-weight:700;color:var(--ink-2)}
+.jr-big{font-size:clamp(24px,3.2vw,34px);font-weight:800;letter-spacing:-.03em;line-height:1.3;text-wrap:balance}
+.jr-panel .jr-dots{grid-template-columns:repeat(var(--cols),14px);gap:6px}
+.jr-panel .jr-dots i{width:14px;height:14px}
+.jr-sets{display:grid;gap:10px}
+.jr-story{max-width:36em}
+.jr-story .jr-saw{font-size:16px}
+.jr-story .jr-did{font-size:16px}
+.jr-story .jr-quote{font-size:19px}
+@media (max-width:519px){
+  .jr-tabs{justify-content:space-between;gap:8px 4px}
+  .jr-tdate{display:none}
+}

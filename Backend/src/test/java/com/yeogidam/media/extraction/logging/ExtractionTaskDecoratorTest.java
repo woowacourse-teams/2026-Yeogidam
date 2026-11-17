@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.media.extraction.config.ExtractionConfig;
 import com.yeogidam.media.extraction.config.LoadTestProperties;
+import com.yeogidam.media.extraction.infrastructure.MediaExtractionExecutor;
 import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestBeanPostProcessor;
 import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestHttpRouting;
 import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestMetrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.URI;
 import java.util.Map;
@@ -38,7 +40,7 @@ class ExtractionTaskDecoratorTest {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
-        executor.setTaskDecorator(new ExtractionTaskDecorator(executor));
+        executor.setTaskDecorator(new ExtractionTaskDecorator(executor::getQueueSize, executor::getActiveCount));
         executor.initialize();
         AtomicReference<String> first = new AtomicReference<>();
         AtomicReference<String> second = new AtomicReference<>("실행 안 됨");
@@ -76,7 +78,7 @@ class ExtractionTaskDecoratorTest {
         CountDownLatch done = new CountDownLatch(1);
 
         try (AnnotationConfigApplicationContext context = createLoadTestContext(registry)) {
-            ThreadPoolTaskExecutor executor = context.getBean("mediaExtractionExecutor", ThreadPoolTaskExecutor.class);
+            MediaExtractionExecutor executor = context.getBean("mediaMetadataExecutor", MediaExtractionExecutor.class);
 
             // when
             MDC.put(REQUEST_ID, "load-test-request");
@@ -98,14 +100,16 @@ class ExtractionTaskDecoratorTest {
         var context = new AnnotationConfigApplicationContext();
         context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("test", Map.of(
                 "media.extraction.pipeline-version", "1",
-                "media.extraction.pool.core-size", "1",
-                "media.extraction.pool.max-size", "1",
-                "media.extraction.pool.queue-capacity", "10",
+                "media.extraction.executor.metadata.core-size", "1",
+                "media.extraction.executor.metadata.queue-capacity", "10",
+                "media.extraction.executor.analysis.core-size", "1",
+                "media.extraction.executor.analysis.queue-capacity", "10",
                 "media.extraction.gemini.api-key", "test",
                 "media.extraction.gemini.model", "test",
                 "media.extraction.kakao.api-key", "test")));
         context.register(ExtractionConfig.class);
         context.registerBean(RestClient.Builder.class, () -> RestClient.builder(), bean -> bean.setScope("prototype"));
+        context.registerBean(MeterRegistry.class, () -> registry);
         context.registerBean(LoadTestMetrics.class, () -> new LoadTestMetrics(registry));
         context.registerBean(LoadTestHttpRouting.class, () -> new LoadTestHttpRouting(
                 new LoadTestProperties(URI.create("http://127.0.0.1:1"), "fake-key", "ydlt_test_", Set.of(1L))));

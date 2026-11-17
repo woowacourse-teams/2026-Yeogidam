@@ -17,11 +17,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
-@Import(InstagramMediaDao.class)
 class InstagramMetadataServiceIntegrationTest extends JdbcTestSupport {
 
     private static final Long MEDIA_ID = 701L;
