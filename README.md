@@ -14,7 +14,7 @@
   &nbsp;
   <a href="https://play.google.com/store/apps/details?id=com.yeogidamm.app"><img src="Landing/assets/google-play-badge.png" alt="Google Play에서 받기" height="44"></a>
   <br>
-  <a href="https://yeogidam.vercel.app">서비스 소개 페이지</a>
+  <a href="https://yeogidam.vercel.app/?utm_source=github&utm_medium=referral&utm_campaign=github_readme">서비스 소개 페이지</a>
 </p>
 
 > ▷ 2026년 8월 28일 App Store에 처음 출시했고, 지금은 2.5 버전을 운영합니다.<br>
