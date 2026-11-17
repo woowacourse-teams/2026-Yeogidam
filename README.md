@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://apps.apple.com/kr/app/%EC%97%AC%EA%B8%B0%EB%8B%B4/id6801408355"><img src="Landing/assets/app-store-badge.svg" alt="App Store에서 받기" height="44"></a>
+  <a href="https://apps.apple.com/app/apple-store/id6801408355?pt=129050582&ct=github_store&mt=8"><img src="Landing/assets/app-store-badge.svg" alt="App Store에서 받기" height="44"></a>
   &nbsp;
-  <a href="https://play.google.com/store/apps/details?id=com.yeogidamm.app"><img src="Landing/assets/google-play-badge.png" alt="Google Play에서 받기" height="44"></a>
+  <a href="https://play.google.com/store/apps/details?id=com.yeogidamm.app&referrer=utm_source%3Dgithub%26utm_medium%3Dreferral%26utm_campaign%3Dgithub_store"><img src="Landing/assets/google-play-badge.png" alt="Google Play에서 받기" height="44"></a>
   <br>
   <a href="https://yeogidam.vercel.app/?utm_source=github&utm_medium=referral&utm_campaign=github_readme">서비스 소개 페이지</a>
 </p>
