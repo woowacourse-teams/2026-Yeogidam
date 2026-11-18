@@ -18,7 +18,7 @@ import { PlaceFolderAssignPicker } from '../map/components/PlaceFolderPanel';
 import { usePlaceFolders } from '../../lib/usePlaceFolders';
 import { CopyToastProvider } from './components/CopyToast';
 import { PlaceDetailContent } from './components/PlaceDetailContent';
-import type { PlaceTab } from './components/PlaceTabs';
+import { POSTS_LAST_PLACE_TABS, type PlaceTab } from './components/PlaceTabs';
 import { usePlaceBookmark } from './usePlaceBookmark';
 import { usePlaceDetailData } from './usePlaceDetailData';
 
@@ -34,6 +34,11 @@ type PlaceDetailScreenProps = {
   onOpenReel?: (reel: PlaceReel) => void;
   /** 비회원에게는 폴더 버튼을 보여주지 않습니다. */
   isGuest?: boolean;
+  /**
+   * 게시물 상세에서 연 장소 상세면 true입니다. 게시물 탭을 맨 뒤로 보내고 블로그 탭부터 보여 줘
+   * 게시물 상세 ↔ 장소 상세를 끝없이 오가지 않게 합니다.
+   */
+  openedFromReel?: boolean;
 };
 
 export function PlaceDetailScreen({
@@ -45,7 +50,9 @@ export function PlaceDetailScreen({
   onDeleteGuestPlaces,
   onOpenReel,
   isGuest = false,
+  openedFromReel = false,
 }: PlaceDetailScreenProps) {
+  const tabOrder = openedFromReel ? POSTS_LAST_PLACE_TABS : undefined;
   const { bottom: bottomInset } = useSafeAreaInsets();
   const posthog = usePostHog();
   const analytics = useScreenAnalytics('place_detail');
@@ -54,7 +61,7 @@ export function PlaceDetailScreen({
   const [error, setError] = useState<PlaceReelsApiError | null>(null);
   const [isReelsLoading, setIsReelsLoading] = useState(true);
   const [isFolderPickerVisible, setIsFolderPickerVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<PlaceTab>('게시물');
+  const [activeTab, setActiveTab] = useState<PlaceTab>(tabOrder?.[0] ?? '게시물');
   const { placeInfo, placeBlogs } = usePlaceDetailData(
     isGuest || guestReels !== undefined ? null : place.id,
     activeTab,
@@ -144,6 +151,7 @@ export function PlaceDetailScreen({
         onOpenReel={onOpenReel}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        tabOrder={tabOrder}
         placeInfo={placeInfo}
         placeBlogs={placeBlogs}
         onPressFolder={

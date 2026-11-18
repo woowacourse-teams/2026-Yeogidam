@@ -1779,6 +1779,7 @@ function App() {
       onAuthenticationRequired={requestLogin}
       isGuest={isAuthenticated === false}
       place={place}
+      openedFromReel
     />
   );
 
