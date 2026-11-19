@@ -65,6 +65,8 @@ type PlaceDetailContentProps = {
   viewContext?: SavedPlaceViewContext;
   activeTab?: PlaceTab;
   onTabChange?: (tab: PlaceTab) => void;
+  /** 탭 순서입니다. 지정하지 않으면 게시물·정보·블로그 순입니다. */
+  tabOrder?: readonly PlaceTab[];
   initialScrollOffset?: number;
   onScrollOffsetChange?: (offset: number) => void;
   /** 사용자가 맨 위에서 본문을 아래로 당긴 거리입니다. iOS에서 본문이 튕길 때만 0보다 큽니다. */
@@ -110,6 +112,7 @@ export function PlaceDetailContent({
   viewContext,
   activeTab: controlledTab,
   onTabChange,
+  tabOrder,
   initialScrollOffset,
   onScrollOffsetChange,
   onTopPull,
@@ -151,6 +154,7 @@ export function PlaceDetailContent({
         viewContext={viewContext}
         activeTab={controlledTab}
         onTabChange={onTabChange}
+        tabOrder={tabOrder}
         initialScrollOffset={initialScrollOffset}
         onScrollOffsetChange={onScrollOffsetChange}
         onTopPull={onTopPull}
@@ -193,6 +197,7 @@ function PlaceDetailContentBody({
   viewContext,
   activeTab: controlledTab,
   onTabChange,
+  tabOrder,
   initialScrollOffset,
   onScrollOffsetChange,
   onTopPull,
@@ -213,7 +218,7 @@ function PlaceDetailContentBody({
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
   const [tabsHeight, setTabsHeight] = useState(0);
   const { selection } = useScreenAnalytics();
-  const [localTab, setActiveTab] = useState<PlaceTab>('게시물');
+  const [localTab, setActiveTab] = useState<PlaceTab>(tabOrder?.[0] ?? '게시물');
   const activeTab = controlledTab ?? localTab;
 
   const handleTabPress = (tab: PlaceTab) => {
@@ -241,7 +246,9 @@ function PlaceDetailContentBody({
     setIsTabsPinned(tabsTop > 0 && Math.ceil(offset) >= Math.floor(tabsTop));
   };
 
-  const tabs = <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} />;
+  const tabs = (
+    <PlaceTabs activeTab={activeTab} onTabPress={handleTabPress} tabs={tabOrder} />
+  );
   // 내용이 짧아도 탭이 상단에 딱 붙는 지점까지만 스크롤되는 높이입니다.
   const tabContentMinHeight = Math.max(
     0,

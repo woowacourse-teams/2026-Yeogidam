@@ -124,6 +124,7 @@ import {
   resumeWaitingShares,
   syncShareAnalyticsConfiguration,
   syncShareSession,
+  type ShareTransferStatus,
 } from './src/lib/share-intent';
 import type {
   AppFlowState,
@@ -137,7 +138,7 @@ import {
   setSharedSaveState,
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
-import { otaBundleId } from './src/lib/hot-updater';
+import { otaBundleId, waitForOtaBeforeFirstScreen } from './src/lib/hot-updater';
 import {
   markStartupInitialDisplay,
   startStartupPhase,
@@ -241,6 +242,13 @@ const GUEST_MAIN_FLOW_STATE: MainFlowState = {
 // const EMPTY_GUEST_INBOX: InboxReel[] = [];
 // 로딩이 빨리 끝날 때 스플래시가 깜빡이지 않을 만큼만 보여준다.
 const SPLASH_MIN_DURATION_MS = 500;
+// 서버로 가는 중인 공유 단계. 접수(reelId)되기 전이라도 보관함에 대기 중 항목으로 보인다.
+const IN_PROGRESS_SHARE_STATUSES: ReadonlySet<ShareTransferStatus> = new Set<ShareTransferStatus>([
+  'SAVED',
+  'WAITING_FOR_NETWORK',
+  'QUEUED',
+  'REQUESTING',
+]);
 
 type SocialProvider = 'apple' | 'kakao' | 'google';
 type MyPageOverlay = 'terms' | 'accountDeletion' | 'guide' | null;
@@ -422,6 +430,7 @@ function App() {
   const [isEventNoticeBlocking, setIsEventNoticeBlocking] = useState(true);
   const [isWhatsNewBlocking, setIsWhatsNewBlocking] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [isOtaForceUpdating, setIsOtaForceUpdating] = useState(false);
   // 앱 시작 때 업데이트 정책 확인이 끝났는지. 끝나기 전에는 업데이트 모달보다 먼저 뜰 안내를 미룬다.
   const [isUpdatePolicyChecked, setIsUpdatePolicyChecked] = useState(false);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
@@ -454,6 +463,8 @@ function App() {
     useState<NormalizedAuthError | null>(null);
   // 이미 처리한 공유 결과 키. 서로 다른 결과가 번갈아 선택돼 화면이 오가지 않게 전부 기억한다.
   const handledShareResultKeysRef = useRef<Set<string>>(new Set());
+  // 보관함으로 이미 이동시킨 공유. 처리 단계가 바뀌어도 같은 공유로 다시 화면을 옮기지 않는다.
+  const navigatedShareKeysRef = useRef<Set<string>>(new Set());
   const lastLoggedShareResultsRef = useRef<string | null>(null);
   const savedPlacesScrollOffsetRef = useRef(0);
   const [currentProfile, setCurrentProfile] = useState<ProfileInfo | null>(
@@ -930,9 +941,18 @@ function App() {
         if (isMounted) setIsUpdatePolicyChecked(true);
       });
 
+    // 강제 OTA 업데이트면 스플래시를 유지한 채 받고 새 번들로 다시 시작한다.
+    const endOtaCheckPhase = startStartupPhase('ota_check');
+    const otaGate = waitForOtaBeforeFirstScreen({
+      onForceUpdateStart: () => {
+        if (isMounted) setIsOtaForceUpdating(true);
+      },
+    }).finally(endOtaCheckPhase);
+
     Promise.allSettled([
       syncFlowState().finally(endAuthRestorePhase),
       splashDelay,
+      otaGate,
     ]).finally(() => {
       if (!isMounted) {
         return;
@@ -1035,6 +1055,26 @@ function App() {
               ? currentShareState.shareResultId
               : undefined;
           const latestResult = results[results.length - 1];
+          // 공유 결과는 SAVED → QUEUED → REQUESTING → API_SUCCEEDED로 바뀌며 매번 새 결과로 읽힌다.
+          // 화면 이동은 처음 보는 공유가 있을 때 한 번만 하고, 지금 남아 있는 공유는 모두
+          // 이동한 것으로 기록해 뒤에 다른 결과가 선택돼도 다시 튀지 않게 한다.
+          // 로그인 안내·로그인 대기·추출 실패처럼 보관함에 보여 줄 공유가 아닌 결과는 이동 대상에서 뺀다.
+          const openSavedForNewShares = () => {
+            const shareKeys = results
+              .filter(
+                item =>
+                  IN_PROGRESS_SHARE_STATUSES.has(item.transferStatus ?? 'SAVED') ||
+                  ((item.transferStatus === 'API_SUCCEEDED' ||
+                    item.transferStatus === 'API_FAILED') &&
+                    !!item.reelId),
+              )
+              .map(item => item.requestId ?? item.url);
+            const hasNewShare = shareKeys.some(
+              key => !navigatedShareKeysRef.current.has(key),
+            );
+            shareKeys.forEach(key => navigatedShareKeysRef.current.add(key));
+            if (hasNewShare) openMainScreenRef.current('saved');
+          };
           // 공유 화면에서 로그인을 누르고 넘어온 결과는 열려 있던 공유 상태보다 먼저 처리한다.
           // 둘러보기 중 이전 공유 결과가 남아 있어도 로그인 화면으로 이동해야 한다.
           const pendingLoginResult = [...results].reverse().find(
@@ -1076,10 +1116,19 @@ function App() {
           }
           if (!result) {
             handledShareResultKeysRef.current.clear();
+            navigatedShareKeysRef.current.clear();
             if (currentShareState?.source === 'instagram_share') {
               setSharedSaveState(null);
             }
             return;
+          }
+          // 이동 여부는 이번에 고른 결과와 상관없이 판단한다. 처리 중인 이전 공유가 선택돼
+          // 아래에서 바로 return되더라도, 새로 들어온 공유가 있으면 보관함을 보여 준다.
+          if (
+            result.transferStatus !== 'LOGIN_HANDOFF' &&
+            result.transferStatus !== 'GUEST_LOGIN_PROMPT'
+          ) {
+            openSavedForNewShares();
           }
           const resultKey = `${result.requestId ?? result.url}:${
             result.updatedAt
@@ -1176,7 +1225,7 @@ function App() {
           }
           if (result.transferStatus === 'SAVED' || result.transferStatus === 'WAITING_FOR_NETWORK') {
             // 아직 서버로 가는 중인 공유도 보낸 즉시 대기 중으로 보여 준다. 서버 목록에 잡힐 때까지
-            // 히스토리와 최근 공유가 비어 보이지 않게 한다. 사용자가 보던 화면은 옮기지 않는다.
+            // 히스토리와 최근 공유가 비어 보이지 않게 한다. 공유하고 들어온 시점에 보관함으로 옮긴다.
             setSharedSaveState({
               shareResultId: result.requestId,
               url: result.url,
@@ -1212,8 +1261,8 @@ function App() {
               created_at: new Date(result.updatedAt).toISOString(),
             },
           });
-          // v2 대기함 흐름 복원 시: openMainScreenRef.current(result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox');
-          openMainScreenRef.current('saved');
+          // 보관함 이동은 위에서 공유별로 한 번만 한다.
+          // v2 대기함 흐름 복원 시: result.saveMode === 'AUTO_SAVE' ? 'saved' : 'inBox'로 나눈다.
         })
         .catch(error => {
           if (__DEV__) {
@@ -1779,6 +1828,7 @@ function App() {
       onAuthenticationRequired={requestLogin}
       isGuest={isAuthenticated === false}
       place={place}
+      openedFromReel
     />
   );
 
@@ -1924,7 +1974,9 @@ function App() {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
-        <SplashScreen />
+        <SplashScreen
+          message={isOtaForceUpdating ? '새 버전을 준비하는 중' : undefined}
+        />
       </SafeAreaProvider>
     );
   }
