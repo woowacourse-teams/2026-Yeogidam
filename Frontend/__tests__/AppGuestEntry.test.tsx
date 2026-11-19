@@ -982,7 +982,7 @@ describe('인스타그램 공유 직후(서버로 가는 중)', () => {
   });
 
   test.each(['SAVED', 'WAITING_FOR_NETWORK'])(
-    '%s 단계에서도 대기 중 항목으로 바로 보이게 하고 화면은 옮기지 않는다',
+    '%s 단계에서도 대기 중 항목으로 바로 보이게 하고 히스토리는 열지 않는다',
     async transferStatus => {
       restoreSpringSession();
       (getShareResults as jest.Mock).mockResolvedValue([shareResult(transferStatus)]);
@@ -995,11 +995,138 @@ describe('인스타그램 공유 직후(서버로 가는 중)', () => {
         shareResultId: 'req-1',
         reel: {id: 'share-req-1', processing_status: 'PENDING'},
       });
-      // 사용자가 보던 화면(보관함)은 그대로이고 히스토리가 열리지 않는다.
+      // 공유하고 들어오면 보관함에 머물고 히스토리가 열리지 않는다.
       expect(renderer.root.findAllByType(HistoryScreen)).toHaveLength(0);
       await ReactTestRenderer.act(async () => renderer.unmount());
     },
   );
+
+  test('공유하고 들어오면 보관함으로 한 번만 이동하고, 처리 단계가 바뀌어도 다른 탭으로 옮긴 화면을 다시 바꾸지 않는다', async () => {
+    restoreSpringSession();
+    const previousAppState = AppState.currentState;
+    (AppState as {currentState: string}).currentState = 'active';
+    let storedResults: Record<string, unknown>[] = [];
+    (getShareResults as jest.Mock).mockImplementation(() =>
+      Promise.resolve([...storedResults]),
+    );
+    const pollOnce = async () => {
+      await ReactTestRenderer.act(async () => {
+        jest.advanceTimersByTime(1000);
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve();
+        }
+      });
+    };
+    const isMapActive = () => renderer.root.findByType(MapScreen).props.isActive;
+    let updatedAt = Date.now();
+    const share = (requestId: string, transferStatus: string, reelId?: string) => ({
+      requestId,
+      url: `https://www.instagram.com/reel/${requestId}/`,
+      status: 'PENDING',
+      transferStatus,
+      reelId,
+      retryable: false,
+      updatedAt: (updatedAt += 1),
+    });
+
+    const renderer = await renderAfterSplash();
+    try {
+      await ReactTestRenderer.act(async () => {
+        activeBar(renderer).props.onNavigate('map');
+      });
+      expect(isMapActive()).toBe(true);
+
+      // 지도 탭에 있다가 게시물 두 개를 공유하고 돌아오면 보관함으로 이동한다.
+      storedResults = [share('req-a', 'SAVED'), share('req-b', 'SAVED')];
+      await pollOnce();
+      expect(isMapActive()).toBe(false);
+
+      // 사용자가 다시 지도 탭으로 간 뒤에는 공유 처리 단계가 바뀌어도 화면을 옮기지 않는다.
+      await ReactTestRenderer.act(async () => {
+        activeBar(renderer).props.onNavigate('map');
+      });
+      for (const [status, reelSuffix] of [
+        ['QUEUED', undefined],
+        ['REQUESTING', undefined],
+        ['API_SUCCEEDED', 'reel'],
+      ] as const) {
+        storedResults = [
+          share('req-a', status, reelSuffix && `${reelSuffix}-a`),
+          share('req-b', status, reelSuffix && `${reelSuffix}-b`),
+        ];
+        await pollOnce();
+        expect(isMapActive()).toBe(true);
+      }
+
+      // 최근 공유가 소비되어 남은 공유가 선택돼도 다시 튀지 않는다.
+      storedResults = storedResults.filter(item => item.requestId !== 'req-b');
+      await pollOnce();
+      expect(isMapActive()).toBe(true);
+    } finally {
+      (AppState as {currentState: string}).currentState = previousAppState;
+      (getShareResults as jest.Mock).mockImplementation(() => Promise.resolve([]));
+      await ReactTestRenderer.act(async () => renderer.unmount());
+    }
+  });
+
+  test('이전 공유가 아직 처리 중이어도 새로 공유하고 들어오면 보관함으로 이동한다', async () => {
+    restoreSpringSession();
+    const previousAppState = AppState.currentState;
+    (AppState as {currentState: string}).currentState = 'active';
+    let storedResults: Record<string, unknown>[] = [];
+    (getShareResults as jest.Mock).mockImplementation(() =>
+      Promise.resolve([...storedResults]),
+    );
+    const pollOnce = async () => {
+      await ReactTestRenderer.act(async () => {
+        jest.advanceTimersByTime(1000);
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve();
+        }
+      });
+    };
+    const isMapActive = () => renderer.root.findByType(MapScreen).props.isActive;
+    // 서버에서 추출 중이라 아직 지워지지 않은 이전 공유.
+    const previousShare = {
+      requestId: 'req-old',
+      url: 'https://www.instagram.com/reel/old/',
+      status: 'PROCESSING',
+      transferStatus: 'API_SUCCEEDED',
+      reelId: 'reel-old',
+      retryable: false,
+      updatedAt: Date.now() - 60_000,
+    };
+
+    const renderer = await renderAfterSplash();
+    try {
+      storedResults = [previousShare];
+      await pollOnce();
+      await ReactTestRenderer.act(async () => {
+        activeBar(renderer).props.onNavigate('map');
+      });
+      await pollOnce();
+      expect(isMapActive()).toBe(true);
+
+      // 지도 탭에서 새 게시물을 공유하고 돌아온다.
+      storedResults = [
+        previousShare,
+        {
+          requestId: 'req-new',
+          url: 'https://www.instagram.com/reel/new/',
+          status: 'PENDING',
+          transferStatus: 'SAVED',
+          retryable: false,
+          updatedAt: Date.now(),
+        },
+      ];
+      await pollOnce();
+      expect(isMapActive()).toBe(false);
+    } finally {
+      (AppState as {currentState: string}).currentState = previousAppState;
+      (getShareResults as jest.Mock).mockImplementation(() => Promise.resolve([]));
+      await ReactTestRenderer.act(async () => renderer.unmount());
+    }
+  });
 
   test('로그인 대기(WAITING_FOR_AUTH) 중인 공유는 항목으로 보이지 않는다', async () => {
     restoreSpringSession();
