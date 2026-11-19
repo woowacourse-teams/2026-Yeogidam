@@ -63,4 +63,8 @@ done
 
 ## 알림 경로
 
-CloudWatch 알람 -> SNS 토픽 `yeogidam-alerts` -> Lambda `yeogidam-alerts-to-discord` -> Discord 웹훅이다. Lambda 코드는 `Infra/lambda/alerts_to_discord.py`이고 콘솔 등록 절차는 같은 파일 머리 docstring에 있다. 지표 필터와 대시보드와 알람은 콘솔에서 만든다.
+CloudWatch 알람 -> SNS 토픽 `yeogidam-alerts` -> Lambda `yeogidam-alerts-to-discord` -> Discord 웹훅이다. Lambda 코드는 `Infra/lambda/alerts_to_discord.py`이고 알림 동작과 필요한 설정은 [디스코드 알림 운영 안내](../lambda/discord-alerts-guide.md)를 따른다. 지표 필터와 대시보드와 알람은 콘솔에서 만든다.
+
+운영 백엔드의 장소 추출 실패는 구조화 WARN/ERROR 로그를 CloudWatch Logs 구독 필터로 같은 Lambda에 전달한다.
+Lambda는 게시물 ID, 실패 이유와 Gemini·카카오 결과를 문장으로 보내며 JSON 파일을 첨부하지 않는다.
+웹훅 URL은 Lambda 환경 변수에만 두며, 환경별 동작과 필수 설정은 [Lambda 운영 안내](../lambda/discord-alerts-guide.md)를 따른다.
