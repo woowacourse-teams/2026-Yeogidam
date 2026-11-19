@@ -138,7 +138,7 @@ import {
   setSharedSaveState,
 } from './src/lib/reel-save-state';
 import * as Sentry from '@sentry/react-native';
-import { otaBundleId } from './src/lib/hot-updater';
+import { otaBundleId, waitForOtaBeforeFirstScreen } from './src/lib/hot-updater';
 import {
   markStartupInitialDisplay,
   startStartupPhase,
@@ -430,6 +430,7 @@ function App() {
   const [isEventNoticeBlocking, setIsEventNoticeBlocking] = useState(true);
   const [isWhatsNewBlocking, setIsWhatsNewBlocking] = useState(true);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
+  const [isOtaForceUpdating, setIsOtaForceUpdating] = useState(false);
   // 앱 시작 때 업데이트 정책 확인이 끝났는지. 끝나기 전에는 업데이트 모달보다 먼저 뜰 안내를 미룬다.
   const [isUpdatePolicyChecked, setIsUpdatePolicyChecked] = useState(false);
   // 로그아웃 상태로 앱을 열면 이번 실행 동안 로그인 화면 앞에 온보딩을 보여준다.
@@ -940,9 +941,18 @@ function App() {
         if (isMounted) setIsUpdatePolicyChecked(true);
       });
 
+    // 강제 OTA 업데이트면 스플래시를 유지한 채 받고 새 번들로 다시 시작한다.
+    const endOtaCheckPhase = startStartupPhase('ota_check');
+    const otaGate = waitForOtaBeforeFirstScreen({
+      onForceUpdateStart: () => {
+        if (isMounted) setIsOtaForceUpdating(true);
+      },
+    }).finally(endOtaCheckPhase);
+
     Promise.allSettled([
       syncFlowState().finally(endAuthRestorePhase),
       splashDelay,
+      otaGate,
     ]).finally(() => {
       if (!isMounted) {
         return;
@@ -1964,7 +1974,9 @@ function App() {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#DBE0F9" />
-        <SplashScreen />
+        <SplashScreen
+          message={isOtaForceUpdating ? '새 버전을 준비하는 중' : undefined}
+        />
       </SafeAreaProvider>
     );
   }

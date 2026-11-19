@@ -2,7 +2,7 @@
 # 네이티브 변경이 없을 때만 사용한다. 네이티브가 바뀌었으면 Frontend Beta로 스토어에 출시한다.
 # 배포 대상 앱은 fingerprint가 정하므로, 출시되지 않은 네이티브 변경이 포함되면 아무 앱도 받지 않는다.
 name: Frontend OTA
-run-name: "Frontend OTA ${{ inputs.platform }}${{ inputs.disabled && ' disabled' || '' }} (run ${{ github.run_number }})"
+run-name: "Frontend OTA ${{ inputs.platform }}${{ inputs.force_update && ' force' || '' }}${{ inputs.disabled && ' disabled' || '' }} (run ${{ github.run_number }})"
 
 # 릴리스 브랜치의 HEAD에서 수동 실행한다.
 on:
@@ -23,6 +23,10 @@ on:
         type: string
       disabled:
         description: '꺼진 상태로 배포 (업로드만 확인하고 기기에는 전달하지 않음)'
+        type: boolean
+        default: false
+      force_update:
+        description: '강제 업데이트 (앱 시작 시 내려받은 뒤 바로 다시 로드, 끄면 다음 실행 때 적용)'
         type: boolean
         default: false
 
@@ -97,6 +101,7 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           MESSAGE: ${{ inputs.message }}
           DISABLED: ${{ inputs.disabled }}
+          FORCE_UPDATE: ${{ inputs.force_update }}
           HOT_UPDATER_CLOUDFLARE_ACCOUNT_ID: ${{ vars.HOT_UPDATER_CLOUDFLARE_ACCOUNT_ID }}
           HOT_UPDATER_CLOUDFLARE_R2_BUCKET_NAME: ${{ vars.HOT_UPDATER_CLOUDFLARE_R2_BUCKET_NAME }}
           HOT_UPDATER_CLOUDFLARE_D1_DATABASE_ID: ${{ vars.HOT_UPDATER_CLOUDFLARE_D1_DATABASE_ID }}
@@ -127,6 +132,10 @@ jobs:
           if [[ "$DISABLED" == "true" ]]; then
             args+=(-d)
           fi
+          # 강제 업데이트 번들은 앱 시작 시 화면을 띄우기 전에 내려받고 바로 다시 로드한다.
+          if [[ "$FORCE_UPDATE" == "true" ]]; then
+            args+=(-f)
+          fi
           npx hot-updater deploy "${args[@]}" | tee "$RUNNER_TEMP/deploy.log"
 
           # 배포 ID는 bundle list, console, Sentry의 ota_bundle_id 태그와 같은 값이다.
@@ -137,6 +146,7 @@ jobs:
             echo "### Frontend OTA ($PLATFORM)"
             echo ""
             echo "- Enabled: $([[ "$DISABLED" == "true" ]] && echo no || echo yes)"
+            echo "- Force update: $([[ "$FORCE_UPDATE" == "true" ]] && echo yes || echo no)"
             echo "- Bundle ID: ${bundle_id:-unknown}"
             echo "- Message: $MESSAGE"
             echo "- Commit: $(git rev-parse HEAD)"
