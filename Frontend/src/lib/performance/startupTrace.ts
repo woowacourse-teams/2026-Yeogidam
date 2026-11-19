@@ -17,7 +17,7 @@ import * as Sentry from '@sentry/react-native';
  */
 
 export type StartupDestination = 'saved_places' | 'onboarding' | 'other';
-export type StartupPhase = 'auth_restore' | 'update_policy' | 'splash_min_duration';
+export type StartupPhase = 'auth_restore' | 'update_policy' | 'splash_min_duration' | 'ota_check';
 type StartupOutcome =
   | 'full_display'
   | 'full_display_failed'
