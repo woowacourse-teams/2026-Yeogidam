@@ -41,7 +41,6 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-jdbc-test'
     testImplementation 'io.rest-assured:rest-assured:6.0.1'
-    // 버전을 바꾸면 backend-ci.yml, backend-cd.yml의 Pre-pull Test Images에 있는 ryuk 태그도 맞춘다.
     testImplementation platform('org.testcontainers:testcontainers-bom:2.0.5')
     testImplementation 'org.testcontainers:testcontainers-mysql'
     testImplementation('org.projectlombok:lombok')
