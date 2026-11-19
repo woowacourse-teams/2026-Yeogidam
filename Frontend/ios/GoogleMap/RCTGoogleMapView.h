@@ -3,7 +3,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface RCTKakaoMapView : RCTViewComponentView
+@interface RCTGoogleMapView : RCTViewComponentView
 @end
 
 NS_ASSUME_NONNULL_END

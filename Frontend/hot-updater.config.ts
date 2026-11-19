@@ -46,7 +46,7 @@ export default defineConfig({
       '**/.DS_Store',
       '**/.env',
       // pod install이 빌드 환경에 따라 체크섬을 다시 써서, 네이티브가 같아도 iOS 해시가 달라진다.
-      // 라이브러리 버전은 fingerprint가 따로 보고, KakaoMapsSDK는 Podfile에 버전을 고정한다.
+      // 라이브러리 버전은 fingerprint가 따로 보고, GoogleMaps는 Podfile에 버전을 고정한다.
       'ios/Podfile.lock',
     ],
   },

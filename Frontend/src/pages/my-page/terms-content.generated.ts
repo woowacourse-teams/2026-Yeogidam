@@ -591,7 +591,7 @@ export const TERMS_DOCUMENT_BLOCKS: readonly TermsDocumentBlock[] = [
   },
   {
     type: 'paragraph',
-    text: '지도와 장소 정보를 표시하기 위해 카카오 지도 서비스를 이용합니다. 외부 지도 서비스가 처리하는 정보에는 해당 제공자의 개인정보 처리방침과 이용약관이 적용될 수 있습니다.',
+    text: '지도와 장소 정보를 표시하기 위해 Google 지도 서비스를 이용합니다. 외부 지도 서비스가 처리하는 정보에는 해당 제공자의 개인정보 처리방침과 이용약관이 적용될 수 있습니다.',
   },
   {
     type: 'heading',

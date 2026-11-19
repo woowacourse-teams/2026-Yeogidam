@@ -8,64 +8,81 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Point
+import android.graphics.PointF
 import android.graphics.RadialGradient
+import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
+import android.os.SystemClock
+import android.text.TextPaint
+import android.text.TextUtils
 import android.util.Log
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
-import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
-import com.kakao.vectormap.KakaoMap
-import com.kakao.vectormap.KakaoMapReadyCallback
-import com.kakao.vectormap.LatLng
-import com.kakao.vectormap.MapLifeCycleCallback
-import com.kakao.vectormap.MapView
-import com.kakao.vectormap.PoiCategory
-import com.kakao.vectormap.camera.CameraUpdateFactory
-import com.kakao.vectormap.label.Label
-import com.kakao.vectormap.label.LabelOptions
-import com.kakao.vectormap.label.LabelStyle
-import com.kakao.vectormap.label.LabelStyles
-import com.kakao.vectormap.label.LabelTransition
-import com.kakao.vectormap.label.Transition
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapView
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
+import com.yeogidamm.app.BuildConfig
 import com.yeogidamm.app.R
 import org.json.JSONArray
+import kotlin.math.PI
+import kotlin.math.atan
+import kotlin.math.ln
+import kotlin.math.log2
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sinh
 
-class KakaoMapView(
+// 지도 화면의 Google 지도입니다. 저장 장소 핀과 이름, 지하철역, 현재 위치를 직접 그리고,
+// 바텀시트에 가려지지 않은 영역을 기준으로 카메라를 움직입니다.
+class GoogleMapView(
     context: ThemedReactContext,
 ) : FrameLayout(context), LifecycleEventListener {
 
-    private val nativeMapView = MapView(context)
     private val reactContext = context
     private val applicationReactContext = context.reactApplicationContext
+    // 키가 없으면 MapView가 앱을 종료시키므로 지도를 만들지 않습니다.
+    private val nativeMapView =
+        if (BuildConfig.GOOGLE_MAPS_ANDROID_API_KEY.isEmpty()) null else MapView(context)
+    private var googleMap: GoogleMap? = null
     private var isDisposed = false
+    private var isMapStarted = false
     private val locationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private var kakaoMap: KakaoMap? = null
-    private var currentLocationLabel: Label? = null
+    private var currentLocationMarker: Marker? = null
     private var savedPlacesJson = "[]"
-    private val savedPlaceStyleKeyById = mutableMapOf<String, String>()
-    private val coloredPlaceStyles = mutableMapOf<String, LabelStyles>()
     private var savedPlaceMarkers = listOf<SavedPlaceMarker>()
+    private val placeMarkersById = mutableMapOf<String, Marker>()
+    private val placeStyleKeyById = mutableMapOf<String, String>()
+    private val placeIcons = mutableMapOf<String, Pair<BitmapDescriptor, Float>>()
     private var placeNameShownIds = setOf<String>()
     private val placeNameTextSizes = mutableMapOf<String, Pair<Float, Float>>()
     private var lastKnownLocation: Location? = null
-
-    private val savedPlaceStyles: Map<Boolean, LabelStyles> by lazy {
-        mapOf(
-            false to createSavedPlaceStyles(selected = false),
-            true to createSavedPlaceStyles(selected = true),
-        )
-    }
+    private var zoomMapStylesJson = ""
+    private var zoomMapStyles = listOf<Pair<Float, MapStyleOptions>>()
+    private var appliedMapStyleIndex: Int? = null
+    private var subwayStationsJson = ""
+    private val subwayStationLayer = SubwayStationLayer(context.resources.displayMetrics.density)
+    // 카카오 지도는 핀 이미지를 1.5배로 키워 그렸으므로, 같은 크기로 보이도록 핀·이름·현재 위치 마커를
+    // 모두 이 배율을 곱한 밀도로 그립니다.
+    private val markerDensity = context.resources.displayMetrics.density * MARKER_SCALE
 
     private var latitude = 37.5445
     private var longitude = 127.0557
@@ -78,6 +95,9 @@ class KakaoMapView(
     private var cameraBottomInset = 0
     private var locationUpdatesStarted = false
     private var pendingCurrentLocationCameraMove = false
+    private var appliedBottomPadding = 0
+    private var logoBottomInset = 0
+    private var lastPlaceNameRefreshTime = 0L
 
     private val locationListener =
         LocationListener { location ->
@@ -85,22 +105,17 @@ class KakaoMapView(
         }
 
     private val moveToDefaultPosition = Runnable {
-        val map = kakaoMap ?: return@Runnable
+        val map = googleMap ?: return@Runnable
 
         if (!isAttachedToWindow) {
             return@Runnable
         }
 
-        map.moveCamera(
-            CameraUpdateFactory.newCenterPosition(
-                LatLng.from(latitude, longitude),
-                zoomLevel,
-            ),
-        )
+        moveCamera(map, LatLng(latitude, longitude), zoomLevel.toFloat())
     }
 
     private val fitSearchResultPoints = Runnable {
-        val map = kakaoMap ?: return@Runnable
+        val map = googleMap ?: return@Runnable
 
         if (!isAttachedToWindow) {
             return@Runnable
@@ -111,7 +126,7 @@ class KakaoMapView(
                 (0 until places.length()).mapNotNull { index ->
                     places.optJSONObject(index)?.let { place ->
                         if (place.has("latitude") && place.has("longitude")) {
-                            LatLng.from(
+                            LatLng(
                                 place.getDouble("latitude"),
                                 place.getDouble("longitude"),
                             )
@@ -126,132 +141,117 @@ class KakaoMapView(
                 return@Runnable
             }
 
-            map.moveCamera(
-                CameraUpdateFactory.fitMapPoints(
-                    points.toTypedArray(),
-                    SEARCH_RESULT_CAMERA_PADDING,
-                    SEARCH_RESULT_MAX_ZOOM_LEVEL,
-                ),
+            // 시트에 가려지지 않은 영역 안에 모든 좌표가 들어오는 줌을 메르카토르 좌표로 직접 구합니다.
+            val density = resources.displayMetrics.density
+            val padding = SEARCH_RESULT_CAMERA_PADDING_DP * density
+            val availableWidth = width - padding * 2
+            val availableHeight = height - visibleBottomInset() - padding * 2
+            if (availableWidth <= 0 || availableHeight <= 0) return@Runnable
+            val xs = points.map { (it.longitude + 180) / 360 }
+            val ys = points.map {
+                val sine = sin(Math.toRadians(it.latitude))
+                0.5 - ln((1 + sine) / (1 - sine)) / (4 * PI)
+            }
+            val spanX = (xs.max() - xs.min()).coerceAtLeast(1e-12)
+            val spanY = (ys.max() - ys.min()).coerceAtLeast(1e-12)
+            val worldSize = 256 * density
+            val fitZoom = log2(minOf(availableWidth / (worldSize * spanX), availableHeight / (worldSize * spanY)))
+            val centerY = (ys.min() + ys.max()) / 2
+            val center = LatLng(
+                Math.toDegrees(atan(sinh(PI * (1 - 2 * centerY)))),
+                (xs.min() + xs.max()) / 2 * 360 - 180,
             )
+            moveCamera(map, center, minOf(fitZoom.toFloat(), SEARCH_RESULT_MAX_ZOOM_LEVEL))
         } catch (error: Exception) {
-            Log.e("YeogidamKakaoMap", "검색 결과 범위에 카메라를 맞추지 못했습니다.", error)
+            Log.e("YeogidamGoogleMap", "검색 결과 범위에 카메라를 맞추지 못했습니다.", error)
         }
     }
 
     init {
-        addView(
-            nativeMapView,
-            LayoutParams(
-                LayoutParams.MATCH_PARENT,
-                LayoutParams.MATCH_PARENT,
-            ),
-        )
+        nativeMapView?.let { mapView ->
+            addView(
+                mapView,
+                LayoutParams(
+                    LayoutParams.MATCH_PARENT,
+                    LayoutParams.MATCH_PARENT,
+                ),
+            )
+            mapView.onCreate(null)
+            mapView.getMapAsync(::onMapReady)
+        }
 
         reactContext.addLifecycleEventListener(this)
+    }
+
+    private fun onMapReady(map: GoogleMap) {
+        if (isDisposed) return
+        googleMap = map
+        map.uiSettings.isMapToolbarEnabled = false
+        map.uiSettings.isIndoorLevelPickerEnabled = false
+        map.moveCamera(
+            CameraUpdateFactory.newLatLngZoom(
+                LatLng(latitude, longitude),
+                zoomLevel.toFloat(),
+            ),
+        )
+        applyMapStyle()
+        applyCameraPadding()
+
+        map.setOnMarkerClickListener { marker ->
+            val tag = marker.tag
+            if (tag is PlaceMarkerTag) emitMarkerPressed(map, tag.id)
+            // true를 돌려줘 Google 기본 동작(말풍선, 핀으로 카메라 이동)을 막습니다.
+            true
+        }
+        map.setOnCameraMoveStartedListener { reason ->
+            if (reason == GoogleMap.OnCameraMoveStartedListener.REASON_GESTURE) {
+                reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+                    id,
+                    "onMapPanStarted",
+                    Arguments.createMap().apply { putBoolean("started", true) },
+                )
+            }
+        }
+        map.setOnCameraMoveListener {
+            applyMapStyle()
+            subwayStationLayer.refresh(map)
+            refreshPlaceNamesWhileMoving()
+        }
+        map.setOnCameraIdleListener {
+            emitVisibleBounds()
+            refreshPlaceNames()
+            subwayStationLayer.refresh(map)
+        }
+
+        renderSavedPlaceMarkers()
+        subwayStationLayer.refresh(map)
+        moveCamera()
+        if (cameraFitRequestId > 0) {
+            moveCameraToFitSearchResults()
+        }
+        startCurrentLocationIfNeeded()
+        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+            id,
+            "onMapReady",
+            Arguments.createMap().apply { putBoolean("ready", true) },
+        )
+        post { emitVisibleBounds() }
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (isDisposed) return
 
-        if (!nativeMapView.isStarted) {
-            startMap()
+        if (nativeMapView == null) {
+            emitMapError("Google 지도 키가 설정되지 않아 지도를 표시할 수 없습니다.")
+            return
         }
-
+        if (!isMapStarted) {
+            nativeMapView.onStart()
+            isMapStarted = true
+        }
         post(::resumeMapIfNeeded)
         startCurrentLocationIfNeeded()
-    }
-
-    private fun startMap() {
-        nativeMapView.start(
-            object : MapLifeCycleCallback() {
-                override fun onMapDestroy() {
-                    Log.d("YeogidamKakaoMap", "지도 종료")
-                }
-
-                override fun onMapError(error: Exception) {
-                    Log.e("YeogidamKakaoMap", "지도 오류", error)
-                }
-            },
-            object : KakaoMapReadyCallback() {
-                override fun onMapReady(map: KakaoMap) {
-                    if (isDisposed) return
-                    // SDK 2.14.1 ignores this setting before the renderer is
-                    // initialized. Retain the engine during Fabric reorders
-                    // and finish it explicitly when this view is dropped.
-                    nativeMapView.setFinishManually(true)
-                    kakaoMap = map
-                    // 기본 지도의 가게 정보만 숨깁니다. 지하철역·지명·도로 같은 길 찾기 정보는 남깁니다.
-                    listOf(
-                        PoiCategory.PLACE,
-                        PoiCategory.BRAND,
-                        PoiCategory.FACILITIES,
-                        PoiCategory.INDOOR_PLACE,
-                        PoiCategory.DETAIL_CATEGORY,
-                    ).forEach { map.setVisiblePoiCategory(it, false) }
-                    map.setPoiClickable(false)
-                    applyCameraPadding()
-                    map.setOnLabelClickListener { _, _, label ->
-                        val placeId = label.tag as? String ?: return@setOnLabelClickListener false
-                        val cameraPosition = map.cameraPosition ?: return@setOnLabelClickListener false
-                        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
-                            id,
-                            "onMarkerPressed",
-                            Arguments.createMap().apply {
-                                putString("id", placeId)
-                                putDouble("latitude", cameraPosition.position.latitude)
-                                putDouble("longitude", cameraPosition.position.longitude)
-                                putInt("zoomLevel", cameraPosition.zoomLevel)
-                                putDouble(
-                                    "cameraBottomInset",
-                                    cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0)) /
-                                        resources.displayMetrics.density.toDouble(),
-                                )
-                            },
-                        )
-                        true
-                    }
-                    map.setOnCameraMoveEndListener { _, position, _ ->
-                        emitVisibleBounds(position.position, position.zoomLevel)
-                        refreshPlaceNames()
-                    }
-                    map.setOnCameraMoveStartListener { _, gestureType ->
-                        if (
-                            gestureType == com.kakao.vectormap.GestureType.Pan ||
-                            gestureType == com.kakao.vectormap.GestureType.LongTapAndDrag ||
-                            gestureType == com.kakao.vectormap.GestureType.Zoom ||
-                            gestureType == com.kakao.vectormap.GestureType.OneFingerZoom ||
-                            gestureType == com.kakao.vectormap.GestureType.RotateZoom ||
-                            gestureType == com.kakao.vectormap.GestureType.OneFingerDoubleTap ||
-                            gestureType == com.kakao.vectormap.GestureType.TwoFingerSingleTap
-                        ) {
-                            reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
-                                id,
-                                "onMapPanStarted",
-                                Arguments.createMap().apply { putBoolean("started", true) },
-                            )
-                        }
-                    }
-                    renderSavedPlaceMarkers()
-                    if (cameraFitRequestId > 0) {
-                        moveCameraToFitSearchResults()
-                    }
-                    Log.d("YeogidamKakaoMap", "지도 준비 완료")
-                    post(::resumeMapIfNeeded)
-                    startCurrentLocationIfNeeded()
-                    post { emitVisibleBounds() }
-                }
-
-                override fun getPosition(): LatLng =
-                    LatLng.from(
-                        this@KakaoMapView.latitude,
-                        this@KakaoMapView.longitude,
-                    )
-
-                override fun getZoomLevel(): Int =
-                    this@KakaoMapView.zoomLevel
-            },
-        )
     }
 
     fun setLatitude(value: Double) {
@@ -301,8 +301,8 @@ class KakaoMapView(
             startCurrentLocationIfNeeded()
         } else {
             stopLocationUpdates()
-            currentLocationLabel?.remove()
-            currentLocationLabel = null
+            currentLocationMarker?.remove()
+            currentLocationMarker = null
         }
     }
 
@@ -324,17 +324,101 @@ class KakaoMapView(
         applyCameraPadding()
     }
 
-    private fun applyCameraPadding() {
-        val map = kakaoMap ?: return
-        val bottomInset = cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0))
-        map.setPadding(0, 0, 0, bottomInset)
-        post { emitVisibleBounds() }
+    fun setLogoBottomInset(value: Double) {
+        val nextInset =
+            (value.coerceAtLeast(0.0) * resources.displayMetrics.density).roundToInt()
+        if (logoBottomInset == nextInset) return
+
+        logoBottomInset = nextInset
+        applyCameraPadding()
     }
 
     fun setSavedPlacesJson(value: String) {
         if (savedPlacesJson == value) return
         savedPlacesJson = value
         renderSavedPlaceMarkers()
+    }
+
+    fun setZoomMapStylesJson(value: String) {
+        if (zoomMapStylesJson == value) return
+        zoomMapStylesJson = value
+
+        val items = runCatching { JSONArray(value) }.getOrNull() ?: JSONArray()
+        zoomMapStyles = (0 until items.length()).mapNotNull { index ->
+            val item = items.optJSONObject(index) ?: return@mapNotNull null
+            val styleJson = item.optString("styleJson").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            item.optDouble("minZoom").toFloat() to MapStyleOptions(styleJson)
+        }
+        appliedMapStyleIndex = null
+        applyMapStyle()
+    }
+
+    fun setSubwayStationsJson(value: String) {
+        if (subwayStationsJson == value) return
+        subwayStationsJson = value
+        subwayStationLayer.setStations(value)
+        googleMap?.let { subwayStationLayer.refresh(it) }
+    }
+
+    fun setSubwayStationMinZoom(value: Int) {
+        subwayStationLayer.minZoom = value.toFloat()
+        googleMap?.let { subwayStationLayer.refresh(it) }
+    }
+
+    fun setSubwayStationNameMinZoom(value: Int) {
+        subwayStationLayer.nameMinZoom = value.toFloat()
+        googleMap?.let { subwayStationLayer.refresh(it) }
+    }
+
+    // 여백을 바꿀 때마다 Google이 카메라를 새 여백 가운데로 다시 맞추면서 지도가 움직이므로,
+    // 여백은 Google 로고 자리로만 씁니다. JS가 준 높이(시트를 내린 높이) 위에 로고를 고정하고,
+    // 시트에 가려진 영역을 피해 카메라를 맞추는 일은 exposedCenter로 직접 합니다.
+    // 로고는 시트 둥근 모서리에 걸리지 않는 선에서 시트 쪽으로 조금 내립니다.
+    private fun applyCameraPadding() {
+        val map = googleMap ?: return
+        post { emitVisibleBounds() }
+        if (width <= 0 || height <= 0) return
+
+        val logoLowering = (LOGO_LOWERING_DP * resources.displayMetrics.density).roundToInt()
+        val bottomPadding =
+            (logoBottomInset.coerceAtMost(height - 1) - logoLowering).coerceAtLeast(0)
+        if (bottomPadding == appliedBottomPadding) return
+
+        // 여백이 바뀌는 드문 경우에도 보이는 지도는 그대로 두려고, 새 여백 가운데 자리에 있던 좌표로
+        // 카메라를 다시 맞춥니다.
+        val target = map.projection.fromScreenLocation(Point(width / 2, (height - bottomPadding) / 2))
+        map.setPadding(0, 0, 0, bottomPadding)
+        appliedBottomPadding = bottomPadding
+        map.moveCamera(CameraUpdateFactory.newLatLng(target))
+    }
+
+    // 바텀시트에 가려진 높이(px)입니다.
+    private fun visibleBottomInset(): Int = cameraBottomInset.coerceAtMost((height - 1).coerceAtLeast(0))
+
+    // 바텀시트에 가려지지 않은 영역의 가운데입니다. 카메라를 옮길 좌표는 여기에 놓입니다.
+    private fun exposedCenter(): Point = Point(width / 2, (height - visibleBottomInset()) / 2)
+
+    // 좌표를 Google 카메라 중심이 아니라 시트 위쪽 영역 가운데에 오도록 카메라를 옮깁니다.
+    // 두 번 옮기지만 같은 순간에 처리되어 화면에는 마지막 위치만 그려집니다.
+    private fun moveCamera(map: GoogleMap, coordinate: LatLng, zoom: Float) {
+        map.moveCamera(CameraUpdateFactory.newLatLngZoom(coordinate, zoom))
+        if (width <= 0 || height <= 0) return
+        val paddedCenterY = (height - appliedBottomPadding) / 2
+        val target = map.projection.fromScreenLocation(
+            Point(width / 2, paddedCenterY * 2 - exposedCenter().y),
+        )
+        map.moveCamera(CameraUpdateFactory.newLatLng(target))
+    }
+
+    // 줌이 단계 경계를 넘을 때만 스타일을 바꿔 끼워, 매 프레임 다시 그리지 않게 합니다.
+    private fun applyMapStyle() {
+        val map = googleMap ?: return
+        val zoom = map.cameraPosition.zoom
+        val index = zoomMapStyles.indexOfLast { (minZoom, _) -> minZoom <= zoom }.takeIf { it >= 0 }
+        if (index == appliedMapStyleIndex) return
+
+        appliedMapStyleIndex = index
+        runCatching { map.setMapStyle(index?.let { zoomMapStyles[it].second }) }
     }
 
     private fun moveCamera() {
@@ -346,6 +430,26 @@ class KakaoMapView(
         removeCallbacks(fitSearchResultPoints)
         post(fitSearchResultPoints)
     }
+
+    private fun emitMarkerPressed(map: GoogleMap, placeId: String) {
+        val center = map.projection.fromScreenLocation(exposedCenter())
+        reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+            id,
+            "onMarkerPressed",
+            Arguments.createMap().apply {
+                putString("id", placeId)
+                putDouble("latitude", center.latitude)
+                putDouble("longitude", center.longitude)
+                putInt("zoomLevel", map.cameraPosition.zoom.roundToInt())
+                putDouble(
+                    "cameraBottomInset",
+                    visibleBottomInset() / resources.displayMetrics.density.toDouble(),
+                )
+            },
+        )
+    }
+
+    private data class PlaceMarkerTag(val id: String)
 
     private data class SavedPlaceMarker(
         val id: String,
@@ -377,66 +481,69 @@ class KakaoMapView(
             savedPlaceMarkers = markersById.values.toList()
             applySavedPlaceMarkers()
         } catch (error: Exception) {
-            Log.e("YeogidamKakaoMap", "저장 장소 핀을 표시하지 못했습니다.", error)
+            Log.e("YeogidamGoogleMap", "저장 장소 핀을 표시하지 못했습니다.", error)
         }
     }
 
-    // 카메라가 멈출 때 이름을 보여 줄 핀이 달라졌으면 핀 스타일을 다시 적용합니다.
+    // 카메라가 멈출 때 이름을 보여 줄 핀이 달라졌으면 핀 이미지를 다시 적용합니다.
+    // 지도가 멈출 때까지 기다리면 이름이 늦게 붙으므로, 움직이는 동안에도 짧은 간격으로 다시 계산합니다.
+    // 매 프레임 계산하면 무거워서 PLACE_NAME_REFRESH_INTERVAL_MS마다 한 번만 합니다.
+    private fun refreshPlaceNamesWhileMoving() {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastPlaceNameRefreshTime < PLACE_NAME_REFRESH_INTERVAL_MS) return
+        lastPlaceNameRefreshTime = now
+        refreshPlaceNames()
+    }
+
     private fun refreshPlaceNames() {
-        val map = kakaoMap ?: return
+        val map = googleMap ?: return
         if (placeIdsShowingName(map) != placeNameShownIds) {
             applySavedPlaceMarkers()
         }
     }
 
     private fun applySavedPlaceMarkers() {
-        val map = kakaoMap ?: return
-        val layer = map.labelManager?.layer ?: return
+        val map = googleMap ?: return
 
         // 이름은 겹치지 않는 핀에만 붙입니다.
         placeNameShownIds = placeIdsShowingName(map)
         val nextStyleKeyById = savedPlaceMarkers.associate { it.id to placeStyleKey(it) }
 
-        (savedPlaceStyleKeyById.keys - nextStyleKeyById.keys).forEach { removedId ->
-            layer.getLabel(removedId)?.remove()
+        (placeMarkersById.keys - nextStyleKeyById.keys).forEach { removedId ->
+            placeMarkersById.remove(removedId)?.remove()
         }
 
         savedPlaceMarkers.forEach { marker ->
-            val position = LatLng.from(marker.latitude, marker.longitude)
+            val position = LatLng(marker.latitude, marker.longitude)
             val styleKey = nextStyleKeyById.getValue(marker.id)
-            val style = placeStyles(
-                marker.selected,
-                marker.colorHex,
-                marker.category,
-                marker.name.takeIf { marker.id in placeNameShownIds },
-            )
-            val label = layer.getLabel(marker.id)
-            val rank = if (marker.selected) Int.MAX_VALUE.toLong() - 1 else 1L
+            val (icon, anchorY) = placeIcon(styleKey, marker)
+            // 선택된 핀이 다른 핀 위로 올라오고, 현재 위치 마커보다는 아래에 둡니다.
+            val zIndex = if (marker.selected) SELECTED_PLACE_Z_INDEX else PLACE_Z_INDEX
+            val existing = placeMarkersById[marker.id]
 
-            if (label == null) {
-                layer.addLabel(
-                    LabelOptions
-                        .from(marker.id, position)
-                        .setRank(rank)
-                        .setStyles(style),
-                ).apply {
-                    tag = marker.id
-                    isClickable = true
+            if (existing == null) {
+                map.addMarker(
+                    MarkerOptions()
+                        .position(position)
+                        .icon(icon)
+                        .anchor(0.5f, anchorY)
+                        .zIndex(zIndex),
+                )?.let {
+                    it.tag = PlaceMarkerTag(marker.id)
+                    placeMarkersById[marker.id] = it
                 }
             } else {
-                label.moveTo(position)
-                label.rank = rank
-                label.tag = marker.id
-                label.isClickable = true
-
-                if (savedPlaceStyleKeyById[marker.id] != styleKey) {
-                    label.changeStyles(style, false)
+                existing.position = position
+                existing.zIndex = zIndex
+                if (placeStyleKeyById[marker.id] != styleKey) {
+                    existing.setIcon(icon)
+                    existing.setAnchor(0.5f, anchorY)
                 }
             }
         }
 
-        savedPlaceStyleKeyById.clear()
-        savedPlaceStyleKeyById.putAll(nextStyleKeyById)
+        placeStyleKeyById.clear()
+        placeStyleKeyById.putAll(nextStyleKeyById)
     }
 
     private fun placeStyleKey(marker: SavedPlaceMarker): String =
@@ -449,25 +556,25 @@ class KakaoMapView(
 
     // 이름을 보여 줄 핀을 고릅니다. 선택된 핀은 항상 보여 주고, 나머지는 충분히 확대했을 때
     // 이름이 다른 핀이나 먼저 자리 잡은 이름과 겹치지 않을 때만 보여 줍니다.
-    private fun placeIdsShowingName(map: KakaoMap): Set<String> {
+    private fun placeIdsShowingName(map: GoogleMap): Set<String> {
         val shown = savedPlaceMarkers.filter { it.selected && it.name.isNotEmpty() }.map { it.id }.toMutableSet()
         if (width <= 0 || height <= 0) return shown
 
+        val projection = map.projection
         val margin = 40 * resources.displayMetrics.density
-        val viewBounds = android.graphics.RectF(-margin, -margin, width + margin, height + margin)
+        val viewBounds = RectF(-margin, -margin, width + margin, height + margin)
         val onScreen = savedPlaceMarkers
-            .mapNotNull { marker ->
-                val point = map.toScreenPoint(LatLng.from(marker.latitude, marker.longitude))
-                    ?: return@mapNotNull null
-                marker to android.graphics.PointF(point.x.toFloat(), point.y.toFloat())
+            .map { marker ->
+                val point = projection.toScreenLocation(LatLng(marker.latitude, marker.longitude))
+                marker to PointF(point.x.toFloat(), point.y.toFloat())
             }
             .filter { (_, center) -> viewBounds.contains(center.x, center.y) }
-        fun pinRect(marker: SavedPlaceMarker, center: android.graphics.PointF): android.graphics.RectF {
+        fun pinRect(marker: SavedPlaceMarker, center: PointF): RectF {
             val radius = placeMarkerDiameter(marker.selected) / 2
-            return android.graphics.RectF(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
+            return RectF(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
         }
 
-        val takenNameRects = mutableListOf<android.graphics.RectF>()
+        val takenNameRects = mutableListOf<RectF>()
         val candidates = onScreen.sortedByDescending { (marker, _) -> marker.selected }
         for ((marker, center) in candidates) {
             if (marker.name.isEmpty()) continue
@@ -476,11 +583,11 @@ class KakaoMapView(
                 takenNameRects += nameRect
                 continue
             }
-            if (map.zoomLevel < PLACE_NAME_MIN_ZOOM_LEVEL) continue
+            if (map.cameraPosition.zoom < PLACE_NAME_MIN_ZOOM_LEVEL) continue
             val hitsPin = onScreen.any { (other, otherCenter) ->
-                other.id != marker.id && android.graphics.RectF.intersects(pinRect(other, otherCenter), nameRect)
+                other.id != marker.id && RectF.intersects(pinRect(other, otherCenter), nameRect)
             }
-            val hitsName = takenNameRects.any { android.graphics.RectF.intersects(it, nameRect) }
+            val hitsName = takenNameRects.any { RectF.intersects(it, nameRect) }
             if (!hitsPin && !hitsName) {
                 shown += marker.id
                 takenNameRects += nameRect
@@ -490,37 +597,37 @@ class KakaoMapView(
     }
 
     // addPlaceName이 그리는 이름 영역을 원 중심 기준 화면 좌표로 돌려줍니다.
-    private fun placeNameRect(marker: SavedPlaceMarker, center: android.graphics.PointF): android.graphics.RectF {
+    private fun placeNameRect(marker: SavedPlaceMarker, center: PointF): RectF {
         val (textWidth, textHeight) = placeNameTextSizes.getOrPut(marker.name) {
             val paint = placeNamePaint()
             val metrics = paint.fontMetrics
             fittedPlaceName(marker.name, paint).let(paint::measureText) to (metrics.descent - metrics.ascent)
         }
-        val density = resources.displayMetrics.density
-        val halo = PLACE_NAME_HALO_DP * density
+        val density = markerDensity
+        val halo = PLACE_NAME_HALO_DP * resources.displayMetrics.density
         val top = center.y + placeMarkerDiameter(marker.selected) / 2 + density
         val halfWidth = textWidth / 2 + halo
-        return android.graphics.RectF(center.x - halfWidth, top, center.x + halfWidth, top + textHeight + halo)
+        return RectF(center.x - halfWidth, top, center.x + halfWidth, top + textHeight + halo)
     }
 
     private fun placeMarkerDiameter(selected: Boolean): Float =
-        (if (selected) 26 else 20) * resources.displayMetrics.density
+        (if (selected) 26 else 20) * markerDensity
 
     private fun placeNamePaint(): Paint =
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = PLACE_NAME_TEXT_SIZE_DP * resources.displayMetrics.density
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            color = Color.rgb(33, 33, 38)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            color = Color.rgb(26, 26, 28)
             textAlign = Paint.Align.CENTER
         }
 
     private fun fittedPlaceName(name: String, paint: Paint): String =
-        android.text.TextUtils
+        TextUtils
             .ellipsize(
                 name,
-                android.text.TextPaint(paint),
-                PLACE_NAME_MAX_WIDTH_DP * resources.displayMetrics.density,
-                android.text.TextUtils.TruncateAt.END,
+                TextPaint(paint),
+                PLACE_NAME_MAX_WIDTH_DP * markerDensity,
+                TextUtils.TruncateAt.END,
             )
             .toString()
 
@@ -561,41 +668,35 @@ class KakaoMapView(
         return "$colorKey-${if (hasIcon) category else "none"}-${if (selected) "selected" else "normal"}$nameKey"
     }
 
-    // 폴더 색이나 카테고리 아이콘이 있는 핀은 조합별 스타일을 한 번만 만들어 재사용합니다.
-    private fun placeStyles(selected: Boolean, colorHex: String?, category: String?, name: String?): LabelStyles {
-        val iconResource = categoryIconResources[category]
-        val color = parseColor(colorHex)
-            ?: (if (iconResource != null) defaultPinColor else null)
-            ?: return savedPlaceStyles.getValue(selected)
-        return coloredPlaceStyles.getOrPut(placeStyleKey(selected, colorHex, category, name)) {
-            val marker = createColoredPlaceMarker(
-                color,
-                selected,
-                iconResource?.let { ContextCompat.getDrawable(context, it) },
-            )
-            // 이름을 보여 줄 핀은 핀 이미지 아래에 이름을 직접 그립니다(placeIdsShowingName 참고).
-            // 레벨 구성 개수가 다른 스타일로 바꾸면 SDK가 죽으므로, 모든 핀 스타일은 레벨 하나만 씁니다.
-            val (bitmap, anchorY) = name?.let { addPlaceName(it, marker) } ?: (marker to 0.5f)
-            LabelStyles.from(
-                LabelStyle
-                    .from(bitmap)
-                    .setAnchorPoint(0.5f, anchorY)
-                    .setIconTransition(
-                        LabelTransition
-                            .from(Transition.Scale, Transition.Scale)
-                            .enableTransitionWhenChange(true, true),
-                    ),
-            )
+    // 폴더 색이나 카테고리 아이콘이 있는 핀은 조합별 이미지를 한 번만 만들어 재사용하고,
+    // 둘 다 없으면 기본 핀 이미지를 씁니다.
+    private fun placeIcon(styleKey: String, marker: SavedPlaceMarker): Pair<BitmapDescriptor, Float> =
+        placeIcons.getOrPut(styleKey) {
+            val iconResource = categoryIconResources[marker.category]
+            val color = parseColor(marker.colorHex)
+                ?: (if (iconResource != null) defaultPinColor else null)
+            if (color == null) {
+                BitmapDescriptorFactory.fromBitmap(createSavedPlaceMarker(marker.selected)) to 1.0f
+            } else {
+                val pin = createColoredPlaceMarker(
+                    color,
+                    marker.selected,
+                    iconResource?.let { ContextCompat.getDrawable(context, it) },
+                )
+                // 이름을 보여 줄 핀은 핀 이미지 아래에 이름을 직접 그립니다(placeIdsShowingName 참고).
+                val name = marker.name.takeIf { marker.id in placeNameShownIds }
+                val (bitmap, anchorY) = name?.let { addPlaceName(it, pin) } ?: (pin to 0.5f)
+                BitmapDescriptorFactory.fromBitmap(bitmap) to anchorY
+            }
         }
-    }
 
     // 원 핀 아래에 흰 외곽선이 있는 장소 이름을 붙인 비트맵과, 원 중심을 가리키는 세로 기준점을 돌려줍니다.
     private fun addPlaceName(name: String, marker: Bitmap): Pair<Bitmap, Float> {
         val text = name.trim()
         if (text.isEmpty()) return marker to 0.5f
 
-        val density = resources.displayMetrics.density
-        val halo = PLACE_NAME_HALO_DP * density
+        val density = markerDensity
+        val halo = PLACE_NAME_HALO_DP * resources.displayMetrics.density
         val fill = placeNamePaint()
         val outline = Paint(fill).apply {
             style = Paint.Style.STROKE
@@ -623,7 +724,7 @@ class KakaoMapView(
     // 흰 테두리와 옅은 그림자가 있는 색 원 핀입니다. 기준점은 원 중심입니다.
     // 카테고리 아이콘(흰색)이 있으면 원 안에 비율 그대로 얹고, 없으면 흰 점을 찍습니다.
     private fun createColoredPlaceMarker(color: Int, selected: Boolean, icon: Drawable?): Bitmap {
-        val density = resources.displayMetrics.density
+        val density = markerDensity
         val diameter = placeMarkerDiameter(selected)
         val border = 2 * density
         val shadowBlur = 2 * density
@@ -662,18 +763,6 @@ class KakaoMapView(
         return bitmap
     }
 
-    private fun createSavedPlaceStyles(selected: Boolean): LabelStyles =
-        LabelStyles.from(
-            LabelStyle
-                .from(createSavedPlaceMarker(selected))
-                .setAnchorPoint(0.5f, 1.0f)
-                .setIconTransition(
-                    LabelTransition
-                        .from(Transition.Scale, Transition.Scale)
-                        .enableTransitionWhenChange(true, true),
-                ),
-        )
-
     override fun onSizeChanged(
         width: Int,
         height: Int,
@@ -690,49 +779,42 @@ class KakaoMapView(
         }
     }
 
-    private fun emitVisibleBounds(
-        center: LatLng? = kakaoMap?.cameraPosition?.position,
-        currentZoomLevel: Int = kakaoMap?.zoomLevel ?: zoomLevel,
-    ) {
-        val map = kakaoMap ?: return
-        if (id == NO_ID || width <= 0 || height <= 0 || center == null) return
+    private fun emitVisibleBounds() {
+        val map = googleMap ?: return
+        if (id == NO_ID || width <= 0 || height <= 0) return
 
         // The list should include every pin visible on the map, including
         // pins covered by a partially expanded bottom sheet. Keep map padding
         // for camera positioning, but calculate list bounds from the full map
         // viewport.
-        val visibleBottom = height.coerceAtLeast(1)
+        val projection = map.projection
+        val corners = listOf(
+            Point(0, 0),
+            Point(width, 0),
+            Point(0, height),
+            Point(width, height),
+        ).map(projection::fromScreenLocation)
 
-        val corners = listOfNotNull(
-            map.fromScreenPoint(0, 0),
-            map.fromScreenPoint(width, 0),
-            map.fromScreenPoint(0, visibleBottom),
-            map.fromScreenPoint(width, visibleBottom),
-        )
-        if (corners.size != 4) return
-
-        val southLatitude = corners.minOf { it.latitude }
-        val northLatitude = corners.maxOf { it.latitude }
-        val westLongitude = corners.minOf { it.longitude }
-        val eastLongitude = corners.maxOf { it.longitude }
-
+        // 카메라 이동과 같은 기준인, 시트에 가려지지 않은 영역의 가운데 좌표를 보냅니다.
+        val cameraPosition = map.cameraPosition
+        val center = projection.fromScreenLocation(exposedCenter())
         reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
             id,
             "onCameraChanged",
             Arguments.createMap().apply {
                 putDouble("latitude", center.latitude)
                 putDouble("longitude", center.longitude)
-                putInt("zoomLevel", currentZoomLevel)
-                putDouble("southLatitude", southLatitude)
-                putDouble("northLatitude", northLatitude)
-                putDouble("westLongitude", westLongitude)
-                putDouble("eastLongitude", eastLongitude)
+                putInt("zoomLevel", cameraPosition.zoom.roundToInt())
+                putDouble("southLatitude", corners.minOf { it.latitude })
+                putDouble("northLatitude", corners.maxOf { it.latitude })
+                putDouble("westLongitude", corners.minOf { it.longitude })
+                putDouble("eastLongitude", corners.maxOf { it.longitude })
             },
         )
     }
 
     private fun startCurrentLocationIfNeeded() {
-        if (isDisposed || !showsCurrentLocation || !isAttachedToWindow || kakaoMap == null) {
+        if (isDisposed || !showsCurrentLocation || !isAttachedToWindow || googleMap == null) {
             return
         }
 
@@ -782,10 +864,10 @@ class KakaoMapView(
             locationUpdatesStarted = enabledProviders.isNotEmpty()
 
             if (!locationUpdatesStarted) {
-                Log.w("YeogidamKakaoMap", "사용 가능한 위치 제공자가 없습니다.")
+                Log.w("YeogidamGoogleMap", "사용 가능한 위치 제공자가 없습니다.")
             }
         } catch (error: SecurityException) {
-            Log.e("YeogidamKakaoMap", "위치 정보를 읽을 권한이 없습니다.", error)
+            Log.e("YeogidamGoogleMap", "위치 정보를 읽을 권한이 없습니다.", error)
         }
     }
 
@@ -799,36 +881,23 @@ class KakaoMapView(
     }
 
     private fun updateCurrentLocation(location: Location) {
-        val map = kakaoMap ?: return
+        val map = googleMap ?: return
         lastKnownLocation = location
 
-        if (!isInsideKakaoMapCoverage(location.latitude, location.longitude)) {
-            if (pendingCurrentLocationCameraMove) {
-                centerMapOnCurrentLocation()
-            }
-            return
-        }
+        val position = LatLng(location.latitude, location.longitude)
+        val marker = currentLocationMarker
 
-        val position = LatLng.from(location.latitude, location.longitude)
-        val label = currentLocationLabel
-
-        if (label == null) {
-            val newLabel =
-                map.labelManager?.layer?.addLabel(
-                    LabelOptions
-                        .from(CURRENT_LOCATION_LABEL_ID, position)
-                        .setRank(Int.MAX_VALUE.toLong())
-                        .setStyles(createCurrentLocationMarker()),
+        if (marker == null) {
+            currentLocationMarker =
+                map.addMarker(
+                    MarkerOptions()
+                        .position(position)
+                        .icon(BitmapDescriptorFactory.fromBitmap(createCurrentLocationMarker()))
+                        .anchor(0.5f, 0.5f)
+                        .zIndex(CURRENT_LOCATION_Z_INDEX),
                 )
-            currentLocationLabel = newLabel
-
-            if (newLabel == null) {
-                Log.e("YeogidamKakaoMap", "현재 위치 마커 생성 실패")
-            } else {
-                Log.d("YeogidamKakaoMap", "현재 위치 마커 생성 완료")
-            }
         } else {
-            label.moveTo(position)
+            marker.position = position
         }
 
         if (pendingCurrentLocationCameraMove) {
@@ -841,7 +910,7 @@ class KakaoMapView(
 
     private fun centerMapOnCurrentLocation() {
         pendingCurrentLocationCameraMove = true
-        val map = kakaoMap
+        val map = googleMap
         val location = lastKnownLocation
 
         if (map == null || location == null) {
@@ -849,38 +918,16 @@ class KakaoMapView(
             return
         }
 
-        if (!isInsideKakaoMapCoverage(location.latitude, location.longitude)) {
-            pendingCurrentLocationCameraMove = false
-            emitMapError(
-                "현재 위치가 카카오맵 지원 지역 밖에 있습니다. " +
-                    "에뮬레이터에서는 위치를 대한민국 좌표로 설정해 주세요.",
-            )
-            return
-        }
-
         pendingCurrentLocationCameraMove = false
         removeCallbacks(moveToDefaultPosition)
         post {
-            if (!isAttachedToWindow || kakaoMap !== map) {
+            if (!isAttachedToWindow || googleMap !== map) {
                 return@post
             }
 
-            map.moveCamera(
-                CameraUpdateFactory.newCenterPosition(
-                    LatLng.from(location.latitude, location.longitude),
-                    zoomLevel,
-                ),
-            )
-            Log.d("YeogidamKakaoMap", "현재 위치로 지도 이동 완료")
+            moveCamera(map, LatLng(location.latitude, location.longitude), zoomLevel.toFloat())
         }
     }
-
-    private fun isInsideKakaoMapCoverage(
-        latitude: Double,
-        longitude: Double,
-    ): Boolean =
-        latitude in KAKAO_MAP_MIN_LATITUDE..KAKAO_MAP_MAX_LATITUDE &&
-            longitude in KAKAO_MAP_MIN_LONGITUDE..KAKAO_MAP_MAX_LONGITUDE
 
     private fun emitMapError(message: String) {
         if (id == NO_ID) return
@@ -896,17 +943,17 @@ class KakaoMapView(
         if (
             !isDisposed &&
             isAttachedToWindow &&
-            nativeMapView.isStarted &&
+            isMapStarted &&
             // ThemedReactContext forwards listeners but keeps its own initial
             // lifecycle state. Read the actual host state from the app context.
             applicationReactContext.lifecycleState == LifecycleState.RESUMED
         ) {
-            nativeMapView.resume()
+            nativeMapView?.onResume()
         }
     }
 
     private fun createCurrentLocationMarker(): Bitmap {
-        val density = resources.displayMetrics.density
+        val density = markerDensity
         val size = (CURRENT_LOCATION_MARKER_SIZE_DP * density).roundToInt()
         val center = size / 2f
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -940,7 +987,7 @@ class KakaoMapView(
     }
 
     private fun createSavedPlaceMarker(selected: Boolean): Bitmap {
-        val density = resources.displayMetrics.density
+        val density = markerDensity
         val markerSizeDp =
             if (selected) SAVED_PLACE_SELECTED_MARKER_SIZE_DP
             else SAVED_PLACE_MARKER_SIZE_DP
@@ -950,21 +997,18 @@ class KakaoMapView(
             return Bitmap.createScaledBitmap(markerBitmap, size, size, true)
         }
 
-        val width = size
-        val height = size
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val centerX = width / 2f
-        val radius = width * 0.36f
-        val centerY = height / 2f
+        val center = size / 2f
+        val radius = size * 0.36f
 
         paint.color = Color.WHITE
-        canvas.drawCircle(centerX, centerY, radius + density * 2, paint)
+        canvas.drawCircle(center, center, radius + density * 2, paint)
         paint.color = Color.rgb(122, 199, 223)
-        canvas.drawCircle(centerX, centerY, radius, paint)
+        canvas.drawCircle(center, center, radius, paint)
         paint.color = Color.WHITE
-        canvas.drawCircle(centerX, centerY, radius * 0.38f, paint)
+        canvas.drawCircle(center, center, radius * 0.38f, paint)
         return bitmap
     }
 
@@ -976,8 +1020,8 @@ class KakaoMapView(
     override fun onHostPause() {
         stopLocationUpdates()
 
-        if (!isDisposed && nativeMapView.isStarted) {
-            nativeMapView.pause()
+        if (!isDisposed && isMapStarted) {
+            nativeMapView?.onPause()
         }
     }
 
@@ -992,9 +1036,14 @@ class KakaoMapView(
         removeCallbacks(moveToDefaultPosition)
         removeCallbacks(fitSearchResultPoints)
         reactContext.removeLifecycleEventListener(this)
-        nativeMapView.finish()
-        kakaoMap = null
-        currentLocationLabel = null
+        if (isMapStarted) {
+            nativeMapView?.onPause()
+            nativeMapView?.onStop()
+            isMapStarted = false
+        }
+        nativeMapView?.onDestroy()
+        googleMap = null
+        currentLocationMarker = null
     }
 
     override fun onDetachedFromWindow() {
@@ -1002,30 +1051,35 @@ class KakaoMapView(
         removeCallbacks(moveToDefaultPosition)
         removeCallbacks(fitSearchResultPoints)
 
-        if (!isDisposed && nativeMapView.isStarted) {
-            nativeMapView.pause()
+        if (!isDisposed && isMapStarted) {
+            nativeMapView?.onPause()
+            nativeMapView?.onStop()
+            isMapStarted = false
         }
 
         super.onDetachedFromWindow()
     }
 
     private companion object {
-        const val CURRENT_LOCATION_LABEL_ID = "yeogidam-current-location"
+        const val MARKER_SCALE = 1.5f
+        const val LOGO_LOWERING_DP = 4
         const val CURRENT_LOCATION_MARKER_SIZE_DP = 44
         const val SAVED_PLACE_MARKER_SIZE_DP = 26
         const val SAVED_PLACE_SELECTED_MARKER_SIZE_DP = 32
-        const val SEARCH_RESULT_CAMERA_PADDING = 48
-        const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16
-        // 이 줌 레벨부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
-        const val PLACE_NAME_MIN_ZOOM_LEVEL = 13
-        const val PLACE_NAME_TEXT_SIZE_DP = 8f
-        const val PLACE_NAME_HALO_DP = 1f
+        const val SEARCH_RESULT_CAMERA_PADDING_DP = 48
+        const val SEARCH_RESULT_MAX_ZOOM_LEVEL = 16f
+        // 이 줌부터 선택되지 않은 핀에도 장소 이름을 보여 줍니다.
+        const val PLACE_NAME_MIN_ZOOM_LEVEL = 13f
+        // 장소 이름은 지도의 동·역 이름보다 크고 진하게, 두꺼운 흰 테두리로 그려 지도 위에서 잘 읽히게 합니다.
+        const val PLACE_NAME_TEXT_SIZE_DP = 13f
+        const val PLACE_NAME_HALO_DP = 1.5f
         const val PLACE_NAME_MAX_WIDTH_DP = 120f
+        const val PLACE_NAME_REFRESH_INTERVAL_MS = 150L
         const val LOCATION_UPDATE_INTERVAL_MS = 2_000L
         const val LOCATION_UPDATE_DISTANCE_METERS = 3f
-        const val KAKAO_MAP_MIN_LATITUDE = 32.0
-        const val KAKAO_MAP_MAX_LATITUDE = 39.5
-        const val KAKAO_MAP_MIN_LONGITUDE = 123.0
-        const val KAKAO_MAP_MAX_LONGITUDE = 132.0
+        // 지하철역 마커(-1)보다 위, 선택된 핀은 다른 핀 위, 현재 위치 마커는 맨 위에 그립니다.
+        const val PLACE_Z_INDEX = 1f
+        const val SELECTED_PLACE_Z_INDEX = 1_000_000f
+        const val CURRENT_LOCATION_Z_INDEX = 2_000_000f
     }
 }

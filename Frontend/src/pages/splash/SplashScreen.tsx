@@ -11,7 +11,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-export function SplashScreen() {
+export function SplashScreen({message = '공간 취향을 불러오는 중'}: {message?: string}) {
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslateY = useRef(new Animated.Value(26)).current;
   const titleFloat = useRef(new Animated.Value(0)).current;
@@ -225,7 +225,7 @@ export function SplashScreen() {
 
         <View style={styles.footer}>
           <ActivityIndicator color="#5f6fc7" size="small" />
-          <Text style={styles.footerText}>공간 취향을 불러오는 중</Text>
+          <Text style={styles.footerText}>{message}</Text>
         </View>
       </SafeAreaView>
     </View>

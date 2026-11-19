@@ -2,7 +2,7 @@ import UIKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
-import KakaoMapsSDK
+import GoogleMaps
 import HotUpdater
 
 @main
@@ -16,16 +16,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   _ application: UIApplication,
   didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
 ) -> Bool {
-  guard
-    let kakaoNativeAppKey =
-      Bundle.main.object(forInfoDictionaryKey: "KAKAO_NATIVE_APP_KEY") as? String,
-    !kakaoNativeAppKey.isEmpty,
-    kakaoNativeAppKey != "$(KAKAO_NATIVE_APP_KEY)"
-  else {
-    fatalError("KAKAO_NATIVE_APP_KEY가 설정되지 않았습니다.")
+  // 키가 없으면 지도 화면에 오류만 표시하고 앱은 그대로 실행한다.
+  if
+    let googleMapsApiKey =
+      Bundle.main.object(forInfoDictionaryKey: "GOOGLE_MAPS_IOS_API_KEY") as? String,
+    !googleMapsApiKey.isEmpty,
+    googleMapsApiKey != "$(GOOGLE_MAPS_IOS_API_KEY)"
+  {
+    GMSServices.provideAPIKey(googleMapsApiKey)
   }
-
-  SDKInitializer.InitSDK(appKey: kakaoNativeAppKey)
 
   let delegate = ReactNativeDelegate()
   let factory = RCTReactNativeFactory(delegate: delegate)

@@ -1,3 +1,5 @@
+import type {MapProvider} from '../place/mapProvider';
+
 export type ThumbnailSource =
   | 'google_places'
   | 'instagram'
@@ -86,6 +88,11 @@ export type InfoPlace = {
   latitude?: number | null;
   longitude?: number | null;
   kakaoPlaceUrl?: string | null;
+  // 지도 제공자(KAKAO | GOOGLE)입니다. 해외 장소 API(pipeline-version 1)부터 내려옵니다.
+  mapProvider?: MapProvider | null;
+  countryCode?: string | null;
+  // 카카오 장소는 kakaoPlaceUrl과 같고, Google 장소는 구글맵 검색 링크입니다.
+  placeUrl?: string | null;
   telephone?: string | null;
   thumbnailUrl?: string | null;
   thumbnailSource?: ThumbnailSource | null;
@@ -214,6 +221,9 @@ export type SavedPlaceListItem = Pick<
     | 'latitude'
     | 'longitude'
     | 'kakaoPlaceUrl'
+    | 'mapProvider'
+    | 'countryCode'
+    | 'placeUrl'
     | 'thumbnailUrl'
     | 'photoAttribution'
   >;

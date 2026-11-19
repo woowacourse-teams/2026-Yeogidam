@@ -50,42 +50,20 @@ export function PlaceInfo({
     showCopyToast('도로명 주소가 복사되었습니다.');
   };
 
-  const openKakaoMap = async () => {
-    const hasCoordinates =
-      place.latitude !== undefined && place.longitude !== undefined;
-    const appPlaceUrl = hasCoordinates
-      ? `kakaomap://look?p=${place.latitude},${place.longitude}`
-      : `kakaomap://search?q=${encodeURIComponent(place.name)}`;
-    const webPlaceUrl = hasCoordinates
-      ? `https://map.kakao.com/link/map/${encodeURIComponent(place.name)},${place.latitude},${place.longitude}`
-      : `https://map.kakao.com/link/search/${encodeURIComponent(place.name)}`;
+  const isGooglePlace = place.mapProvider === 'GOOGLE';
+  const mapLabel = isGooglePlace ? '구글맵' : '카카오맵';
 
-    try {
-      await Linking.openURL(place.placeUrl ?? appPlaceUrl);
-    } catch {
-      if (place.placeUrl && place.placeUrl !== appPlaceUrl) {
-        try {
-          await Linking.openURL(appPlaceUrl);
-        } catch {
-          try {
-            await Linking.openURL(webPlaceUrl);
-          } catch {
-            return;
-          }
-        }
-      } else {
-        try {
-          await Linking.openURL(webPlaceUrl);
-        } catch {
-          return;
-        }
-      }
-    }
+  const openMap = async () => {
+    const opened = isGooglePlace
+      ? await openGoogleMap(place)
+      : await openKakaoMap(place);
+    if (!opened) return;
 
     if (place.savedAt && viewContext) {
       capturePlaceMapViewed(posthog, {
         ...viewContext,
         savedAt: place.savedAt,
+        mapProvider: isGooglePlace ? 'google' : 'kakao',
       });
     }
   };
@@ -99,11 +77,11 @@ export function PlaceInfo({
     >
       <Pressable
         accessibilityRole="link"
-        accessibilityLabel={`${place.name} 카카오맵 열기`}
+        accessibilityLabel={`${place.name} ${mapLabel} 열기`}
         onPressIn={onInteractivePressIn}
         onPress={() => {
-          button('open_kakao_map');
-          openKakaoMap().catch(() => undefined);
+          button(isGooglePlace ? 'open_google_map' : 'open_kakao_map');
+          openMap().catch(() => undefined);
         }}
         style={({ pressed }) => [
           styles.actionButton,
@@ -111,8 +89,8 @@ export function PlaceInfo({
           pressed && styles.actionPressed,
         ]}
       >
-        <Text style={styles.kakaoMark}>K</Text>
-        <Text style={styles.directionsLabel}>카카오맵</Text>
+        <Text style={styles.kakaoMark}>{isGooglePlace ? 'G' : 'K'}</Text>
+        <Text style={styles.directionsLabel}>{mapLabel}</Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -187,6 +165,48 @@ export function PlaceInfo({
       </View>
     </View>
   );
+}
+
+/** 앞에서부터 차례로 열어 보고, 하나라도 열리면 true를 돌려줍니다. */
+async function openFirstAvailable(urls: string[]) {
+  for (const url of urls) {
+    try {
+      await Linking.openURL(url);
+      return true;
+    } catch {
+      // 다음 링크로 넘어갑니다.
+    }
+  }
+  return false;
+}
+
+function hasCoordinates(place: Place) {
+  return place.latitude !== undefined && place.longitude !== undefined;
+}
+
+function openKakaoMap(place: Place) {
+  const appPlaceUrl = hasCoordinates(place)
+    ? `kakaomap://look?p=${place.latitude},${place.longitude}`
+    : `kakaomap://search?q=${encodeURIComponent(place.name)}`;
+  const webPlaceUrl = hasCoordinates(place)
+    ? `https://map.kakao.com/link/map/${encodeURIComponent(place.name)},${place.latitude},${place.longitude}`
+    : `https://map.kakao.com/link/search/${encodeURIComponent(place.name)}`;
+  const urls = [place.placeUrl, appPlaceUrl, webPlaceUrl].filter(
+    (url): url is string => Boolean(url),
+  );
+  return openFirstAvailable([...new Set(urls)]);
+}
+
+/** 서버 `placeUrl`(구글맵 검색 링크)을 열고, 없으면 좌표나 이름으로 구글맵을 엽니다. */
+function openGoogleMap(place: Place) {
+  const query = hasCoordinates(place)
+    ? `${place.latitude},${place.longitude}`
+    : place.name;
+  const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  const urls = [place.placeUrl, fallbackUrl].filter(
+    (url): url is string => Boolean(url),
+  );
+  return openFirstAvailable([...new Set(urls)]);
 }
 
 function getMiddleCategory(category: string) {

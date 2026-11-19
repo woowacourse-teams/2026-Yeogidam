@@ -52,7 +52,7 @@ jest.mock('../src/pages/map/components/PlaceResultSheet', () => ({
   LIST_TOP_GAP: 0,
   PlaceResultSheet: () => null,
 }));
-jest.mock('../spec/KakaoMapNativeComponent', () => () => null);
+jest.mock('../spec/GoogleMapNativeComponent', () => () => null);
 
 const completed = (id: string) => ({id, processing_status: 'COMPLETED'});
 const processing = (id: string) => ({id, processing_status: 'PROCESSING'});

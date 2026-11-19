@@ -143,12 +143,59 @@ test('추출 성공 공유의 상세는 목록을 다시 읽지 않고 장소 �
         latitude: null,
         longitude: null,
         kakao_place_url: null,
+        category_code: null,
+        category_name: null,
+        map_provider: 'KAKAO',
+        country_code: null,
+        place_url: null,
         thumbnail_url: 'https://cdn.example.com/p31.jpg',
         photo_attribution: null,
       },
     },
     expect.objectContaining({id: '32', position: 1}),
   ]);
+});
+
+test('해외 장소 API 필드가 있으면 좌표·링크·지도 제공자를 그대로 담는다', async () => {
+  const googleUrl =
+    'https://www.google.com/maps/search/?api=1&query=Ichiran&query_place_id=ChIJ123';
+  mockRequest.mockResolvedValueOnce({
+    places: [
+      {
+        placeId: 41,
+        thumbnailUrl: null,
+        name: 'Ichiran',
+        category: '음식점 > 일식',
+        landLotAddress: '1-22-7 Jinnan, Shibuya City, Tokyo',
+        roadAddress: null,
+        savedPlaceId: null,
+        categoryCode: 'JAPANESE',
+        categoryName: '일식',
+        latitude: 35.66,
+        longitude: 139.7,
+        kakaoPlaceUrl: null,
+        mapProvider: 'GOOGLE',
+        countryCode: 'JP',
+        placeUrl: googleUrl,
+        telephone: null,
+      },
+    ],
+  });
+
+  const detail = await getHistoryReelDetail(toHistoryReel(share(9, 'SUCCEEDED')));
+
+  expect(detail?.extraction?.extraction_places[0].place).toEqual(
+    expect.objectContaining({
+      latitude: 35.66,
+      longitude: 139.7,
+      kakao_place_url: null,
+      category_code: 'JAPANESE',
+      category_name: '일식',
+      map_provider: 'GOOGLE',
+      country_code: 'JP',
+      place_url: googleUrl,
+    }),
+  );
 });
 
 test('최근 공유 장소 수는 공유별 장소 응답만으로 계산한다', async () => {

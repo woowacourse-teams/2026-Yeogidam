@@ -1,4 +1,5 @@
 import type {ImageSourcePropType} from 'react-native';
+import type {MapProvider} from '../place/mapProvider';
 
 export type SaveSource = 'url_input' | 'instagram_share';
 
@@ -53,6 +54,12 @@ export type HistoryPlace = {
   latitude: number | null;
   longitude: number | null;
   kakao_place_url: string | null;
+  // 해외 장소 API(pipeline-version 1)부터 내려옵니다.
+  category_code?: string | null;
+  category_name?: string | null;
+  map_provider?: MapProvider | null;
+  country_code?: string | null;
+  place_url?: string | null;
   thumbnail_url: string | null;
   photo_attribution: string | null;
   local_thumbnail_source?: ImageSourcePropType;

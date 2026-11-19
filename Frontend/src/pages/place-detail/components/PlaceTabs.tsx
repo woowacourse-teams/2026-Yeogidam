@@ -1,16 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
-const tabs = ['게시물', '정보', '블로그'] as const;
+export const DEFAULT_PLACE_TABS = ['게시물', '정보', '블로그'] as const;
 
-export type PlaceTab = (typeof tabs)[number];
+export type PlaceTab = (typeof DEFAULT_PLACE_TABS)[number];
+
+/** 게시물 상세에서 연 장소 상세용 순서입니다. 게시물 ↔ 장소를 끝없이 오가지 않도록 게시물 탭을 맨 뒤로 둡니다. */
+export const POSTS_LAST_PLACE_TABS: readonly PlaceTab[] = ['블로그', '정보', '게시물'];
 
 type PlaceTabsProps = {
   activeTab: PlaceTab;
   onTabPress: (tab: PlaceTab) => void;
+  tabs?: readonly PlaceTab[];
 };
 
-export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
+export function PlaceTabs({
+  activeTab,
+  onTabPress,
+  tabs = DEFAULT_PLACE_TABS,
+}: PlaceTabsProps) {
   const indicatorPosition = useRef(new Animated.Value(0)).current;
   const [tabWidth, setTabWidth] = useState(0);
 
@@ -20,7 +28,7 @@ export function PlaceTabs({ activeTab, onTabPress }: PlaceTabsProps) {
       duration: 180,
       useNativeDriver: true,
     }).start();
-  }, [activeTab, indicatorPosition]);
+  }, [activeTab, indicatorPosition, tabs]);
 
   return (
     <View

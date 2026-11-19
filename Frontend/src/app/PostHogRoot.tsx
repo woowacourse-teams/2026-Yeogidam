@@ -7,7 +7,12 @@ import {
   getSpringTokens,
   onSpringSessionChange,
 } from '../lib/auth/spring-session';
-import { getAnalyticsEnvironment } from '../analytics/analytics';
+import {
+  getAnalyticsEnvironment,
+  getAnalyticsGuestMode,
+} from '../analytics/analytics';
+import { getTrafficProperties } from '../analytics/traffic';
+import { identifyMember } from '../analytics/identity';
 import { getInstallationId } from '../lib/share-intent';
 import { otaBundleId } from '../lib/hot-updater';
 
@@ -30,18 +35,15 @@ function PostHogAuthIdentity({ children }: PostHogRootProps) {
     // 앱 시작 시 이미 로그인된 회원도 식별합니다.
     Promise.all([getSpringTokens(), getSpringMemberId()])
       .then(([tokens, memberId]) => {
-        if (isMounted && tokens && memberId) posthog.identify(memberId);
+        if (isMounted && tokens && memberId)
+          return identifyMember(posthog, memberId);
       })
       .catch(() => undefined);
 
+    // 로그아웃 때 reset()하지 않는 이유는 identifyMember 설명을 참고하세요.
     const unsubscribe = onSpringSessionChange((event, memberId) => {
       if (event === 'SIGNED_IN' && memberId) {
-        posthog.identify(memberId);
-        return;
-      }
-
-      if (event === 'SIGNED_OUT') {
-        posthog.reset();
+        identifyMember(posthog, memberId).catch(() => undefined);
       }
     });
 
@@ -59,6 +61,7 @@ export function PostHogRoot({ children }: PostHogRootProps) {
   const host = configuredValue(Config.POSTHOG_HOST);
   const environment = getAnalyticsEnvironment();
   const installationId = getInstallationId();
+  const traffic = getTrafficProperties();
 
   if (!projectToken || !host) {
     return <>{children}</>;
@@ -77,15 +80,22 @@ export function PostHogRoot({ children }: PostHogRootProps) {
         disableSurveys: true,
         enableSessionReplay: false,
         host,
-        before_send: event => event && ({
-          ...event,
-          properties: {
-            ...event.properties,
-            environment,
-            ...(installationId ? {installation_id: installationId} : {}),
-            ...(otaBundleId ? {ota_bundle_id: otaBundleId} : {}),
-          },
-        }),
+        before_send: event => {
+          if (!event) return event;
+          // 앱 실행 같은 자동 수집 이벤트에도 붙여 회원 활성 수를 is_guest로 가를 수 있게 한다.
+          const isGuest = getAnalyticsGuestMode();
+          return {
+            ...event,
+            properties: {
+              ...(isGuest === null ? {} : { is_guest: isGuest }),
+              ...event.properties,
+              environment,
+              ...traffic,
+              ...(installationId ? { installation_id: installationId } : {}),
+              ...(otaBundleId ? { ota_bundle_id: otaBundleId } : {}),
+            },
+          };
+        },
       }}
     >
       <PostHogAuthIdentity>{children}</PostHogAuthIdentity>
