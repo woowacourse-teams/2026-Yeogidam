@@ -12,6 +12,7 @@ import org.testcontainers.mysql.MySQLContainer;
  */
 public abstract class MySqlContainerSupport {
 
+    // 바꾸면 backend-ci.yml, backend-cd.yml의 Pre-pull Test Images 태그도 맞춘다.
     private static final String MYSQL_IMAGE = "mysql:8.4";
     private static final String TIME_ZONE_PARAMS =
             "connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true";
