@@ -12,7 +12,6 @@ import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
@@ -21,7 +20,9 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class LoadTestBeanPostProcessor implements BeanPostProcessor {
 
     private static final Set<String> EXTERNAL_REST_CLIENTS = Set.of(
-            "instagramRestClient", "geminiRestClient", "kakaoLocalRestClient");
+            "instagramRestClient", "geminiRestClient", "kakaoLocalRestClient", "googlePlacesRestClient");
+    private static final Set<String> EXTERNAL_HTTP_CLIENTS = Set.of(
+            "thumbnailHttpClient", "geminiMediaHttpClient", "instagramMediaHttpClient");
 
     private final ConfigurableListableBeanFactory beanFactory;
 
@@ -32,12 +33,8 @@ public class LoadTestBeanPostProcessor implements BeanPostProcessor {
                     .requestInterceptor(new LoadTestRestClientInterceptor(routing(), metrics()))
                     .build();
         }
-        if (bean instanceof HttpClient client && "thumbnailHttpClient".equals(beanName)) {
+        if (bean instanceof HttpClient client && EXTERNAL_HTTP_CLIENTS.contains(beanName)) {
             return new LoadTestHttpClient(client, routing(), metrics());
-        }
-        if (bean instanceof ThreadPoolTaskExecutor executor && "mediaExtractionExecutor".equals(beanName)) {
-            metrics().bindExecutor(executor);
-            return bean;
         }
         if (bean instanceof ShareService) {
             return proxy(bean, this::validateShare);
@@ -61,12 +58,14 @@ public class LoadTestBeanPostProcessor implements BeanPostProcessor {
     }
 
     private Object observeExtraction(MethodInvocation invocation) throws Throwable {
-        if (!"extract".equals(invocation.getMethod().getName())) {
+        if (!Set.of("readMetadata", "analyze").contains(invocation.getMethod().getName())) {
             return invocation.proceed();
         }
         try {
             Object result = extractInScope(invocation);
-            metrics().recordSucceeded();
+            if (!"readMetadata".equals(invocation.getMethod().getName())) {
+                metrics().recordSucceeded();
+            }
             return result;
         } catch (Throwable exception) {
             metrics().recordFailed();
@@ -80,7 +79,9 @@ public class LoadTestBeanPostProcessor implements BeanPostProcessor {
         if (!policy().canUseFake((Long) arguments[0], url)) {
             return invocation.proceed();
         }
-        try (LoadTestScope ignored = LoadTestScope.open(url.getMediaShortcode().value())) {
+        String shortcode = url.getMediaShortcode().value();
+        try (LoadTestScope ignored = LoadTestScope.open(shortcode)) {
+            metrics().logDedicatedQueueWait(shortcode, invocation.getMethod().getName());
             return invocation.proceed();
         }
     }

@@ -20,12 +20,11 @@ import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
 import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.MediaSourceType;
 import com.yeogidam.media.extraction.exception.ExtractionFailedException;
-import com.yeogidam.support.E2eTestSupport;
+import com.yeogidam.support.ExtractionE2eTestSupport;
 import com.yeogidam.support.LoginResult;
+import com.yeogidam.support.fake.FakeDomesticPlaceSearcher;
 import com.yeogidam.support.fake.FakeExtractionRetryExecutor;
-import com.yeogidam.support.fake.FakeMediaExtractionConfig;
-import com.yeogidam.support.fake.FakePlaceNameExtractor;
-import com.yeogidam.support.fake.FakePlaceSearcher;
+import com.yeogidam.support.fake.FakePlaceSearchHintExtractor;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.Response;
@@ -46,22 +45,16 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 새 히스토리 접수, 요청 권한, 과거 실패 보존과 분석 합류를 공개 API로 검증한다.
  */
-@Import(FakeMediaExtractionConfig.class)
-@TestPropertySource(properties = "media.extraction.pipeline-version=2")
-class ExtractionRetryE2eTest extends E2eTestSupport {
+class ExtractionRetryE2eTest extends ExtractionE2eTestSupport {
 
     private static final String SHARES_PATH = "/api/v1/shares";
     private static final Long MEDIA_ID = 3L;
@@ -75,24 +68,26 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private FakePlaceNameExtractor placeNameExtractor;
+    private FakePlaceSearchHintExtractor placeSearchHintExtractor;
 
     @Autowired
-    private FakePlaceSearcher placeSearcher;
+    private FakeDomesticPlaceSearcher domesticPlaceSearcher;
 
     @Autowired
+    @Qualifier("mediaMetadataExecutor")
     private FakeExtractionRetryExecutor extractionExecutor;
+
+    @Autowired
+    @Qualifier("mediaAnalysisExecutor")
+    private FakeExtractionRetryExecutor analysisExecutor;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void setUpRetry() {
-        placeNameExtractor.reset();
-        placeNameExtractor.block();
-        placeSearcher.reset();
-        placeSearcher.add("올드빅", place(301L));
-        extractionExecutor.reset();
+        placeSearchHintExtractor.block();
+        domesticPlaceSearcher.add("올드빅", place(301L));
     }
 
     @AfterEach
@@ -143,11 +138,11 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 sharedUrl(MEDIA_ID), ORIGINAL_SHARED_AT);
         Map<String, Object> originalHistory = jdbcTemplate.queryForMap(
                 "SELECT * FROM shared_media WHERE id = ?", ORIGINAL_SHARE_ID);
-        placeNameExtractor.failWith(new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED));
+        placeSearchHintExtractor.failWith(new ExtractionFailedException(ExtractionFailureReason.PROCESSING_FAILED));
 
         // when
         Long retriedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
-        assertThat(placeNameExtractor.awaitStarted()).isTrue();
+        assertThat(placeSearchHintExtractor.awaitStarted()).isTrue();
         completeExtraction();
 
         // then
@@ -167,7 +162,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertThat(readHistoryIds(member)).containsExactly(retriedShareId, ORIGINAL_SHARE_ID),
                 () -> assertThat(readSavedPlaceIds(member)).isEmpty(),
                 () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1)
         );
     }
 
@@ -364,7 +359,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertThat(readSavedPlaceIds(memberB)).isEqualTo(previousSavedPlacesB),
                 () -> assertThat(jdbcTemplate.queryForList("SELECT * FROM media ORDER BY id")).isEqualTo(previousMedia),
                 () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1)
         );
     }
 
@@ -405,7 +400,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertThat(countSavedPlacesFromShare(ORIGINAL_SHARE_ID)).isZero(),
                 () -> assertThat(readSavedPlaceIds(member)).isEqualTo(previousSavedPlaces),
                 () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1),
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1)
         );
     }
 
@@ -493,7 +488,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
         LoginResult member = loginAsKakao("retry-join-started-extraction");
         createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
         Long firstShareId = requestRetry(member, ORIGINAL_SHARE_ID);
-        assertThat(placeNameExtractor.awaitStarted())
+        assertThat(placeSearchHintExtractor.awaitStarted())
                 .isTrue();
 
         // when
@@ -513,7 +508,39 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertFailedHistory(member, ORIGINAL_SHARE_ID),
                 () -> assertThat(readSavedShareIds(member))
                         .containsExactly(firstShareId),
-                () -> assertThat(placeNameExtractor.requestCount())
+                () -> assertThat(placeSearchHintExtractor.requestCount())
+                        .isEqualTo(1)
+        );
+    }
+
+    @Test
+    void 분석_중에_지운_게시글을_재시도하면_새_이력이_생기고_장소가_보관함에_담긴다() throws Exception {
+        // given
+        LoginResult member = loginAsKakao("retry-after-delete");
+        createFailedHistory(member, ORIGINAL_SHARE_ID, ExtractionFailureReason.UNEXPECTED);
+        Long deletedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
+        assertThat(placeSearchHintExtractor.awaitStarted())
+                .isTrue();
+        deleteSavedMedia(member, deletedShareId);
+
+        // when
+        Long retriedShareId = requestRetry(member, ORIGINAL_SHARE_ID);
+
+        // then
+        assertAll(
+                () -> assertThat(retriedShareId)
+                        .isNotEqualTo(deletedShareId)
+                        .isNotEqualTo(ORIGINAL_SHARE_ID),
+                () -> assertThat(readHistoryIds(member))
+                        .containsExactly(retriedShareId, deletedShareId, ORIGINAL_SHARE_ID),
+                () -> assertThat(extractionExecutor.countSubmittedTasks()).isEqualTo(1)
+        );
+        completeExtraction();
+        assertAll(
+                () -> assertSucceededHistory(member, retriedShareId),
+                () -> assertThat(readSavedShareIds(member))
+                        .containsExactly(retriedShareId),
+                () -> assertThat(placeSearchHintExtractor.requestCount())
                         .isEqualTo(1)
         );
     }
@@ -527,7 +554,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
         insertSharedMedia(jdbcTemplate, OTHER_SHARE_ID, memberB.memberId(), MEDIA_ID,
                 sharedUrl(MEDIA_ID), ORIGINAL_SHARED_AT);
         Long shareIdA = requestRetry(memberA, ORIGINAL_SHARE_ID);
-        assertThat(placeNameExtractor.awaitStarted())
+        assertThat(placeSearchHintExtractor.awaitStarted())
                 .isTrue();
 
         // when
@@ -547,7 +574,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                 () -> assertFailedHistory(memberB, OTHER_SHARE_ID),
                 () -> assertThat(readSavedShareIds(memberA)).containsExactly(shareIdA),
                 () -> assertThat(readSavedShareIds(memberB)).containsExactly(shareIdB),
-                () -> assertThat(placeNameExtractor.requestCount()).isEqualTo(1)
+                () -> assertThat(placeSearchHintExtractor.requestCount()).isEqualTo(1)
         );
     }
 
@@ -595,6 +622,15 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
 
     private static String retryPath(Long sharedMediaId) {
         return SHARES_PATH + "/" + sharedMediaId + "/extraction-retries";
+    }
+
+    private void deleteSavedMedia(LoginResult member, Long sharedMediaId) {
+        givenBearer(member.accessToken())
+                .queryParam("sharedMediaIds", sharedMediaId)
+                .when()
+                .delete("/api/v1/saved-media")
+                .then()
+                .statusCode(HttpStatus.NO_CONTENT.value());
     }
 
     private void assertJoined(
@@ -668,8 +704,9 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
     }
 
     private void completeExtraction() throws Exception {
-        placeNameExtractor.allow();
+        placeSearchHintExtractor.allow();
         extractionExecutor.awaitCompletion();
+        analysisExecutor.awaitCompletion();
     }
 
     private Instant readDatabaseTime() {
@@ -766,7 +803,7 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
                         .isEqualTo(previous),
                 () -> assertThat(extractionExecutor.countSubmittedTasks())
                         .isZero(),
-                () -> assertThat(placeNameExtractor.requestCount())
+                () -> assertThat(placeSearchHintExtractor.requestCount())
                         .isZero()
         );
     }
@@ -786,15 +823,5 @@ class ExtractionRetryE2eTest extends E2eTestSupport {
             List<Map<String, Object>> savedPlaces,
             List<Map<String, Object>> sharedMediaSavedPlaces
     ) {
-    }
-
-    @TestConfiguration
-    static class RetryTestConfiguration {
-
-        @Primary
-        @Bean(destroyMethod = "close")
-        FakeExtractionRetryExecutor fakeExtractionRetryExecutor() {
-            return new FakeExtractionRetryExecutor();
-        }
     }
 }

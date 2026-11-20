@@ -14,9 +14,9 @@ import org.junit.jupiter.api.Test;
 class ExtractedPlaceProjectionsTest {
 
     private final ExtractedPlaceProjections places = new ExtractedPlaceProjections(List.of(
-            new ExtractedPlaceProjection(101L, "26338954"),
-            new ExtractedPlaceProjection(102L, "1234567890"),
-            new ExtractedPlaceProjection(103L, "987654321")
+            new ExtractedPlaceProjection(101L, "KAKAO", "26338954"),
+            new ExtractedPlaceProjection(102L, "KAKAO", "1234567890"),
+            new ExtractedPlaceProjection(103L, "KAKAO", "987654321")
     ));
 
     @Test
@@ -40,6 +40,18 @@ class ExtractedPlaceProjectionsTest {
     @Test
     void 아무것도_고르지_않으면_빈_목록이다() {
         assertThat(places.getPlaceIds(List.of())).isEmpty();
+    }
+
+    @Test
+    void 카카오_장소_id와_같은_값을_가진_구글_장소는_고르지_않는다() {
+        // given
+        ExtractedPlaceProjections googlePlaces = new ExtractedPlaceProjections(List.of(
+                new ExtractedPlaceProjection(201L, "GOOGLE", "26338954")));
+
+        // when & then
+        assertThatThrownBy(() -> googlePlaces.getPlaceIds(List.of("26338954")))
+                .isInstanceOfSatisfying(PlaceException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(PlaceErrorCode.NOT_ONBOARDING_PLACE));
     }
 
     @Test

@@ -1,23 +1,18 @@
 package com.yeogidam.support;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.flywaydb.core.Flyway;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.mysql.MySQLContainer;
 
 /**
  * 슬라이스, 통합, E2E 테스트가 공유하는 MySQL 컨테이너.
- * 정적 필드에서 한 번만 띄우고 schema.sql로 테이블을 만들어 여러 스프링 컨텍스트가 같은 DB를 쓰며,
+ * 정적 필드에서 한 번만 띄우고 Flyway로 스키마를 만들어 여러 스프링 컨텍스트가 같은 DB를 쓰며,
  * JVM이 끝날 때 Testcontainers가 거둔다. 데이터소스 접속 정보는 프로필 파일이 아니라 여기서 동적으로 주입한다.
  */
 public abstract class MySqlContainerSupport {
 
     private static final String MYSQL_IMAGE = "mysql:8.4";
-    private static final String SCHEMA_SCRIPT = "schema.sql";
     private static final String TIME_ZONE_PARAMS =
             "connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true";
 
@@ -32,12 +27,12 @@ public abstract class MySqlContainerSupport {
     }
 
     private static void createSchema() {
-        try (Connection connection = DriverManager.getConnection(
-                jdbcUrlWithUtcTimeZone(), MYSQL_CONTAINER.getUsername(), MYSQL_CONTAINER.getPassword())) {
-            ScriptUtils.executeSqlScript(connection, new ClassPathResource(SCHEMA_SCRIPT));
-        } catch (SQLException exception) {
-            throw new IllegalStateException("테스트 DB에 스키마를 만들 수 없습니다.", exception);
-        }
+        Flyway.configure()
+                .dataSource(jdbcUrlWithUtcTimeZone(), MYSQL_CONTAINER.getUsername(), MYSQL_CONTAINER.getPassword())
+                .baselineOnMigrate(false)
+                .cleanDisabled(true)
+                .load()
+                .migrate();
     }
 
     @DynamicPropertySource

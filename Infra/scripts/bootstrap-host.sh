@@ -3,11 +3,11 @@
 #
 #     sudo SERVER_NAME=<도메인> CERT_EMAIL=<메일> ENV_NAME=<dev|prod> bash Infra/scripts/bootstrap-host.sh
 #
-# 하는 일은 다섯 가지다. nginx를 깔고, certbot을 깔고, 인증서를 받고, 갱신 타이머를 걸고,
-# CloudWatch 에이전트를 깔아 nginx 로그와 메모리, 디스크 지표를 보내게 한다.
+# 하는 일은 여섯 가지다. nginx를 깔고, certbot을 깔고, 인증서를 받고, 블루그린 전환 장치를 놓고,
+# 갱신 타이머를 걸고, CloudWatch 에이전트를 깔아 nginx 로그와 메모리, 디스크 지표를 보내게 한다.
 # 두 번 돌려도 안전하다. 이미 끝난 단계는 건너뛴다. 서버가 늘면 이 파일만 다시 돌리면 된다.
 #
-# 앱 컨테이너는 이 스크립트가 다루지 않는다. CD 워크플로가 Backend/scripts/deploy.sh로 한다.
+# 앱 컨테이너는 이 스크립트가 다루지 않는다. CD 워크플로가 Infra/scripts/deploy.sh로 한다.
 # 개발 DB 서버는 Infra/scripts/bootstrap-db-host.sh가 따로 맡는다.
 #
 # 도메인과 메일은 공개 저장소에 적지 않으려고 환경변수로 받는다. 비어 있으면 아무것도
@@ -15,6 +15,11 @@
 # ENV_NAME은 CloudWatch 로그 그룹(/yeogidam/<ENV_NAME>/nginx)과 지표 네임스페이스
 # (Yeogidam/<ENV_NAME>) 이름에 들어간다. 콘솔에 미리 만들어 둔 그룹 이름과 맞아야 하므로
 # dev와 prod만 받는다.
+#
+# 블루그린 전환 장치는 세 가지다. nginx가 include하는 upstream 파일(처음엔 8080), 그 파일만 바꾸고
+# reload하는 전환 스크립트, 러너 사용자(RUNNER_USER, 기본 github-runner)가 전환 스크립트를 8080과
+# 8081 두 인자로만 sudo로 부르게 하는 sudoers 한 줄이다. 이미 블루그린으로 배포 중인 서버에서 다시
+# 돌려도 upstream 파일은 건드리지 않으므로 지금 요청을 받는 쪽이 바뀌지 않는다.
 #
 # AL2023 기준이다. certbot이 dnf에 없어서 pip venv로 깔고, 그래서 갱신 타이머도
 # 패키지가 안 만들어 주므로 여기서 직접 만든다.
@@ -30,6 +35,11 @@ WEBROOT=/var/www/certbot
 CW_TEMPLATE="$REPO_ROOT/Infra/cloudwatch/agent-app.json.template"
 CW_CONFIG=/opt/aws/amazon-cloudwatch-agent/etc/config.json
 CW_CTL=/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+SWITCH_SRC="$REPO_ROOT/Infra/scripts/switch-backend-upstream.sh"
+SWITCH_BIN=/usr/local/sbin/yeogidam-switch-backend
+UPSTREAM_FILE=/etc/nginx/yeogidam/backend-upstream.conf
+SUDOERS_FILE=/etc/sudoers.d/yeogidam-backend-switch
+RUNNER_USER="${RUNNER_USER:-github-runner}"
 
 log()  { printf '[bootstrap-host] %s\n' "$*"; }
 fail() { printf '[bootstrap-host] 오류: %s\n' "$*" >&2; exit 1; }
@@ -44,6 +54,7 @@ case "$ENV_NAME" in
 esac
 [ -f "$TEMPLATE" ] || fail "템플릿이 없습니다: $TEMPLATE"
 [ -f "$CW_TEMPLATE" ] || fail "템플릿이 없습니다: $CW_TEMPLATE"
+[ -f "$SWITCH_SRC" ] || fail "전환 스크립트가 없습니다: $SWITCH_SRC"
 
 install_packages() {
   # gettext는 envsubst 때문에, python3는 certbot 때문에, git은 배포 잡이 원격 HEAD를
@@ -87,6 +98,38 @@ http {
     }
 }
 EOF
+}
+
+# 블루그린 전환 장치를 놓는다. upstream 파일은 없을 때만 블루(8080)로 만든다. 블루그린 전에는 앱이
+# 8080 한 곳에서 돌았으므로, 처음 깔 때 8080을 가리켜야 지금 요청을 받는 컨테이너가 그대로 받는다.
+# render_full보다 먼저 돌아야 한다. nginx.conf가 이 파일을 include하므로 없으면 nginx -t가 실패한다.
+install_backend_switch() {
+  install -o root -g root -m 755 "$SWITCH_SRC" "$SWITCH_BIN"
+  if [ ! -f "$UPSTREAM_FILE" ]; then
+    mkdir -p "$(dirname "$UPSTREAM_FILE")"
+    printf '# yeogidam-switch-backend가 관리하는 파일이다. 손으로 고치지 않는다.\nupstream yeogidam_backend {\n    server 127.0.0.1:8080;\n}\n' > "$UPSTREAM_FILE"
+    chmod 644 "$UPSTREAM_FILE"
+    log "upstream 파일 만듦: $UPSTREAM_FILE (8080)"
+  else
+    log "upstream 파일 이미 있음: $(grep -oE '127\.0\.0\.1:[0-9]+' "$UPSTREAM_FILE" | head -n 1)"
+  fi
+  # 새 서버는 이 스크립트를 러너보다 먼저 돌리므로 러너 사용자가 아직 없을 수 있다. 그때는 sudoers만
+  # 건너뛰고, 러너를 깐 뒤 다시 돌리게 한다. deploy.sh가 시작하자마자 이 권한을 확인하고 멈추므로,
+  # 빠뜨려도 지금 돌던 컨테이너를 건드리기 전에 알 수 있다.
+  if ! id "$RUNNER_USER" >/dev/null 2>&1; then
+    log "러너 사용자 ${RUNNER_USER}가 아직 없어 sudoers는 건너뜁니다. 러너를 깐 뒤 이 스크립트를 다시 돌려 주세요."
+    return 0
+  fi
+  local staged
+  staged="$(mktemp)"
+  printf '%s ALL=(root) NOPASSWD: %s 8080, %s 8081\n' "$RUNNER_USER" "$SWITCH_BIN" "$SWITCH_BIN" > "$staged"
+  if ! visudo -cf "$staged" >/dev/null; then
+    rm -f "$staged"
+    fail "sudoers 문법 검사에 실패했습니다."
+  fi
+  install -o root -g root -m 440 "$staged" "$SUDOERS_FILE"
+  rm -f "$staged"
+  log "전환 스크립트 설치됨: $SWITCH_BIN, ${RUNNER_USER}는 8080과 8081로만 sudo 가능"
 }
 
 # 템플릿에서 \${SERVER_NAME}만 바꾼다. envsubst에 목록을 주지 않으면 nginx 자체 변수
@@ -177,6 +220,7 @@ main() {
   install_packages
   install_certbot
   obtain_cert
+  install_backend_switch
   render_full
   apply_nginx
   install_renewal

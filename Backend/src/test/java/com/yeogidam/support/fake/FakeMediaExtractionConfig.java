@@ -37,14 +37,26 @@ public class FakeMediaExtractionConfig {
 
     @Bean
     @Primary
-    public FakePlaceNameExtractor fakePlaceNameExtractor() {
-        return new FakePlaceNameExtractor();
+    public FakePlaceSearchHintExtractor fakePlaceSearchHintExtractor() {
+        return new FakePlaceSearchHintExtractor();
     }
 
     @Bean
     @Primary
-    public FakePlaceSearcher fakePlaceSearcher() {
-        return new FakePlaceSearcher();
+    public FakeDomesticPlaceSearcher fakeDomesticPlaceSearcher() {
+        return new FakeDomesticPlaceSearcher();
+    }
+
+    @Bean
+    @Primary
+    public FakeOverseasPlaceSearcher fakeOverseasPlaceSearcher() {
+        return new FakeOverseasPlaceSearcher();
+    }
+
+    @Bean
+    @Primary
+    public FakeDomesticFallbackPlaceSearcher fakeDomesticFallbackPlaceSearcher() {
+        return new FakeDomesticFallbackPlaceSearcher();
     }
 
     private static class FakeKakaoPlaceMetaReader extends KakaoPlaceMetaReader {

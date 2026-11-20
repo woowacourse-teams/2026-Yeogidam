@@ -41,4 +41,25 @@ class AddressTest {
         assertThatThrownBy(() -> new Address(landLotAddress, "서울 성동구 성수이로 88"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 나라를_적지_않은_주소는_국내_주소다() {
+        assertThat(new Address("서울 성동구 성수동2가 289-10", null).countryCode()).isEqualTo(CountryCode.KOREA);
+    }
+
+    @Test
+    void 해외_주소는_나라_코드를_함께_든다() {
+        // when
+        Address address = new Address("〒556-0011 Osaka, Naniwa Ward, Nanbanaka, 2-chōme−3−１", null,
+                new CountryCode("JP"));
+
+        // then
+        assertThat(address.countryCode()).isEqualTo(new CountryCode("JP"));
+    }
+
+    @Test
+    void 나라_코드가_없으면_예외가_발생한다() {
+        assertThatThrownBy(() -> new Address("Osaka", null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

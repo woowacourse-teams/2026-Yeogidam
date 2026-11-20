@@ -11,88 +11,111 @@ import com.yeogidam.media.instagram.domain.InstagramUrl;
 import com.yeogidam.media.instagram.domain.MediaMetadataWithUrl;
 import com.yeogidam.media.instagram.exception.InstagramContentUnavailableException;
 import com.yeogidam.media.instagram.infrastructure.InstagramMediaHtmlReader;
-import java.net.URI;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-/** 사용자가 제공한 인스타그램 게시물에서 실제 메타데이터와 썸네일을 조회한다. */
+/**
+ * InstagramMediaHtmlReader를 고쳐도 인스타그램 게시물 페이지에서 작성자, 캡션, 썸네일을 읽는 결과가 그대로인지 확인한다.
+ * 응답으로 2026-11-02에 받은 실제 응답을 잘라 둔 src/test/resources/instagram의 HTML 파일을 쓰므로,
+ * 인스타그램이 형식을 바꾸거나 게시물을 지워도 테스트 결과는 달라지지 않는다.
+ * HTML 파일에는 InstagramMediaHtmlReader가 읽는 부분만 글자 그대로 남겼다(게시물 페이지는 메타 태그 전부,
+ * embed 페이지는 첫 display_url).
+ */
 class InstagramMediaHtmlReaderTest {
 
     private static final String REEL_URL =
-            "https://www.instagram.com/reel/DZhRsDGgdVs/";
-    private static final String FULL_CAPTION = String.join(" ",
-            "떡 좋아하시면 이 집 무조건 좋아하실 것 같습니다 바로 가보시죠",
-            "들어가자마자 연예인 싸인 가득한 이곳은 성수에서 핫한 떡집 오복떡집입니다",
-            "@obok4876662",
-            "어머님이 떡도 바로 잘라서 만들어 주시고 다양한 떡 종류가 있어서 좋았습니다",
-            "흑임자 호박떡과 모나카 앙버터 떡 바로 구매하고",
-            "앙버터 떡은 떡, 버터, 팥 조합이 달달 고소 식감까지 완벽해서 또 먹으러 가고 싶은 맛이고",
-            "흑임자 호박떡은 한 번쯤 먹어볼 만한 맛이었습니다",
-            "📍오복떡집 주소: 서울 성동구 성덕정길 32 매달 1, 3번째 화요일 정기휴무",
-            "#서울맛집 #성수맛집 #성수떡집 #떡맛집 #떡집");
+            "https://www.instagram.com/reel/DRrDF4SkZB_/";
+    private static final String REEL_CAPTION =
+            "862 likes, 42 comments - bigbrowoosung - November 29, 2025: \"수완지구에 기가 막힌 쌈밥집 생김!!!\".";
+    private static final String REEL_THUMBNAIL_URL = "https://scontent-icn2-1.cdninstagram.com/v/t51.82787-15/"
+            + "590408568_17872709652461565_1607573965792622300_n.jpg?stp=cmp1_dst-jpg_e35_s640x640_tt6&_nc_cat=106"
+            + "&ccb=7-5&_nc_sid=18de74&efg=eyJlZmdfdGFnIjoiQ0xJUFMuYmVzdF9pbWFnZV91cmxnZW4uQzMifQ%3D%3D"
+            + "&_nc_ohc=F3NTocqGC98Q7kNvwEK8DO4"
+            + "&_nc_oc=AdolX-KAFu_3l8TCnJ6m8UjjlKB2y6SG7P7ydHNlFDt6bdIHSQTjNaZA4ZgDbtbTKxE&_nc_zt=23"
+            + "&_nc_ht=scontent-icn2-1.cdninstagram.com&_nc_gid=7eT__Ibls0ziu6inhywkAw&_nc_ss=7060f"
+            + "&oh=00_AQT7t4qd-1WAHtEj0YMF24Cn85NIWBqDm0JOg9unfaOmig&oe=6AEE356E";
 
     private static final String CAROUSEL_URL =
             "https://www.instagram.com/p/CzXgv-6SaFZ/";
-    private static final String CAROUSEL_FULL_CAPTION = String.join(" ",
-            "#송화산시도삭면",
-            "탱탱쫄깃한 도삭면과 육즙 가득한 딤섬 맛집",
-            "면 반죽을 칼로 썰어 넣어서 도삭면이라는 이름을 가졌다",
-            "칼국수 보다 도톰한 면발에 진한 육수 한입",
-            "고기 한점까지 먹으면 맥주가 술술 들어간다",
-            "쇼우롱포는 육즙이 너무 많아서",
-            "입안에서 고기 맛이 오래 남는다",
-            "⚡️도삭면 9000원, 쇼우롱포 8000원",
-            "⚡️서울 광진구 뚝섬로27길 48",
-            "#건대맛집 #건대 #건대입구 #중식 #광진구맛집");
+    private static final String CAROUSEL_EMBED_URL =
+            "https://www.instagram.com/p/CzXgv-6SaFZ/embed/";
+    private static final String CAROUSEL_CAPTION = """
+            182 likes, 34 comments - mugglekundae - November 7, 2023: "#송화산시도삭면
+            탱탱쫄깃한 도삭면과 육즙 가득한 딤섬 맛집
 
-    private final RestClient restClient = RestClient.create();
-    private final InstagramMediaHtmlReader reader = new InstagramMediaHtmlReader(restClient);
+            면 반죽을 칼로 썰어 넣어서 도삭면이라는 이름을 가졌다
+            칼국수 보다 도톰한 면발에 진한 육수 한입
+            고기 한점까지 먹으면 맥주가 술술 들어간다
+
+            쇼우롱포는 육즙이 너무 많아서
+            입안에서 고기 맛이 오래 남는다
+
+            ⚡️도삭면 9000원, 쇼우롱포 8000원
+            ⚡️서울 광진구 뚝섬로27길 48
+
+            #건대맛집 #건대 #건대입구 #중식 #광진구맛집".""";
+    private static final String CAROUSEL_EMBED_IMAGE_URL = "https://scontent-icn2-1.cdninstagram.com/v/t51.82787-15/"
+            + "653922247_18081073304073059_4744466162535269226_n.webp?_nc_cat=109"
+            + "&ig_cache_key=MzIzMTE5NTI4NjEzOTgzNTE2Ng%3D%3D.3-ccb7-5&ccb=7-5&_nc_sid=58cdad"
+            + "&efg=eyJ2ZW5jb2RlX3RhZyI6IkNBUk9VU0VMX0lURU0ueHBpZHMuMTQ0MC5zZHIucmVndWxhcl9waG90by5DMyJ9"
+            + "&_nc_ohc=iL8qTspxoywQ7kNvwGVcta9"
+            + "&_nc_oc=AdoWEylhHHqpH4viBxID0hJCiNXjsGvXFDdPyaL5D5MCGmYqBEKvMn1Ht5IZGobgDuY&_nc_zt=23"
+            + "&_nc_ht=scontent-icn2-1.cdninstagram.com&_nc_gid=M6aUmWkWy-YNr9_8pxSyKg&_nc_ss=7060f"
+            + "&oh=00_AQSBK9k4Gsnp7hpurubd96z92a-KwIrOPtb9Emgk0VandA&oe=6AEE3F85";
+
+    private static final String DELETED_REEL_URL =
+            "https://www.instagram.com/reel/DZhRsDGgdVs/";
+    private static final MediaType TEXT_HTML_UTF8 = new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8);
 
     @Test
-    void 첫번째_릴스의_태그에서_작성자_전체_캡션_썸네일을_가져온다() {
+    void 릴스_메타_태그에서_작성자_캡션_썸네일을_가져온다() throws IOException {
         // given
-        InstagramUrl instagramUrl = new InstagramUrl(REEL_URL);
+        RestClient.Builder restClientBuilder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
+        InstagramMediaHtmlReader reader = new InstagramMediaHtmlReader(restClientBuilder.build());
+        server.expect(requestTo(REEL_URL))
+                .andRespond(withSuccess(readFixture("reel-page.html"), TEXT_HTML_UTF8));
 
         // when
-        MediaMetadataWithUrl metadata = reader.read(instagramUrl);
-        URI thumbnailUrl = URI.create(metadata.thumbnailUrl());
+        MediaMetadataWithUrl metadata = reader.read(new InstagramUrl(REEL_URL));
 
         // then
         assertAll(
-                () -> assertThat(metadata.author()).isEqualTo("shyrilla__"),
-                () -> assertThat(thumbnailUrl.getScheme()).isEqualTo("https"),
-                () -> assertThat(thumbnailUrl.getHost()).contains("cdninstagram.com"),
-                () -> assertThat(thumbnailUrl.getRawPath()).endsWith(".jpg"),
-                () -> assertThat(thumbnailUrl.getRawQuery()).contains("oh=", "oe="),
-                () -> assertThat(metadata.thumbnailUrl()).doesNotContain("&amp;"),
-                () -> assertThat(metadata.caption().strip().replaceAll("\\s+", " "))
-                        .contains(FULL_CAPTION)
+                () -> assertThat(metadata.author()).isEqualTo("bigbrowoosung"),
+                () -> assertThat(metadata.caption()).isEqualTo(REEL_CAPTION),
+                () -> assertThat(metadata.thumbnailUrl()).isEqualTo(REEL_THUMBNAIL_URL)
         );
+        server.verify();
     }
 
     @Test
-    void 캐러셀_게시물의_태그에서_작성자_전체_캡션_썸네일을_가져온다() {
+    void 캐러셀_게시물에서_작성자_전체_캡션_embed_원본_비율_썸네일을_가져온다() throws IOException {
         // given
-        InstagramUrl instagramUrl = new InstagramUrl(CAROUSEL_URL);
+        RestClient.Builder restClientBuilder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
+        InstagramMediaHtmlReader reader = new InstagramMediaHtmlReader(restClientBuilder.build());
+        server.expect(requestTo(CAROUSEL_URL))
+                .andRespond(withSuccess(readFixture("carousel-page.html"), TEXT_HTML_UTF8));
+        server.expect(requestTo(CAROUSEL_EMBED_URL))
+                .andRespond(withSuccess(readFixture("carousel-embed.html"), TEXT_HTML_UTF8));
 
         // when
-        MediaMetadataWithUrl metadata = reader.read(instagramUrl);
-        URI thumbnailUrl = URI.create(metadata.thumbnailUrl());
-        String normalizedCaption = String.valueOf(metadata.caption()).strip().replaceAll("\\s+", " ");
+        MediaMetadataWithUrl metadata = reader.read(new InstagramUrl(CAROUSEL_URL));
 
         // then
         assertAll(
                 () -> assertThat(metadata.author()).isEqualTo("mugglekundae"),
-                () -> assertThat(thumbnailUrl.getHost()).contains("cdninstagram.com"),
-                () -> assertThat(thumbnailUrl.getRawPath())
-                        .endsWith("/653922247_18081073304073059_4744466162535269226_n.webp"),
-                () -> assertThat(thumbnailUrl.getRawQuery()).contains("oh=", "oe="),
-                () -> assertThat(normalizedCaption).contains(CAROUSEL_FULL_CAPTION)
+                () -> assertThat(metadata.caption()).isEqualTo(CAROUSEL_CAPTION),
+                () -> assertThat(metadata.thumbnailUrl()).isEqualTo(CAROUSEL_EMBED_IMAGE_URL)
         );
+        server.verify();
     }
 
     @Test
@@ -127,25 +150,23 @@ class InstagramMediaHtmlReaderTest {
     }
 
     @Test
-    void 캐러셀은_embed_페이지의_원본_비율_이미지를_우선_사용한다() {
+    void 삭제된_게시물의_오류_페이지를_받으면_작성자_캡션_썸네일을_모두_null로_돌려준다() throws IOException {
         // given
-        String carouselUrl = "https://www.instagram.com/p/carousel-original/";
-        String embedUrl = "https://www.instagram.com/p/carousel-original/embed/";
         RestClient.Builder restClientBuilder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(restClientBuilder).build();
         InstagramMediaHtmlReader reader = new InstagramMediaHtmlReader(restClientBuilder.build());
-        server.expect(requestTo(carouselUrl))
-                .andRespond(withSuccess(metadataHtml(), MediaType.TEXT_HTML));
-        server.expect(requestTo(embedUrl))
-                .andRespond(withSuccess("""
-                        <script>data = "{\\\"display_url\\\":\\\"https:\\/\\/scontent.cdninstagram.com\\/original.jpg\\\"}";</script>
-                        """, MediaType.TEXT_HTML));
+        server.expect(requestTo(DELETED_REEL_URL))
+                .andRespond(withSuccess(readFixture("deleted-reel-page.html"), TEXT_HTML_UTF8));
 
         // when
-        MediaMetadataWithUrl metadata = reader.read(new InstagramUrl(carouselUrl));
+        MediaMetadataWithUrl metadata = reader.read(new InstagramUrl(DELETED_REEL_URL));
 
         // then
-        assertThat(metadata.thumbnailUrl()).isEqualTo("https://scontent.cdninstagram.com/original.jpg");
+        assertAll(
+                () -> assertThat(metadata.author()).isNull(),
+                () -> assertThat(metadata.caption()).isNull(),
+                () -> assertThat(metadata.thumbnailUrl()).isNull()
+        );
         server.verify();
     }
 
@@ -175,5 +196,9 @@ class InstagramMediaHtmlReaderTest {
                 <meta property="og:image" content="https://scontent.cdninstagram.com/fallback.jpg">
                 <meta name="twitter:image" content="https://scontent.cdninstagram.com/fallback.jpg">
                 """;
+    }
+
+    private String readFixture(String fileName) throws IOException {
+        return new ClassPathResource("instagram/" + fileName).getContentAsString(StandardCharsets.UTF_8);
     }
 }

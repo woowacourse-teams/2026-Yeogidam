@@ -1,7 +1,6 @@
 package com.yeogidam.media.extraction.service;
 
 import com.yeogidam.media.extraction.domain.ExtractionSnapshot;
-import com.yeogidam.media.extraction.domain.ExtractionStatus;
 import com.yeogidam.media.extraction.domain.PlaceExtractionResult;
 import com.yeogidam.media.extraction.repository.MediaPlaceDao;
 import com.yeogidam.media.instagram.repository.InstagramMediaDao;
@@ -28,7 +27,7 @@ public class MediaExtractionResultWriter {
     @Transactional
     public void recordSuccess(Long mediaId, PlaceExtractionResult result) {
         ExtractionSnapshot snapshot = instagramMediaDao.findExtractionSnapshotForUpdate(mediaId);
-        if (snapshot.status() != ExtractionStatus.EXTRACTING) {
+        if (!snapshot.isExtracting()) {
             return;
         }
         List<Long> placeIds = getPlaceIds(mediaId, result);

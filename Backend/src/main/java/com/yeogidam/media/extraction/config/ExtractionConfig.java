@@ -1,34 +1,84 @@
 package com.yeogidam.media.extraction.config;
 
+import com.yeogidam.media.extraction.infrastructure.ExtractionExecutorMetrics;
+import com.yeogidam.media.extraction.infrastructure.MediaExtractionExecutor;
+import com.yeogidam.media.extraction.infrastructure.loadtest.LoadTestMetrics;
+import com.yeogidam.media.extraction.logging.ExtractionHandoffTaskDecorator;
+import com.yeogidam.media.extraction.logging.ExtractionTaskDecorator;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.DependsOn;
+import org.springframework.core.task.TaskDecorator;
+import org.springframework.core.task.support.CompositeTaskDecorator;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestClient;
 
 @Configuration
-@EnableConfigurationProperties({ExtractionProperties.class, GeminiProperties.class, KakaoLocalProperties.class})
+@EnableConfigurationProperties({
+        ExtractionProperties.class, ExtractionExecutorProperties.class, GeminiProperties.class, KakaoLocalProperties.class,
+        GooglePlacesProperties.class
+})
 public class ExtractionConfig {
 
     private static final Duration GEMINI_HTTP_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration GEMINI_MEDIA_HTTP_TIMEOUT = Duration.ofSeconds(120);
     private static final Duration MEDIA_DOWNLOAD_HTTP_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration KAKAO_LOCAL_HTTP_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration GOOGLE_PLACES_HTTP_TIMEOUT = Duration.ofSeconds(5);
 
-    /*
-    TODO: 부하테스트 한 후 재설정하기
-     */
     @Bean
-    public ThreadPoolTaskExecutor mediaExtractionExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2);
-        executor.setMaxPoolSize(4);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("media-extraction-");
-        executor.setWaitForTasksToCompleteOnShutdown(true);
+    // 메타데이터 실행기가 분석 실행기에 의존하게 해서, 컨텍스트를 닫을 때 분석 작업을 넘기는 메타데이터 실행기가 먼저 닫히게 한다.
+    @DependsOn("mediaAnalysisExecutor")
+    public MediaExtractionExecutor mediaMetadataExecutor(
+            ExtractionExecutorProperties properties,
+            ExtractionExecutorMetrics executorMetrics,
+            ObjectProvider<LoadTestMetrics> loadTestMetrics
+    ) {
+        MediaExtractionExecutor executor = new MediaExtractionExecutor("media-metadata-", properties.metadata().coreSize(),
+                properties.metadata().queueCapacity());
+        TaskDecorator stageLog = new ExtractionTaskDecorator(executor::getQueueSize, executor::getActiveCount);
+        return configure(executor, stageLog, executorMetrics, loadTestMetrics);
+    }
+
+    @Bean
+    public MediaExtractionExecutor mediaAnalysisExecutor(
+            ExtractionExecutorProperties properties,
+            ExtractionExecutorMetrics executorMetrics,
+            ObjectProvider<LoadTestMetrics> loadTestMetrics
+    ) {
+        MediaExtractionExecutor executor = new MediaExtractionExecutor("media-analysis-", properties.analysis().coreSize(),
+                properties.analysis().queueCapacity());
+        return configure(executor, new ExtractionHandoffTaskDecorator(), executorMetrics, loadTestMetrics);
+    }
+
+    @Bean
+    public ExtractionExecutorMetrics extractionExecutorMetrics(MeterRegistry registry) {
+        return new ExtractionExecutorMetrics(registry);
+    }
+
+    // 실행기는 데코레이터를 하나만 받아서, 부하 테스트를 켜도 단계 로그가 덮이지 않도록 부하 테스트 측정을 바깥에 합친다.
+    private MediaExtractionExecutor configure(
+            MediaExtractionExecutor executor,
+            TaskDecorator stageLog,
+            ExtractionExecutorMetrics executorMetrics,
+            ObjectProvider<LoadTestMetrics> loadTestMetrics
+    ) {
+        List<TaskDecorator> decorators = new ArrayList<>();
+        decorators.add(stageLog);
+        loadTestMetrics.ifAvailable(metrics -> {
+            decorators.add(metrics::observeTask);
+            executor.setRejectionObserver(metrics::recordRejected);
+        });
+        executor.setTaskDecorator(new CompositeTaskDecorator(decorators));
+        executorMetrics.bind(executor);
         return executor;
     }
 
@@ -44,22 +94,51 @@ public class ExtractionConfig {
                 .build();
     }
 
-    @Bean("geminiMediaRestClient")
-    public RestClient geminiMediaRestClient(RestClient.Builder builder) {
-        return builder.requestFactory(createRequestFactory(GEMINI_MEDIA_HTTP_TIMEOUT))
+    @Bean("googlePlacesRestClient")
+    public RestClient googlePlacesRestClient(RestClient.Builder builder) {
+        return builder.requestFactory(createRequestFactory(GOOGLE_PLACES_HTTP_TIMEOUT))
                 .build();
     }
 
-    @Bean("instagramMediaRestClient")
-    public RestClient instagramMediaRestClient(RestClient.Builder builder) {
-        return builder.requestFactory(createRequestFactory(MEDIA_DOWNLOAD_HTTP_TIMEOUT))
+    @Bean
+    public RestClient geminiMediaRestClient(
+            RestClient.Builder builder,
+            @Qualifier("geminiMediaHttpClient") HttpClient httpClient
+    ) {
+        return builder.requestFactory(createRequestFactory(httpClient, GEMINI_MEDIA_HTTP_TIMEOUT))
+                .build();
+    }
+
+    @Bean
+    public RestClient instagramMediaRestClient(
+            RestClient.Builder builder,
+            @Qualifier("instagramMediaHttpClient") HttpClient httpClient
+    ) {
+        return builder.requestFactory(createRequestFactory(httpClient, MEDIA_DOWNLOAD_HTTP_TIMEOUT))
+                .build();
+    }
+
+    @Bean(defaultCandidate = false)
+    public HttpClient geminiMediaHttpClient() {
+        return createHttpClient(GEMINI_MEDIA_HTTP_TIMEOUT);
+    }
+
+    @Bean(defaultCandidate = false)
+    public HttpClient instagramMediaHttpClient() {
+        return createHttpClient(MEDIA_DOWNLOAD_HTTP_TIMEOUT);
+    }
+
+    private HttpClient createHttpClient(Duration timeout) {
+        return HttpClient.newBuilder()
+                .connectTimeout(timeout)
                 .build();
     }
 
     private JdkClientHttpRequestFactory createRequestFactory(Duration timeout) {
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(timeout)
-                .build();
+        return createRequestFactory(createHttpClient(timeout), timeout);
+    }
+
+    private JdkClientHttpRequestFactory createRequestFactory(HttpClient httpClient, Duration timeout) {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(timeout);
         return requestFactory;

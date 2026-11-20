@@ -19,6 +19,15 @@ FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app \
     && adduser -S -G app app
 
+# 공식 릴리스의 버전과 SHA-256을 함께 고정한다. JAR는 app 사용자도 읽을 수 있어야 한다.
+ADD --chown=app:app --chmod=0444 \
+    --checksum=sha256:e43a270df53c6f423e0ab157be9c27ccc01d5dc3232e162fe54777573db2f149 \
+    https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/download/v2.33.1/opentelemetry-javaagent.jar \
+    /opt/otel/opentelemetry-javaagent.jar
+
+# ADD의 chmod가 새 상위 디렉터리에도 적용되므로 app 사용자가 경로를 통과할 수 있게 한다.
+RUN chmod 0555 /opt/otel
+
 WORKDIR /app
 
 COPY --from=builder --chown=app:app /workspace/build/libs/*.jar app.jar
@@ -31,9 +40,20 @@ USER app
 # 배포 스크립트가 아니라 이미지에 둔다.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=50.0"
 
+# 계측 설치 비용을 줄이도록 에이전트를 기본 비활성화한다.
+# Alloy와 저장소를 준비한 서버에서 --env-file로 OTEL_JAVAAGENT_ENABLED=true를 전달한 뒤 컨테이너를 재생성한다.
+ENV OTEL_JAVAAGENT_ENABLED=false
+
+ENV OTEL_SERVICE_NAME=yeogidam-backend \
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://alloy:4318 \
+    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+
+# 로그가 발생한 시점에 MDC에 있는 요청 진단 항목을 Loki로 함께 전달한다.
+ENV OTEL_INSTRUMENTATION_LOGBACK_APPENDER_EXPERIMENTAL_MDC_ATTRIBUTES_INCLUDED=requestId,httpMethod,path,status,durationMs
+
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
     CMD wget --quiet --spider http://127.0.0.1:8080/actuator/health/liveness || exit 1
 
-ENTRYPOINT ["java", "-XX:+ExitOnOutOfMemoryError", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-javaagent:/opt/otel/opentelemetry-javaagent.jar", "-XX:+ExitOnOutOfMemoryError", "-jar", "/app/app.jar"]

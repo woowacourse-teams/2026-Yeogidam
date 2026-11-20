@@ -10,13 +10,11 @@ import com.yeogidam.support.JdbcTestSupport;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * DB 쿼리와 매핑이 실제 MySQL에서 동작하는지 검증한다. 읽기 검증은 SQL fixture로 given에서 행을 넣는다.
  */
-@Import(RefreshSessionDao.class)
 class RefreshSessionDaoTest extends JdbcTestSupport {
 
     private static final Instant EXPIRES_AT = Instant.parse("2026-10-15T00:00:00.123456Z");

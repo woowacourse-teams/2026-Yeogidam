@@ -2,7 +2,7 @@
 
 지금 실제로 돌아가는 것과 ADR이 정했는데 아직 못 한 것을 적는다. **ADR은 결정 기록이라 함부로 고치지 않지만 현재 상태 문서는 바뀔 때마다 고친다.** 인프라를 건드리는 PR은 현재 상태 문서도 같이 고친다.
 
-마지막 갱신 2026-10-02.
+마지막 갱신 2026-11-11. Flyway 관련 내용은 로컬 코드 변경을 반영한 것이며, 개발 서버와 운영 DB에 마이그레이션을 적용하지 않았다. Java Agent와 Alloy 항목은 PR #512의 코드와 준비 절차다. 모니터링 서버의 저장소 보존 기간은 30일로 변경하고 실행 설정과 준비 상태를 확인했으며, 앱 서버의 수집 활성화는 별도다.
 
 ## 배포 경로
 
@@ -33,19 +33,21 @@ feat/#번호  ──PR──▶  be-dev  ──머지──▶  개발 서버 �
 
 ## 환경 설정
 
-각 서버의 `/opt/yeogidam/backend.env`에 다섯 키가 있으며 소유는 `github-runner`, 권한은 600이다.
+각 서버의 `/opt/yeogidam/backend.env`는 `github-runner` 소유, 권한 600이다. DB와 프로필 관련 주요 키는 다음과 같다.
 
 ```
 SPRING_PROFILES_ACTIVE
 DB_URL
 DB_USERNAME
 DB_PASSWORD
+FLYWAY_USERNAME
+FLYWAY_PASSWORD
 JWT_SECRET
 ```
 
-비밀값은 각 서버에서 `openssl`로 만들어 넣었다. `DB_URL`은 시간대 파라미터(`connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true`)까지 갖춘 값이다. 개발은 `yeogidam-dev-db`의 사설 IP이고 운영은 2026-10-02에 RDS를 만들어 엔드포인트와 앱 사용자(`yeogidam_app`) 비밀번호로 갈아끼웠다. 두 DB의 관리자(마스터) 비밀번호는 env에 없고 팀이 비밀값을 두는 곳에만 있다.
+기존 비밀값은 각 서버에서 `openssl`로 만들어 넣었다. Flyway 비밀번호는 사용자가 개발과 운영에서 서로 다르게 준비해 직접 입력했다. `DB_URL`은 시간대 파라미터(`connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true`)까지 갖춘 값이다. 개발은 `yeogidam-dev-db`의 사설 IP이고 운영은 2026-10-02에 RDS를 만들어 엔드포인트와 앱 사용자(`yeogidam_app`) 비밀번호로 갈아끼웠다. 두 DB의 관리자(마스터) 비밀번호는 env에 없고 팀이 비밀값을 두는 곳에만 있다.
 
-`--env-file`은 컨테이너를 만들 때만 읽히고 `deploy.sh`는 같은 이미지면 컨테이너를 교체하지 않으므로, 값만 고치고 배포를 다시 돌려도 반영되지 않는다. 그래서 env를 고친 뒤에는 손배포하는데, `Infra/scripts/restart-backend.sh`를 서버에 복사해 `sudo bash`로 돌리면 `deploy.sh`와 같은 옵션으로 `current` 이미지를 다시 띄우고 healthy까지 기다린다. 롤백은 없으니 healthy가 안 되면 env를 되돌리고 다시 돌린다. 배포 워크플로가 도는 중에는 돌리지 않는다(#267). 2026-10-02 운영 RDS 전환 때는 재시작 스크립트가 머지되기 전이라 `docker rm -f` 뒤 `be-release` 마지막 실행의 Re-run으로 했고, 마지막 실행 이후 `be-release`에 커밋이 없어 Re-run이 통했다. 다시 돌리려는 실행 이후에 커밋이 하나라도 들어가면 「Validate Deployment Target」이 Re-run을 거부한다. 코드 변경 없이 지금 HEAD로 다시 배포할 때는 `gh workflow run backend-cd.yml --ref be-dev`로 부르는데, 수동 실행 트리거는 워크플로 파일이 `main`에 올라간 뒤부터 부를 수 있고 env 변경을 반영하지는 않는다.
+`--env-file`은 컨테이너를 만들 때만 읽히고 `deploy.sh`는 같은 이미지면 컨테이너를 교체하지 않으므로, 값만 고치고 배포를 다시 돌려도 반영되지 않는다. 그래서 env를 고친 뒤에는 손배포하는데, 최신 `Infra/scripts/restart-backend.sh`를 서버에 복사해 `sudo bash`로 돌리면 `current` 이미지를 반대쪽 포트에 띄우고 liveness를 확인한 뒤 전환한다. 새 컨테이너가 뜨지 않으면 기존 컨테이너가 계속 요청을 받으며, 직전 이미지로 되돌릴 때는 `previous` 인자를 사용한다. 배포 워크플로가 도는 중에는 돌리지 않는다(#267). 2026-10-02 운영 RDS 전환 때는 재시작 스크립트가 머지되기 전이라 `docker rm -f` 뒤 `be-release` 마지막 실행의 Re-run으로 했고, 마지막 실행 이후 `be-release`에 커밋이 없어 Re-run이 통했다. 다시 돌리려는 실행 이후에 커밋이 하나라도 들어가면 「Validate Deployment Target」이 Re-run을 거부한다. 코드 변경 없이 지금 HEAD로 다시 배포할 때는 `gh workflow run backend-cd.yml --ref be-dev`로 부르는데, 수동 실행 트리거는 워크플로 파일이 `main`에 올라간 뒤부터 부를 수 있고 env 변경을 반영하지는 않는다.
 
 소유권이 바뀌면 배포가 env 파일을 못 읽으므로, 손으로 고칠 때는 `sudo -u github-runner vi`로 연다. 따옴표와 끝 공백과 CRLF를 넣으면 `deploy.sh`의 프로필 대조가 막는다.
 
@@ -56,11 +58,46 @@ GitHub 저장소 설정에 다음이 있어야 배포가 돈다.
 | variable | `DOCKERHUB_IMAGE`, `DOCKERHUB_USERNAME`, `BACKEND_ENV_FILE`, `BACKEND_HOST_PORT` |
 | secret | `DOCKERHUB_TOKEN` (CI, push용), `DOCKERHUB_READ_TOKEN` (러너, pull 전용) |
 
+## 앱 로그, 메트릭, 트레이스 수집 준비
+
+PR #512는 OpenTelemetry Java Agent `v2.33.1`과 Alloy `v1.21.3` 수집 경로를 추가한다.
+앱과 `yeogidam-alloy`는 외부 Docker 네트워크 `yeogidam-observability`를 공유하고,
+앱이 `http://alloy:4318`로 보낸 로그, 메트릭, 트레이스를 Alloy가 Loki, Prometheus, Tempo로 전달한다.
+4318 포트는 호스트에 공개하지 않는다. Alloy의 컨테이너 메모리 상한은 256MiB다.
+
+앱 이미지의 기본값은 `OTEL_JAVAAGENT_ENABLED=false`이다. 수집할 서버의 `backend.env`에서만
+활성화하고 컨테이너를 재생성한다. 서비스 이름 `yeogidam-backend`, OTLP 주소 `http://alloy:4318`과
+프로토콜 `http/protobuf`는 이미지 기본값이다. 환경 속성 `deployment.environment.name`은 배포와
+수동 재시작 스크립트가 검증한 프로필로 주입하고 다른 리소스 속성은 보존한다.
+기존 `OTEL_SDK_DISABLED=true`는 제거하거나 `false`로 바꿔야 수집을 켤 수 있다.
+
+Alloy 설정 파일은 `/opt/yeogidam/alloy/compose.yml`, `/opt/yeogidam/alloy/config.alloy`에 두고,
+인증과 전송 주소는 root 소유, 권한 600인 `/opt/yeogidam/alloy.env`에서 읽는다.
+키는 `LOKI_OTLP_ENDPOINT`, `PROMETHEUS_REMOTE_WRITE_URL`, `TEMPO_OTLP_ENDPOINT`,
+`MONITOR_AUTHORIZATION`이다. 서버에 복사한 `restart-backend.sh`도 개발과 운영 모두 갱신해야 한다.
+
+설치, 주소 형식, 시작, 설정 반영, 확인과 중지 순서는 [Alloy 운영 절차](../../../Infra/alloy/README.md)에 있다.
+서버별 활성화 여부와 실제 데이터 저장은 별도 확인이 필요하다. 개발 서버에서 먼저 켜고
+블루그린 배포 중 두 앱이 함께 실행되는 구간의 메모리까지 확인한 뒤 운영을 켠다.
+기존 CloudWatch 수집과 알람은 유지하며, 제거와 대체 알림은 후속 작업이다.
+
+트레이스는 batch 뒤에서 `/actuator/` 경로의 스팬을 제외하고 `transform.scrub`에서 `url.query`만 삭제한다.
+소셜 로그인 콜백의 인가 코드와 state가 새 트레이스에 저장되지 않도록 하며 서버 적용은 별도다.
+
+2026-11-11 22:45(KST)에 모니터링 서버의 Loki, Tempo와 Prometheus 보존 기간을 30일로 변경했다.
+Loki와 Tempo는 `720h`, Prometheus는 `30d`이며 Prometheus의 5GiB 제한을 유지했다.
+Prometheus는 30일 또는 5GiB 중 먼저 도달하는 기준으로 기록을 삭제한다.
+설정 백업과 동일 버전 검사 후 Prometheus를 재로딩하고 Loki와 Tempo를 순서대로 재시작했으며,
+실행 설정, 준비 상태 HTTP 200과 동일 데이터 볼륨 유지를 확인했다.
+모니터링 디스크는 19.93GiB 중 약 4.35GiB 사용, 약 15.58GiB 여유(사용률 22%)다. 앱 수집 활성화 후
+새 데이터 생성량은 추가 확인이 필요하다. 설정 경로, 백업 위치와 검증 기록은
+[운영 관찰 문서](observability.md#로그와-트레이스-보존-기간)에 있다.
+
 ## ADR별 구현 현황
 
 ### 인프라 ADR-01 Docker 이미지 식별 및 롤백 보존
 
-`.github/workflows/backend-cd.yml`과 `Backend/scripts/deploy.sh` 기준이다.
+`.github/workflows/backend-cd.yml`과 `Infra/scripts/deploy.sh` 기준이다.
 
 | 결정 항목 | 상태 |
 | --- | --- |
@@ -74,13 +111,13 @@ GitHub 저장소 설정에 다음이 있어야 배포가 돈다.
 | 배포 이력을 서버 외부에 기록 | 안 됨. `GITHUB_STEP_SUMMARY`까지다 |
 | 동일 Git SHA 태그 재push 차단 | 부분. `Check Existing SHA Image`가 있으면 재사용하고 덮어쓰지는 않는다 |
 | 레지스트리 보존 정책 | 안 됨 |
-| DB 마이그레이션 호환성 정책 | 안 됨. 스키마는 개발과 운영에 손으로 적용한다. 운영 첫 스키마는 2026-10-02에 `schema.sql`을 RDS에 그대로 넣었고, 파일이 DROP TABLE로 시작하므로 운영에 다시 돌리면 안 된다 |
+| DB 마이그레이션 호환성 정책 | 부분. 로컬 코드에 Flyway V1 도입을 반영했다. 기존 DB는 최초 서버 시작 시 baseline 1을 자동 등록하고 이후 미적용 버전만 실행하도록 한다. 서버 적용과 변경 버전 간 호환성 정책은 남아 있다([Flyway 적용 구조](../flyway.md)) |
 
 #### Build Once, Promote를 지키는 방법
 
 `publish` 잡이 이미지 태그를 `${{ vars.DOCKERHUB_IMAGE }}:${{ github.sha }}`로 만들고 레지스트리에 있으면 재사용하는데, `be-dev`에서 `be-release`로 머지하면 **새 커밋 SHA가 생긴다.** 그래서 원래는 운영 배포 때 태그를 못 찾고 새로 빌드했다. Docker 빌드는 재현 가능하지 않으므로 digest가 달라져 개발에서 검증한 이미지가 운영에 가지 않았다.
 
-**2026-09-29에 `Backend/scripts/resolve-source-commit.sh`로 해결했다.** `be-release`에 들어온 커밋의 두 번째 부모를 승격 대상으로 잡고 정말 `be-dev`의 조상인지 `git merge-base --is-ancestor`로 확인한 뒤 재빌드 없이 개발에서 검증한 이미지를 배포한다. 조상 관계를 부모 수보다 **먼저** 보기 때문에, hotfix를 머지 커밋으로 넣어도 승격으로 새어 나가지 않는다. 결정은 [인프라 ADR-05](adr-05-branch-strategy.md)에 있고 판정표는 아래 「승격 판정」에 있다.
+**2026-09-29에 `Infra/scripts/resolve-source-commit.sh`로 해결했다.** `be-release`에 들어온 커밋의 두 번째 부모를 승격 대상으로 잡고 정말 `be-dev`의 조상인지 `git merge-base --is-ancestor`로 확인한 뒤 재빌드 없이 개발에서 검증한 이미지를 배포한다. 조상 관계를 부모 수보다 **먼저** 보기 때문에, hotfix를 머지 커밋으로 넣어도 승격으로 새어 나가지 않는다. 결정은 [인프라 ADR-05](adr-05-branch-strategy.md)에 있고 판정표는 아래 「승격 판정」에 있다.
 
 2026-09-30 첫 출시와 2026-10-01 두 번째 출시(#266) 모두 `mode=promote`로 가서 publish가 빌드 스텝을 건너뛰고 개발과 같은 digest가 운영에 갔다.
 
@@ -116,7 +153,7 @@ ARM64(Graviton)를 쓴다는 결정은 맞고 구현도 따라왔다. CI 러너�
 | 결정 요약 | t4g.small |
 | 결정 첫 줄 | t4g.micro |
 | 결정 둘째 줄 | 유형 t4g.small, 스토리지 gp3 20GB |
-| **실물** | **앱 서버 t4g.micro 두 대(디스크 각 8GB, 스왑 2GB), 개발 DB 서버 t4g.micro 한 대(15GB), 운영 DB는 RDS db.t4g.micro(gp3 20GB)** |
+| **실물** | **앱 서버 t4g.micro 두 대(디스크 운영 20GB, 개발 8GB, 스왑 각 2GB), 개발 DB 서버 t4g.micro 한 대(15GB), 운영 DB는 RDS db.t4g.micro(gp3 20GB)** |
 
 「결정」의 첫 줄에 적힌 `ARM 아키텍처의 t4g.micro 인스턴스를 채택한다`가 실물과 맞는다.
 
@@ -126,7 +163,22 @@ ARM64(Graviton)를 쓴다는 결정은 맞고 구현도 따라왔다. CI 러너�
 
 **개발 서버 앞단은 2026-09-30에 올렸다.** nginx 1.30이 호스트에 systemd 서비스로 돌고 443에서 Let's Encrypt 인증서(2026-12-29 만료)로 요청을 받아 `127.0.0.1:8080`으로 넘긴다. 80은 인증서 검증 경로만 열고 나머지는 443으로 보내며, 이름 없이 IP로 오는 요청은 거절하고 `/actuator`는 밖에서 404다. certbot은 dnf에 없어 `/opt/certbot` venv에 깔았고 `certbot-renew.timer`가 하루 두 번 확인해 갱신되면 nginx만 reload한다. 설정 원본은 `Infra/nginx/nginx.conf.template`이고 도메인은 `${SERVER_NAME}` 자리표라 저장소에 남지 않는다. 설치 절차는 `Infra/scripts/bootstrap-host.sh` 한 파일이라 서버가 늘면 스크립트 하나만 다시 돌린다. 앱 쪽은 `application.yml`에 `server.forward-headers-strategy: native`를 더해 톰캣이 루프백에서 온 `X-Forwarded-*`만 믿게 했다. 910Mi에서 컨테이너를 더 늘릴 여유가 없고 인증서 갱신이 앱과 분리되기 때문에 nginx를 컨테이너로 두지 않았다. 운영 서버에도 같은 날 같은 스크립트로 올렸고 밖에서 같은 다섯 가지(502, 인증서, http→https, `/actuator` 404, IP 직접 접속 거절)를 확인했다. 2026-10-01에는 요청 제한을 더해(#251) IP당 초당 10회(순간 30회), 로그인과 재발급 경로(`/api/v1/auth/`)는 분당 10회(순간 20회), 동시 연결 20개, 본문 16KB, 헤더와 본문 타임아웃 10초로 두었고 넘치면 429를 돌려준다. 거절된 요청은 앱까지 가지 않아 제공자 호출과 톰캣 스레드와 앱 로그가 생기지 않으며, 429는 access 로그에도 남기지 않아 폭주가 CloudWatch 요금으로 이어지지 않는다. 템플릿을 바꾼 것이라 서버에서 `bootstrap-host.sh`를 다시 돌려야 반영된다.
 
-**운영 DB는 2026-10-02에 RDS로 올렸다(#272).** 식별자 `yeogidam-prod-db`, MySQL 8.4.11, `db.t4g.micro`(2 vCPU, 1GiB), gp3 20GiB다. 저장 공간 자동 확장은 껐다. 켜 두면 차오를 때 AWS가 저장 공간을 늘리고 그만큼 요금이 붙는데 삭제 권한이 없는 계정이라 되돌리지도 못하므로, 대신 남은 공간 알람(`yeogidam-prod-rds-storage`, 2GiB 미만)을 둔다. 앱 서버와 같은 단일 AZ `ap-northeast-2a`에 두어 둘 사이 전송 요금이 없다. 공개 접근은 없고 보안 그룹은 `project-db`다. 서브넷 그룹은 팀이 만들면 `techcourse-project-rds` 정책이 명시적으로 거부하므로 우테코가 준비한 것을 썼다. 파라미터 그룹 `yeogidam-prod-mysql84`에 `slow_query_log=1`, `long_query_time=0.5`를 주어 개발 DB의 `observability.cnf`와 같은 기준으로 두었다. `time_zone`은 기본값 UTC라 `DB_URL`의 `connectionTimeZone=UTC`와 맞는다. 로그 내보내기는 error와 slowquery만 켰다. 백업은 자동 7일에 스냅샷으로 태그 복사, 암호화는 기본 키 `aws/rds`, 삭제 방지 켬, 유지보수 창은 일요일 18:00 UTC(월요일 새벽 3시 KST) 30분이다. Performance Insights는 micro 클래스가 지원하지 않고 Enhanced Monitoring은 IAM 역할(`rds-monitoring-role`)을 만들 수 없어 둘 다 껐다. 마스터 사용자는 `yeogidam_admin`(스키마 적용용)이고 앱은 `yeogidam.*`에 SELECT, INSERT, UPDATE, DELETE만 가진 `yeogidam_app`으로 붙는다. RDS는 사설 서브넷에만 있어 운영 앱 서버에서만 닿으므로, 스키마는 운영 앱 서버에 `dnf install mariadb105`로 클라이언트를 깔고 `be-release`의 `schema.sql`을 넣어 테이블 10개를 만들었다. `caching_sha2_password` 때문에 접속할 때 `--ssl`이 필요하다. env를 바꾸고 컨테이너를 다시 만든 뒤 `/actuator/health`가 DB 포함 `UP`인 것과 `SELECT SLEEP(1)`이 slowquery 로그 그룹에 도착하는 것을 확인했다. 월 비용은 약 20달러(인스턴스 약 18, 저장 약 2.6, 백업은 20GB까지 무료)로 전체 약 60달러가 되어 한도 70달러 안이다. 개발 DB를 EC2 Docker로 둔 이유는 아래 「확인이 필요한 것」 4번에 있다.
+**운영 DB는 2026-10-02에 RDS로 올렸다(#272).** 식별자 `yeogidam-prod-db`, MySQL 8.4.11, `db.t4g.micro`(2 vCPU, 1GiB), gp3 20GiB다. 저장 공간 자동 확장은 껐다. 켜 두면 차오를 때 AWS가 저장 공간을 늘리고 그만큼 요금이 붙는데 삭제 권한이 없는 계정이라 되돌리지도 못하므로, 대신 남은 공간 알람(`yeogidam-prod-rds-storage`, 2GiB 미만)을 둔다. 앱 서버와 같은 단일 AZ `ap-northeast-2a`에 두어 둘 사이 전송 요금이 없다. 공개 접근은 없고 보안 그룹은 `project-db`다. 서브넷 그룹은 팀이 만들면 `techcourse-project-rds` 정책이 명시적으로 거부하므로 우테코가 준비한 것을 썼다. 파라미터 그룹 `yeogidam-prod-mysql84`에 `slow_query_log=1`, `long_query_time=0.5`를 주어 개발 DB의 `observability.cnf`와 같은 기준으로 두었다. `time_zone`은 기본값 UTC라 `DB_URL`의 `connectionTimeZone=UTC`와 맞는다. 로그 내보내기는 error와 slowquery만 켰다. 백업은 자동 7일에 스냅샷으로 태그 복사, 암호화는 기본 키 `aws/rds`, 삭제 방지 켬, 유지보수 창은 일요일 18:00 UTC(월요일 새벽 3시 KST) 30분이다. Performance Insights는 micro 클래스가 지원하지 않고 Enhanced Monitoring은 IAM 역할(`rds-monitoring-role`)을 만들 수 없어 둘 다 껐다. 마스터 사용자는 스키마 적용용으로만 쓰고 앱은 `yeogidam.*`에 SELECT, INSERT, UPDATE, DELETE만 가진 `yeogidam_app`으로 붙는다. 초기 스키마는 운영 앱 서버에 `dnf install mariadb105`로 클라이언트를 깔고 `be-release`의 `schema.sql`을 넣어 테이블 10개를 만들었다. `caching_sha2_password` 때문에 접속할 때 `--ssl`이 필요하다. env를 바꾸고 컨테이너를 다시 만든 뒤 `/actuator/health`가 DB 포함 `UP`인 것과 `SELECT SLEEP(1)`이 slowquery 로그 그룹에 도착하는 것을 확인했다. 월 비용은 약 20달러(인스턴스 약 18, 저장 약 2.6, 백업은 20GB까지 무료)로 전체 약 60달러가 되어 한도 70달러 안이다. 개발 DB를 EC2 Docker로 둔 이유는 아래 「확인이 필요한 것」 4번에 있다.
+
+**DB 계정 접속 범위(2026-10-26 확인).** 개발 앱 계정 `yeogidam`은 개발 앱 서버의 사설 IP만 허용한다. 운영 앱 계정 `yeogidam_app`도 2026-10-26에 `RENAME USER`로 Host를 `%`에서 운영 앱 서버의 사설 IP로 변경했다. 비밀번호와 `yeogidam.*`의 SELECT, INSERT, UPDATE, DELETE 권한은 유지했다. 운영 앱 서버에서 새 연결을 만들어 제한된 계정으로 인증되는 것과 실제 테이블 조회를 확인했고, `/actuator/health`는 `UP`이었다.
+
+운영 Flyway 전용 계정 `yeogidam_migrator`는 운영 앱 서버의 사설 IP만 허용하도록 생성하고, `yeogidam.*`에 SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES를 부여했다. 운영 `backend.env`에 `FLYWAY_USERNAME`, `FLYWAY_PASSWORD`를 등록했으며, 저장된 값으로 새 연결과 조회를 확인했다. 소유자와 그룹 `github-runner`, 권한 600을 유지했다.
+
+개발 DB에도 2026-10-27에 `yeogidam_migrator`를 개발 앱 서버의 사설 IP만 허용하도록 생성하고 같은 권한을 부여했다. 개발 앱 서버의 `backend.env`에 두 환경변수를 등록하고, 저장된 값으로 새 연결과 실제 테이블 조회, `/actuator/health`의 `UP`을 확인했다. 파일 소유자와 그룹 `github-runner`, 권한 600을 유지했다. 기존 개발 앱 계정의 권한 축소는 Flyway 연결 코드 배포와 정상 동작 검증 이후에 진행한다.
+
+Flyway 연결 코드는 작업 브랜치에 준비했으나 서버 배포는 남아 있으며, 앱 재시작이나 마이그레이션 실행은 하지 않았다. IP와 비밀번호, 관리자 계정의 접근 범위는 공개 저장소에 기록하지 않는다.
+
+2026-10-27에 개발·운영의 테이블 구조를 V1과 읽기 전용으로 비교했다. 테이블 9개, 컬럼 58개,
+인덱스 23개, 외래키 10개와 제약조건 이름·적용 여부가 일치했다. 운영은 수집한 구조 메타데이터가
+모두 같고, 개발은 `media`의 CHECK 5개에 ASCII 리터럴 문자셋 표기 차이만 있었다.
+현재 컬럼 정의에서 제약조건의 판정 의미는 같으며 구조 수정은 하지 않았다.
+트리거·루틴·이벤트 등 권한상 확인하지 못한 범위와 비교 기준은
+[Flyway 구조 비교 결과](../flyway.md#41-기존-서버와-v1의-구조-비교-결과)에 기록했다.
 
 ### 인프라 ADR-04 모노레포 브랜치 전략
 
@@ -139,7 +191,7 @@ Superseded다. [인프라 ADR-05](adr-05-branch-strategy.md)가 대신한다.
 | 브랜치 여섯 종류 | 됨 |
 | main 진입 규칙 | 됨. `require-develop-for-main.yml`이 `be-release`와 `fe-release/*`만 허용한다 |
 | CI는 PR만, CD는 머지 뒤 | 됨(2026-09-29). `backend-ci.yml`의 push 트리거를 뗐다 |
-| `be-release` 승격 | 됨(2026-09-29). `Backend/scripts/resolve-source-commit.sh`가 판정한다. 2026-09-30과 2026-10-01(#266) 두 번 `promote`로 돌았다 |
+| `be-release` 승격 | 됨(2026-09-29). `Infra/scripts/resolve-source-commit.sh`가 판정한다. 2026-09-30과 2026-10-01(#266) 두 번 `promote`로 돌았다 |
 | 머지 방식 강제 | 됨(2026-09-29). ruleset `Backend Release Protection`의 `allowed_merge_methods`가 `["merge"]`다 |
 | `hotfix` 라벨 | 됨(2026-09-29) |
 | `be-release` 필수 체크 | 됨(2026-09-29). `Backend Verification`만 남았다. `Require branches to be up to date`는 2026-10-01에 껐다. 출시 PR의 head는 `be-dev`인데 base의 최신 커밋인 지난 출시의 merge 커밋을 `be-dev`가 포함할 수 없어, 두 번째 출시(#266)부터 최신 base 요구가 항상 막았다 |
@@ -150,7 +202,7 @@ Superseded다. [인프라 ADR-05](adr-05-branch-strategy.md)가 대신한다.
 
 ### 승격 판정
 
-`Backend/scripts/resolve-source-commit.sh`가 어떤 이미지를 배포할지 정해 `IMAGE_TAG`로 넘긴다.
+`Infra/scripts/resolve-source-commit.sh`가 어떤 이미지를 배포할지 정해 `IMAGE_TAG`로 넘긴다.
 
 | 조건 | 결과 |
 | --- | --- |
@@ -209,7 +261,7 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고 같은 날 
 | EC2 | `yeogidam-prod` | 2026-08 | t4g.micro, 운영 앱, EIP |
 | EC2 | `yeogidam-dev` | 2026-09-29 | t4g.micro, 개발 앱, EIP |
 | EC2 | `yeogidam-dev-db` | 2026-09-29 | t4g.micro, 개발 DB, 공인 IP 없음 |
-| EBS | 위 세 대의 루트 볼륨 | 인스턴스와 같이 | 8GB, 8GB, 15GB. 인스턴스와 별개 리소스라 볼륨에도 태그를 달았다(2026-10-02 확인) |
+| EBS | 위 세 대의 루트 볼륨 | 인스턴스와 같이 | 운영 20GB(2026-10-25에 8GB에서 늘렸다), 개발 8GB, 개발 DB 15GB. 인스턴스와 별개 리소스라 볼륨에도 태그를 달았다(2026-10-02 확인) |
 | EIP | 운영, 개발 각 1개 | 인스턴스와 같이 | 태그 있음(2026-10-02 확인) |
 | 키 페어 | 서버 접속용 | 인스턴스와 같이 | 태그 있음(2026-10-02 확인) |
 | RDS 인스턴스 | `yeogidam-prod-db` | 2026-10-02 | db.t4g.micro, gp3 20GB. 자동 백업과 스냅샷에 태그 복사 |
@@ -236,8 +288,8 @@ PR #226이 `be-dev`에 머지되어 `Backend CD`가 처음 돌았고 같은 날 
 4. **`permissions`가 대부분 워크플로 레벨이다.** publish 잡만 `contents: read`와 `pull-requests: read`로 좁혔고(2026-09-29) verify와 deploy 잡은 아직 워크플로 레벨을 따른다.
 5. **배포 이력이 서버 외부에 없다.** `GITHUB_STEP_SUMMARY`까지다.
 6. **env를 손으로 채웠다.** 서버가 날아가면 무슨 키가 있었는지 남지 않는다. 비비디는 env 전문을 GitHub 시크릿에 넣고 배포 때 서버에 떨어뜨린다.
-7. **DB 마이그레이션 도구가 없다.** 개발 DB(2026-09-29, `yeogidam-dev-db`의 Docker MySQL)와 운영 DB(2026-10-02, RDS `yeogidam-prod-db`)가 다 있고 스키마는 양쪽 다 `schema.sql`을 손으로 넣었다. 다음 스키마 변경부터는 바뀐 문장만 골라 두 DB에 손으로 적용해야 하고 `schema.sql`은 DROP TABLE로 시작해 운영에 다시 돌릴 수 없다. 컷오버 전에 Flyway를 넣는다.
-8. **운영 디스크가 빠듯하다.** 2026-09-29에 러너 옛 버전 448MB를 지워 여유가 2.3G에서 2.7G로 늘었다. 그래도 8GB 중 2GB를 `/swapfile`이 가져가 실제로 쓸 수 있는 것은 6GB다. `current`와 `previous`와 `candidate` 세 이미지를 보존하려면 1GB 가까이 필요하다. journal은 상한이 없어 운영 256MB, 개발 185MB까지 자랐다. `ec2-user`의 `~/.warp` 196MB도 지울 수 있는데 아직 안 지웠다.
+7. **Flyway 서버 적용이 남았다.** 개발 DB(2026-09-29, `yeogidam-dev-db`의 Docker MySQL)와 운영 DB(2026-10-02, RDS `yeogidam-prod-db`)의 테이블 구조 비교는 2026-10-27에 완료했다. 로컬 코드에서는 `schema.sql`을 삭제하고 `db/migration`의 버전 파일로 구조를 관리하도록 바꿨다. 이후 구조 변경은 새 버전 SQL로 작성한다. 전용 계정과 서버 환경변수 등록도 완료했으며, 백업을 준비하고 연결 코드를 개발 서버부터 배포해 baseline 1 기록과 전용 계정의 이력 작성, 기존 데이터 보존을 확인해야 한다. [Flyway 적용 구조](../flyway.md)를 따른다.
+8. **디스크가 다시 차지 않게 하는 장치가 없다.** 운영은 2026-10-24 18:26(KST)에 사용률이 85% 알람을 넘었다. 10-19 data migration 때 서버에 남긴 SQL 백업 8개가 79.7%를 82.9%로 올렸고, 10-24 러너 자동 업데이트(2.337.0에서 2.338.0)가 남긴 옛 버전이 83.5%를 89.1%로 올렸다. 2026-10-25에 journal을 100MB로 줄여 388MB를 비우고 dnf 캐시(169MB), 러너 옛 버전과 설치 파일(582MB), data migration 백업, `/opt/yeogidam/loadtest`(370MB)를 지워 사용률을 90%에서 68%로 낮췄다. 같은 날 루트 볼륨을 ADR-03의 값인 20GB로 늘리고 `growpart`와 `xfs_growfs`로 파티션과 파일 시스템까지 넓혀 사용률이 28%(20GB 중 5.5GB)로 내려갔다. 그래도 러너는 자동 업데이트 때마다 옛 버전을 남겨 2026-09-29와 10-25에 손으로 지웠는데 자동으로 지우는 장치가 없고, journal에는 상한(`SystemMaxUse`)이 없으며, 배포 작업이 저장소 전체를 받아 `_work`가 481MB를 쓴다(checkout을 `Infra/scripts`로 좁히면 줄어든다). 개발 앱 서버도 같은 날 대시보드 기준 83% 근처라 같은 정리가 필요하다.
 9. **린터와 커버리지가 없다.** Gradle에는 checkstyle도 spotless도 jacoco도 없고, checkstyle은 IDEA 설정에만 있다. CI가 `./gradlew build`라 `check`까지 도므로, 붙이기만 하면 PR 단계에서 걸린다.
 10. **CODEOWNERS와 dependabot이 없다.**
 11. **`project-public`에 8080이 `0.0.0.0/0`으로 열려 있다.** 공용 보안 그룹이라 우리가 닫을 수 없다. 2026-09-30에 `deploy.sh`의 바인드 주소를 `127.0.0.1` 상수로 박고 `backend-cd.yml`에서 `BACKEND_BIND_ADDRESS` 변수를 지웠다. 이전에는 repository variable 하나로 앱이 TLS 없이 인터넷에 노출될 수 있었는데, 이제 앱은 언제나 로컬에만 바인드하고 밖에서 들어오는 길은 nginx 443뿐이다. 8080이 열려 있다는 사실은 그대로라서, 서버에서 다른 프로세스가 8080을 `0.0.0.0`으로 열면 여전히 노출된다.
@@ -264,17 +316,17 @@ backend-common-cd.yml  on: workflow_call, 실제 일을 전부 여기서 한다
 
 **언제 할지.** 첫 배포가 성공한 뒤에 하기로 했고 2026-09-30에 성공했으므로 조건을 채웠다. 검증하지 않은 워크플로를 쪼개면 실패했을 때 원인이 원래 로직인지 쪼개며 생긴 것인지 가리기 어려웠는데, 이제는 쪼개기 전후로 개발 배포를 한 번씩 돌려 결과를 비교할 기준이 있고 `workflow_dispatch`(#267)로 코드 변경 없이 배포를 부를 수 있어 비교도 쉽다.
 
-`Backend/scripts/resolve-source-commit.sh`가 분기에 쓰는 `github.ref_name`이 재사용 워크플로 안에서 호출한 쪽 ref를 가리키는지 확인해야 한다.
+`Infra/scripts/resolve-source-commit.sh`가 분기에 쓰는 `github.ref_name`이 재사용 워크플로 안에서 호출한 쪽 ref를 가리키는지 확인해야 한다.
 
 ## 확인이 필요한 것
 
 ADR을 고치거나 새로 쓰려면 이유를 알아야 하는데 어디에도 기록이 없어 정콩에게 물어서 채운다.
 
 1. **왜 t4g.small이 아니라 t4g.micro로 만들었나.** 비용 때문이면 새 ADR로 남길 결정이고, 문서를 t4g.small로 적어 놓고 콘솔에서 micro를 고른 것이면 문서 오기다.
-2. **디스크를 왜 8GB로 했나.** ADR-03은 gp3 20GB로 적었다. 생성 화면 기본값을 그대로 둔 것인지 확인한다. 지금 운영이 72% 찬 상태라 이미지 세 개를 보존하기에 빠듯하다.
+2. **디스크를 왜 8GB로 했나.** ADR-03은 gp3 20GB로 적었다. 생성 화면 기본값을 그대로 둔 것인지 확인한다. 운영은 2026-10-25에 20GB로 늘려 ADR-03과 맞췄고(「안 한 것」 8번), 개발 앱 서버는 8GB 그대로다.
 3. **개발 서버를 언제 왜 만들었나.** ADR-03은 운영 인스턴스 한 대만 다루고, 개발 서버를 다룬 결정 기록은 어디에도 없다.
 4. **개발은 Docker MySQL, 운영은 RDS로 가른 이유가 무엇인가.** 2026-09-28에 정콩은 운영만 관리형으로 두어 백업과 시점 복원 부담을 덜고 개발은 비용 때문에 EC2에 얹기로 정했다. 둘 다 만들었으니(2026-09-29, 2026-10-02) 새 ADR에 이유를 적는다.
-5. **운영의 `/home`이 개발보다 1.25GB 큰 이유 중 절반이 아직 안 밝혀졌다.** 2026-09-29에 러너 옛 버전 디렉터리 448MB를 찾아 지웠고 `ec2-user`의 `~/.warp`가 196MB를 쓰는 것도 확인했지만 아직 안 지웠다. 둘을 합쳐 644MB라 나머지 600MB 남짓이 어디에 있는지 모른다. `sudo du -h --max-depth=2 /home | sort -rh | head -20`으로 끝내면 된다.
+5. **운영의 `/home`이 개발보다 1.25GB 큰 이유를 개발 서버와 비교해 끝내야 한다.** 2026-09-29에 러너 옛 버전 디렉터리 448MB를 찾아 지웠고 `ec2-user`의 `~/.warp`가 196MB를 쓰는 것도 확인했다. 2026-10-25에는 운영 러너 디렉터리에서 설치 때 받은 `actions-runner-linux-arm64-2.336.0.tar.gz` 133MB(지웠다)와 배포 작업이 받아 둔 저장소 `_work` 481MB를 더 찾았고, `/home/ec2-user`가 data migration 백업 폴더와 같은 327MB라 `~/.warp`는 이미 지워진 것으로 보인다. 넷을 더하면 1.26GB로 차이와 거의 같지만, 개발 서버에도 같은 설치 파일이나 `_work`가 있으면 차이를 설명하지 못한다. 개발 서버에서 `sudo du -h --max-depth=1 /home/github-runner/actions-runner`로 같은 자리를 재어 비교하면 끝난다.
 
 ### 답이 나온 것
 

@@ -21,7 +21,7 @@ class ShareHistoryProjectionsTest {
 
         // when
         List<ShareHistoryProjection> page = history.page();
-        ShareHistoryCursor nextCursor = history.nextCursor();
+        SharedMediaCursor nextCursor = history.nextCursor();
 
         // then
         ShareHistoryProjection fiftieth = page.getLast();
@@ -29,7 +29,7 @@ class ShareHistoryProjectionsTest {
                 () -> assertThat(page).hasSize(50),
                 () -> assertThat(page.getFirst().sharedMediaId()).isEqualTo(51L),
                 () -> assertThat(fiftieth.sharedMediaId()).isEqualTo(2L),
-                () -> assertThat(nextCursor).isEqualTo(new ShareHistoryCursor(fiftieth.createdAt(), 2L))
+                () -> assertThat(nextCursor).isEqualTo(new SharedMediaCursor(fiftieth.createdAt(), 2L))
         );
     }
 
@@ -60,6 +60,6 @@ class ShareHistoryProjectionsTest {
      * 페이지 규칙은 공유 ID와 공유 시각만 보므로 나머지 값은 비워 둔다.
      */
     private static ShareHistoryProjection share(long id) {
-        return new ShareHistoryProjection(id, BASE.plusSeconds(id), null, null, null, "SUCCEEDED", null, null);
+        return new ShareHistoryProjection(id, BASE.plusSeconds(id), null, null, null, "SUCCEEDED", null, null, false, null);
     }
 }

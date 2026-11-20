@@ -16,7 +16,7 @@ public final class PlaceFixture {
     public static Place place(Long id) {
         return new Place(
                 id,
-                new PlaceExternalSource("kakao-" + id, "https://place.map.kakao.com/" + id),
+                PlaceExternalSource.kakao("kakao-" + id, "https://place.map.kakao.com/" + id),
                 new PlaceProfile(
                         new PlaceName("경복궁"),
                         new Address("서울 종로구 세종로 1-1", "서울 종로구 사직로 161"),

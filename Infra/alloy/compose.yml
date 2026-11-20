@@ -1,0 +1,29 @@
+services:
+  alloy:
+    image: grafana/alloy:v1.21.3
+    container_name: yeogidam-alloy
+    restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m
+    env_file: /opt/yeogidam/alloy.env
+    command: [run, --storage.path=/var/lib/alloy/data, /etc/alloy/config.alloy]
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    networks:
+      observability:
+        aliases: [alloy]
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  observability:
+    external: true
+    name: yeogidam-observability
+
+volumes:
+  alloy-data:
+    name: yeogidam-alloy-data

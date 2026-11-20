@@ -17,25 +17,25 @@ class SharedMediaReportTest {
     private static final Long SHARED_MEDIA_ID = 101L;
     private static final Instant REPORTED_AT = Instant.parse("2026-10-06T01:00:00Z");
 
-    @Test
-    void 실패한_이력은_제보를_만들_수_있다() {
+    @ParameterizedTest
+    @EnumSource(value = ExtractionStatus.class, names = "EXTRACTING", mode = EnumSource.Mode.EXCLUDE)
+    void 분석_중이_아닌_이력은_제보를_만들_수_있다(ExtractionStatus status) {
         // when
-        SharedMediaReport report = new SharedMediaReport(SHARED_MEDIA_ID, ExtractionStatus.FAILED, REPORTED_AT);
+        SharedMediaReport report = new SharedMediaReport(SHARED_MEDIA_ID, status, REPORTED_AT);
 
         // then
         assertAll(
                 () -> assertThat(report.sharedMediaId()).isEqualTo(SHARED_MEDIA_ID),
-                () -> assertThat(report.extractionStatus()).isEqualTo(ExtractionStatus.FAILED),
+                () -> assertThat(report.extractionStatus()).isEqualTo(status),
                 () -> assertThat(report.createdAt()).isEqualTo(REPORTED_AT)
         );
     }
 
-    @ParameterizedTest
-    @EnumSource(value = ExtractionStatus.class, names = {"EXTRACTING", "SUCCEEDED"})
-    void 실패하지_않은_이력으로_제보를_만들면_예외가_발생한다(ExtractionStatus status) {
+    @Test
+    void 분석_중인_이력으로_제보를_만들면_예외가_발생한다() {
         // when & then
-        assertThatThrownBy(() -> new SharedMediaReport(SHARED_MEDIA_ID, status, REPORTED_AT))
+        assertThatThrownBy(() -> new SharedMediaReport(SHARED_MEDIA_ID, ExtractionStatus.EXTRACTING, REPORTED_AT))
                 .isInstanceOfSatisfying(MediaException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.REPORT_ON_NON_FAILED));
+                        assertThat(exception.getErrorCode()).isEqualTo(MediaErrorCode.REPORT_WHILE_EXTRACTING));
     }
 }

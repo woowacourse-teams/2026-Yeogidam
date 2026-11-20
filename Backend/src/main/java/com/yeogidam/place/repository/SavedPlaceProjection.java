@@ -1,10 +1,12 @@
 package com.yeogidam.place.repository;
 
+import com.yeogidam.place.domain.MapProvider;
+import com.yeogidam.place.domain.PlaceExternalSource;
 import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * 보관함 화면용 조회 상자. saved_places 한 행에 places 한 행을 붙인 모양이며 컬럼 이름을 그대로 따른다.
+ * 보관함 화면용 조회 상자. 저장한 장소 정보와 저장 시각을 담는다.
  */
 public record SavedPlaceProjection(
         Long savedPlaceId,
@@ -15,10 +17,17 @@ public record SavedPlaceProjection(
         String roadAddress,
         BigDecimal latitude,
         BigDecimal longitude,
+        String mapProvider,
+        String externalPlaceId,
+        String countryCode,
         String kakaoPlaceUrl,
         String telephone,
         String thumbnailKey,
         String thumbnailSource,
         Instant lastSavedAt
 ) {
+
+    public PlaceExternalSource externalSource() {
+        return new PlaceExternalSource(MapProvider.valueOf(mapProvider), externalPlaceId, kakaoPlaceUrl);
+    }
 }

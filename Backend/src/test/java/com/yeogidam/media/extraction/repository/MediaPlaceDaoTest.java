@@ -5,8 +5,11 @@ import static com.yeogidam.support.fixture.sql.MediaSqlFixture.insertMedia;
 import static com.yeogidam.support.fixture.sql.MemberSqlFixture.insertKakaoMember;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlace;
 import static com.yeogidam.support.fixture.sql.PlaceSqlFixture.insertPlaceWithRequiredColumnsOnly;
+import static com.yeogidam.support.fixture.sql.SavedPlaceSqlFixture.insertSavedPlace;
+import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertDeletedSharedMedia;
 import static com.yeogidam.support.fixture.sql.SharedMediaSqlFixture.insertSharedMedia;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.yeogidam.support.JdbcTestSupport;
@@ -15,10 +18,8 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@Import(MediaPlaceDao.class)
 class MediaPlaceDaoTest extends JdbcTestSupport {
 
     @Autowired
@@ -115,7 +116,7 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
         insertMediaPlace(jdbcTemplate, 5L, 2L, 1L);
 
         // when
-        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(100L);
+        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(1L, 100L);
 
         // then
         assertThat(places).extracting(MediaPlaceProjection::placeId).containsExactly(2L, 1L);
@@ -132,9 +133,81 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
         assertAll(
                 () -> assertThat(mediaPlaceDao.findPlaceIds(1L)).isEmpty(),
                 () -> assertThat(mediaPlaceDao.findPlaceIds(999L)).isEmpty(),
-                () -> assertThat(mediaPlaceDao.findBySharedMediaId(100L)).isEmpty(),
-                () -> assertThat(mediaPlaceDao.findBySharedMediaId(999L)).isEmpty()
+                () -> assertThat(mediaPlaceDao.findBySharedMediaId(1L, 100L)).isEmpty(),
+                () -> assertThat(mediaPlaceDao.findBySharedMediaId(1L, 999L)).isEmpty()
         );
+    }
+
+    @Test
+    void 히스토리_장소_목록은_내_보관함에_있는_장소에_보관함_항목_ID를_붙이고_없는_장소는_null로_읽는다() {
+        // given: 게시물 1에서 장소 1, 2가 나왔고, 회원 1은 장소 1만 보관함에 두었다.
+        insertHistoryShareWithTwoPlaces();
+        insertSavedPlace(jdbcTemplate, 101L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+
+        // when
+        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(1L, 100L);
+
+        // then
+        assertThat(places)
+                .extracting(MediaPlaceProjection::placeId, MediaPlaceProjection::savedPlaceId)
+                .containsExactly(tuple(1L, 101L), tuple(2L, null));
+    }
+
+    @Test
+    void 히스토리_장소_목록에는_다른_회원이_저장한_장소의_보관함_항목_ID가_붙지_않는다() {
+        // given: 게시물 1에서 장소 1, 2가 나왔고, 회원 1은 보관함에 둔 장소가 없으며 회원 2만 장소 2를 보관함에 두었다.
+        insertHistoryShareWithTwoPlaces();
+        insertKakaoMember(jdbcTemplate, 2L, "history-place-other", null, null, null);
+        insertSavedPlace(jdbcTemplate, 202L, 2L, 2L, Instant.parse("2026-11-01T10:00:00Z"));
+
+        // when
+        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(1L, 100L);
+
+        // then
+        assertThat(places)
+                .extracting(MediaPlaceProjection::placeId, MediaPlaceProjection::savedPlaceId)
+                .containsExactly(tuple(1L, null), tuple(2L, null));
+    }
+
+    @Test
+    void 히스토리_장소_목록은_좌표와_카카오_링크와_전화번호까지_빠짐없이_읽는다() {
+        // given: 게시물 1에서 장소 1, 2가 나왔고, 장소 2는 비어 있을 수 있는 정보가 모두 비어 있다.
+        insertHistoryShareWithTwoPlaces();
+
+        // when
+        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(1L, 100L);
+
+        // then
+        assertThat(places).containsExactly(
+                new MediaPlaceProjection(1L, null, "cafe.jpg", "성수 카페", "카페",
+                        "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",
+                        new BigDecimal("37.5446000000"), new BigDecimal("127.0559000000"),
+                        "KAKAO", "media-place-cafe", "KR", "https://place.map.kakao.com/1", "02-1234-5678"),
+                new MediaPlaceProjection(2L, null, null, "종로 식당", null,
+                        "서울 종로구 관철동 1-1", null,
+                        new BigDecimal("37.5704000000"), new BigDecimal("126.9921000000"),
+                        "KAKAO", "media-place-restaurant", "KR", null, null)
+        );
+    }
+
+    @Test
+    void 지운_공유도_히스토리_장소_목록을_그대로_읽는다() {
+        // given: 회원 1이 장소 1, 2가 나온 게시물 1을 공유 100으로 공유한 뒤 보관함에서 지웠다.
+        insertKakaoMember(jdbcTemplate, 1L, "history-place-deleted-owner", null, null, null);
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertPlaces();
+        insertMediaPlace(jdbcTemplate, 11L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 12L, 1L, 2L);
+        insertDeletedSharedMedia(jdbcTemplate, 100L, 1L, 1L,
+                Instant.parse("2026-11-01T10:00:00Z"), Instant.parse("2026-11-02T10:00:00Z"));
+
+        // when
+        List<MediaPlaceProjection> places = mediaPlaceDao.findBySharedMediaId(1L, 100L);
+
+        // then
+        assertThat(places)
+                .extracting(MediaPlaceProjection::placeId)
+                .containsExactly(1L, 2L);
     }
 
     @Test
@@ -151,21 +224,96 @@ class MediaPlaceDaoTest extends JdbcTestSupport {
         // when & then
         assertAll(
                 () -> assertThat(mediaPlaceDao.findExtractedPlaces(1L).places()).containsExactly(
-                        new ExtractedPlaceProjection(2L, "media-place-restaurant"),
-                        new ExtractedPlaceProjection(1L, "media-place-cafe")
+                        new ExtractedPlaceProjection(2L, "KAKAO", "media-place-restaurant"),
+                        new ExtractedPlaceProjection(1L, "KAKAO", "media-place-cafe")
                 ),
                 () -> assertThat(mediaPlaceDao.findExtractedPlaces(2L).places()).containsExactly(
-                        new ExtractedPlaceProjection(1L, "media-place-cafe")
+                        new ExtractedPlaceProjection(1L, "KAKAO", "media-place-cafe")
                 ),
                 () -> assertThat(mediaPlaceDao.findExtractedPlaces(3L).places()).isEmpty()
         );
     }
 
+    @Test
+    void 고른_게시물들의_장소만_추출_순서대로_게시물별로_읽는다() {
+        // given: 게시물 1에서는 장소 2, 1 순서로 추출됐고, 게시물 2에서는 장소 1이 나왔으며, 게시물 3은 고르지 않는다.
+        insertKakaoMember(jdbcTemplate, 1L, "saved-media-place-order", null, null, null);
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertMedia(jdbcTemplate, 2L, null, null, null);
+        insertMedia(jdbcTemplate, 3L, null, null, null);
+        insertPlaces();
+        insertMediaPlace(jdbcTemplate, 11L, 1L, 2L);
+        insertMediaPlace(jdbcTemplate, 12L, 2L, 1L);
+        insertMediaPlace(jdbcTemplate, 13L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 14L, 3L, 2L);
+
+        // when
+        SavedMediaPlaceProjections places = mediaPlaceDao.findSavedMediaPlaces(1L, List.of(1L, 2L));
+
+        // then
+        assertAll(
+                () -> assertThat(places.placesOf(1L))
+                        .extracting(SavedMediaPlaceProjection::placeId)
+                        .containsExactly(2L, 1L),
+                () -> assertThat(places.placesOf(2L))
+                        .extracting(SavedMediaPlaceProjection::placeId)
+                        .containsExactly(1L),
+                () -> assertThat(places.placesOf(3L)).isEmpty()
+        );
+    }
+
+    @Test
+    void 장소_정보를_좌표와_카카오_링크와_전화번호까지_빠짐없이_읽고_내_보관함_항목_ID만_붙인다() {
+        // given: 게시물 1에서 장소 1, 2가 나왔고, 회원 1은 장소 1을, 회원 2는 장소 2를 보관함에 두었다.
+        insertKakaoMember(jdbcTemplate, 1L, "saved-media-place-owner", null, null, null);
+        insertKakaoMember(jdbcTemplate, 2L, "saved-media-place-other", null, null, null);
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertPlaces();
+        insertMediaPlace(jdbcTemplate, 11L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 12L, 1L, 2L);
+        insertSavedPlace(jdbcTemplate, 101L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
+        insertSavedPlace(jdbcTemplate, 202L, 2L, 2L, Instant.parse("2026-11-01T10:00:00Z"));
+
+        // when
+        List<SavedMediaPlaceProjection> places = mediaPlaceDao.findSavedMediaPlaces(1L, List.of(1L)).placesOf(1L);
+
+        // then
+        assertThat(places).containsExactly(
+                new SavedMediaPlaceProjection(1L, 1L, 101L, "cafe.jpg", "성수 카페", "카페",
+                        "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",
+                        new BigDecimal("37.5446000000"), new BigDecimal("127.0559000000"),
+                        "KAKAO", "media-place-cafe", "KR", "https://place.map.kakao.com/1", "02-1234-5678"),
+                new SavedMediaPlaceProjection(1L, 2L, null, null, "종로 식당", null,
+                        "서울 종로구 관철동 1-1", null,
+                        new BigDecimal("37.5704000000"), new BigDecimal("126.9921000000"),
+                        "KAKAO", "media-place-restaurant", "KR", null, null)
+        );
+    }
+
+    @Test
+    void 고른_게시물이_없으면_조회하지_않고_빈_묶음을_돌려준다() {
+        // when & then
+        assertThat(mediaPlaceDao.findSavedMediaPlaces(1L, List.of()).placesOf(1L)).isEmpty();
+    }
+
     private void insertPlaces() {
         insertPlace(jdbcTemplate, 1L, "media-place-cafe", "성수 카페", "카페",
                 "서울 성동구 성수동2가 1-1", "서울 성동구 연무장길 1",
-                new BigDecimal("37.5446"), new BigDecimal("127.0559"), null, null, "cafe.jpg", "KAKAO");
+                new BigDecimal("37.5446"), new BigDecimal("127.0559"), "https://place.map.kakao.com/1", "02-1234-5678",
+                "cafe.jpg", "KAKAO");
         insertPlaceWithRequiredColumnsOnly(jdbcTemplate, 2L, "media-place-restaurant", "종로 식당",
                 "서울 종로구 관철동 1-1", new BigDecimal("37.5704"), new BigDecimal("126.9921"));
+    }
+
+    /**
+     * 회원 1이 장소 1, 2가 차례로 나온 게시물 1을 공유 100으로 공유한 상태를 만든다.
+     */
+    private void insertHistoryShareWithTwoPlaces() {
+        insertKakaoMember(jdbcTemplate, 1L, "history-place-owner", null, null, null);
+        insertMedia(jdbcTemplate, 1L, null, null, null);
+        insertPlaces();
+        insertMediaPlace(jdbcTemplate, 11L, 1L, 1L);
+        insertMediaPlace(jdbcTemplate, 12L, 1L, 2L);
+        insertSharedMedia(jdbcTemplate, 100L, 1L, 1L, Instant.parse("2026-11-01T10:00:00Z"));
     }
 }
