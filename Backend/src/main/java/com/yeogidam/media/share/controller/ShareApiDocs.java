@@ -166,7 +166,7 @@ public interface ShareApiDocs {
                                              @ExampleObject(name = "MEDIA400_016",
                                                      description = "현재 분석 버전에서 재시도할 수 없는 실패 사유이거나 시드 데이터로 넣은 게시물일 때 돌려줍니다.",
                                                      value = """
-                                                             {"message": "현재 분석 버전에서는 재시도가 불가능합니다.", "errorCode": "MEDIA400_016"}
+                                                             {"message": "다시 분석해도 같은 결과가 나와서 다시 시도할 수 없습니다.", "errorCode": "MEDIA400_016"}
                                                              """)
                                     })),
                     @ApiResponse(responseCode = "401", description = "토큰이 없거나 유효하지 않습니다.",
