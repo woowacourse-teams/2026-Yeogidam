@@ -67,6 +67,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
+          # 기본값은 main에서만 캐시를 저장하는데 백엔드 워크플로는 main에서 돌지 않는다.
+          # be-dev, be-release의 push와 dispatch만 저장하고 PR은 대상 브랜치의 캐시를 읽기만 한다.
+          # PR에서 저장한 캐시는 그 PR만 읽을 수 있어 저장소 캐시 한도(10GB)만 채운다.
+          cache-read-only: ${{ !contains(fromJSON('["refs/heads/be-dev", "refs/heads/be-release"]'), github.ref) }}
 
       - name: Verify Backend
         run: ./gradlew check --no-daemon
