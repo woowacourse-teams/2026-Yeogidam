@@ -106,4 +106,79 @@ describe('PlaceInfo', () => {
       renderer!.unmount();
     });
   });
+
+  test('opens the Google Maps link for a Google place', async () => {
+    jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    const googleUrl =
+      'https://www.google.com/maps/search/?api=1&query=Ichiran&query_place_id=ChIJ123';
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <CopyToastProvider>
+          <PlaceInfo
+            place={{
+              ...place,
+              name: 'Ichiran',
+              mapProvider: 'GOOGLE',
+              countryCode: 'JP',
+              placeUrl: googleUrl,
+            }}
+            viewContext={viewContext}
+          />
+        </CopyToastProvider>,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.root
+        .findByProps({ accessibilityLabel: 'Ichiran 구글맵 열기' })
+        .props.onPress();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(Linking.openURL).toHaveBeenCalledWith(googleUrl);
+    expect(Linking.openURL).not.toHaveBeenCalledWith(
+      expect.stringContaining('kakaomap://'),
+    );
+    expect(mockCapture).toHaveBeenCalledWith(
+      'place_map_viewed',
+      expect.objectContaining({ map_provider: 'google' }),
+    );
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.unmount();
+    });
+  });
+
+  test('falls back to a coordinate search when a Google place has no link', async () => {
+    jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <CopyToastProvider>
+          <PlaceInfo
+            place={{ ...place, mapProvider: 'GOOGLE', placeUrl: undefined }}
+          />
+        </CopyToastProvider>,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.root
+        .findByProps({ accessibilityLabel: '테스트 카페 구글맵 열기' })
+        .props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(Linking.openURL).toHaveBeenCalledWith(
+      'https://www.google.com/maps/search/?api=1&query=37.5448%2C127.0557',
+    );
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.unmount();
+    });
+  });
 });

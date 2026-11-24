@@ -9,7 +9,6 @@ import App from './App';
 import { name as appName } from './app.json';
 import { PostHogRoot } from './src/app/PostHogRoot';
 import { DismissKeyboardOnOutsideTap } from './src/components/DismissKeyboardOnOutsideTap';
-import { withHotUpdater } from './src/lib/hot-updater';
 
 function Root() {
   return (
@@ -21,4 +20,4 @@ function Root() {
   );
 }
 
-AppRegistry.registerComponent(appName, () => withHotUpdater(Root));
+AppRegistry.registerComponent(appName, () => Root);

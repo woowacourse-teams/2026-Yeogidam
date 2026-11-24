@@ -24,4 +24,8 @@ const config = {
   },
 };
 
-module.exports = withSentryConfig(mergeConfig(defaultConfig, config));
+module.exports = withSentryConfig(mergeConfig(defaultConfig, config), {
+  // 웹 전용 세션 리플레이·피드백 위젯은 앱에서 쓰지 않으므로 번들에서 뺀다. (약 180KB)
+  includeWebReplay: false,
+  includeWebFeedback: false,
+});
